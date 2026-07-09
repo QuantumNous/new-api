@@ -167,6 +167,29 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 					logger.LogInfo(c, fmt.Sprintf("realtime streaming localUsage: %v", localUsage))
 					logger.LogInfo(c, fmt.Sprintf("realtime streaming localUsage: %v", localUsage))
 
+				} else if realtimeEvent.Type == dto.RealtimeEventInputAudioTranscriptionCompleted && realtimeEvent.Usage != nil && realtimeEvent.Usage.TotalTokens > 0 {
+					// GA 转写会话没有 response.done,转写模型的官方 usage 附在 completed 事件上,与 response.done 同等计费;
+					// whisper 系按时长返回(token 全 0)时不走此分支,仍用本地估算兜底
+					usage.TotalTokens += realtimeEvent.Usage.TotalTokens
+					usage.InputTokens += realtimeEvent.Usage.InputTokens
+					usage.OutputTokens += realtimeEvent.Usage.OutputTokens
+					usage.InputTokenDetails.AudioTokens += realtimeEvent.Usage.InputTokenDetails.AudioTokens
+					usage.InputTokenDetails.CachedTokens += realtimeEvent.Usage.InputTokenDetails.CachedTokens
+					usage.InputTokenDetails.TextTokens += realtimeEvent.Usage.InputTokenDetails.TextTokens
+					usage.OutputTokenDetails.AudioTokens += realtimeEvent.Usage.OutputTokenDetails.AudioTokens
+					// GA 转写 usage 不带 output_token_details,而计费公式只认明细字段,明细缺失时输出全按文本补记
+					outTextTokens := realtimeEvent.Usage.OutputTokenDetails.TextTokens
+					if outTextTokens == 0 && realtimeEvent.Usage.OutputTokenDetails.AudioTokens == 0 {
+						outTextTokens = realtimeEvent.Usage.OutputTokens
+					}
+					usage.OutputTokenDetails.TextTokens += outTextTokens
+					if err := preConsumeUsage(c, info, usage, sumUsage); err != nil {
+						errChan <- fmt.Errorf("error consume usage: %v", err)
+						return
+					}
+					// 官方 usage 已入账,清掉本句攒下的本地估算,避免重复
+					usage = &dto.RealtimeUsage{}
+					localUsage = &dto.RealtimeUsage{}
 				} else if realtimeEvent.Type == dto.RealtimeEventTypeSessionUpdated || realtimeEvent.Type == dto.RealtimeEventTypeSessionCreated {
 					realtimeSession := realtimeEvent.Session
 					if realtimeSession != nil {
