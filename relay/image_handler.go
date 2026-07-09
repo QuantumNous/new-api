@@ -106,7 +106,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 
+	originalWriter := c.Writer
+	responseCapture := &imageResponseCaptureWriter{ResponseWriter: originalWriter}
+	c.Writer = responseCapture
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
+	c.Writer = originalWriter
 	if newAPIError != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
@@ -150,6 +154,26 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		logContent = append(logContent, fmt.Sprintf("生成数量 %d", imageN))
 	}
 
-	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
+	summary := service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
+	service.SaveImageGenerationResponse(c, info, request, responseCapture.Bytes(), summary.Quota)
 	return nil
+}
+
+type imageResponseCaptureWriter struct {
+	gin.ResponseWriter
+	body bytes.Buffer
+}
+
+func (w *imageResponseCaptureWriter) Write(data []byte) (int, error) {
+	w.body.Write(data)
+	return w.ResponseWriter.Write(data)
+}
+
+func (w *imageResponseCaptureWriter) WriteString(data string) (int, error) {
+	w.body.WriteString(data)
+	return w.ResponseWriter.WriteString(data)
+}
+
+func (w *imageResponseCaptureWriter) Bytes() []byte {
+	return w.body.Bytes()
 }

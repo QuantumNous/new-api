@@ -274,6 +274,12 @@ function renderStatus(type, t) {
           {t('失败')}
         </Tag>
       );
+    case 'EXPIRED':
+      return (
+        <Tag color='grey' shape='circle' prefixIcon={<Clock size={14} />}>
+          {t('已过期')}
+        </Tag>
+      );
     case 'MODAL':
       return (
         <Tag

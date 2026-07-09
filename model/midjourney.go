@@ -1,11 +1,8 @@
 package model
 
 import (
-	"fmt"
 	"sort"
 	"strconv"
-
-	"gorm.io/gorm"
 )
 
 type Midjourney struct {
@@ -231,7 +228,7 @@ func GetAllDrawingLogs(startIdx int, num int, queryParams TaskQueryParams) []*Mi
 	limit := startIdx + num
 	items := append(
 		GetAllTasks(0, limit, queryParams),
-		GetAllImageGenerationLogTasks(0, limit, queryParams, nil)...,
+		GetAllImageGenerationTasks(0, limit, queryParams, nil)...,
 	)
 	return paginateDrawingLogs(items, startIdx, num)
 }
@@ -240,90 +237,17 @@ func GetAllUserDrawingLogs(userId int, startIdx int, num int, queryParams TaskQu
 	limit := startIdx + num
 	items := append(
 		GetAllUserTask(userId, 0, limit, queryParams),
-		GetAllImageGenerationLogTasks(0, limit, queryParams, &userId)...,
+		GetAllImageGenerationTasks(0, limit, queryParams, &userId)...,
 	)
 	return paginateDrawingLogs(items, startIdx, num)
 }
 
 func CountAllDrawingLogs(queryParams TaskQueryParams) int64 {
-	return CountAllTasks(queryParams) + CountAllImageGenerationLogTasks(queryParams, nil)
+	return CountAllTasks(queryParams) + CountAllImageGenerationTasks(queryParams, nil)
 }
 
 func CountAllUserDrawingLogs(userId int, queryParams TaskQueryParams) int64 {
-	return CountAllUserTask(userId, queryParams) + CountAllImageGenerationLogTasks(queryParams, &userId)
-}
-
-func GetAllImageGenerationLogTasks(startIdx int, num int, queryParams TaskQueryParams, userId *int) []*Midjourney {
-	var logs []*Log
-	tx := imageGenerationLogTaskQuery(queryParams, userId)
-	err := tx.Order("logs.created_at desc, logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
-	if err != nil {
-		return nil
-	}
-
-	items := make([]*Midjourney, 0, len(logs))
-	for _, log := range logs {
-		items = append(items, imageGenerationLogToMidjourney(log))
-	}
-	return items
-}
-
-func CountAllImageGenerationLogTasks(queryParams TaskQueryParams, userId *int) int64 {
-	var total int64
-	_ = imageGenerationLogTaskQuery(queryParams, userId).Count(&total).Error
-	return total
-}
-
-func imageGenerationLogTaskQuery(queryParams TaskQueryParams, userId *int) *gorm.DB {
-	tx := LOG_DB.Model(&Log{}).Where("logs.type = ?", LogTypeConsume).
-		Where("logs.other LIKE ?", "%\"request_path\":\"/v1/images/generations\"%")
-
-	if userId != nil {
-		tx = tx.Where("logs.user_id = ?", *userId)
-	}
-	if queryParams.ChannelID != "" {
-		tx = tx.Where("logs.channel_id = ?", queryParams.ChannelID)
-	}
-	if queryParams.MjID != "" {
-		tx = tx.Where("logs.request_id = ?", queryParams.MjID)
-	}
-	if startTimestamp := taskTimestampMillisToSeconds(queryParams.StartTimestamp); startTimestamp > 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp := taskTimestampMillisToSeconds(queryParams.EndTimestamp); endTimestamp > 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-
-	return tx
-}
-
-func imageGenerationLogToMidjourney(log *Log) *Midjourney {
-	mjId := log.RequestId
-	if mjId == "" {
-		mjId = fmt.Sprintf("image_log_%d", log.Id)
-	}
-
-	finishTime := log.CreatedAt * 1000
-	if log.UseTime > 0 {
-		finishTime = (log.CreatedAt + int64(log.UseTime)) * 1000
-	}
-
-	return &Midjourney{
-		Id:         -log.Id,
-		Code:       1,
-		UserId:     log.UserId,
-		Action:     "IMAGE_GENERATION",
-		MjId:       mjId,
-		Prompt:     log.Content,
-		PromptEn:   log.ModelName,
-		SubmitTime: log.CreatedAt * 1000,
-		StartTime:  log.CreatedAt * 1000,
-		FinishTime: finishTime,
-		Status:     "SUCCESS",
-		Progress:   "100%",
-		ChannelId:  log.ChannelId,
-		Quota:      log.Quota,
-	}
+	return CountAllUserTask(userId, queryParams) + CountAllImageGenerationTasks(queryParams, &userId)
 }
 
 func paginateDrawingLogs(items []*Midjourney, startIdx int, num int) []*Midjourney {

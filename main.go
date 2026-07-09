@@ -112,6 +112,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// Local image generation result retention cleanup.
+	service.StartImageGenerationCleanupTask()
+
 	// Optional AistarsLab video model/price sync task.
 	service.StartAistarsLabConfigSyncTask()
 

@@ -43,6 +43,7 @@ func TestMain(m *testing.M) {
 		&model.Token{},
 		&model.Log{},
 		&model.Channel{},
+		&model.ImageGeneration{},
 		&model.TopUp{},
 		&model.UserSubscription{},
 	); err != nil {
