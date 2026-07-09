@@ -44,6 +44,24 @@ type catalogExportChannel struct {
 	LastDetectedAt             *int64   `json:"last_detected_at"`
 	LastDetectResult           string   `json:"last_detect_result"`
 	ConsecutiveFingerprintPass int      `json:"consecutive_fingerprint_pass"`
+	// 运营/运行字段（副本完整展示需要）
+	OpenAIOrganization *string           `json:"openai_organization"`
+	TestModel          *string           `json:"test_model"`
+	Weight             *uint             `json:"weight"`
+	CreatedTime        int64             `json:"created_time"`
+	TestTime           int64             `json:"test_time"`
+	ResponseTime       int               `json:"response_time"`
+	Other              string            `json:"other"`
+	Balance            float64           `json:"balance"`
+	BalanceUpdatedTime int64             `json:"balance_updated_time"`
+	UsedQuota          int64             `json:"used_quota"`
+	StatusCodeMapping  *string           `json:"status_code_mapping"`
+	Priority           *int64            `json:"priority"`
+	AutoBan            *int              `json:"auto_ban"`
+	OtherInfo          string            `json:"other_info"`
+	ParamOverride      *string           `json:"param_override"`
+	HeaderOverride     *string           `json:"header_override"`
+	ChannelInfo        model.ChannelInfo `json:"channel_info"`
 }
 
 type catalogExportVendor struct {
@@ -133,6 +151,23 @@ func CatalogExport(c *gin.Context) {
 			LastDetectedAt:             ch.LastDetectedAt,
 			LastDetectResult:           ch.LastDetectResult,
 			ConsecutiveFingerprintPass: ch.ConsecutiveFingerprintPass,
+			OpenAIOrganization:         ch.OpenAIOrganization,
+			TestModel:                  ch.TestModel,
+			Weight:                     ch.Weight,
+			CreatedTime:                ch.CreatedTime,
+			TestTime:                   ch.TestTime,
+			ResponseTime:               ch.ResponseTime,
+			Other:                      ch.Other,
+			Balance:                    ch.Balance,
+			BalanceUpdatedTime:         ch.BalanceUpdatedTime,
+			UsedQuota:                  ch.UsedQuota,
+			StatusCodeMapping:          ch.StatusCodeMapping,
+			Priority:                   ch.Priority,
+			AutoBan:                    ch.AutoBan,
+			OtherInfo:                  ch.OtherInfo,
+			ParamOverride:              ch.ParamOverride,
+			HeaderOverride:             ch.HeaderOverride,
+			ChannelInfo:                ch.ChannelInfo,
 		})
 	}
 
