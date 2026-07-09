@@ -160,8 +160,12 @@ func imageGenerationPrompt(record *ImageGeneration) string {
 	if record.Size != "" {
 		parts = append(parts, "大小 "+record.Size)
 	}
-	if record.Quality != "" {
-		parts = append(parts, "品质 "+record.Quality)
+	quality := record.Quality
+	if quality == "" {
+		quality = "standard"
+	}
+	if quality != "" {
+		parts = append(parts, "品质 "+quality)
 	}
 	parts = append(parts, "生成数量 1")
 	if record.Prompt != "" {

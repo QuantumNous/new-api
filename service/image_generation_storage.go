@@ -97,6 +97,10 @@ func SaveImageGenerationResponse(c *gin.Context, info *relaycommon.RelayInfo, re
 		if index == len(imageResponse.Data)-1 {
 			recordQuota = quota - perImageQuota*(len(imageResponse.Data)-1)
 		}
+		quality := request.Quality
+		if quality == "" {
+			quality = "standard"
+		}
 		record := &model.ImageGeneration{
 			UserId:     info.UserId,
 			TokenId:    info.TokenId,
@@ -106,7 +110,7 @@ func SaveImageGenerationResponse(c *gin.Context, info *relaycommon.RelayInfo, re
 			ModelName:  info.OriginModelName,
 			Prompt:     request.Prompt,
 			Size:       request.Size,
-			Quality:    request.Quality,
+			Quality:    quality,
 			Quota:      recordQuota,
 			FilePath:   relativePath,
 			MimeType:   mimeType,
