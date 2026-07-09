@@ -107,12 +107,6 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			info.ChannelBaseUrl = baseUrl
 		}
 	}
-	// OpenRouter's image generation endpoint is POST {base}/v1/images
-	// (https://openrouter.ai/docs/features/multimodal/image-generation-api),
-	// not the OpenAI-style /v1/images/generations.
-	if info.ChannelType == constant.ChannelTypeOpenRouter && info.RelayMode == relayconstant.RelayModeImagesGenerations {
-		return fmt.Sprintf("%s/v1/images", info.ChannelBaseUrl), nil
-	}
 	switch info.ChannelType {
 	case constant.ChannelTypeAzure:
 		apiVersion := info.ApiVersion
@@ -169,6 +163,14 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		url := info.ChannelBaseUrl
 		url = strings.Replace(url, "{model}", info.UpstreamModelName, -1)
 		return url, nil
+	case constant.ChannelTypeOpenRouter:
+		// OpenRouter's image generation endpoint is POST {base}/v1/images
+		// (https://openrouter.ai/docs/features/multimodal/image-generation-api),
+		// not the OpenAI-style /v1/images/generations.
+		if info.RelayMode == relayconstant.RelayModeImagesGenerations {
+			return fmt.Sprintf("%s/v1/images", info.ChannelBaseUrl), nil
+		}
+		fallthrough
 	default:
 		if (info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini) &&
 			info.RelayMode != relayconstant.RelayModeResponses &&
