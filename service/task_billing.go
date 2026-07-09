@@ -44,6 +44,19 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	other["is_task"] = true
 	other["request_path"] = c.Request.URL.Path
 	other["model_price"] = info.PriceData.ModelPrice
+	if info.PriceData.VideoSecondsUnitPrice > 0 {
+		other["billing_mode"] = "video_seconds"
+		other["video_seconds_unit_price"] = info.PriceData.VideoSecondsUnitPrice
+	}
+	if info.PriceData.VideoSecondsTier != "" {
+		other["video_seconds_tier"] = info.PriceData.VideoSecondsTier
+	}
+	if info.PriceData.VideoDurationSeconds > 0 {
+		other["video_duration_seconds"] = info.PriceData.VideoDurationSeconds
+	}
+	if info.PriceData.VideoAudioEnabled != nil {
+		other["video_audio_enabled"] = *info.PriceData.VideoAudioEnabled
+	}
 	if info.PriceData.ModelRatio > 0 {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}

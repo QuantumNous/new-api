@@ -20,6 +20,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildTaskBillingSummaryLines,
+  buildVideoSecondsBillingProcessLines,
   localizeTaskLogLine,
 } from './taskBillingSummary.js';
 
@@ -80,4 +81,49 @@ test('buildTaskBillingSummaryLines falls back to English settlement text', () =>
   });
 
   assert.deepEqual(lines, ['Async task settlement']);
+});
+
+test('buildTaskBillingSummaryLines includes video seconds details', () => {
+  const t = createTranslator();
+
+  const lines = buildTaskBillingSummaryLines({
+    other: {
+      is_task: true,
+      billing_mode: 'video_seconds',
+      video_seconds_tier: '720p',
+      video_audio_enabled: false,
+      video_duration_seconds: 5,
+      video_seconds_unit_price: 0.6,
+    },
+    content: 'Action textGenerate',
+    t,
+    formatPrice: (value) => `$${value.toFixed(2)}`,
+  });
+
+  assert.deepEqual(lines, [
+    'Resolution 720p',
+    'Audio silent',
+    'Duration 5s',
+    'Unit Price $0.60 / second',
+    'Action textGenerate',
+  ]);
+});
+
+test('buildVideoSecondsBillingProcessLines renders seconds pricing formula', () => {
+  const lines = buildVideoSecondsBillingProcessLines({
+    other: {
+      billing_mode: 'video_seconds',
+      group_ratio: 1,
+      video_seconds_tier: '1080p',
+      video_audio_enabled: true,
+      video_duration_seconds: 5,
+      video_seconds_unit_price: 1.2,
+    },
+    formatPrice: (value) => `$${value.toFixed(6)}`,
+  });
+
+  assert.deepEqual(lines, [
+    'Video Rate $1.200000 / second',
+    '1080P / audio / 5s * Group ratio 1 = $6.000000',
+  ]);
 });

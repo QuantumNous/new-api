@@ -33,43 +33,30 @@ func resolveVideoBillingDuration(req relaycommon.TaskSubmitReq) int {
 	return 5
 }
 
-func convertAliHappyHorseVideoBillingParams(req relaycommon.TaskSubmitReq) (*types.VideoBillingParams, error) {
-	tier := "1080p"
-	audioEnabled := true
-	if req.Metadata != nil {
-		if resolution, ok := req.Metadata["resolution"].(string); ok {
-			switch strings.ToUpper(strings.TrimSpace(resolution)) {
-			case "720P":
-				tier = "720p"
-			case "1080P":
-				tier = "1080p"
-			}
-		}
-		if audio, ok := req.Metadata["audio"].(bool); ok {
-			audioEnabled = audio
-		}
+func resolveMetadataString(metadata map[string]interface{}, key string) (string, bool) {
+	if metadata == nil {
+		return "", false
 	}
-	return &types.VideoBillingParams{
-		Tier:            tier,
-		DurationSeconds: resolveVideoBillingDuration(req),
-		AudioEnabled:    audioEnabled,
-	}, nil
+	value, ok := metadata[key]
+	if !ok {
+		return "", false
+	}
+	str, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	str = strings.TrimSpace(str)
+	return str, str != ""
 }
 
-func convertAliKlingVideoBillingParams(req relaycommon.TaskSubmitReq) (*types.VideoBillingParams, error) {
-	tier := "1080p"
-	audioEnabled := true
-	if req.Metadata != nil {
-		if mode, ok := req.Metadata["mode"].(string); ok && strings.EqualFold(strings.TrimSpace(mode), "std") {
-			tier = "720p"
-		}
-		if audio, ok := req.Metadata["audio"].(bool); ok {
-			audioEnabled = audio
-		}
+func resolveMetadataBool(metadata map[string]interface{}, key string) (bool, bool) {
+	if metadata == nil {
+		return false, false
 	}
-	return &types.VideoBillingParams{
-		Tier:            tier,
-		DurationSeconds: resolveVideoBillingDuration(req),
-		AudioEnabled:    audioEnabled,
-	}, nil
+	value, ok := metadata[key]
+	if !ok {
+		return false, false
+	}
+	boolean, ok := value.(bool)
+	return boolean, ok
 }

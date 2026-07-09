@@ -38,6 +38,26 @@ services:
       timeout: 10s
       retries: 5
 
+  ali-video-mock:
+    build:
+      context: ../..
+      dockerfile: deploy/newapi-local/ali-video-mock/Dockerfile
+    image: ali-video-mock-local:latest
+    container_name: ali-video-mock-local
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:18080:8080"
+    expose:
+      - "8080"
+    environment:
+      ALI_VIDEO_MOCK_LISTEN: ":8080"
+      ALI_VIDEO_MOCK_FAIL_RATE: "${ALI_VIDEO_MOCK_FAIL_RATE:-0}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/healthz | grep -o '\"ok\":true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   new-api:
     build:
       context: ../..

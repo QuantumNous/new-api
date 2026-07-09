@@ -430,6 +430,32 @@ export const useLogsData = () => {
           value: logs[i].request_id,
         });
       }
+      if (other?.billing_mode === 'video_seconds') {
+        if (other?.video_seconds_tier) {
+          expandDataLocal.push({
+            key: t('分辨率'),
+            value: String(other.video_seconds_tier).toUpperCase(),
+          });
+        }
+        if (other?.video_audio_enabled !== undefined) {
+          expandDataLocal.push({
+            key: t('音频'),
+            value: other.video_audio_enabled ? t('有声') : t('无声'),
+          });
+        }
+        if (other?.video_duration_seconds !== undefined) {
+          expandDataLocal.push({
+            key: t('视频时长'),
+            value: `${other.video_duration_seconds}${t('秒')}`,
+          });
+        }
+        if (other?.video_seconds_unit_price !== undefined) {
+          expandDataLocal.push({
+            key: t('每秒单价'),
+            value: `$${Number(other.video_seconds_unit_price).toFixed(6)}`,
+          });
+        }
+      }
       if (other?.ws || other?.audio) {
         expandDataLocal.push({
           key: t('语音输入'),
@@ -542,7 +568,11 @@ export const useLogsData = () => {
         let content = '';
         if (!isViolationFeeLog) {
           const isTaskLog = other?.is_task === true || other?.task_id != null;
-          if (isTaskLog && other?.model_price === -1) {
+          if (
+            isTaskLog &&
+            (other?.billing_mode === 'video_seconds' ||
+              other?.model_price === -1)
+          ) {
             content = renderTaskBillingProcess(other, logs[i].content);
           } else if (other?.ws || other?.audio) {
             content = renderAudioModelPrice(
@@ -782,7 +812,9 @@ export const useLogsData = () => {
       }
       if (isAdminUser && logs[i].type !== 6 && logs[i].type !== 1) {
         let localCountMode = '';
-        if (other?.admin_info?.local_count_tokens) {
+        if (other?.billing_mode === 'video_seconds') {
+          localCountMode = t('视频按秒');
+        } else if (other?.admin_info?.local_count_tokens) {
           localCountMode = t('本地计费');
         } else {
           localCountMode = t('上游返回');

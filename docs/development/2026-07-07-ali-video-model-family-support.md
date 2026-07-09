@@ -70,19 +70,22 @@
 - 价格配置按模型级生效，不按模型族共享。
 - 统一价格表结构为 `model -> tier -> price_key`：
   - `tier` 配置层支持任意标准化档位，classic 可视化编辑器当前内置 `480p`、`720p`、`1080p`、`2k`、`4k`
-  - `price_key` 支持 `default`、`silent`、`audio`
+  - `price_key` 当前仅支持 `default`、`silent`
 - 价格选择顺序：
   - 当请求显式 `audio=false` 且配置了 `silent` 时，使用 `silent`
-  - 当请求显式 `audio=true` 且配置了 `audio` 时，使用 `audio`
-  - 其他情况回退到 `default`
+  - 其他情况一律回退到 `default`
 - HappyHorse 计费参数转换规则：
-  - 从 `metadata.resolution` 解析档位
+  - 优先从 `metadata.resolution` 解析档位
+  - 若未显式传 `metadata.resolution`，回退按请求 `size` 推导档位，保持和阿里请求构造一致
+  - `480P -> 480p`
   - `720P -> 720p`
-  - `1080P` 或缺省 -> `1080p`
+  - `1080P -> 1080p`
+  - 未命中时默认 `1080p`
 - Kling on Bailian 计费参数转换规则：
-  - 从 `metadata.mode` 解析档位
+  - 优先从顶层 `mode` 解析档位，未传时再回退到 `metadata.mode`
   - `std -> 720p`
   - `pro` 或缺省 -> `1080p`
   - `metadata.audio=false` 视为静音计费候选
+- `video_seconds` 任务虽然走单价计费，但不会在任务落库时标记为 `PerCallBilling`，这样轮询阶段仍可在后续需要时执行差额结算。
 - 最终额度公式：
   - `quota = unit_price_per_second * duration_seconds * QuotaPerUnit * group_ratio`

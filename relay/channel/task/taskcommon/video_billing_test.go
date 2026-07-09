@@ -37,6 +37,36 @@ func TestAliHappyHorseConverterDefaultsTo1080PTier(t *testing.T) {
 	}
 }
 
+func TestAliHappyHorseConverterResolves720PFromSize(t *testing.T) {
+	req := relaycommon.TaskSubmitReq{
+		Model:    "happyhorse-1.1-r2v",
+		Duration: 5,
+		Size:     "1280*720",
+	}
+	params, err := ConvertVideoBillingParams(nil, req)
+	if err != nil {
+		t.Fatalf("convert video billing params failed: %v", err)
+	}
+	if params.Tier != "720p" {
+		t.Fatalf("expected 720p, got %s", params.Tier)
+	}
+}
+
+func TestAliHappyHorseConverterResolves720PFromResolutionSizeEnum(t *testing.T) {
+	req := relaycommon.TaskSubmitReq{
+		Model:    "happyhorse-1.1-r2v",
+		Duration: 5,
+		Size:     "720P",
+	}
+	params, err := ConvertVideoBillingParams(nil, req)
+	if err != nil {
+		t.Fatalf("convert video billing params failed: %v", err)
+	}
+	if params.Tier != "720p" {
+		t.Fatalf("expected 720p, got %s", params.Tier)
+	}
+}
+
 func TestAliKlingConverterResolvesStdTo720P(t *testing.T) {
 	req := relaycommon.TaskSubmitReq{
 		Model:    "kling/kling-v3-video-generation",
@@ -65,6 +95,20 @@ func TestAliKlingConverterDefaultsProTo1080P(t *testing.T) {
 	}
 	if params.Tier != "1080p" {
 		t.Fatalf("expected 1080p, got %s", params.Tier)
+	}
+}
+
+func TestAliKlingConverterDefaultsToSilentWhenAudioOmitted(t *testing.T) {
+	req := relaycommon.TaskSubmitReq{
+		Model:    "kling/kling-v3-video-generation",
+		Duration: 5,
+	}
+	params, err := ConvertVideoBillingParams(nil, req)
+	if err != nil {
+		t.Fatalf("convert video billing params failed: %v", err)
+	}
+	if params.AudioEnabled {
+		t.Fatalf("expected omitted audio to default disabled")
 	}
 }
 

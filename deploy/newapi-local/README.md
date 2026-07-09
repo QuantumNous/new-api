@@ -216,6 +216,61 @@ cd /workspace
 go test ./relay/channel/task/ali ./relay/channel/task/taskcommon ./relay/helper ./relay ./setting/ratio_setting ./model
 ```
 
+## 4.2 阿里视频本地 mock
+
+PostgreSQL 本地 compose 现在额外包含一个 `ali-video-mock` 服务，专门给 HappyHorse / Kling 做零成本联调。
+
+启动：
+
+```bash
+docker compose --env-file .env.postgres -f docker-compose.postgres.yml up -d --build ali-video-mock
+```
+
+健康检查：
+
+```bash
+curl http://localhost:18080/healthz
+```
+
+给 `new-api` 里的阿里渠道配置本地 mock 时，把渠道 `base_url` 改成：
+
+```text
+http://ali-video-mock:8080
+```
+
+如果你在宿主机直接调 mock，也可以使用：
+
+```text
+http://127.0.0.1:18080
+```
+
+当前 mock 只实现两个百炼异步接口：
+
+- `POST /api/v1/services/aigc/video-generation/video-synthesis`
+- `GET /api/v1/tasks/:id`
+
+行为约定：
+
+- 只支持 HappyHorse 和 Kling 模型
+- 默认快速成功
+- 第 1 次轮询返回 `RUNNING`
+- 第 2 次轮询默认返回 `SUCCEEDED`
+- 会返回 `usage.duration`、`usage.SR`、`usage.audio`，方便验证本地计费链路
+
+可选失败率：
+
+- 通过环境变量 `ALI_VIDEO_MOCK_FAIL_RATE` 控制轮询终态随机失败概率
+- 取值范围 `0` 到 `1`
+- `0` 表示全部成功
+- `1` 表示全部失败
+- 例如 `0.5` 表示大约一半任务会在第 2 次轮询时返回 `FAILED`
+
+用于验证失败退款链路时，推荐：
+
+```bash
+ALI_VIDEO_MOCK_FAIL_RATE=0.5 docker compose --env-file .env.postgres -f docker-compose.postgres.yml up -d --build ali-video-mock
+```
+
 ## 5. 本地 metadata
 
 这个目录包含一份可维护的 NewAPI upstream metadata：
