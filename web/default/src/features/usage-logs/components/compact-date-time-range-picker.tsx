@@ -84,12 +84,18 @@ export function CompactDateTimeRangePicker({
     setOpen(false)
   }
 
-  const applyPreset = (kind: 'today' | '7d' | 'week' | '30d' | 'month') => {
+  const applyPreset = (
+    kind: 'today' | 'yesterday' | '7d' | 'week' | '30d' | 'month'
+  ) => {
     const now = dayjs()
     const presets = {
       today: {
         start: now.startOf('day').toDate(),
         end: now.endOf('day').toDate(),
+      },
+      yesterday: {
+        start: now.subtract(1, 'day').startOf('day').toDate(),
+        end: now.subtract(1, 'day').endOf('day').toDate(),
       },
       '7d': {
         start: now.subtract(6, 'day').startOf('day').toDate(),
@@ -175,6 +181,15 @@ export function CompactDateTimeRangePicker({
               onClick={() => applyPreset('today')}
             >
               {t('Today')}
+            </Button>
+            <Button
+              type='button'
+              variant='secondary'
+              size='sm'
+              className='h-7 flex-1 px-2 text-xs'
+              onClick={() => applyPreset('yesterday')}
+            >
+              {t('Yesterday')}
             </Button>
             <Button
               type='button'

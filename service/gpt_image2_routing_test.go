@@ -153,6 +153,24 @@ func TestGptImage2PackyProfileAllowsPackyAndOfficial(t *testing.T) {
 	require.False(t, filter(standard))
 }
 
+func TestGptImage2EditsPackyProfileExcludesOfficial(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfilePacky))
+
+	packy := &model.Channel{OtherSettings: `{"gpt_image2_tier":"packy"}`}
+	officialMapping := `{"gpt-image-2":"gpt-image-2-official"}`
+	official := &model.Channel{ModelMapping: &officialMapping}
+	standard := &model.Channel{}
+
+	filter := GptImage2ChannelPickFilter(c, "gpt-image-2")
+	require.True(t, filter(packy))
+	require.False(t, filter(official))
+	require.False(t, filter(standard))
+}
+
 func TestGptImage2AsyncPathExcludesPacky(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)

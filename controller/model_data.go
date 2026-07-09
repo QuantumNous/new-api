@@ -1,9 +1,12 @@
 package controller
 
 import (
+	"context"
+	"encoding/json"
 	"math"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,8 +24,8 @@ type DetectPoint struct {
 	Note                    string     `json:"note,omitempty"`
 	GroupName               string     `json:"group_name,omitempty"`                // channel group at time of detection
 	FingerprintModelVersion string     `json:"fingerprint_model_version,omitempty"` // e.g. apimaster_fingerprint_cccli_v0.1
-	Top5                    []TopKItem `json:"top5,omitempty"`         // fingerprint top-5 predictions (only on fingerprint history points)
-	Top1ScoreRaw            float64    `json:"top1_score_raw,omitempty"` // raw top1 score before boost; non-zero only when boost was applied (admin only)
+	Top5                    []TopKItem `json:"top5,omitempty"`                      // fingerprint top-5 predictions (only on fingerprint history points)
+	Top1ScoreRaw            float64    `json:"top1_score_raw,omitempty"`            // raw top1 score before boost; non-zero only when boost was applied (admin only)
 }
 
 // TopKItem is one prediction in the fingerprint top-5 list. Mirrors apimaster's
@@ -38,9 +41,9 @@ func includeDetectHistoryStatus(status string) bool {
 }
 
 type ModelDataItem struct {
-	ChannelID   int    `json:"channel_id"`
-	ChannelName string `json:"channel_name"`
-	KeyGroup    string `json:"key_group"`
+	ChannelID       int    `json:"channel_id"`
+	ChannelName     string `json:"channel_name"`
+	KeyGroup        string `json:"key_group"`
 	ClientExclusive string `json:"client_exclusive"` // "" | codex | claude_code
 	// Pricing fields: nil = no pricing row (upstream 401/404 / cookie-only auth / no endpoint).
 	// Frontend renders nil as "—".
@@ -82,11 +85,31 @@ const (
 	modelDataLatencyMax  = 50 // use last N pass probes (regardless of time) for latency stats
 )
 
+func isHiddenChannelDataModel(modelName string) bool {
+	return strings.EqualFold(strings.TrimSpace(modelName), "gemini-3.1-flash-lite")
+}
+
 // GetModelData returns channel pricing and detection stats for a given model.
 // GET /api/admin/model-data?model=<model_name>
 func GetModelData(c *gin.Context) {
 	modelName := c.DefaultQuery("model", "claude-sonnet-4-6")
+	if isHiddenChannelDataModel(modelName) {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": []any{}})
+		return
+	}
+	items, officialOK, officialIn, officialOut := getModelDataItems(c.Request.Context(), modelName)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    items,
+		"official": gin.H{
+			"input_price":  officialIn,
+			"output_price": officialOut,
+			"ok":           officialOK,
+		},
+	})
+}
 
+func getModelDataItems(ctx context.Context, modelName string) ([]ModelDataItem, bool, float64, float64) {
 	type row struct {
 		ChannelID                  int
 		ChannelName                string
@@ -174,8 +197,7 @@ func GetModelData(c *gin.Context) {
 	}
 
 	if len(rows) == 0 {
-		c.JSON(http.StatusOK, gin.H{"success": true, "data": []any{}})
-		return
+		return []ModelDataItem{}, false, 0, 0
 	}
 
 	// Batch fetch recent detect logs for these channels, filtered to this model.
@@ -249,7 +271,7 @@ func GetModelData(c *gin.Context) {
 
 	// hub.romaapi.com aggregator pricing for the side-by-side compare column.
 	// Best-effort: if the hub is unreachable, hub_price stays nil for every row.
-	hubPricing, _ := service.GetHubPricing(c.Request.Context())
+	hubPricing, _ := service.GetHubPricing(ctx)
 
 	// 官方原价 (unified official list price, 系统设置→模型定价). Feeds the 官方原价
 	// column and the tampered-base-price alert only — never 采购价/计费.
@@ -366,19 +388,7 @@ func GetModelData(c *gin.Context) {
 			pricingSource = *r.PricingSource
 		}
 
-		var statusReason string
-		var statusTime int64
-		if r.Status == 3 && r.OtherInfo != nil {
-			var info map[string]interface{}
-			if err := common.Unmarshal([]byte(*r.OtherInfo), &info); err == nil {
-				if v, ok := info["status_reason"].(string); ok {
-					statusReason = v
-				}
-				if v, ok := info["status_time"].(float64); ok {
-					statusTime = int64(v)
-				}
-			}
-		}
+		statusReason, statusTime, recoveryPassCount := modelDataStatusMetadata(r.Status, r.ModelEnabled, r.OtherInfo, modelName, r.ConsecutiveFingerprintPass)
 
 		items = append(items, ModelDataItem{
 			ChannelID:                  r.ChannelID,
@@ -411,7 +421,7 @@ func GetModelData(c *gin.Context) {
 			LatencyP95Ms:               percentileFloat64(latencies, 0.95),
 			LatencyCVPct:               cvPercent(latencies),
 			Status:                     r.Status,
-			ConsecutiveFingerprintPass: r.ConsecutiveFingerprintPass,
+			ConsecutiveFingerprintPass: recoveryPassCount,
 			ModelEnabled:               r.ModelEnabled,
 			StatusReason:               statusReason,
 			StatusTime:                 statusTime,
@@ -450,15 +460,7 @@ func GetModelData(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    items,
-		"official": gin.H{
-			"input_price":  officialIn,
-			"output_price": officialOut,
-			"ok":           officialOK,
-		},
-	})
+	return items, officialOK, officialIn, officialOut
 }
 
 func modelDataExtractKeyGroup(setting *string) string {
@@ -467,6 +469,84 @@ func modelDataExtractKeyGroup(setting *string) string {
 
 func modelDataExtractClientExclusive(setting *string) string {
 	return string(service.ExtractClientExclusive(setting))
+}
+
+func modelDataStatusMetadata(channelStatus int, modelEnabled bool, otherInfo *string, modelName string, fallbackPassCount int) (string, int64, int) {
+	if otherInfo == nil || strings.TrimSpace(*otherInfo) == "" {
+		return "", 0, fallbackPassCount
+	}
+	var info map[string]interface{}
+	if err := common.Unmarshal([]byte(*otherInfo), &info); err != nil {
+		return "", 0, fallbackPassCount
+	}
+
+	if channelStatus == common.ChannelStatusAutoDisabled {
+		return modelDataString(info, "status_reason"), modelDataInt64(info, "status_time"), fallbackPassCount
+	}
+
+	if modelEnabled {
+		return "", 0, fallbackPassCount
+	}
+	entry := modelDataAutoDisabledModelEntry(info, modelName)
+	if entry == nil {
+		return "", 0, fallbackPassCount
+	}
+	reason := modelDataString(entry, "reason")
+	if reason == "" {
+		reason = modelDataString(entry, "last_reenable_probe_reason")
+	}
+	return reason, modelDataInt64(entry, "disabled_at"), int(modelDataInt64(entry, "pass_count"))
+}
+
+func modelDataAutoDisabledModelEntry(info map[string]interface{}, modelName string) map[string]interface{} {
+	raw, ok := info["auto_disabled_models"].(map[string]interface{})
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	trimmedModel := strings.TrimSpace(modelName)
+	if entry, ok := raw[trimmedModel].(map[string]interface{}); ok {
+		return entry
+	}
+	for key, rawEntry := range raw {
+		if strings.EqualFold(strings.TrimSpace(key), trimmedModel) {
+			if entry, ok := rawEntry.(map[string]interface{}); ok {
+				return entry
+			}
+		}
+	}
+	return nil
+}
+
+func modelDataString(info map[string]interface{}, key string) string {
+	if info == nil {
+		return ""
+	}
+	if v, ok := info[key].(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
+func modelDataInt64(info map[string]interface{}, key string) int64 {
+	if info == nil {
+		return 0
+	}
+	switch v := info[key].(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return n
+	case string:
+		n, _ := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		return n
+	default:
+		return 0
+	}
 }
 
 // applyModelMappingPricingToRow fills pricing fields from channel_model_pricings when
@@ -623,6 +703,10 @@ type publicMarketplaceCacheEntry struct {
 // GET /api/public/marketplace?model=<model_name>
 func GetPublicMarketplace(c *gin.Context) {
 	modelName := c.DefaultQuery("model", "claude-sonnet-4-6")
+	if isHiddenChannelDataModel(modelName) {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": []any{}})
+		return
+	}
 
 	// Serve from cache if fresh.
 	publicMarketplaceCache.Lock()

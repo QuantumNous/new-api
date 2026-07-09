@@ -249,11 +249,17 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
+		billingSummaryRoute := apiRouter.Group("/billing-summary")
+		billingSummaryRoute.Use(middleware.RootAuth())
+		{
+			billingSummaryRoute.GET("/", controller.GetBillingSummary)
+		}
 		adminRoute := apiRouter.Group("/admin")
 		adminRoute.Use(middleware.AdminAuth())
 		{
 			adminRoute.GET("/exchange-rate", controller.GetExchangeRate)
 			adminRoute.GET("/channel-data", controller.GetModelData)
+			adminRoute.GET("/channel-data/audit", controller.GetChannelDataAudit)
 			adminRoute.POST("/channel-data/toggle", controller.ToggleChannelStatus)
 			adminRoute.POST("/channel-data/refresh-pricing", controller.RefreshModelPricing)
 			adminRoute.POST("/channel-data/refresh-hub-price", controller.RefreshHubPrice)

@@ -168,14 +168,17 @@ func SelectMostExpensiveEnabledChannel(c *gin.Context, modelName string) (*model
 }
 
 // selectCheapestChannelID returns the channel ID with the lowest user price,
-// using a single SQL query that mirrors the Model Data page price calculation.
+// using the same price resolution order as the Model Data page.
 //
-// User price = COALESCE(channel_model_pricings.input_price, globalInputUSD)
+// User price = resolved_input_price
 //
 //	× COALESCE(c.recharge_rate, 1)
 //	× COALESCE(c.apimaster_price_ratio, 1)
 //
-// Channels with neither a pricing row nor a global price are excluded.
+// resolved_input_price source priority:
+//  1. channel_model_pricings row (direct or alias)
+//  2. public manual pricing (global official price × manual_group_ratio × model_price_ratio)
+//  3. global official price fallback
 func selectCheapestChannelID(modelName string, bannedIDs []int) int {
 	return selectPricedChannelID(modelName, bannedIDs, true)
 }
@@ -219,44 +222,132 @@ func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bo
 	}
 	modelsMatchClause, modelsMatchArgs := ChannelsModelsCommaMatchSQL(modelsCol, candidates)
 
-	type result struct {
-		ChannelID int
+	type pricedCandidateRow struct {
+		ChannelID           int
+		Setting             *string
+		InputPrice          *float64
+		RechargeRate        *float64
+		ApimasterPriceRatio *float64
+		Priority            *int64
 	}
-	var row result
+	var rows []pricedCandidateRow
 
 	q := model.DB.Table("channels c").
-		Select(`c.id AS channel_id`).
+		Select(`c.id AS channel_id, c.setting, p.input_price, c.recharge_rate, c.apimaster_price_ratio, c.priority`).
 		Joins("LEFT JOIN channel_model_pricings p ON p.channel_id = c.id AND p.model_name IN ? AND p.input_price > 0", candidates).
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
 		Where(modelsMatchClause, modelsMatchArgs...).
 		Where("COALESCE(a.enabled, true) = true")
 
-	if globalInputUSD <= 0 {
-		q = q.Where("p.channel_id IS NOT NULL")
-	}
-
 	if len(bannedIDs) > 0 {
 		q = q.Where("c.id NOT IN ?", bannedIDs)
 	}
 
-	priceExpr := fmt.Sprintf(
-		"(COALESCE(p.input_price, %f) * COALESCE(c.recharge_rate, 1) * COALESCE(c.apimaster_price_ratio, 1))",
-		globalInputUSD,
-	)
-	direction := "DESC"
-	tieBreak := "ASC"
-	if ascending {
-		direction = "ASC"
-		tieBreak = "DESC"
-	}
-	orderExpr := fmt.Sprintf("%s %s, COALESCE(c.priority, 0) %s", priceExpr, direction, tieBreak)
-	q = q.Order(orderExpr).Limit(1)
-
-	if err := q.Scan(&row).Error; err != nil || row.ChannelID == 0 {
+	if err := q.Scan(&rows).Error; err != nil || len(rows) == 0 {
 		return 0
 	}
-	return row.ChannelID
+
+	candidatesByChannel := make(map[int]pricedRouteCandidate, len(rows))
+	for _, row := range rows {
+		candidate, ok := candidatesByChannel[row.ChannelID]
+		if !ok {
+			candidate = pricedRouteCandidate{
+				ChannelID:           row.ChannelID,
+				Setting:             row.Setting,
+				RechargeRate:        floatPointerOrDefault(row.RechargeRate, 1),
+				ApimasterPriceRatio: floatPointerOrDefault(row.ApimasterPriceRatio, 1),
+				Priority:            int64PointerOrDefault(row.Priority, 0),
+			}
+		}
+		if row.InputPrice != nil && *row.InputPrice > 0 && (!candidate.HasInputPrice || *row.InputPrice < candidate.InputPrice) {
+			candidate.InputPrice = *row.InputPrice
+			candidate.HasInputPrice = true
+		}
+		candidatesByChannel[row.ChannelID] = candidate
+	}
+
+	var bestID int
+	var bestPrice float64
+	var bestPriority int64
+	for _, candidate := range candidatesByChannel {
+		price, ok := routeCandidateUserInputPrice(candidate, modelName, globalInputUSD)
+		if !ok {
+			continue
+		}
+		if bestID == 0 || routeCandidateBeats(price, candidate.Priority, bestPrice, bestPriority, ascending) {
+			bestID = candidate.ChannelID
+			bestPrice = price
+			bestPriority = candidate.Priority
+		}
+	}
+	return bestID
+}
+
+type pricedRouteCandidate struct {
+	ChannelID           int
+	Setting             *string
+	InputPrice          float64
+	HasInputPrice       bool
+	RechargeRate        float64
+	ApimasterPriceRatio float64
+	Priority            int64
+}
+
+func routeCandidateUserInputPrice(candidate pricedRouteCandidate, modelName string, globalInputUSD float64) (float64, bool) {
+	inputPrice, ok := routeCandidateInputPrice(candidate, modelName, globalInputUSD)
+	if !ok {
+		return 0, false
+	}
+	rechargeRate := candidate.RechargeRate
+	if rechargeRate <= 0 {
+		rechargeRate = 1
+	}
+	apimasterPriceRatio := candidate.ApimasterPriceRatio
+	if apimasterPriceRatio <= 0 {
+		apimasterPriceRatio = 1
+	}
+	return inputPrice * rechargeRate * apimasterPriceRatio, true
+}
+
+func routeCandidateInputPrice(candidate pricedRouteCandidate, modelName string, globalInputUSD float64) (float64, bool) {
+	if candidate.HasInputPrice && candidate.InputPrice > 0 {
+		return candidate.InputPrice, true
+	}
+	if manual, ok := LookupPublicManualPricing(candidate.Setting, modelName); ok && manual.InputPrice > 0 {
+		return manual.InputPrice, true
+	}
+	if globalInputUSD > 0 {
+		return globalInputUSD, true
+	}
+	return 0, false
+}
+
+func routeCandidateBeats(price float64, priority int64, bestPrice float64, bestPriority int64, ascending bool) bool {
+	if ascending {
+		if price < bestPrice {
+			return true
+		}
+		return price == bestPrice && priority > bestPriority
+	}
+	if price > bestPrice {
+		return true
+	}
+	return price == bestPrice && priority < bestPriority
+}
+
+func floatPointerOrDefault(v *float64, fallback float64) float64 {
+	if v == nil || *v <= 0 {
+		return fallback
+	}
+	return *v
+}
+
+func int64PointerOrDefault(v *int64, fallback int64) int64 {
+	if v == nil {
+		return fallback
+	}
+	return *v
 }
 
 // bannedChannelIDsFromContext reads the addUsedChannel() history left by the

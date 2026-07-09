@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import { api, normalizeUserGroupsResponse } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
 import type {
   ChatCompletionRequest,
@@ -59,7 +59,7 @@ export async function getUserModels(): Promise<ModelOption[]> {
  */
 export async function getUserGroups(): Promise<GroupOption[]> {
   const res = await api.get(API_ENDPOINTS.USER_GROUPS)
-  const { data } = res
+  const data = normalizeUserGroupsResponse(res.data)
 
   if (!data.success || !data.data) {
     return []

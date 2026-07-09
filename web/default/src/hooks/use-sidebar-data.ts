@@ -37,6 +37,7 @@ import {
   BarChart2,
   Gift,
   Play,
+  DollarSign,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -135,6 +136,11 @@ export function useSidebarData(): SidebarData {
         id: 'admin',
         title: t('Admin'),
         items: [
+          {
+            title: t('Platform Billing'),
+            url: '/billing-summary',
+            icon: DollarSign,
+          },
           {
             title: t('Channels'),
             url: '/channels',

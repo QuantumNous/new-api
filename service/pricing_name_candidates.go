@@ -113,6 +113,60 @@ func LookupChannelPricingRow(channelID int, candidates []string) (*ChannelPricin
 	}, true
 }
 
+type channelPricingResolveContext struct {
+	ModelMapping        *string
+	Setting             *string
+	RechargeRate        float64
+	ApimasterPriceRatio float64
+}
+
+func loadChannelPricingResolveContext(channelID int) (channelPricingResolveContext, error) {
+	var ch struct {
+		ModelMapping        *string
+		Setting             *string
+		RechargeRate        *float64
+		ApimasterPriceRatio *float64
+	}
+	if err := model.DB.Table("channels").
+		Select("model_mapping, setting, recharge_rate, apimaster_price_ratio").
+		Where("id = ?", channelID).
+		Scan(&ch).Error; err != nil {
+		return channelPricingResolveContext{}, err
+	}
+	out := channelPricingResolveContext{
+		ModelMapping:        ch.ModelMapping,
+		Setting:             ch.Setting,
+		RechargeRate:        1.0,
+		ApimasterPriceRatio: 1.0,
+	}
+	if ch.RechargeRate != nil && *ch.RechargeRate > 0 {
+		out.RechargeRate = *ch.RechargeRate
+	}
+	if ch.ApimasterPriceRatio != nil && *ch.ApimasterPriceRatio > 0 {
+		out.ApimasterPriceRatio = *ch.ApimasterPriceRatio
+	}
+	return out, nil
+}
+
+func resolveChannelPricingRow(channelID int, modelName string, ch channelPricingResolveContext) (*ChannelPricingLookupRow, bool) {
+	candidates := PricingNameCandidates(modelName, ch.ModelMapping)
+	if row, ok := LookupChannelPricingRow(channelID, candidates); ok {
+		return row, true
+	}
+	manual, ok := LookupPublicManualPricing(ch.Setting, modelName)
+	if !ok || manual.InputPrice <= 0 {
+		return nil, false
+	}
+	return &ChannelPricingLookupRow{
+		InputPrice:         manual.InputPrice,
+		OutputPrice:        manual.OutputPrice,
+		CachePrice:         manual.CachePrice,
+		CacheCreationPrice: manual.CacheCreationPrice,
+		GroupRatio:         manual.GroupRatio,
+		PricingSource:      "manual",
+	}, true
+}
+
 // ResolvePricingViaModelMapping looks up pricing using only the channel's model_mapping
 // target (not global aliases). Use when the SQL JOIN on global candidates missed but the
 // channel maps canonical → upstream model name in channel_model_pricings.
@@ -128,31 +182,15 @@ func ResolvePricingViaModelMapping(channelID int, modelMapping *string, canonica
 // (采购价 × apimaster_price_ratio = input_price × recharge_rate × apimaster_ratio)
 // for billing logs. NOT raw procurement cost — matches Model Data「用户价格」.
 func ChannelActualPricesResolved(channelID int, modelName string) (*model.ChannelActualPrices, error) {
-	var ch struct {
-		ModelMapping        *string
-		RechargeRate        *float64
-		ApimasterPriceRatio *float64
-	}
-	if err := model.DB.Table("channels").
-		Select("model_mapping, recharge_rate, apimaster_price_ratio").
-		Where("id = ?", channelID).
-		Scan(&ch).Error; err != nil {
+	ch, err := loadChannelPricingResolveContext(channelID)
+	if err != nil {
 		return nil, err
 	}
-	candidates := PricingNameCandidates(modelName, ch.ModelMapping)
-	row, ok := LookupChannelPricingRow(channelID, candidates)
+	row, ok := resolveChannelPricingRow(channelID, modelName, ch)
 	if !ok {
 		return nil, nil
 	}
-	rechargeRate := 1.0
-	if ch.RechargeRate != nil && *ch.RechargeRate > 0 {
-		rechargeRate = *ch.RechargeRate
-	}
-	apimasterRatio := 1.0
-	if ch.ApimasterPriceRatio != nil && *ch.ApimasterPriceRatio > 0 {
-		apimasterRatio = *ch.ApimasterPriceRatio
-	}
-	mult := rechargeRate * apimasterRatio
+	mult := ch.RechargeRate * ch.ApimasterPriceRatio
 	return &model.ChannelActualPrices{
 		InputPrice:         row.InputPrice * mult,
 		OutputPrice:        row.OutputPrice * mult,
@@ -165,29 +203,18 @@ func ChannelActualPricesResolved(channelID int, modelName string) (*model.Channe
 // (channel_model_pricings × recharge_rate) using the same alias/model_mapping
 // resolution as ChannelActualPricesResolved.
 func ChannelProcurementPricesResolved(channelID int, modelName string) (*model.ChannelActualPrices, error) {
-	var ch struct {
-		ModelMapping *string
-		RechargeRate *float64
-	}
-	if err := model.DB.Table("channels").
-		Select("model_mapping, recharge_rate").
-		Where("id = ?", channelID).
-		Scan(&ch).Error; err != nil {
+	ch, err := loadChannelPricingResolveContext(channelID)
+	if err != nil {
 		return nil, err
 	}
-	candidates := PricingNameCandidates(modelName, ch.ModelMapping)
-	row, ok := LookupChannelPricingRow(channelID, candidates)
+	row, ok := resolveChannelPricingRow(channelID, modelName, ch)
 	if !ok {
 		return nil, nil
 	}
-	rechargeRate := 1.0
-	if ch.RechargeRate != nil && *ch.RechargeRate > 0 {
-		rechargeRate = *ch.RechargeRate
-	}
 	return &model.ChannelActualPrices{
-		InputPrice:         row.InputPrice * rechargeRate,
-		OutputPrice:        row.OutputPrice * rechargeRate,
-		CachePrice:         row.CachePrice * rechargeRate,
-		CacheCreationPrice: row.CacheCreationPrice * rechargeRate,
+		InputPrice:         row.InputPrice * ch.RechargeRate,
+		OutputPrice:        row.OutputPrice * ch.RechargeRate,
+		CachePrice:         row.CachePrice * ch.RechargeRate,
+		CacheCreationPrice: row.CacheCreationPrice * ch.RechargeRate,
 	}, nil
 }

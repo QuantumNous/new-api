@@ -134,6 +134,9 @@ func main() {
 	// Billing hold reconcile (HoldRefund timeout release)
 	service.StartBillingHoldReconcileTask()
 
+	// Platform billing hourly summary (平台账单)
+	service.StartBillingSummaryTask()
+
 	// Optional production shadow benchmark for APIMaster vs upstream latency/success comparison.
 	service.InitShadowBenchmark()
 

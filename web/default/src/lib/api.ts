@@ -20,6 +20,7 @@ import axios from 'axios'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { resolveUserGroupDescription } from '@/lib/user-group-i18n'
 
 // ============================================================================
 // Axios Instance Configuration
@@ -206,7 +207,7 @@ export async function getUserGroups(): Promise<{
   data?: Record<string, { desc: string; ratio: number | string }>
 }> {
   const res = await api.get('/api/user/self/groups')
-  return res.data
+  return normalizeUserGroupsResponse(res.data)
 }
 
 // ----------------------------------------------------------------------------
@@ -237,6 +238,43 @@ export async function getNotice(): Promise<{
 export async function get2FAStatus() {
   const res = await api.get('/api/user/2fa/status')
   return res.data
+}
+
+export function normalizeUserGroupsResponse<T extends {
+  data?: Record<string, { desc: string; ratio: number | string }>
+}>(payload: T): T {
+  if (!payload?.data) return payload
+
+  const data = Object.fromEntries(
+    Object.entries(payload.data).map(([group, info]) => [
+      group,
+      {
+        ...info,
+        desc: resolveUserGroupDescription(group, info?.desc),
+      },
+    ])
+  )
+
+  return {
+    ...payload,
+    data,
+  }
+}
+
+export function normalizeUsableGroupMap<
+  T extends Record<string, { desc: string; ratio: number | string }>,
+>(usableGroup: T | undefined): T | undefined {
+  if (!usableGroup) return usableGroup
+
+  return Object.fromEntries(
+    Object.entries(usableGroup).map(([group, info]) => [
+      group,
+      {
+        ...info,
+        desc: resolveUserGroupDescription(group, info?.desc),
+      },
+    ])
+  ) as T
 }
 
 // Setup 2FA

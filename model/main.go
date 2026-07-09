@@ -326,6 +326,7 @@ func migrateDB() error {
 		&GAPurchaseLog{},
 		&FailedRequestSnapshot{},
 		&ShadowBenchmarkLog{},
+		&BillingHourlySummary{},
 	)
 	if err != nil {
 		return err
@@ -419,6 +420,9 @@ func migrateDBFast() error {
 func migrateLOGDB() error {
 	var err error
 	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
+		return err
+	}
+	if err = LOG_DB.AutoMigrate(&BillingHourlySummary{}); err != nil {
 		return err
 	}
 	return nil
