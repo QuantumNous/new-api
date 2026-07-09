@@ -33,6 +33,7 @@ export const MODEL_TABS: ModelTab[] = [
     accent: '#fb923c',
   },
   { label: 'GLM 5.2', modelId: 'glm-5.2', accent: '#10b981' },
+  { label: 'Grok 4.5', modelId: 'grok-4.5', accent: '#94a3b8' },
   {
     label: 'Gemini 3.1 Pro',
     modelId: 'gemini-3.1-pro-preview',
