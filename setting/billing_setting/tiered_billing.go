@@ -29,10 +29,11 @@ func IsPerSecondModel(model string) bool {
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
 type BillingSetting struct {
-	BillingMode            map[string]string  `json:"billing_mode"`
-	BillingExpr            map[string]string  `json:"billing_expr"`
-	UpstreamCostMultiplier map[string]float64 `json:"upstream_cost_multiplier"`
-	VideoInputRatio        map[string]float64 `json:"video_input_ratio"`
+	BillingMode                map[string]string                 `json:"billing_mode"`
+	BillingExpr                map[string]string                 `json:"billing_expr"`
+	UpstreamCostMultiplier     map[string]float64                `json:"upstream_cost_multiplier"`
+	VideoInputRatio            map[string]float64                `json:"video_input_ratio"`
+	PerSecondResolutionPrice   map[string]PerSecondResolutionPrice `json:"per_second_resolution_price"`
 }
 
 var defaultVideoInputRatio = map[string]float64{
@@ -41,10 +42,11 @@ var defaultVideoInputRatio = map[string]float64{
 }
 
 var billingSetting = BillingSetting{
-	BillingMode:            make(map[string]string),
-	BillingExpr:            make(map[string]string),
-	UpstreamCostMultiplier: make(map[string]float64),
-	VideoInputRatio:        lo.Assign(defaultVideoInputRatio),
+	BillingMode:              make(map[string]string),
+	BillingExpr:              make(map[string]string),
+	UpstreamCostMultiplier:   make(map[string]float64),
+	VideoInputRatio:          lo.Assign(defaultVideoInputRatio),
+	PerSecondResolutionPrice: make(map[string]PerSecondResolutionPrice),
 }
 
 func init() {
@@ -67,6 +69,9 @@ func ensureBillingSettingMaps() {
 	}
 	if billingSetting.VideoInputRatio == nil {
 		billingSetting.VideoInputRatio = make(map[string]float64)
+	}
+	if billingSetting.PerSecondResolutionPrice == nil {
+		billingSetting.PerSecondResolutionPrice = make(map[string]PerSecondResolutionPrice)
 	}
 }
 
@@ -143,7 +148,7 @@ func GetVideoInputRatioCopy() map[string]float64 {
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {
-	extra := make(map[string]any, 4)
+	extra := make(map[string]any, 5)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {
 		extra[BillingModeField] = modes
 	}
@@ -155,6 +160,9 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 	}
 	if ratios := GetVideoInputRatioCopy(); len(ratios) > 0 {
 		extra[VideoInputRatioField] = ratios
+	}
+	if resPrices := GetPerSecondResolutionPriceCopy(); len(resPrices) > 0 {
+		extra[PerSecondResolutionPriceField] = resPrices
 	}
 	return lo.Assign(base, extra)
 }

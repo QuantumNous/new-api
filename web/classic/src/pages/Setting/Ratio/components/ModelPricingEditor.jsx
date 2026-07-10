@@ -466,6 +466,65 @@ export default function ModelPricingEditor({
                       onChange={(value) =>
                         handleNumericFieldChange('fixedPrice', value)
                       }
+                      extraText={t(
+                        '未配置分辨率分档时使用此价格；配置分档后作为未启用分档时的兼容兜底。',
+                      )}
+                    />
+                    <div className='mb-2 mt-4 font-medium text-gray-700'>
+                      {t('分辨率分档单价（可选）')}
+                    </div>
+                    <div className='mb-2 text-xs text-gray-500'>
+                      {t(
+                        '按模型配置绝对 $/秒。填写任意档后，「其他」必填。预扣 = 档位单价 × 秒数 × 分组倍率。',
+                      )}
+                    </div>
+                    <PriceInput
+                      label='480p'
+                      value={selectedModel.resPrice480p}
+                      placeholder={t('例如 0.3')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange('resPrice480p', value)
+                      }
+                    />
+                    <PriceInput
+                      label='720p'
+                      value={selectedModel.resPrice720p}
+                      placeholder={t('例如 0.6')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange('resPrice720p', value)
+                      }
+                    />
+                    <PriceInput
+                      label='1080p'
+                      value={selectedModel.resPrice1080p}
+                      placeholder={t('例如 1.2')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange('resPrice1080p', value)
+                      }
+                    />
+                    <PriceInput
+                      label='4K'
+                      value={selectedModel.resPrice4k}
+                      placeholder={t('例如 2.4')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange('resPrice4k', value)
+                      }
+                    />
+                    <PriceInput
+                      label={t('其他')}
+                      value={selectedModel.resPriceOther}
+                      placeholder={t('例如 3.0')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange('resPriceOther', value)
+                      }
+                      extraText={t(
+                        '启用分档时必填：请求分辨率未匹配 480p/720p/1080p/4K 时使用此价。',
+                      )}
                     />
                     <PriceInput
                       label={t('上游 cost 结算乘数')}

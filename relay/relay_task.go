@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -185,6 +186,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	info.PriceData = priceData
 
+	// 4.5 按秒 + 分辨率分档：用绝对 $/秒 覆盖基础 ModelPrice / Quota（未配置分档则跳过）
+	applyPerSecondResolutionPrice(c, info)
+
 	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
 	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
 	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
@@ -198,11 +202,17 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	// 按次固定价格（非 per_second 模式）时不乘时长等倍率，与 PerCallBilling 结算语义一致。
 	applyOtherRatios := !common.StringsContains(constant.TaskPricePatches, modelName) &&
 		!(priceData.UsePrice && !billing_setting.IsPerSecondModel(modelName))
+	useAbsResolutionPrice := billing_setting.HasPerSecondResolutionPrice(modelName)
 	if applyOtherRatios {
-		for _, ra := range info.PriceData.OtherRatios {
-			if ra != 1.0 {
-				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+		for key, ra := range info.PriceData.OtherRatios {
+			if ra == 1.0 {
+				continue
 			}
+			// 已用绝对分辨率单价时，跳过渠道硬编码的 resolution-* 相对倍率，避免重复计价
+			if useAbsResolutionPrice && strings.HasPrefix(key, "resolution") {
+				continue
+			}
+			info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
 		}
 	}
 
@@ -259,6 +269,57 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		Platform:       platform,
 		Quota:          finalQuota,
 	}, nil
+}
+
+// applyPerSecondResolutionPrice overrides base ModelPrice/Quota when the model
+// has per-second resolution-tier absolute prices configured.
+func applyPerSecondResolutionPrice(c *gin.Context, info *relaycommon.RelayInfo) {
+	if info == nil || !billing_setting.IsPerSecondModel(info.OriginModelName) {
+		return
+	}
+	prices, ok := billing_setting.GetPerSecondResolutionPrice(info.OriginModelName)
+	if !ok {
+		return
+	}
+	hint := extractTaskResolutionHint(c)
+	price, tier := billing_setting.ResolvePerSecondPrice(prices, hint, info.PriceData.ModelPrice)
+	if price <= 0 {
+		return
+	}
+	info.PriceData.ModelPrice = price
+	info.PriceData.UsePrice = true
+	quota := int(price * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if info.PriceData.GroupRatioInfo.GroupRatio == 0 || price == 0 {
+			quota = 0
+			info.PriceData.FreeModel = true
+		}
+	}
+	info.PriceData.Quota = quota
+	info.PriceData.AddOtherRatio("resolution_tier_"+tier, 1)
+}
+
+func extractTaskResolutionHint(c *gin.Context) string {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return ""
+	}
+	if s := strings.TrimSpace(req.Resolution); s != "" {
+		return s
+	}
+	if s := strings.TrimSpace(req.Size); s != "" {
+		return s
+	}
+	if req.Metadata != nil {
+		for _, key := range []string{"resolution", "res", "size"} {
+			if v, ok := req.Metadata[key]; ok {
+				if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+					return strings.TrimSpace(s)
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。

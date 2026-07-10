@@ -44,6 +44,11 @@ const EMPTY_MODEL = {
   requestRuleExpr: '',
   upstreamCostMultiplier: '',
   videoInputRatio: '',
+  resPrice480p: '',
+  resPrice720p: '',
+  resPrice1080p: '',
+  resPrice4k: '',
+  resPriceOther: '',
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -109,6 +114,55 @@ const ratioToBasePrice = (ratio) => {
   return formatNumber(num * 2);
 };
 
+const hasAnyResolutionTier = (model) =>
+  [
+    model.resPrice480p,
+    model.resPrice720p,
+    model.resPrice1080p,
+    model.resPrice4k,
+    model.resPriceOther,
+  ].some((v) => hasValue(v));
+
+const buildResolutionPriceMap = (model) => {
+  if (!hasAnyResolutionTier(model)) {
+    return null;
+  }
+  const map = {};
+  const pairs = [
+    ['480p', model.resPrice480p],
+    ['720p', model.resPrice720p],
+    ['1080p', model.resPrice1080p],
+    ['4k', model.resPrice4k],
+    ['other', model.resPriceOther],
+  ];
+  for (const [key, raw] of pairs) {
+    const num = toNumberOrNull(raw);
+    if (num !== null && num > 0) {
+      map[key] = num;
+    }
+  }
+  return Object.keys(map).length > 0 ? map : null;
+};
+
+const readResolutionPrices = (raw) => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {
+      resPrice480p: '',
+      resPrice720p: '',
+      resPrice1080p: '',
+      resPrice4k: '',
+      resPriceOther: '',
+    };
+  }
+  return {
+    resPrice480p: toNumericString(raw['480p']),
+    resPrice720p: toNumericString(raw['720p']),
+    resPrice1080p: toNumericString(raw['1080p']),
+    resPrice4k: toNumericString(raw['4k']),
+    resPriceOther: toNumericString(raw.other),
+  };
+};
+
 const normalizeCompletionRatioMeta = (rawMeta) => {
   if (!rawMeta || typeof rawMeta !== 'object' || Array.isArray(rawMeta)) {
     return {
@@ -130,12 +184,16 @@ const buildModelState = (name, sourceMaps) => {
     const upstreamCostMultiplier = toNumericString(
       sourceMaps.ModelUpstreamCostMultiplier?.[name],
     );
+    const resPrices = readResolutionPrices(
+      sourceMaps.ModelPerSecondResolutionPrice?.[name],
+    );
     return {
       ...EMPTY_MODEL,
       name,
       billingMode: 'per-second',
       fixedPrice,
       upstreamCostMultiplier,
+      ...resPrices,
       rawRatios: { ...EMPTY_MODEL.rawRatios },
       hasConflict: false,
     };
@@ -304,6 +362,16 @@ export const getModelWarnings = (model, t) => {
     warnings.push(t('填写音频补全价格前，需要先填写音频输入价格。'));
   }
 
+  if (
+    model.billingMode === 'per-second' &&
+    hasAnyResolutionTier(model) &&
+    (!hasValue(model.resPriceOther) || Number(model.resPriceOther) <= 0)
+  ) {
+    warnings.push(
+      t('启用分辨率分档单价时，「其他」档必须填写且大于 0（未匹配分辨率时兜底）。'),
+    );
+  }
+
   return warnings;
 };
 
@@ -328,7 +396,10 @@ export const buildSummaryText = (model, t) => {
       Number(model.upstreamCostMultiplier) !== 1
         ? `，cost×${model.upstreamCostMultiplier}`
         : '';
-    return `${t('按秒')} $${model.fixedPrice} / ${t('秒')}${multSuffix}${requestRuleSuffix}`;
+    const tierSuffix = hasAnyResolutionTier(model)
+      ? `，${t('分辨率分档')}`
+      : '';
+    return `${t('按秒')} $${model.fixedPrice} / ${t('秒')}${tierSuffix}${multSuffix}${requestRuleSuffix}`;
   }
 
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
@@ -537,6 +608,25 @@ export const buildPreviewRows = (model, t) => {
           ? model.upstreamCostMultiplier
           : '1',
       });
+      if (hasAnyResolutionTier(model)) {
+        rows.push({
+          key: 'PerSecondResolutionPrice',
+          label: 'PerSecondResolutionPrice',
+          value: [
+            hasValue(model.resPrice480p) ? `480p=$${model.resPrice480p}` : null,
+            hasValue(model.resPrice720p) ? `720p=$${model.resPrice720p}` : null,
+            hasValue(model.resPrice1080p)
+              ? `1080p=$${model.resPrice1080p}`
+              : null,
+            hasValue(model.resPrice4k) ? `4k=$${model.resPrice4k}` : null,
+            hasValue(model.resPriceOther)
+              ? `other=$${model.resPriceOther}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(', '),
+        });
+      }
     }
     return rows;
   }
@@ -707,6 +797,9 @@ export function useModelPricingEditorState({
       ModelVideoInputRatio: parseOptionJSON(
         options['billing_setting.video_input_ratio'],
       ),
+      ModelPerSecondResolutionPrice: parseOptionJSON(
+        options['billing_setting.per_second_resolution_price'],
+      ),
     };
 
     const names = new Set([
@@ -724,6 +817,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.ModelBillingExpr),
       ...Object.keys(sourceMaps.ModelUpstreamCostMultiplier),
       ...Object.keys(sourceMaps.ModelVideoInputRatio),
+      ...Object.keys(sourceMaps.ModelPerSecondResolutionPrice),
     ]);
 
     const nextModels = Array.from(names)
@@ -1027,6 +1121,11 @@ export function useModelPricingEditorState({
           fixedPrice: selectedModel.fixedPrice,
           upstreamCostMultiplier: selectedModel.upstreamCostMultiplier,
           videoInputRatio: selectedModel.videoInputRatio,
+          resPrice480p: selectedModel.resPrice480p,
+          resPrice720p: selectedModel.resPrice720p,
+          resPrice1080p: selectedModel.resPrice1080p,
+          resPrice4k: selectedModel.resPrice4k,
+          resPriceOther: selectedModel.resPriceOther,
           inputPrice: selectedModel.inputPrice,
           completionPrice: selectedModel.completionPrice,
           cachePrice: selectedModel.cachePrice,
@@ -1108,6 +1207,11 @@ export function useModelPricingEditorState({
       const videoInputRatioOutput = {
         ...parseOptionJSON(options['billing_setting.video_input_ratio']),
       };
+      const resolutionPriceOutput = {
+        ...parseOptionJSON(
+          options['billing_setting.per_second_resolution_price'],
+        ),
+      };
       const prevBillingModes = parseOptionJSON(
         options['billing_setting.billing_mode'],
       );
@@ -1122,6 +1226,7 @@ export function useModelPricingEditorState({
             tieredOutput['billing_setting.billing_mode'][model.name] = 'tiered_expr';
             tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
           }
+          delete resolutionPriceOutput[model.name];
         } else if (model.billingMode === 'per-second') {
           tieredOutput['billing_setting.billing_mode'][model.name] = 'per_second';
           const mult = toNumberOrNull(model.upstreamCostMultiplier);
@@ -1130,8 +1235,28 @@ export function useModelPricingEditorState({
           } else {
             delete costMultiplierOutput[model.name];
           }
+          if (hasAnyResolutionTier(model)) {
+            const other = toNumberOrNull(model.resPriceOther);
+            if (other === null || other <= 0) {
+              throw new Error(
+                t(
+                  '模型 {{name}} 启用了分辨率分档单价时，「其他」档必须填写且大于 0',
+                  { name: model.name },
+                ),
+              );
+            }
+            const map = buildResolutionPriceMap(model);
+            if (map) {
+              resolutionPriceOutput[model.name] = map;
+            } else {
+              delete resolutionPriceOutput[model.name];
+            }
+          } else {
+            delete resolutionPriceOutput[model.name];
+          }
         } else {
           delete costMultiplierOutput[model.name];
+          delete resolutionPriceOutput[model.name];
           if (prevBillingModes?.[model.name] === 'per_second') {
             tieredOutput['billing_setting.billing_mode'][model.name] = 'ratio';
           }
@@ -1186,6 +1311,10 @@ export function useModelPricingEditorState({
         API.put('/api/option/', {
           key: 'billing_setting.video_input_ratio',
           value: JSON.stringify(videoInputRatioOutput, null, 2),
+        }),
+        API.put('/api/option/', {
+          key: 'billing_setting.per_second_resolution_price',
+          value: JSON.stringify(resolutionPriceOutput, null, 2),
         }),
       ];
 

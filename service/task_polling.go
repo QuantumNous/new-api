@@ -19,6 +19,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
 	"github.com/samber/lo"
+	"github.com/tidwall/gjson"
 )
 
 // TaskPollingAdaptor 定义轮询所需的最小适配器接口，避免 service -> relay 的循环依赖
@@ -564,36 +565,69 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 }
 
 // mergeTaskUsageFromNestedJSON 从视频/方舟等嵌套 JSON 的 usage 块补全 TaskInfo（New API 轮询路径常不经 adaptor.ParseTaskResult）。
+// 兼容多种上游形态：
+//   - 顶层 usage / total_tokens
+//   - New API 包装：data.usage / data.total_tokens
+//   - 仅有 completion_tokens 时回填 total_tokens（豆包视频常见）
 func mergeTaskUsageFromNestedJSON(raw []byte, taskResult *relaycommon.TaskInfo) {
 	if len(raw) == 0 || taskResult == nil {
 		return
 	}
-	var payload struct {
-		Usage struct {
-			TotalTokens      int `json:"total_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
-			PromptTokens     int `json:"prompt_tokens"`
-		} `json:"usage"`
-	}
-	if err := common.Unmarshal(raw, &payload); err != nil {
+	root := gjson.ParseBytes(raw)
+	if !root.Exists() {
 		return
 	}
-	u := payload.Usage
-	if u.TotalTokens <= 0 && u.CompletionTokens <= 0 && u.PromptTokens <= 0 {
+
+	total, completion, prompt := extractTaskUsageTokens(root)
+	if total <= 0 && completion <= 0 && prompt <= 0 {
+		if data := root.Get("data"); data.Exists() && data.IsObject() {
+			total, completion, prompt = extractTaskUsageTokens(data)
+		}
+	}
+	if total <= 0 && completion <= 0 && prompt <= 0 {
 		return
 	}
-	if taskResult.TotalTokens <= 0 && u.TotalTokens > 0 {
-		taskResult.TotalTokens = u.TotalTokens
+
+	if taskResult.TotalTokens <= 0 && total > 0 {
+		taskResult.TotalTokens = total
 	}
-	if taskResult.CompletionTokens <= 0 && u.CompletionTokens > 0 {
-		taskResult.CompletionTokens = u.CompletionTokens
+	if taskResult.CompletionTokens <= 0 && completion > 0 {
+		taskResult.CompletionTokens = completion
 	}
-	if taskResult.PromptTokens <= 0 && u.PromptTokens > 0 {
-		taskResult.PromptTokens = u.PromptTokens
+	if taskResult.PromptTokens <= 0 && prompt > 0 {
+		taskResult.PromptTokens = prompt
 	}
 	if taskResult.PromptTokens <= 0 && taskResult.TotalTokens > 0 && taskResult.CompletionTokens > 0 {
 		if p := taskResult.TotalTokens - taskResult.CompletionTokens; p > 0 {
 			taskResult.PromptTokens = p
 		}
 	}
+	// 视频任务常只返回 completion_tokens；差额结算依赖 TotalTokens
+	if taskResult.TotalTokens <= 0 {
+		if taskResult.CompletionTokens > 0 || taskResult.PromptTokens > 0 {
+			taskResult.TotalTokens = taskResult.PromptTokens + taskResult.CompletionTokens
+		}
+	}
+}
+
+func extractTaskUsageTokens(node gjson.Result) (total, completion, prompt int) {
+	if !node.Exists() {
+		return 0, 0, 0
+	}
+	usage := node.Get("usage")
+	if usage.Exists() && usage.IsObject() {
+		total = int(usage.Get("total_tokens").Int())
+		completion = int(usage.Get("completion_tokens").Int())
+		prompt = int(usage.Get("prompt_tokens").Int())
+	}
+	if total <= 0 {
+		total = int(node.Get("total_tokens").Int())
+	}
+	if completion <= 0 {
+		completion = int(node.Get("completion_tokens").Int())
+	}
+	if prompt <= 0 {
+		prompt = int(node.Get("prompt_tokens").Int())
+	}
+	return total, completion, prompt
 }

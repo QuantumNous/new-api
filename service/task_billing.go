@@ -45,6 +45,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, publicTaskI
 	other["model_price"] = info.PriceData.ModelPrice
 	if info.PriceData.ModelRatio > 0 {
 		other["model_ratio"] = info.PriceData.ModelRatio
+		// 视频等异步任务按 total_tokens×model_ratio 结算，无独立补全倍率；
+		// 写入 1 避免前端把缺失的 completion_ratio 显示为 $NaN。
+		other["completion_ratio"] = 1.0
 	}
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
