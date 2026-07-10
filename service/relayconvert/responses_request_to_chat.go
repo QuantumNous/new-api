@@ -393,6 +393,7 @@ func responsesFlattenInnerTools(tool map[string]any) []dto.ToolCallRequest {
 	for _, item := range innerTools {
 		tool, ok := item.(map[string]any)
 		if !ok {
+			common.SysError("responses to chat conversion skipped malformed inner tool entry")
 			continue
 		}
 		name := strings.TrimSpace(common.Interface2String(tool["name"]))
