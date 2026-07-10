@@ -2013,6 +2013,8 @@
     "Force format response to OpenAI standard (OpenAI channel only)": "Force format response to OpenAI standard (OpenAI channel only)",
     "Force JSON object or schema-conforming output": "Force JSON object or schema-conforming output",
     "Force SMTP authentication using AUTH LOGIN method": "Force SMTP authentication using AUTH LOGIN method",
+    "Force Stream": "Force Stream",
+    "Force streaming upstream and buffer the response as non-streaming JSON. Useful for upstream providers that only support streaming. Incompatible with Pass Through Body.": "Force streaming upstream and buffer the response as non-streaming JSON. Useful for upstream providers that only support streaming. Incompatible with Pass Through Body.",
     "Force-disabled two-factor authentication for the user": "Force-disabled two-factor authentication for the user",
     "Forest Whisper": "Forest Whisper",
     "Forgot password": "Forgot password",

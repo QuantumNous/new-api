@@ -35,6 +35,18 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// If the channel is configured to force streaming upstream but the client
+	// requested non-streaming, force stream:true upstream and buffer the SSE
+	// response into a single non-stream JSON for the client. This is
+	// incompatible with pass-through mode, which sends the raw body as-is.
+	if info.ChannelSetting.ForceStream &&
+		!info.ChannelSetting.PassThroughBodyEnabled &&
+		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
+		!lo.FromPtrOr(request.Stream, false) {
+		request.Stream = common.GetPointer(true)
+		info.ForceStreamBuffer = true
+	}
+
 	if request.WebSearchOptions != nil {
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
 	}

@@ -2013,6 +2013,8 @@
     "Force format response to OpenAI standard (OpenAI channel only)": "强制将响应格式化为 OpenAI 标准（仅限 OpenAI 渠道）",
     "Force JSON object or schema-conforming output": "强制输出 JSON 对象或符合 Schema 的结果",
     "Force SMTP authentication using AUTH LOGIN method": "强制使用 AUTH LOGIN 方法进行 SMTP 认证",
+    "Force Stream": "强制流式",
+    "Force streaming upstream and buffer the response as non-streaming JSON. Useful for upstream providers that only support streaming. Incompatible with Pass Through Body.": "强制上游使用流式请求，并将响应缓冲为非流式 JSON 返回。适用于仅支持流式的上游。与请求体透传不兼容。",
     "Force-disabled two-factor authentication for the user": "强制关闭了用户的两步验证",
     "Forest Whisper": "森林低语",
     "Forgot password": "忘记密码",

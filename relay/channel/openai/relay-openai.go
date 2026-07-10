@@ -220,12 +220,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
-	for _, choice := range simpleResponse.Choices {
-		if choice.FinishReason == constant.FinishReasonContentFilter {
-			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "openai_finish_reason=content_filter")
-			break
-		}
-	}
+	markContentFilterReject(c, simpleResponse.Choices)
 
 	forceFormat := false
 	if info.ChannelSetting.ForceFormat {
@@ -251,8 +246,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
 
-	switch info.RelayFormat {
-	case types.RelayFormatOpenAI:
+	if info.RelayFormat == types.RelayFormatOpenAI {
 		if usageModified {
 			var bodyMap map[string]interface{}
 			err = common.Unmarshal(responseBody, &bodyMap)
@@ -267,23 +261,13 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			if err != nil {
 				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 			}
-		} else {
-			break
 		}
-	case types.RelayFormatClaude:
-		claudeResp := service.ResponseOpenAI2Claude(&simpleResponse, info)
-		claudeRespStr, err := common.Marshal(claudeResp)
-		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	} else {
+		converted, marshalErr := marshalTextResponse(&simpleResponse, info)
+		if marshalErr != nil {
+			return nil, types.NewError(marshalErr, types.ErrorCodeBadResponseBody)
 		}
-		responseBody = claudeRespStr
-	case types.RelayFormatGemini:
-		geminiResp := service.ResponseOpenAI2Gemini(&simpleResponse, info)
-		geminiRespStr, err := common.Marshal(geminiResp)
-		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
-		}
-		responseBody = geminiRespStr
+		responseBody = converted
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)

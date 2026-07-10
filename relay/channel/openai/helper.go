@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -207,4 +208,31 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 		return
 	}
 	_ = helper.ResponseChunkData(c, streamResponse, data)
+}
+
+// markContentFilterReject checks choices for a content_filter finish reason
+// and sets the admin reject-reason context key if found. Shared between
+// OpenaiHandler and OaiStreamBufferHandler.
+func markContentFilterReject(c *gin.Context, choices []dto.OpenAITextResponseChoice) {
+	for _, choice := range choices {
+		if choice.FinishReason == constant.FinishReasonContentFilter {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "openai_finish_reason=content_filter")
+			break
+		}
+	}
+}
+
+// marshalTextResponse converts an OpenAITextResponse to the client's expected
+// relay format (Claude / Gemini / OpenAI) and marshals it. Shared between
+// OpenaiHandler and OaiStreamBufferHandler so the conversion logic stays in
+// one place.
+func marshalTextResponse(textResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) ([]byte, error) {
+	switch info.RelayFormat {
+	case types.RelayFormatClaude:
+		return common.Marshal(service.ResponseOpenAI2Claude(textResponse, info))
+	case types.RelayFormatGemini:
+		return common.Marshal(service.ResponseOpenAI2Gemini(textResponse, info))
+	default:
+		return common.Marshal(textResponse)
+	}
 }
