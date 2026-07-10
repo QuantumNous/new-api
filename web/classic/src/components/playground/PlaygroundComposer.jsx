@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef } from 'react';
 import { InputNumber, Select } from '@douyinfe/semi-ui';
-import { Bot, Loader2, Paperclip, Plus, X } from 'lucide-react';
+import { Bot, ImageIcon, Loader2, Paperclip, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
 import { selectFilter } from '../../helpers';
@@ -252,10 +252,10 @@ const PlaygroundComposer = ({
                     fileInputRef.current?.click();
                   }}
                   type='button'
-                  aria-label={t('参考图片')}
+                  aria-label={t('选择图片')}
                   title={t('支持 JPEG、PNG、Webp')}
                 >
-                  <Plus size={20} />
+                  <ImageIcon size={18} />
                 </button>
                 <input
                   ref={fileInputRef}
