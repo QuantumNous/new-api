@@ -213,6 +213,7 @@ function getModelLabel(modelId: string): string {
 function getMissingProcurementFields(
   item: ModelDataItem,
   modelId: string,
+  officialHasCacheWrite: boolean,
 ): string[] {
   const missing: string[] = []
   if (!hasPositivePrice(item.actual_price)) missing.push('input')
@@ -220,7 +221,9 @@ function getMissingProcurementFields(
 
   if (!hasPositivePrice(item.actual_output_price)) missing.push('output')
   if (!hasPositivePrice(item.actual_cache_price)) missing.push('cache_read')
-  if (!hasPositivePrice(item.actual_cache_creation_price)) missing.push('cache_write')
+  // cache_write is only required when the unified official price has a
+  // cache-creation axis; otherwise upstream 0 means "not applicable".
+  if (officialHasCacheWrite && !hasPositivePrice(item.actual_cache_creation_price)) missing.push('cache_write')
   return missing
 }
 
@@ -469,7 +472,7 @@ export function ChannelDataPage() {
   const [allProcurementAuditLoaded, setAllProcurementAuditLoaded] = useState(false)
   const [allProcurementAuditFailed, setAllProcurementAuditFailed] = useState(false)
   // Unified 官方原价 for the active model tab (系统设置 → 模型定价).
-  const [official, setOfficial] = useState<{ input_price: number; output_price: number; ok: boolean } | null>(null)
+  const [official, setOfficial] = useState<{ input_price: number; output_price: number; ok: boolean; has_cache_write?: boolean } | null>(null)
   const [fixingRatio, setFixingRatio] = useState<Record<number, boolean>>({})
   const [config, setConfig] = useState<DetectConfig>({
     fingerprint_enabled: false,
@@ -1076,7 +1079,7 @@ export function ChannelDataPage() {
                 </tr>
               )}
               {data.map((item) => {
-                const missingProcurementFields = getMissingProcurementFields(item, activeModel)
+                const missingProcurementFields = getMissingProcurementFields(item, activeModel, official?.has_cache_write ?? false)
                 const hasProcurementAlert = missingProcurementFields.length > 0
                 const isAutoDisabled = item.status === 3
                 const isModelEnabled = item.model_enabled !== false  // default true if field missing

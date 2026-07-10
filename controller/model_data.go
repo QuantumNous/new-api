@@ -102,9 +102,10 @@ func GetModelData(c *gin.Context) {
 		"success": true,
 		"data":    items,
 		"official": gin.H{
-			"input_price":  officialIn,
-			"output_price": officialOut,
-			"ok":           officialOK,
+			"input_price":     officialIn,
+			"output_price":    officialOut,
+			"ok":              officialOK,
+			"has_cache_write": channelDataAuditOfficialHasCacheWrite(modelName),
 		},
 	})
 }

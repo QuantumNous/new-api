@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -109,6 +110,11 @@ func buildChannelDataAudit(modelName string, items []ModelDataItem) ([]ChannelDa
 	summary := ChannelDataAuditSummary{TotalChannels: len(items)}
 	groups := make(map[string][]ChannelDataAuditGroupMember)
 	requiresFourPiece := channelDataAuditRequiresFourPiece(modelName)
+	// cache_write is only required when the unified official price actually has a
+	// cache-creation axis (系统设置→模型定价 配了 CreateCacheRatio). Many models
+	// (grok, most gpt) have no official cache-write price at all, so an upstream
+	// 0 there is "not applicable", not "missing".
+	requiresCacheWrite := requiresFourPiece && channelDataAuditOfficialHasCacheWrite(modelName)
 
 	addGroup := func(key string, item ModelDataItem) {
 		groups[key] = append(groups[key], ChannelDataAuditGroupMember{
@@ -141,7 +147,7 @@ func buildChannelDataAudit(modelName string, items []ModelDataItem) ([]ChannelDa
 			if channelDataAuditPriceMissing(item.ActualCachePrice) {
 				missingFields = append(missingFields, "cache_read")
 			}
-			if channelDataAuditPriceMissing(item.ActualCacheCreationPrice) {
+			if requiresCacheWrite && channelDataAuditPriceMissing(item.ActualCacheCreationPrice) {
 				missingFields = append(missingFields, "cache_write")
 			}
 		}
@@ -235,4 +241,13 @@ func channelDataAuditRequiresFourPiece(modelName string) bool {
 	default:
 		return true
 	}
+}
+
+// channelDataAuditOfficialHasCacheWrite reports whether the unified official
+// price (系统设置→模型定价) defines a cache-creation axis for this model. When
+// it doesn't (no CreateCacheRatio configured), upstream channels legitimately
+// report cache_write=0, so we must not flag them as "missing price".
+func channelDataAuditOfficialHasCacheWrite(modelName string) bool {
+	_, _, _, cacheCreation, ok := service.GlobalModelPricingUSD(modelName)
+	return ok && cacheCreation > 0
 }
