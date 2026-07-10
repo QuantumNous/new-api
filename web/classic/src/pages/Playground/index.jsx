@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, {
   useContext,
   useEffect,
@@ -61,6 +80,102 @@ import {
 import ChatArea from '../../components/playground/ChatArea2';
 import PlaygroundSidebar from '../../components/playground/PlaygroundSidebar';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
+import { extractPdfText } from '../../helpers/playgroundPdfExtract';
+import {
+  extractDocxText,
+  extractJsonText,
+  extractPlainTextFile,
+  extractXlsxText,
+} from '../../helpers/playgroundDocumentExtract';
+import { buildInlineFileContentParts } from '../../helpers/playgroundFileInline';
+
+const MAX_PLAYGROUND_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+const FILE_ATTACHMENT_STATUS = {
+  LOADING: 'loading',
+  READY: 'ready',
+  ERROR: 'error',
+};
+
+const SUPPORTED_INLINE_FILE_TYPES = new Set([
+  'pdf',
+  'docx',
+  'xlsx',
+  'txt',
+  'json',
+]);
+const LEGACY_OFFICE_FILE_TYPES = new Set(['doc', 'xls']);
+
+const getFileExtension = (file) => {
+  const filename = String(file?.name || '').toLowerCase();
+  const lastDot = filename.lastIndexOf('.');
+  return lastDot === -1 ? '' : filename.slice(lastDot + 1);
+};
+
+const isPdfFile = (file) => {
+  return file?.type === 'application/pdf' || getFileExtension(file) === 'pdf';
+};
+
+const isDocxFile = (file) =>
+  file?.type ===
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+  getFileExtension(file) === 'docx';
+
+const isXlsxFile = (file) =>
+  file?.type ===
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+  getFileExtension(file) === 'xlsx';
+
+const isTextFile = (file) =>
+  file?.type?.startsWith('text/') || getFileExtension(file) === 'txt';
+
+const isJsonFile = (file) =>
+  file?.type === 'application/json' || getFileExtension(file) === 'json';
+
+const getInlineFileType = (file) => {
+  if (isPdfFile(file)) {
+    return 'pdf';
+  }
+  if (isDocxFile(file)) {
+    return 'docx';
+  }
+  if (isXlsxFile(file)) {
+    return 'xlsx';
+  }
+  if (isJsonFile(file)) {
+    return 'json';
+  }
+  if (isTextFile(file)) {
+    return 'txt';
+  }
+
+  return getFileExtension(file);
+};
+
+const buildFileDisplayPart = (attachment) => ({
+  type: 'file',
+  file: {
+    filename: attachment.name,
+    file_type: attachment.kind,
+  },
+});
+
+const buildApiContentWithInlineFiles = ({
+  textContent,
+  files,
+  imageUrls,
+  imageEnabled,
+}) => [
+  ...buildInlineFileContentParts({
+    prompt: textContent,
+    files,
+  }),
+  ...(imageEnabled
+    ? imageUrls.map((url) => ({
+        type: 'image_url',
+        image_url: { url: url.trim() },
+      }))
+    : []),
+];
 
 // 生成头像
 const generateAvatarDataUrl = (username) => {
@@ -91,11 +206,13 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isImageGenerationPending, setIsImageGenerationPending] =
     useState(false);
+  const [selectedInlineFiles, setSelectedInlineFiles] = useState([]);
   const pendingRouteRef = useRef(null);
   const popstateGuardActiveRef = useRef(false);
   const imageAbortControllerRef = useRef(null);
   const imageCacheInFlightRef = useRef(new Set());
   const videoPollingRef = useRef(new Set());
+  const fileSelectionVersionRef = useRef(0);
   const playgroundUserIdentity = useMemo(
     () => ({
       id: userState?.user?.id || null,
@@ -383,7 +500,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   ]);
 
   // 发送消息
-  function onMessageSend(content, attachment) {
+  async function onMessageSend(content, attachment) {
     console.log('attachment: ', attachment);
 
     if (playgroundMode === 'image') {
@@ -426,15 +543,55 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     }
 
     // 默认模式
+    if (
+      selectedInlineFiles.some(
+        (file) => file.status === FILE_ATTACHMENT_STATUS.LOADING,
+      )
+    ) {
+      Toast.warning({
+        content: t('文件解析中，请稍候'),
+        duration: 2,
+      });
+      return;
+    }
+
+    if (
+      selectedInlineFiles.some(
+        (file) => file.status === FILE_ATTACHMENT_STATUS.ERROR,
+      )
+    ) {
+      Toast.error({
+        content: t('文件解析失败，请重新选择文件'),
+        duration: 3,
+      });
+      return;
+    }
+
     const validImageUrls = inputs.imageUrls.filter((url) => url.trim() !== '');
+    const fileDisplayParts = selectedInlineFiles.map(buildFileDisplayPart);
+    const inlineFiles = selectedInlineFiles.map((attachment) => ({
+      filename: attachment.name,
+      text: attachment.text,
+    }));
+
     const messageContent = buildMessageContent(
       content,
       validImageUrls,
       inputs.imageEnabled,
+      fileDisplayParts,
     );
+    const apiMessageContent = selectedInlineFiles.length
+      ? buildApiContentWithInlineFiles({
+          textContent: content,
+          files: inlineFiles,
+          imageUrls: validImageUrls,
+          imageEnabled: inputs.imageEnabled,
+        })
+      : null;
     const userMessageWithImages = createMessage(
       MESSAGE_ROLES.USER,
       messageContent,
+      apiMessageContent ? { apiContent: apiMessageContent } : {},
     );
 
     setMessage((prevMessage) => {
@@ -448,6 +605,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
       );
       sendRequest(payload, inputs.stream);
       clearSelectedImages();
+      setSelectedInlineFiles([]);
 
       // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
       const messagesWithLoading = [...newMessages, loadingMessage];
@@ -730,6 +888,13 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     },
     [clearSelectedImages],
   );
+
+  useEffect(() => {
+    if (playgroundMode !== 'chat' || customRequestMode) {
+      fileSelectionVersionRef.current += 1;
+      setSelectedInlineFiles([]);
+    }
+  }, [customRequestMode, playgroundMode]);
 
   const buildImageEditFormData = useCallback(
     async (prompt) => {
@@ -1701,11 +1866,8 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     let isCancelled = false;
 
     const hydrateCachedImages = async () => {
-      const {
-        nextMessages,
-        changed,
-        urlsToCache,
-      } = await hydrateMessagesWithCachedImageUrls(message);
+      const { nextMessages, changed, urlsToCache } =
+        await hydrateMessagesWithCachedImageUrls(message);
 
       if (isCancelled) {
         return;
@@ -1934,13 +2096,153 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     [handleInputChange, inputs.imageUrls],
   );
 
+  const handleSelectInlineFile = useCallback(
+    async (file) => {
+      if (!file) {
+        return;
+      }
+
+      const kind = getInlineFileType(file);
+
+      if (LEGACY_OFFICE_FILE_TYPES.has(kind)) {
+        Toast.warning({
+          content: t('暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传'),
+          duration: 4,
+        });
+        return;
+      }
+
+      if (!SUPPORTED_INLINE_FILE_TYPES.has(kind)) {
+        Toast.error({
+          content: t('仅支持 PDF、DOCX、XLSX、TXT、JSON 文件'),
+          duration: 2,
+        });
+        return;
+      }
+
+      if (file.size > MAX_PLAYGROUND_ATTACHMENT_SIZE) {
+        Toast.error({
+          content: t('文件不能超过 20MB'),
+          duration: 3,
+        });
+        return;
+      }
+
+      const selectionVersion = fileSelectionVersionRef.current + 1;
+      fileSelectionVersionRef.current = selectionVersion;
+      const attachment = {
+        id: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        kind,
+        name: file.name,
+        size: file.size,
+        status: FILE_ATTACHMENT_STATUS.LOADING,
+        text: '',
+        error: null,
+      };
+
+      setSelectedInlineFiles([attachment]);
+
+      try {
+        let result;
+
+        if (kind === 'pdf') {
+          result = await extractPdfText(file);
+        } else if (kind === 'docx') {
+          result = await extractDocxText(file);
+        } else if (kind === 'xlsx') {
+          result = await extractXlsxText(file);
+        } else if (kind === 'json') {
+          result = await extractJsonText(file);
+        } else {
+          result = await extractPlainTextFile(file);
+        }
+
+        if (fileSelectionVersionRef.current !== selectionVersion) {
+          return;
+        }
+
+        if (!result.text || result.text.trim() === '') {
+          setSelectedInlineFiles((prevFiles) =>
+            prevFiles.map((item) =>
+              item.id === attachment.id
+                ? {
+                    ...item,
+                    status: FILE_ATTACHMENT_STATUS.ERROR,
+                    error: 'empty',
+                  }
+                : item,
+            ),
+          );
+          Toast.error({
+            content: t('未能从文件中提取文本'),
+            duration: 3,
+          });
+          return;
+        }
+
+        setSelectedInlineFiles((prevFiles) =>
+          prevFiles.map((item) =>
+            item.id === attachment.id
+              ? {
+                  ...item,
+                  status: FILE_ATTACHMENT_STATUS.READY,
+                  text: result.text,
+                  pageCount: result.pageCount,
+                  sheetCount: result.sheetCount,
+                  truncated: result.truncated,
+                  error: null,
+                }
+              : item,
+          ),
+        );
+        Toast.success({
+          content: t('文件已添加'),
+          duration: 2,
+        });
+      } catch (error) {
+        if (fileSelectionVersionRef.current !== selectionVersion) {
+          return;
+        }
+
+        console.error('读取文件失败:', error);
+        setSelectedInlineFiles((prevFiles) =>
+          prevFiles.map((item) =>
+            item.id === attachment.id
+              ? {
+                  ...item,
+                  status: FILE_ATTACHMENT_STATUS.ERROR,
+                  error,
+                }
+              : item,
+          ),
+        );
+        Toast.error({
+          content: t('读取文件失败，请重新选择文件'),
+          duration: 3,
+        });
+      }
+    },
+    [t],
+  );
+
+  const handleRemoveInlineFile = useCallback((indexToRemove) => {
+    fileSelectionVersionRef.current += 1;
+    setSelectedInlineFiles((prevFiles) =>
+      prevFiles.filter((_, index) => index !== indexToRemove),
+    );
+  }, []);
+
   // Playground Context 值
   const playgroundContextValue = {
     onPasteImage: handlePasteImage,
     onSelectImageFile: handleSelectImageFile,
     onRemoveImage: handleRemoveImage,
+    onSelectInlineFile: handleSelectInlineFile,
+    onRemoveInlineFile: handleRemoveInlineFile,
     imageUrls: inputs.imageUrls || [],
     imageEnabled: inputs.imageEnabled || false,
+    selectedInlineFiles,
   };
 
   return (

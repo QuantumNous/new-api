@@ -108,6 +108,16 @@ const sanitizeMessageContentForStorage = (content) => {
         };
       }
 
+      if (item.type === 'file') {
+        return {
+          ...item,
+          file: {
+            filename: item.file?.filename || item.file?.file_name || '',
+            file_id: item.file?.file_id || undefined,
+          },
+        };
+      }
+
       return {
         ...item,
         text: trimTextForStorage(item.text),
@@ -123,9 +133,10 @@ const sanitizeMessageForStorage = (message) => {
     return message;
   }
 
+  const { apiContent, ...messageToStore } = message;
   const sanitized = {
-    ...message,
-    content: sanitizeMessageContentForStorage(message.content),
+    ...messageToStore,
+    content: sanitizeMessageContentForStorage(messageToStore.content),
   };
 
   if (typeof sanitized.reasoningContent === 'string') {
@@ -144,7 +155,7 @@ const sanitizeMessageForStorage = (message) => {
   return sanitized;
 };
 
-const sanitizeMessagesForStorage = (messages) =>
+export const sanitizeMessagesForStorage = (messages) =>
   Array.isArray(messages) ? messages.map(sanitizeMessageForStorage) : [];
 
 const sanitizeConversationsForStorage = (conversations) =>
@@ -245,7 +256,7 @@ export const saveConfig = (config) => {
  */
 export const saveMessages = (messages) => {
   const messagesToSave = {
-    messages,
+    messages: sanitizeMessagesForStorage(messages),
     timestamp: new Date().toISOString(),
   };
   const fallbackMessagesToSave = buildMessageStorageFallback();
@@ -477,10 +488,14 @@ export const saveCachedImageDataUrl = async (url, dataUrl) => {
   }
 };
 
-export const loadConversationStateFromIndexedDB = async (userIdentity = null) => {
+export const loadConversationStateFromIndexedDB = async (
+  userIdentity = null,
+) => {
   try {
     const payload = await runMetaTransaction('readonly', (store, resolve) => {
-      const request = store.get(getPlaygroundConversationStateKey(userIdentity));
+      const request = store.get(
+        getPlaygroundConversationStateKey(userIdentity),
+      );
       request.onsuccess = () => resolve(request.result?.value || null);
       request.onerror = () => resolve(null);
     });
@@ -508,12 +523,14 @@ export const saveConversationStateToIndexedDB = async (
   activeConversationId = null,
   userIdentity = null,
 ) => {
+  const sanitizedConversations = sanitizeConversationsForStorage(conversations);
+
   try {
     await runMetaTransaction('readwrite', (store, resolve, reject) => {
       const request = store.put({
         key: getPlaygroundConversationStateKey(userIdentity),
         value: {
-          conversations,
+          conversations: sanitizedConversations,
           activeConversationId,
           timestamp: new Date().toISOString(),
         },
@@ -526,10 +543,14 @@ export const saveConversationStateToIndexedDB = async (
   }
 };
 
-export const clearConversationStateFromIndexedDB = async (userIdentity = null) => {
+export const clearConversationStateFromIndexedDB = async (
+  userIdentity = null,
+) => {
   try {
     await runMetaTransaction('readwrite', (store, resolve, reject) => {
-      const request = store.delete(getPlaygroundConversationStateKey(userIdentity));
+      const request = store.delete(
+        getPlaygroundConversationStateKey(userIdentity),
+      );
       request.onsuccess = () => resolve(true);
       request.onerror = () => reject(request.error);
     });
@@ -538,7 +559,9 @@ export const clearConversationStateFromIndexedDB = async (userIdentity = null) =
   }
 };
 
-export const migrateConversationStateToIndexedDB = async (userIdentity = null) => {
+export const migrateConversationStateToIndexedDB = async (
+  userIdentity = null,
+) => {
   const indexedState = await loadConversationStateFromIndexedDB(userIdentity);
   if (indexedState?.conversations?.length) {
     return indexedState;
@@ -561,11 +584,14 @@ export const saveConversationState = (
   conversations = [],
   activeConversationId = null,
 ) => {
+  const sanitizedConversations = sanitizeConversationsForStorage(conversations);
   const payload = {
-    conversations,
+    conversations: sanitizedConversations,
     timestamp: new Date().toISOString(),
   };
-  const fallbackPayload = buildConversationStorageFallback(conversations);
+  const fallbackPayload = buildConversationStorageFallback(
+    sanitizedConversations,
+  );
 
   const saved = setStorageItemSafely(
     STORAGE_KEYS.CONVERSATIONS,

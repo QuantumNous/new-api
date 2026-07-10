@@ -42,6 +42,35 @@ import {
 import { useTranslation } from 'react-i18next';
 import { isAdmin } from '../../helpers/utils';
 
+const getMessageFileType = (fileItem) => {
+  const explicitType = String(fileItem?.file?.file_type || '').toLowerCase();
+
+  if (explicitType) {
+    return explicitType;
+  }
+
+  const filename = String(
+    fileItem?.file?.filename || fileItem?.file?.file_name || '',
+  ).toLowerCase();
+  const lastDot = filename.lastIndexOf('.');
+
+  return lastDot === -1 ? 'file' : filename.slice(lastDot + 1);
+};
+
+const getMessageFileIcon = (fileType) => {
+  const normalizedType = String(fileType || '').toLowerCase();
+
+  if (['pdf', 'docx', 'xlsx'].includes(normalizedType)) {
+    return `/${normalizedType}.svg`;
+  }
+
+  if (['txt', 'json'].includes(normalizedType)) {
+    return '/file.svg';
+  }
+
+  return null;
+};
+
 const MessageContent = ({
   message,
   className,
@@ -539,9 +568,51 @@ const MessageContent = ({
             const imageContents = message.content.filter(
               (item) => item.type === 'image_url',
             );
+            const fileContents = message.content.filter(
+              (item) => item.type === 'file',
+            );
 
             return (
               <div>
+                {fileContents.length > 0 && (
+                  <div className='playground-message-file-list mb-3'>
+                    {fileContents.map((fileItem, index) => {
+                      const filename =
+                        fileItem?.file?.filename ||
+                        fileItem?.file?.file_name ||
+                        t('文件');
+                      const fileType = getMessageFileType(fileItem);
+                      const fileIcon = getMessageFileIcon(fileType);
+
+                      return (
+                        <div
+                          key={`${filename}-${index}`}
+                          className='playground-message-file-item'
+                        >
+                          {fileIcon ? (
+                            <img
+                              src={fileIcon}
+                              alt=''
+                              className='playground-message-file-icon'
+                              aria-hidden={true}
+                            />
+                          ) : (
+                            <span
+                              className='playground-message-file-type-badge'
+                              aria-hidden={true}
+                            >
+                              {String(fileType || 'file').toUpperCase()}
+                            </span>
+                          )}
+                          <span className='playground-message-file-name'>
+                            {filename}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {imageContents.length > 0 && (
                   <div className='mb-3 space-y-2'>
                     {(() => {

@@ -582,6 +582,57 @@
   background: rgba(254, 242, 242, 0.96);
 }
 
+.playground-message-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.playground-message-file-item {
+  display: inline-flex;
+  max-width: min(100%, 320px);
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(216, 224, 235, 0.92);
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.95);
+  color: #334155;
+  padding: 6px 9px;
+}
+
+.playground-message-file-icon {
+  display: block;
+  width: 24px;
+  height: 28px;
+  flex: 0 0 24px;
+  object-fit: contain;
+}
+
+.playground-message-file-type-badge {
+  display: inline-flex;
+  width: 30px;
+  height: 24px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: rgba(71, 85, 105, 0.1);
+  color: #475569;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.playground-message-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .playground-image-preview.semi-image-preview {
   background: rgba(10, 14, 22, 0.84);
   backdrop-filter: blur(18px);
@@ -1103,6 +1154,17 @@ html.dark .playground-message-image-error {
   color: #fda4af;
   border-color: rgba(248, 113, 113, 0.24);
   background: rgba(69, 10, 10, 0.72);
+}
+
+html.dark .playground-message-file-item {
+  border-color: rgba(53, 61, 76, 0.96);
+  background: rgba(15, 23, 42, 0.9);
+  color: #dbeafe;
+}
+
+html.dark .playground-message-file-type-badge {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
 }
 
 html.dark .playground-image-preview.semi-image-preview {

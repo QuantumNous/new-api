@@ -426,15 +426,25 @@ export const buildMessageContent = (
   textContent,
   imageUrls = [],
   imageEnabled = false,
+  fileContents = [],
 ) => {
-  if (!textContent && (!imageUrls || imageUrls.length === 0)) {
+  const validFileContents = Array.isArray(fileContents)
+    ? fileContents.filter((item) => item?.type === 'file' && item?.file)
+    : [];
+
+  if (
+    !textContent &&
+    (!imageUrls || imageUrls.length === 0) &&
+    validFileContents.length === 0
+  ) {
     return '';
   }
 
   const validImageUrls = imageUrls.filter((url) => url && url.trim() !== '');
 
-  if (imageEnabled && validImageUrls.length > 0) {
+  if ((imageEnabled && validImageUrls.length > 0) || validFileContents.length) {
     return [
+      ...validFileContents,
       { type: 'text', text: textContent || '' },
       ...validImageUrls.map((url) => ({
         type: 'image_url',
@@ -478,9 +488,19 @@ export const hasImageContent = (message) => {
 export const formatMessageForAPI = (message) => {
   if (!message) return null;
 
+  const rawContent = message.apiContent || message.content;
+  const content = Array.isArray(rawContent)
+    ? rawContent.filter((item) => {
+        if (item?.type !== 'file') {
+          return true;
+        }
+        return Boolean(item?.file?.file_data || item?.file?.file_id);
+      })
+    : rawContent;
+
   return {
     role: message.role,
-    content: message.content,
+    content,
   };
 };
 

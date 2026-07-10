@@ -38,6 +38,7 @@ import {
   loadConversationStateFromIndexedDB,
   saveConversationStateToIndexedDB,
   migrateConversationStateToIndexedDB,
+  sanitizeMessagesForStorage,
 } from '../../components/playground/configStorage';
 import { processIncompleteThinkTags } from '../../helpers';
 
@@ -301,31 +302,36 @@ export const usePlaygroundState = (userIdentity = null) => {
     [],
   );
 
-  const mergeConversationLists = useCallback((localList = [], remoteList = []) => {
-    const mergedById = new Map();
+  const mergeConversationLists = useCallback(
+    (localList = [], remoteList = []) => {
+      const mergedById = new Map();
 
-    [...localList, ...remoteList].forEach((conversation) => {
-      if (!conversation?.id) {
-        return;
-      }
-      const existingConversation = mergedById.get(conversation.id);
-      if (!existingConversation) {
-        mergedById.set(conversation.id, conversation);
-        return;
-      }
+      [...localList, ...remoteList].forEach((conversation) => {
+        if (!conversation?.id) {
+          return;
+        }
+        const existingConversation = mergedById.get(conversation.id);
+        if (!existingConversation) {
+          mergedById.set(conversation.id, conversation);
+          return;
+        }
 
-      const existingUpdatedAt = Number(existingConversation.updatedAt || 0);
-      const nextUpdatedAt = Number(conversation.updatedAt || 0);
-      mergedById.set(
-        conversation.id,
-        nextUpdatedAt >= existingUpdatedAt ? conversation : existingConversation,
+        const existingUpdatedAt = Number(existingConversation.updatedAt || 0);
+        const nextUpdatedAt = Number(conversation.updatedAt || 0);
+        mergedById.set(
+          conversation.id,
+          nextUpdatedAt >= existingUpdatedAt
+            ? conversation
+            : existingConversation,
+        );
+      });
+
+      return Array.from(mergedById.values()).sort(
+        (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
       );
-    });
-
-    return Array.from(mergedById.values()).sort(
-      (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
-    );
-  }, []);
+    },
+    [],
+  );
 
   const persistConversationToServer = useCallback(
     async (conversation) => {
@@ -346,7 +352,7 @@ export const usePlaygroundState = (userIdentity = null) => {
           type: normalizePlaygroundConversationType(conversation.type),
           title: normalizeConversationTitle(conversation),
           messages: Array.isArray(conversation.messages)
-            ? conversation.messages
+            ? sanitizeMessagesForStorage(conversation.messages)
             : [],
           created_at: conversation.createdAt || Date.now(),
           updated_at: conversation.updatedAt || Date.now(),
@@ -582,8 +588,9 @@ export const usePlaygroundState = (userIdentity = null) => {
     let isCancelled = false;
 
     const hydrateIndexedConversations = async () => {
-      const migratedState =
-        await migrateConversationStateToIndexedDB(normalizedUserIdentity);
+      const migratedState = await migrateConversationStateToIndexedDB(
+        normalizedUserIdentity,
+      );
       const indexedState =
         (await loadConversationStateFromIndexedDB(normalizedUserIdentity)) ||
         migratedState;
@@ -613,7 +620,11 @@ export const usePlaygroundState = (userIdentity = null) => {
       currentConversationIdRef.current = nextActiveConversationId;
       setConversations(dedupedIndexedConversations);
       setActiveConversationId(nextActiveConversationId);
-      setMessage(nextActiveConversation?.messages?.length ? nextActiveConversation.messages : []);
+      setMessage(
+        nextActiveConversation?.messages?.length
+          ? nextActiveConversation.messages
+          : [],
+      );
       setConversationStorageReady(true);
     };
 

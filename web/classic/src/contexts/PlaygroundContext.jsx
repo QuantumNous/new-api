@@ -37,6 +37,9 @@ export const usePlayground = () => {
       },
       imageUrls: [],
       imageEnabled: false,
+      selectedInlineFiles: [],
+      onSelectInlineFile: () => {},
+      onRemoveInlineFile: () => {},
     };
   }
   return context;
