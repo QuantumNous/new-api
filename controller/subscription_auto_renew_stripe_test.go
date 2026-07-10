@@ -38,6 +38,52 @@ func TestAdminCreateSubscriptionPlan_RejectsAutoRenewWithoutStripeRecurringPrice
 	require.Zero(t, count)
 }
 
+func TestSubscriptionRequestStripeAutoRenew_RejectsSecondRecurringContract(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	setupSubscriptionControllerTestDB(t)
+
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       301,
+		Username: "stripe-recurring-user",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id:                     401,
+		Title:                  "Stripe Recurring Pro",
+		PriceAmount:            19.99,
+		Currency:               "USD",
+		DurationUnit:           model.SubscriptionDurationMonth,
+		DurationValue:          1,
+		Enabled:                true,
+		TotalAmount:            1000,
+		BillingMode:            model.SubscriptionBillingModeAutoRenew,
+		StripeRecurringPriceId: "price_recurring_pro",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.BillingSubscription{
+		UserId:                 301,
+		PlanId:                 401,
+		Provider:               "stripe",
+		ProviderSubscriptionId: "sub_existing_1",
+		Status:                 "active",
+		CurrentPeriodEnd:       common.GetTimestamp() + 3600,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("id", 301)
+	c.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/subscription/stripe/checkout/auto-renew",
+		strings.NewReader(`{"plan_id":401}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	SubscriptionRequestStripeAutoRenew(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "auto-renew")
+}
+
 func setupSubscriptionControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -53,7 +99,7 @@ func setupSubscriptionControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.SubscriptionPlan{}, &model.BillingSubscription{}))
 
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,10 @@ import (
 )
 
 type SubscriptionStripePayRequest struct {
+	PlanId int `json:"plan_id"`
+}
+
+type SubscriptionStripeAutoRenewPayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
@@ -113,6 +118,73 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	})
 }
 
+func SubscriptionRequestStripeAutoRenew(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
+	var req SubscriptionStripeAutoRenewPayRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !plan.Enabled {
+		common.ApiErrorI18n(c, i18n.MsgSubscriptionNotEnabled)
+		return
+	}
+	if plan.BillingMode != model.SubscriptionBillingModeAutoRenew {
+		common.ApiErrorMsg(c, "plan is not auto_renew")
+		return
+	}
+	if strings.TrimSpace(plan.StripeRecurringPriceId) == "" {
+		common.ApiErrorMsg(c, "stripe_recurring_price_id is required")
+		return
+	}
+
+	userId := c.GetInt("id")
+	hasContract, err := model.HasNonEndedAutoRenewContract(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if hasContract {
+		common.ApiErrorMsg(c, "user already has a non-ended auto-renew subscription")
+		return
+	}
+	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
+		common.ApiErrorI18n(c, i18n.MsgPaymentStripeNotConfig)
+		return
+	}
+	if setting.StripeWebhookSecret == "" {
+		common.ApiErrorI18n(c, i18n.MsgPaymentWebhookNotConfig)
+		return
+	}
+
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if user == nil {
+		common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+		return
+	}
+
+	checkoutURL, err := genStripeAutoRenewCheckoutURL(user, plan)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe recurring checkout create failed user_id=%d plan_id=%d error=%q", userId, plan.Id, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgPaymentStartFailed)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"checkout_url": checkoutURL})
+}
+
 func genStripeSubscriptionLink(referenceId string, customerId string, email string, plan *model.SubscriptionPlan) (string, error) {
 	if plan == nil {
 		return "", fmt.Errorf("subscription plan is nil")
@@ -157,6 +229,51 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		params.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
 	} else {
 		params.Customer = stripe.String(customerId)
+	}
+
+	result, err := session.New(params)
+	if err != nil {
+		return "", err
+	}
+	return result.URL, nil
+}
+
+func genStripeAutoRenewCheckoutURL(user *model.User, plan *model.SubscriptionPlan) (string, error) {
+	if user == nil {
+		return "", fmt.Errorf("user is nil")
+	}
+	if plan == nil {
+		return "", fmt.Errorf("subscription plan is nil")
+	}
+	if strings.TrimSpace(plan.StripeRecurringPriceId) == "" {
+		return "", fmt.Errorf("stripe recurring price id is empty")
+	}
+
+	stripe.Key = setting.StripeApiSecret
+
+	params := &stripe.CheckoutSessionParams{
+		Mode: stripe.String(string(stripe.CheckoutSessionModeSubscription)),
+		LineItems: []*stripe.CheckoutSessionLineItemParams{
+			{
+				Price:    stripe.String(plan.StripeRecurringPriceId),
+				Quantity: stripe.Int64(1),
+			},
+		},
+		SuccessURL: stripe.String(paymentReturnPath("/console/topup")),
+		CancelURL:  stripe.String(paymentReturnPath("/console/topup")),
+		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
+	}
+	params.AddMetadata("user_id", strconv.Itoa(user.Id))
+	params.AddMetadata("plan_id", strconv.Itoa(plan.Id))
+	params.AddMetadata("billing_mode", model.SubscriptionBillingModeAutoRenew)
+
+	if user.StripeCustomer == "" {
+		if user.Email != "" {
+			params.CustomerEmail = stripe.String(user.Email)
+		}
+		params.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
+	} else {
+		params.Customer = stripe.String(user.StripeCustomer)
 	}
 
 	result, err := session.New(params)
