@@ -49,17 +49,21 @@ func RecordHedgeLoserConsumption(ctx *gin.Context, info *relaycommon.RelayInfo, 
 	if info.HasSendResponse() {
 		frtMs = info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
 	}
+	// 渠道编号等内部信息只进 admin_info（管理端口径）；content 对普通用户可见，保持中性
 	other := map[string]interface{}{
-		"hedge": map[string]interface{}{
-			"role":              info.HedgeState.Role,
-			"result":            "loser",
-			"winner_channel_id": winnerChannelId,
-			"frt":               frtMs,
-			"has_first_byte":    info.HasSendResponse(),
-			"received_chunks":   info.ReceivedResponseCount,
+		"admin_info": map[string]interface{}{
+			"hedge": map[string]interface{}{
+				"role":              info.HedgeState.Role,
+				"result":            "loser",
+				"loser_channel_id":  loserChannelId,
+				"winner_channel_id": winnerChannelId,
+				"frt":               frtMs,
+				"has_first_byte":    info.HasSendResponse(),
+				"received_chunks":   info.ReceivedResponseCount,
+			},
 		},
 	}
-	content := fmt.Sprintf("clientgone fallback 竞速败者（%s，渠道 #%d），不计费", info.HedgeState.Role, loserChannelId)
+	content := "加速备份请求（未计费）"
 	model.RecordConsumeLog(ctx, info.UserId, model.RecordConsumeLogParams{
 		ChannelId:        loserChannelId,
 		PromptTokens:     promptTokens,
