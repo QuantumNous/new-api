@@ -28,7 +28,7 @@ type XunhuPayRequest struct {
 }
 
 type xunhuPayResponse struct {
-	Openid    string `json:"openid"`
+	// openid 实际是订单 id，虎皮椒可能返回数字或字符串，对接不需要该字段
 	Url       string `json:"url"`
 	UrlQrcode string `json:"url_qrcode"`
 	Errcode   int    `json:"errcode"`
