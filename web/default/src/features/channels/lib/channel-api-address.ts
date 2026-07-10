@@ -16,13 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// Re-export all library functions
-export * from './channel-actions'
-export * from './channel-api-address'
-export * from './advanced-custom'
-export * from './channel-form-errors'
-export * from './channel-form'
-export * from './channel-type-config'
-export * from './channel-utils'
-export * from './multi-key-utils'
-export * from './model-mapping-validation'
+export type ChannelApiAddress = {
+  displayText: string
+  href: string | null
+}
+
+export function formatChannelApiAddress(
+  baseUrl: string | null | undefined
+): ChannelApiAddress | null {
+  const address = baseUrl?.trim()
+  if (!address) {
+    return null
+  }
+
+  return {
+    displayText: address,
+    href: /^https?:\/\//i.test(address) ? address : null,
+  }
+}

@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   ListOrdered,
   Shuffle,
   SlidersHorizontal,
@@ -46,12 +47,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { toIntlLocale } from '@/i18n/languages'
 import {
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
   getCurrencyLabel,
 } from '@/lib/currency'
-import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampToDate } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
@@ -74,6 +75,7 @@ import {
   isTagAggregateRow,
   type TagRow,
 } from '../lib'
+import { formatChannelApiAddress } from '../lib/channel-api-address'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
@@ -819,6 +821,81 @@ export function useChannelsColumns(
             return true
           }
           return value.includes(String(row.getValue(id)))
+        },
+        size: 220,
+        enableSorting: false,
+      },
+
+      // API address column
+      {
+        accessorKey: 'base_url',
+        header: t('Base URL'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => {
+          const isTagRow = isTagAggregateRow(row.original)
+          const apiAddress = formatChannelApiAddress(
+            row.getValue('base_url') as string | null | undefined
+          )
+
+          if (isTagRow || !apiAddress) {
+            return <span className='text-muted-foreground text-xs'>-</span>
+          }
+
+          if (!sensitiveVisible) {
+            return (
+              <span className='text-muted-foreground text-xs'>
+                {SENSITIVE_MASK}
+              </span>
+            )
+          }
+
+          if (!apiAddress.href) {
+            return (
+              <TooltipProvider delay={300}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className='text-muted-foreground block max-w-full truncate font-mono text-xs' />
+                    }
+                  >
+                    {apiAddress.displayText}
+                  </TooltipTrigger>
+                  <TooltipContent side='top' className='max-w-sm break-all'>
+                    {apiAddress.displayText}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
+          }
+
+          return (
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <a
+                      href={apiAddress.href}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='text-primary hover:text-primary/80 flex max-w-full items-center gap-1 overflow-hidden text-xs font-medium underline-offset-4 hover:underline'
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  }
+                >
+                  <span className='truncate font-mono'>
+                    {apiAddress.displayText}
+                  </span>
+                  <ExternalLink
+                    className='h-3 w-3 shrink-0'
+                    aria-hidden='true'
+                  />
+                </TooltipTrigger>
+                <TooltipContent side='top' className='max-w-sm break-all'>
+                  {apiAddress.displayText}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
         },
         size: 220,
         enableSorting: false,

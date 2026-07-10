@@ -313,6 +313,7 @@ export function ChannelsTable() {
     totalCount,
     sorting,
     initialColumnVisibility: {
+      base_url: false,
       models: false,
       tag: false,
     },
