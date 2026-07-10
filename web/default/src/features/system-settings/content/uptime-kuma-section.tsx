@@ -135,11 +135,14 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
       await updateOption.mutateAsync({
         key: 'console_setting.uptime_kuma_enabled',
         value: checked,
+        notification: {
+          success: t('Setting saved'),
+          error: t('Failed to update setting'),
+        },
       })
       setIsEnabled(checked)
-      toast.success(t('Setting saved'))
     } catch {
-      toast.error(t('Failed to update setting'))
+      return
     }
   }
 
@@ -219,11 +222,14 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
       await updateOption.mutateAsync({
         key: 'console_setting.uptime_kuma_groups',
         value: JSON.stringify(groups),
+        notification: {
+          success: t('Uptime Kuma groups saved successfully'),
+          error: t('Failed to save Uptime Kuma groups'),
+        },
       })
       setHasChanges(false)
-      toast.success(t('Uptime Kuma groups saved successfully'))
     } catch {
-      toast.error(t('Failed to save Uptime Kuma groups'))
+      return
     }
   }
 

@@ -180,11 +180,14 @@ export function AnnouncementsSection({
       await updateOption.mutateAsync({
         key: 'console_setting.announcements_enabled',
         value: checked,
+        notification: {
+          success: t('Setting saved'),
+          error: t('Failed to update setting'),
+        },
       })
       setIsEnabled(checked)
-      toast.success(t('Setting saved'))
     } catch {
-      toast.error(t('Failed to update setting'))
+      return
     }
   }
 
@@ -270,11 +273,14 @@ export function AnnouncementsSection({
       await updateOption.mutateAsync({
         key: 'console_setting.announcements',
         value: JSON.stringify(announcements),
+        notification: {
+          success: t('Announcements saved successfully'),
+          error: t('Failed to save announcements'),
+        },
       })
       setHasChanges(false)
-      toast.success(t('Announcements saved successfully'))
     } catch {
-      toast.error(t('Failed to save announcements'))
+      return
     }
   }
 

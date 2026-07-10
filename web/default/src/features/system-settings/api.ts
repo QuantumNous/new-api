@@ -37,7 +37,15 @@ export async function getSystemOptions() {
 }
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
-  const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  const res = await api.put<UpdateOptionResponse>('/api/option/', request, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
+
+  if (!res.data.success) {
+    throw new Error(res.data.message)
+  }
+
   return res.data
 }
 
