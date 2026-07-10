@@ -115,9 +115,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var containStreamUsage bool
 	var responseTextBuilder strings.Builder
 	var toolCount int
-	var usage = &dto.Usage{}
-	var lastStreamData string
-	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
+		var usage = &dto.Usage{}
+		var lastStreamData string
+		var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
+		var usageStreamData string      // 存储含有 usage 的最后一个 chunk，备用
 
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
@@ -136,6 +137,16 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 
 			lastStreamData = data
+
+			// 检测当前 chunk 是否含有 usage，保存备用
+			// (OpenCode.ai 等上游在 usage chunk 后还会发非标准块，会覆盖 lastStreamData)
+			var chunkWithUsage dto.ChatCompletionsStreamResponse
+			if err := common.UnmarshalJsonStr(data, &chunkWithUsage); err == nil && chunkWithUsage.Usage != nil {
+				if service.ValidUsage(chunkWithUsage.Usage) {
+					usageStreamData = data
+				}
+			}
+
 			if err := processTokenData(info.RelayMode, data, &responseTextBuilder, &toolCount); err != nil {
 				logger.LogError(c, "error processing stream token data: "+err.Error())
 				sr.Error(err)
@@ -174,12 +185,28 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 	}
 
-	if !containStreamUsage {
-		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
-		usage.CompletionTokens += toolCount * 7
-	}
+		if !containStreamUsage {
+			// 先尝试从之前保存的 usage chunk 提取
+			if usageStreamData != "" {
+				var lastChunk dto.ChatCompletionsStreamResponse
+				if err := common.UnmarshalJsonStr(usageStreamData, &lastChunk); err == nil && lastChunk.Usage != nil && service.ValidUsage(lastChunk.Usage) {
+					usage = lastChunk.Usage
+					containStreamUsage = true
+				}
+			}
+		}
 
-	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
+		if !containStreamUsage {
+			usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			usage.CompletionTokens += toolCount * 7
+		}
+
+		// 传给 applyUsagePostProcessing 时优先用 usageStreamData（含真实 usage）
+		postProcessBody := common.StringToByteSlice(lastStreamData)
+		if usageStreamData != "" {
+			postProcessBody = common.StringToByteSlice(usageStreamData)
+		}
+		applyUsagePostProcessing(info, usage, postProcessBody)
 
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
