@@ -21,6 +21,7 @@ import { Tabs } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import ModelsTable from '../../components/table/models';
 import ChatModelsTable from '../../components/table/chat-models';
+import PlaygroundModelRulesTable from '../../components/table/playground-model-rules';
 
 const ModelPage = () => {
   const { t } = useTranslation();
@@ -33,6 +34,9 @@ const ModelPage = () => {
         </Tabs.TabPane>
         <Tabs.TabPane tab={t('对话模型管理')} itemKey='chat'>
           <ChatModelsTable />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab={t('操练场模型规则')} itemKey='playground-rules'>
+          <PlaygroundModelRulesTable />
         </Tabs.TabPane>
       </Tabs>
     </div>

@@ -39,6 +39,7 @@ export function setStatusData(data) {
     data.default_collapse_sidebar,
   );
   localStorage.setItem('mj_notify_enabled', data.mj_notify_enabled);
+  localStorage.setItem('playground_model_rules', data.playground_model_rules || '[]');
   if (data.chat_link) {
     // localStorage.setItem('chat_link', data.chat_link);
   } else {

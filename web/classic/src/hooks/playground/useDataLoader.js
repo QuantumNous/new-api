@@ -26,53 +26,17 @@ import {
   showError,
 } from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
+import {
+  buildPlaygroundModelCollections,
+} from '../../helpers/playgroundModelRules';
 
-const PLAYGROUND_CHAT_ENDPOINT_TYPES = new Set([
-  'openai',
-  'openai-response',
-  'openai-response-compact',
-  'anthropic',
-  'gemini',
-]);
-
-const PLAYGROUND_IMAGE_MODEL_HINTS = [
-  'gpt-image',
-  'dall-e',
-  'imagen',
-  'flux',
-  'recraft',
-  'qwen-image',
-];
-
-const PLAYGROUND_VIDEO_MODEL_HINTS = [
-  'seedance',
-  'kling',
-  'veo',
-  'jimeng',
-  'cogvideo',
-  'luma',
-  'hailuo',
-  'video',
-];
-
-const isPlaygroundChatModel = (modelName) => {
-  if (typeof modelName !== 'string' || modelName.trim() === '') {
-    return false;
+const getStoredPlaygroundModelRules = () => {
+  try {
+    return localStorage.getItem('playground_model_rules') || '[]';
+  } catch {
+    return '[]';
   }
-  const normalizedModelName = modelName.toLowerCase();
-  return ![
-    ...PLAYGROUND_IMAGE_MODEL_HINTS,
-    ...PLAYGROUND_VIDEO_MODEL_HINTS,
-  ].some((hint) => normalizedModelName.includes(hint));
 };
-
-const sortModelNames = (modelNames) =>
-  [...modelNames].sort((left, right) =>
-    String(left).localeCompare(String(right), undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    }),
-  );
 
 export const useDataLoader = (
   userState,
@@ -97,83 +61,27 @@ export const useDataLoader = (
 
       if (success) {
         const pricingItems = Array.isArray(data) ? data : [];
-        const filteredModels = sortModelNames(
-          Array.from(
-            new Set(
-              pricingItems
-                .filter((item) => {
-                  const modelName = item?.model_name;
-                  const endpointTypes = Array.isArray(
-                    item?.supported_endpoint_types,
-                  )
-                    ? item.supported_endpoint_types
-                    : [];
+        const { chatModels, imageModels, videoModels } =
+          buildPlaygroundModelCollections(
+            pricingItems,
+            getStoredPlaygroundModelRules(),
+          );
 
-                  if (!isPlaygroundChatModel(modelName)) {
-                    return false;
-                  }
-
-                  return endpointTypes.some((endpointType) =>
-                    PLAYGROUND_CHAT_ENDPOINT_TYPES.has(endpointType),
-                  );
-                })
-                .map((item) => item.model_name)
-                .filter(Boolean),
-            ),
-          ),
-        );
-        const filteredVideoModels = sortModelNames(
-          Array.from(
-            new Set(
-              pricingItems
-                .filter((item) => {
-                  const modelName = item?.model_name;
-                  return (
-                    typeof modelName === 'string' &&
-                    modelName.trim() !== '' &&
-                    PLAYGROUND_VIDEO_MODEL_HINTS.some((hint) =>
-                      modelName.toLowerCase().includes(hint),
-                    )
-                  );
-                })
-                .map((item) => item.model_name)
-                .filter(Boolean),
-            ),
-          ),
-        );
-        const filteredImageModels = sortModelNames(
-          Array.from(
-            new Set(
-              pricingItems
-                .filter((item) => {
-                  const modelName = item?.model_name;
-
-                  return (
-                    typeof modelName === 'string' &&
-                    modelName.trim() !== '' &&
-                    PLAYGROUND_IMAGE_MODEL_HINTS.some((hint) =>
-                      modelName.toLowerCase().includes(hint),
-                    )
-                  );
-                })
-                .map((item) => item.model_name)
-                .filter(Boolean),
-            ),
-          ),
-        );
-
-        const { modelOptions, selectedModel } = processModelsData(
-          filteredModels,
-          inputs.model,
-        );
+        const { modelOptions, selectedModel } = processModelsData(chatModels, inputs.model, {
+          skipSort: true,
+        });
         const {
           modelOptions: imageModelOptions,
           selectedModel: selectedImageModel,
-        } = processModelsData(filteredImageModels, inputs.imageModel);
+        } = processModelsData(imageModels, inputs.imageModel, {
+          skipSort: true,
+        });
         const {
           modelOptions: videoModelOptions,
           selectedModel: selectedVideoModel,
-        } = processModelsData(filteredVideoModels, inputs.videoModel);
+        } = processModelsData(videoModels, inputs.videoModel, {
+          skipSort: true,
+        });
 
         setModels(modelOptions);
         if (typeof setImageModels === 'function') {
@@ -242,6 +150,36 @@ export const useDataLoader = (
       loadGroups();
     }
   }, [userState?.user, loadModels, loadGroups]);
+
+  useEffect(() => {
+    if (!userState?.user) {
+      return undefined;
+    }
+
+    const handlePlaygroundRulesUpdated = () => {
+      loadModels();
+    };
+
+    const handleStorageChange = (event) => {
+      if (event.key === 'playground_model_rules') {
+        loadModels();
+      }
+    };
+
+    window.addEventListener(
+      'playground-model-rules-updated',
+      handlePlaygroundRulesUpdated,
+    );
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener(
+        'playground-model-rules-updated',
+        handlePlaygroundRulesUpdated,
+      );
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [userState?.user, loadModels]);
 
   return {
     loadModels,
