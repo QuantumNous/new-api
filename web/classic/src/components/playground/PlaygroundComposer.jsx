@@ -63,6 +63,7 @@ const PlaygroundComposer = ({
   videoModels,
   playgroundMode,
   customRequestMode,
+  onSend,
   onInputChange,
 }) => {
   const { t } = useTranslation();
@@ -129,6 +130,19 @@ const PlaygroundComposer = ({
     disabled: Boolean(
       isFileExtracting || hasFileError || (sendNode.props.disabled && !hasReadyFile),
     ),
+    onClick: (event) => {
+      if (isFileExtracting || hasFileError) {
+        return;
+      }
+
+      if (sendNode.props.disabled && hasReadyFile) {
+        event?.stopPropagation?.();
+        onSend?.('', []);
+        return;
+      }
+
+      sendNode.props.onClick?.(event);
+    },
     title: isFileExtracting
       ? t('文件解析中，请稍候')
       : hasFileError

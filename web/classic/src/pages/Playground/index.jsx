@@ -500,9 +500,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   ]);
 
   // 发送消息
-  async function onMessageSend(content, attachment) {
-    console.log('attachment: ', attachment);
-
+  async function onMessageSend(content) {
     if (playgroundMode === 'image') {
       handleSubmitWithImageCleanup(() => submitImageGeneration(content));
       return;
