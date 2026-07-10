@@ -34,11 +34,13 @@ export function PriceInput(props: {
   value: string
   placeholder?: string
   disabled?: boolean
+  prefix?: string
+  suffix?: string
   onChange: (value: string) => void
 }) {
   return (
     <InputGroup>
-      <InputGroupAddon>$</InputGroupAddon>
+      <InputGroupAddon>{props.prefix ?? '$'}</InputGroupAddon>
       <InputGroupInput
         inputMode='decimal'
         value={props.value}
@@ -46,7 +48,9 @@ export function PriceInput(props: {
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.value)}
       />
-      <InputGroupAddon align='inline-end'>$/1M</InputGroupAddon>
+      <InputGroupAddon align='inline-end'>
+        {props.suffix ?? '$/1M'}
+      </InputGroupAddon>
     </InputGroup>
   )
 }
@@ -58,6 +62,9 @@ export function PriceLane(props: {
   value: string
   enabled: boolean
   disabled?: boolean
+  prefix?: string
+  suffix?: string
+  hideUnitDescription?: boolean
   onEnabledChange: (checked: boolean) => void
   onChange: (value: string) => void
 }) {
@@ -81,13 +88,17 @@ export function PriceLane(props: {
         value={props.value}
         placeholder={props.placeholder}
         disabled={effectiveDisabled}
+        prefix={props.prefix}
+        suffix={props.suffix}
         onChange={props.onChange}
       />
-      <p className='text-muted-foreground text-xs'>
-        {props.enabled
-          ? t('USD price per 1M tokens.')
-          : t('Disabled lanes are omitted on save.')}
-      </p>
+      {!props.hideUnitDescription && (
+        <p className='text-muted-foreground text-xs'>
+          {props.enabled
+            ? t('USD price per 1M tokens.')
+            : t('Disabled lanes are omitted on save.')}
+        </p>
+      )}
     </SettingsControlGroup>
   )
 }

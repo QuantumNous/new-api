@@ -59,3 +59,26 @@ export function formatPricingNumber(value: unknown): string {
   const normalized = snapFloatDrift(num)
   return Number.parseFloat(normalized.toFixed(DISPLAY_DECIMALS)).toString()
 }
+
+function normalizeExchangeRate(exchangeRate: unknown): number {
+  const num = toNumberOrNull(exchangeRate)
+  return num !== null && num > 0 ? num : 1
+}
+
+export function formatDisplayPriceFromUSD(
+  value: unknown,
+  exchangeRate: unknown = 1
+): string {
+  const num = toNumberOrNull(value)
+  if (num === null) return ''
+  return formatPricingNumber(num * normalizeExchangeRate(exchangeRate))
+}
+
+export function formatUSDPriceFromDisplay(
+  value: unknown,
+  exchangeRate: unknown = 1
+): string {
+  const num = toNumberOrNull(value)
+  if (num === null) return ''
+  return formatPricingNumber(num / normalizeExchangeRate(exchangeRate))
+}
