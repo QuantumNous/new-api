@@ -560,6 +560,7 @@ export function useChannelsColumns(
               },
               enableSorting: false,
               enableHiding: false,
+              enableResizing: false,
               size: 40,
             } satisfies ColumnDef<Channel>,
           ]
@@ -624,13 +625,13 @@ export function useChannelsColumns(
           const hasParamOverride = Boolean(channel.param_override?.trim())
 
           return (
-            <div className='flex items-center gap-2'>
-              <div className='flex flex-col gap-1'>
-                <div className='flex items-center gap-1.5'>
+            <div className='flex max-w-full min-w-0 items-center gap-2'>
+              <div className='flex max-w-full min-w-0 flex-col gap-1'>
+                <div className='flex max-w-full min-w-0 items-center gap-1.5'>
                   <TruncatedText
                     text={sensitiveVisible ? name : SENSITIVE_MASK}
                     className='font-medium'
-                    maxWidth='max-w-[180px]'
+                    maxWidth='max-w-full'
                   />
                   {isPassThrough && (
                     <TooltipProvider delay={100}>
@@ -684,6 +685,7 @@ export function useChannelsColumns(
             </div>
           )
         },
+        size: 260,
         minSize: 200,
       },
 
