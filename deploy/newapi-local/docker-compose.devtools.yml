@@ -1,0 +1,35 @@
+services:
+  devtools:
+    build:
+      context: ../..
+      dockerfile: deploy/newapi-local/devtools/Dockerfile
+    image: new-api-devtools:local
+    container_name: new-api-devtools
+    working_dir: /workspace
+    command: sleep infinity
+    stdin_open: true
+    tty: true
+    environment:
+      TZ: Asia/Shanghai
+      GO111MODULE: "on"
+      GOPROXY: https://goproxy.cn,direct
+      GOSUMDB: sum.golang.google.cn
+      BUN_INSTALL_CACHE_DIR: /root/.bun/install/cache
+      npm_config_registry: https://registry.npmmirror.com
+      npm_config_disturl: https://npmmirror.com/dist
+      npm_config_electron_mirror: https://npmmirror.com/mirrors/electron/
+      PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright
+    volumes:
+      - ../..:/workspace
+      - newapi_devtools_go_pkg:/go/pkg/mod
+      - newapi_devtools_go_build:/root/.cache/go-build
+      - newapi_devtools_bun_cache:/root/.bun/install/cache
+      - newapi_devtools_default_node_modules:/workspace/web/default/node_modules
+      - newapi_devtools_classic_node_modules:/workspace/web/classic/node_modules
+
+volumes:
+  newapi_devtools_go_pkg:
+  newapi_devtools_go_build:
+  newapi_devtools_bun_cache:
+  newapi_devtools_default_node_modules:
+  newapi_devtools_classic_node_modules:

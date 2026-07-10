@@ -24,6 +24,7 @@ This branch adds local deployment support for NewAPI with Seedance video compati
 
 - Adds `deploy/newapi-local/docker-compose.yml` for local SQLite-based deployment.
 - Adds `deploy/newapi-local/docker-compose.postgres.yml` for PostgreSQL-based deployment.
+- Adds `deploy/newapi-local/docker-compose.dev.mock.yml` for standalone Alibaba video mock debugging.
 - Adds `deploy/newapi-local/.env.postgres.example`.
 - Adds `gateway/nginx.conf` so one public port can serve both NewAPI and Seedance native compatibility paths.
 - Adds a local metadata nginx service for `SYNC_UPSTREAM_BASE=http://metadata`.

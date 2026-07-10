@@ -23,6 +23,12 @@ import {
   extractTaskConditionPriceMap,
 } from '../modelPricingTaskConditionPrice';
 import {
+  VIDEO_SECONDS_CONTROLLED_PRICE_KEYS,
+  VIDEO_SECONDS_CONTROLLED_TIERS,
+  buildVideoSecondsPriceValueFromModelMap,
+  extractVideoSecondsPriceMap,
+} from '../modelPricingVideoSecondsPrice';
+import {
   combineBillingExpr,
   splitBillingExprAndRequestRules,
 } from '../components/requestRuleExpr';
@@ -30,6 +36,31 @@ import {
 export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
+const VIDEO_SECONDS_TIER_FIELD_PREFIX = {
+  '480p': 'videoSeconds480p',
+  '720p': 'videoSeconds720p',
+  '1080p': 'videoSeconds1080p',
+  '2k': 'videoSeconds2k',
+  '4k': 'videoSeconds4k',
+};
+const VIDEO_SECONDS_PRICE_KEY_SUFFIX = {
+	default: 'Default',
+	silent: 'Silent',
+};
+
+const getVideoSecondsFieldName = (tier, priceKey) =>
+  `${VIDEO_SECONDS_TIER_FIELD_PREFIX[tier]}${VIDEO_SECONDS_PRICE_KEY_SUFFIX[priceKey]}`;
+
+const getVideoSecondsFieldValue = (model, tier, priceKey) =>
+  model[getVideoSecondsFieldName(tier, priceKey)];
+
+const buildEmptyVideoSecondsFields = () =>
+  VIDEO_SECONDS_CONTROLLED_TIERS.reduce((acc, tier) => {
+    VIDEO_SECONDS_CONTROLLED_PRICE_KEYS.forEach((priceKey) => {
+      acc[getVideoSecondsFieldName(tier, priceKey)] = '';
+    });
+    return acc;
+  }, {});
 
 const EMPTY_MODEL = {
   name: '',
@@ -49,6 +80,8 @@ const EMPTY_MODEL = {
   taskConditionPrice1080pTextOnly: '',
   taskConditionPrice1080pVideoInput: '',
   taskConditionPriceRaw: {},
+  ...buildEmptyVideoSecondsFields(),
+  videoSecondsPriceRaw: {},
   billingExpr: '',
   requestRuleExpr: '',
   rawRatios: {
@@ -130,6 +163,13 @@ const normalizeCompletionRatioMeta = (rawMeta) => {
   };
 };
 
+const hasVideoSecondsPrice = (model) =>
+  VIDEO_SECONDS_CONTROLLED_TIERS.some((tier) =>
+    VIDEO_SECONDS_CONTROLLED_PRICE_KEYS.some((priceKey) =>
+      hasValue(getVideoSecondsFieldValue(model, tier, priceKey)),
+    ),
+  );
+
 const buildModelState = (name, sourceMaps) => {
   const billingMode = sourceMaps.ModelBillingMode?.[name];
   if (billingMode === 'tiered_expr') {
@@ -144,6 +184,46 @@ const buildModelState = (name, sourceMaps) => {
       requestRuleExpr,
       rawRatios: { ...EMPTY_MODEL.rawRatios },
       hasConflict: false,
+    };
+  }
+  if (billingMode === 'video_seconds') {
+    const videoSecondsPrice = sourceMaps.VideoSecondsPrice?.[name] || {};
+    const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
+    const modelRatio = toNumericString(sourceMaps.ModelRatio[name]);
+    const videoSecondsFields = VIDEO_SECONDS_CONTROLLED_TIERS.reduce(
+      (acc, tier) => {
+        VIDEO_SECONDS_CONTROLLED_PRICE_KEYS.forEach((priceKey) => {
+          acc[getVideoSecondsFieldName(tier, priceKey)] = toNumericString(
+            videoSecondsPrice[`${tier}_${priceKey}`],
+          );
+        });
+        return acc;
+      },
+      {},
+    );
+
+    return {
+      ...EMPTY_MODEL,
+      name,
+      billingMode: 'video-seconds',
+      fixedPrice,
+      ...videoSecondsFields,
+      videoSecondsPriceRaw: sourceMaps.VideoSecondsPriceRaw?.[name] || {},
+      rawRatios: {
+        ...EMPTY_MODEL.rawRatios,
+        modelRatio,
+      },
+      hasConflict:
+        hasValue(fixedPrice) ||
+        [
+          modelRatio,
+          toNumericString(sourceMaps.CompletionRatio[name]),
+          toNumericString(sourceMaps.CacheRatio[name]),
+          toNumericString(sourceMaps.CreateCacheRatio[name]),
+          toNumericString(sourceMaps.ImageRatio[name]),
+          toNumericString(sourceMaps.AudioRatio[name]),
+          toNumericString(sourceMaps.AudioCompletionRatio[name]),
+        ].some(hasValue),
     };
   }
 
@@ -248,9 +328,15 @@ const buildModelState = (name, sourceMaps) => {
   };
 };
 
-export const isBasePricingUnset = (model) =>
-  model.billingMode !== 'tiered_expr' &&
-  !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
+export const isBasePricingUnset = (model) => {
+  if (model.billingMode === 'tiered_expr') {
+    return false;
+  }
+  if (model.billingMode === 'video-seconds') {
+    return !hasVideoSecondsPrice(model);
+  }
+  return !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
+};
 
 export const getModelWarnings = (model, t) => {
   if (!model) {
@@ -258,6 +344,22 @@ export const getModelWarnings = (model, t) => {
   }
   if (model.billingMode === 'tiered_expr') {
     return [];
+  }
+  if (model.billingMode === 'video-seconds') {
+    const warnings = [];
+    if (
+      !VIDEO_SECONDS_CONTROLLED_TIERS.some((tier) =>
+        hasValue(getVideoSecondsFieldValue(model, tier, 'default')),
+      )
+    ) {
+      warnings.push(t('按秒计费至少需要配置一个 default 价格档位。'));
+    }
+    if (model.hasConflict) {
+      warnings.push(
+        t('当前模型仍残留按量或按次价格字段，保存后会以视频按秒价格配置为准。'),
+      );
+    }
+    return warnings;
   }
   const warnings = [];
   const hasDerivedPricing = [
@@ -320,8 +422,8 @@ export const getModelWarnings = (model, t) => {
 export const buildSummaryText = (model, t) => {
   const requestRuleSuffix =
     model.billingMode === 'tiered_expr' && model.requestRuleExpr
-    ? `，${t('请求规则')}`
-    : '';
+      ? `，${t('请求规则')}`
+      : '';
   if (model.billingMode === 'tiered_expr') {
     const expr = model.billingExpr;
     if (!expr) return `${t('表达式计费')}${requestRuleSuffix}`;
@@ -330,6 +432,22 @@ export const buildSummaryText = (model, t) => {
       return `${t('表达式计费')}${requestRuleSuffix}`;
     }
     return `${t('阶梯计费')} (${tierCount} ${t('档')})${requestRuleSuffix}`;
+  }
+
+  if (model.billingMode === 'video-seconds') {
+    const parts = VIDEO_SECONDS_CONTROLLED_TIERS.reduce((acc, tier) => {
+      const defaultValue = getVideoSecondsFieldValue(model, tier, 'default');
+      const silentValue = getVideoSecondsFieldValue(model, tier, 'silent');
+      if ([defaultValue, silentValue].some(hasValue)) {
+        acc.push(
+          `${tier} D $${defaultValue || '-'} / S $${silentValue || '-'}`,
+        );
+      }
+      return acc;
+    }, []);
+    return parts.length > 0
+      ? parts.join(' | ')
+      : `${t('视频按秒计费')}${requestRuleSuffix}`;
   }
 
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
@@ -417,6 +535,10 @@ const serializeModel = (model, t) => {
     if (hasValue(model.fixedPrice)) {
       result.ModelPrice = toNormalizedNumber(model.fixedPrice);
     }
+    return result;
+  }
+
+  if (model.billingMode === 'video-seconds') {
     return result;
   }
 
@@ -586,6 +708,32 @@ export const buildPreviewRows = (model, t) => {
     return rows;
   }
 
+  if (model.billingMode === 'video-seconds') {
+    const rows = [
+      {
+        key: 'BillingMode',
+        label: 'ModelBillingMode',
+        value: 'video_seconds',
+      },
+    ];
+
+    VIDEO_SECONDS_CONTROLLED_TIERS.forEach((tier) => {
+      VIDEO_SECONDS_CONTROLLED_PRICE_KEYS.forEach((priceKey) => {
+        const value = getVideoSecondsFieldValue(model, tier, priceKey);
+        const label = `VideoSecondsPrice.${tier}.${priceKey}`;
+        if (hasValue(value)) {
+          rows.push({
+            key: label,
+            label,
+            value,
+          });
+        }
+      });
+    });
+
+    return rows;
+  }
+
   if (model.billingMode === 'per-request') {
     const rows = [
       {
@@ -749,8 +897,14 @@ export function useModelPricingEditorState({
         options.TaskConditionPrice,
       ),
       TaskConditionPriceRaw: parseOptionJSON(options.TaskConditionPrice),
-      ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
-      ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
+      VideoSecondsPrice: extractVideoSecondsPriceMap(options.VideoSecondsPrice),
+      VideoSecondsPriceRaw: parseOptionJSON(options.VideoSecondsPrice),
+      ModelBillingMode: parseOptionJSON(
+        options['billing_setting.billing_mode'],
+      ),
+      ModelBillingExpr: parseOptionJSON(
+        options['billing_setting.billing_expr'],
+      ),
     };
 
     const names = new Set([
@@ -765,6 +919,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.AudioRatio),
       ...Object.keys(sourceMaps.AudioCompletionRatio),
       ...Object.keys(sourceMaps.TaskConditionPrice),
+      ...Object.keys(sourceMaps.VideoSecondsPrice),
       ...Object.keys(sourceMaps.ModelBillingMode),
       ...Object.keys(sourceMaps.ModelBillingExpr),
     ]);
@@ -1083,6 +1238,13 @@ export function useModelPricingEditorState({
             selectedModel.taskConditionPrice1080pTextOnly,
           taskConditionPrice1080pVideoInput:
             selectedModel.taskConditionPrice1080pVideoInput,
+          ...VIDEO_SECONDS_CONTROLLED_TIERS.reduce((acc, tier) => {
+            VIDEO_SECONDS_CONTROLLED_PRICE_KEYS.forEach((priceKey) => {
+              const fieldName = getVideoSecondsFieldName(tier, priceKey);
+              acc[fieldName] = selectedModel[fieldName];
+            });
+            return acc;
+          }, {}),
           billingExpr: selectedModel.billingExpr || '',
           requestRuleExpr: selectedModel.requestRuleExpr || '',
         };
@@ -1158,6 +1320,7 @@ export function useModelPricingEditorState({
         AudioCompletionRatio: {},
       };
       const taskConditionPriceMap = {};
+      const videoSecondsPriceMap = {};
 
       const tieredOutput = {
         'billing_setting.billing_mode': {},
@@ -1171,9 +1334,15 @@ export function useModelPricingEditorState({
             model.requestRuleExpr,
           );
           if (finalBillingExpr) {
-            tieredOutput['billing_setting.billing_mode'][model.name] = 'tiered_expr';
-            tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
+            tieredOutput['billing_setting.billing_mode'][model.name] =
+              'tiered_expr';
+            tieredOutput['billing_setting.billing_expr'][model.name] =
+              finalBillingExpr;
           }
+        }
+        if (model.billingMode === 'video-seconds') {
+          tieredOutput['billing_setting.billing_mode'][model.name] =
+            'video_seconds';
         }
 
         // Always serialize ratio/price values for all models (including
@@ -1221,6 +1390,28 @@ export function useModelPricingEditorState({
               : undefined,
           };
         }
+        const hasVideoSecondsPriceRaw =
+          model.videoSecondsPriceRaw &&
+          typeof model.videoSecondsPriceRaw === 'object' &&
+          Object.keys(model.videoSecondsPriceRaw).length > 0;
+        if (hasVideoSecondsPriceRaw || hasVideoSecondsPrice(model)) {
+          videoSecondsPriceMap[model.name] = VIDEO_SECONDS_CONTROLLED_TIERS.reduce(
+            (acc, tier) => {
+              VIDEO_SECONDS_CONTROLLED_PRICE_KEYS.forEach((priceKey) => {
+                const fieldValue = getVideoSecondsFieldValue(
+                  model,
+                  tier,
+                  priceKey,
+                );
+                acc[`${tier}_${priceKey}`] = hasValue(fieldValue)
+                  ? toNormalizedNumber(fieldValue)
+                  : undefined;
+              });
+              return acc;
+            },
+            {},
+          );
+        }
       }
 
       const requestQueue = [
@@ -1241,6 +1432,13 @@ export function useModelPricingEditorState({
           value: buildTaskConditionPriceValueFromModelMap(
             options.TaskConditionPrice,
             taskConditionPriceMap,
+          ),
+        }),
+        API.put('/api/option/', {
+          key: 'VideoSecondsPrice',
+          value: buildVideoSecondsPriceValueFromModelMap(
+            options.VideoSecondsPrice,
+            videoSecondsPriceMap,
           ),
         }),
       ];

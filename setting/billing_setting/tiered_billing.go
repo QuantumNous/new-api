@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	BillingModeRatio      = "ratio"
-	BillingModeTieredExpr = "tiered_expr"
-	BillingModeField      = "billing_mode"
-	BillingExprField      = "billing_expr"
+	BillingModeRatio        = "ratio"
+	BillingModeTieredExpr   = "tiered_expr"
+	BillingModeVideoSeconds = "video_seconds"
+	BillingModeField        = "billing_mode"
+	BillingExprField        = "billing_expr"
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.

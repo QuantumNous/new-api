@@ -4194,6 +4194,15 @@
     "未能从文件中提取文本": "Impossible d'extraire le texte du fichier",
     "仅支持 PDF、DOCX、XLSX 文件": "Seuls les fichiers PDF, DOCX et XLSX sont pris en charge",
     "仅支持 PDF、DOCX、XLSX、TXT、JSON 文件": "Seuls les fichiers PDF, DOCX, XLSX, TXT et JSON sont pris en charge",
-    "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "Les fichiers DOC et XLS ne sont pas encore pris en charge. Veuillez les convertir en DOCX ou XLSX avant de les televerser"
+    "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "Les fichiers DOC et XLS ne sont pas encore pris en charge. Veuillez les convertir en DOCX ou XLSX avant de les televerser",
+    "Resolution {{tier}}": "Résolution {{tier}}",
+    "Audio {{mode}}": "Audio {{mode}}",
+    "Duration {{seconds}}s": "Durée {{seconds}}s",
+    "Unit Price {{price}} / second": "Prix unitaire {{price}} / seconde",
+    "Video Rate {{price}} / second": "Tarif vidéo {{price}} / seconde",
+    "Group ratio": "Ratio du groupe",
+    "enabled": "activé",
+    "silent": "muet",
+    "audio": "audio"
   }
 }

@@ -2013,6 +2013,154 @@
         ]
       }
     },
+    "/api/user/order/status": {
+      "get": {
+        "summary": "??????",
+        "deprecated": false,
+        "description": "?? ?????User?????????????????????????????????????? `type` ????????",
+        "tags": [
+          "??"
+        ],
+        "parameters": [
+          {
+            "name": "trade_no",
+            "in": "query",
+            "description": "??????????????????",
+            "required": true,
+            "example": "sub_ref_xxx",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "?????`auto` ???????????`topup` ??????`subscription` ??????",
+            "required": false,
+            "example": "auto",
+            "schema": {
+              "type": "string",
+              "default": "auto",
+              "enum": [
+                "auto",
+                "topup",
+                "subscription"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "??",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "order_type": {
+                          "type": "string",
+                          "enum": [
+                            "topup",
+                            "subscription"
+                          ]
+                        },
+                        "trade_no": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "payment_method": {
+                          "type": "string"
+                        },
+                        "payment_provider": {
+                          "type": "string"
+                        },
+                        "create_time": {
+                          "type": "integer"
+                        },
+                        "complete_time": {
+                          "type": "integer"
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "description": "????????"
+                        },
+                        "plan_id": {
+                          "type": "integer",
+                          "description": "???????? ID"
+                        },
+                        "money": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "subscription": {
+                    "summary": "????????",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "order_type": "subscription",
+                        "trade_no": "sub_ref_xxx",
+                        "status": "pending",
+                        "payment_method": "alipay",
+                        "payment_provider": "alipay",
+                        "create_time": 1760000000,
+                        "complete_time": 0,
+                        "plan_id": 1,
+                        "money": 9.99
+                      }
+                    }
+                  },
+                  "topup": {
+                    "summary": "????????",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "order_type": "topup",
+                        "trade_no": "topup_ref_xxx",
+                        "status": "success",
+                        "payment_method": "stripe",
+                        "payment_provider": "stripe",
+                        "create_time": 1760000000,
+                        "complete_time": 1760000300,
+                        "amount": 500000,
+                        "money": 5
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
     "/api/user/pay": {
       "post": {
         "summary": "发起易支付",

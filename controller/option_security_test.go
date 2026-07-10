@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,7 +18,8 @@ import (
 func initOptionTestDBForController(t *testing.T) {
 	t.Helper()
 
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:test_option_security_%s?mode=memory&cache=shared", t.Name())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Option{}))
 	sqlDB, err := db.DB()
@@ -55,6 +57,7 @@ func TestUpdateOptionReturnsMissingCryptoKeyErrorForAlipaySecret(t *testing.T) {
 
 func TestGetOptionsOmitsProtectedAlipayKeys(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	initOptionTestDBForController(t)
 
 	common.OptionMapRWMutex.Lock()
 	originalMap := common.OptionMap

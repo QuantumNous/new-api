@@ -866,6 +866,38 @@ export const calculateModelPrice = ({
   }
 
   // 2. 根据计费类型计算价格
+  if (
+    record.billing_mode === 'video_seconds' &&
+    record.video_seconds_price &&
+    typeof record.video_seconds_price === 'object'
+  ) {
+    const videoSecondsPrices = {};
+    Object.entries(record.video_seconds_price).forEach(([tier, priceMap]) => {
+      if (!priceMap || typeof priceMap !== 'object') {
+        return;
+      }
+      const nextTierMap = {};
+      Object.entries(priceMap).forEach(([priceKey, value]) => {
+        if (value === null || value === undefined || value === '') {
+          return;
+        }
+        nextTierMap[priceKey] = displayPrice(Number(value) * usedGroupRatio);
+      });
+      if (Object.keys(nextTierMap).length > 0) {
+        videoSecondsPrices[tier] = nextTierMap;
+      }
+    });
+
+    return {
+      videoSecondsPrices,
+      isPerToken: false,
+      isTokensDisplay: false,
+      isVideoSecondsPricing: true,
+      usedGroup,
+      usedGroupRatio,
+    };
+  }
+
   if (record.quota_type === 0) {
     // 按量计费
     const isTokensDisplay = quotaDisplayType === 'TOKENS';
@@ -1127,6 +1159,20 @@ export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
     ].filter(
       (item) =>
         item.value !== null && item.value !== undefined && item.value !== '',
+    );
+  }
+
+  if (priceData.isVideoSecondsPricing) {
+    return Object.entries(priceData.videoSecondsPrices || {}).flatMap(
+      ([tier, priceMap]) =>
+        ['default', 'silent']
+          .filter((priceKey) => priceMap[priceKey])
+          .map((priceKey) => ({
+            key: `${tier}-${priceKey}`,
+            label: `${tier} ${priceKey}`,
+            value: priceMap[priceKey],
+            suffix: ` / ${t('秒')}`,
+          })),
     );
   }
 

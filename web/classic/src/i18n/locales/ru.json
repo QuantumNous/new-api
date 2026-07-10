@@ -4214,6 +4214,15 @@
     "未能从文件中提取文本": "Не удалось извлечь текст из файла",
     "仅支持 PDF、DOCX、XLSX 文件": "Поддерживаются только файлы PDF, DOCX и XLSX",
     "仅支持 PDF、DOCX、XLSX、TXT、JSON 文件": "Поддерживаются только файлы PDF, DOCX, XLSX, TXT и JSON",
-    "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "Файлы DOC и XLS пока не поддерживаются. Преобразуйте их в DOCX или XLSX перед загрузкой"
+    "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "Файлы DOC и XLS пока не поддерживаются. Преобразуйте их в DOCX или XLSX перед загрузкой",
+    "Resolution {{tier}}": "Разрешение {{tier}}",
+    "Audio {{mode}}": "Аудио {{mode}}",
+    "Duration {{seconds}}s": "Длительность {{seconds}}с",
+    "Unit Price {{price}} / second": "Цена {{price}} / секунда",
+    "Video Rate {{price}} / second": "Тариф видео {{price}} / секунда",
+    "Group ratio": "Коэффициент группы",
+    "enabled": "со звуком",
+    "silent": "без звука",
+    "audio": "со звуком"
   }
 }

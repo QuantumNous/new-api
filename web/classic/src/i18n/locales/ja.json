@@ -4163,6 +4163,15 @@
     "未能从文件中提取文本": "ファイルからテキストを抽出できません",
     "仅支持 PDF、DOCX、XLSX 文件": "PDF、DOCX、XLSXファイルのみサポートされています",
     "仅支持 PDF、DOCX、XLSX、TXT、JSON 文件": "PDF、DOCX、XLSX、TXT、JSONファイルのみサポートされています",
-    "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "DOCまたはXLSファイルはまだサポートされていません。DOCXまたはXLSXに変換してからアップロードしてください"
+    "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "DOCまたはXLSファイルはまだサポートされていません。DOCXまたはXLSXに変換してからアップロードしてください",
+    "Resolution {{tier}}": "解像度 {{tier}}",
+    "Audio {{mode}}": "音声 {{mode}}",
+    "Duration {{seconds}}s": "時間 {{seconds}}秒",
+    "Unit Price {{price}} / second": "単価 {{price}} / 秒",
+    "Video Rate {{price}} / second": "動画単価 {{price}} / 秒",
+    "Group ratio": "グループ倍率",
+    "enabled": "有声",
+    "silent": "無声",
+    "audio": "有声"
   }
 }

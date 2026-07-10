@@ -178,6 +178,106 @@ SQL_DSN=postgresql://<user>:<password>@postgres:5432/<db>?sslmode=disable
 
 PostgreSQL 数据保存在 Docker volume `newapi_pg_data` 中。现有的 SQLite 文件 `./data/one-api.db` 不会自动迁移；切到 PostgreSQL 模式会创建一套新的数据库，除非你另行做数据迁移。
 
+本地几个 compose 文件目前职责如下：
+
+- `docker-compose.yml`：本地 SQLite 开发环境
+- `docker-compose.postgres.yml`：本地 PostgreSQL 开发环境
+- `docker-compose.devtools.yml`：固定开发/测试工具容器
+- `docker-compose.dev.mock.yml`：独立阿里视频 mock 容器
+
+## 4.1 本地 devtools 测试容器
+
+如果你希望固定一个带 `Go + Bun` 的开发/测试容器，避免每次临时 `docker run` 重复拉镜像、重复安装依赖，可以使用 `docker-compose.devtools.yml`。
+
+启动：
+```bash
+docker compose -f deploy/newapi-local/docker-compose.devtools.yml up -d --build devtools
+```
+
+进入容器：
+```bash
+docker compose -f deploy/newapi-local/docker-compose.devtools.yml exec devtools bash
+```
+
+容器里已经预设：
+- `GOPROXY=https://goproxy.cn,direct`
+- `GOSUMDB=sum.golang.google.cn`
+- `npm_config_registry=https://registry.npmmirror.com`
+- `bun install` 使用 `https://registry.npmmirror.com`
+
+同时会持久化这些缓存/依赖，避免重复下载：
+- Go 模块缓存：`newapi_devtools_go_pkg`
+- Go build 缓存：`newapi_devtools_go_build`
+- Bun 安装缓存：`newapi_devtools_bun_cache`
+- `web/default/node_modules`
+- `web/classic/node_modules`
+
+首次进入容器后，常用命令示例：
+```bash
+cd /workspace/web/classic
+bun install
+bun test src/pages/Setting/Ratio/modelPricingVideoSecondsPrice.test.js src/helpers/pricingTaskConditionPrice.test.js
+bun run build
+
+cd /workspace
+go test ./relay/channel/task/ali ./relay/channel/task/taskcommon ./relay/helper ./relay ./setting/ratio_setting ./model
+```
+
+## 4.2 阿里视频本地 mock
+
+本地开发提供一个独立的 `ali-video-mock` compose 文件，专门给 HappyHorse / Kling 做零成本联调。
+
+启动：
+
+```bash
+docker compose -f docker-compose.dev.mock.yml up -d --build
+```
+
+健康检查：
+
+```bash
+curl http://localhost:18080/healthz
+```
+
+给 `new-api` 里的阿里渠道配置本地 mock 时，把渠道 `base_url` 改成：
+
+```text
+http://host.docker.internal:18080
+```
+
+如果你在宿主机直接调 mock，也可以使用：
+
+```text
+http://127.0.0.1:18080
+```
+
+当前 mock 只实现两个百炼异步接口：
+
+- `POST /api/v1/services/aigc/video-generation/video-synthesis`
+- `GET /api/v1/tasks/:id`
+
+行为约定：
+
+- 只支持 HappyHorse 和 Kling 模型
+- 默认快速成功
+- 第 1 次轮询返回 `RUNNING`
+- 第 2 次轮询默认返回 `SUCCEEDED`
+- 会返回 `usage.duration`、`usage.SR`、`usage.audio`，方便验证本地计费链路
+
+可选失败率：
+
+- 通过环境变量 `ALI_VIDEO_MOCK_FAIL_RATE` 控制轮询终态随机失败概率
+- 取值范围 `0` 到 `1`
+- `0` 表示全部成功
+- `1` 表示全部失败
+- 例如 `0.5` 表示大约一半任务会在第 2 次轮询时返回 `FAILED`
+
+用于验证失败退款链路时，推荐：
+
+```bash
+ALI_VIDEO_MOCK_FAIL_RATE=0.5 docker compose -f docker-compose.dev.mock.yml up -d --build
+```
+
 ## 5. 本地 metadata
 
 这个目录包含一份可维护的 NewAPI upstream metadata：

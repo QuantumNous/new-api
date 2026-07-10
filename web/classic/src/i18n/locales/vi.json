@@ -4714,6 +4714,15 @@
     "未能从文件中提取文本": "Khong the trich xuat van ban tu tep",
     "仅支持 PDF、DOCX、XLSX 文件": "Chi ho tro tep PDF, DOCX va XLSX",
     "仅支持 PDF、DOCX、XLSX、TXT、JSON 文件": "Chi ho tro tep PDF, DOCX, XLSX, TXT va JSON",
-    "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "Chua ho tro tep DOC hoac XLS. Vui long chuyen sang DOCX hoac XLSX truoc khi tai len"
+    "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "Chua ho tro tep DOC hoac XLS. Vui long chuyen sang DOCX hoac XLSX truoc khi tai len",
+    "Resolution {{tier}}": "Độ phân giải {{tier}}",
+    "Audio {{mode}}": "Âm thanh {{mode}}",
+    "Duration {{seconds}}s": "Thời lượng {{seconds}} giây",
+    "Unit Price {{price}} / second": "Đơn giá {{price}} / giây",
+    "Video Rate {{price}} / second": "Giá video {{price}} / giây",
+    "Group ratio": "Tỷ lệ nhóm",
+    "enabled": "có âm thanh",
+    "silent": "im lặng",
+    "audio": "có âm thanh"
   }
 }

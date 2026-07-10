@@ -48,11 +48,28 @@ import {
   hasValue,
   useModelPricingEditorState,
 } from '../hooks/useModelPricingEditorState';
+import {
+  VIDEO_SECONDS_CONTROLLED_TIERS,
+} from '../modelPricingVideoSecondsPrice';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import TieredPricingEditor from './TieredPricingEditor';
 
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
+const VIDEO_SECONDS_TIER_FIELD_PREFIX = {
+  '480p': 'videoSeconds480p',
+  '720p': 'videoSeconds720p',
+  '1080p': 'videoSeconds1080p',
+  '2k': 'videoSeconds2k',
+  '4k': 'videoSeconds4k',
+};
+const VIDEO_SECONDS_PRICE_KEY_SUFFIX = {
+  default: 'Default',
+  silent: 'Silent',
+};
+
+const getVideoSecondsFieldName = (tier, priceKey) =>
+  `${VIDEO_SECONDS_TIER_FIELD_PREFIX[tier]}${VIDEO_SECONDS_PRICE_KEY_SUFFIX[priceKey]}`;
 
 const PriceInput = ({
   label,
@@ -138,14 +155,17 @@ export default function ModelPricingEditor({
     filterMode,
   });
 
-  const getExprModeLabel = useCallback((model) => {
-    if (model?.billingMode !== 'tiered_expr') {
-      return '';
-    }
-    return (model.billingExpr || '').includes('tier(')
-      ? t('阶梯计费')
-      : t('表达式计费');
-  }, [t]);
+  const getExprModeLabel = useCallback(
+    (model) => {
+      if (model?.billingMode !== 'tiered_expr') {
+        return '';
+      }
+      return (model.billingExpr || '').includes('tier(')
+        ? t('阶梯计费')
+        : t('表达式计费');
+    },
+    [t],
+  );
 
   const columns = useMemo(
     () => [
@@ -191,16 +211,20 @@ export default function ModelPricingEditor({
             color={
               record.billingMode === 'per-request'
                 ? 'teal'
-                : record.billingMode === 'tiered_expr'
-                  ? 'amber'
-                  : 'violet'
+                : record.billingMode === 'video-seconds'
+                  ? 'cyan'
+                  : record.billingMode === 'tiered_expr'
+                    ? 'amber'
+                    : 'violet'
             }
           >
             {record.billingMode === 'per-request'
               ? t('按次计费')
-              : record.billingMode === 'tiered_expr'
-                ? getExprModeLabel(record)
-                : t('按量计费')}
+              : record.billingMode === 'video-seconds'
+                ? t('按秒计费')
+                : record.billingMode === 'tiered_expr'
+                  ? getExprModeLabel(record)
+                  : t('按量计费')}
           </Tag>
         ),
       },
@@ -383,16 +407,20 @@ export default function ModelPricingEditor({
                   color={
                     selectedModel.billingMode === 'per-request'
                       ? 'teal'
-                      : selectedModel.billingMode === 'tiered_expr'
-                        ? 'amber'
-                        : 'blue'
+                      : selectedModel.billingMode === 'video-seconds'
+                        ? 'cyan'
+                        : selectedModel.billingMode === 'tiered_expr'
+                          ? 'amber'
+                          : 'blue'
                   }
                 >
                   {selectedModel.billingMode === 'per-request'
                     ? t('按次计费')
-                    : selectedModel.billingMode === 'tiered_expr'
-                      ? getExprModeLabel(selectedModel)
-                      : t('按量计费')}
+                    : selectedModel.billingMode === 'video-seconds'
+                      ? t('按秒计费')
+                      : selectedModel.billingMode === 'tiered_expr'
+                        ? getExprModeLabel(selectedModel)
+                        : t('按量计费')}
                 </Tag>
               ) : null
             }
@@ -419,6 +447,7 @@ export default function ModelPricingEditor({
                   >
                     <Radio value='per-token'>{t('按量计费')}</Radio>
                     <Radio value='per-request'>{t('按次计费')}</Radio>
+                    <Radio value='video-seconds'>{t('按秒计费')}</Radio>
                     <Radio value='tiered_expr'>{t('表达式/阶梯计费')}</Radio>
                   </RadioGroup>
                   <div className='mt-2 text-xs text-gray-500'>
@@ -456,6 +485,56 @@ export default function ModelPricingEditor({
                     }
                     extraText={t('适合 MJ / 任务类等按次收费模型。')}
                   />
+                ) : selectedModel.billingMode === 'video-seconds' ? (
+                  <Card
+                    bodyStyle={{ padding: 16 }}
+                    style={{
+                      marginBottom: 16,
+                      background: 'var(--semi-color-fill-0)',
+                    }}
+                  >
+                    <div className='mb-3'>
+                      <div className='font-medium'>{t('视频按秒价格')}</div>
+                      <div className='text-xs text-gray-500 mt-1'>
+                        {t(
+                          '按模型配置 480p / 720p / 1080p / 2k / 4k 档位价格，default 为模型默认价格，silent 为 audio=false 时的静音价。',
+                        )}
+                      </div>
+                    </div>
+                    {VIDEO_SECONDS_CONTROLLED_TIERS.map((tier) => (
+                      <div key={tier}>
+                        <div className='font-medium mb-3'>{t(tier)}</div>
+                        <PriceInput
+                          label={t(`${tier} Default Price`)}
+                          value={
+                            selectedModel[getVideoSecondsFieldName(tier, 'default')]
+                          }
+                          placeholder={t('Enter USD / second')}
+                          suffix={t('$/sec')}
+                          onChange={(value) =>
+                            handleNumericFieldChange(
+                              getVideoSecondsFieldName(tier, 'default'),
+                              value,
+                            )
+                          }
+                        />
+                        <PriceInput
+                          label={t(`${tier} Silent Price`)}
+                          value={
+                            selectedModel[getVideoSecondsFieldName(tier, 'silent')]
+                          }
+                          placeholder={t('Enter USD / second')}
+                          suffix={t('$/sec')}
+                          onChange={(value) =>
+                            handleNumericFieldChange(
+                              getVideoSecondsFieldName(tier, 'silent'),
+                              value,
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
+                  </Card>
                 ) : selectedModel.billingMode === 'tiered_expr' ? (
                   <TieredPricingEditor
                     model={selectedModel}
