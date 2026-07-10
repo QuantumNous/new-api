@@ -1271,6 +1271,13 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return PreConsumeUserSubscriptionForGroup(requestId, userId, modelName, "", quotaType, amount)
+}
+
+// PreConsumeUserSubscriptionForGroup pre-consumes from an active subscription
+// that is valid for the request group. Plans with an empty UpgradeGroup are
+// usable for any group; scoped plans only cover requests in the same group.
+func PreConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, requestGroup string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1281,6 +1288,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		return nil, errors.New("amount must be > 0")
 	}
 	now := GetDBTimestamp()
+	requestGroup = strings.TrimSpace(requestGroup)
 
 	returnValue := &SubscriptionPreConsumeResult{}
 
@@ -1324,6 +1332,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
+			}
+			planGroup := strings.TrimSpace(plan.UpgradeGroup)
+			if planGroup != "" && requestGroup != "" && planGroup != requestGroup {
+				continue
 			}
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
