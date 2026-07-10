@@ -16,8 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatCurrencyFromUSD } from '@/lib/currency'
-
+import {
+  formatBillingCurrencyFromUSD,
+  formatCurrencyFromUSD,
+  type CurrencyFormatOptions,
+} from '@/lib/currency'
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
@@ -136,6 +139,52 @@ function applyRechargeRate(
 ): number {
   if (!showWithRecharge) return price
   return (price * priceRate) / usdExchangeRate
+}
+
+/**
+ * Convert a stored USD unit price into the adjusted USD amount that
+ * formatCurrencyFromUSD / formatBillingCurrencyFromUSD expect.
+ *
+ * When showRechargePrice is on, apply (usd * priceRate) / usdExchangeRate so
+ * the subsequent × exchangeRate formatting yields the local recharge price.
+ */
+export function convertUsdPriceToDisplayCurrency(
+  price: number,
+  showRechargePrice = false,
+  priceRate = 1,
+  usdExchangeRate = 1
+): number {
+  return applyRechargeRate(
+    price,
+    showRechargePrice,
+    priceRate,
+    usdExchangeRate
+  )
+}
+
+/**
+ * Format a stored USD unit price (image/video matrix, fixed request, etc.)
+ * using the system billing currency helpers — never hardcode `$`.
+ */
+export function formatUsdUnitPrice(
+  usd: number,
+  showRechargePrice = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
+  options?: CurrencyFormatOptions
+): string {
+  const converted = convertUsdPriceToDisplayCurrency(
+    usd,
+    showRechargePrice,
+    priceRate,
+    usdExchangeRate
+  )
+  return formatBillingCurrencyFromUSD(converted, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+    ...options,
+  })
 }
 
 /**

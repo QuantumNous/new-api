@@ -107,3 +107,103 @@ export function replaceModelInPath(path: string, modelName: string): string {
 export function isTokenBasedModel(model: PricingModel): boolean {
   return model.quota_type === QUOTA_TYPE_VALUES.TOKEN
 }
+
+type ImagePerSizePrices = NonNullable<PricingModel['image_per_size_prices']>
+
+export type ImageSummaryPriceEntry = {
+  label: '1K' | '2K' | '4K'
+  key: 'price_1k' | 'price_2k' | 'price_4k'
+  matrixKey: '1k_medium' | '2k_medium' | '4k_medium'
+  value: number
+}
+
+const IMAGE_SUMMARY_PRICE_TIERS = [
+  {
+    label: '1K',
+    key: 'price_1k',
+    matrixKey: '1k_medium',
+  },
+  {
+    label: '2K',
+    key: 'price_2k',
+    matrixKey: '2k_medium',
+  },
+  {
+    label: '4K',
+    key: 'price_4k',
+    matrixKey: '4k_medium',
+  },
+] as const
+
+function getImageSummaryPriceValue(
+  prices: ImagePerSizePrices,
+  tier: (typeof IMAGE_SUMMARY_PRICE_TIERS)[number]
+): number {
+  const matrix = prices.price_matrix ?? {}
+  const matrixValue = matrix[tier.matrixKey]
+  if (Number.isFinite(matrixValue)) return matrixValue
+
+  const legacyValue = prices[tier.key]
+  if (Number.isFinite(legacyValue)) return legacyValue
+
+  const defaultValue = matrix.default
+  return Number.isFinite(defaultValue) ? defaultValue : 0
+}
+
+/**
+ * Size-only summary used by cards and group tables.
+ * When a quality matrix exists, use the medium quality row so summaries match
+ * the detailed matrix instead of stale legacy price_1k/2k/4k values.
+ */
+export function getImageSummaryPriceEntries(
+  prices: ImagePerSizePrices
+): ImageSummaryPriceEntry[] {
+  return IMAGE_SUMMARY_PRICE_TIERS.map((tier) => ({
+    ...tier,
+    value: getImageSummaryPriceValue(prices, tier),
+  }))
+}
+
+/** Preferred display order for video resolution price tiers. */
+export const VIDEO_RESOLUTION_ORDER = [
+  '480p',
+  '720p',
+  '1080p',
+  '4k',
+  'default',
+] as const
+
+/**
+ * Return video price matrix entries in preferred resolution order.
+ * Only includes keys present in the matrix (does not invent missing tiers).
+ */
+export function getOrderedVideoPriceEntries(
+  matrix: Record<string, number>
+): Array<[string, number]> {
+  const preferredSet = new Set<string>(VIDEO_RESOLUTION_ORDER)
+  const preferred = VIDEO_RESOLUTION_ORDER.filter(
+    (key) => matrix[key] != null && Number.isFinite(matrix[key])
+  ).map((key) => [key, matrix[key]] as [string, number])
+  const rest = Object.entries(matrix)
+    .filter(([key, value]) => !preferredSet.has(key) && Number.isFinite(value))
+    .sort(([a], [b]) => a.localeCompare(b))
+  return [...preferred, ...rest]
+}
+
+/**
+ * True when model uses per-second video billing.
+ * Primary signal is video_billing_mode from the API; matrix may be empty
+ * (still show the per-second badge / empty-tier message, never fall back to tokens).
+ */
+export function isVideoPerSecondModel(model: PricingModel): boolean {
+  return model.video_billing_mode === 'per_second'
+}
+
+/**
+ * Safe price matrix for a per-second video model (empty object when unset).
+ */
+export function getVideoPriceMatrix(
+  model: PricingModel
+): Record<string, number> {
+  return model.video_per_second_prices?.price_matrix ?? {}
+}

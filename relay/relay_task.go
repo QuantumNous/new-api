@@ -19,6 +19,8 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -179,23 +181,79 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 4. 价格计算：基础模型价格
 	info.OriginModelName = modelName
-	priceData, err := helper.ModelPriceHelperPerCall(c, info)
-	if err != nil {
-		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
+	// 4a. 通用视频按秒计费（video_model_setting.per_second）：
+	//     直接按 单价(分辨率) × 秒数 × 分组倍率 计算额度，跳过 OtherRatios 乘积路径。
+	//     公式: unit_price(resolution) * seconds * group_ratio * QuotaPerUnit
+	videoPerSecondApplied := false
+	if operation_setting.IsVideoPerSecondBilling(modelName) {
+		taskReq, reqErr := relaycommon.GetTaskRequest(c)
+		seconds := 0
+		resolution := ""
+		if reqErr == nil {
+			seconds = operation_setting.ResolveVideoDurationSeconds(taskReq.Seconds, taskReq.Duration, modelName)
+			resolution = taskReq.Size
+			if resolution == "" && taskReq.Metadata != nil {
+				if r, ok := taskReq.Metadata["resolution"].(string); ok {
+					resolution = r
+				} else if r, ok := taskReq.Metadata["size"].(string); ok {
+					resolution = r
+				}
+			}
+		} else {
+			seconds = operation_setting.GetVideoDefaultSeconds(modelName)
+		}
+		if seconds <= 0 {
+			seconds = operation_setting.GetVideoDefaultSeconds(modelName)
+		}
+		unitPrice, tierKey := operation_setting.GetVideoPerSecondPrice(modelName, resolution)
+		groupRatioInfo := helper.HandleGroupRatio(c, info)
+		quota := int(unitPrice * float64(seconds) * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		if unitPrice > 0 && quota == 0 {
+			quota = 1
+		}
+		// OtherRatios 仅保留可安全记录/复用的字段：
+		// - seconds: remix 复用时长；因 videoPerSecondApplied 会跳过乘积与 AdjustBilling，不会二次放大额度
+		// - resolution_*: ratio=1.0 仅作日志标记，不参与乘积
+		// 切勿写入 usd_per_second 等非倍率元数据（会被 OtherRatios 乘积路径误用）
+		otherRatios := map[string]float64{}
+		if seconds > 0 {
+			otherRatios["seconds"] = float64(seconds)
+		}
+		if tierKey != "" {
+			otherRatios["resolution_"+tierKey] = 1.0
+		}
+		info.PriceData = types.PriceData{
+			ModelPrice:     unitPrice, // USD/second；日志侧可直接读 model_price
+			UsePrice:       true,
+			Quota:          quota,
+			GroupRatioInfo: groupRatioInfo,
+		}
+		for key, ratio := range otherRatios {
+			info.PriceData.AddOtherRatio(key, ratio)
+		}
+		videoPerSecondApplied = true
+	} else {
+		priceData, err := helper.ModelPriceHelperPerCall(c, info)
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
+		}
+		info.PriceData = priceData
 	}
-	info.PriceData = priceData
 
 	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
 	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
 	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
-	if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
-		for k, v := range estimatedRatios {
-			info.PriceData.AddOtherRatio(k, v)
+	//    通用视频按秒计费已自行完成额度计算，跳过适配器估算，避免双重计费。
+	if !videoPerSecondApplied {
+		if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
+			for k, v := range estimatedRatios {
+				info.PriceData.AddOtherRatio(k, v)
+			}
 		}
 	}
 
 	// 6. 将 OtherRatios 应用到基础额度（饱和转换，防止溢出成负数）
-	if !common.StringsContains(constant.TaskPricePatches, modelName) {
+	if !videoPerSecondApplied && !common.StringsContains(constant.TaskPricePatches, modelName) {
 		quotaWithRatios := info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota))
 		quota, clamp := common.QuotaFromFloatChecked(quotaWithRatios)
 		info.PriceData.Quota = quota
@@ -241,13 +299,16 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
+	//     通用视频按秒计费已按 unit_price×seconds×group_ratio 定稿，禁止再走 ratio 重算。
 	finalQuota := info.PriceData.Quota
-	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
-		if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
-			// 基于调整后的 ratios 重新计算 quota
-			finalQuota = adjustedQuota
-			info.PriceData.ReplaceOtherRatios(adjustedRatios)
-			info.PriceData.Quota = finalQuota
+	if !videoPerSecondApplied {
+		if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
+			if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
+				// 基于调整后的 ratios 重新计算 quota
+				finalQuota = adjustedQuota
+				info.PriceData.ReplaceOtherRatios(adjustedRatios)
+				info.PriceData.Quota = finalQuota
+			}
 		}
 	}
 

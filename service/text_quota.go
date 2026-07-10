@@ -54,7 +54,14 @@ type textQuotaSummary struct {
 	FileSearchCallCount      int
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
-	ToolCallSurchargeQuota   decimal.Decimal
+	// per-size image billing (Image API path)
+	ImagePerSizeBilling    bool
+	ImageSizeTier          string
+	ImageQualityTier       string
+	ImagePriceTierKey      string
+	ImagePerSizeCount      int
+	ImagePerSizePrice      float64 // unit price per image (USD)
+	ToolCallSurchargeQuota decimal.Decimal
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -133,6 +140,33 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ImageGenerationCallPrice).
 			Mul(dGroupRatio).
 			Mul(dQuotaPerUnit))
+	}
+
+	// Per-size billing for Image API path (resolution × optional quality).
+	if ctx.GetBool("image_per_size_billing") {
+		summary.ImagePerSizeBilling = true
+		summary.ImageSizeTier = ctx.GetString("image_size_tier")
+		summary.ImageQualityTier = ctx.GetString("image_quality_tier")
+		summary.ImagePriceTierKey = ctx.GetString("image_price_tier_key")
+		summary.ImagePerSizeCount = ctx.GetInt("image_per_size_count")
+		if summary.ImagePerSizeCount <= 0 {
+			summary.ImagePerSizeCount = 1
+		}
+		if ctx.GetFloat64("image_per_size_unit_price") > 0 || ctx.GetString("image_price_tier_key") != "" {
+			summary.ImagePerSizePrice = ctx.GetFloat64("image_per_size_unit_price")
+		} else {
+			price, tierKey := operation_setting.GetImageTierPrice(summary.ModelName, summary.ImageSizeTier, summary.ImageQualityTier)
+			summary.ImagePerSizePrice = price
+			if summary.ImagePriceTierKey == "" {
+				summary.ImagePriceTierKey = tierKey
+			}
+		}
+		surcharge = surcharge.Add(
+			decimal.NewFromFloat(summary.ImagePerSizePrice).
+				Mul(decimal.NewFromInt(int64(summary.ImagePerSizeCount))).
+				Mul(dGroupRatio).
+				Mul(dQuotaPerUnit),
+		)
 	}
 
 	return surcharge
@@ -251,6 +285,16 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, relayInfo, &summary)
 
 	var audioInputQuota decimal.Decimal
+	if summary.ImagePerSizeBilling {
+		summary.Quota = int(summary.ToolCallSurchargeQuota.Round(0).IntPart())
+		if summary.TotalTokens == 0 {
+			summary.Quota = 0
+		} else if summary.ImagePerSizePrice > 0 && summary.Quota == 0 {
+			summary.Quota = 1
+		}
+		return summary
+	}
+
 	if !relayInfo.PriceData.UsePrice {
 		baseTokens := dPromptTokens
 
@@ -359,7 +403,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	var tieredResult *billingexpr.TieredResult
 	tieredBillingApplied := false
-	if originUsage != nil {
+	if originUsage != nil && !summary.ImagePerSizeBilling {
 		var tieredUsedVars map[string]bool
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
@@ -386,6 +430,23 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if summary.ImageGenerationCallPrice > 0 {
 		extraContent = append(extraContent, fmt.Sprintf("Image Generation Call 花费 %s", decimal.NewFromFloat(summary.ImageGenerationCallPrice).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
+	}
+	if summary.ImagePerSizeBilling && summary.ImagePerSizePrice > 0 {
+		tierLabel := summary.ImagePriceTierKey
+		if tierLabel == "" {
+			tierLabel = summary.ImageSizeTier
+			if summary.ImageQualityTier != "" && summary.ImageQualityTier != "default" {
+				tierLabel = strings.ToLower(summary.ImageSizeTier) + "_" + summary.ImageQualityTier
+			}
+		}
+		extraContent = append(extraContent, fmt.Sprintf("图片生成 %s × %d 张，花费 %s",
+			tierLabel,
+			summary.ImagePerSizeCount,
+			decimal.NewFromFloat(summary.ImagePerSizePrice).
+				Mul(decimal.NewFromInt(int64(summary.ImagePerSizeCount))).
+				Mul(decimal.NewFromFloat(summary.GroupRatio)).
+				Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String(),
+		))
 	}
 
 	if summary.TotalTokens == 0 {
@@ -455,6 +516,14 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if summary.ImageGenerationCallPrice > 0 {
 		other["image_generation_call"] = true
 		other["image_generation_call_price"] = summary.ImageGenerationCallPrice
+	}
+	if summary.ImagePerSizeBilling && summary.ImagePerSizePrice > 0 {
+		other["image_per_size_billing"] = true
+		other["image_size_tier"] = summary.ImageSizeTier
+		other["image_quality_tier"] = summary.ImageQualityTier
+		other["image_price_tier_key"] = summary.ImagePriceTierKey
+		other["image_per_size_count"] = summary.ImagePerSizeCount
+		other["image_per_size_price"] = summary.ImagePerSizePrice
 	}
 	if summary.CacheCreationTokens > 0 {
 		other["cache_creation_tokens"] = summary.CacheCreationTokens

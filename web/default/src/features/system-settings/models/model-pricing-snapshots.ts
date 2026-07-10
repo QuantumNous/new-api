@@ -32,6 +32,8 @@ export type ModelPricingSnapshotInput = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  imageModelSetting: string
+  videoModelSetting: string
 }
 
 export type ModelPricingSnapshot = {
@@ -47,6 +49,13 @@ export type ModelPricingSnapshot = {
   billingMode?: string
   billingExpr?: string
   requestRuleExpr?: string
+  price1k?: string
+  price2k?: string
+  price4k?: string
+  priceMatrixJson?: string
+  videoPriceMatrixJson?: string
+  videoDefaultSeconds?: string
+  perRequestSubMode?: 'fixed' | 'per-resolution' | 'per-second'
   hasConflict: boolean
 }
 
@@ -80,16 +89,25 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
   return formatPricingNumber(ratioNumber * denominatorNumber)
 }
 
-export const getModeLabel = (mode?: string) => {
-  if (mode === 'per-request') return 'Per-request'
+export const getModeLabel = (mode?: string, subMode?: string) => {
+  if (mode === 'per-request') {
+    if (subMode === 'per-resolution') return 'Per-resolution'
+    if (subMode === 'per-second') return 'Per-second'
+    return 'Per-request'
+  }
   if (mode === 'tiered_expr') return 'Expression'
   return 'Per-token'
 }
 
 export const getModeVariant = (
-  mode?: string
-): 'warning' | 'info' | 'success' => {
-  if (mode === 'per-request') return 'warning'
+  mode?: string,
+  subMode?: string
+): 'warning' | 'info' | 'success' | 'orange' | 'purple' => {
+  if (mode === 'per-request') {
+    if (subMode === 'per-resolution') return 'orange'
+    if (subMode === 'per-second') return 'purple'
+    return 'warning'
+  }
   if (mode === 'tiered_expr') return 'info'
   return 'success'
 }
@@ -113,6 +131,26 @@ export const getPriceSummary = (
     return getExpressionSummary(row, t)
   }
   if (row.billingMode === 'per-request') {
+    if (row.perRequestSubMode === 'per-resolution') {
+      const prices = [
+        row.price1k && `1K $${row.price1k}`,
+        row.price2k && `2K $${row.price2k}`,
+        row.price4k && `4K $${row.price4k}`,
+      ].filter(Boolean)
+      return prices.join(' · ') || t('Per-resolution (default prices)')
+    }
+    if (row.perRequestSubMode === 'per-second') {
+      const matrix = safeJsonParse<Record<string, number>>(
+        row.videoPriceMatrixJson || '{}',
+        { fallback: {}, silent: true }
+      )
+      const prices = ['480p', '720p', '1080p', '4k', 'default']
+        .filter((key) => matrix[key] != null)
+        .map((key) => `${key} $${matrix[key]}`)
+      return prices.length > 0
+        ? `${prices.join(' · ')} / ${t('sec')}`
+        : t('Per-second (default prices)')
+    }
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
   }
 
@@ -143,6 +181,12 @@ export const getPriceDetail = (
       : t('Expression based')
   }
   if (row.billingMode === 'per-request') {
+    if (row.perRequestSubMode === 'per-resolution') {
+      return t('Flat price per image by output resolution')
+    }
+    if (row.perRequestSubMode === 'per-second') {
+      return t('Per-second video pricing by output resolution')
+    }
     return t('Fixed request price')
   }
 
@@ -174,6 +218,8 @@ export const buildModelSnapshots = ({
   audioCompletionRatio,
   billingMode,
   billingExpr,
+  imageModelSetting,
+  videoModelSetting,
 }: ModelPricingSnapshotInput): ModelPricingSnapshot[] => {
   const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
     fallback: {},
@@ -215,6 +261,28 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'billing expression',
   })
+  const imageSettings = safeJsonParse<
+    Record<
+      string,
+      {
+        billing_mode?: string
+        price_1k?: number
+        price_2k?: number
+        price_4k?: number
+        price_matrix?: Record<string, number>
+      }
+    >
+  >(imageModelSetting, { fallback: {}, silent: true })
+  const videoSettings = safeJsonParse<
+    Record<
+      string,
+      {
+        billing_mode?: string
+        default_seconds?: number
+        price_matrix?: Record<string, number>
+      }
+    >
+  >(videoModelSetting, { fallback: {}, silent: true })
 
   const modelNames = new Set([
     ...Object.keys(priceMap),
@@ -227,6 +295,8 @@ export const buildModelSnapshots = ({
     ...Object.keys(audioCompletionMap),
     ...Object.keys(billingModeMap),
     ...Object.keys(billingExprMap),
+    ...Object.keys(imageSettings),
+    ...Object.keys(videoSettings),
   ])
 
   return Array.from(modelNames).map((name) => {
@@ -238,6 +308,10 @@ export const buildModelSnapshots = ({
     const image = imageMap[name]?.toString() || ''
     const audio = audioMap[name]?.toString() || ''
     const audioCompletion = audioCompletionMap[name]?.toString() || ''
+    const imageSetting = imageSettings[name]
+    const videoSetting = videoSettings[name]
+    const isPerResolution = imageSetting?.billing_mode === 'per_size'
+    const isPerSecond = videoSetting?.billing_mode === 'per_second'
 
     const modeForModel = billingModeMap[name]
     if (modeForModel === 'tiered_expr') {
@@ -271,7 +345,33 @@ export const buildModelSnapshots = ({
       imageRatio: image,
       audioRatio: audio,
       audioCompletionRatio: audioCompletion,
-      billingMode: price !== '' ? 'per-request' : 'per-token',
+      billingMode:
+        price !== '' || isPerResolution || isPerSecond
+          ? 'per-request'
+          : 'per-token',
+      perRequestSubMode: isPerSecond
+        ? 'per-second'
+        : isPerResolution
+          ? 'per-resolution'
+          : 'fixed',
+      price1k:
+        imageSetting?.price_1k != null ? String(imageSetting.price_1k) : '',
+      price2k:
+        imageSetting?.price_2k != null ? String(imageSetting.price_2k) : '',
+      price4k:
+        imageSetting?.price_4k != null ? String(imageSetting.price_4k) : '',
+      priceMatrixJson: imageSetting?.price_matrix
+        ? JSON.stringify(imageSetting.price_matrix, null, 2)
+        : '',
+      videoPriceMatrixJson: videoSetting?.price_matrix
+        ? JSON.stringify(videoSetting.price_matrix, null, 2)
+        : '',
+      videoDefaultSeconds:
+        videoSetting?.default_seconds != null
+          ? String(videoSetting.default_seconds)
+          : isPerSecond
+            ? '5'
+            : '',
       hasConflict:
         price !== '' &&
         (ratio !== '' ||
@@ -299,5 +399,12 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     billingMode: snapshot.billingMode || 'per-token',
     billingExpr: snapshot.billingExpr || '',
     requestRuleExpr: snapshot.requestRuleExpr || '',
+    price1k: snapshot.price1k || '',
+    price2k: snapshot.price2k || '',
+    price4k: snapshot.price4k || '',
+    priceMatrixJson: snapshot.priceMatrixJson || '',
+    videoPriceMatrixJson: snapshot.videoPriceMatrixJson || '',
+    videoDefaultSeconds: snapshot.videoDefaultSeconds || '',
+    perRequestSubMode: snapshot.perRequestSubMode || 'fixed',
   })
 }

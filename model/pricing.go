@@ -11,9 +11,27 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 )
+
+// ImagePerSizePrices holds the per-resolution flat prices (USD/image) for
+// image models that use the "per_size" billing mode.
+type ImagePerSizePrices struct {
+	Price1K float64 `json:"price_1k"`
+	Price2K float64 `json:"price_2k"`
+	Price4K float64 `json:"price_4k"`
+	// PriceMatrix is the full size×quality matrix when configured, e.g.
+	// {"1k_low":0.04,"2k_medium":0.06,"4k_high":0.12,"default":0.06}.
+	PriceMatrix map[string]float64 `json:"price_matrix,omitempty"`
+}
+
+// VideoPerSecondPrices holds per-second prices by resolution for video models.
+type VideoPerSecondPrices struct {
+	// PriceMatrix keys: 480p / 720p / 1080p / 4k / default (USD per second)
+	PriceMatrix map[string]float64 `json:"price_matrix,omitempty"`
+}
 
 type Pricing struct {
 	ModelName              string                  `json:"model_name"`
@@ -36,6 +54,14 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	// ImageBillingMode is "per_size" when the model charges a flat per-image
+	// price based on output resolution, or empty/absent for token billing.
+	ImageBillingMode string `json:"image_billing_mode,omitempty"`
+	// ImagePerSizePrices is populated when ImageBillingMode == "per_size".
+	ImagePerSizePrices *ImagePerSizePrices `json:"image_per_size_prices,omitempty"`
+	// VideoBillingMode is "per_second" when the model charges by duration × resolution.
+	VideoBillingMode     string                `json:"video_billing_mode,omitempty"`
+	VideoPerSecondPrices *VideoPerSecondPrices `json:"video_per_second_prices,omitempty"`
 }
 
 type PricingVendor struct {
@@ -404,6 +430,28 @@ func updatePricing() {
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
+			}
+		}
+		// Populate per-resolution / quality image billing info when configured.
+		if operation_setting.IsImagePerSizeBilling(model) {
+			pricing.ImageBillingMode = operation_setting.ImageBillingModePerSize
+			matrix := operation_setting.GetImagePriceMatrix(model)
+			// Prefer medium quality as the size-only summary when a matrix exists.
+			price1k, _ := operation_setting.GetImageTierPrice(model, operation_setting.ImageSizeTier1K, operation_setting.ImageQualityMedium)
+			price2k, _ := operation_setting.GetImageTierPrice(model, operation_setting.ImageSizeTier2K, operation_setting.ImageQualityMedium)
+			price4k, _ := operation_setting.GetImageTierPrice(model, operation_setting.ImageSizeTier4K, operation_setting.ImageQualityMedium)
+			pricing.ImagePerSizePrices = &ImagePerSizePrices{
+				Price1K:     price1k,
+				Price2K:     price2k,
+				Price4K:     price4k,
+				PriceMatrix: matrix,
+			}
+		}
+		// Populate per-second video billing info when configured.
+		if operation_setting.IsVideoPerSecondBilling(model) {
+			pricing.VideoBillingMode = operation_setting.VideoBillingModePerSecond
+			pricing.VideoPerSecondPrices = &VideoPerSecondPrices{
+				PriceMatrix: operation_setting.GetVideoPriceMatrix(model),
 			}
 		}
 		pricingMap = append(pricingMap, pricing)

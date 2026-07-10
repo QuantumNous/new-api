@@ -220,8 +220,45 @@ function buildTypeDetailSegments(
     }
   } else {
     const modelPrice = other.model_price
-    const isPerCall = isPerCallBilling(modelPrice)
-    if (isPerCall && modelPrice != null) {
+    const groupRatio = getGroupRatio(other)
+    const groupRatioText =
+      groupRatio == null ? null : `${formatRatioCompact(groupRatio)}x`
+    const hasPerSizePrice =
+      other.image_per_size_price != null &&
+      Number.isFinite(other.image_per_size_price)
+    const hasPerCallImagePrice =
+      other.image_generation_call_price != null &&
+      Number.isFinite(other.image_generation_call_price)
+
+    if (other.image_per_size_billing) {
+      const tier = other.image_size_tier
+      const count =
+        other.image_per_size_count && other.image_per_size_count > 0
+          ? other.image_per_size_count
+          : 1
+      const price = hasPerSizePrice
+        ? ` · ${formatBillingCurrencyFromUSD(other.image_per_size_price ?? 0, priceOpts)}/${t('image')}`
+        : ''
+      segments.push({
+        text: `${t('Per-resolution')} · ${tier || t('Default')} · × ${count}${price}`,
+      })
+      if (groupRatioText) {
+        segments.push({
+          text: `${t('Group Ratio')} ${groupRatioText}`,
+          muted: true,
+        })
+      }
+    } else if (hasPerCallImagePrice) {
+      segments.push({
+        text: `${t('Image Generation')} · ${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.image_generation_call_price ?? 0, priceOpts)}`,
+      })
+      if (groupRatioText) {
+        segments.push({
+          text: `${t('Group Ratio')} ${groupRatioText}`,
+          muted: true,
+        })
+      }
+    } else if (modelPrice != null && isPerCallBilling(modelPrice)) {
       segments.push({
         text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(modelPrice, priceOpts)}`,
       })

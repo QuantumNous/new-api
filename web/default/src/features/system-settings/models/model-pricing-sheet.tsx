@@ -156,6 +156,15 @@ export const ModelPricingEditorPanel = forwardRef<
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
   const [editorReloadToken, setEditorReloadToken] = useState(0)
+  const [perRequestSubMode, setPerRequestSubMode] = useState<
+    'fixed' | 'per-resolution' | 'per-second'
+  >('fixed')
+  const [price1k, setPrice1k] = useState('')
+  const [price2k, setPrice2k] = useState('')
+  const [price4k, setPrice4k] = useState('')
+  const [priceMatrixJson, setPriceMatrixJson] = useState('')
+  const [videoPrices, setVideoPrices] = useState<Record<string, string>>({})
+  const [videoDefaultSeconds, setVideoDefaultSeconds] = useState('5')
   const isEditMode = !!editData
 
   const form = useForm<ModelPricingFormValues>({
@@ -191,12 +200,35 @@ export const ModelPricingEditorPanel = forwardRef<
       setPricingMode(
         editData.billingMode === 'tiered_expr'
           ? 'tiered_expr'
-          : editData.price
+          : editData.billingMode === 'per-request'
             ? 'per-request'
             : 'per-token'
       )
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
+      setPerRequestSubMode(editData.perRequestSubMode || 'fixed')
+      setPrice1k(editData.price1k || '')
+      setPrice2k(editData.price2k || '')
+      setPrice4k(editData.price4k || '')
+      setPriceMatrixJson(editData.priceMatrixJson || '')
+      setVideoPrices(
+        Object.fromEntries(
+          Object.entries(
+            (() => {
+              try {
+                return JSON.parse(
+                  editData.videoPriceMatrixJson || '{}'
+                ) as Record<string, unknown>
+              } catch {
+                return {}
+              }
+            })()
+          )
+            .filter(([, value]) => Number.isFinite(Number(value)))
+            .map(([key, value]) => [key, String(value)])
+        )
+      )
+      setVideoDefaultSeconds(editData.videoDefaultSeconds || '5')
     } else {
       form.reset({
         name: '',
@@ -212,6 +244,13 @@ export const ModelPricingEditorPanel = forwardRef<
       setPricingMode('per-token')
       setBillingExpr('')
       setRequestRuleExpr('')
+      setPerRequestSubMode('fixed')
+      setPrice1k('')
+      setPrice2k('')
+      setPrice4k('')
+      setPriceMatrixJson('')
+      setVideoPrices({})
+      setVideoDefaultSeconds('5')
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -351,16 +390,34 @@ export const ModelPricingEditorPanel = forwardRef<
         promptPrice,
         lanePrices,
         laneEnabled,
-        t
+        t,
+        {
+          subMode: perRequestSubMode,
+          imagePrices: {
+            '1K': price1k,
+            '2K': price2k,
+            '4K': price4k,
+          },
+          imageMatrix: priceMatrixJson,
+          videoPrices,
+          videoDefaultSeconds,
+        }
       ),
     [
       billingExpr,
       laneEnabled,
       lanePrices,
+      perRequestSubMode,
+      price1k,
+      price2k,
+      price4k,
+      priceMatrixJson,
       pricingMode,
       promptPrice,
       requestRuleExpr,
       t,
+      videoDefaultSeconds,
+      videoPrices,
       watchedValues,
     ]
   )
@@ -443,7 +500,10 @@ export const ModelPricingEditorPanel = forwardRef<
       const data: ModelRatioData = {
         name: values.name.trim(),
         billingMode: pricingMode,
-        price: values.price || '',
+        price:
+          pricingMode === 'per-request' && perRequestSubMode === 'fixed'
+            ? values.price || ''
+            : '',
         ratio: values.ratio || '',
         cacheRatio: values.cacheRatio || '',
         createCacheRatio: values.createCacheRatio || '',
@@ -451,6 +511,30 @@ export const ModelPricingEditorPanel = forwardRef<
         imageRatio: values.imageRatio || '',
         audioRatio: values.audioRatio || '',
         audioCompletionRatio: values.audioCompletionRatio || '',
+        perRequestSubMode:
+          pricingMode === 'per-request' ? perRequestSubMode : undefined,
+      }
+
+      if (
+        pricingMode === 'per-request' &&
+        perRequestSubMode === 'per-resolution'
+      ) {
+        data.price1k = price1k
+        data.price2k = price2k
+        data.price4k = price4k
+        data.priceMatrixJson = priceMatrixJson
+      }
+
+      if (pricingMode === 'per-request' && perRequestSubMode === 'per-second') {
+        const matrix = Object.fromEntries(
+          Object.entries(videoPrices)
+            .filter(
+              ([, value]) => value !== '' && Number.isFinite(Number(value))
+            )
+            .map(([key, value]) => [key, Number(value)])
+        )
+        data.videoPriceMatrixJson = JSON.stringify(matrix, null, 2)
+        data.videoDefaultSeconds = videoDefaultSeconds || '5'
       }
 
       if (pricingMode === 'tiered_expr') {
@@ -460,7 +544,18 @@ export const ModelPricingEditorPanel = forwardRef<
 
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr]
+    [
+      billingExpr,
+      perRequestSubMode,
+      price1k,
+      price2k,
+      price4k,
+      priceMatrixJson,
+      pricingMode,
+      requestRuleExpr,
+      videoDefaultSeconds,
+      videoPrices,
+    ]
   )
 
   useImperativeHandle(
@@ -600,42 +695,185 @@ export const ModelPricingEditorPanel = forwardRef<
 
                   <TabsContent value='per-request' className='pt-0'>
                     <FieldGroup className='gap-5'>
-                      <FormField
-                        control={form.control}
-                        name='price'
-                        render={({ field }) => (
-                          <FormItem className='contents'>
-                            <Field>
-                              <FieldLabel>{t('Fixed price')}</FieldLabel>
-                              <FormControl>
+                      <div className='flex flex-wrap gap-2'>
+                        {(
+                          [
+                            ['fixed', 'Fixed price'],
+                            ['per-resolution', 'Per-resolution'],
+                            ['per-second', 'Per-second'],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <Button
+                            key={value}
+                            type='button'
+                            size='sm'
+                            variant={
+                              perRequestSubMode === value
+                                ? 'default'
+                                : 'outline'
+                            }
+                            onClick={() => setPerRequestSubMode(value)}
+                          >
+                            {t(label)}
+                          </Button>
+                        ))}
+                      </div>
+
+                      {perRequestSubMode === 'fixed' && (
+                        <FormField
+                          control={form.control}
+                          name='price'
+                          render={({ field }) => (
+                            <FormItem className='contents'>
+                              <Field>
+                                <FieldLabel>{t('Fixed price')}</FieldLabel>
+                                <FormControl>
+                                  <InputGroup>
+                                    <InputGroupAddon>$</InputGroupAddon>
+                                    <InputGroupInput
+                                      inputMode='decimal'
+                                      placeholder='0.01'
+                                      {...field}
+                                      onChange={(event) => {
+                                        const value = event.target.value
+                                        if (numericDraftRegex.test(value)) {
+                                          field.onChange(value)
+                                        }
+                                      }}
+                                    />
+                                    <InputGroupAddon align='inline-end'>
+                                      {t('per request')}
+                                    </InputGroupAddon>
+                                  </InputGroup>
+                                </FormControl>
+                                <FieldDescription>
+                                  {t(
+                                    'Cost in USD per request, regardless of tokens used.'
+                                  )}
+                                </FieldDescription>
+                                <FormMessage />
+                              </Field>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {perRequestSubMode === 'per-resolution' && (
+                        <FieldGroup className='gap-4'>
+                          <FieldDescription>
+                            {t(
+                              'Charge a flat price per image based on output resolution tier. 1K = long edge ≤ 1024px, 2K = ≤ 2048px, 4K = > 2048px. Leave empty to use the built-in default price.'
+                            )}
+                          </FieldDescription>
+                          <div className='grid gap-3 sm:grid-cols-3'>
+                            {[
+                              {
+                                label: '1K',
+                                value: price1k,
+                                setValue: setPrice1k,
+                              },
+                              {
+                                label: '2K',
+                                value: price2k,
+                                setValue: setPrice2k,
+                              },
+                              {
+                                label: '4K',
+                                value: price4k,
+                                setValue: setPrice4k,
+                              },
+                            ].map(({ label, value, setValue }) => (
+                              <Field key={label}>
+                                <FieldLabel>{label}</FieldLabel>
                                 <InputGroup>
                                   <InputGroupAddon>$</InputGroupAddon>
                                   <InputGroupInput
                                     inputMode='decimal'
-                                    placeholder='0.01'
-                                    {...field}
+                                    value={value}
                                     onChange={(event) => {
-                                      const value = event.target.value
-                                      if (numericDraftRegex.test(value)) {
-                                        field.onChange(value)
+                                      if (
+                                        numericDraftRegex.test(
+                                          event.target.value
+                                        )
+                                      ) {
+                                        setValue(event.target.value)
                                       }
                                     }}
                                   />
                                   <InputGroupAddon align='inline-end'>
-                                    {t('per request')}
+                                    {t('/ img')}
                                   </InputGroupAddon>
                                 </InputGroup>
-                              </FormControl>
-                              <FieldDescription>
-                                {t(
-                                  'Cost in USD per request, regardless of tokens used.'
-                                )}
-                              </FieldDescription>
-                              <FormMessage />
-                            </Field>
-                          </FormItem>
-                        )}
-                      />
+                              </Field>
+                            ))}
+                          </div>
+                          <Field>
+                            <FieldLabel>
+                              {t('Price matrix (size × quality)')}
+                            </FieldLabel>
+                            <textarea
+                              className='border-input bg-background min-h-32 w-full rounded-md border px-3 py-2 font-mono text-xs'
+                              value={priceMatrixJson}
+                              onChange={(event) =>
+                                setPriceMatrixJson(event.target.value)
+                              }
+                            />
+                          </Field>
+                        </FieldGroup>
+                      )}
+
+                      {perRequestSubMode === 'per-second' && (
+                        <FieldGroup className='gap-4'>
+                          <FieldDescription>
+                            {t(
+                              'Charge USD per second of generated video, by output resolution. Leave a tier empty to fall back to the default price. Default seconds is used for pre-charge when the request omits duration.'
+                            )}
+                          </FieldDescription>
+                          <div className='grid gap-3 sm:grid-cols-3'>
+                            {['480p', '720p', '1080p', '4k', 'default'].map(
+                              (key) => (
+                                <Field key={key}>
+                                  <FieldLabel>
+                                    {t(key === 'default' ? 'Default' : key)}
+                                  </FieldLabel>
+                                  <InputGroup>
+                                    <InputGroupAddon>$</InputGroupAddon>
+                                    <InputGroupInput
+                                      inputMode='decimal'
+                                      value={videoPrices[key] || ''}
+                                      onChange={(event) => {
+                                        const value = event.target.value
+                                        if (!numericDraftRegex.test(value))
+                                          return
+                                        setVideoPrices((current) => ({
+                                          ...current,
+                                          [key]: value,
+                                        }))
+                                      }}
+                                    />
+                                    <InputGroupAddon align='inline-end'>
+                                      {t('/ sec')}
+                                    </InputGroupAddon>
+                                  </InputGroup>
+                                </Field>
+                              )
+                            )}
+                          </div>
+                          <Field>
+                            <FieldLabel>{t('Default seconds')}</FieldLabel>
+                            <Input
+                              inputMode='numeric'
+                              value={videoDefaultSeconds}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                if (value === '' || /^\d+$/.test(value)) {
+                                  setVideoDefaultSeconds(value)
+                                }
+                              }}
+                            />
+                          </Field>
+                        </FieldGroup>
+                      )}
                     </FieldGroup>
                   </TabsContent>
 

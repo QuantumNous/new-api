@@ -62,6 +62,13 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+  price1k?: string
+  price2k?: string
+  price4k?: string
+  priceMatrixJson?: string
+  videoPriceMatrixJson?: string
+  videoDefaultSeconds?: string
+  perRequestSubMode?: 'fixed' | 'per-resolution' | 'per-second'
 }
 
 export type PreviewRow = {
@@ -215,7 +222,14 @@ export function buildPreviewRows(
   promptPrice: string,
   lanePrices: Record<LaneKey, string>,
   laneEnabled: Record<LaneKey, boolean>,
-  t: (key: string) => string
+  t: (key: string) => string,
+  perRequestPricing?: {
+    subMode: 'fixed' | 'per-resolution' | 'per-second'
+    imagePrices: Record<'1K' | '2K' | '4K', string>
+    imageMatrix: string
+    videoPrices: Record<string, string>
+    videoDefaultSeconds: string
+  }
 ): PreviewRow[] {
   if (mode === 'tiered_expr') {
     const effectiveExpr = combineBillingExpr(billingExpr, requestRuleExpr)
@@ -231,6 +245,38 @@ export function buildPreviewRows(
   }
 
   if (mode === 'per-request') {
+    if (perRequestPricing?.subMode === 'per-resolution') {
+      const rows: PreviewRow[] = (['1K', '2K', '4K'] as const).map((tier) => ({
+        key: `image-${tier}`,
+        label: tier,
+        value: perRequestPricing.imagePrices[tier] || t('Empty'),
+      }))
+      if (perRequestPricing.imageMatrix) {
+        rows.push({
+          key: 'image-matrix',
+          label: 'PriceMatrix',
+          value: perRequestPricing.imageMatrix,
+          multiline: true,
+        })
+      }
+      return rows
+    }
+
+    if (perRequestPricing?.subMode === 'per-second') {
+      return [
+        ...['480p', '720p', '1080p', '4k', 'default'].map((tier) => ({
+          key: `video-${tier}`,
+          label: tier.toUpperCase(),
+          value: perRequestPricing.videoPrices[tier] || t('Empty'),
+        })),
+        {
+          key: 'video-default-seconds',
+          label: t('Default seconds'),
+          value: perRequestPricing.videoDefaultSeconds || t('Empty'),
+        },
+      ]
+    }
+
     return [
       {
         key: 'price',

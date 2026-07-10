@@ -202,6 +202,11 @@ export interface LogOtherData {
   audio_input_price?: number
   image_generation_call?: boolean
   image_generation_call_price?: number
+  // Per-size image billing for the Image API path.
+  image_per_size_billing?: boolean
+  image_size_tier?: string // "1K" | "2K" | "4K"
+  image_per_size_count?: number
+  image_per_size_price?: number // unit price per image (USD)
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string

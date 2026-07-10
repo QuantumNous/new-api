@@ -51,6 +51,8 @@ const defaultBillingSettings: BillingSettings = {
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',
   'tool_price_setting.prices': '{}',
+  'image_model_setting.models': '{}',
+  'video_model_setting.models': '{}',
   TopupGroupRatio: '',
   GroupRatio: '',
   UserUsableGroups: '',

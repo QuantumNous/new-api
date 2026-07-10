@@ -34,10 +34,17 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getImageSummaryPriceEntries,
+  getOrderedVideoPriceEntries,
+  getVideoPriceMatrix,
+  isTokenBasedModel,
+  isVideoPerSecondModel,
+} from '../lib/model-helpers'
 import {
   formatPrice,
   formatRequestPrice,
+  formatUsdUnitPrice,
   stripTrailingZeros,
 } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
@@ -114,6 +121,41 @@ export function usePricingColumns(
       ),
       cell: ({ row }) => {
         const model = row.original
+        const isImagePerSize = model.image_billing_mode === 'per_size'
+        const isVideoPerSecond = isVideoPerSecondModel(model)
+        if (isImagePerSize || isVideoPerSecond) {
+          const entries = isImagePerSize
+            ? (model.image_per_size_prices
+                ? getImageSummaryPriceEntries(model.image_per_size_prices)
+                : []
+              ).map((entry) => [entry.label, entry.value] as const)
+            : getOrderedVideoPriceEntries(getVideoPriceMatrix(model))
+          const unit = isImagePerSize ? t('image') : t('sec')
+
+          return (
+            <div className='max-w-full min-w-0'>
+              <span className='font-mono text-sm tabular-nums'>
+                {entries.map(([label, price], index) => (
+                  <span key={label}>
+                    {index > 0 && (
+                      <span className='text-muted-foreground/40 mx-1'>/</span>
+                    )}
+                    {label}{' '}
+                    {formatUsdUnitPrice(
+                      price,
+                      showRechargePrice,
+                      priceRate,
+                      usdExchangeRate
+                    )}
+                  </span>
+                ))}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {unit}
+              </div>
+            </div>
+          )
+        }
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,
@@ -243,6 +285,12 @@ export function usePricingColumns(
       header: t('Cached'),
       cell: ({ row }) => {
         const model = row.original
+        if (
+          model.image_billing_mode === 'per_size' ||
+          isVideoPerSecondModel(model)
+        ) {
+          return <span className='text-muted-foreground/30 text-xs'>—</span>
+        }
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,

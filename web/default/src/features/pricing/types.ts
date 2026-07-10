@@ -57,6 +57,24 @@ export type PricingModel = {
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
+   * Image billing mode: "per_size" means flat per-image price by resolution.
+   * Absent or empty means standard token billing.
+   */
+  image_billing_mode?: string
+  /** Per-resolution prices (USD/image). Present when image_billing_mode === "per_size". */
+  image_per_size_prices?: {
+    price_1k: number
+    price_2k: number
+    price_4k: number
+    price_matrix?: Record<string, number>
+  }
+  /** Video billing mode: "per_second" means USD/second by resolution. */
+  video_billing_mode?: string
+  /** Per-second prices by resolution. Present when video_billing_mode === "per_second". */
+  video_per_second_prices?: {
+    price_matrix?: Record<string, number>
+  }
+  /**
    * Optional model metadata fields reserved for backend-provided catalog data.
    * Keep them data-driven; do not synthesize display values on the client.
    */

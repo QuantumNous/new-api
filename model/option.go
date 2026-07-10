@@ -603,6 +603,12 @@ func handleConfigUpdate(key, value string) bool {
 		performance_setting.UpdateAndSync()
 	} else if configName == "tool_price_setting" {
 		operation_setting.RebuildToolPriceIndex()
+	} else if configName == "image_model_setting" {
+		operation_setting.RebuildImageModelIndex()
+		InvalidatePricingCache()
+	} else if configName == "video_model_setting" {
+		operation_setting.RebuildVideoModelIndex()
+		InvalidatePricingCache()
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()

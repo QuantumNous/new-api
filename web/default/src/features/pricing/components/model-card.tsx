@@ -30,8 +30,18 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  getImageSummaryPriceEntries,
+  getOrderedVideoPriceEntries,
+  getVideoPriceMatrix,
+  isTokenBasedModel,
+  isVideoPerSecondModel,
+} from '../lib/model-helpers'
+import {
+  formatPrice,
+  formatRequestPrice,
+  formatUsdUnitPrice,
+} from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -55,6 +65,8 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const usdExchangeRate = props.usdExchangeRate ?? 1
   const showRechargePrice = props.showRechargePrice ?? false
   const isTokenBased = isTokenBasedModel(props.model)
+  const isImagePerSize = props.model.image_billing_mode === 'per_size'
+  const isVideoPerSecond = isVideoPerSecondModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
@@ -65,19 +77,21 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
-  const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
-  const dynamicSummary = isDynamicPricing
-    ? getDynamicPricingSummary(props.model, {
-        tokenUnit,
-        showRechargePrice,
-        priceRate,
-        usdExchangeRate,
-        groupRatioMultiplier: getDynamicDisplayGroupRatio(
-          props.model,
-          props.selectedGroup
-        ),
-      })
-    : null
+  const hasCachedPrice =
+    isTokenBased && !isVideoPerSecond && props.model.cache_ratio != null
+  const dynamicSummary =
+    !isVideoPerSecond && isDynamicPricing
+      ? getDynamicPricingSummary(props.model, {
+          tokenUnit,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate,
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(
+            props.model,
+            props.selectedGroup
+          ),
+        })
+      : null
 
   const primaryGroup = groups[0]
   const bottomTags = [...endpoints.slice(0, 2), ...tags.slice(0, 2)]
@@ -92,7 +106,56 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   }
 
   let priceSummary: ReactNode
-  if (dynamicSummary) {
+  if (isImagePerSize && props.model.image_per_size_prices) {
+    priceSummary = (
+      <>
+        {getImageSummaryPriceEntries(props.model.image_per_size_prices).map(
+          (entry) => (
+            <span
+              key={entry.key}
+              className='text-muted-foreground whitespace-nowrap'
+            >
+              {entry.label}{' '}
+              <span className='text-foreground font-mono font-semibold'>
+                {formatUsdUnitPrice(
+                  entry.value,
+                  showRechargePrice,
+                  priceRate,
+                  usdExchangeRate
+                )}
+              </span>
+              /{t('image')}
+            </span>
+          )
+        )}
+      </>
+    )
+  } else if (isVideoPerSecond) {
+    const videoEntries = getOrderedVideoPriceEntries(
+      getVideoPriceMatrix(props.model)
+    )
+    priceSummary = (
+      <>
+        {videoEntries.map(([resolution, price]) => (
+          <span
+            key={resolution}
+            className='text-muted-foreground whitespace-nowrap'
+          >
+            {resolution}{' '}
+            <span className='text-foreground font-mono font-semibold'>
+              {formatUsdUnitPrice(
+                price,
+                showRechargePrice,
+                priceRate,
+                usdExchangeRate
+              )}
+            </span>
+            /{t('sec')}
+          </span>
+        ))}
+      </>
+    )
+  } else if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
       priceSummary = (
         <span className='min-w-0'>

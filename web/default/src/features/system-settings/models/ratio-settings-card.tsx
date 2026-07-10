@@ -116,6 +116,8 @@ const createModelSchema = (t: Translate) =>
     ExposeRatioEnabled: z.boolean(),
     BillingMode: createJsonStringField(t),
     BillingExpr: createJsonStringField(t),
+    ImageModelSetting: createJsonStringField(t),
+    VideoModelSetting: createJsonStringField(t),
   })
 
 const createGroupSchema = (t: Translate) =>
@@ -193,6 +195,8 @@ export function RatioSettingsCard({
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+    ImageModelSetting: normalizeJsonString(modelDefaults.ImageModelSetting),
+    VideoModelSetting: normalizeJsonString(modelDefaults.VideoModelSetting),
   })
   const [savedModelValues, setSavedModelValues] = useState(
     modelNormalizedDefaults.current
@@ -229,6 +233,8 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      ImageModelSetting: formatJsonForTextarea(modelDefaults.ImageModelSetting),
+      VideoModelSetting: formatJsonForTextarea(modelDefaults.VideoModelSetting),
     },
   })
 
@@ -263,6 +269,8 @@ export function RatioSettingsCard({
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+      ImageModelSetting: normalizeJsonString(modelDefaults.ImageModelSetting),
+      VideoModelSetting: normalizeJsonString(modelDefaults.VideoModelSetting),
     }
     setSavedModelValues(modelNormalizedDefaults.current)
 
@@ -280,6 +288,8 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      ImageModelSetting: formatJsonForTextarea(modelDefaults.ImageModelSetting),
+      VideoModelSetting: formatJsonForTextarea(modelDefaults.VideoModelSetting),
     })
   }, [modelDefaults, modelForm])
 
@@ -323,11 +333,15 @@ export function RatioSettingsCard({
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
+        ImageModelSetting: normalizeJsonString(values.ImageModelSetting),
+        VideoModelSetting: normalizeJsonString(values.VideoModelSetting),
       }
 
       const apiKeyMap: Record<string, string> = {
         BillingMode: 'billing_setting.billing_mode',
         BillingExpr: 'billing_setting.billing_expr',
+        ImageModelSetting: 'image_model_setting.models',
+        VideoModelSetting: 'video_model_setting.models',
       }
 
       const updates = (

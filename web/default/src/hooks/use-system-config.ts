@@ -42,7 +42,7 @@ interface StatusApiResponse {
     demo_site_enabled?: boolean
     display_token_stat_enabled?: boolean
     display_in_currency?: boolean
-    quota_display_type?: CurrencyDisplayType
+    quota_display_type?: string
     quota_per_unit?: number
     usd_exchange_rate?: number
     custom_currency_symbol?: string

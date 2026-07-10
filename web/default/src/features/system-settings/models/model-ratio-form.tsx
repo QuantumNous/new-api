@@ -59,6 +59,8 @@ type ModelFormValues = {
   ExposeRatioEnabled: boolean
   BillingMode: string
   BillingExpr: string
+  ImageModelSetting: string
+  VideoModelSetting: string
 }
 
 type ModelRatioFormProps = {
@@ -80,6 +82,8 @@ type ModelJsonFieldName =
   | 'ImageRatio'
   | 'AudioRatio'
   | 'AudioCompletionRatio'
+  | 'ImageModelSetting'
+  | 'VideoModelSetting'
 
 const modelJsonFields: Array<{
   name: ModelJsonFieldName
@@ -129,6 +133,16 @@ const modelJsonFields: Array<{
     name: 'AudioCompletionRatio',
     labelKey: 'Audio completion ratio',
     descriptionKey: 'Ratio applied to audio completions for streaming models.',
+  },
+  {
+    name: 'ImageModelSetting',
+    labelKey: 'Image model pricing',
+    descriptionKey: 'JSON configuration for per-resolution image pricing.',
+  },
+  {
+    name: 'VideoModelSetting',
+    labelKey: 'Video model pricing',
+    descriptionKey: 'JSON configuration for per-second video pricing.',
   },
 ]
 
@@ -272,6 +286,8 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               savedAudioCompletionRatio={savedValues.AudioCompletionRatio}
               savedBillingMode={savedValues.BillingMode}
               savedBillingExpr={savedValues.BillingExpr}
+              savedImageModelSetting={savedValues.ImageModelSetting}
+              savedVideoModelSetting={savedValues.VideoModelSetting}
               modelPrice={form.watch('ModelPrice')}
               modelRatio={form.watch('ModelRatio')}
               cacheRatio={form.watch('CacheRatio')}
@@ -289,12 +305,16 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                 isUnsetVariant && enabledModelsQuery.isLoading
               }
               filterMode={isUnsetVariant ? 'unset' : 'all'}
+              imageModelSetting={form.watch('ImageModelSetting')}
+              videoModelSetting={form.watch('VideoModelSetting')}
               onSave={handleSave}
               isSaving={isSaving}
               onChange={(field, value) => {
                 const fieldMap: Record<string, keyof ModelFormValues> = {
                   'billing_setting.billing_mode': 'BillingMode',
                   'billing_setting.billing_expr': 'BillingExpr',
+                  'image_model_setting.models': 'ImageModelSetting',
+                  'video_model_setting.models': 'VideoModelSetting',
                 }
                 const formField =
                   fieldMap[field] || (field as keyof ModelFormValues)

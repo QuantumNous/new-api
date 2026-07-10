@@ -111,8 +111,16 @@ export function buildModelRatioColumns({
       ),
       cell: ({ row }) => (
         <StatusBadge
-          label={t(getModeLabel(row.original.billingMode))}
-          variant={getModeVariant(row.original.billingMode)}
+          label={t(
+            getModeLabel(
+              row.original.billingMode,
+              row.original.perRequestSubMode
+            )
+          )}
+          variant={getModeVariant(
+            row.original.billingMode,
+            row.original.perRequestSubMode
+          )}
           copyable={false}
           showDot={false}
           className='-ml-1.5 px-0'

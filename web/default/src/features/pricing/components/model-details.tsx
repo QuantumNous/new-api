@@ -67,8 +67,19 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
-import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  getAvailableGroups,
+  getImageSummaryPriceEntries,
+  getOrderedVideoPriceEntries,
+  getVideoPriceMatrix,
+  isTokenBasedModel,
+  isVideoPerSecondModel,
+} from '../lib/model-helpers'
+import {
+  formatFixedPrice,
+  formatGroupPrice,
+  formatUsdUnitPrice,
+} from '../lib/price'
 import type {
   ModelCapability,
   PriceType,
@@ -575,16 +586,28 @@ function PriceSection(props: {
 }) {
   const { t } = useTranslation()
   const isTokenBased = isTokenBasedModel(props.model)
+  const isImagePerSize = props.model.image_billing_mode === 'per_size'
+  const isVideoPerSecond = isVideoPerSecondModel(props.model)
+  const mediaPriceEntries = isImagePerSize
+    ? (props.model.image_per_size_prices
+        ? getImageSummaryPriceEntries(props.model.image_per_size_prices)
+        : []
+      ).map((entry) => ({ label: entry.label, value: entry.value }))
+    : getOrderedVideoPriceEntries(getVideoPriceMatrix(props.model)).map(
+        ([label, value]) => ({ label, value })
+      )
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const baseGroupKey = '_base'
   const baseGroupRatioMap = { [baseGroupKey]: 1 }
-  const dynamicSummary = getDynamicPricingSummary(props.model, {
-    tokenUnit: props.tokenUnit,
-    showRechargePrice: props.showRechargePrice,
-    priceRate: props.priceRate,
-    usdExchangeRate: props.usdExchangeRate,
-    groupRatioMultiplier: 1,
-  })
+  const dynamicSummary = isVideoPerSecond
+    ? null
+    : getDynamicPricingSummary(props.model, {
+        tokenUnit: props.tokenUnit,
+        showRechargePrice: props.showRechargePrice,
+        priceRate: props.priceRate,
+        usdExchangeRate: props.usdExchangeRate,
+        groupRatioMultiplier: 1,
+      })
 
   const primaryPriceTypes: { label: string; type: PriceType }[] = [
     { label: t('Input'), type: 'input' },
@@ -623,6 +646,38 @@ function PriceSection(props: {
         props.model.audio_completion_ratio != null,
     },
   ]
+
+  if (isImagePerSize || isVideoPerSecond) {
+    const unit = isImagePerSize ? t('image') : t('sec')
+    return (
+      <section>
+        <SectionTitle>{t('Pricing')}</SectionTitle>
+        <div className='overflow-hidden rounded-xl border'>
+          <div className='divide-y'>
+            {mediaPriceEntries.map((entry) => (
+              <div
+                key={entry.label}
+                className='flex items-baseline justify-between gap-4 px-4 py-3'
+              >
+                <span className='text-muted-foreground text-sm'>
+                  {entry.label}
+                </span>
+                <span className='text-sm font-medium tabular-nums'>
+                  {formatUsdUnitPrice(
+                    entry.value,
+                    props.showRechargePrice,
+                    props.priceRate,
+                    props.usdExchangeRate
+                  )}{' '}
+                  / {unit}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
@@ -868,6 +923,16 @@ function GroupPricingSection(props: {
   )
 
   const isTokenBased = isTokenBasedModel(props.model)
+  const isImagePerSize = props.model.image_billing_mode === 'per_size'
+  const isVideoPerSecond = isVideoPerSecondModel(props.model)
+  const mediaPriceEntries = isImagePerSize
+    ? (props.model.image_per_size_prices
+        ? getImageSummaryPriceEntries(props.model.image_per_size_prices)
+        : []
+      ).map((entry) => ({ label: entry.label, value: entry.value }))
+    : getOrderedVideoPriceEntries(getVideoPriceMatrix(props.model)).map(
+        ([label, value]) => ({ label, value })
+      )
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
 
   const extraPriceTypes = useMemo(() => {
@@ -909,6 +974,52 @@ function GroupPricingSection(props: {
 
   const thClass =
     'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
+
+  if (isImagePerSize || isVideoPerSecond) {
+    const unit = isImagePerSize ? t('image') : t('sec')
+    return (
+      <section>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <StaticDataTable
+          className='-mx-4 rounded-none border-0 sm:mx-0'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={availableGroups}
+          getRowKey={(group) => group}
+          columns={[
+            {
+              id: 'group',
+              header: t('Group'),
+              className: thClass,
+              cellClassName: 'py-2.5',
+              cell: (group) => <GroupBadge group={group} size='sm' />,
+            },
+            {
+              id: 'ratio',
+              header: t('Ratio'),
+              className: thClass,
+              cellClassName: 'text-muted-foreground py-2.5 font-mono',
+              cell: (group) => `${props.groupRatio[group] || 1}x`,
+            },
+            ...mediaPriceEntries.map((entry) => ({
+              id: entry.label,
+              header: entry.label,
+              className: `${thClass} text-right`,
+              cellClassName: 'py-2.5 text-right font-mono',
+              cell: (group: string) =>
+                `${formatUsdUnitPrice(
+                  entry.value * (props.groupRatio[group] || 1),
+                  showRechargePrice,
+                  props.priceRate,
+                  props.usdExchangeRate
+                )} / ${unit}`,
+            })),
+          ]}
+        />
+      </section>
+    )
+  }
 
   if (isDynamicPricingModel(props.model)) {
     const dynamicTiers = getDynamicPricingTiers(props.model)
