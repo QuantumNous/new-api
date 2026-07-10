@@ -16,15 +16,40 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export { CTA } from './sections/cta'
-export { CapabilitiesSection } from './sections/capabilities'
-export { EcosystemSection } from './sections/ecosystem'
-export { Features } from './sections/features'
-export { GovernanceSection } from './sections/governance'
-export { Hero } from './sections/hero'
-export { HomeFooter } from './home-footer'
-export { HowItWorks } from './sections/how-it-works'
-export { ScenariosSection } from './sections/scenarios'
-export { Stats } from './sections/stats'
-export { WhySection } from './sections/why'
-export { WorkflowSection } from './sections/workflow'
+import { Link } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
+
+type HomeLinkProps = {
+  href: string
+  className: string
+  children: ReactNode
+}
+
+export function HomeLink(props: HomeLinkProps) {
+  if (props.href.startsWith('http')) {
+    return (
+      <a
+        href={props.href}
+        target='_blank'
+        rel='noopener noreferrer'
+        className={props.className}
+      >
+        {props.children}
+      </a>
+    )
+  }
+
+  if (props.href.startsWith('#')) {
+    return (
+      <a href={props.href} className={props.className}>
+        {props.children}
+      </a>
+    )
+  }
+
+  return (
+    <Link to={props.href} className={props.className}>
+      {props.children}
+    </Link>
+  )
+}

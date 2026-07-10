@@ -20,13 +20,23 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
-import { Footer } from '@/components/layout/components/footer'
 import { RichContent } from '@/components/rich-content'
 import { useTheme } from '@/context/theme-provider'
 import { isLikelyHtml } from '@/lib/content-format'
+import { applyFaviconToDom } from '@/lib/dom-utils'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import {
+  CTA,
+  CapabilitiesSection,
+  EcosystemSection,
+  GovernanceSection,
+  Hero,
+  HomeFooter,
+  ScenariosSection,
+  WhySection,
+  WorkflowSection,
+} from './components'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -57,6 +67,19 @@ export function Home() {
       syncIframePreferences()
     }
   }, [isUrl, syncIframePreferences])
+
+  useEffect(() => {
+    if (!content) {
+      document.title = 'Lighting'
+      const metaTitle = document.querySelector(
+        'meta[name="title"]'
+      ) as HTMLMetaElement | null
+      if (metaTitle) {
+        metaTitle.setAttribute('content', 'Lighting')
+      }
+      applyFaviconToDom('/lighting-favicon.png?v=20260710-2')
+    }
+  }, [content])
 
   if (!isLoaded) {
     return (
@@ -113,13 +136,38 @@ export function Home() {
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
+    <PublicLayout
+      showMainContainer={false}
+      showThemeSwitch={false}
+      headerProps={{
+        variant: 'reference',
+        logo: (
+          <img
+            src='/lighting-logo-b.png'
+            alt='Lighting'
+            width={184}
+            height={56}
+            fetchPriority='high'
+            className='home-header-logo-image'
+          />
+        ),
+        siteName: '',
+      }}
+    >
+      <a className='home-skip-link' href='#main'>
+        {t('Skip to main content')}
+      </a>
+      <main id='main' className='home-page'>
+        <Hero isAuthenticated={isAuthenticated} />
+        <WhySection />
+        <ScenariosSection />
+        <CapabilitiesSection />
+        <GovernanceSection />
+        <WorkflowSection />
+        <EcosystemSection />
+        <CTA isAuthenticated={isAuthenticated} />
+      </main>
+      <HomeFooter />
     </PublicLayout>
   )
 }
