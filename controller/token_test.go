@@ -14,8 +14,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -503,6 +507,68 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("update response leaked raw token key: %s", recorder.Body.String())
 	}
+}
+
+func TestAddTokenValidatesAndNormalizesAutoOptPolicy(t *testing.T) {
+	db := openTokenControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Token{}, &model.User{}))
+	require.NoError(t, db.Create(&model.User{
+		Id:       1,
+		Username: "autoopt-user",
+		Password: "password",
+		Group:    "default",
+	}).Error)
+
+	oldUsableGroups := setting.UserUsableGroups2JSONString()
+	oldGroupRatio := ratio_setting.GroupRatio2JSONString()
+	oldGroupGroupRatio := ratio_setting.GroupGroupRatio2JSONString()
+	oldSpecialUsable := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.MarshalJSONString()
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(oldUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(oldGroupRatio))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(oldGroupGroupRatio))
+		require.NoError(t, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.UnmarshalJSON([]byte(oldSpecialUsable)))
+	})
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP","AutoOpt":"AutoOpt"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0.5,"hidden":0.1}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.UnmarshalJSON([]byte(`{}`)))
+
+	validBody := map[string]any{
+		"name":              "filtered-autoopt",
+		"expired_time":      -1,
+		"unlimited_quota":   true,
+		"group":             "AutoOpt",
+		"auto_opt_mode":     "whitelist",
+		"auto_opt_groups":   "vip,default,vip",
+		"cross_group_retry": false,
+	}
+	validCtx, validRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", validBody, 1)
+	AddToken(validCtx)
+	require.True(t, decodeAPIResponse(t, validRecorder).Success)
+
+	var storedToken model.Token
+	require.NoError(t, db.Where("user_id = ?", 1).First(&storedToken).Error)
+	assert.Equal(t, "whitelist", storedToken.AutoOptMode)
+	assert.Equal(t, "default,vip", storedToken.AutoOptGroups)
+
+	invalidBody := map[string]any{
+		"name":            "unauthorized-autoopt",
+		"expired_time":    -1,
+		"unlimited_quota": true,
+		"group":           "AutoOpt",
+		"auto_opt_mode":   "whitelist",
+		"auto_opt_groups": "hidden",
+	}
+	invalidCtx, invalidRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", invalidBody, 1)
+	AddToken(invalidCtx)
+	invalidResponse := decodeAPIResponse(t, invalidRecorder)
+	assert.False(t, invalidResponse.Success)
+	assert.Contains(t, invalidResponse.Message, "not available for AutoOpt")
+
+	var count int64
+	require.NoError(t, db.Model(&model.Token{}).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
 }
 
 func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {

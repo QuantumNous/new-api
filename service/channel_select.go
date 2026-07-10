@@ -88,7 +88,11 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
 	if IsAutoOptGroup(param.TokenGroup) {
-		autoOptGroups := GetUserAutoOptGroups(userGroup)
+		autoOptGroups := GetUserAutoOptGroupsWithPolicy(
+			userGroup,
+			common.GetContextKeyString(param.Ctx, constant.ContextKeyTokenAutoOptMode),
+			common.GetContextKeyStringSlice(param.Ctx, constant.ContextKeyTokenAutoOptGroups),
+		)
 		if len(autoOptGroups) == 0 {
 			return nil, selectGroup, errors.New("AutoOpt groups is not available")
 		}

@@ -8,7 +8,11 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
-const AutoOptGroup = "AutoOpt"
+const (
+	AutoOptGroup         = "AutoOpt"
+	AutoOptModeWhitelist = "whitelist"
+	AutoOptModeBlacklist = "blacklist"
+)
 
 func IsAutoOptGroup(group string) bool {
 	return group == AutoOptGroup
@@ -96,12 +100,34 @@ func GetUserPricedUsableGroups(userGroup string) map[string]string {
 }
 
 func GetUserAutoOptGroups(userGroup string) []string {
+	return GetUserAutoOptGroupsWithPolicy(userGroup, AutoOptModeBlacklist, nil)
+}
+
+func GetUserAutoOptGroupsWithPolicy(userGroup, mode string, configuredGroups []string) []string {
 	if !UserCanUseAutoOptGroup(userGroup) {
 		return nil
+	}
+	if mode == "" {
+		mode = AutoOptModeBlacklist
+	}
+	if mode != AutoOptModeWhitelist && mode != AutoOptModeBlacklist {
+		return nil
+	}
+
+	configured := make(map[string]struct{}, len(configuredGroups))
+	for _, group := range configuredGroups {
+		configured[group] = struct{}{}
 	}
 	pricedGroups := GetUserPricedUsableGroups(userGroup)
 	groups := make([]string, 0, len(pricedGroups))
 	for group := range pricedGroups {
+		_, selected := configured[group]
+		if mode == AutoOptModeWhitelist && !selected {
+			continue
+		}
+		if mode == AutoOptModeBlacklist && selected {
+			continue
+		}
 		groups = append(groups, group)
 	}
 	sort.SliceStable(groups, func(i, j int) bool {

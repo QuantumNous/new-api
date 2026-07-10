@@ -120,7 +120,11 @@ func Distribute() func(c *gin.Context) {
 								}
 							}
 						} else if service.IsAutoOptGroup(usingGroup) {
-							autoOptGroups := service.GetUserAutoOptGroups(userGroup)
+							autoOptGroups := service.GetUserAutoOptGroupsWithPolicy(
+								userGroup,
+								common.GetContextKeyString(c, constant.ContextKeyTokenAutoOptMode),
+								common.GetContextKeyStringSlice(c, constant.ContextKeyTokenAutoOptGroups),
+							)
 							for _, g := range autoOptGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
 									selectGroup = g

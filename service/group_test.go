@@ -64,3 +64,54 @@ func TestGetUserAutoOptGroupsRequiresAutoOptPermission(t *testing.T) {
 	require.False(t, UserCanUseAutoOptGroup("default"))
 	require.Empty(t, GetUserAutoOptGroups("default"))
 }
+
+func TestGetUserAutoOptGroupsAppliesTokenPolicyWithoutExpandingAccess(t *testing.T) {
+	withAutoOptGroupSettings(t)
+
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP","cheap":"Cheap","AutoOpt":"AutoOpt"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0.5,"cheap":0.2,"hidden":0.01}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.UnmarshalJSON([]byte(`{}`)))
+
+	tests := []struct {
+		name       string
+		mode       string
+		configured []string
+		expected   []string
+	}{
+		{
+			name:     "empty blacklist preserves legacy behavior",
+			mode:     AutoOptModeBlacklist,
+			expected: []string{"cheap", "vip", "default"},
+		},
+		{
+			name:       "whitelist keeps selected usable groups only",
+			mode:       AutoOptModeWhitelist,
+			configured: []string{"vip", "hidden"},
+			expected:   []string{"vip"},
+		},
+		{
+			name:       "blacklist removes selected groups",
+			mode:       AutoOptModeBlacklist,
+			configured: []string{"cheap", "hidden"},
+			expected:   []string{"vip", "default"},
+		},
+		{
+			name:     "empty whitelist fails closed",
+			mode:     AutoOptModeWhitelist,
+			expected: []string{},
+		},
+		{
+			name:       "invalid mode fails closed",
+			mode:       "invalid",
+			configured: []string{"cheap"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			groups := GetUserAutoOptGroupsWithPolicy("default", test.mode, test.configured)
+			require.Equal(t, test.expected, groups)
+		})
+	}
+}

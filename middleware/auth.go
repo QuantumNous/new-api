@@ -463,6 +463,13 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	}
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
 	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
+	autoOptGroups, validAutoOptGroups := token.GetAutoOptGroups()
+	autoOptMode := token.AutoOptMode
+	if !validAutoOptGroups {
+		autoOptMode = "invalid"
+	}
+	common.SetContextKey(c, constant.ContextKeyTokenAutoOptMode, autoOptMode)
+	common.SetContextKey(c, constant.ContextKeyTokenAutoOptGroups, autoOptGroups)
 	if len(parts) > 1 {
 		if model.IsAdmin(token.UserId) {
 			c.Set("specific_channel_id", parts[1])

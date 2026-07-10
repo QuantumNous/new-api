@@ -198,9 +198,13 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 			return modelListGroups{}, fmt.Errorf("group %s is not available for user group %s", tokenGroup, userGroup)
 		}
 		return modelListGroups{
-			userGroup:   userGroup,
-			tokenGroup:  tokenGroup,
-			ownerGroups: service.GetUserAutoOptGroups(userGroup),
+			userGroup:  userGroup,
+			tokenGroup: tokenGroup,
+			ownerGroups: service.GetUserAutoOptGroupsWithPolicy(
+				userGroup,
+				common.GetContextKeyString(c, constant.ContextKeyTokenAutoOptMode),
+				common.GetContextKeyStringSlice(c, constant.ContextKeyTokenAutoOptGroups),
+			),
 		}, nil
 	}
 
