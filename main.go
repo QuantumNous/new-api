@@ -339,6 +339,14 @@ func InitResources() error {
 		return err
 	}
 
+	if common.IsMasterNode {
+		if mErr := model.AutoMigrateSubscriptionSubQuotaLimits(); mErr != nil {
+			common.SysError("auto migrate subscription sub quota limits failed: " + mErr.Error())
+			return mErr
+		}
+		model.MaybeBackfillSubscriptionSubQuotaLimits()
+	}
+
 	// Initialize Redis
 	err = common.InitRedisClient()
 	if err != nil {
