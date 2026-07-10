@@ -44,6 +44,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
+  testChannel,
   getMultiKeyStatus,
   enableMultiKey,
   disableMultiKey,
@@ -60,7 +61,10 @@ import {
   getMultiKeyConfirmMessage,
   isDestructiveAction,
 } from '../../lib'
-import type { KeyStatus, MultiKeyConfirmAction } from '../../types'
+import type {
+  KeyStatus,
+  MultiKeyConfirmAction,
+} from '../../types'
 import { useChannels } from '../channels-provider'
 import { StatisticsCard } from './multi-key-statistics-card'
 import { MultiKeyTableRowActions } from './multi-key-table-row-actions'
@@ -100,12 +104,14 @@ export function MultiKeyManageDialog({
   const [confirmAction, setConfirmAction] =
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
+  const [testingKeyIndex, setTestingKeyIndex] = useState<number | null>(null)
 
   // Reset and load data when dialog opens
   useEffect(() => {
     if (open && currentRow) {
       setCurrentPage(1)
       setStatusFilter(null)
+      setTestingKeyIndex(null)
       loadKeyStatus(1, pageSize, null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,7 +155,7 @@ export function MultiKeyManageDialog({
   }
 
   const handleStatusFilterChange = (value: string) => {
-    const newFilter = value === 'all' ? null : parseInt(value)
+    const newFilter = value === 'all' ? null : Number.parseInt(value)
     setStatusFilter(newFilter)
     setCurrentPage(1)
     loadKeyStatus(1, pageSize, newFilter)
@@ -174,7 +180,8 @@ export function MultiKeyManageDialog({
     setIsPerformingAction(true)
     try {
       const { type, keyIndex } = confirmAction
-      let response
+
+      let response: { success: boolean; message?: string } | undefined
 
       // Execute the appropriate action
       if (type === 'enable' && keyIndex !== undefined) {
@@ -216,6 +223,32 @@ export function MultiKeyManageDialog({
     }
   }
 
+  const handleTestKey = async (keyIndex: number) => {
+    if (!currentRow) return
+
+    setTestingKeyIndex(keyIndex)
+    try {
+      const response = await testChannel(currentRow.id, {
+        key_index: keyIndex,
+      })
+
+      if (response.success) {
+        toast.success(t('Operation successful'))
+      } else {
+        toast.error(response.message || t('Operation failed'))
+      }
+
+      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      await loadKeyStatus(currentPage, pageSize, statusFilter)
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Operation failed')
+      )
+    } finally {
+      setTestingKeyIndex(null)
+    }
+  }
+
   const renderStatusBadge = (status: number) => {
     const config = getMultiKeyStatusConfig(status)
     return (
@@ -232,6 +265,78 @@ export function MultiKeyManageDialog({
     if (!timestamp) return '-'
     return formatTimestamp(timestamp)
   }
+
+  const keyTableContent = (() => {
+    if (isLoading) {
+      return (
+        <div className='flex items-center justify-center py-12'>
+          <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
+        </div>
+      )
+    }
+
+    if (keys.length === 0) {
+      return (
+        <div className='text-muted-foreground py-12 text-center'>
+          {t('No keys found')}
+        </div>
+      )
+    }
+
+    return (
+      <StaticDataTable
+        className='rounded-none border-0'
+        tableClassName='min-w-[800px]'
+        data={keys}
+        getRowKey={(key) => key.index}
+        columns={[
+          {
+            id: 'index',
+            header: t('Index'),
+            className: 'w-20',
+            cellClassName: 'font-mono text-sm',
+            cell: (key) => `#${key.index + 1}`,
+          },
+          {
+            id: 'status',
+            header: t('Status'),
+            className: 'w-32',
+            cell: (key) => renderStatusBadge(key.status),
+          },
+          {
+            id: 'reason',
+            header: t('Disabled Reason'),
+            className: 'min-w-[200px]',
+            cellClassName: 'max-w-xs truncate text-sm',
+            cell: (key) => key.reason || '-',
+          },
+          {
+            id: 'disabled-time',
+            header: t('Disabled Time'),
+            className: 'w-44',
+            cellClassName: 'text-muted-foreground text-sm',
+            cell: (key) => formatKeyTimestamp(key.disabled_time),
+          },
+          {
+            id: 'actions',
+            header: t('Actions'),
+            className: 'text-right',
+            cell: (key) => (
+              <MultiKeyTableRowActions
+                keyIndex={key.index}
+                status={key.status}
+                canDelete={canEditSensitive}
+                isBusy={isLoading || isPerformingAction || testingKeyIndex !== null}
+                isTesting={testingKeyIndex === key.index}
+                onTest={handleTestKey}
+                onAction={setConfirmAction}
+              />
+            ),
+          },
+        ]}
+      />
+    )
+  })()
 
   if (!currentRow) return null
 
@@ -294,12 +399,10 @@ export function MultiKeyManageDialog({
           {/* Toolbar */}
           <div className='flex shrink-0 items-center justify-between'>
             <Select
-              items={[
-                ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.label),
-                })),
-              ]}
+              items={MULTI_KEY_FILTER_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.label),
+              }))}
               value={statusFilter === null ? 'all' : statusFilter.toString()}
               onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
             >
@@ -378,64 +481,7 @@ export function MultiKeyManageDialog({
 
           {/* Table */}
           <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
-            {isLoading ? (
-              <div className='flex items-center justify-center py-12'>
-                <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
-              </div>
-            ) : keys.length === 0 ? (
-              <div className='text-muted-foreground py-12 text-center'>
-                {t('No keys found')}
-              </div>
-            ) : (
-              <StaticDataTable
-                className='rounded-none border-0'
-                tableClassName='min-w-[800px]'
-                data={keys}
-                getRowKey={(key) => key.index}
-                columns={[
-                  {
-                    id: 'index',
-                    header: t('Index'),
-                    className: 'w-20',
-                    cellClassName: 'font-mono text-sm',
-                    cell: (key) => `#${key.index + 1}`,
-                  },
-                  {
-                    id: 'status',
-                    header: t('Status'),
-                    className: 'w-32',
-                    cell: (key) => renderStatusBadge(key.status),
-                  },
-                  {
-                    id: 'reason',
-                    header: t('Disabled Reason'),
-                    className: 'min-w-[200px]',
-                    cellClassName: 'max-w-xs truncate text-sm',
-                    cell: (key) => key.reason || '-',
-                  },
-                  {
-                    id: 'disabled-time',
-                    header: t('Disabled Time'),
-                    className: 'w-44',
-                    cellClassName: 'text-muted-foreground text-sm',
-                    cell: (key) => formatKeyTimestamp(key.disabled_time),
-                  },
-                  {
-                    id: 'actions',
-                    header: t('Actions'),
-                    className: 'text-right',
-                    cell: (key) => (
-                      <MultiKeyTableRowActions
-                        keyIndex={key.index}
-                        status={key.status}
-                        canDelete={canEditSensitive}
-                        onAction={setConfirmAction}
-                      />
-                    ),
-                  },
-                ]}
-              />
-            )}
+            {keyTableContent}
           </div>
 
           {/* Pagination */}

@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -39,6 +40,427 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
+}
+
+const (
+	channelTestChannelNotExistMessage = "channel does not exist"
+	channelTestNotMultiKeyMessage     = "channel is not in multi-key mode"
+)
+
+type TestAllKeysRequest struct {
+	Model             *string `json:"model,omitempty"`
+	IncludeDisabled   *bool   `json:"include_disabled,omitempty"`
+	AutoEnableSuccess *bool   `json:"auto_enable_success,omitempty"`
+	AutoDisableFailed *bool   `json:"auto_disable_failed,omitempty"`
+	Concurrency       *int    `json:"concurrency,omitempty"`
+}
+
+type TestAllKeyResult struct {
+	KeyIndex    int    `json:"key_index"`
+	MaskedKey   string `json:"masked_key"`
+	OldStatus   string `json:"old_status"`
+	TestSuccess bool   `json:"test_success"`
+	LatencyMs   int64  `json:"latency_ms"`
+	NewStatus   string `json:"new_status"`
+	Action      string `json:"action"`
+	ActionCode  string `json:"-"`
+	Error       string `json:"error"`
+}
+
+const (
+	multiKeyActionKept               = "kept"
+	multiKeyActionAutoEnabled        = "auto_enabled"
+	multiKeyActionAutoDisabled       = "auto_disabled"
+	multiKeyActionKeptManualDisabled = "kept_manual_disabled"
+	multiKeyActionSkipped            = "skipped"
+)
+
+type TestAllKeysSummary struct {
+	Total              int `json:"total"`
+	Tested             int `json:"tested"`
+	Success            int `json:"success"`
+	Failed             int `json:"failed"`
+	Skipped            int `json:"skipped"`
+	AutoEnabled        int `json:"auto_enabled"`
+	AutoDisabled       int `json:"auto_disabled"`
+	KeptManualDisabled int `json:"kept_manual_disabled"`
+}
+
+type TestAllKeysResponse struct {
+	Success   bool               `json:"success"`
+	ChannelID int                `json:"channel_id"`
+	Summary   TestAllKeysSummary `json:"summary"`
+	Results   []TestAllKeyResult `json:"results"`
+	Message   string             `json:"message,omitempty"`
+}
+
+type testAllKeysOptions struct {
+	model             string
+	includeDisabled   bool
+	autoEnableSuccess bool
+	autoDisableFailed bool
+	concurrency       int
+}
+
+type testAllKeysExecution struct {
+	response     TestAllKeysResponse
+	persist      bool
+	statusChange bool
+}
+
+type testAllKeyRunner func(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, keyIndex int) testResult
+
+type testAllKeyOutcome struct {
+	index  int
+	result TestAllKeyResult
+}
+
+func resolveTestAllKeysOptions(req TestAllKeysRequest) testAllKeysOptions {
+	options := testAllKeysOptions{
+		includeDisabled:   true,
+		autoEnableSuccess: common.AutomaticEnableChannelEnabled,
+		autoDisableFailed: common.AutomaticDisableChannelEnabled,
+		concurrency:       3,
+	}
+	if req.Model != nil {
+		options.model = strings.TrimSpace(*req.Model)
+	}
+	if req.IncludeDisabled != nil {
+		options.includeDisabled = *req.IncludeDisabled
+	}
+	if req.AutoEnableSuccess != nil {
+		options.autoEnableSuccess = *req.AutoEnableSuccess
+	}
+	if req.AutoDisableFailed != nil {
+		options.autoDisableFailed = *req.AutoDisableFailed
+	}
+	if req.Concurrency != nil {
+		options.concurrency = *req.Concurrency
+	}
+	if options.concurrency < 1 {
+		options.concurrency = 1
+	} else if options.concurrency > 10 {
+		options.concurrency = 10
+	}
+	return options
+}
+
+func channelMultiKeyStatusLabel(status int) string {
+	switch status {
+	case common.ChannelStatusEnabled:
+		return "Enabled"
+	case common.ChannelStatusManuallyDisabled:
+		return "Manual Disabled"
+	case common.ChannelStatusAutoDisabled:
+		return "Auto Disabled"
+	default:
+		return "Unknown"
+	}
+}
+
+func channelMultiKeyActionLabel(action string) string {
+	switch action {
+	case multiKeyActionAutoEnabled:
+		return "Auto Enabled"
+	case multiKeyActionAutoDisabled:
+		return "Auto Disabled"
+	case multiKeyActionKeptManualDisabled:
+		return "Kept Manual Disabled"
+	case multiKeyActionSkipped:
+		return "Skipped"
+	default:
+		return "Kept"
+	}
+}
+
+func maskChannelKey(key string) string {
+	if len(key) <= 8 {
+		return "***"
+	}
+	if len(key) <= 11 {
+		return key[:3] + "***" + key[len(key)-3:]
+	}
+	return key[:3] + "***" + key[len(key)-4:]
+}
+
+func formatChannelTestKeyIndex(keyIndex *int) string {
+	if keyIndex == nil {
+		return ""
+	}
+	return fmt.Sprintf(", key_index=%d", *keyIndex+1)
+}
+
+func cloneChannelForSpecificKeyTest(channel *model.Channel, keyIndex int) (*model.Channel, error) {
+	keys := channel.GetKeys()
+	if keyIndex < 0 || keyIndex >= len(keys) {
+		return nil, fmt.Errorf("key index out of range")
+	}
+
+	clone := *channel
+	clone.Key = keys[keyIndex]
+	clone.Keys = []string{keys[keyIndex]}
+	clone.ChannelInfo.IsMultiKey = true
+	clone.ChannelInfo.MultiKeyMode = constant.MultiKeyModeRandom
+	clone.ChannelInfo.MultiKeyStatusList = nil
+	clone.ChannelInfo.MultiKeyDisabledReason = nil
+	clone.ChannelInfo.MultiKeyDisabledTime = nil
+	return &clone, nil
+}
+
+func testChannelWithSpecificKeyIndex(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, keyIndex int) testResult {
+	return testChannel(ctx, channel, testUserID, testModel, endpointType, isStream, &keyIndex)
+}
+
+func mutateSingleKeyTestOutcome(channel *model.Channel, keyIndex int, oldStatus int, success bool, errorMessage string, options testAllKeysOptions) (int, bool, error) {
+	keys := channel.GetKeys()
+	if keyIndex < 0 || keyIndex >= len(keys) {
+		return oldStatus, false, fmt.Errorf("key index out of range")
+	}
+
+	finalStatus := oldStatus
+	if success {
+		if oldStatus == common.ChannelStatusAutoDisabled && options.autoEnableSuccess {
+			finalStatus = common.ChannelStatusEnabled
+			if channel.ChannelInfo.MultiKeyStatusList != nil {
+				delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+			}
+			if channel.ChannelInfo.MultiKeyDisabledReason != nil {
+				delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
+			}
+			if channel.ChannelInfo.MultiKeyDisabledTime != nil {
+				delete(channel.ChannelInfo.MultiKeyDisabledTime, keyIndex)
+			}
+		} else if oldStatus == common.ChannelStatusManuallyDisabled {
+			finalStatus = common.ChannelStatusManuallyDisabled
+		}
+	} else if oldStatus == common.ChannelStatusEnabled && options.autoDisableFailed {
+		finalStatus = common.ChannelStatusAutoDisabled
+		if channel.ChannelInfo.MultiKeyStatusList == nil {
+			channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
+		}
+		if channel.ChannelInfo.MultiKeyDisabledReason == nil {
+			channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
+		}
+		if channel.ChannelInfo.MultiKeyDisabledTime == nil {
+			channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
+		}
+		channel.ChannelInfo.MultiKeyStatusList[keyIndex] = common.ChannelStatusAutoDisabled
+		channel.ChannelInfo.MultiKeyDisabledReason[keyIndex] = errorMessage
+		channel.ChannelInfo.MultiKeyDisabledTime[keyIndex] = common.GetTimestamp()
+	} else if oldStatus == common.ChannelStatusManuallyDisabled {
+		finalStatus = common.ChannelStatusManuallyDisabled
+	}
+
+	anyFinalEnabled := false
+	for i := range keys {
+		status := common.ChannelStatusEnabled
+		if channel.ChannelInfo.MultiKeyStatusList != nil {
+			if s, ok := channel.ChannelInfo.MultiKeyStatusList[i]; ok {
+				status = s
+			}
+		}
+		if status == common.ChannelStatusEnabled {
+			anyFinalEnabled = true
+			break
+		}
+	}
+
+	channelStatusChanged := false
+	if channel.Status == common.ChannelStatusAutoDisabled && anyFinalEnabled {
+		info := channel.GetOtherInfo()
+		info["status_reason"] = "multi-key test recovery"
+		info["status_time"] = common.GetTimestamp()
+		channel.SetOtherInfo(info)
+		channel.Status = common.ChannelStatusEnabled
+		channelStatusChanged = true
+	}
+
+	if channel.Status != common.ChannelStatusManuallyDisabled && !anyFinalEnabled && finalStatus != oldStatus {
+		info := channel.GetOtherInfo()
+		info["status_reason"] = "All keys are disabled"
+		info["status_time"] = common.GetTimestamp()
+		channel.SetOtherInfo(info)
+		channel.Status = common.ChannelStatusAutoDisabled
+		channelStatusChanged = true
+	}
+
+	return finalStatus, channelStatusChanged, nil
+}
+
+func applySingleKeyTestOutcome(channel *model.Channel, keyIndex int, success bool, errorMessage string, options testAllKeysOptions) (bool, bool, error) {
+	oldStatus := common.ChannelStatusEnabled
+	if channel.ChannelInfo.MultiKeyStatusList != nil {
+		if s, ok := channel.ChannelInfo.MultiKeyStatusList[keyIndex]; ok {
+			oldStatus = s
+		}
+	}
+
+	finalStatus, channelStatusChanged, err := mutateSingleKeyTestOutcome(channel, keyIndex, oldStatus, success, errorMessage, options)
+	if err != nil {
+		return false, false, err
+	}
+
+	return finalStatus != oldStatus || channelStatusChanged, channelStatusChanged, nil
+}
+
+func performTestAllKeys(ctx context.Context, channel *model.Channel, testUserID int, options testAllKeysOptions, runner testAllKeyRunner) (testAllKeysExecution, error) {
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return testAllKeysExecution{}, errors.New("no keys available")
+	}
+	if runner == nil {
+		runner = testChannelWithSpecificKeyIndex
+	}
+
+	originalStatuses := make([]int, len(keys))
+	for i := range keys {
+		status := common.ChannelStatusEnabled
+		if channel.ChannelInfo.MultiKeyStatusList != nil {
+			if s, ok := channel.ChannelInfo.MultiKeyStatusList[i]; ok {
+				status = s
+			}
+		}
+		originalStatuses[i] = status
+	}
+
+	results := make([]TestAllKeyResult, len(keys))
+	jobs := make(chan int, len(keys))
+	outcomes := make(chan testAllKeyOutcome, len(keys))
+	var wg sync.WaitGroup
+
+	for i := 0; i < options.concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for keyIndex := range jobs {
+				oldStatus := originalStatuses[keyIndex]
+				startedAt := time.Now()
+				testOutcome := runner(ctx, channel, testUserID, options.model, "", false, keyIndex)
+				latency := time.Since(startedAt).Milliseconds()
+				result := TestAllKeyResult{
+					KeyIndex:   keyIndex,
+					MaskedKey:  maskChannelKey(keys[keyIndex]),
+					OldStatus:  channelMultiKeyStatusLabel(oldStatus),
+					NewStatus:  channelMultiKeyStatusLabel(oldStatus),
+					Action:     channelMultiKeyActionLabel(multiKeyActionKept),
+					ActionCode: multiKeyActionKept,
+					LatencyMs:  latency,
+				}
+				success := testOutcome.localErr == nil && testOutcome.newAPIError == nil
+				result.TestSuccess = success
+				if testOutcome.localErr != nil {
+					result.Error = testOutcome.localErr.Error()
+				} else if testOutcome.newAPIError != nil {
+					result.Error = testOutcome.newAPIError.Error()
+				}
+				if success {
+					if oldStatus == common.ChannelStatusAutoDisabled && options.autoEnableSuccess {
+						result.NewStatus = channelMultiKeyStatusLabel(common.ChannelStatusEnabled)
+						result.Action = channelMultiKeyActionLabel(multiKeyActionAutoEnabled)
+						result.ActionCode = multiKeyActionAutoEnabled
+					} else if oldStatus == common.ChannelStatusManuallyDisabled {
+						result.NewStatus = channelMultiKeyStatusLabel(common.ChannelStatusManuallyDisabled)
+						result.Action = channelMultiKeyActionLabel(multiKeyActionKeptManualDisabled)
+						result.ActionCode = multiKeyActionKeptManualDisabled
+					}
+				} else if oldStatus == common.ChannelStatusEnabled && options.autoDisableFailed {
+					result.NewStatus = channelMultiKeyStatusLabel(common.ChannelStatusAutoDisabled)
+					result.Action = channelMultiKeyActionLabel(multiKeyActionAutoDisabled)
+					result.ActionCode = multiKeyActionAutoDisabled
+				} else if oldStatus == common.ChannelStatusManuallyDisabled {
+					result.Action = channelMultiKeyActionLabel(multiKeyActionKeptManualDisabled)
+					result.ActionCode = multiKeyActionKeptManualDisabled
+				}
+				outcomes <- testAllKeyOutcome{index: keyIndex, result: result}
+			}
+		}()
+	}
+
+	for keyIndex := range keys {
+		oldStatus := originalStatuses[keyIndex]
+		if !options.includeDisabled && oldStatus != common.ChannelStatusEnabled {
+			results[keyIndex] = TestAllKeyResult{
+				KeyIndex:   keyIndex,
+				MaskedKey:  maskChannelKey(keys[keyIndex]),
+				OldStatus:  channelMultiKeyStatusLabel(oldStatus),
+				NewStatus:  channelMultiKeyStatusLabel(oldStatus),
+				Action:     channelMultiKeyActionLabel(multiKeyActionSkipped),
+				ActionCode: multiKeyActionSkipped,
+			}
+			continue
+		}
+		jobs <- keyIndex
+	}
+	close(jobs)
+
+	go func() {
+		wg.Wait()
+		close(outcomes)
+	}()
+
+	for outcome := range outcomes {
+		results[outcome.index] = outcome.result
+	}
+
+	exec := testAllKeysExecution{
+		response: TestAllKeysResponse{
+			Success:   true,
+			ChannelID: channel.Id,
+			Results:   results,
+		},
+	}
+
+	statusChanged := false
+	for i := range results {
+		result := results[i]
+		if result.ActionCode == multiKeyActionSkipped {
+			continue
+		}
+
+		if result.TestSuccess {
+			exec.response.Summary.Success++
+		} else {
+			exec.response.Summary.Failed++
+		}
+		exec.response.Summary.Tested++
+
+		finalStatus, channelStatusChanged, err := mutateSingleKeyTestOutcome(
+			channel,
+			i,
+			originalStatuses[i],
+			result.TestSuccess,
+			result.Error,
+			options,
+		)
+		if err != nil {
+			return exec, err
+		}
+
+		switch result.ActionCode {
+		case multiKeyActionAutoEnabled:
+			exec.response.Summary.AutoEnabled++
+		case multiKeyActionAutoDisabled:
+			if originalStatuses[i] != common.ChannelStatusAutoDisabled {
+				exec.response.Summary.AutoDisabled++
+			}
+		case multiKeyActionKeptManualDisabled:
+			exec.response.Summary.KeptManualDisabled++
+		}
+
+		if finalStatus != originalStatuses[i] {
+			statusChanged = true
+		}
+		if channelStatusChanged {
+			exec.statusChange = true
+		}
+	}
+
+	exec.response.Summary.Total = len(results)
+	exec.response.Summary.Skipped = len(results) - exec.response.Summary.Tested
+	exec.response.Results = results
+
+	exec.persist = statusChanged || exec.statusChange
+	return exec, nil
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
@@ -72,11 +494,18 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	return rootUser.Id, nil
 }
 
-func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, keyIndex *int) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	tik := time.Now()
+	if keyIndex != nil {
+		clone, err := cloneChannelForSpecificKeyTest(channel, *keyIndex)
+		if err != nil {
+			return testResult{localErr: err}
+		}
+		channel = clone
+	}
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
 		constant.ChannelTypeMidjourneyPlus,
@@ -180,6 +609,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			localErr:    newAPIError,
 			newAPIError: newAPIError,
 		}
+	}
+	if keyIndex != nil {
+		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, *keyIndex)
 	}
 
 	// Determine relay format based on endpoint type or request path
@@ -291,7 +723,13 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	//// 创建一个用于日志的 info 副本，移除 ApiKey
 	//logInfo := info
 	//logInfo.ApiKey = ""
-	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
+	common.SysLog(fmt.Sprintf(
+		"testing channel %d%s with model %s, info %+v ",
+		channel.Id,
+		formatChannelTestKeyIndex(keyIndex),
+		testModel,
+		info.ToString(),
+	))
 
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
@@ -442,8 +880,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
 			common.SysError(fmt.Sprintf(
-				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
+				"channel test bad response: channel_id=%d%s name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
+				formatChannelTestKeyIndex(keyIndex),
 				channel.Name,
 				channel.Type,
 				testModel,
@@ -847,6 +1286,15 @@ func TestChannel(c *gin.Context) {
 	testModel := c.Query("model")
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	var keyIndex *int
+	if keyIndexStr := strings.TrimSpace(c.Query("key_index")); keyIndexStr != "" {
+		parsedKeyIndex, err := strconv.Atoi(keyIndexStr)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		keyIndex = &parsedKeyIndex
+	}
 	testUserID, err := resolveChannelTestUserID(c)
 	if err != nil {
 		common.ApiError(c, err)
@@ -857,7 +1305,43 @@ func TestChannel(c *gin.Context) {
 	if c.Request != nil {
 		requestCtx = c.Request.Context()
 	}
-	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
+	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream, keyIndex)
+	if keyIndex != nil {
+		success := result.localErr == nil && result.newAPIError == nil
+		errorMessage := ""
+		if result.localErr != nil {
+			errorMessage = result.localErr.Error()
+		} else if result.newAPIError != nil {
+			errorMessage = result.newAPIError.Error()
+		}
+		persist, statusChange, err := applySingleKeyTestOutcome(
+			channel,
+			*keyIndex,
+			success,
+			errorMessage,
+			testAllKeysOptions{
+				autoEnableSuccess: common.AutomaticEnableChannelEnabled,
+				autoDisableFailed: common.AutomaticDisableChannelEnabled,
+			},
+		)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if persist {
+			if err := channel.Update(); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			model.InitChannelCache()
+			if statusChange {
+				if err := model.UpdateAbilityStatus(channel.Id, channel.Status == common.ChannelStatusEnabled); err != nil {
+					common.SysLog(fmt.Sprintf("failed to update ability status after single-key test: channel_id=%d, error=%v", channel.Id, err))
+				}
+				service.ResetProxyClientCache()
+			}
+		}
+	}
 	if result.localErr != nil {
 		resp := gin.H{
 			"success": false,
@@ -888,6 +1372,82 @@ func TestChannel(c *gin.Context) {
 		"message": "",
 		"time":    consumedTime,
 	})
+}
+
+func TestAllKeys(c *gin.Context) {
+	channelId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var req TestAllKeysRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		common.ApiError(c, err)
+		return
+	}
+
+	channel, err := model.CacheGetChannel(channelId)
+	if err != nil {
+		channel, err = model.GetChannelById(channelId, true)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	if channel == nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": channelTestChannelNotExistMessage})
+		return
+	}
+	if !channel.ChannelInfo.IsMultiKey {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": channelTestNotMultiKeyMessage})
+		return
+	}
+
+	testUserID, err := resolveChannelTestUserID(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	options := resolveTestAllKeysOptions(req)
+	requestCtx := context.Background()
+	if c.Request != nil {
+		requestCtx = c.Request.Context()
+	}
+	exec, err := performTestAllKeys(requestCtx, channel, testUserID, options, testChannelWithSpecificKeyIndex)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	if exec.persist {
+		if err := channel.Update(); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		model.InitChannelCache()
+		if exec.statusChange {
+			if err := model.UpdateAbilityStatus(channel.Id, channel.Status == common.ChannelStatusEnabled); err != nil {
+				common.SysLog(fmt.Sprintf("failed to update ability status after multi-key test: channel_id=%d, error=%v", channel.Id, err))
+			}
+			service.ResetProxyClientCache()
+		}
+	}
+
+	recordManageAudit(c, "channel.test_all_keys", map[string]interface{}{
+		"id":                   channel.Id,
+		"total":                exec.response.Summary.Total,
+		"tested":               exec.response.Summary.Tested,
+		"success":              exec.response.Summary.Success,
+		"failed":               exec.response.Summary.Failed,
+		"skipped":              exec.response.Summary.Skipped,
+		"auto_enabled":         exec.response.Summary.AutoEnabled,
+		"auto_disabled":        exec.response.Summary.AutoDisabled,
+		"kept_manual_disabled": exec.response.Summary.KeptManualDisabled,
+	})
+
+	c.JSON(http.StatusOK, exec.response)
 }
 
 // channelTestSummary records the outcome of one channel test cycle so the
@@ -922,9 +1482,71 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		if channel.Status == common.ChannelStatusManuallyDisabled {
 			continue
 		}
+		isMultiKeyChannel := channel.ChannelInfo.IsMultiKey
 		isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 		tik := time.Now()
-		result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+		if isMultiKeyChannel {
+			allowAutoDisable := allowDisable && channel.GetAutoBan()
+			exec, err := performTestAllKeys(ctx, channel, testUserID, testAllKeysOptions{
+				includeDisabled:   true,
+				autoEnableSuccess: common.AutomaticEnableChannelEnabled,
+				autoDisableFailed: allowAutoDisable && common.AutomaticDisableChannelEnabled,
+				concurrency:       3,
+			}, testChannelWithSpecificKeyIndex)
+			tok := time.Now()
+			milliseconds := tok.Sub(tik).Milliseconds()
+			if ctx != nil && ctx.Err() != nil {
+				break
+			}
+
+			summary.Tested++
+			if err != nil {
+				summary.Failed++
+				channel.UpdateResponseTime(milliseconds)
+				continue
+			}
+
+			if exec.response.Summary.Success > 0 {
+				summary.Succeeded++
+			} else {
+				summary.Failed++
+			}
+
+			if exec.statusChange && isChannelEnabled && channel.Status == common.ChannelStatusAutoDisabled {
+				summary.Disabled++
+			}
+			if exec.statusChange && !isChannelEnabled && channel.Status == common.ChannelStatusEnabled {
+				summary.Enabled++
+			}
+
+			if exec.persist {
+				if err := channel.Update(); err != nil {
+					common.SysLog(fmt.Sprintf("failed to persist multi-key auto test result: channel_id=%d, error=%v", channel.Id, err))
+				}
+				model.InitChannelCache()
+				if exec.statusChange {
+					if err := model.UpdateAbilityStatus(channel.Id, channel.Status == common.ChannelStatusEnabled); err != nil {
+						common.SysLog(fmt.Sprintf("failed to update ability status after multi-key auto test: channel_id=%d, error=%v", channel.Id, err))
+					}
+					service.ResetProxyClientCache()
+				}
+			}
+
+			channel.UpdateResponseTime(milliseconds)
+			if common.RequestInterval > 0 {
+				if ctx == nil {
+					time.Sleep(common.RequestInterval)
+				} else {
+					select {
+					case <-ctx.Done():
+						return summary
+					case <-time.After(common.RequestInterval):
+					}
+				}
+			}
+			continue
+		}
+		result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), nil)
 		tok := time.Now()
 		milliseconds := tok.Sub(tik).Milliseconds()
 		if ctx != nil && ctx.Err() != nil {

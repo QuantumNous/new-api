@@ -289,6 +289,7 @@ export interface SearchChannelsParams {
 
 export interface ChannelTestParams {
   test_model?: string
+  key_index?: number
 }
 
 export interface CopyChannelParams {

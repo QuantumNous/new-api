@@ -42,6 +42,7 @@ var auditContentTemplates = map[string]string{
 	"channel.tag_batch_set":      "Batch set tag for ${count} channels",
 	"channel.copy":               "Copied channel (source ID: ${sourceId}) to ${name} (new ID: ${id})",
 	"channel.multi_key_manage":   "Multi-key management ${action} on channel (ID: ${id})",
+	"channel.test_all_keys":      "Tested all keys on channel (ID: ${id}): total ${total}, tested ${tested}, success ${success}, failed ${failed}, skipped ${skipped}, auto_enabled ${auto_enabled}, auto_disabled ${auto_disabled}, kept_manual_disabled ${kept_manual_disabled}",
 	"channel.upstream_apply":     "Applied upstream model changes to channel (ID: ${id})",
 	"channel.upstream_apply_all": "Applied upstream model changes to ${count} channels",
 
