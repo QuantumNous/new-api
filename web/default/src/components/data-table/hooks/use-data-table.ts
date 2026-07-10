@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type ColumnSizingState,
   type ExpandedState,
   type OnChangeFn,
   type PaginationState,
@@ -48,6 +49,7 @@ type DataTableFeatureOptions<TData> = Pick<
   | 'manualFiltering'
   | 'manualPagination'
   | 'manualSorting'
+  | 'enableColumnResizing'
 >
 
 type DataTableStateOptions = {
@@ -58,6 +60,10 @@ type DataTableStateOptions = {
   columnVisibilityStorageKey?: string | false
   columnVisibility?: VisibilityState
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>
+  initialColumnSizing?: ColumnSizingState
+  columnSizingStorageKey?: string | false
+  columnSizing?: ColumnSizingState
+  onColumnSizingChange?: OnChangeFn<ColumnSizingState>
   initialRowSelection?: RowSelectionState
   rowSelection?: RowSelectionState
   onRowSelectionChange?: OnChangeFn<RowSelectionState>
@@ -90,6 +96,21 @@ type UseDataTableOptions<TData> = DataTableFeatureOptions<TData> &
     pageCount?: number
     ensurePageInRange?: (pageCount: number) => void
   }
+
+type ColumnSizingBounds = Record<
+  string,
+  {
+    minSize?: number
+    maxSize?: number
+  }
+>
+
+type ColumnWithSizing<TData> = ColumnDef<TData, unknown> & {
+  accessorKey?: string | number
+  columns?: ColumnDef<TData, unknown>[]
+}
+
+const COLUMN_SIZING_PERSIST_DELAY_MS = 250
 
 function resolveUpdater<TValue>(
   updater: Updater<TValue>,
@@ -149,6 +170,110 @@ function readColumnVisibility(storageKey: string | undefined): VisibilityState {
   }
 }
 
+function getColumnId<TData>(column: ColumnDef<TData, unknown>) {
+  const columnWithSizing = column as ColumnWithSizing<TData>
+
+  if (typeof columnWithSizing.id === 'string') {
+    return columnWithSizing.id
+  }
+
+  if (typeof columnWithSizing.accessorKey === 'string') {
+    return columnWithSizing.accessorKey.replaceAll('.', '_')
+  }
+
+  if (typeof columnWithSizing.accessorKey === 'number') {
+    return String(columnWithSizing.accessorKey)
+  }
+
+  return undefined
+}
+
+function buildColumnSizingBounds<TData>(
+  columns: ColumnDef<TData, unknown>[]
+): ColumnSizingBounds {
+  return columns.reduce<ColumnSizingBounds>((bounds, column) => {
+    const columnWithSizing = column as ColumnWithSizing<TData>
+    const columnId = getColumnId(column)
+
+    if (columnId) {
+      const minSize =
+        typeof columnWithSizing.minSize === 'number' &&
+        Number.isFinite(columnWithSizing.minSize)
+          ? columnWithSizing.minSize
+          : undefined
+      const maxSize =
+        typeof columnWithSizing.maxSize === 'number' &&
+        Number.isFinite(columnWithSizing.maxSize)
+          ? columnWithSizing.maxSize
+          : undefined
+
+      if (minSize !== undefined || maxSize !== undefined) {
+        bounds[columnId] = { minSize, maxSize }
+      }
+    }
+
+    if (Array.isArray(columnWithSizing.columns)) {
+      Object.assign(bounds, buildColumnSizingBounds(columnWithSizing.columns))
+    }
+
+    return bounds
+  }, {})
+}
+
+function getBoundedColumnSize(
+  columnId: string,
+  value: unknown,
+  bounds: ColumnSizingBounds
+) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return undefined
+  }
+
+  const columnBounds = bounds[columnId]
+  let size = value
+
+  if (columnBounds?.minSize !== undefined && size < columnBounds.minSize) {
+    size = columnBounds.minSize
+  }
+
+  if (columnBounds?.maxSize !== undefined && size > columnBounds.maxSize) {
+    size = columnBounds.maxSize
+  }
+
+  return size > 0 ? size : undefined
+}
+
+function readColumnSizing(
+  storageKey: string | undefined,
+  bounds: ColumnSizingBounds
+): ColumnSizingState {
+  if (!storageKey || typeof window === 'undefined') return {}
+
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    if (!raw) return {}
+
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
+
+    return Object.entries(parsed).reduce<ColumnSizingState>(
+      (sizing, [key, value]) => {
+        const boundedSize = getBoundedColumnSize(key, value, bounds)
+
+        if (boundedSize !== undefined) {
+          sizing[key] = boundedSize
+        }
+        return sizing
+      },
+      {}
+    )
+  } catch {
+    return {}
+  }
+}
+
 export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
   const {
     data,
@@ -161,6 +286,7 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     manualSorting,
     initialSorting = [],
     initialColumnVisibility = {},
+    initialColumnSizing = {},
     initialRowSelection = {},
     initialExpanded = {},
     initialPagination = { pageIndex: 0, pageSize: 20 },
@@ -175,12 +301,27 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     typeof options.columnVisibilityStorageKey === 'string'
       ? options.columnVisibilityStorageKey
       : undefined
+  const columnSizingStorageKey =
+    typeof options.columnSizingStorageKey === 'string'
+      ? options.columnSizingStorageKey
+      : undefined
   const resolvedInitialColumnVisibility = React.useMemo(
     () => ({
       ...initialColumnVisibility,
       ...readColumnVisibility(columnVisibilityStorageKey),
     }),
     [columnVisibilityStorageKey, initialColumnVisibility]
+  )
+  const columnSizingBounds = React.useMemo(
+    () => buildColumnSizingBounds(columns),
+    [columns]
+  )
+  const resolvedInitialColumnSizing = React.useMemo(
+    () => ({
+      ...initialColumnSizing,
+      ...readColumnSizing(columnSizingStorageKey, columnSizingBounds),
+    }),
+    [columnSizingBounds, columnSizingStorageKey, initialColumnSizing]
   )
 
   const [sorting, onSortingChange] = useControllableTableState(
@@ -194,10 +335,20 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
       resolvedInitialColumnVisibility,
       options.onColumnVisibilityChange
     )
+  const [columnSizing, onColumnSizingChange] = useControllableTableState(
+    options.columnSizing,
+    resolvedInitialColumnSizing,
+    options.onColumnSizingChange
+  )
   const hydratedColumnVisibilityStorageKeyRef = React.useRef(
     columnVisibilityStorageKey
   )
+  const hydratedColumnSizingStorageKeyRef = React.useRef(columnSizingStorageKey)
   const skipNextColumnVisibilityPersistRef = React.useRef(false)
+  const skipNextColumnSizingPersistRef = React.useRef(false)
+  const columnSizingPersistTimerRef = React.useRef<number | undefined>(
+    undefined
+  )
   const [rowSelection, onRowSelectionChange] = useControllableTableState(
     options.rowSelection,
     initialRowSelection,
@@ -228,6 +379,7 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     state: {
       sorting,
       columnVisibility,
+      columnSizing,
       rowSelection,
       expanded,
       columnFilters: options.columnFilters,
@@ -242,8 +394,11 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     manualFiltering,
     manualPagination,
     manualSorting,
+    enableColumnResizing: options.enableColumnResizing,
+    columnResizeMode: 'onChange',
     onSortingChange,
     onColumnVisibilityChange,
+    onColumnSizingChange,
     onRowSelectionChange,
     onExpandedChange,
     onColumnFiltersChange: options.onColumnFiltersChange,
@@ -291,6 +446,24 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
   ])
 
   React.useEffect(() => {
+    if (
+      options.columnSizing !== undefined ||
+      columnSizingStorageKey === hydratedColumnSizingStorageKeyRef.current
+    ) {
+      return
+    }
+
+    hydratedColumnSizingStorageKeyRef.current = columnSizingStorageKey
+    skipNextColumnSizingPersistRef.current = true
+    onColumnSizingChange(() => resolvedInitialColumnSizing)
+  }, [
+    columnSizingStorageKey,
+    onColumnSizingChange,
+    options.columnSizing,
+    resolvedInitialColumnSizing,
+  ])
+
+  React.useEffect(() => {
     if (!columnVisibilityStorageKey || typeof window === 'undefined') return
 
     if (skipNextColumnVisibilityPersistRef.current) {
@@ -307,6 +480,39 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
       // Storage can be unavailable in private mode; table controls still work.
     }
   }, [columnVisibility, columnVisibilityStorageKey])
+
+  React.useEffect(() => {
+    if (!columnSizingStorageKey || typeof window === 'undefined') return
+
+    if (skipNextColumnSizingPersistRef.current) {
+      skipNextColumnSizingPersistRef.current = false
+      return
+    }
+
+    if (columnSizingPersistTimerRef.current !== undefined) {
+      window.clearTimeout(columnSizingPersistTimerRef.current)
+    }
+
+    columnSizingPersistTimerRef.current = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          columnSizingStorageKey,
+          JSON.stringify(columnSizing)
+        )
+      } catch {
+        // Storage can be unavailable in private mode; table controls still work.
+      } finally {
+        columnSizingPersistTimerRef.current = undefined
+      }
+    }, COLUMN_SIZING_PERSIST_DELAY_MS)
+
+    return () => {
+      if (columnSizingPersistTimerRef.current !== undefined) {
+        window.clearTimeout(columnSizingPersistTimerRef.current)
+        columnSizingPersistTimerRef.current = undefined
+      }
+    }
+  }, [columnSizing, columnSizingStorageKey])
 
   return {
     table,
