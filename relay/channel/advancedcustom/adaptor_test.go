@@ -180,6 +180,29 @@ func TestAdaptorReturnsErrorWhenNoRouteMatchesPath(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not support request path")
 }
 
+func TestAdaptorMatchesPlaygroundChatPathAsOpenAIChatCompletions(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/chat/completions",
+				UpstreamPath: "https://upstream.example/v1/chat/completions",
+				Converter:    dto.AdvancedCustomConverterNone,
+			},
+		},
+	})
+	c := advancedCustomGinContext("/pg/chat/completions")
+	header := http.Header{}
+
+	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
+	requestURL, err := adaptor.GetRequestURL(info)
+	require.NoError(t, err)
+
+	parsedURL, err := url.Parse(requestURL)
+	require.NoError(t, err)
+	assert.Equal(t, "/v1/chat/completions", parsedURL.Path)
+}
+
 func TestAdaptorReplacesModelPlaceholderInRouteURL(t *testing.T) {
 	adaptor := &Adaptor{}
 	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
