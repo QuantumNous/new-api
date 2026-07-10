@@ -1502,7 +1502,7 @@
     "Each tier supports 0~2 conditions (over len, p, c); the last tier is the catch-all without conditions. Use len (full input length, including cache hits) for tier conditions to avoid mis-routing when cache hits reduce p.": "每个档位支持 0~2 个条件（针对 len、p、c），最后一档为兜底档无需条件。建议条件使用 len（完整输入长度，含缓存命中），避免缓存命中降低 p 导致档位误判。",
     "Each tier supports up to 2 conditions; the last tier is the catch-all without conditions. Use full input length for tier conditions to avoid mis-routing when cache hits reduce billable input tokens.": "每个档位最多支持 2 个条件；最后一个档位是不带条件的兜底档。建议使用完整输入长度作为档位条件，避免缓存命中减少计费输入 token 后误判档位。",
     "Each tier supports up to 2 conditions. The last tier without conditions is the fallback.": "每个阶梯最多支持 2 个条件。最后一个无条件阶梯作为兜底。",
-    "Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.": "当您的推荐人充值时即可获得奖励。随时将累计奖励转移到您的余额。",
+    "Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.": "用户通过您的推荐链接注册后，您即可获得奖励。可随时将累计奖励转入余额。",
     "Edit": "编辑",
     "Edit {{title}}": "编辑{{title}}",
     "Edit all channels with tag:": "编辑所有带有标签的渠道：",
