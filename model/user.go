@@ -1381,7 +1381,7 @@ func UpdateUserUsedQuota(id int, quota int) {
 		addNewRecord(BatchUpdateTypeUsedQuota, id, quota)
 		return
 	}
-	if err := DB.Model(&User{}).Where("id = ?", id).Update("used_quota", gorm.Expr("used_quota + ?", quota)).Error; err != nil {
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("used_quota", usedQuotaDeltaExpr(quota)).Error; err != nil {
 		common.SysLog("failed to update user used quota: " + err.Error())
 	}
 }
@@ -1409,13 +1409,18 @@ func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, r
 		return
 	}
 
-	err := DB.Model(&User{}).Where("id = ?", id).Updates(
-		map[string]interface{}{
-			"quota":         gorm.Expr("quota + ?", quota),
-			"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
-			"request_count": gorm.Expr("request_count + ?", requestCount),
-		},
-	).Error
+	updates := map[string]interface{}{}
+	if quota != 0 {
+		updates["quota"] = gorm.Expr("quota + ?", quota)
+	}
+	if usedQuota != 0 {
+		updates["used_quota"] = usedQuotaDeltaExpr(usedQuota)
+	}
+	if requestCount != 0 {
+		updates["request_count"] = gorm.Expr("request_count + ?", requestCount)
+	}
+
+	err := DB.Model(&User{}).Where("id = ?", id).Updates(updates).Error
 	if err != nil {
 		common.SysLog("failed to batch update user quota, used quota and request count: " + err.Error())
 	}

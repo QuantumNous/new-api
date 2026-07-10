@@ -960,6 +960,39 @@ func TestRefundTaskQuota_FundingFailureKeepsAccountingAndPendingMarker(t *testin
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+// A refund larger than the recorded usage must floor `used_quota` at zero
+// rather than wrap it negative, otherwise "quota + used_quota" understates the
+// account after a duplicated or partially-accounted reversal.
+func TestRefundTaskQuota_ClampsUsageAtZero(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 5, 5, 5
+	const initQuota, preConsumed = 10000, 1500
+	const tokenRemain = 5000
+	// Only part of the pre-consumed quota is still recorded as used, so the
+	// full refund exceeds the outstanding usage on both user and channel.
+	const recordedUsage = 400
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-usage-refund", tokenRemain)
+	seedChannel(t, channelID)
+	seedChargedAccounting(t, userID, channelID, tokenID, recordedUsage, 1)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	require.NoError(t, model.DB.Create(task).Error)
+
+	assert.True(t, RefundTaskQuota(ctx, task, "failed task should not inflate total quota"))
+
+	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+
+	// Usage is clamped at zero, never negative, and request_count is untouched.
+	usedQuota, requestCount := getUserUsageAccounting(t, userID)
+	assert.Zero(t, usedQuota)
+	assert.Equal(t, 1, requestCount)
+	assert.Zero(t, getChannelUsedQuota(t, channelID))
+}
+
 // ===========================================================================
 // RecalculateTaskQuota tests
 // ===========================================================================

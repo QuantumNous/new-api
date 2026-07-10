@@ -11,6 +11,7 @@ import (
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -21,6 +22,18 @@ const (
 	BatchUpdateTypeRequestCount
 	BatchUpdateTypeCount // if you add a new type, you need to add a new map and a new lock
 )
+
+// usedQuotaDeltaExpr builds the `used_quota` update expression for a signed
+// delta. Refunds (negative deltas) are clamped at zero so that a duplicated or
+// oversized reversal cannot drive accumulated usage negative, which would in
+// turn understate "quota + used_quota" for the account.
+func usedQuotaDeltaExpr(delta int) clause.Expr {
+	if delta < 0 {
+		refund := -delta
+		return gorm.Expr("CASE WHEN used_quota < ? THEN 0 ELSE used_quota - ? END", refund, refund)
+	}
+	return gorm.Expr("used_quota + ?", delta)
+}
 
 var batchUpdateStores []map[int]int
 var batchUpdateLocks []sync.Mutex
