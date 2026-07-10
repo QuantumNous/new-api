@@ -61,3 +61,17 @@ func TestPreConsumeUserSubscriptionForGroupSkipsMismatchedPlanGroup(t *testing.T
 	assert.EqualValues(t, 0, groupSubscriptionUsed(t, 6101))
 	assert.EqualValues(t, 300, groupSubscriptionUsed(t, 6102))
 }
+
+func TestPreConsumeUserSubscriptionForGroupEmptyUpgradeGroupBackwardCompat(t *testing.T) {
+	truncateTables(t)
+
+	const userID = 6103
+	seedGroupPlan(t, 6103, "") // empty UpgradeGroup covers any request group
+	seedGroupSubscription(t, 6103, userID, 6103, 0)
+
+	res, err := PreConsumeUserSubscriptionForGroup("req-group-any", userID, "deepseek-v4", "some-other-group", 0, 300)
+	require.NoError(t, err)
+
+	assert.Equal(t, 6103, res.UserSubscriptionId)
+	assert.EqualValues(t, 300, groupSubscriptionUsed(t, 6103))
+}

@@ -855,15 +855,26 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 // after the user's subscription quota is exhausted. A single active subscription that
 // disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
 func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
+	return UserActiveSubscriptionsAllowWalletOverflowForGroup(userId, "")
+}
+
+// UserActiveSubscriptionsAllowWalletOverflowForGroup is group-aware: only
+// subscriptions that can cover requestGroup can block wallet fallback.
+// Empty UpgradeGroup means the subscription applies to any group.
+func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, requestGroup string) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
-	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
+	requestGroup = strings.TrimSpace(requestGroup)
+	query := DB.Model(&UserSubscription{}).
 		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
-		Count(&strictCount).Error; err != nil {
+			userId, "active", now, false)
+	if requestGroup != "" {
+		query = query.Where("(upgrade_group = '' OR upgrade_group = ?)", requestGroup)
+	}
+	var strictCount int64
+	if err := query.Count(&strictCount).Error; err != nil {
 		return false, err
 	}
 	return strictCount == 0, nil
