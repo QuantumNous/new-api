@@ -800,7 +800,7 @@ func scheduleAsyncImageRaceHedge(publicTaskID, modelName string, requestBody []b
 		channelB, err := service.SelectCheapestEnabledChannelExcludingWithFilter(
 			service.NormalizeGptImage2ModelName(modelName),
 			[]int{task.ChannelId},
-			service.GptImage2ChannelPickFilterForTask(task.PrivateData.GptImage2Profile, task.PrivateData.GptImage2OfficialFB),
+			service.GptImage2ChannelPickFilterForTask(modelName, requestBody),
 		)
 		if err != nil || channelB == nil {
 			return

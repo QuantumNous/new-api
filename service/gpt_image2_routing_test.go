@@ -135,85 +135,60 @@ func TestGptImage2ChannelPickFilter(t *testing.T) {
 	require.False(t, filter(standard))
 }
 
-func TestGptImage2PackyProfileAllowsPackyAndOfficial(t *testing.T) {
+func TestGptImage2DocumentDrivenChannelCapabilities(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfilePacky))
-
-	packy := &model.Channel{OtherSettings: `{"gpt_image2_tier":"packy"}`}
-	officialMapping := `{"gpt-image-2":"gpt-image-2-official"}`
-	official := &model.Channel{ModelMapping: &officialMapping}
-	standard := &model.Channel{}
-
-	filter := GptImage2ChannelPickFilter(c, "gpt-image-2")
-	require.True(t, filter(packy))
-	require.True(t, filter(official))
-	require.False(t, filter(standard))
+	tests := []struct {
+		name string
+		body string
+		want map[int]bool
+	}{
+		{
+			name: "basic generation is price-routed across every documented provider",
+			body: `{"model":"gpt-image-2","prompt":"x","n":1}`,
+			want: map[int]bool{59: true, 72: true, 73: true, 81: true},
+		},
+		{
+			name: "reference images are supported by both APIMart generation variants",
+			body: `{"model":"gpt-image-2","prompt":"x","image_urls":["https://x/a.png"]}`,
+			want: map[int]bool{59: true, 72: false, 73: true, 81: true},
+		},
+		{
+			name: "multiple outputs exceed Packy but fit both APIMart variants",
+			body: `{"model":"gpt-image-2","prompt":"x","n":4}`,
+			want: map[int]bool{59: true, 72: false, 73: true, 81: true},
+		},
+		{
+			name: "official max is four while regular APIMart supports ten",
+			body: `{"model":"gpt-image-2","prompt":"x","n":8}`,
+			want: map[int]bool{59: false, 72: false, 73: true, 81: true},
+		},
+		{
+			name: "quality is documented by official and Packy only",
+			body: `{"model":"gpt-image-2","prompt":"x","quality":"high"}`,
+			want: map[int]bool{59: true, 72: true, 73: false, 81: false},
+		},
+		{
+			name: "mask URL is an official APIMart generation capability",
+			body: `{"model":"gpt-image-2","prompt":"x","image_urls":["https://x/a.png"],"mask_url":"https://x/m.png"}`,
+			want: map[int]bool{59: true, 72: false, 73: false, 81: false},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := gptImage2CapabilityRequestFromJSON("gpt-image-2", []byte(tt.body))
+			for id, want := range tt.want {
+				require.Equal(t, want, gptImage2ChannelSupportsRequest(&model.Channel{Id: id}, req), "channel %d", id)
+			}
+		})
+	}
 }
 
-func TestGptImage2EditsPackyProfileExcludesOfficial(t *testing.T) {
+func TestGptImage2PackyMultipartEditCapabilities(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
-	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfilePacky))
-
-	packy := &model.Channel{OtherSettings: `{"gpt_image2_tier":"packy"}`}
-	officialMapping := `{"gpt-image-2":"gpt-image-2-official"}`
-	official := &model.Channel{ModelMapping: &officialMapping}
-	standard := &model.Channel{}
-
-	filter := GptImage2ChannelPickFilter(c, "gpt-image-2")
-	require.True(t, filter(packy))
-	require.False(t, filter(official))
-	require.False(t, filter(standard))
-}
-
-func TestGptImage2AsyncPathExcludesPacky(t *testing.T) {
-	t.Parallel()
-	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations/async", nil)
-	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfileStandard))
-
-	packy := &model.Channel{OtherSettings: `{"gpt_image2_tier":"packy"}`}
-	standard := &model.Channel{}
-
-	filter := GptImage2ChannelPickFilter(c, "gpt-image-2")
-	require.False(t, filter(packy))
-	require.True(t, filter(standard))
-}
-
-func TestGptImage2StandardOfficialFallbackRetry(t *testing.T) {
-	t.Parallel()
-	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfileStandard))
-
-	officialMapping := `{"gpt-image-2":"gpt-image-2-official"}`
-	official := &model.Channel{Id: 59, ModelMapping: &officialMapping}
-	standard := &model.Channel{Id: 33}
-
-	filter := GptImage2ChannelPickFilter(c, "gpt-image-2")
-	require.True(t, filter(standard))
-	require.True(t, filter(official))
-}
-
-func TestGptImage2RaceHedgeAllowsOfficialForStandard(t *testing.T) {
-	t.Parallel()
-	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfileStandard))
-	SetGptImage2RaceHedgePick(c, true)
-
-	officialMapping := `{"gpt-image-2":"gpt-image-2-official"}`
-	official := &model.Channel{Id: 59, ModelMapping: &officialMapping}
-	filter := GptImage2ChannelPickFilter(c, "gpt-image-2")
-	require.True(t, filter(official))
+	req := gptImage2CapabilityRequest{EditsPath: true, Multipart: true, HasUploadedImage: true, N: 1, Quality: "high"}
+	require.True(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 72}, req))
+	require.False(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 59}, req))
+	require.False(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 73}, req))
 }
 
 func TestNormalizeGptImage2ModelName(t *testing.T) {

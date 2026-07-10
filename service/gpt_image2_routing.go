@@ -477,52 +477,191 @@ func GptImage2ChannelPickFilter(c *gin.Context, modelName string) model.ChannelP
 	if !IsGptImage2Family(modelName) {
 		return nil
 	}
-	profile := GptImage2ProfileFromContext(c)
-	officialFallback := gptImage2OfficialFallbackFromContext(c)
-	routingRetry := gptImage2RoutingRetryFromContext(c)
-	forRaceHedge := gptImage2ForRaceHedgeFromContext(c)
+	request := gptImage2CapabilityRequestFromContext(c, modelName)
 	return func(ch *model.Channel) bool {
-		if ch == nil {
-			return false
-		}
-		tier := ChannelGptImage2Tier(ch)
-		if profile == GptImage2ProfilePacky && gptImage2EditsPath(c) {
-			return tier == GptImage2TierPacky
-		}
-		if tier == GptImage2TierPacky && gptImage2ClientAsyncPath(c) {
-			return false
-		}
-		return gptImage2ChannelMatchesPick(
-			tier,
-			profile,
-			officialFallback,
-			routingRetry,
-			forRaceHedge,
-		)
+		return gptImage2ChannelSupportsRequest(ch, request)
 	}
 }
 
-// GptImage2ChannelPickFilterForTask builds a filter for async race hedge using task metadata.
-func GptImage2ChannelPickFilterForTask(profile, officialFallback string) model.ChannelPickFilter {
-	p := GptImage2ProfileStandard
-	switch GptImage2Profile(profile) {
-	case GptImage2ProfileOfficial:
-		p = GptImage2ProfileOfficial
-	case GptImage2ProfilePacky:
-		p = GptImage2ProfilePacky
-	}
-	fallback := strings.EqualFold(strings.TrimSpace(officialFallback), "true") || officialFallback == "1"
+// GptImage2ChannelPickFilterForTask builds the same document-driven capability
+// filter for a detached async race hedge. The saved request body is authoritative;
+// channel labels such as standard/packy/official are deliberately not used.
+func GptImage2ChannelPickFilterForTask(modelName string, requestBody []byte) model.ChannelPickFilter {
+	request := gptImage2CapabilityRequestFromJSON(modelName, requestBody)
+	request.AsyncPath = true
 	return func(ch *model.Channel) bool {
-		if ch == nil {
+		return gptImage2ChannelSupportsRequest(ch, request)
+	}
+}
+
+// gptImage2CapabilityRequest is the subset of an Images API request that changes
+// upstream compatibility. It mirrors the published APIMart and PackyAPI docs.
+type gptImage2CapabilityRequest struct {
+	ExplicitOfficial  bool
+	AsyncPath         bool
+	EditsPath         bool
+	Multipart         bool
+	HasUploadedImage  bool
+	HasUploadedMask   bool
+	N                 int
+	ImageURLCount     int
+	HasMaskURL        bool
+	HasStream         bool
+	HasPartialImages  bool
+	Quality           string
+	Background        string
+	OutputFormat      string
+	OutputCompression bool
+	ResponseFormat    string
+	Moderation        string
+	InputFidelity     string
+	User              string
+	Style             string
+}
+
+func gptImage2CapabilityRequestFromContext(c *gin.Context, modelName string) gptImage2CapabilityRequest {
+	req := gptImage2CapabilityRequest{ExplicitOfficial: strings.EqualFold(strings.TrimSpace(modelName), gptImage2OfficialAliasModel), N: 1}
+	if c == nil || c.Request == nil {
+		return req
+	}
+	req.AsyncPath = gptImage2ClientAsyncPath(c)
+	req.EditsPath = gptImage2EditsPath(c)
+	req.Multipart = strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data")
+	if req.Multipart {
+		if form, err := common.ParseMultipartFormReusable(c); err == nil && form != nil {
+			req.HasUploadedImage = multipartFormHasImageFiles(form)
+			for _, key := range []string{"mask", "mask[]"} {
+				if len(form.File[key]) > 0 {
+					req.HasUploadedMask = true
+				}
+			}
+			applyGptImage2FormCapabilities(&req, form.Value)
+		}
+		return req
+	}
+	raw, _ := readGptImage2RequestJSON(c)
+	parsed := gptImage2CapabilityRequestFromJSON(modelName, raw)
+	parsed.AsyncPath = req.AsyncPath
+	parsed.EditsPath = req.EditsPath
+	return parsed
+}
+
+func gptImage2CapabilityRequestFromJSON(modelName string, raw []byte) gptImage2CapabilityRequest {
+	req := gptImage2CapabilityRequest{ExplicitOfficial: strings.EqualFold(strings.TrimSpace(modelName), gptImage2OfficialAliasModel), N: 1}
+	var fields map[string]json.RawMessage
+	if len(raw) == 0 || common.Unmarshal(raw, &fields) != nil {
+		return req
+	}
+	if v, ok := fields["model"]; ok && jsonFieldStringEquals(v, gptImage2OfficialAliasModel) {
+		req.ExplicitOfficial = true
+	}
+	if v, ok := fields["n"]; ok {
+		var n int
+		if common.Unmarshal(v, &n) == nil && n > 0 {
+			req.N = n
+		}
+	}
+	req.ImageURLCount = jsonArrayLength(fields["image_urls"])
+	if req.ImageURLCount == 0 {
+		for _, key := range []string{"images", "image"} {
+			if jsonFieldPresent(fields[key]) {
+				req.ImageURLCount = 1
+				break
+			}
+		}
+	}
+	req.HasMaskURL = jsonFieldPresent(fields["mask_url"]) || jsonFieldPresent(fields["mask"])
+	req.HasStream = jsonFieldPresent(fields["stream"])
+	req.HasPartialImages = jsonFieldPresent(fields["partial_images"])
+	req.Quality = jsonString(fields["quality"])
+	req.Background = jsonString(fields["background"])
+	req.OutputFormat = jsonString(fields["output_format"])
+	req.OutputCompression = jsonFieldPresent(fields["output_compression"])
+	req.ResponseFormat = jsonString(fields["response_format"])
+	req.Moderation = jsonString(fields["moderation"])
+	req.InputFidelity = jsonString(fields["input_fidelity"])
+	req.User = jsonString(fields["user"])
+	req.Style = jsonString(fields["style"])
+	return req
+}
+
+func applyGptImage2FormCapabilities(req *gptImage2CapabilityRequest, values map[string][]string) {
+	if req == nil {
+		return
+	}
+	if n, err := strconv.Atoi(firstGptImage2FormValue(values, "n")); err == nil && n > 0 {
+		req.N = n
+	}
+	req.Quality = firstGptImage2FormValue(values, "quality")
+	req.Background = firstGptImage2FormValue(values, "background")
+	req.OutputFormat = firstGptImage2FormValue(values, "output_format")
+	req.OutputCompression = formValuePresent(values, "output_compression")
+	req.ResponseFormat = firstGptImage2FormValue(values, "response_format")
+	req.Moderation = firstGptImage2FormValue(values, "moderation")
+	req.InputFidelity = firstGptImage2FormValue(values, "input_fidelity")
+	req.User = firstGptImage2FormValue(values, "user")
+	req.Style = firstGptImage2FormValue(values, "style")
+	req.HasStream = formValuePresent(values, "stream")
+	req.HasPartialImages = formValuePresent(values, "partial_images")
+	req.HasMaskURL = formValuePresent(values, "mask_url")
+}
+
+func jsonString(v json.RawMessage) string {
+	if !jsonFieldPresent(v) {
+		return ""
+	}
+	var s string
+	if common.Unmarshal(v, &s) == nil {
+		return strings.ToLower(strings.TrimSpace(s))
+	}
+	return strings.ToLower(strings.Trim(strings.TrimSpace(string(v)), `"`))
+}
+
+func jsonArrayLength(v json.RawMessage) int {
+	if !jsonFieldPresent(v) {
+		return 0
+	}
+	var items []json.RawMessage
+	if common.Unmarshal(v, &items) == nil {
+		return len(items)
+	}
+	return 1
+}
+
+// gptImage2ChannelSupportsRequest applies the actual published contract of the
+// four enabled image routes. Auto-cheapest keeps walking its price-ordered list
+// whenever this function rejects a channel.
+func gptImage2ChannelSupportsRequest(ch *model.Channel, req gptImage2CapabilityRequest) bool {
+	if ch == nil {
+		return false
+	}
+	switch ch.Id {
+	case 59: // APIMart gpt-image-2-official
+		if req.EditsPath || req.Multipart || req.AsyncPath && req.HasUploadedImage {
 			return false
 		}
-		return gptImage2ChannelMatchesPick(
-			ChannelGptImage2Tier(ch),
-			p,
-			fallback,
-			0,
-			true,
-		)
+		return req.N >= 1 && req.N <= 4 && req.ImageURLCount <= 16 &&
+			!req.HasStream && !req.HasPartialImages && req.InputFidelity == "" && req.ResponseFormat == "" &&
+			req.Style == "" && !strings.EqualFold(req.Background, "transparent")
+	case 72: // PackyAPI Images API
+		if req.AsyncPath || req.ExplicitOfficial || req.N != 1 || req.HasStream || req.HasPartialImages {
+			return false
+		}
+		if req.EditsPath {
+			return req.Multipart && req.HasUploadedImage && req.ImageURLCount == 0 && !req.HasMaskURL
+		}
+		return !req.Multipart && req.ImageURLCount == 0 && !req.HasMaskURL && !req.HasUploadedMask &&
+			!strings.EqualFold(req.OutputFormat, "webp") && !strings.EqualFold(req.Background, "transparent") &&
+			req.InputFidelity == "" && req.Style == ""
+	case 73, 81: // APIMart gpt-image-2 generation
+		return !req.ExplicitOfficial && !req.EditsPath && !req.Multipart && req.N >= 1 && req.N <= 10 &&
+			req.ImageURLCount <= 16 && !req.HasMaskURL && !req.HasStream && !req.HasPartialImages &&
+			req.Quality == "" && req.Background == "" && req.OutputFormat == "" && !req.OutputCompression &&
+			req.ResponseFormat == "" && req.Moderation == "" && req.InputFidelity == "" && req.User == "" && req.Style == ""
+	default:
+		// Unknown channels must opt in with an explicit capability implementation;
+		// silently treating them as fully compatible recreates the old tier bug.
+		return false
 	}
 }
 
