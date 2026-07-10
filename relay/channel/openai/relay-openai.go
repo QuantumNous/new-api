@@ -140,10 +140,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 			// 检测当前 chunk 是否含有 usage，保存备用
 			// (OpenCode.ai 等上游在 usage chunk 后还会发非标准块，会覆盖 lastStreamData)
-			var chunkWithUsage dto.ChatCompletionsStreamResponse
-			if err := common.UnmarshalJsonStr(data, &chunkWithUsage); err == nil && chunkWithUsage.Usage != nil {
-				if service.ValidUsage(chunkWithUsage.Usage) {
-					usageStreamData = data
+			if strings.Contains(data, "\"usage\"") {
+				var chunkWithUsage dto.ChatCompletionsStreamResponse
+				if err := common.UnmarshalJsonStr(data, &chunkWithUsage); err == nil && chunkWithUsage.Usage != nil {
+					if service.ValidUsage(chunkWithUsage.Usage) {
+						usageStreamData = data
+					}
 				}
 			}
 
