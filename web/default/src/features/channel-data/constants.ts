@@ -10,6 +10,9 @@ export const MODEL_TABS: ModelTab[] = [
   { label: 'GPT 5.4', modelId: 'gpt-5.4', accent: '#22d3ee' },
   { label: 'GPT 5.4 Mini', modelId: 'gpt-5.4-mini', accent: '#22d3ee' },
   { label: 'GPT 5.5', modelId: 'gpt-5.5', accent: '#22d3ee' },
+  { label: 'GPT 5.6 Luna', modelId: 'gpt-5.6-luna', accent: '#22d3ee' },
+  { label: 'GPT 5.6 Sol', modelId: 'gpt-5.6-sol', accent: '#22d3ee' },
+  { label: 'GPT 5.6 Terra', modelId: 'gpt-5.6-terra', accent: '#22d3ee' },
   { label: 'Sonnet 4.6', modelId: 'claude-sonnet-4-6', accent: '#a855f7' },
   { label: 'Opus 4.7', modelId: 'claude-opus-4-7', accent: '#a855f7' },
   { label: 'Opus 4.8', modelId: 'claude-opus-4-8', accent: '#a855f7' },
@@ -33,6 +36,7 @@ export const MODEL_TABS: ModelTab[] = [
     accent: '#fb923c',
   },
   { label: 'GLM 5.2', modelId: 'glm-5.2', accent: '#10b981' },
+  { label: 'Grok 4.5', modelId: 'grok-4.5', accent: '#94a3b8' },
   {
     label: 'Gemini 3.1 Pro',
     modelId: 'gemini-3.1-pro-preview',
