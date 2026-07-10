@@ -32,6 +32,6 @@ export function getTableSizeStyle<TData>(
   return {
     minWidth: `max(100%, ${width}px)`,
     tableLayout: 'auto',
-    width: 'max-content',
+    width: '100%',
   }
 }

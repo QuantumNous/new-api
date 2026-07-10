@@ -16,17 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Row } from '@tanstack/react-table'
-import { MoreHorizontal, Pencil, Power, PowerOff, RefreshCw } from 'lucide-react'
+import type { Row } from '@tanstack/react-table'
+import { Pencil, Power, PowerOff, RotateCcw, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import type { PlanRecord } from '../types'
 import { syncPlanGroup } from '../api'
 import { useSubscriptions } from './subscriptions-provider'
@@ -61,50 +60,95 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     }
   }
 
+  const handleResetSubscriptions = () => {
+    setCurrentRow(row.original)
+    setOpen('reset-subscriptions')
+  }
+
+  const isEnabled = row.original.plan.enabled
+  const toggleLabel = isEnabled ? t('Disable') : t('Enable')
+  const handleToggleStatus = () => {
+    setCurrentRow(row.original)
+    setOpen('toggle-status')
+  }
+
   return (
-    <div className='-ml-2'>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button variant='ghost' className='h-8 w-8 p-0' />}
+    <div className='-ml-2 flex items-center gap-1'>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              disabled={!complianceConfirmed}
+              onClick={() => {
+                setCurrentRow(row.original)
+                setOpen('update')
+              }}
+              aria-label={t('Edit')}
+            />
+          }
         >
-          <MoreHorizontal className='h-4 w-4' />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end'>
-          <DropdownMenuItem
-            disabled={!complianceConfirmed}
-            onClick={() => {
-              setCurrentRow(row.original)
-              setOpen('update')
-            }}
-          >
-            <Pencil className='mr-2 h-4 w-4' />
-            {t('Edit')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!complianceConfirmed}
-            onClick={() => {
-              setCurrentRow(row.original)
-              setOpen('toggle-status')
-            }}
-          >
-            {row.original.plan.enabled ? (
-              <>
-                <PowerOff className='mr-2 h-4 w-4' />
-                {t('Disable')}
-              </>
-            ) : (
-              <>
-                <Power className='mr-2 h-4 w-4' />
-                {t('Enable')}
-              </>
-            )}
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={isSyncDisabled} onClick={handleManualSync}>
-            <RefreshCw className='mr-2 h-4 w-4' />
-            {t('Manual Sync')}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <Pencil />
+        </TooltipTrigger>
+        <TooltipContent>{t('Edit')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              disabled={isSyncDisabled}
+              onClick={handleManualSync}
+              aria-label={t('Manual Sync')}
+            />
+          }
+        >
+          <RefreshCw />
+        </TooltipTrigger>
+        <TooltipContent>{t('Manual Sync')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              disabled={!complianceConfirmed}
+              onClick={handleResetSubscriptions}
+              aria-label={t('Reset subscription quota')}
+            />
+          }
+        >
+          <RotateCcw />
+        </TooltipTrigger>
+        <TooltipContent>{t('Reset subscription quota')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              disabled={!complianceConfirmed}
+              onClick={handleToggleStatus}
+              aria-label={toggleLabel}
+              className={
+                isEnabled
+                  ? 'text-destructive hover:text-destructive'
+                  : 'text-success hover:text-success'
+              }
+            />
+          }
+        >
+          {isEnabled ? <PowerOff /> : <Power />}
+        </TooltipTrigger>
+        <TooltipContent>{toggleLabel}</TooltipContent>
+      </Tooltip>
     </div>
   )
 }

@@ -34,9 +34,12 @@ export function DataTableColgroup<TData>({
   return (
     <colgroup>
       {columns.map((column) => {
-        const width = isContentSizedColumn(column.id)
-          ? undefined
-          : getColumnWidth(column.getSize(), totalSize)
+        const width = getColumnWidth(
+          table,
+          column.id,
+          column.getSize(),
+          totalSize
+        )
 
         return <col key={column.id} style={{ width }} />
       })}
@@ -44,7 +47,20 @@ export function DataTableColgroup<TData>({
   )
 }
 
-function getColumnWidth(columnSize: number, totalSize: number) {
+function getColumnWidth<TData>(
+  table: TanstackTable<TData>,
+  columnId: string,
+  columnSize: number,
+  totalSize: number
+) {
+  if (isContentSizedColumn(columnId)) {
+    return undefined
+  }
+
+  if (table.options.enableColumnResizing === true) {
+    return `${columnSize}px`
+  }
+
   if (totalSize <= 0) {
     return undefined
   }

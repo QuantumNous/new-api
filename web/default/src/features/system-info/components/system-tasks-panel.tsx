@@ -38,6 +38,7 @@ import type {
   SystemTask,
   SystemTaskStatus,
 } from '@/features/system-settings/types'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -185,7 +186,7 @@ function SystemTasksTable(props: SystemTasksTableProps) {
                   {formatTimestampRelative(
                     task.updated_at,
                     'seconds',
-                    i18n.language
+                    toIntlLocale(i18n.language)
                   )}
                 </TableCell>
                 <TableCell

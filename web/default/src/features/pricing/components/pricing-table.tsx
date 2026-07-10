@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Row, type PaginationState } from '@tanstack/react-table'
+import type { Row, PaginationState } from '@tanstack/react-table'
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,6 +38,7 @@ export interface PricingTableProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+  selectedGroup?: string
   onModelClick?: (modelName: string) => void
 }
 
@@ -50,6 +51,7 @@ export function PricingTable(props: PricingTableProps) {
     usdExchangeRate = 1,
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
+    selectedGroup,
     onModelClick,
   } = props
 
@@ -63,6 +65,7 @@ export function PricingTable(props: PricingTableProps) {
     priceRate,
     usdExchangeRate,
     showRechargePrice,
+    selectedGroup,
   })
 
   const { table } = useDataTable({
