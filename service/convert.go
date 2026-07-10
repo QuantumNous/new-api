@@ -14,6 +14,12 @@ import (
 	"github.com/samber/lo"
 )
 
+// ClaudeToOpenAIRequest converts a Claude Messages API request into an
+// equivalent OpenAI Chat Completions request. It handles system prompts,
+// message content (text, images), tool calls, and tool results.
+// In particular, tool_result content blocks are parsed recursively:
+// text blocks become role:"tool" messages, while image blocks are
+// split into a following role:"user" message with image_url content parts.
 func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
 	openAIRequest := dto.GeneralOpenAIRequest{
 		Model:       claudeRequest.Model,
@@ -176,25 +182,103 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 					}
 					toolCalls = append(toolCalls, toolCall)
 				case "tool_result":
-					// Add tool result as a separate message
 					toolName := mediaMsg.Name
 					if toolName == "" {
 						toolName = claudeRequest.SearchToolNameByToolCallId(mediaMsg.ToolUseId)
 					}
+
 					oaiToolMessage := dto.Message{
 						Role:       "tool",
 						Name:       &toolName,
 						ToolCallId: mediaMsg.ToolUseId,
 					}
-					//oaiToolMessage.SetStringContent(*mediaMsg.GetMediaContent().Text)
+
 					if mediaMsg.IsStringContent() {
 						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
+						openAIMessages = append(openAIMessages, oaiToolMessage)
+						break
+					}
+
+					mediaContents := mediaMsg.ParseMediaContent()
+
+					toolTextParts := make([]string, 0)
+					imageUserContents := make([]dto.MediaContent, 0)
+
+					for _, mc := range mediaContents {
+						switch mc.Type {
+						case "text":
+							if text := strings.TrimSpace(mc.GetText()); text != "" {
+								toolTextParts = append(toolTextParts, text)
+							}
+
+						case "image":
+							if mc.Source == nil {
+								continue
+							}
+
+							if mc.Source.Url != "" {
+								imageUserContents = append(imageUserContents, dto.MediaContent{
+									Type:     dto.ContentTypeImageURL,
+									ImageUrl: &dto.MessageImageUrl{Url: mc.Source.Url},
+								})
+								continue
+							}
+
+							data := common.Interface2String(mc.Source.Data)
+							if data == "" {
+								continue
+							}
+
+							mediaType := mc.Source.MediaType
+							if mediaType == "" {
+								mediaType = "image/png"
+							}
+
+							imageData := fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+							imageUserContents = append(imageUserContents, dto.MediaContent{
+								Type:     dto.ContentTypeImageURL,
+								ImageUrl: &dto.MessageImageUrl{Url: imageData},
+							})
+
+						default:
+							textBytes, _ := common.Marshal(mc)
+							if len(textBytes) > 0 {
+								toolTextParts = append(toolTextParts, string(textBytes))
+							}
+						}
+					}
+
+					if len(imageUserContents) > 0 {
+						toolTextParts = append(
+							toolTextParts,
+							"[Tool result contained image content. The image content is provided in the following user message.]",
+						)
+					}
+
+					if len(toolTextParts) > 0 {
+						oaiToolMessage.SetStringContent(strings.Join(toolTextParts, "\n"))
 					} else {
-						mediaContents := mediaMsg.ParseMediaContent()
 						encodeJson, _ := common.Marshal(mediaContents)
 						oaiToolMessage.SetStringContent(string(encodeJson))
 					}
+
 					openAIMessages = append(openAIMessages, oaiToolMessage)
+
+					if len(imageUserContents) > 0 {
+						imageUserContents = append([]dto.MediaContent{
+							{
+								Type: dto.ContentTypeText,
+								Text: fmt.Sprintf("Image content returned by tool %s:", mediaMsg.ToolUseId),
+							},
+						}, imageUserContents...)
+
+						imageUserMessage := dto.Message{
+							Role: "user",
+						}
+						imageUserMessage.SetMediaContent(imageUserContents)
+
+						openAIMessages = append(openAIMessages, imageUserMessage)
+					}
 				}
 			}
 
