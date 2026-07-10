@@ -521,6 +521,7 @@
     "Automatically selects the lowest-ratio available group for the requested model": "Automatically selects the lowest-ratio available group for the requested model",
     "Automatically sync model list when upstream changes are detected": "Automatically sync model list when upstream changes are detected",
     "AutoOpt group filter": "AutoOpt group filter",
+    "AutoOpt group filter must not exceed {{count}} bytes": "AutoOpt group filter must not exceed {{count}} bytes",
     "Availability (last 24h)": "Availability (last 24h)",
     "Available": "Available",
     "Available credits are ordered by soonest expiration.": "Available credits are ordered by soonest expiration.",

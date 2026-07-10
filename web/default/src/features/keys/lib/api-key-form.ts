@@ -24,6 +24,8 @@ import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import { DEFAULT_GROUP } from '../constants'
 import type { ApiKeyFormData, ApiKey } from '../types'
 
+const MAX_AUTO_OPT_GROUP_FILTER_BYTES = 4096
+
 // ============================================================================
 // Form Schema
 // ============================================================================
@@ -44,16 +46,30 @@ export function getApiKeyFormSchema(t: TFunction) {
       tokenCount: z.number().min(1).optional(),
     })
     .superRefine((data, ctx) => {
-      if (
-        data.group === 'AutoOpt' &&
-        data.auto_opt_mode === 'whitelist' &&
-        data.auto_opt_groups.length === 0
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['auto_opt_groups'],
-          message: t('Select at least one group for the AutoOpt whitelist'),
-        })
+      if (data.group === 'AutoOpt') {
+        const filterBytes = new TextEncoder().encode(
+          data.auto_opt_groups.join(',')
+        ).byteLength
+        if (filterBytes > MAX_AUTO_OPT_GROUP_FILTER_BYTES) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['auto_opt_groups'],
+            message: t('AutoOpt group filter must not exceed {{count}} bytes', {
+              count: MAX_AUTO_OPT_GROUP_FILTER_BYTES,
+            }),
+          })
+        }
+
+        if (
+          data.auto_opt_mode === 'whitelist' &&
+          data.auto_opt_groups.length === 0
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['auto_opt_groups'],
+            message: t('Select at least one group for the AutoOpt whitelist'),
+          })
+        }
       }
 
       if (data.unlimited_quota) {

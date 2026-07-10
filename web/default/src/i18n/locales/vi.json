@@ -521,6 +521,7 @@
     "Automatically selects the lowest-ratio available group for the requested model": "Tự động chọn nhóm khả dụng có hệ số thấp nhất cho mô hình được yêu cầu",
     "Automatically sync model list when upstream changes are detected": "Tự động đồng bộ danh sách mô hình khi phát hiện thay đổi từ nguồn",
     "AutoOpt group filter": "Bộ lọc nhóm AutoOpt",
+    "AutoOpt group filter must not exceed {{count}} bytes": "Bộ lọc nhóm AutoOpt không được vượt quá {{count}} byte",
     "Availability (last 24h)": "Khả dụng (24 giờ qua)",
     "Available": "Khả dụng",
     "Available credits are ordered by soonest expiration.": "Các lượt khả dụng được sắp xếp theo thời điểm hết hạn gần nhất.",

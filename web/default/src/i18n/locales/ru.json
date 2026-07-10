@@ -521,6 +521,7 @@
     "Automatically selects the lowest-ratio available group for the requested model": "Автоматически выбирает доступную группу с наименьшим коэффициентом для запрошенной модели",
     "Automatically sync model list when upstream changes are detected": "Автоматически синхронизировать список моделей при обнаружении изменений у провайдера",
     "AutoOpt group filter": "Фильтр групп AutoOpt",
+    "AutoOpt group filter must not exceed {{count}} bytes": "Фильтр групп AutoOpt не должен превышать {{count}} байт",
     "Availability (last 24h)": "Доступность (последние 24 ч)",
     "Available": "Доступно",
     "Available credits are ordered by soonest expiration.": "Доступные сбросы отсортированы по ближайшему истечению.",

@@ -521,6 +521,7 @@
     "Automatically selects the lowest-ratio available group for the requested model": "自動為請求模型選擇最低倍率可用分組",
     "Automatically sync model list when upstream changes are detected": "偵測到上游模型變更時自動同步模型清單",
     "AutoOpt group filter": "AutoOpt 分組篩選",
+    "AutoOpt group filter must not exceed {{count}} bytes": "AutoOpt 分組篩選不得超過 {{count}} 位元組",
     "Availability (last 24h)": "可用率（最近 24 小時）",
     "Available": "可用",
     "Available credits are ordered by soonest expiration.": "可用次數按最早到期排序。",

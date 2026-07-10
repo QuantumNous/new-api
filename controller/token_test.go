@@ -541,7 +541,7 @@ func TestAddTokenValidatesAndNormalizesAutoOptPolicy(t *testing.T) {
 		"group":             "AutoOpt",
 		"auto_opt_mode":     "whitelist",
 		"auto_opt_groups":   "vip,default,vip",
-		"cross_group_retry": false,
+		"cross_group_retry": true,
 	}
 	validCtx, validRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", validBody, 1)
 	AddToken(validCtx)
@@ -551,6 +551,7 @@ func TestAddTokenValidatesAndNormalizesAutoOptPolicy(t *testing.T) {
 	require.NoError(t, db.Where("user_id = ?", 1).First(&storedToken).Error)
 	assert.Equal(t, "whitelist", storedToken.AutoOptMode)
 	assert.Equal(t, "default,vip", storedToken.AutoOptGroups)
+	assert.False(t, storedToken.CrossGroupRetry)
 
 	invalidBody := map[string]any{
 		"name":            "unauthorized-autoopt",
@@ -565,6 +566,20 @@ func TestAddTokenValidatesAndNormalizesAutoOptPolicy(t *testing.T) {
 	invalidResponse := decodeAPIResponse(t, invalidRecorder)
 	assert.False(t, invalidResponse.Success)
 	assert.Contains(t, invalidResponse.Message, "not available for AutoOpt")
+
+	oversizedBody := map[string]any{
+		"name":            "oversized-autoopt-filter",
+		"expired_time":    -1,
+		"unlimited_quota": true,
+		"group":           "AutoOpt",
+		"auto_opt_mode":   "blacklist",
+		"auto_opt_groups": strings.Repeat("a", model.MaxAutoOptGroupsLength+1),
+	}
+	oversizedCtx, oversizedRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", oversizedBody, 1)
+	AddToken(oversizedCtx)
+	oversizedResponse := decodeAPIResponse(t, oversizedRecorder)
+	assert.False(t, oversizedResponse.Success)
+	assert.Contains(t, oversizedResponse.Message, "exceeds 4096 bytes")
 
 	var count int64
 	require.NoError(t, db.Model(&model.Token{}).Count(&count).Error)

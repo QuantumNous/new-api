@@ -22,6 +22,7 @@ func normalizeTokenAutoOptConfig(token *model.Token, userId int) error {
 		token.AutoOptGroups = ""
 		return nil
 	}
+	token.CrossGroupRetry = false
 
 	if token.AutoOptMode == "" {
 		token.AutoOptMode = service.AutoOptModeBlacklist
@@ -31,7 +32,7 @@ func normalizeTokenAutoOptConfig(token *model.Token, userId int) error {
 	}
 	groups, valid := token.GetAutoOptGroups()
 	if !valid {
-		return fmt.Errorf("AutoOpt group filter exceeds %d characters", model.MaxAutoOptGroupsLength)
+		return fmt.Errorf("AutoOpt group filter exceeds %d bytes", model.MaxAutoOptGroupsLength)
 	}
 	if token.AutoOptMode == service.AutoOptModeWhitelist && len(groups) == 0 {
 		return fmt.Errorf("AutoOpt whitelist must contain at least one group")
