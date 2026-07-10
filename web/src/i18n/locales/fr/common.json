@@ -1712,5 +1712,14 @@
   "/api/user_group_ratio/count_by_group": "/api/user_group_ratio/count_by_group",
   "人": "utilisateurs",
   "用户分组倍率": "Ratio de groupe utilisateur",
-  "刚刚": "À l'instant"
+  "刚刚": "À l'instant",
+  "分": "min",
+  "距离重置": "Réinitialisation dans",
+  "暂无重置倒计时": "Pas de compte à rebours",
+  "暂无消耗，未开始重置倒计时": "Aucune consommation, compte à rebours non démarré",
+  "到期": "Expire",
+  "天_short": "j",
+  "小时_short": "h",
+  "分钟_short": "min",
+  "秒_short": "s"
 }

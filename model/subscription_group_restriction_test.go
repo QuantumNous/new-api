@@ -247,19 +247,12 @@ func TestGroupRestriction_Case8_5hWindowExhausted_Skips(t *testing.T) {
 	subA := createActiveSub(t, userId, planAId, 2)
 	subB := createActiveSub(t, userId, planBId, 1)
 
-	// Consume 900 in 5h window for subA
+	// Consume 900 in 5h window for subA (fixed-period counters on subscription).
 	now := time.Now().Unix()
-	for i := 0; i < 9; i++ {
-		require.NoError(t, DB.Create(&SubscriptionPreConsumeRecord{
-			RequestId:          fmt.Sprintf("case8-fill-a-%d", i),
-			UserId:             userId,
-			UserSubscriptionId: subA.Id,
-			PreConsumed:        100,
-			Status:             "consumed",
-			CreatedAt:          now - 3600, // within 5h window
-			UpdatedAt:          now - 3600,
-		}).Error)
-	}
+	require.NoError(t, DB.Model(subA).Updates(map[string]interface{}{
+		"window_start_5h": now - 3600,
+		"window_used_5h":  int64(900),
+	}).Error)
 
 	// Try to consume 200 more → A should consume remaining 100, B consumes 100.
 	result, err := PreConsumeUserSubscription(
@@ -275,6 +268,7 @@ func TestGroupRestriction_Case8_5hWindowExhausted_Skips(t *testing.T) {
 	require.NoError(t, DB.First(&updatedB, subB.Id).Error)
 	assert.Equal(t, int64(100), updatedA.AmountUsed)
 	assert.Equal(t, int64(100), updatedB.AmountUsed)
+	assert.Equal(t, int64(1000), updatedA.WindowUsed5h)
 }
 
 // ============================================================

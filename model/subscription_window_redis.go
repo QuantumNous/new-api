@@ -199,15 +199,26 @@ func reserveSubscriptionWindowRedisBucketTx(tx *gorm.DB, sub *UserSubscription, 
 	if requested <= 0 {
 		return 0, nil, nil
 	}
-	defs := buildSubscriptionWindowDefs(plan, now, true)
-	if len(defs) == 0 || !subscriptionWindowRedisBucketEnabled() {
-		return requested, nil, nil
-	}
 	if sub == nil || sub.Id <= 0 {
 		return 0, nil, errors.New("invalid userSubscription")
 	}
+	if !planHasWindowLimits(plan) || !subscriptionWindowRedisBucketEnabled() {
+		return requested, nil, nil
+	}
 	if !subscriptionWindowRedisReady() {
 		return fallbackSubscriptionWindowRedisReserveTx(tx, sub, plan, requested, errors.New("Redis is not enabled"))
+	}
+
+	resetExpiredSubscriptionWindows(sub, now)
+	states := subscriptionWindowStates(sub, plan, now)
+	limited := make([]subscriptionWindowState, 0, len(states))
+	for _, state := range states {
+		if state.limit > 0 {
+			limited = append(limited, state)
+		}
+	}
+	if len(limited) == 0 {
+		return requested, nil, nil
 	}
 
 	ctx, cancel := subscriptionWindowRedisContext()
@@ -218,10 +229,16 @@ func reserveSubscriptionWindowRedisBucketTx(tx *gorm.DB, sub *UserSubscription, 
 	}
 
 	bucketSeconds := subscriptionWindowBucketSeconds()
-	args := make([]interface{}, 0, 5+len(defs)*3)
-	args = append(args, now, bucketSeconds, requested, subscriptionWindowRedisTTLSeconds, len(defs))
-	for _, def := range defs {
-		args = append(args, subscriptionWindowBucketStart(def.since, bucketSeconds), def.limit, def.key)
+	args := make([]interface{}, 0, 5+len(limited)*3)
+	args = append(args, now, bucketSeconds, requested, subscriptionWindowRedisTTLSeconds, len(limited))
+	for _, state := range limited {
+		// Fixed period: only count buckets from period start.
+		// If no active period, use current bucket so this consume becomes the period start.
+		since := state.since
+		if state.resetAt <= 0 {
+			since = now
+		}
+		args = append(args, subscriptionWindowBucketStart(since, bucketSeconds), state.limit, state.key)
 	}
 	idxKey, amtKey := subscriptionWindowRedisKeys(sub.Id)
 	raw, err := common.RDB.Eval(ctx, subscriptionWindowRedisReserveScript, []string{idxKey, amtKey}, args...).Result()
@@ -335,10 +352,9 @@ func rebuildSubscriptionWindowRedisBucketTx(ctx context.Context, tx *gorm.DB, us
 	if err := scanTable("subscription_pre_consume_details", false); err != nil {
 		return err
 	}
-	if subscriptionLegacyWindowUsageEnabled() {
-		if err := scanTable("subscription_pre_consume_records", true); err != nil {
-			return err
-		}
+	// Always include legacy records for redis rebuild compatibility.
+	if err := scanTable("subscription_pre_consume_records", true); err != nil {
+		return err
 	}
 
 	idxKey, amtKey := subscriptionWindowRedisKeys(userSubscriptionId)
@@ -397,7 +413,7 @@ func subscriptionWindowRedisWatermarkTx(tx *gorm.DB, userSubscriptionId int, now
 	}
 	bucketSeconds := subscriptionWindowBucketSeconds()
 	minSince := subscriptionWindowBucketStart(now-30*86400, bucketSeconds)
-	includeLegacy := subscriptionLegacyWindowUsageEnabled()
+	includeLegacy := true
 
 	type aggregate struct {
 		count      int64
@@ -461,7 +477,7 @@ func syncSubscriptionWindowRedisBucketDeltaForTimeTx(tx *gorm.DB, userSubscripti
 		return nil, err
 	}
 	now := getDBTimestampTx(tx)
-	if len(buildSubscriptionWindowDefs(plan, now, true)) == 0 {
+	if !planHasWindowLimits(plan) {
 		return nil, nil
 	}
 	if !subscriptionWindowRedisReady() {

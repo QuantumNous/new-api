@@ -89,9 +89,12 @@ func cleanTestData(t *testing.T) {
 // createTestUser creates a user with given group and baseLevel, returns user ID
 func createTestUser(t *testing.T, group string, baseLevel string) int {
 	t.Helper()
+	suffix := common.GetRandomString(8)
 	user := &User{
-		Username: "testuser_" + common.GetRandomString(6),
+		Username: "testuser_" + suffix,
 		Password: "testpassword",
+		Email:    "test_" + suffix + "@example.com",
+		AffCode:  "a" + suffix,
 		Group:    group,
 		Status:   common.UserStatusEnabled,
 		Role:     common.RoleCommonUser,

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Card,
   Calendar,
@@ -42,6 +42,7 @@ import CaptchaWidget from '../../../common/CaptchaWidget';
 
 const CHECKIN_CAPTCHA_COUNT_COOKIE = 'checkin_captcha_display_count';
 const CHECKIN_CAPTCHA_COOKIE_MAX_AGE = 180;
+const CHECKIN_CAPTCHA_KEY_INPUT_LIMIT = 32;
 
 const getCookieValue = (name) => {
   const cookie = document.cookie
@@ -67,6 +68,9 @@ const CheckinCalendar = ({ t, status }) => {
   const [captchaRefresh, setCaptchaRefresh] = useState(0);
   const [captchaDisplayCount, setCaptchaDisplayCount] = useState(0);
   const [captchaFirstSeenAt, setCaptchaFirstSeenAt] = useState(0);
+  const captchaKeyInputsRef = useRef([]);
+  const captchaDisplayCountRef = useRef(0);
+  const captchaFirstSeenAtRef = useRef(0);
   const [checkinData, setCheckinData] = useState({
     enabled: false,
     stats: {
@@ -137,13 +141,17 @@ const CheckinCalendar = ({ t, status }) => {
   };
 
   const postCheckin = async () => {
-    const query = new URLSearchParams({
+    const displayCount = captchaDisplayCountRef.current || captchaDisplayCount;
+    const firstSeenAt = captchaFirstSeenAtRef.current || captchaFirstSeenAt;
+    const clientSubmittedAt = Date.now();
+    return API.post('/api/user/checkin', {
       captcha_id: captchaId,
       captcha_answer: captchaAnswer,
-      captcha_display_count: String(captchaDisplayCount),
-      captcha_first_seen_at: String(captchaFirstSeenAt),
+      captcha_display_count: displayCount,
+      captcha_first_seen_at: firstSeenAt,
+      client_submitted_at: clientSubmittedAt,
+      captcha_key_inputs: captchaKeyInputsRef.current,
     });
-    return API.post(`/api/user/checkin?${query.toString()}`);
   };
 
   const handleCaptchaRefreshSuccess = () => {
@@ -157,13 +165,51 @@ const CheckinCalendar = ({ t, status }) => {
       String(nextCount),
       CHECKIN_CAPTCHA_COOKIE_MAX_AGE,
     );
+    // 新图重新计时，并清空上一张图的按键遥测
+    const firstSeenAt = Date.now();
+    captchaKeyInputsRef.current = [];
+    captchaDisplayCountRef.current = nextCount;
+    captchaFirstSeenAtRef.current = firstSeenAt;
     setCaptchaDisplayCount(nextCount);
-    setCaptchaFirstSeenAt((prev) => prev || Date.now());
+    setCaptchaFirstSeenAt(firstSeenAt);
   };
 
   const handleCaptchaChange = ({ captchaId: id, captchaAnswer: answer }) => {
     setCaptchaId(id);
     setCaptchaAnswer(answer);
+  };
+
+  const handleCaptchaKeyInput = ({ digit, valueBefore, selectionStart }) => {
+    if (!/^\d$/.test(digit)) {
+      return;
+    }
+    const now = Date.now();
+    const inputs = captchaKeyInputsRef.current;
+    const previous = inputs[inputs.length - 1];
+    const firstSeenAt = captchaFirstSeenAtRef.current || captchaFirstSeenAt;
+    const inputPosition = Number.isInteger(selectionStart)
+      ? selectionStart + 1
+      : (valueBefore || '').length + 1;
+    captchaKeyInputsRef.current = [
+      ...inputs,
+      {
+        order: inputs.length + 1,
+        digit,
+        position: inputPosition,
+        display_count: captchaDisplayCountRef.current || captchaDisplayCount,
+        timestamp: now,
+        elapsed_ms: firstSeenAt ? Math.max(now - firstSeenAt, 0) : 0,
+        interval_ms: previous?.timestamp
+          ? Math.max(now - previous.timestamp, 0)
+          : 0,
+      },
+    ].slice(-CHECKIN_CAPTCHA_KEY_INPUT_LIMIT);
+  };
+
+  const resetCaptchaTelemetry = () => {
+    captchaKeyInputsRef.current = [];
+    captchaDisplayCountRef.current = 0;
+    captchaFirstSeenAtRef.current = 0;
   };
 
   const openCaptchaModal = () => {
@@ -172,6 +218,7 @@ const CheckinCalendar = ({ t, status }) => {
     setCaptchaRefresh(0);
     setCaptchaDisplayCount(0);
     setCaptchaFirstSeenAt(0);
+    resetCaptchaTelemetry();
     setCaptchaModalVisible(true);
   };
 
@@ -182,6 +229,7 @@ const CheckinCalendar = ({ t, status }) => {
     setCaptchaRefresh(0);
     setCaptchaDisplayCount(0);
     setCaptchaFirstSeenAt(0);
+    resetCaptchaTelemetry();
   };
 
   const doCheckin = async () => {
@@ -204,11 +252,17 @@ const CheckinCalendar = ({ t, status }) => {
       } else {
         showError(message || t('签到失败'));
         setCaptchaAnswer('');
+        // 过快失败未消费验证码，只需等待后重试，不必刷新
+        if (message && String(message).includes('操作过快')) {
+          return;
+        }
+        captchaKeyInputsRef.current = [];
         setCaptchaRefresh((v) => v + 1);
       }
     } catch (error) {
       showError(t('签到失败'));
       setCaptchaAnswer('');
+      captchaKeyInputsRef.current = [];
       setCaptchaRefresh((v) => v + 1);
     } finally {
       setCheckinLoading(false);
@@ -288,6 +342,7 @@ const CheckinCalendar = ({ t, status }) => {
                 answer={captchaAnswer}
                 className='checkin-captcha-widget'
                 onChange={handleCaptchaChange}
+                onKeyInput={handleCaptchaKeyInput}
                 onRefreshSuccess={handleCaptchaRefreshSuccess}
                 refreshSignal={captchaRefresh}
               />

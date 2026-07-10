@@ -42,6 +42,16 @@ type Log struct {
 	Other            string `json:"other"`
 }
 
+type CheckinCaptchaKeyInput struct {
+	Order        int    `json:"order"`
+	Digit        string `json:"digit"`
+	Position     int    `json:"position"`
+	DisplayCount int    `json:"display_count"`
+	Timestamp    int64  `json:"timestamp"`
+	ElapsedMs    int64  `json:"elapsed_ms"`
+	IntervalMs   int64  `json:"interval_ms"`
+}
+
 // don't use iota, avoid change log type value
 const (
 	LogTypeUnknown = 0
@@ -126,7 +136,7 @@ func RecordLog(userId int, logType int, content string) {
 	}
 }
 
-func RecordCheckinLog(userId int, content string, callerIp string, durationMs int64, captchaDisplayCount int, captchaAnswer string, captchaFirstSeenAt int64, captchaSubmittedAt int64) {
+func RecordCheckinLog(userId int, content string, callerIp string, durationMs int64, captchaDisplayCount int, captchaAnswer string, captchaFirstSeenAt int64, captchaCreatedAt int64, captchaSubmittedAt int64, clientSubmittedAt int64, captchaKeyInputs []CheckinCaptchaKeyInput) {
 	username, _ := GetUsernameById(userId, false)
 	if durationMs < 0 {
 		durationMs = 0
@@ -135,14 +145,29 @@ func RecordCheckinLog(userId int, content string, callerIp string, durationMs in
 		captchaDisplayCount = 0
 	}
 	useTimeSeconds := int((durationMs + 999) / 1000)
+	// 客户端时长只用客户端时钟，避免与服务器时差混算
+	clientDurationMs := int64(0)
+	if captchaFirstSeenAt > 0 && clientSubmittedAt > captchaFirstSeenAt {
+		clientDurationMs = clientSubmittedAt - captchaFirstSeenAt
+	} else if len(captchaKeyInputs) > 0 {
+		// 回退：取最后一次按键相对首见的 elapsed_ms
+		last := captchaKeyInputs[len(captchaKeyInputs)-1]
+		if last.ElapsedMs > 0 {
+			clientDurationMs = last.ElapsedMs
+		}
+	}
 	adminInfo := map[string]interface{}{
 		"checkin":               true,
 		"caller_ip":             callerIp,
 		"duration_ms":           durationMs,
+		"client_duration_ms":    clientDurationMs,
 		"captcha_display_count": captchaDisplayCount,
 		"captcha_answer":        captchaAnswer,
 		"captcha_first_seen_at": captchaFirstSeenAt,
+		"captcha_created_at":    captchaCreatedAt,
 		"captcha_submitted_at":  captchaSubmittedAt,
+		"client_submitted_at":   clientSubmittedAt,
+		"captcha_key_inputs":    captchaKeyInputs,
 	}
 	log := &Log{
 		UserId:       userId,

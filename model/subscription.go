@@ -370,6 +370,17 @@ type UserSubscription struct {
 	Disabled    bool  `json:"disabled" gorm:"default:false"`
 	ActivatedAt int64 `json:"activated_at" gorm:"type:bigint;default:0"`
 
+	// Fixed-period window counters (sub2api style): start at first consume of the cycle.
+	// 0 start means inactive; expires at start+duration, then clears until next first consume.
+	WindowStart5h  int64 `json:"window_start_5h" gorm:"column:window_start_5h;type:bigint;not null;default:0"`
+	WindowUsed5h   int64 `json:"window_used_5h" gorm:"column:window_used_5h;type:bigint;not null;default:0"`
+	WindowStart24h int64 `json:"window_start_24h" gorm:"column:window_start_24h;type:bigint;not null;default:0"`
+	WindowUsed24h  int64 `json:"window_used_24h" gorm:"column:window_used_24h;type:bigint;not null;default:0"`
+	WindowStart7d  int64 `json:"window_start_7d" gorm:"column:window_start_7d;type:bigint;not null;default:0"`
+	WindowUsed7d   int64 `json:"window_used_7d" gorm:"column:window_used_7d;type:bigint;not null;default:0"`
+	WindowStart30d int64 `json:"window_start_30d" gorm:"column:window_start_30d;type:bigint;not null;default:0"`
+	WindowUsed30d  int64 `json:"window_used_30d" gorm:"column:window_used_30d;type:bigint;not null;default:0"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -1471,13 +1482,15 @@ func getSubscriptionAvailableAmountWithPlanTx(tx *gorm.DB, sub *UserSubscription
 		return 0
 	}
 	available := getSubscriptionTotalAvailableAmount(sub)
-	usage, err := getSubscriptionWindowLimitUsedTx(tx, sub.Id, plan)
-	if err == nil {
-		for _, item := range usage {
-			windowAvailable := item.limit - item.used
-			if windowAvailable < available {
-				available = windowAvailable
-			}
+	now := getDBTimestampTx(tx)
+	resetExpiredSubscriptionWindows(sub, now)
+	for _, item := range subscriptionWindowStates(sub, plan, now) {
+		if item.limit <= 0 {
+			continue
+		}
+		windowAvailable := item.limit - item.used
+		if windowAvailable < available {
+			available = windowAvailable
 		}
 	}
 	if available < 0 {
@@ -1486,166 +1499,181 @@ func getSubscriptionAvailableAmountWithPlanTx(tx *gorm.DB, sub *UserSubscription
 	return available
 }
 
-type subscriptionWindowDef struct {
+type subscriptionWindowState struct {
 	key     string
 	limit   int64
+	used    int64
 	since   int64
 	seconds int64
+	resetAt int64
 }
 
-type subscriptionWindowAggregate struct {
-	used        int64
-	resetSource int64
-}
-
-func buildSubscriptionWindowDefs(plan *SubscriptionPlan, now int64, onlyLimited bool) []subscriptionWindowDef {
-	if plan == nil {
-		return nil
-	}
-	defs := []subscriptionWindowDef{
-		{key: "5h", since: now - 5*3600, limit: plan.WindowLimit5h, seconds: 5 * 3600},
-		{key: "24h", since: now - 24*3600, limit: plan.WindowLimit24h, seconds: 24 * 3600},
-		{key: "7d", since: now - 7*86400, limit: plan.WindowLimit7d, seconds: 7 * 86400},
-		{key: "30d", since: now - 30*86400, limit: plan.WindowLimit30d, seconds: 30 * 86400},
-	}
-	if !onlyLimited {
-		return defs
-	}
-	limited := make([]subscriptionWindowDef, 0, len(defs))
-	for _, def := range defs {
-		if def.limit > 0 {
-			limited = append(limited, def)
-		}
-	}
-	return limited
-}
-
-func minSubscriptionWindowSince(defs []subscriptionWindowDef) int64 {
-	if len(defs) == 0 {
+func subscriptionWindowSecondsByKey(key string) int64 {
+	switch key {
+	case "5h":
+		return 5 * 3600
+	case "24h":
+		return 24 * 3600
+	case "7d":
+		return 7 * 86400
+	case "30d":
+		return 30 * 86400
+	default:
 		return 0
 	}
-	minSince := defs[0].since
-	for _, def := range defs[1:] {
-		if def.since < minSince {
-			minSince = def.since
-		}
-	}
-	return minSince
 }
 
-func subscriptionLegacyWindowUsageEnabled() bool {
-	return common.GetEnvOrDefaultBool("SUBSCRIPTION_LEGACY_WINDOW_USAGE", true)
+func subscriptionWindowStates(sub *UserSubscription, plan *SubscriptionPlan, now int64) []subscriptionWindowState {
+	if sub == nil || plan == nil {
+		return nil
+	}
+	specs := []struct {
+		key     string
+		limit   int64
+		start   int64
+		used    int64
+		seconds int64
+	}{
+		{"5h", plan.WindowLimit5h, sub.WindowStart5h, sub.WindowUsed5h, 5 * 3600},
+		{"24h", plan.WindowLimit24h, sub.WindowStart24h, sub.WindowUsed24h, 24 * 3600},
+		{"7d", plan.WindowLimit7d, sub.WindowStart7d, sub.WindowUsed7d, 7 * 86400},
+		{"30d", plan.WindowLimit30d, sub.WindowStart30d, sub.WindowUsed30d, 30 * 86400},
+	}
+	result := make([]subscriptionWindowState, 0, len(specs))
+	for _, spec := range specs {
+		state := subscriptionWindowState{
+			key:     spec.key,
+			limit:   spec.limit,
+			seconds: spec.seconds,
+		}
+		if spec.start > 0 && now < spec.start+spec.seconds {
+			state.used = spec.used
+			if state.used < 0 {
+				state.used = 0
+			}
+			state.since = spec.start
+			state.resetAt = spec.start + spec.seconds
+		}
+		result = append(result, state)
+	}
+	return result
 }
 
-func scanSubscriptionWindowAggregatesTx(tx *gorm.DB, userSubscriptionId int, defs []subscriptionWindowDef, includeReset bool, includeLegacy bool) (map[string]subscriptionWindowAggregate, error) {
-	result := make(map[string]subscriptionWindowAggregate, len(defs))
-	if userSubscriptionId <= 0 || len(defs) == 0 {
-		return result, nil
+// resetExpiredSubscriptionWindows clears counters whose fixed period has ended.
+// Matches sub2api normalizeExpiredWindows: expired => start=0, used=0.
+func resetExpiredSubscriptionWindows(sub *UserSubscription, now int64) bool {
+	if sub == nil || now <= 0 {
+		return false
 	}
-	query := DB
-	if tx != nil {
-		query = tx
-	}
-	minSince := minSubscriptionWindowSince(defs)
-
-	scanTable := func(table string, excludeExistingDetails bool) ([]int64, []int64, error) {
-		selectParts := make([]string, 0, len(defs)*2)
-		args := make([]interface{}, 0, len(defs)*2)
-		for _, def := range defs {
-			selectParts = append(selectParts, "COALESCE(SUM(CASE WHEN created_at >= ? THEN pre_consumed ELSE 0 END), 0)")
-			args = append(args, def.since)
+	changed := false
+	clear := func(start *int64, used *int64, seconds int64) {
+		if *start > 0 && now >= *start+seconds {
+			*start = 0
+			*used = 0
+			changed = true
 		}
-		if includeReset {
-			for _, def := range defs {
-				selectParts = append(selectParts, "COALESCE(MIN(CASE WHEN created_at >= ? THEN created_at ELSE NULL END), 0)")
-				args = append(args, def.since)
+	}
+	clear(&sub.WindowStart5h, &sub.WindowUsed5h, 5*3600)
+	clear(&sub.WindowStart24h, &sub.WindowUsed24h, 24*3600)
+	clear(&sub.WindowStart7d, &sub.WindowUsed7d, 7*86400)
+	clear(&sub.WindowStart30d, &sub.WindowUsed30d, 30*86400)
+	return changed
+}
+
+// applySubscriptionWindowDelta updates fixed-period counters on the subscription.
+// Positive delta activates inactive windows at `now` (first consume of the cycle).
+// Negative delta refunds only currently active windows.
+func applySubscriptionWindowDelta(sub *UserSubscription, plan *SubscriptionPlan, delta int64, now int64) {
+	if sub == nil || plan == nil || delta == 0 || now <= 0 {
+		return
+	}
+	resetExpiredSubscriptionWindows(sub, now)
+
+	type windowField struct {
+		limit  int64
+		start  *int64
+		used   *int64
+		secs   int64
+	}
+	windows := []windowField{
+		{plan.WindowLimit5h, &sub.WindowStart5h, &sub.WindowUsed5h, 5 * 3600},
+		{plan.WindowLimit24h, &sub.WindowStart24h, &sub.WindowUsed24h, 24 * 3600},
+		{plan.WindowLimit7d, &sub.WindowStart7d, &sub.WindowUsed7d, 7 * 86400},
+		{plan.WindowLimit30d, &sub.WindowStart30d, &sub.WindowUsed30d, 30 * 86400},
+	}
+	for _, w := range windows {
+		if w.limit <= 0 {
+			continue
+		}
+		if delta > 0 {
+			if *w.start <= 0 || now >= *w.start+w.secs {
+				*w.start = now
+				*w.used = 0
 			}
+			*w.used += delta
+			continue
 		}
-		selectSQL := strings.Join(selectParts, ", ")
-		rows, err := query.Table(table).
-			Where("user_subscription_id = ? AND status = ? AND created_at >= ?", userSubscriptionId, "consumed", minSince).
-			Scopes(func(db *gorm.DB) *gorm.DB {
-				if !excludeExistingDetails {
-					return db
-				}
-				return db.Where("NOT EXISTS (?)", query.Model(&SubscriptionPreConsumeDetail{}).Select("1").Where("subscription_pre_consume_details.request_id = subscription_pre_consume_records.request_id"))
-			}).
-			Select(selectSQL, args...).Rows()
-		if err != nil {
-			return nil, nil, err
+		// refund
+		if *w.start <= 0 || now >= *w.start+w.secs {
+			continue
 		}
-		defer rows.Close()
-
-		used := make([]int64, len(defs))
-		reset := make([]int64, len(defs))
-		if !rows.Next() {
-			return used, reset, nil
+		*w.used += delta
+		if *w.used < 0 {
+			*w.used = 0
 		}
-		dest := make([]interface{}, 0, len(defs)*2)
-		for i := range used {
-			dest = append(dest, &used[i])
-		}
-		if includeReset {
-			for i := range reset {
-				dest = append(dest, &reset[i])
-			}
-		}
-		if err := rows.Scan(dest...); err != nil {
-			return nil, nil, err
-		}
-		return used, reset, nil
 	}
-
-	detailUsed, detailReset, err := scanTable("subscription_pre_consume_details", false)
-	if err != nil {
-		return nil, err
-	}
-	for i, def := range defs {
-		result[def.key] = subscriptionWindowAggregate{used: detailUsed[i], resetSource: detailReset[i]}
-	}
-
-	if !includeLegacy {
-		return result, nil
-	}
-	legacyUsed, legacyReset, err := scanTable("subscription_pre_consume_records", true)
-	if err != nil {
-		return nil, err
-	}
-	for i, def := range defs {
-		item := result[def.key]
-		item.used += legacyUsed[i]
-		if includeReset && (item.resetSource == 0 || (legacyReset[i] > 0 && legacyReset[i] < item.resetSource)) {
-			item.resetSource = legacyReset[i]
-		}
-		result[def.key] = item
-	}
-	return result, nil
 }
 
 func getSubscriptionWindowLimitUsedTx(tx *gorm.DB, userSubscriptionId int, plan *SubscriptionPlan) (map[string]struct {
 	used  int64
 	limit int64
 }, error) {
+	if userSubscriptionId <= 0 {
+		return nil, errors.New("invalid userSubscriptionId")
+	}
+	query := DB
+	if tx != nil {
+		query = tx
+	}
+	var sub UserSubscription
+	if err := query.Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
+		return nil, err
+	}
 	now := getDBTimestampTx(tx)
-	defs := buildSubscriptionWindowDefs(plan, now, true)
+	if resetExpiredSubscriptionWindows(&sub, now) {
+		_ = query.Model(&sub).Updates(map[string]interface{}{
+			"window_start_5h":  sub.WindowStart5h,
+			"window_used_5h":   sub.WindowUsed5h,
+			"window_start_24h": sub.WindowStart24h,
+			"window_used_24h":  sub.WindowUsed24h,
+			"window_start_7d":  sub.WindowStart7d,
+			"window_used_7d":   sub.WindowUsed7d,
+			"window_start_30d": sub.WindowStart30d,
+			"window_used_30d":  sub.WindowUsed30d,
+			"updated_at":       common.GetTimestamp(),
+		}).Error
+	}
 	result := make(map[string]struct {
 		used  int64
 		limit int64
-	}, len(defs))
-	if len(defs) == 0 {
-		return result, nil
-	}
-	agg, err := scanSubscriptionWindowAggregatesTx(tx, userSubscriptionId, defs, false, subscriptionLegacyWindowUsageEnabled())
-	if err != nil {
-		return nil, err
-	}
-	for _, def := range defs {
-		result[def.key] = struct {
+	})
+	for _, state := range subscriptionWindowStates(&sub, plan, now) {
+		if state.limit <= 0 {
+			continue
+		}
+		result[state.key] = struct {
 			used  int64
 			limit int64
-		}{used: agg[def.key].used, limit: def.limit}
+		}{used: state.used, limit: state.limit}
 	}
 	return result, nil
+}
+
+func planHasWindowLimits(plan *SubscriptionPlan) bool {
+	if plan == nil {
+		return false
+	}
+	return plan.WindowLimit5h > 0 || plan.WindowLimit24h > 0 || plan.WindowLimit7d > 0 || plan.WindowLimit30d > 0
 }
 
 func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amount int64, group string, allowPartial bool) (firstSub *UserSubscription, consumed int64, usedBefore int64, usedAfter int64, redisDeltas []subscriptionWindowRedisBucketDelta, err error) {
@@ -1733,7 +1761,9 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 			return nil, 0, 0, 0, redisDeltas, err
 		}
 
-		useRedisWindow := subscriptionWindowRedisBucketEnabled() && len(buildSubscriptionWindowDefs(plan, now, true)) > 0
+		// Fixed-period window counters live on the subscription row (sub2api style).
+		resetExpiredSubscriptionWindows(&sub, now)
+		useRedisWindow := subscriptionWindowRedisBucketEnabled() && planHasWindowLimits(plan)
 		available := getSubscriptionAvailableAmountWithPlanTx(tx, &sub, plan)
 		if useRedisWindow {
 			available = getSubscriptionTotalAvailableAmount(&sub)
@@ -1781,6 +1811,7 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 			return nil, 0, 0, 0, redisDeltas, err
 		}
 		sub.AmountUsed += consume
+		applySubscriptionWindowDelta(&sub, plan, consume, now)
 		if err := tx.Save(&sub).Error; err != nil {
 			return nil, 0, 0, 0, redisDeltas, err
 		}
@@ -2238,42 +2269,54 @@ func getSubscriptionWindowUsageTx(tx *gorm.DB, userSubscriptionId int) (map[stri
 		query = tx
 	}
 
-	// Get subscription to find plan_id
 	var sub UserSubscription
 	if err := query.Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
 		return nil, err
 	}
 
-	// Get plan for window limits
 	plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 	if err != nil {
 		return nil, err
 	}
 
 	now := getDBTimestampTx(tx)
-	defs := buildSubscriptionWindowDefs(plan, now, false)
-	agg, err := scanSubscriptionWindowAggregatesTx(tx, userSubscriptionId, defs, true, subscriptionLegacyWindowUsageEnabled())
-	if err != nil {
-		return nil, err
+	if resetExpiredSubscriptionWindows(&sub, now) {
+		_ = query.Model(&sub).Updates(map[string]interface{}{
+			"window_start_5h":  sub.WindowStart5h,
+			"window_used_5h":   sub.WindowUsed5h,
+			"window_start_24h": sub.WindowStart24h,
+			"window_used_24h":  sub.WindowUsed24h,
+			"window_start_7d":  sub.WindowStart7d,
+			"window_used_7d":   sub.WindowUsed7d,
+			"window_start_30d": sub.WindowStart30d,
+			"window_used_30d":  sub.WindowUsed30d,
+			"updated_at":       common.GetTimestamp(),
+		}).Error
 	}
 
-	result := make(map[string]WindowUsage, len(defs))
-	for _, w := range defs {
-		item := agg[w.key]
-		total := item.used
-		resetSource := item.resetSource
-
-		resetAt := int64(0)
+	states := subscriptionWindowStates(&sub, plan, now)
+	result := make(map[string]WindowUsage, len(states))
+	for _, w := range states {
 		resetAfterSeconds := int64(0)
-		if resetSource > 0 {
-			resetAt = resetSource + w.seconds
-			resetAfterSeconds = resetAt - now
+		if w.resetAt > 0 {
+			resetAfterSeconds = w.resetAt - now
 			if resetAfterSeconds < 0 {
 				resetAfterSeconds = 0
 			}
 		}
-
-		result[w.key] = WindowUsage{Used: total, Limit: w.limit, Since: w.since, WindowSeconds: w.seconds, ResetAt: resetAt, ResetAfterSeconds: resetAfterSeconds}
+		since := w.since
+		if since == 0 {
+			// Inactive window: do not invent a synthetic lookback start.
+			since = 0
+		}
+		result[w.key] = WindowUsage{
+			Used:              w.used,
+			Limit:             w.limit,
+			Since:             since,
+			WindowSeconds:     w.seconds,
+			ResetAt:           w.resetAt,
+			ResetAfterSeconds: resetAfterSeconds,
+		}
 	}
 	return result, nil
 }
@@ -2414,7 +2457,17 @@ func postConsumeUserSubscriptionDetailDeltaTx(tx *gorm.DB, detail *SubscriptionP
 			return err
 		}
 	}
+	// After quota-period reset, do not restore amount_used from an old period.
+	// Window counters are independent: still refund active fixed-period windows.
 	if delta < 0 && !subscriptionDetailMatchesCurrentPeriod(detail, &sub) {
+		now := getDBTimestampTx(tx)
+		if plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId); err == nil {
+			applySubscriptionWindowDelta(&sub, plan, delta, now)
+			if err := tx.Save(&sub).Error; err != nil {
+				return err
+			}
+			InvalidateWindowUsageCache(sub.Id)
+		}
 		return nil
 	}
 	return applyUserSubscriptionDeltaTx(tx, &sub, delta)
@@ -2445,6 +2498,10 @@ func applyUserSubscriptionDeltaTx(tx *gorm.DB, sub *UserSubscription, delta int6
 		return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
 	}
 	sub.AmountUsed = newUsed
+	now := getDBTimestampTx(tx)
+	if plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId); err == nil {
+		applySubscriptionWindowDelta(sub, plan, delta, now)
+	}
 	if err := tx.Save(sub).Error; err != nil {
 		return err
 	}

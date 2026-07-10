@@ -972,6 +972,7 @@ func TestPostConsumeUserSubscriptionDelta_AdjustsUsage(t *testing.T) {
 
 // ============================================================
 // T_WINDOW_24H_01: GetSubscriptionWindowUsage includes 24h limits and usage
+// Fixed period (sub2api style): counters live on user_subscriptions.
 // ============================================================
 func TestSubscriptionWindowUsage_Includes24hLimit(t *testing.T) {
 	setupTimeQuotaTestDB(t)
@@ -994,32 +995,11 @@ func TestSubscriptionWindowUsage_Includes24hLimit(t *testing.T) {
 	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
 	require.NoError(t, err)
 
+	// Current fixed period started 2h ago with 600 used.
 	recent := now - 2*3600
-	recentRecord := &SubscriptionPreConsumeRecord{
-		RequestId:          "req-window-24h-recent",
-		UserId:             userId,
-		UserSubscriptionId: sub.Id,
-		PreConsumed:        600,
-		Status:             "consumed",
-	}
-	require.NoError(t, DB.Create(recentRecord).Error)
-	require.NoError(t, DB.Model(recentRecord).UpdateColumns(map[string]interface{}{
-		"created_at": recent,
-		"updated_at": recent,
-	}).Error)
-
-	old := now - 25*3600
-	oldRecord := &SubscriptionPreConsumeRecord{
-		RequestId:          "req-window-24h-old",
-		UserId:             userId,
-		UserSubscriptionId: sub.Id,
-		PreConsumed:        700,
-		Status:             "consumed",
-	}
-	require.NoError(t, DB.Create(oldRecord).Error)
-	require.NoError(t, DB.Model(oldRecord).UpdateColumns(map[string]interface{}{
-		"created_at": old,
-		"updated_at": old,
+	require.NoError(t, DB.Model(sub).Updates(map[string]interface{}{
+		"window_start_24h": recent,
+		"window_used_24h":  int64(600),
 	}).Error)
 
 	usage, err := GetSubscriptionWindowUsage(sub.Id)
@@ -1028,7 +1008,247 @@ func TestSubscriptionWindowUsage_Includes24hLimit(t *testing.T) {
 	assert.Equal(t, int64(600), usage["24h"].Used)
 	assert.Equal(t, int64(2400), usage["24h"].Limit)
 	assert.Equal(t, int64(24*3600), usage["24h"].WindowSeconds)
+	assert.Equal(t, recent, usage["24h"].Since)
+	assert.Equal(t, recent+24*3600, usage["24h"].ResetAt)
+	assert.InDelta(t, float64(22*3600), float64(usage["24h"].ResetAfterSeconds), 5)
+}
+
+// T_WINDOW_FIXED_01: fixed period counts counters until period end, then clears
+func TestSubscriptionWindowUsage_FixedPeriodFromFirstConsume(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+
+	now := GetDBTimestamp()
+	plan := &SubscriptionPlan{
+		Title:          "固定24小时窗口",
+		DurationUnit:   SubscriptionDurationDay,
+		DurationValue:  30,
+		TotalAmount:    100000,
+		WindowLimit24h: 5000,
+		ActivationMode: SubscriptionActivationImmediate,
+		Enabled:        true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	userId := createTestUser(t, "default", "default")
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
+	require.NoError(t, err)
+
+	// First consume 20h ago starts the fixed 24h period; later usage still in same period.
+	first := now - 20*3600
+	require.NoError(t, DB.Model(sub).Updates(map[string]interface{}{
+		"window_start_24h": first,
+		"window_used_24h":  int64(1500),
+	}).Error)
+
+	usage, err := GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1500), usage["24h"].Used)
+	assert.Equal(t, first, usage["24h"].Since)
+	assert.Equal(t, first+24*3600, usage["24h"].ResetAt)
+	assert.InDelta(t, float64(4*3600), float64(usage["24h"].ResetAfterSeconds), 5)
+
+	// After period ends, counters clear (normalize on read).
+	expired := now - 25*3600
+	require.NoError(t, DB.Model(sub).Updates(map[string]interface{}{
+		"window_start_24h": expired,
+		"window_used_24h":  int64(1500),
+	}).Error)
+
+	usage, err = GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), usage["24h"].Used)
+	assert.Equal(t, int64(0), usage["24h"].ResetAt)
+	assert.Equal(t, int64(0), usage["24h"].ResetAfterSeconds)
+}
+
+// T_WINDOW_FIXED_02: first consume activates fixed window counters
+func TestSubscriptionWindowUsage_FirstConsumeActivatesWindow(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+
+	now := GetDBTimestamp()
+	plan := &SubscriptionPlan{
+		Title:          "激活24小时窗口",
+		DurationUnit:   SubscriptionDurationDay,
+		DurationValue:  30,
+		TotalAmount:    100000,
+		WindowLimit24h: 2400,
+		ActivationMode: SubscriptionActivationImmediate,
+		Enabled:        true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	userId := createTestUser(t, "default", "default")
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
+	require.NoError(t, err)
+
+	before, err := GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), before["24h"].Used)
+	assert.Equal(t, int64(0), before["24h"].ResetAt)
+
+	_, err = PreConsumeUserSubscription("req-window-activate", userId, "gpt-4", 0, 100, "")
+	require.NoError(t, err)
+
+	usage, err := GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), usage["24h"].Used)
+	assert.Greater(t, usage["24h"].Since, int64(0))
+	assert.Equal(t, usage["24h"].Since+24*3600, usage["24h"].ResetAt)
+	assert.InDelta(t, float64(24*3600), float64(usage["24h"].ResetAfterSeconds), 5)
+
+	var updated UserSubscription
+	require.NoError(t, DB.First(&updated, sub.Id).Error)
+	assert.Equal(t, usage["24h"].Since, updated.WindowStart24h)
+	assert.Equal(t, int64(100), updated.WindowUsed24h)
+}
+
+// T_WINDOW_FIXED_03: refund reduces active fixed-period counters only
+func TestSubscriptionWindowUsage_RefundReducesActiveWindow(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+
+	now := GetDBTimestamp()
+	plan := &SubscriptionPlan{
+		Title:          "退款窗口套餐",
+		DurationUnit:   SubscriptionDurationDay,
+		DurationValue:  30,
+		TotalAmount:    100000,
+		WindowLimit5h:  1000,
+		WindowLimit24h: 5000,
+		ActivationMode: SubscriptionActivationImmediate,
+		Enabled:        true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	userId := createTestUser(t, "default", "default")
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
+	require.NoError(t, err)
+
+	_, err = PreConsumeUserSubscription("req-window-refund", userId, "gpt-4", 0, 300, "")
+	require.NoError(t, err)
+
+	usage, err := GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(300), usage["5h"].Used)
+	assert.Equal(t, int64(300), usage["24h"].Used)
+	start5h := usage["5h"].Since
+	start24h := usage["24h"].Since
+	reset5h := usage["5h"].ResetAt
+	reset24h := usage["24h"].ResetAt
+	require.Greater(t, start5h, int64(0))
+	require.Greater(t, start24h, int64(0))
+	require.Greater(t, reset5h, int64(0))
+	require.Greater(t, reset24h, int64(0))
+
+	require.NoError(t, RefundSubscriptionPreConsume("req-window-refund"))
+
+	usage, err = GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), usage["5h"].Used)
+	assert.Equal(t, int64(0), usage["24h"].Used)
+	// Period already started: keep start/reset even when used returns to 0.
+	assert.Equal(t, start5h, usage["5h"].Since)
+	assert.Equal(t, start24h, usage["24h"].Since)
+	assert.Equal(t, reset5h, usage["5h"].ResetAt)
+	assert.Equal(t, reset24h, usage["24h"].ResetAt)
+	assert.Greater(t, usage["5h"].ResetAfterSeconds, int64(0))
 	assert.Greater(t, usage["24h"].ResetAfterSeconds, int64(0))
+
+	var updated UserSubscription
+	require.NoError(t, DB.First(&updated, sub.Id).Error)
+	assert.Equal(t, int64(0), updated.AmountUsed)
+	assert.Equal(t, int64(0), updated.WindowUsed5h)
+	assert.Equal(t, int64(0), updated.WindowUsed24h)
+	assert.Equal(t, start5h, updated.WindowStart5h)
+	assert.Equal(t, start24h, updated.WindowStart24h)
+}
+
+// T_WINDOW_FIXED_04: expired window blocks until cleared, then next consume reopens period
+func TestSubscriptionWindowUsage_ExpiredThenReopen(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+
+	now := GetDBTimestamp()
+	plan := &SubscriptionPlan{
+		Title:          "过期重开窗口",
+		DurationUnit:   SubscriptionDurationDay,
+		DurationValue:  30,
+		TotalAmount:    100000,
+		WindowLimit24h: 1000,
+		ActivationMode: SubscriptionActivationImmediate,
+		Enabled:        true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	userId := createTestUser(t, "default", "default")
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
+	require.NoError(t, err)
+
+	// Full previous period, already expired.
+	require.NoError(t, DB.Model(sub).Updates(map[string]interface{}{
+		"window_start_24h": now - 25*3600,
+		"window_used_24h":  int64(1000),
+	}).Error)
+
+	// Available should be full again after expiry normalize.
+	require.NoError(t, DB.First(sub, sub.Id).Error)
+	available := getSubscriptionAvailableAmountWithPlanTx(DB, sub, plan)
+	assert.Equal(t, int64(1000), available)
+
+	_, err = PreConsumeUserSubscription("req-window-reopen", userId, "gpt-4", 0, 200, "")
+	require.NoError(t, err)
+
+	usage, err := GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(200), usage["24h"].Used)
+	assert.Greater(t, usage["24h"].Since, now-60)
+	assert.Equal(t, usage["24h"].Since+24*3600, usage["24h"].ResetAt)
+}
+
+// T_WINDOW_FIXED_05: multiple windows update together on consume
+func TestSubscriptionWindowUsage_MultiWindowConsume(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+
+	now := GetDBTimestamp()
+	plan := &SubscriptionPlan{
+		Title:          "多窗口套餐",
+		DurationUnit:   SubscriptionDurationDay,
+		DurationValue:  30,
+		TotalAmount:    100000,
+		WindowLimit5h:  500,
+		WindowLimit24h: 2000,
+		WindowLimit7d:  8000,
+		WindowLimit30d: 20000,
+		ActivationMode: SubscriptionActivationImmediate,
+		Enabled:        true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	userId := createTestUser(t, "default", "default")
+	_, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
+	require.NoError(t, err)
+
+	_, err = PreConsumeUserSubscription("req-multi-window", userId, "gpt-4", 0, 150, "")
+	require.NoError(t, err)
+
+	var sub UserSubscription
+	require.NoError(t, DB.Where("user_id = ?", userId).First(&sub).Error)
+	usage, err := GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(150), usage["5h"].Used)
+	assert.Equal(t, int64(150), usage["24h"].Used)
+	assert.Equal(t, int64(150), usage["7d"].Used)
+	assert.Equal(t, int64(150), usage["30d"].Used)
+	assert.Equal(t, sub.WindowStart5h, usage["5h"].Since)
+	assert.Equal(t, sub.WindowStart24h, usage["24h"].Since)
 }
 
 // ============================================================
@@ -1055,34 +1275,26 @@ func TestSubscriptionAvailableAmount_IgnoresUnconfiguredWindow(t *testing.T) {
 	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
 	require.NoError(t, err)
 
-	record := &SubscriptionPreConsumeRecord{
-		RequestId:          "req-unconfigured-5h-old",
-		UserId:             userId,
-		UserSubscriptionId: sub.Id,
-		PreConsumed:        3000,
-		Status:             "consumed",
-	}
-	require.NoError(t, DB.Create(record).Error)
-	oldFor24h := now - 25*3600
-	require.NoError(t, DB.Model(record).UpdateColumns(map[string]interface{}{
-		"created_at": oldFor24h,
-		"updated_at": oldFor24h,
+	// Expired 5h counter should not affect available (no 5h limit configured).
+	require.NoError(t, DB.Model(sub).Updates(map[string]interface{}{
+		"window_start_5h": now - 6*3600,
+		"window_used_5h":  int64(3000),
 	}).Error)
+	require.NoError(t, DB.First(sub, sub.Id).Error)
 
 	available := getSubscriptionAvailableAmountWithPlanTx(DB, sub, plan)
 	assert.Equal(t, int64(2400), available)
 }
 
 // ============================================================
-// T_WINDOW_OPT_02: legacy window usage can be disabled
+// T_WINDOW_OPT_02: pre-consume records alone do not affect window counters
 // ============================================================
 func TestSubscriptionWindowUsage_LegacyToggle(t *testing.T) {
 	setupTimeQuotaTestDB(t)
-	t.Setenv("SUBSCRIPTION_LEGACY_WINDOW_USAGE", "false")
 
 	now := GetDBTimestamp()
 	plan := &SubscriptionPlan{
-		Title:          "关闭Legacy窗口套餐",
+		Title:          "计数器窗口套餐",
 		DurationUnit:   SubscriptionDurationDay,
 		DurationValue:  30,
 		TotalAmount:    100000,
@@ -1098,6 +1310,7 @@ func TestSubscriptionWindowUsage_LegacyToggle(t *testing.T) {
 	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
 	require.NoError(t, err)
 
+	// Orphan legacy records must not inflate window usage without counters.
 	legacyRecord := &SubscriptionPreConsumeRecord{
 		RequestId:          "req-legacy-disabled",
 		UserId:             userId,

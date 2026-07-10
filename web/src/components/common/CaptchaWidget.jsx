@@ -27,11 +27,13 @@ import { API, showError } from '../../helpers';
  * 图形验证码组件。
  * 拉取 /api/captcha，展示图片与输入框，点击图片可刷新。
  * 通过 onChange({ captchaId, captchaAnswer }) 将状态回传父组件。
+ * 通过 onKeyInput({ digit, valueBefore, selectionStart }) 上报数字按键。
  */
 const CaptchaWidget = ({
   answer,
   className = '',
   onChange,
+  onKeyInput,
   onRefreshSuccess,
   refreshSignal,
 }) => {
@@ -76,6 +78,17 @@ const CaptchaWidget = ({
     onChange && onChange({ captchaId, captchaAnswer: value });
   };
 
+  const handleAnswerKeyDown = (event) => {
+    if (!onKeyInput || !/^\d$/.test(event.key)) {
+      return;
+    }
+    onKeyInput({
+      digit: event.key,
+      valueBefore: event.currentTarget?.value || '',
+      selectionStart: event.currentTarget?.selectionStart,
+    });
+  };
+
   const rootClassName = ['captcha-widget', className].filter(Boolean).join(' ');
 
   return (
@@ -87,6 +100,7 @@ const CaptchaWidget = ({
         name='captcha_answer'
         value={answer}
         onChange={handleAnswerChange}
+        onKeyDown={handleAnswerKeyDown}
         prefix={<IconShield />}
         suffix={
           <div

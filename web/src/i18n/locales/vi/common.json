@@ -1712,5 +1712,14 @@
   "/api/user_group_ratio/count_by_group": "/api/user_group_ratio/count_by_group",
   "人": "người dùng",
   "用户分组倍率": "Tỷ lệ nhóm người dùng",
-  "刚刚": "Vừa xong"
+  "刚刚": "Vừa xong",
+  "分": "phút",
+  "距离重置": "Đặt lại sau",
+  "暂无重置倒计时": "Chưa có đếm ngược",
+  "暂无消耗，未开始重置倒计时": "Chưa tiêu hao, chưa bắt đầu đếm ngược",
+  "到期": "Hết hạn",
+  "天_short": "ngày",
+  "小时_short": "giờ",
+  "分钟_short": "phút",
+  "秒_short": "giây"
 }

@@ -268,9 +268,9 @@ function CountdownRow({ seconds, t, color }) {
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const parts = [];
-  if (d > 0) parts.push(`${d}${t('天')}`);
-  if (h > 0) parts.push(`${h}${t('小时')}`);
-  if (m > 0) parts.push(`${m}${t('分')}`);
+  if (d > 0) parts.push(`${d}${t('天_short')}`);
+  if (h > 0 || d > 0) parts.push(`${h}${t('小时_short')}`);
+  if (m > 0 || (d === 0 && h === 0)) parts.push(`${m}${t('分钟_short')}`);
   return (
     <div
       style={{
@@ -282,7 +282,7 @@ function CountdownRow({ seconds, t, color }) {
       }}
     >
       <Clock size={12} />
-      {parts.join('')}
+      {parts.join(' ')}
     </div>
   );
 }
@@ -296,10 +296,20 @@ const formatDurationSeconds = (seconds, t) => {
   const hours = Math.floor((total % 86400) / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const secs = total % 60;
-  if (days > 0) return `${days}${tt('天')} ${hours}${tt('小时')}`;
-  if (hours > 0) return `${hours}${tt('小时')} ${minutes}${tt('分钟')}`;
-  if (minutes > 0) return `${minutes}${tt('分钟')} ${secs}${tt('秒')}`;
-  return `${secs}${tt('秒')}`;
+  const parts = [];
+  if (days > 0) {
+    parts.push(`${days}${tt('天_short')}`);
+    parts.push(`${hours}${tt('小时_short')}`);
+  } else if (hours > 0) {
+    parts.push(`${hours}${tt('小时_short')}`);
+    parts.push(`${minutes}${tt('分钟_short')}`);
+  } else if (minutes > 0) {
+    parts.push(`${minutes}${tt('分钟_short')}`);
+    parts.push(`${secs}${tt('秒_short')}`);
+  } else {
+    parts.push(`${secs}${tt('秒_short')}`);
+  }
+  return parts.join(' ');
 };
 
 function SortableCard({

@@ -378,6 +378,39 @@ export const useLogsData = () => {
 
   // Format logs data
   const setLogsFormat = (logs) => {
+    const renderCheckinCaptchaKeyInputs = (inputs) => {
+      if (!Array.isArray(inputs) || inputs.length === 0) {
+        return '-';
+      }
+      return (
+        <div
+          style={{
+            maxWidth: 720,
+            whiteSpace: 'pre-line',
+            wordBreak: 'break-word',
+            lineHeight: 1.6,
+          }}
+        >
+          {inputs
+            .map((input, index) => {
+              const elapsedSeconds = (
+                (Number(input.elapsed_ms) || 0) / 1000
+              ).toFixed(1);
+              const intervalMs = Number(input.interval_ms) || 0;
+              const intervalText =
+                index === 0 ? '-' : `${(intervalMs / 1000).toFixed(1)} s`;
+              const displayCount = Number(input.display_count) || 0;
+              const displayText = displayCount > 0 ? `#${displayCount}` : '-';
+              const inputTime = Number(input.timestamp)
+                ? timestamp2string(Number(input.timestamp) / 1000)
+                : '-';
+              return `${index + 1}. ${t('数字')} ${input.digit || '-'}，${t('位置')} ${input.position || '-'}，${t('输入时间')} ${inputTime}，${t('验证码展示')} ${displayText}，${t('距展示')} ${elapsedSeconds} s，${t('距上次输入')} ${intervalText}`;
+            })
+            .join('\n')}
+        </div>
+      );
+    };
+
     const requestConversionDisplayValue = (conversionChain) => {
       const chain = Array.isArray(conversionChain)
         ? conversionChain.filter(Boolean)
@@ -800,6 +833,13 @@ export const useLogsData = () => {
       }
       if (isAdminUser && logs[i].type === 4 && other?.admin_info?.checkin) {
         const adminInfo = other.admin_info;
+        const formatMsTime = (ms) => {
+          const value = Number(ms);
+          if (!value) return '-';
+          return timestamp2string(value / 1000);
+        };
+        const formatDuration = (ms) =>
+          `${((Number(ms) || 0) / 1000).toFixed(1)} s`;
         expandDataLocal.push(
           {
             key: t('签到IP'),
@@ -814,18 +854,36 @@ export const useLogsData = () => {
             value: adminInfo.captcha_answer || '-',
           },
           {
-            key: t('签到过程消耗时长'),
-            value: `${((Number(adminInfo.duration_ms) || 0) / 1000).toFixed(1)} s`,
+            key: t('服务端验证码下发时间'),
+            value: formatMsTime(
+              adminInfo.captcha_created_at || adminInfo.captcha_issued_at,
+            ),
+          },
+          {
+            key: t('客户端验证码首见时间'),
+            value: formatMsTime(adminInfo.captcha_first_seen_at),
+          },
+          {
+            key: t('服务端签到提交时间'),
+            value: formatMsTime(adminInfo.captcha_submitted_at),
+          },
+          {
+            key: t('客户端签到提交时间'),
+            value: formatMsTime(adminInfo.client_submitted_at),
+          },
+          {
+            key: t('服务端计时时长'),
+            value: formatDuration(adminInfo.duration_ms),
+          },
+          {
+            key: t('客户端计时时长'),
+            value: formatDuration(adminInfo.client_duration_ms),
+          },
+          {
+            key: t('验证码按键输入'),
+            value: renderCheckinCaptchaKeyInputs(adminInfo.captcha_key_inputs),
           },
         );
-        if (adminInfo.captcha_first_seen_at) {
-          expandDataLocal.push({
-            key: t('验证码首见时间'),
-            value: timestamp2string(
-              Number(adminInfo.captcha_first_seen_at) / 1000,
-            ),
-          });
-        }
       }
       expandDatesLocal[logs[i].key] = expandDataLocal;
     }
