@@ -23,6 +23,11 @@ const (
 	SubscriptionDurationCustom = "custom"
 )
 
+const (
+	SubscriptionBillingModeOneTime   = "one_time"
+	SubscriptionBillingModeAutoRenew = "auto_renew"
+)
+
 // Subscription quota reset period
 const (
 	SubscriptionResetNever   = "never"
@@ -159,9 +164,11 @@ type SubscriptionPlan struct {
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
-	AlipayEnabled  bool   `json:"alipay_enabled" gorm:"default:false"`
-	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
-	CreemProductId string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	AlipayEnabled          bool   `json:"alipay_enabled" gorm:"default:false"`
+	StripePriceId          string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
+	StripeRecurringPriceId string `json:"stripe_recurring_price_id" gorm:"type:varchar(128);default:''"`
+	CreemProductId         string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	BillingMode            string `json:"billing_mode" gorm:"type:varchar(16);not null;default:'one_time'"`
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
@@ -214,6 +221,37 @@ type SubscriptionOrder struct {
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
 
+type BillingSubscription struct {
+	Id                     int    `json:"id"`
+	UserId                 int    `json:"user_id" gorm:"index"`
+	PlanId                 int    `json:"plan_id" gorm:"index"`
+	Provider               string `json:"provider" gorm:"type:varchar(32);index"`
+	ProviderSubscriptionId string `json:"provider_subscription_id" gorm:"type:varchar(128);index"`
+	ProviderCustomerId     string `json:"provider_customer_id" gorm:"type:varchar(128);default:''"`
+	ProviderPriceId        string `json:"provider_price_id" gorm:"type:varchar(128);default:''"`
+	Status                 string `json:"status" gorm:"type:varchar(32);index"`
+	CancelAtPeriodEnd      bool   `json:"cancel_at_period_end" gorm:"default:false"`
+	CurrentPeriodStart     int64  `json:"current_period_start" gorm:"bigint;default:0"`
+	CurrentPeriodEnd       int64  `json:"current_period_end" gorm:"bigint;default:0"`
+	LastInvoiceId          string `json:"last_invoice_id" gorm:"type:varchar(128);default:''"`
+	LastPaymentStatus      string `json:"last_payment_status" gorm:"type:varchar(32);default:''"`
+	ProviderPayload        string `json:"provider_payload" gorm:"type:text"`
+	CreatedAt              int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt              int64  `json:"updated_at" gorm:"bigint"`
+}
+
+func (s *BillingSubscription) BeforeCreate(tx *gorm.DB) error {
+	now := common.GetTimestamp()
+	s.CreatedAt = now
+	s.UpdatedAt = now
+	return nil
+}
+
+func (s *BillingSubscription) BeforeUpdate(tx *gorm.DB) error {
+	s.UpdatedAt = common.GetTimestamp()
+	return nil
+}
+
 func (o *SubscriptionOrder) ApplyPaymentSnapshot(snapshot PaymentSnapshot) {
 	if o == nil {
 		return
@@ -263,11 +301,23 @@ func GetSubscriptionOrderByTradeNoAndUserId(tradeNo string, userId int) *Subscri
 	return &order
 }
 
+func GetBillingSubscriptionByProviderSubscriptionID(provider string, providerSubscriptionID string) (*BillingSubscription, error) {
+	var sub BillingSubscription
+	err := DB.Where("provider = ? AND provider_subscription_id = ?", provider, providerSubscriptionID).First(&sub).Error
+	if err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
 // User subscription instance
 type UserSubscription struct {
 	Id     int `json:"id"`
 	UserId int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
 	PlanId int `json:"plan_id" gorm:"index"`
+
+	BillingSubscriptionId int    `json:"billing_subscription_id" gorm:"index;default:0"`
+	ProviderInvoiceId     string `json:"provider_invoice_id" gorm:"type:varchar(128);default:'';index"`
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
