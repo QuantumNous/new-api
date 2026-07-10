@@ -81,6 +81,7 @@ const TopUp = () => {
   const [enableXunhuTopUp, setEnableXunhuTopUp] = useState(false);
   const [xunhuPayMethods, setXunhuPayMethods] = useState([]);
   const [xunhuMinTopUp, setXunhuMinTopUp] = useState(1);
+  const [xunhuUnitPrice, setXunhuUnitPrice] = useState(1);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -781,6 +782,16 @@ const TopUp = () => {
           setEnableXunhuTopUp(enableXunhuTopUp);
           setXunhuPayMethods(data.xunhu_pay_methods || []);
           setXunhuMinTopUp(data.xunhu_min_topup || 1);
+          const xunhuPrice = parseFloat(data.xunhu_unit_price);
+          setXunhuUnitPrice(
+            Number.isFinite(xunhuPrice) && xunhuPrice > 0 ? xunhuPrice : 1,
+          );
+          // 仅虎皮椒时用其单价做预设/实付预览，避免误用易支付 Price(常为7.3)
+          if (enableXunhuTopUp && !enableOnlineTopUp) {
+            setPriceRatio(
+              Number.isFinite(xunhuPrice) && xunhuPrice > 0 ? xunhuPrice : 1,
+            );
+          }
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
           setTopUpLink(data.topup_link || '');
@@ -806,8 +817,20 @@ const TopUp = () => {
             setPresetAmounts(generatePresetAmounts(minTopUpValue));
           }
 
-          // 初始化显示实付金额
-          getAmount(minTopUpValue);
+          // 初始化显示实付金额（按实际启用的网关计价）
+          if (enableXunhuTopUp && !enableOnlineTopUp && !enableStripeTopUp) {
+            getXunhuAmount(minTopUpValue);
+          } else if (
+            enableWaffoTopUp &&
+            !enableOnlineTopUp &&
+            !enableStripeTopUp
+          ) {
+            getWaffoAmount(minTopUpValue);
+          } else if (enableStripeTopUp && !enableOnlineTopUp) {
+            getStripeAmount(minTopUpValue);
+          } else {
+            getAmount(minTopUpValue);
+          }
         } catch (e) {
           setPayMethods([]);
         }
@@ -895,14 +918,13 @@ const TopUp = () => {
 
   useEffect(() => {
     if (statusState?.status) {
-      // const minTopUpValue = statusState.status.min_topup || 1;
-      // setMinTopUp(minTopUpValue);
-      // setTopUpCount(minTopUpValue);
-      setPriceRatio(statusState.status.price || 1);
-
+      // 仅虎皮椒启用时保留 xunhu 单价，不被 status.price 覆盖
+      if (!(enableXunhuTopUp && !enableOnlineTopUp)) {
+        setPriceRatio(statusState.status.price || 1);
+      }
       setStatusLoading(false);
     }
-  }, [statusState?.status]);
+  }, [statusState?.status, enableXunhuTopUp, enableOnlineTopUp]);
 
   const renderAmount = () => {
     return amount + ' ' + t('元');
@@ -932,6 +954,41 @@ const TopUp = () => {
       // amount fetch failed silently
     }
     setAmountLoading(false);
+  };
+
+  // 按当前启用的网关刷新实付金额，避免虎皮椒场景误用易支付 Price(常为7.3)
+  const refreshPayAmount = async (value) => {
+    if (value === undefined) {
+      value = topUpCount;
+    }
+    if (typeof payWay === 'string' && payWay.startsWith('xunhu:')) {
+      return getXunhuAmount(value);
+    }
+    if (payWay === 'stripe') {
+      return getStripeAmount(value);
+    }
+    if (typeof payWay === 'string' && payWay.startsWith('waffo:')) {
+      return getWaffoAmount(value);
+    }
+    if (payWay === 'waffo_pancake') {
+      return getWaffoPancakeAmount(value);
+    }
+    if (enableXunhuTopUp && !enableOnlineTopUp && !enableStripeTopUp) {
+      return getXunhuAmount(value);
+    }
+    if (enableWaffoTopUp && !enableOnlineTopUp && !enableStripeTopUp) {
+      return getWaffoAmount(value);
+    }
+    if (enableStripeTopUp && !enableOnlineTopUp) {
+      return getStripeAmount(value);
+    }
+    if (enableOnlineTopUp) {
+      return getAmount(value);
+    }
+    if (enableXunhuTopUp) {
+      return getXunhuAmount(value);
+    }
+    return getAmount(value);
   };
 
   const getStripeAmount = async (value) => {
@@ -995,9 +1052,13 @@ const TopUp = () => {
     setTopUpCount(preset.value);
     setSelectedPreset(preset.value);
 
-    // 计算实际支付金额，考虑折扣
+    // 计算实际支付金额，考虑折扣（priceRatio 在仅虎皮椒时已切为 XunhuUnitPrice）
     const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
-    const discountedAmount = preset.value * priceRatio * discount;
+    const unitPrice =
+      enableXunhuTopUp && !enableOnlineTopUp
+        ? xunhuUnitPrice || priceRatio
+        : priceRatio;
+    const discountedAmount = preset.value * unitPrice * discount;
     setAmount(discountedAmount);
   };
 
@@ -1107,7 +1168,7 @@ const TopUp = () => {
           topUpCount={topUpCount}
           minTopUp={minTopUp}
           renderQuotaWithAmount={renderQuotaWithAmount}
-          getAmount={getAmount}
+          getAmount={refreshPayAmount}
           setTopUpCount={setTopUpCount}
           setSelectedPreset={setSelectedPreset}
           renderAmount={renderAmount}

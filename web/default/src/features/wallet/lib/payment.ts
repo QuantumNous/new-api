@@ -87,6 +87,16 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
 }
 
 /**
+ * Check if payment method is XunhuPay gateway (not epay wxpay/alipay)
+ */
+export function isXunhuPayment(paymentType: string): boolean {
+  return (
+    paymentType === PAYMENT_TYPES.XUNHU ||
+    paymentType.startsWith('xunhu:')
+  )
+}
+
+/**
  * Get default payment type from topup info
  */
 export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
@@ -147,6 +157,38 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
   }
 
   return DEFAULT_MIN_TOPUP
+}
+
+/**
+ * Get unit price used for preset / preview display
+ */
+export function getDisplayUnitPrice(
+  topupInfo: TopupInfo | null,
+  fallbackPrice = 1
+): number {
+  if (!topupInfo) {
+    return fallbackPrice
+  }
+
+  // Prefer the active gateway's own unit price so CNY 1:1 display is not
+  // polluted by the legacy epay Price (often ~7.3).
+  if (topupInfo.enable_xunhu_topup && !topupInfo.enable_online_topup) {
+    return topupInfo.xunhu_unit_price || 1
+  }
+
+  if (topupInfo.enable_online_topup) {
+    return fallbackPrice
+  }
+
+  if (topupInfo.enable_stripe_topup) {
+    return fallbackPrice
+  }
+
+  if (topupInfo.enable_xunhu_topup) {
+    return topupInfo.xunhu_unit_price || 1
+  }
+
+  return fallbackPrice
 }
 
 /**

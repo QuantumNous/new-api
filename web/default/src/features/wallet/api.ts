@@ -171,6 +171,18 @@ export async function requestWaffoPancakePayment(
 }
 
 /**
+ * Calculate payment amount for XunhuPay
+ */
+export async function calculateXunhuAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/xunhu/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
  * Request XunhuPay payment
  */
 export async function requestXunhuPayment(

@@ -23,6 +23,7 @@ import {
   calculateAmount,
   calculateStripeAmount,
   calculateWaffoPancakeAmount,
+  calculateXunhuAmount,
   requestPayment,
   requestStripePayment,
   isApiSuccess,
@@ -30,6 +31,7 @@ import {
 import {
   isStripePayment,
   isWaffoPancakePayment,
+  isXunhuPayment,
   submitPaymentForm,
 } from '../lib'
 
@@ -50,11 +52,14 @@ export function usePayment() {
 
         const isStripe = isStripePayment(paymentType)
         const isPancake = isWaffoPancakePayment(paymentType)
+        const isXunhu = isXunhuPayment(paymentType)
         const response = isStripe
           ? await calculateStripeAmount({ amount: topupAmount })
           : isPancake
             ? await calculateWaffoPancakeAmount({ amount: topupAmount })
-            : await calculateAmount({ amount: topupAmount })
+            : isXunhu
+              ? await calculateXunhuAmount({ amount: topupAmount })
+              : await calculateAmount({ amount: topupAmount })
 
         if (isApiSuccess(response) && response.data) {
           const calculatedAmount = parseFloat(response.data)

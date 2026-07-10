@@ -169,6 +169,8 @@ export interface TopupInfo {
   xunhu_pay_methods?: XunhuPayMethod[]
   /** Minimum topup amount for XunhuPay */
   xunhu_min_topup?: number
+  /** Unit price in CNY for XunhuPay */
+  xunhu_unit_price?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */
