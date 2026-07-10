@@ -1,9 +1,11 @@
 package model
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -74,8 +76,31 @@ func SearchRedemptions(keyword string, status string, startIdx int, num int) (re
 	query := tx.Model(&Redemption{})
 
 	if keyword != "" {
+		keyCol := "`key`"
+		if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+			keyCol = `"key"`
+		}
+		normalizedKey := strings.ReplaceAll(strings.TrimSpace(keyword), "-", "")
+		exactKeyMatch := len(normalizedKey) == 32
+		if exactKeyMatch {
+			_, decodeErr := hex.DecodeString(normalizedKey)
+			exactKeyMatch = decodeErr == nil
+		}
+
 		if id, err := strconv.Atoi(keyword); err == nil {
-			query = query.Where("id = ? OR name LIKE ?", id, keyword+"%")
+			if exactKeyMatch {
+				query = query.Where(
+					fmt.Sprintf("id = ? OR name LIKE ? OR %s = ?", keyCol),
+					id, keyword+"%", normalizedKey,
+				)
+			} else {
+				query = query.Where("id = ? OR name LIKE ?", id, keyword+"%")
+			}
+		} else if exactKeyMatch {
+			query = query.Where(
+				fmt.Sprintf("name LIKE ? OR %s = ?", keyCol),
+				keyword+"%", normalizedKey,
+			)
 		} else {
 			query = query.Where("name LIKE ?", keyword+"%")
 		}
