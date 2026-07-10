@@ -852,6 +852,13 @@ func GetUserIdByEmail(email string) (id int, err error) {
 	return id, err
 }
 
+// GetUserIdByUsername resolves a username in the primary user database. A
+// missing user returns id 0 without an error.
+func GetUserIdByUsername(username string) (id int, err error) {
+	err = DB.Model(&User{}).Where("username = ?", username).Select("id").Limit(1).Scan(&id).Error
+	return id, err
+}
+
 // GetUserGroup gets group from Redis first, falls back to DB if needed
 func GetUserGroup(id int, fromDB bool) (group string, err error) {
 	defer func() {

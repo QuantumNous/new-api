@@ -23,12 +23,15 @@ func GetAllLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	email := c.Query("email")
-	emailUserId, err := resolveLogEmailUserId(email)
+	filterUserId, err := resolveLogFilterUserId(email, username)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, emailUserId)
+	if filterUserId != 0 {
+		username = ""
+	}
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, filterUserId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -40,22 +43,33 @@ func GetAllLogs(c *gin.Context) {
 	return
 }
 
-// resolveLogEmailUserId resolves against the primary user DB before querying
-// LOG_DB. This works when logs are stored in a separate database and lets
-// email filters match refund/async logs whose username was not persisted.
-// A missing email maps to -1 so the caller returns an empty result set.
-func resolveLogEmailUserId(email string) (int, error) {
-	if email == "" {
-		return 0, nil
+// resolveLogFilterUserId resolves email/username against the primary user DB
+// before querying LOG_DB. This works with a separate log database and lets
+// both filters match refund/async logs whose username was not persisted.
+// A missing or conflicting identity maps to -1 so callers return no rows.
+func resolveLogFilterUserId(email string, username string) (int, error) {
+	filterUserId := 0
+	if email != "" {
+		userId, err := model.GetUserIdByEmail(email)
+		if err != nil {
+			return 0, err
+		}
+		if userId == 0 {
+			return -1, nil
+		}
+		filterUserId = userId
 	}
-	userId, err := model.GetUserIdByEmail(email)
-	if err != nil {
-		return 0, err
+	if username != "" {
+		userId, err := model.GetUserIdByUsername(username)
+		if err != nil {
+			return 0, err
+		}
+		if userId == 0 || (filterUserId != 0 && filterUserId != userId) {
+			return -1, nil
+		}
+		filterUserId = userId
 	}
-	if userId == 0 {
-		return -1, nil
-	}
-	return userId, nil
+	return filterUserId, nil
 }
 
 func GetUserLogs(c *gin.Context) {
@@ -129,12 +143,15 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	emailUserId, err := resolveLogEmailUserId(c.Query("email"))
+	filterUserId, err := resolveLogFilterUserId(c.Query("email"), username)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, emailUserId)
+	if filterUserId != 0 {
+		username = ""
+	}
+	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, filterUserId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -153,7 +170,6 @@ func GetLogsStat(c *gin.Context) {
 }
 
 func GetLogsSelfStat(c *gin.Context) {
-	username := c.GetString("username")
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -161,7 +177,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, c.GetInt("id"))
+	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, "", tokenName, channel, group, c.GetInt("id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
