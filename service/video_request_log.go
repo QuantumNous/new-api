@@ -269,6 +269,12 @@ func coerceRequestInt(value interface{}) int {
 		return typed
 	case int64:
 		return int(typed)
+	case uint:
+		return int(typed)
+	case uint64:
+		return int(typed)
+	case uint32:
+		return int(typed)
 	case float64:
 		return int(typed)
 	case float32:
