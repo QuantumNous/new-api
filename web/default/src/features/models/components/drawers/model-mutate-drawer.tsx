@@ -658,10 +658,15 @@ export function ModelMutateDrawer({
     const currentValue = form.getValues('endpoints')
     let existingEndpoints: Record<string, unknown> = {}
     if (currentValue?.trim()) {
-      const parsed = safeJsonParse<Record<string, unknown>>(currentValue, {
-        fallback: {},
-        silent: true,
-      })
+      let parsed: Record<string, unknown> | null = null
+      try {
+        const raw = JSON.parse(currentValue)
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          parsed = raw as Record<string, unknown>
+        }
+      } catch {
+        toast.warning(t('Existing endpoint configuration is invalid and will be replaced'))
+      }
       if (parsed) {
         existingEndpoints = parsed
       }
