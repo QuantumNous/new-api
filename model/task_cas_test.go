@@ -136,6 +136,65 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 	assert.JSONEq(t, string(task.Data), string(snap.Data))
 }
 
+func TestTaskPrivateDataLookupExpr(t *testing.T) {
+	originalUsingMySQL := common.UsingMySQL
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	t.Cleanup(func() {
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+	})
+
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+	assert.Equal(t, "COALESCE(CAST(private_data AS TEXT), '')", taskPrivateDataLookupExpr())
+
+	common.UsingMySQL = true
+	common.UsingPostgreSQL = false
+	assert.Equal(t, "COALESCE(CAST(private_data AS CHAR), '')", taskPrivateDataLookupExpr())
+}
+
+func TestGetByTaskOrUpstreamTaskId_FindsUpstreamTaskID(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID: "task_public_upstream",
+		Status: TaskStatusSubmitted,
+		PrivateData: TaskPrivateData{
+			UpstreamTaskID: "upstream_123",
+		},
+		Data: json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	got, exist, err := GetByTaskOrUpstreamTaskId("upstream_123")
+	require.NoError(t, err)
+	require.True(t, exist)
+	require.NotNil(t, got)
+	assert.Equal(t, task.ID, got.ID)
+	assert.Equal(t, task.TaskID, got.TaskID)
+}
+
+func TestGetByTaskOrUpstreamTaskId_FindsHedgeUpstreamTaskID(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID: "task_public_hedge",
+		Status: TaskStatusSubmitted,
+		PrivateData: TaskPrivateData{
+			HedgeUpstreamTaskID: "hedge_456",
+		},
+		Data: json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	got, exist, err := GetByTaskOrUpstreamTaskId("hedge_456")
+	require.NoError(t, err)
+	require.True(t, exist)
+	require.NotNil(t, got)
+	assert.Equal(t, task.ID, got.ID)
+	assert.Equal(t, task.TaskID, got.TaskID)
+}
+
 // ---------------------------------------------------------------------------
 // UpdateWithStatus CAS — DB integration tests
 // ---------------------------------------------------------------------------

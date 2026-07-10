@@ -349,8 +349,9 @@ func GetByTaskOrUpstreamTaskId(taskId string) (*Task, bool, error) {
 	}
 
 	var upstreamTask Task
+	privateDataExpr := taskPrivateDataLookupExpr()
 	err = DB.Where(
-		"private_data LIKE ? OR private_data LIKE ?",
+		privateDataExpr+" LIKE ? OR "+privateDataExpr+" LIKE ?",
 		`%"upstream_task_id":"`+taskId+`"%`,
 		`%"hedge_upstream_task_id":"`+taskId+`"%`,
 	).First(&upstreamTask).Error
@@ -362,6 +363,13 @@ func GetByTaskOrUpstreamTaskId(taskId string) (*Task, bool, error) {
 		return nil, false, nil
 	}
 	return &upstreamTask, true, nil
+}
+
+func taskPrivateDataLookupExpr() string {
+	if common.UsingMySQL {
+		return "COALESCE(CAST(private_data AS CHAR), '')"
+	}
+	return "COALESCE(CAST(private_data AS TEXT), '')"
 }
 
 func GetByTaskId(userId int, taskId string) (*Task, bool, error) {
