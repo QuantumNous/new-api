@@ -1,6 +1,11 @@
 package model
 
-import "gorm.io/gorm/clause"
+import (
+	"fmt"
+
+	"github.com/QuantumNous/new-api/common"
+	"gorm.io/gorm/clause"
+)
 
 // BillingHourlySummary is a pre-aggregated rollup of Log accounting fields,
 // grain = (hour_bucket, model_name, channel_id). Refreshed hourly by
@@ -34,9 +39,23 @@ func UpsertBillingHourlySummaries(rows []BillingHourlySummary) error {
 // BillingDailyRow is one day's aggregated cost/revenue, returned to the
 // 平台账单 page. Profit and margin are derived at query time, not stored.
 type BillingDailyRow struct {
-	Day        int64   `json:"day" gorm:"column:day"` // unix seconds, floored to the day (UTC)
+	Day        int64   `json:"day" gorm:"column:day"` // unix seconds, floored to Beijing (UTC+8) midnight
 	CostUSD    float64 `json:"cost_usd" gorm:"column:cost_usd"`
 	RevenueUSD float64 `json:"revenue_usd" gorm:"column:revenue_usd"`
+}
+
+// 日分桶按北京时间（UTC+8，无夏令时）切天，使账单页的"每天"与使用日志页
+// （浏览器本地时间筛选，团队在北京）看到的同一天严格对齐。
+const billingDayTZOffsetSeconds = 8 * 3600
+
+// billingDayExpr returns a cross-DB SQL expression flooring the given unix-seconds
+// column to Beijing midnight. MySQL's `/` is float division, so it needs DIV;
+// PostgreSQL and SQLite floor with plain integer `/`.
+func billingDayExpr(col string) string {
+	if common.UsingMySQL {
+		return fmt.Sprintf("((%s + %d) DIV 86400) * 86400 - %d", col, billingDayTZOffsetSeconds, billingDayTZOffsetSeconds)
+	}
+	return fmt.Sprintf("((%s + %d) / 86400) * 86400 - %d", col, billingDayTZOffsetSeconds, billingDayTZOffsetSeconds)
 }
 
 // GetBillingDailyFromSummary aggregates the small pre-computed
@@ -44,8 +63,9 @@ type BillingDailyRow struct {
 // large the raw logs table has grown, since this table's size only depends
 // on (hours × distinct models × distinct channels).
 func GetBillingDailyFromSummary(startTimestamp, endTimestamp int64, modelName string, channel int) ([]BillingDailyRow, error) {
+	dayExpr := billingDayExpr("hour_bucket")
 	tx := LOG_DB.Table("billing_hourly_summaries").
-		Select("(hour_bucket / 86400 * 86400) as day, SUM(cost_usd) as cost_usd, SUM(revenue_usd) as revenue_usd")
+		Select(dayExpr + " as day, SUM(cost_usd) as cost_usd, SUM(revenue_usd) as revenue_usd")
 	if startTimestamp != 0 {
 		tx = tx.Where("hour_bucket >= ?", startTimestamp)
 	}
@@ -59,7 +79,7 @@ func GetBillingDailyFromSummary(startTimestamp, endTimestamp int64, modelName st
 		tx = tx.Where("channel_id = ?", channel)
 	}
 	var rows []BillingDailyRow
-	err := tx.Group("(hour_bucket / 86400 * 86400)").Order("day desc").Scan(&rows).Error
+	err := tx.Group(dayExpr).Order("day desc").Scan(&rows).Error
 	return rows, err
 }
 
@@ -71,8 +91,9 @@ func GetBillingDailyFromSummary(startTimestamp, endTimestamp int64, modelName st
 // model.DB (not LOG_DB) first, so this still works when LOG_SQL_DSN points
 // LOG_DB at a separate database from the one holding the users table.
 func GetBillingDailyFromRawLogs(startTimestamp, endTimestamp int64, modelName string, channel int, tokenName, username, email string) ([]BillingDailyRow, error) {
+	dayExpr := billingDayExpr("created_at")
 	tx := LOG_DB.Table("logs").
-		Select("(created_at / 86400 * 86400) as day, SUM(accounting_channel_cost_amount_usd) as cost_usd, SUM(accounting_user_final_amount_usd) as revenue_usd").
+		Select(dayExpr + " as day, SUM(accounting_channel_cost_amount_usd) as cost_usd, SUM(accounting_user_final_amount_usd) as revenue_usd").
 		Where("accounting_status = ?", "ok")
 
 	if startTimestamp != 0 {
@@ -108,6 +129,6 @@ func GetBillingDailyFromRawLogs(startTimestamp, endTimestamp int64, modelName st
 	}
 
 	var rows []BillingDailyRow
-	err := tx.Group("(created_at / 86400 * 86400)").Order("day desc").Scan(&rows).Error
+	err := tx.Group(dayExpr).Order("day desc").Scan(&rows).Error
 	return rows, err
 }

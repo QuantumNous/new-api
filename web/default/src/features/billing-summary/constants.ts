@@ -21,6 +21,10 @@ export function formatUSD(value: number): string {
   return `$${value.toFixed(4)}`
 }
 
+// Backend buckets days by Beijing (UTC+8) midnight; format in local time so
+// the label matches the bucket (toISOString would shift it back to UTC).
 export function formatDay(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toISOString().slice(0, 10)
+  const d = new Date(unixSeconds * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }

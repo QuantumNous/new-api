@@ -43,7 +43,12 @@ func StartBillingSummaryTask() {
 
 func runBillingSummaryOnce() {
 	ctx := context.Background()
-	since := time.Now().Add(-billingSummaryLookback).Unix()
+	// Floor to the hour: the upsert overwrites whole (hour, model, channel)
+	// buckets, so the window boundary must sit exactly on a bucket edge. A
+	// mid-hour boundary re-aggregates the straddled bucket from only part of
+	// its rows and clobbers the previously complete value (found 2026-07-10:
+	// every bucket lost its pre-boundary slice ~26h after its hour).
+	since := time.Now().Add(-billingSummaryLookback).Unix() / 3600 * 3600
 
 	var rows []model.BillingHourlySummary
 	err := model.LOG_DB.Table("logs").
