@@ -77,6 +77,11 @@ const TopUp = () => {
   const [enableWaffoPancakeTopUp, setEnableWaffoPancakeTopUp] = useState(false);
   const [waffoPancakeMinTopUp, setWaffoPancakeMinTopUp] = useState(1);
 
+  // 虎皮椒相关状态
+  const [enableXunhuTopUp, setEnableXunhuTopUp] = useState(false);
+  const [xunhuPayMethods, setXunhuPayMethods] = useState([]);
+  const [xunhuMinTopUp, setXunhuMinTopUp] = useState(1);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
@@ -124,6 +129,15 @@ const TopUp = () => {
       min_topup: waffoMinTopUp,
       color: method.color || 'rgba(var(--semi-primary-5), 1)',
     })),
+    ...xunhuPayMethods.map((method) => ({
+      ...method,
+      type: `xunhu:${method.type}`,
+      min_topup: xunhuMinTopUp,
+      color:
+        method.type === 'wxpay'
+          ? 'rgba(var(--semi-green-5), 1)'
+          : 'rgba(var(--semi-blue-5), 1)',
+    })),
   ];
 
   const getPayMethodConfig = (payment) =>
@@ -145,6 +159,9 @@ const TopUp = () => {
     }
     if (typeof payment === 'string' && payment.startsWith('waffo:')) {
       return getWaffoAmount(value);
+    }
+    if (typeof payment === 'string' && payment.startsWith('xunhu:')) {
+      return getXunhuAmount(value);
     }
     return getAmount(value);
   };
@@ -209,6 +226,11 @@ const TopUp = () => {
         showError(t('管理员未开启 Waffo 充值！'));
         return;
       }
+    } else if (payment.startsWith('xunhu:')) {
+      if (!enableXunhuTopUp) {
+        showError(t('管理员未开启虎皮椒充值！'));
+        return;
+      }
     } else {
       if (!enableOnlineTopUp) {
         showError(t('管理员未开启在线充值！'));
@@ -251,6 +273,18 @@ const TopUp = () => {
       setConfirmLoading(true);
       try {
         await waffoTopUp(Number.isFinite(payMethodIndex) ? payMethodIndex : 0);
+      } finally {
+        setOpen(false);
+        setConfirmLoading(false);
+      }
+      return;
+    }
+
+    if (payWay.startsWith('xunhu:')) {
+      const paymentMethod = payWay.slice('xunhu:'.length);
+      setConfirmLoading(true);
+      try {
+        await xunhuTopUp(paymentMethod);
       } finally {
         setOpen(false);
         setConfirmLoading(false);
@@ -420,6 +454,89 @@ const TopUp = () => {
     setAmountLoading(true);
     try {
       const res = await API.post('/api/user/waffo/amount', {
+        amount: parseInt(value),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          setAmount(parseFloat(data));
+        } else {
+          setAmount(0);
+          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      // amount fetch failed silently
+    } finally {
+      setAmountLoading(false);
+    }
+  };
+
+  const xunhuTopUp = async (paymentMethod) => {
+    try {
+      if (topUpCount < xunhuMinTopUp) {
+        showError(t('充值数量不能小于') + xunhuMinTopUp);
+        return;
+      }
+      setPaymentLoading(true);
+      const res = await API.post('/api/user/xunhu/pay', {
+        amount: parseInt(topUpCount),
+        payment_method: paymentMethod,
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success' && data) {
+          const isMobile =
+            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+              navigator.userAgent,
+            );
+          if (isMobile && data.url) {
+            window.location.href = data.url;
+          } else if (data.url_qrcode) {
+            Modal.info({
+              title: t('请扫码支付'),
+              content: (
+                <div style={{ textAlign: 'center' }}>
+                  <img
+                    src={data.url_qrcode}
+                    alt='qrcode'
+                    style={{ width: 220, height: 220, objectFit: 'contain' }}
+                  />
+                  <div style={{ marginTop: 8, color: 'var(--semi-color-text-2)' }}>
+                    {t('支付完成后请刷新余额')}
+                  </div>
+                </div>
+              ),
+              centered: true,
+              okText: t('关闭'),
+            });
+          } else if (data.url) {
+            window.location.href = data.url;
+          } else {
+            showError(t('支付请求失败'));
+          }
+        } else {
+          showError(data || t('支付请求失败'));
+        }
+      } else {
+        showError(res);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const getXunhuAmount = async (value) => {
+    if (value === undefined) {
+      value = topUpCount;
+    }
+    setAmountLoading(true);
+    try {
+      const res = await API.post('/api/user/xunhu/amount', {
         amount: parseInt(value),
       });
       if (res !== undefined) {
@@ -641,6 +758,7 @@ const TopUp = () => {
           const enableWaffoTopUp = data.enable_waffo_topup || false;
           const enableWaffoPancakeTopUp =
             data.enable_waffo_pancake_topup || false;
+          const enableXunhuTopUp = data.enable_xunhu_topup || false;
           const minTopUpValue = enableOnlineTopUp
             ? data.min_topup
             : enableStripeTopUp
@@ -649,7 +767,9 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                  : 1;
+                  : enableXunhuTopUp
+                    ? data.xunhu_min_topup
+                    : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -658,6 +778,9 @@ const TopUp = () => {
           setWaffoMinTopUp(data.waffo_min_topup || 1);
           setEnableWaffoPancakeTopUp(enableWaffoPancakeTopUp);
           setWaffoPancakeMinTopUp(data.waffo_pancake_min_topup || 1);
+          setEnableXunhuTopUp(enableXunhuTopUp);
+          setXunhuPayMethods(data.xunhu_pay_methods || []);
+          setXunhuMinTopUp(data.xunhu_min_topup || 1);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
           setTopUpLink(data.topup_link || '');
@@ -975,6 +1098,7 @@ const TopUp = () => {
           creemPreTopUp={creemPreTopUp}
           enableWaffoTopUp={enableWaffoTopUp}
           enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+          enableXunhuTopUp={enableXunhuTopUp}
           presetAmounts={presetAmounts}
           selectedPreset={selectedPreset}
           selectPresetAmount={selectPresetAmount}

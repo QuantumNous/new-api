@@ -270,6 +270,14 @@ export type BillingSettings = {
   WaffoPancakeCurrency: string
   WaffoPancakeUnitPrice: number
   WaffoPancakeMinTopUp: number
+  XunhuEnabled: boolean
+  XunhuGatewayUrl: string
+  XunhuWxAppId: string
+  XunhuWxAppSecret: string
+  XunhuAliAppId: string
+  XunhuAliAppSecret: string
+  XunhuUnitPrice: number
+  XunhuMinTopUp: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

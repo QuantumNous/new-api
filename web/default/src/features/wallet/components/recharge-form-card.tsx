@@ -47,6 +47,7 @@ import type {
   TopupInfo,
   CreemProduct,
   WaffoPayMethod,
+  XunhuPayMethod,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
 
@@ -78,6 +79,10 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  enableXunhuTopup?: boolean
+  xunhuPayMethods?: XunhuPayMethod[]
+  xunhuMinTopup?: number
+  onXunhuMethodSelect?: (method: XunhuPayMethod) => void
 }
 
 export function RechargeFormCard({
@@ -108,6 +113,10 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  enableXunhuTopup,
+  xunhuPayMethods,
+  xunhuMinTopup,
+  onXunhuMethodSelect,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -128,12 +137,15 @@ export function RechargeFormCard({
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
     enableWaffoTopup ||
-    enableWaffoPancakeTopup
+    enableWaffoPancakeTopup ||
+    enableXunhuTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
+  const hasXunhuPaymentMethods =
+    Array.isArray(xunhuPayMethods) && xunhuPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
 
@@ -351,7 +363,7 @@ export function RechargeFormCard({
                       )
                     })}
                   </div>
-                ) : hasWaffoPaymentMethods ? null : (
+                ) : hasWaffoPaymentMethods || hasXunhuPaymentMethods ? null : (
                   <Alert>
                     <AlertDescription>
                       {t(
@@ -405,6 +417,55 @@ export function RechargeFormCard({
                               <TooltipContent>
                                 {t('Minimum topup amount: {{amount}}', {
                                   amount: waffoMin,
+                                })}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          button
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+              {enableXunhuTopup &&
+                hasXunhuPaymentMethods &&
+                onXunhuMethodSelect && (
+                  <div className='space-y-2.5 sm:space-y-3'>
+                    <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+                      {t('XunhuPay')}
+                    </Label>
+                    <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
+                      {xunhuPayMethods?.map((method) => {
+                        const loadingKey = `xunhu-${method.type}`
+                        const xunhuMin = xunhuMinTopup || 0
+                        const belowMin = xunhuMin > topupAmount
+
+                        const button = (
+                          <Button
+                            key={method.type}
+                            variant='outline'
+                            onClick={() => onXunhuMethodSelect(method)}
+                            disabled={belowMin || !!paymentLoading}
+                            className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                          >
+                            {paymentLoading === loadingKey ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              getPaymentIcon(method.type)
+                            )}
+                            <span className='truncate'>{method.name}</span>
+                          </Button>
+                        )
+
+                        return belowMin ? (
+                          <TooltipProvider key={method.type}>
+                            <Tooltip>
+                              <TooltipTrigger render={button}></TooltipTrigger>
+                              <TooltipContent>
+                                {t('Minimum topup amount: {{amount}}', {
+                                  amount: xunhuMin,
                                 })}
                               </TooltipContent>
                             </Tooltip>

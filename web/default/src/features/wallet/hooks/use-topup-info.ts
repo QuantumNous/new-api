@@ -29,6 +29,7 @@ import type {
   CreemProduct,
   PaymentMethod,
   WaffoPayMethod,
+  XunhuPayMethod,
 } from '../types'
 
 // ============================================================================
@@ -94,6 +95,19 @@ function parseWaffoPayMethods(data: unknown): WaffoPayMethod[] {
         typeof item.payMethodName === 'string' ? item.payMethodName : undefined,
     }))
     .filter((item) => item.name)
+}
+
+function parseXunhuPayMethods(data: unknown): XunhuPayMethod[] {
+  return parseJsonArray(data)
+    .filter(
+      (item): item is Record<string, unknown> =>
+        !!item && typeof item === 'object'
+    )
+    .map((item) => ({
+      name: typeof item.name === 'string' ? item.name : '',
+      type: typeof item.type === 'string' ? item.type : '',
+    }))
+    .filter((item) => item.name && item.type)
 }
 
 function parseCreemProducts(data: unknown): CreemProduct[] {
@@ -189,6 +203,9 @@ export function useTopupInfo() {
         creem_products: parseCreemProducts(response.data.creem_products),
         waffo_pay_methods: parseWaffoPayMethods(
           response.data.waffo_pay_methods
+        ),
+        xunhu_pay_methods: parseXunhuPayMethods(
+          response.data.xunhu_pay_methods
         ),
       }
 

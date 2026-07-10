@@ -25,6 +25,7 @@ import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPa
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
 import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
+import SettingsPaymentGatewayXunhu from '../../pages/Setting/Payment/SettingsPaymentGatewayXunhu';
 import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import RiskAcknowledgementModal from '../common/modals/RiskAcknowledgementModal';
@@ -52,6 +53,15 @@ const PaymentSetting = () => {
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
+
+    XunhuEnabled: false,
+    XunhuGatewayUrl: 'https://api.xunhupay.com/payment/do.html',
+    XunhuWxAppId: '',
+    XunhuWxAppSecret: '',
+    XunhuAliAppId: '',
+    XunhuAliAppSecret: '',
+    XunhuUnitPrice: 1.0,
+    XunhuMinTopUp: 1,
 
     WaffoPancakeEnabled: false,
     WaffoPancakeSandbox: false,
@@ -171,6 +181,8 @@ const PaymentSetting = () => {
           case 'MinTopUp':
           case 'StripeUnitPrice':
           case 'StripeMinTopUp':
+          case 'XunhuUnitPrice':
+          case 'XunhuMinTopUp':
           case 'WaffoPancakeUnitPrice':
           case 'WaffoPancakeMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
@@ -322,6 +334,13 @@ const PaymentSetting = () => {
               </Tabs.TabPane>
               <Tabs.TabPane tab={t('Waffo 设置')} itemKey='waffo'>
                 <SettingsPaymentGatewayWaffo
+                  options={inputs}
+                  refresh={onRefresh}
+                  hideSectionTitle
+                />
+              </Tabs.TabPane>
+              <Tabs.TabPane tab={t('虎皮椒设置')} itemKey='xunhu'>
+                <SettingsPaymentGatewayXunhu
                   options={inputs}
                   refresh={onRefresh}
                   hideSectionTitle

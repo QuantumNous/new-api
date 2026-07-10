@@ -111,6 +111,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
     return PAYMENT_TYPES.WAFFO_PANCAKE
   }
 
+  if (topupInfo.enable_xunhu_topup) {
+    return PAYMENT_TYPES.XUNHU
+  }
+
   return DEFAULT_PAYMENT_TYPE
 }
 
@@ -136,6 +140,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 
   if (topupInfo.enable_waffo_pancake_topup) {
     return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
+  }
+
+  if (topupInfo.enable_xunhu_topup) {
+    return topupInfo.xunhu_min_topup || DEFAULT_MIN_TOPUP
   }
 
   return DEFAULT_MIN_TOPUP

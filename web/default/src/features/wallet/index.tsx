@@ -28,6 +28,7 @@ import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
+import { XunhuQrDialog } from './components/xunhu-qr-dialog'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE } from './constants'
@@ -39,6 +40,7 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useXunhuPayment,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -50,6 +52,7 @@ import type {
   PaymentMethod,
   PresetAmount,
   CreemProduct,
+  XunhuPayMethod,
 } from './types'
 
 interface WalletProps {
@@ -102,6 +105,11 @@ export function Wallet(props: WalletProps) {
   const { processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+  const {
+    processXunhuPayment,
+    qrCodeUrl: xunhuQrCodeUrl,
+    closeQrDialog: closeXunhuQrDialog,
+  } = useXunhuPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -245,6 +253,17 @@ export function Wallet(props: WalletProps) {
     }
   }
 
+  const handleXunhuMethodSelect = async (method: XunhuPayMethod) => {
+    const loadingKey = `xunhu-${method.type}`
+    setPaymentLoading(loadingKey)
+
+    try {
+      await processXunhuPayment(topupAmount, method.type)
+    } finally {
+      setPaymentLoading(null)
+    }
+  }
+
   // Get discount rate for current topup amount
   const getDiscountRate = useCallback(() => {
     return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
@@ -306,6 +325,10 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableXunhuTopup={topupInfo?.enable_xunhu_topup}
+                  xunhuPayMethods={topupInfo?.xunhu_pay_methods}
+                  xunhuMinTopup={topupInfo?.xunhu_min_topup}
+                  onXunhuMethodSelect={handleXunhuMethodSelect}
                 />
               </div>
 
@@ -360,6 +383,16 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleCreemConfirm}
         product={selectedCreemProduct}
         processing={creemProcessing}
+      />
+
+      <XunhuQrDialog
+        open={!!xunhuQrCodeUrl}
+        qrCodeUrl={xunhuQrCodeUrl}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeXunhuQrDialog()
+          }
+        }}
       />
     </>
   )

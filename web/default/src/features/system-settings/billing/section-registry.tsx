@@ -198,6 +198,18 @@ const BILLING_SECTIONS = [
           WaffoPancakeUnitPrice: settings.WaffoPancakeUnitPrice ?? 1,
           WaffoPancakeMinTopUp: settings.WaffoPancakeMinTopUp ?? 1,
         }}
+        xunhuDefaultValues={{
+          XunhuEnabled: settings.XunhuEnabled ?? false,
+          XunhuGatewayUrl:
+            settings.XunhuGatewayUrl ??
+            'https://api.xunhupay.com/payment/do.html',
+          XunhuWxAppId: settings.XunhuWxAppId ?? '',
+          XunhuWxAppSecret: settings.XunhuWxAppSecret ?? '',
+          XunhuAliAppId: settings.XunhuAliAppId ?? '',
+          XunhuAliAppSecret: settings.XunhuAliAppSecret ?? '',
+          XunhuUnitPrice: settings.XunhuUnitPrice ?? 1,
+          XunhuMinTopUp: settings.XunhuMinTopUp ?? 1,
+        }}
         complianceDefaults={{
           confirmed: settings['payment_setting.compliance_confirmed'] ?? false,
           termsVersion:
