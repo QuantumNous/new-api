@@ -116,17 +116,21 @@ declare module '@tanstack/react-router' {
 }
 
 // Render the app
-const rootElement = document.getElementById('root')!
+const rootElement = document.querySelector<HTMLElement>('#root')
+if (!rootElement) {
+  throw new Error('Root element #root was not found')
+}
 // Set document.title and favicon from cached status, then refresh from network
 ;(function initSystemBranding() {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
     const apply = (name: string) => {
-      document.title = name
+      const displayName = window.location.pathname === '/' ? 'Lighting' : name
+      document.title = displayName
       const metaTitle = document.querySelector(
         'meta[name="title"]'
       ) as HTMLMetaElement | null
-      if (metaTitle) metaTitle.setAttribute('content', name)
+      if (metaTitle) metaTitle.setAttribute('content', displayName)
     }
     // Cache-first
     try {

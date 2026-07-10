@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -58,6 +58,7 @@ export interface PublicHeaderProps {
   showNavigation?: boolean
   showAuthButtons?: boolean
   showNotifications?: boolean
+  variant?: 'default' | 'reference'
   className?: string
 }
 
@@ -71,6 +72,8 @@ export function PublicHeader(props: PublicHeaderProps) {
     homeUrl = '/',
     showAuthButtons = true,
     showNotifications = true,
+    variant = 'default',
+    className,
   } = props
 
   const { t } = useTranslation()
@@ -95,7 +98,7 @@ export function PublicHeader(props: PublicHeaderProps) {
 
   const user = auth.user
   const isAuthenticated = !!user
-  const displaySiteName = customSiteName || systemName
+  const displaySiteName = customSiteName ?? systemName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
 
   useEffect(() => {
@@ -173,16 +176,64 @@ export function PublicHeader(props: PublicHeaderProps) {
     [t]
   )
 
+  let logoContent: ReactNode
+  if (loading) {
+    logoContent = <Skeleton className='size-full rounded-lg' />
+  } else if (customLogo) {
+    logoContent = customLogo
+  } else {
+    logoContent = (
+      <HeaderLogo
+        src={systemLogo}
+        loading={loading}
+        logoLoaded={logoLoaded}
+        className='size-full rounded-lg object-contain'
+      />
+    )
+  }
+
+  let desktopAuthControl: ReactNode = null
+  if (loading) {
+    desktopAuthControl = (
+      <Skeleton
+        className='h-8 w-20 rounded-lg'
+        data-public-header-auth-skeleton
+      />
+    )
+  } else if (isAuthenticated) {
+    desktopAuthControl = <ProfileDropdown />
+  } else {
+    desktopAuthControl = (
+      <Button
+        size='sm'
+        data-public-header-auth-button
+        className='h-8 rounded-lg px-3.5 text-xs font-medium'
+        render={<Link to='/sign-in' />}
+      >
+        {t('Sign in')}
+      </Button>
+    )
+  }
+
   return (
     <>
-      <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
+      <header
+        className={cn(
+          'pointer-events-none fixed inset-x-0 top-0 z-50',
+          className
+        )}
+        data-public-header-variant={variant}
+        data-scrolled={scrolled ? 'true' : 'false'}
+      >
         <div
+          data-public-header-container
           className={cn(
             'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
             scrolled ? 'max-w-[52rem] px-3 pt-3' : 'max-w-7xl px-4 pt-0 md:px-6'
           )}
         >
           <nav
+            data-public-header-nav
             className={cn(
               'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
               scrolled
@@ -193,21 +244,11 @@ export function PublicHeader(props: PublicHeaderProps) {
             {/* Logo */}
             <Link
               to={homeUrl}
+              data-public-header-logo-link
               className='group flex shrink-0 items-center gap-2.5'
             >
               <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
-                {loading ? (
-                  <Skeleton className='size-full rounded-lg' />
-                ) : customLogo ? (
-                  customLogo
-                ) : (
-                  <HeaderLogo
-                    src={systemLogo}
-                    loading={loading}
-                    logoLoaded={logoLoaded}
-                    className='size-full rounded-lg object-contain'
-                  />
-                )}
+                {logoContent}
               </div>
               <span className='text-sm font-semibold tracking-tight'>
                 {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
@@ -215,16 +256,20 @@ export function PublicHeader(props: PublicHeaderProps) {
             </Link>
 
             {/* Desktop nav */}
-            <div className='hidden items-center gap-0.5 sm:flex'>
-              {links.map((link, i) => {
+            <div
+              className='hidden items-center gap-0.5 sm:flex'
+              data-public-header-desktop-nav
+            >
+              {links.map((link) => {
                 const isActive = pathname === link.href
                 if (link.external) {
                   return (
                     <a
-                      key={i}
+                      key={`${link.href}-${link.title}`}
                       href={link.href}
                       target='_blank'
                       rel='noopener noreferrer'
+                      data-public-header-link
                       aria-disabled={link.disabled}
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
@@ -239,9 +284,11 @@ export function PublicHeader(props: PublicHeaderProps) {
                 }
                 return (
                   <Link
-                    key={i}
+                    key={`${link.href}-${link.title}`}
                     to={link.href}
                     disabled={link.disabled}
+                    data-public-header-link
+                    data-active={isActive ? 'true' : undefined}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
                       'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
@@ -280,19 +327,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               {showAuthButtons && (
                 <>
                   <div className='bg-border/40 mx-1 h-4 w-px' />
-                  {loading ? (
-                    <Skeleton className='h-8 w-20 rounded-lg' />
-                  ) : isAuthenticated ? (
-                    <ProfileDropdown />
-                  ) : (
-                    <Button
-                      size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
-                      render={<Link to='/sign-in' />}
-                    >
-                      {t('Sign in')}
-                    </Button>
-                  )}
+                  {desktopAuthControl}
                 </>
               )}
             </div>
@@ -307,6 +342,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                 type='button'
                 variant='ghost'
                 size='icon'
+                data-public-header-mobile-trigger
                 className='size-9'
                 onClick={() => setMobileOpen((v) => !v)}
                 aria-label={t('Toggle navigation menu')}
@@ -339,6 +375,7 @@ export function PublicHeader(props: PublicHeaderProps) {
 
       {/* Mobile full-screen overlay */}
       <div
+        data-public-mobile-overlay-variant={variant}
         className={cn(
           'bg-background/98 fixed inset-0 z-40 backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:pointer-events-none sm:hidden',
           mobileOpen
@@ -364,7 +401,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               if (link.external) {
                 return (
                   <a
-                    key={i}
+                    key={`${link.href}-${link.title}`}
                     href={link.href}
                     target='_blank'
                     rel='noopener noreferrer'
@@ -380,7 +417,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               }
               return (
                 <Link
-                  key={i}
+                  key={`${link.href}-${link.title}`}
                   to={link.href}
                   disabled={link.disabled}
                   onClick={(event) => handleNavLinkClick(event, link, true)}
