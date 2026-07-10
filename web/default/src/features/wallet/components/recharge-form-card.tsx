@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -113,17 +113,31 @@ export function RechargeFormCard({
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
+  const onTopupAmountChangeRef = useRef(onTopupAmountChange)
+  onTopupAmountChangeRef.current = onTopupAmountChange
 
+  // Any externally-driven amount change (preset click, initial load) is
+  // already authoritative — drop a pending debounced push so it can't fire
+  // later and clobber it.
   useEffect(() => {
     setLocalAmount(topupAmount.toString())
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    }
   }, [topupAmount])
 
   const handleAmountChange = (value: string) => {
     setLocalAmount(value)
-    const numValue = parseInt(value) || 0
-    if (numValue >= 0) {
-      onTopupAmountChange(numValue)
-    }
+    const numValue = parseInt(value, 10) || 0
+    if (numValue < 0) return
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = setTimeout(() => {
+      onTopupAmountChangeRef.current(numValue)
+    }, 500)
   }
 
   const hasConfigurableTopup =
