@@ -307,9 +307,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 // notifyClientGoneStream 在流式请求因客户端断开(client_gone)而中止时，
 // 推送一条飞书消息带上排查所需的关键信息。开销较大的网络调用放到 gopool 里异步执行，
 // 避免拖慢当前请求收尾（billing/日志）。
+// 耗时不足 60s 的断开多为用户主动取消（改主意/重发），无排查价值，不推送。
 func notifyClientGoneStream(c *gin.Context, info *relaycommon.RelayInfo) {
 	chatID := common.FeishuNewAPILogChatID()
 	if chatID == "" {
+		return
+	}
+	if time.Since(info.StartTime) < 60*time.Second {
 		return
 	}
 
