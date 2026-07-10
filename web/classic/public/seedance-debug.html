@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seedance 四模型调试</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090b10;
+      --panel: #11141c;
+      --panel-2: #171c27;
+      --panel-3: #202637;
+      --line: #303748;
+      --text: #f4f6fb;
+      --muted: #9da7b8;
+      --soft: #dbe1ec;
+      --accent: #1fd36d;
+      --accent-2: #5f8cff;
+      --danger: #ff6377;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 16% 0, rgba(31, 211, 109, .16), transparent 28%),
+        radial-gradient(circle at 88% 6%, rgba(95, 140, 255, .14), transparent 30%),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    button, input, textarea, select { font: inherit; }
+    button {
+      border: 0; border-radius: 8px; color: var(--text); cursor: pointer;
+      font-weight: 700; padding: 10px 12px; white-space: nowrap;
+    }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    input, textarea, select {
+      width: 100%; border: 1px solid var(--line); border-radius: 8px;
+      background: var(--panel-2); color: var(--text); outline: none; padding: 11px 12px;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 3px rgba(95, 140, 255, .14);
+    }
+    .app {
+      width: min(1540px, calc(100vw - 28px));
+      margin: 16px auto;
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr) 380px;
+      gap: 14px;
+    }
+    .top {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
+      background: rgba(17,20,28,.9); padding: 13px 15px;
+    }
+    .brand { display: flex; gap: 12px; align-items: center; min-width: 0; }
+    .logo {
+      min-width: 78px; padding: 0 10px; height: 36px; border-radius: 8px;
+      display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #041109; font-weight: 900; font-size: 14px;
+    }
+    h1 { margin: 0; font-size: 19px; }
+    h2 { margin: 0 0 14px; font-size: 16px; }
+    h3 { margin: 0; font-size: 14px; }
+    .sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+    .panel {
+      border: 1px solid rgba(255,255,255,.09); border-radius: 8px;
+      background: rgba(17,20,28,.92); padding: 15px; min-width: 0;
+    }
+    .field { margin-bottom: 13px; }
+    label { display: block; margin: 0 0 7px; color: var(--muted); font-size: 13px; }
+    .hint { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .primary { background: var(--accent); color: #03120a; }
+    .secondary { background: var(--panel-3); }
+    .ghost { background: transparent; border: 1px solid var(--line); }
+    .danger { background: #3b1f2c; color: #ffb3bf; }
+    a.ghost {
+      text-decoration: none; display: inline-flex; align-items: center;
+      border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+      color: var(--text); font-weight: 700;
+    }
+    .upload {
+      display: grid; gap: 8px; place-items: center; min-height: 112px;
+      border: 1px dashed #465166; border-radius: 8px;
+      background: rgba(23,28,39,.72); color: var(--muted);
+      text-align: center; padding: 14px; cursor: pointer;
+    }
+    .upload input { display: none; }
+    .upload strong { color: var(--soft); }
+    .asset-list { display: grid; gap: 10px; max-height: calc(100vh - 340px); overflow: auto; }
+    .asset {
+      display: grid; grid-template-columns: 68px minmax(0,1fr); gap: 9px;
+      border: 1px solid var(--line); border-radius: 8px;
+      background: rgba(23,28,39,.72); padding: 8px;
+    }
+    .asset-preview {
+      width: 68px; height: 68px; border-radius: 8px; border: 1px solid #343c4e;
+      overflow: hidden; display: grid; place-items: center; background: #080c13;
+      color: var(--muted); font-size: 12px;
+    }
+    .asset-preview img, .asset-preview video { width: 100%; height: 100%; object-fit: cover; }
+    .asset-meta { min-width: 0; }
+    .asset-name { font-size: 13px; margin-bottom: 7px; width: 100%; }
+    .asset-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .asset-tools button { padding: 7px 8px; font-size: 12px; }
+    .asset-status { font-size: 11px; color: var(--muted); word-break: break-all; }
+    .asset-status.ok { color: #7de6aa; }
+    .asset-status.bad { color: #ff9baa; }
+    .asset-status.warn { color: #ffd27c; }
+    .composer { display: grid; gap: 14px; }
+    .composer-main {
+      display: grid; grid-template-columns: minmax(0,1fr) 220px; gap: 12px;
+    }
+    .prompt-wrap { position: relative; }
+    .prompt-editor {
+      width: 100%; height: 280px; max-height: 280px; border: 1px solid var(--line); border-radius: 8px;
+      background: var(--panel-2); color: var(--text); outline: none; padding: 12px;
+      overflow-x: hidden; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+      overscroll-behavior: contain;
+    }
+    .prompt-editor:focus {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 3px rgba(95, 140, 255, .14);
+    }
+    .prompt-editor:empty::before {
+      content: attr(data-placeholder); color: var(--muted); pointer-events: none;
+    }
+    .prompt-mention {
+      display: inline-flex; align-items: center; gap: 4px;
+      max-width: min(260px, 100%); margin: 0 2px 2px 0;
+      padding: 1px 6px 1px 3px; border: 1px solid #49617f; border-radius: 6px;
+      background: #202a3a; color: #f4f6fb; font-size: .95em; vertical-align: middle;
+      user-select: none; white-space: nowrap;
+    }
+    .prompt-mention img, .prompt-mention video {
+      width: 18px; height: 18px; border-radius: 4px; object-fit: cover; background: #080c13;
+    }
+    .mention-menu {
+      display: none; position: absolute; left: 12px; bottom: 12px; z-index: 10;
+      width: min(460px, calc(100% - 24px)); max-height: 280px; overflow: auto;
+      border: 1px solid var(--line); border-radius: 8px; background: #101520;
+      box-shadow: 0 18px 60px rgba(0,0,0,.38); padding: 8px;
+    }
+    .mention-menu.show { display: grid; gap: 6px; }
+    .mention-item {
+      display: grid; grid-template-columns: 44px minmax(0,1fr); gap: 9px;
+      padding: 7px; border-radius: 8px; cursor: pointer;
+    }
+    .mention-item:hover { background: var(--panel-3); }
+    .mention-thumb {
+      width: 44px; height: 44px; border-radius: 8px; background: #080c13;
+      display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 11px;
+    }
+    .mention-thumb img, .mention-thumb video { width: 100%; height: 100%; object-fit: cover; }
+    .mention-title { color: var(--soft); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mention-sub { color: var(--muted); font-size: 12px; }
+    .ref-panel {
+      border: 1px solid var(--line); border-radius: 8px;
+      background: rgba(23,28,39,.58); padding: 12px;
+    }
+    .ref-list { display: grid; gap: 8px; }
+    .ref-pill {
+      display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 8px;
+      border: 1px solid #394357; border-radius: 8px; background: rgba(32,38,55,.82);
+      padding: 7px; color: var(--soft); font-size: 13px;
+    }
+    .ref-thumb {
+      width: 38px; height: 38px; border-radius: 7px; border: 1px solid #465166;
+      display: grid; place-items: center; overflow: hidden; background: #080c13;
+      color: var(--muted); font-size: 11px;
+    }
+    .ref-thumb img, .ref-thumb video { width: 100%; height: 100%; object-fit: cover; }
+    .ref-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ref-pill small { color: var(--muted); }
+    .compose-actions {
+      display: grid; grid-template-columns: minmax(220px,1fr) auto; align-items: center; gap: 10px;
+    }
+    .generate { width: 100%; padding: 14px 16px; font-size: 16px; }
+    .status-box {
+      min-height: 42px; border: 1px solid #283346; border-radius: 8px;
+      background: #080c14; color: #cbd4e5; padding: 10px 12px; font-size: 13px;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .status-box.ok { color: #7de6aa; }
+    .status-box.bad { color: #ff9baa; }
+    .status-box.warn { color: #ffd27c; }
+    .task-list {
+      min-height: 96px; border: 1px solid #283346; border-radius: 8px;
+      background: #080c14; color: #cbd4e5; overflow: hidden;
+    }
+    .task-empty {
+      min-height: 96px; display: grid; place-items: start; padding: 13px;
+      color: var(--muted); font-size: 13px;
+    }
+    .task-row {
+      display: grid;
+      grid-template-columns: minmax(98px,130px) minmax(160px,1fr) 58px minmax(150px,auto);
+      align-items: center; gap: 14px; min-height: 56px; padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .task-row:last-child { border-bottom: 0; }
+    .task-badge {
+      width: max-content; display: inline-flex; align-items: center; gap: 5px;
+      border-radius: 999px; padding: 4px 10px; background: rgba(255,255,255,.08);
+      color: var(--muted); font-size: 13px;
+    }
+    .task-badge::before {
+      content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+    }
+    .task-badge.ok { background: rgba(125,230,170,.12); color: #7de6aa; }
+    .task-badge.bad { background: rgba(255,155,170,.12); color: #ff9baa; }
+    .task-badge.warn { background: rgba(255,210,124,.12); color: #ffd27c; }
+    .task-progress {
+      height: 4px; border-radius: 999px; background: rgba(255,255,255,.11); overflow: hidden;
+    }
+    .task-progress span {
+      display: block; width: var(--progress, 0%); height: 100%;
+      border-radius: inherit; background: #27c65a;
+    }
+    .task-percent { color: var(--soft); font-size: 13px; text-align: right; }
+    .task-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .task-actions button {
+      min-width: 64px; border: 1px solid transparent; border-radius: 8px;
+      background: var(--panel-3); font-size: 13px; padding: 8px 10px;
+    }
+    .task-actions .preview-btn { background: transparent; border-color: var(--line); }
+    .result { display: none; margin-top: 12px; }
+    .result-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px;
+    }
+    .result-head h2 { margin: 0; }
+    video#video {
+      width: 100%; max-height: 420px; border: 1px solid var(--line);
+      border-radius: 8px; background: #000;
+    }
+    .result a { color: #9fc8ff; overflow-wrap: anywhere; }
+    .payload-box {
+      width: 100%; min-height: 120px; font-family: ui-monospace, Consolas, monospace;
+      font-size: 12px; resize: vertical;
+    }
+    .model-hint {
+      border: 1px solid #394357; border-radius: 8px; background: rgba(32,38,55,.55);
+      padding: 10px 12px; color: var(--muted); font-size: 12px; margin-bottom: 13px;
+    }
+    .hidden { display: none !important; }
+    @media (max-width: 1180px) {
+      .app { grid-template-columns: 280px minmax(0,1fr); }
+      .side { grid-column: 1 / -1; }
+    }
+    @media (max-width: 820px) {
+      .app { grid-template-columns: 1fr; width: min(100vw - 18px, 760px); }
+      .top { flex-direction: column; align-items: flex-start; }
+      .composer-main { grid-template-columns: 1fr; }
+      .asset-list { max-height: none; }
+    }
+    @media (max-width: 560px) {
+      .task-row { grid-template-columns: 1fr; gap: 8px; }
+      .compose-actions { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <div class="brand">
+        <div class="logo">四模型</div>
+        <div>
+          <h1>Seedance 视频调试</h1>
+          <p class="sub">选择模型自动构建参数。本地图片经图床转公网 URL；Key 仅保存在本机浏览器。</p>
+        </div>
+      </div>
+      <div class="actions">
+        <a class="ghost" href="/docs/seedance-4models.md">API 文档</a>
+        <button class="ghost" id="clearAllBtn" type="button">清空创作</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <h2>素材库</h2>
+      <label class="upload">
+        <input id="assetFiles" type="file" accept="image/*,audio/*,video/*" multiple>
+        <strong>上传参考素材</strong>
+        <span>图片走图床；音视频请优先用公网 URL（可粘贴到下方）。</span>
+      </label>
+      <div class="field" style="margin-top:12px">
+        <label for="manualUrl">或粘贴公网素材 URL</label>
+        <div class="actions">
+          <input id="manualUrl" type="url" placeholder="https://...">
+          <button class="secondary" id="addUrlBtn" type="button">添加</button>
+        </div>
+      </div>
+      <p class="hint">提示词输入 @ 引用素材。mingiz 可选 multipart 直传本地文件。</p>
+      <div class="asset-list" id="assetList"></div>
+    </section>
+
+    <section class="panel composer">
+      <div>
+        <h2>提示词</h2>
+        <div class="composer-main">
+          <div class="prompt-wrap">
+            <div class="prompt-editor" id="prompt" contenteditable="true" data-placeholder="描述画面、人物、动作、镜头。输入 @ 引用素材。">一只橘猫在窗边打哈欠，电影感光线，高清画质。</div>
+            <div class="mention-menu" id="mentionMenu"></div>
+          </div>
+          <aside class="ref-panel">
+            <h3>已引用素材</h3>
+            <p class="hint">提示词里的 @素材。</p>
+            <div class="ref-list" id="refList"></div>
+          </aside>
+        </div>
+      </div>
+
+      <div class="compose-actions">
+        <button class="primary generate" id="submitBtn" type="button">立即生成</button>
+        <div class="actions">
+          <button class="secondary" id="pollBtn" type="button" disabled>轮询</button>
+          <button class="secondary" id="stopBtn" type="button" disabled>停止</button>
+          <button class="secondary" id="copyCurlBtn" type="button">复制 curl</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="payloadPreview">请求体预览（可编辑后提交）</label>
+        <textarea class="payload-box" id="payloadPreview" spellcheck="false"></textarea>
+        <p class="hint">切换模型/参数会自动重建。multipart 模式下此处为字段说明。</p>
+      </div>
+
+      <div class="status-box" id="statusBox">填写 API Key 后即可开始。</div>
+      <div class="task-list" id="taskList"></div>
+      <div class="result" id="result">
+        <div class="result-head">
+          <h2>生成结果</h2>
+          <button class="ghost" id="closePreviewBtn" type="button">关闭预览</button>
+        </div>
+        <video id="video" controls playsinline></video>
+        <p><a id="download" href="#" download="video.mp4">下载视频</a></p>
+      </div>
+    </section>
+
+    <aside class="panel side">
+      <h2>账号与站点</h2>
+      <div class="field">
+        <label for="apiBase">API Base URL</label>
+        <input id="apiBase" type="url" placeholder="默认同源">
+        <p class="hint" id="apiBaseHint">默认同源，可改成测试机地址。</p>
+      </div>
+      <div class="field">
+        <label for="token">API Key</label>
+        <input id="token" type="password" placeholder="sk-..." autocomplete="off">
+      </div>
+      <div class="actions field">
+        <button class="secondary" id="saveKeyBtn" type="button">保存 Key</button>
+        <button class="secondary" id="toggleKeyBtn" type="button">显示</button>
+        <button class="danger" id="clearKeyBtn" type="button">清除</button>
+      </div>
+
+      <h2>图床</h2>
+      <div class="field">
+        <label for="imageHost">上传地址</label>
+        <input id="imageHost" type="url">
+      </div>
+      <div class="field">
+        <label for="imageToken">图床 Token</label>
+        <input id="imageToken" type="password" autocomplete="off">
+      </div>
+      <div class="actions field">
+        <button class="secondary" id="saveImageBtn" type="button">保存图床</button>
+        <button class="secondary" id="toggleImageTokenBtn" type="button">显示</button>
+      </div>
+
+      <h2>模型</h2>
+      <div class="field">
+        <label for="model">选择模型</label>
+        <select id="model"></select>
+      </div>
+      <div class="model-hint" id="modelHint"></div>
+
+      <h2>生成参数</h2>
+      <div class="field" id="modeField">
+        <label for="mode">生成模式</label>
+        <select id="mode">
+          <option value="text_to_video">文本生成</option>
+          <option value="image_to_video">首帧 / 图生</option>
+          <option value="reference_to_video" selected>全能参考</option>
+        </select>
+      </div>
+      <div class="field" id="mingizSendField">
+        <label for="mingizSend">mingiz 素材发送</label>
+        <select id="mingizSend">
+          <option value="multipart" selected>multipart 直传本地文件</option>
+          <option value="json">JSON + 图床 URL</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="duration">时长（秒）</label>
+        <select id="duration"></select>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="aspectRatio">比例</label>
+          <select id="aspectRatio">
+            <option value="16:9" selected>16:9</option>
+            <option value="9:16">9:16</option>
+            <option value="1:1">1:1</option>
+          </select>
+        </div>
+        <div class="field" id="resolutionField">
+          <label for="resolution">分辨率</label>
+          <select id="resolution">
+            <option value="480p">480p</option>
+            <option value="720p" selected>720p</option>
+            <option value="1080p">1080p</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" id="audioWatermarkRow">
+        <div class="field">
+          <label for="generateAudio">配音</label>
+          <select id="generateAudio">
+            <option value="1" selected>开启</option>
+            <option value="0">关闭</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="watermark">水印</label>
+          <select id="watermark">
+            <option value="0" selected>关闭</option>
+            <option value="1">开启</option>
+          </select>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const DEFAULT_IMAGE_HOST = "https://imageproxy.zhongzhuan.chat/api/upload";
+    const DEFAULT_IMAGE_TOKEN = "sk-6In87eJEghtCGtvHEL8rNyR9lnDLlbcTQeqZpgjCPP8zmWab";
+    const STORAGE = {
+      key: "sd4_api_key",
+      apiBase: "sd4_api_base",
+      model: "sd4_model",
+      tasks: "sd4_tasks",
+      imageHost: "sd4_image_host",
+      imageToken: "sd4_image_token",
+    };
+
+    const MODEL_PROFILES = {
+      "37:seedance-2.0": {
+        label: "37:seedance-2.0（标准）",
+        family: "aistar",
+        hint: "aistar 通道 · POST /v1/video/generations · width/height + duration。参考图经图床后写入 images。",
+        createPath: "/v1/video/generations",
+        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [4, 5, 6, 8, 10],
+        defaultDuration: 4,
+        showMode: true,
+        showResolution: false,
+        showAudioWatermark: false,
+        showMingizSend: false,
+      },
+      "37:seedance-2.0-fast": {
+        label: "37:seedance-2.0-fast（快速）",
+        family: "aistar",
+        hint: "aistar 快速通道 · 参数同标准版，仅 model 不同。",
+        createPath: "/v1/video/generations",
+        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [4, 5, 6, 8, 10],
+        defaultDuration: 4,
+        showMode: true,
+        showResolution: false,
+        showAudioWatermark: false,
+        showMingizSend: false,
+      },
+      "doubao-seedance-2.0": {
+        label: "doubao-seedance-2.0（多模态）",
+        family: "doubao",
+        hint: "豆包 Seedance · content 多模态参考 · ratio/resolution/duration/配音/水印。",
+        createPath: "/v1/video/generations",
+        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        defaultDuration: 5,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: true,
+        showMingizSend: false,
+      },
+      "mingiz-sd2": {
+        label: "mingiz-sd2（星河 2.0）",
+        family: "mingiz",
+        hint: "星河 2.0 · POST /v1/videos · 可 multipart 直传本地图，或 JSON + 图床 URL。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 8, 10, 12, 15],
+        defaultDuration: 10,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: true,
+      },
+    };
+
+    const SIZE_MAP = {
+      "16:9": { width: 1280, height: 720 },
+      "9:16": { width: 720, height: 1280 },
+      "1:1": { width: 720, height: 720 },
+    };
+
+    const els = {
+      apiBase: document.getElementById("apiBase"),
+      apiBaseHint: document.getElementById("apiBaseHint"),
+      token: document.getElementById("token"),
+      imageHost: document.getElementById("imageHost"),
+      imageToken: document.getElementById("imageToken"),
+      model: document.getElementById("model"),
+      modelHint: document.getElementById("modelHint"),
+      mode: document.getElementById("mode"),
+      modeField: document.getElementById("modeField"),
+      mingizSend: document.getElementById("mingizSend"),
+      mingizSendField: document.getElementById("mingizSendField"),
+      duration: document.getElementById("duration"),
+      aspectRatio: document.getElementById("aspectRatio"),
+      resolution: document.getElementById("resolution"),
+      resolutionField: document.getElementById("resolutionField"),
+      generateAudio: document.getElementById("generateAudio"),
+      watermark: document.getElementById("watermark"),
+      audioWatermarkRow: document.getElementById("audioWatermarkRow"),
+      prompt: document.getElementById("prompt"),
+      mentionMenu: document.getElementById("mentionMenu"),
+      refList: document.getElementById("refList"),
+      assetFiles: document.getElementById("assetFiles"),
+      assetList: document.getElementById("assetList"),
+      manualUrl: document.getElementById("manualUrl"),
+      addUrlBtn: document.getElementById("addUrlBtn"),
+      submitBtn: document.getElementById("submitBtn"),
+      pollBtn: document.getElementById("pollBtn"),
+      stopBtn: document.getElementById("stopBtn"),
+      copyCurlBtn: document.getElementById("copyCurlBtn"),
+      clearAllBtn: document.getElementById("clearAllBtn"),
+      saveKeyBtn: document.getElementById("saveKeyBtn"),
+      toggleKeyBtn: document.getElementById("toggleKeyBtn"),
+      clearKeyBtn: document.getElementById("clearKeyBtn"),
+      saveImageBtn: document.getElementById("saveImageBtn"),
+      toggleImageTokenBtn: document.getElementById("toggleImageTokenBtn"),
+      statusBox: document.getElementById("statusBox"),
+      taskList: document.getElementById("taskList"),
+      payloadPreview: document.getElementById("payloadPreview"),
+      result: document.getElementById("result"),
+      video: document.getElementById("video"),
+      download: document.getElementById("download"),
+      closePreviewBtn: document.getElementById("closePreviewBtn"),
+    };
+
+    let assets = [];
+    let currentTaskId = "";
+    let currentFamily = "aistar";
+    let polling = false;
+    let pollTimer = 0;
+    let mentionTriggerRange = null;
+    let previewObjectUrl = "";
+    let rebuildTimer = 0;
+
+    function saveLocal(k, v) { localStorage.setItem(k, v); }
+    function readLocal(k) { return localStorage.getItem(k) || ""; }
+    function removeLocal(k) { localStorage.removeItem(k); }
+
+    function normalizeApiKey(raw) {
+      let value = String(raw || "").replace(/^\uFEFF/, "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+      value = value.replace(/^Bearer\s+/i, "").trim();
+      return value.replace(/^['"]+|['"]+$/g, "").trim();
+    }
+    function token() {
+      return normalizeApiKey(els.token.value) || normalizeApiKey(readLocal(STORAGE.key));
+    }
+    function imageHost() {
+      return (els.imageHost.value || DEFAULT_IMAGE_HOST).trim().replace(/\/$/, "");
+    }
+    function imageToken() {
+      return normalizeApiKey(els.imageToken.value) || normalizeApiKey(readLocal(STORAGE.imageToken)) || DEFAULT_IMAGE_TOKEN;
+    }
+    function apiBase() {
+      const v = (els.apiBase.value || "").trim().replace(/\/$/, "");
+      return v || window.location.origin;
+    }
+    function profile() {
+      return MODEL_PROFILES[els.model.value] || MODEL_PROFILES["doubao-seedance-2.0"];
+    }
+    function authHeaders(extra = {}) {
+      return { Authorization: `Bearer ${token()}`, ...extra };
+    }
+    function setStatus(message, kind = "") {
+      els.statusBox.textContent = message || "";
+      els.statusBox.className = "status-box" + (kind ? " " + kind : "");
+    }
+    function ensureTokenReady() {
+      const key = token();
+      if (!key) return "请先填写 API Key（sk- 开头）。";
+      if (!/^sk-/i.test(key)) return "API Key 应以 sk- 开头。";
+      if (!normalizeApiKey(els.token.value) && key) els.token.value = key;
+      return "";
+    }
+
+    function readTasks() {
+      try { return JSON.parse(readLocal(STORAGE.tasks) || "[]"); } catch { return []; }
+    }
+    function saveTasks(tasks) {
+      saveLocal(STORAGE.tasks, JSON.stringify(tasks.slice(0, 30)));
+    }
+    function upsertTask(task) {
+      const tasks = readTasks().filter((t) => t.id !== task.id);
+      tasks.unshift(task);
+      saveTasks(tasks);
+      renderTasks(tasks);
+    }
+    function clampProgress(value) {
+      const n = Number(String(value).replace("%", ""));
+      if (!Number.isFinite(n)) return 0;
+      return Math.max(0, Math.min(100, Math.round(n)));
+    }
+    function statusLabel(status) {
+      const s = String(status || "").toUpperCase();
+      if (["SUCCESS", "SUCCEEDED", "COMPLETED"].includes(s)) return "成功";
+      if (["FAILURE", "FAILED", "ERROR"].includes(s)) return "失败";
+      if (["IN_PROGRESS", "RUNNING", "PROCESSING"].includes(s)) return "生成中";
+      if (["QUEUED", "SUBMITTED", "NOT_START", "PENDING"].includes(s)) return "排队中";
+      return status || "未知";
+    }
+    function statusKind(status) {
+      const s = String(status || "").toUpperCase();
+      if (["SUCCESS", "SUCCEEDED", "COMPLETED"].includes(s)) return "ok";
+      if (["FAILURE", "FAILED", "ERROR"].includes(s)) return "bad";
+      if (["IN_PROGRESS", "RUNNING", "PROCESSING", "QUEUED", "PENDING"].includes(s)) return "warn";
+      return "";
+    }
+    function isSuccess(status) {
+      return ["SUCCESS", "SUCCEEDED", "COMPLETED"].includes(String(status || "").toUpperCase());
+    }
+    function isFailed(status) {
+      return ["FAILURE", "FAILED", "ERROR"].includes(String(status || "").toUpperCase());
+    }
+
+    function assetKind(fileOrUrl, mime = "") {
+      const type = mime || (fileOrUrl && fileOrUrl.type) || "";
+      if (String(type).startsWith("image/")) return "image";
+      if (String(type).startsWith("video/")) return "video";
+      if (String(type).startsWith("audio/")) return "audio";
+      const name = String((fileOrUrl && fileOrUrl.name) || fileOrUrl || "").toLowerCase();
+      if (/\.(png|jpe?g|webp|gif|bmp)(\?|$)/.test(name)) return "image";
+      if (/\.(mp4|mov|webm|mkv)(\?|$)/.test(name)) return "video";
+      if (/\.(mp3|wav|aac|m4a)(\?|$)/.test(name)) return "audio";
+      return "image";
+    }
+    function kindLabel(kind) {
+      return { image: "图片", video: "视频", audio: "音频" }[kind] || kind;
+    }
+    function safeMentionName(name) {
+      return String(name || "素材").replace(/[^\w\u4e00-\u9fff.-]+/g, "_").slice(0, 40) || "素材";
+    }
+    function fileBaseName(file) {
+      return safeMentionName((file.name || "素材").replace(/\.[^.]+$/, ""));
+    }
+    function uniqueAssetName(base, usedNames) {
+      let name = base;
+      let i = 2;
+      while (usedNames.has(name)) name = `${base}_${i++}`;
+      usedNames.add(name);
+      return name;
+    }
+
+    function promptText() {
+      const clone = els.prompt.cloneNode(true);
+      clone.querySelectorAll(".prompt-mention").forEach((node) => {
+        node.replaceWith(document.createTextNode("@" + (node.dataset.name || "")));
+      });
+      return (clone.innerText || "").replace(/\u00a0/g, " ").trim();
+    }
+    function mentionedNames() {
+      const names = new Set();
+      els.prompt.querySelectorAll(".prompt-mention").forEach((node) => {
+        if (node.dataset.name) names.add(node.dataset.name);
+      });
+      const re = /@([^\s@，,。；;：:]+)/g;
+      let match;
+      const text = promptText();
+      while ((match = re.exec(text)) !== null) names.add(match[1]);
+      return [...names];
+    }
+    function referencedAssets() {
+      return mentionedNames().map((name) => ({ name, asset: assets.find((item) => item.name === name) }));
+    }
+    function getSubmitAssets() {
+      const mentioned = referencedAssets().filter((ref) => ref.asset).map((ref) => ref.asset);
+      const mode = els.mode.value;
+      if (mode === "text_to_video") return [];
+      if (mode === "image_to_video") {
+        const images = mentioned.filter((a) => a.kind === "image");
+        if (images.length) return [images[0]];
+        const first = assets.find((a) => a.kind === "image");
+        return first ? [first] : [];
+      }
+      if (mentioned.length) return mentioned;
+      return assets.slice();
+    }
+
+    function renderAssets() {
+      els.assetList.innerHTML = "";
+      if (!assets.length) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "暂无素材。";
+        els.assetList.appendChild(empty);
+        renderMentionMenu();
+        updateRefs();
+        scheduleRebuild();
+        return;
+      }
+      assets.forEach((asset) => {
+        const row = document.createElement("div");
+        row.className = "asset";
+        const preview = document.createElement("div");
+        preview.className = "asset-preview";
+        if (asset.kind === "image" && asset.previewUrl) {
+          const img = document.createElement("img");
+          img.src = asset.previewUrl;
+          img.alt = asset.name;
+          preview.appendChild(img);
+        } else if (asset.kind === "video" && asset.previewUrl) {
+          const video = document.createElement("video");
+          video.src = asset.previewUrl;
+          video.muted = true;
+          preview.appendChild(video);
+        } else {
+          preview.textContent = kindLabel(asset.kind);
+        }
+        const meta = document.createElement("div");
+        meta.className = "asset-meta";
+        const nameInput = document.createElement("input");
+        nameInput.className = "asset-name";
+        nameInput.value = asset.name;
+        nameInput.addEventListener("change", () => {
+          asset.name = safeMentionName(nameInput.value);
+          nameInput.value = asset.name;
+          renderMentionMenu();
+          updateRefs();
+          scheduleRebuild();
+        });
+        const tools = document.createElement("div");
+        tools.className = "asset-tools";
+        const mentionBtn = document.createElement("button");
+        mentionBtn.className = "secondary";
+        mentionBtn.type = "button";
+        mentionBtn.textContent = "@";
+        mentionBtn.onclick = () => insertMention(asset);
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "danger";
+        removeBtn.type = "button";
+        removeBtn.textContent = "删除";
+        removeBtn.onclick = () => removeAsset(asset.id);
+        const status = document.createElement("span");
+        const st = String(asset.uploadStatus || "");
+        status.className = "asset-status " + (st === "ready" ? "ok" : st === "failed" ? "bad" : "warn");
+        status.textContent = st === "uploading" ? "上传中…"
+          : st === "ready" ? (asset.publicUrl || "已就绪")
+          : st === "failed" ? ("失败: " + (asset.uploadError || ""))
+          : st === "local" ? "本地文件（可 multipart）"
+          : "待处理";
+        tools.appendChild(mentionBtn);
+        tools.appendChild(removeBtn);
+        tools.appendChild(status);
+        meta.appendChild(nameInput);
+        meta.appendChild(tools);
+        row.appendChild(preview);
+        row.appendChild(meta);
+        els.assetList.appendChild(row);
+      });
+      renderMentionMenu();
+      updateRefs();
+      scheduleRebuild();
+    }
+
+    function renderMentionMenu() {
+      els.mentionMenu.innerHTML = "";
+      if (!assets.length) {
+        const empty = document.createElement("div");
+        empty.className = "mention-sub";
+        empty.textContent = "暂无素材可引用";
+        empty.style.padding = "8px";
+        els.mentionMenu.appendChild(empty);
+        return;
+      }
+      assets.forEach((asset) => {
+        const item = document.createElement("div");
+        item.className = "mention-item";
+        const thumb = document.createElement("div");
+        thumb.className = "mention-thumb";
+        if (asset.kind === "image" && asset.previewUrl) {
+          const img = document.createElement("img");
+          img.src = asset.previewUrl;
+          thumb.appendChild(img);
+        } else if (asset.kind === "video" && asset.previewUrl) {
+          const video = document.createElement("video");
+          video.src = asset.previewUrl;
+          video.muted = true;
+          thumb.appendChild(video);
+        } else {
+          thumb.textContent = kindLabel(asset.kind);
+        }
+        const info = document.createElement("div");
+        const title = document.createElement("div");
+        title.className = "mention-title";
+        title.textContent = "@" + asset.name;
+        const sub = document.createElement("div");
+        sub.className = "mention-sub";
+        sub.textContent = kindLabel(asset.kind);
+        info.appendChild(title);
+        info.appendChild(sub);
+        item.appendChild(thumb);
+        item.appendChild(info);
+        item.onclick = () => {
+          insertMention(asset);
+          els.mentionMenu.classList.remove("show");
+        };
+        els.mentionMenu.appendChild(item);
+      });
+    }
+
+    function removeAsset(id) {
+      const asset = assets.find((a) => a.id === id);
+      if (asset?.previewUrl && asset.previewUrl.startsWith("blob:")) URL.revokeObjectURL(asset.previewUrl);
+      assets = assets.filter((a) => a.id !== id);
+      renderAssets();
+    }
+
+    function createMentionNode(asset) {
+      const node = document.createElement("span");
+      node.className = "prompt-mention";
+      node.contentEditable = "false";
+      node.dataset.name = asset.name;
+      node.dataset.id = asset.id;
+      if (asset.kind === "image" && asset.previewUrl) {
+        const img = document.createElement("img");
+        img.src = asset.previewUrl;
+        img.alt = asset.name;
+        node.appendChild(img);
+      } else if (asset.kind === "video" && asset.previewUrl) {
+        const video = document.createElement("video");
+        video.src = asset.previewUrl;
+        video.muted = true;
+        node.appendChild(video);
+      }
+      const label = document.createElement("span");
+      label.textContent = "@" + asset.name;
+      node.appendChild(label);
+      return node;
+    }
+    function rangeInsidePrompt(range) {
+      return range && els.prompt.contains(range.commonAncestorContainer);
+    }
+    function moveCaretAfter(node) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.setStartAfter(node);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    function rangeAfterRemovingTriggerAt() {
+      if (!mentionTriggerRange || !rangeInsidePrompt(mentionTriggerRange)) return null;
+      const range = mentionTriggerRange;
+      mentionTriggerRange = null;
+      const container = range.startContainer;
+      const offset = range.startOffset;
+      if (container.nodeType !== Node.TEXT_NODE || offset < 1) return range;
+      const text = container.textContent || "";
+      if (text[offset - 1] !== "@") return range;
+      container.textContent = text.slice(0, offset - 1) + text.slice(offset);
+      range.setStart(container, offset - 1);
+      range.collapse(true);
+      return range;
+    }
+    function insertMention(asset) {
+      els.prompt.focus();
+      const node = createMentionNode(asset);
+      const spacer = document.createTextNode(" ");
+      const selection = window.getSelection();
+      let range = rangeAfterRemovingTriggerAt();
+      if (!range && selection && selection.rangeCount && rangeInsidePrompt(selection.getRangeAt(0))) {
+        range = selection.getRangeAt(0);
+      }
+      if (!range) {
+        els.prompt.appendChild(node);
+        els.prompt.appendChild(spacer);
+        moveCaretAfter(spacer);
+        updateRefs();
+        scheduleRebuild();
+        return;
+      }
+      range.deleteContents();
+      range.insertNode(spacer);
+      range.insertNode(node);
+      moveCaretAfter(spacer);
+      updateRefs();
+      scheduleRebuild();
+    }
+    function updateRefs() {
+      els.refList.innerHTML = "";
+      const refs = referencedAssets();
+      if (!refs.length) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "暂无引用。";
+        els.refList.appendChild(empty);
+        return;
+      }
+      refs.forEach(({ name, asset }) => {
+        const pill = document.createElement("div");
+        pill.className = "ref-pill";
+        const thumb = document.createElement("div");
+        thumb.className = "ref-thumb";
+        if (asset?.kind === "image" && asset.previewUrl) {
+          const img = document.createElement("img");
+          img.src = asset.previewUrl;
+          thumb.appendChild(img);
+        } else if (asset?.kind === "video" && asset.previewUrl) {
+          const video = document.createElement("video");
+          video.src = asset.previewUrl;
+          video.muted = true;
+          thumb.appendChild(video);
+        } else {
+          thumb.textContent = asset ? kindLabel(asset.kind) : "?";
+        }
+        const label = document.createElement("span");
+        label.className = "ref-name";
+        label.textContent = "@" + name;
+        const type = document.createElement("small");
+        type.textContent = asset ? kindLabel(asset.kind) : "未找到";
+        pill.appendChild(thumb);
+        pill.appendChild(label);
+        pill.appendChild(type);
+        els.refList.appendChild(pill);
+      });
+    }
+
+    async function readJson(response) {
+      const text = await response.text();
+      try { return JSON.parse(text); } catch { return { raw: text }; }
+    }
+    function formatError(data, status) {
+      const message = data.message || data.error || data.raw || `HTTP ${status}`;
+      if (/quota|balance|credit|余额|额度|不足|INSUFFICIENT/i.test(String(message) + String(data.code || ""))) {
+        return `余额不足：${message}`;
+      }
+      return typeof message === "object" ? JSON.stringify(message) : String(message);
+    }
+    function extractUploadUrl(data) {
+      if (!data || typeof data !== "object") return "";
+      return data.url || data.data?.url || data.link || data.image_url || data.result?.url || "";
+    }
+
+    async function uploadToImageHost(asset) {
+      if (asset.publicUrl) {
+        asset.uploadStatus = "ready";
+        return asset;
+      }
+      if (!asset.file) {
+        asset.uploadStatus = "failed";
+        asset.uploadError = "无本地文件";
+        return asset;
+      }
+      if (asset.kind !== "image") {
+        asset.uploadStatus = "local";
+        asset.uploadError = "非图片请粘贴公网 URL，或 mingiz 用 multipart";
+        return asset;
+      }
+      asset.uploadStatus = "uploading";
+      renderAssets();
+      const form = new FormData();
+      form.append("file", asset.file, asset.file.name);
+      const response = await fetch(imageHost(), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${imageToken()}` },
+        body: form,
+      });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(formatError(data, response.status));
+      const url = extractUploadUrl(data);
+      if (!url) throw new Error("图床未返回 url");
+      asset.publicUrl = url;
+      asset.uploadStatus = "ready";
+      asset.previewUrl = asset.previewUrl || url;
+      renderAssets();
+      return asset;
+    }
+
+    async function ensureAssetsReady(list, preferMultipart) {
+      for (const asset of list) {
+        if (preferMultipart && asset.file) {
+          asset.uploadStatus = asset.uploadStatus === "ready" ? "ready" : "local";
+          continue;
+        }
+        if (asset.publicUrl) {
+          asset.uploadStatus = "ready";
+          continue;
+        }
+        if (asset.file && asset.kind === "image") {
+          await uploadToImageHost(asset);
+        } else if (!asset.publicUrl) {
+          throw new Error(`素材 @${asset.name} 需要公网 URL（可上传图床或粘贴链接）`);
+        }
+      }
+    }
+
+    function buildAistarBody(submitAssets) {
+      const size = SIZE_MAP[els.aspectRatio.value] || SIZE_MAP["16:9"];
+      const body = {
+        model: els.model.value,
+        prompt: promptText(),
+        duration: Number(els.duration.value),
+        width: size.width,
+        height: size.height,
+        n: 1,
+      };
+      const urls = submitAssets.map((a) => a.publicUrl).filter(Boolean);
+      if (urls.length) body.images = urls;
+      return body;
+    }
+
+    function buildDoubaoBody(submitAssets) {
+      const mode = els.mode.value;
+      const body = {
+        model: els.model.value,
+        generate_audio: els.generateAudio.value === "1",
+        ratio: els.aspectRatio.value,
+        resolution: els.resolution.value,
+        duration: Number(els.duration.value),
+        watermark: els.watermark.value === "1",
+      };
+      if (mode === "text_to_video" || !submitAssets.length) {
+        body.prompt = promptText();
+        body.metadata = {
+          ratio: body.ratio,
+          resolution: body.resolution,
+          duration: body.duration,
+          watermark: body.watermark,
+        };
+        return body;
+      }
+      const content = [{ type: "text", text: promptText() }];
+      for (const asset of submitAssets) {
+        const url = asset.publicUrl;
+        if (!url) continue;
+        if (asset.kind === "image") {
+          content.push({ type: "image_url", image_url: { url }, role: "reference_image" });
+        } else if (asset.kind === "video") {
+          content.push({ type: "video_url", video_url: { url }, role: "reference_video" });
+        } else if (asset.kind === "audio") {
+          content.push({ type: "audio_url", audio_url: { url }, role: "reference_audio" });
+        }
+      }
+      body.content = content;
+      return body;
+    }
+
+    function buildMingizJsonBody(submitAssets) {
+      const body = {
+        model: els.model.value,
+        prompt: promptText(),
+        duration: Number(els.duration.value),
+        aspect_ratio: els.aspectRatio.value,
+        resolution: els.resolution.value,
+      };
+      const urls = submitAssets.map((a) => a.publicUrl).filter(Boolean);
+      if (urls.length) body.images = urls;
+      return body;
+    }
+
+    function buildRequestPlan() {
+      const p = profile();
+      const submitAssets = getSubmitAssets();
+      const preferMultipart = p.family === "mingiz" && els.mingizSend.value === "multipart";
+      if (p.family === "aistar") {
+        return { kind: "json", path: p.createPath, body: buildAistarBody(submitAssets), assets: submitAssets, preferMultipart: false };
+      }
+      if (p.family === "doubao") {
+        return { kind: "json", path: p.createPath, body: buildDoubaoBody(submitAssets), assets: submitAssets, preferMultipart: false };
+      }
+      if (preferMultipart) {
+        return {
+          kind: "multipart",
+          path: p.createPath,
+          body: {
+            model: els.model.value,
+            prompt: promptText(),
+            duration: Number(els.duration.value),
+            aspect_ratio: els.aspectRatio.value,
+            resolution: els.resolution.value,
+            files: submitAssets.filter((a) => a.file).map((a) => a.name),
+          },
+          assets: submitAssets,
+          preferMultipart: true,
+        };
+      }
+      return { kind: "json", path: p.createPath, body: buildMingizJsonBody(submitAssets), assets: submitAssets, preferMultipart: false };
+    }
+
+    function scheduleRebuild() {
+      window.clearTimeout(rebuildTimer);
+      rebuildTimer = window.setTimeout(rebuildPayloadPreview, 80);
+    }
+    function rebuildPayloadPreview() {
+      const plan = buildRequestPlan();
+      if (plan.kind === "multipart") {
+        els.payloadPreview.value = JSON.stringify({
+          _note: "将以 multipart/form-data 提交；reference_images 为本地文件",
+          ...plan.body,
+        }, null, 2);
+      } else {
+        els.payloadPreview.value = JSON.stringify(plan.body, null, 2);
+      }
+    }
+
+    function applyModelUI() {
+      const p = profile();
+      currentFamily = p.family;
+      els.modelHint.textContent = p.hint;
+      els.modeField.classList.toggle("hidden", !p.showMode);
+      els.resolutionField.classList.toggle("hidden", !p.showResolution);
+      els.audioWatermarkRow.classList.toggle("hidden", !p.showAudioWatermark);
+      els.mingizSendField.classList.toggle("hidden", !p.showMingizSend);
+      const cur = Number(els.duration.value) || p.defaultDuration;
+      els.duration.innerHTML = p.durations.map((d) =>
+        `<option value="${d}" ${d === (p.durations.includes(cur) ? cur : p.defaultDuration) ? "selected" : ""}>${d} 秒</option>`
+      ).join("");
+      els.apiBaseHint.textContent = `当前请求：${apiBase()}${p.createPath}`;
+      scheduleRebuild();
+    }
+
+    function validate() {
+      const tokenError = ensureTokenReady();
+      if (tokenError) return tokenError;
+      if (!promptText()) return "请填写提示词。";
+      const missing = referencedAssets().filter((ref) => !ref.asset).map((ref) => ref.name);
+      if (missing.length) return `提示词引用了不存在的素材：${missing.map((n) => "@" + n).join("、")}`;
+      const p = profile();
+      const submitAssets = getSubmitAssets();
+      if (els.mode.value === "image_to_video" && !submitAssets.some((a) => a.kind === "image" || a.publicUrl)) {
+        return "图生模式至少需要一张图片素材。";
+      }
+      if (p.family === "doubao") {
+        const seconds = Number(els.duration.value);
+        if (!Number.isInteger(seconds) || seconds < 5 || seconds > 15) return "doubao 时长需为 5～15 秒。";
+      }
+      return "";
+    }
+
+    function lock(isBusy) {
+      els.submitBtn.disabled = isBusy;
+      els.pollBtn.disabled = isBusy || !currentTaskId;
+      els.stopBtn.disabled = !polling;
+    }
+
+    function hideTaskResult() {
+      els.result.style.display = "none";
+      els.video.removeAttribute("src");
+      els.video.load();
+      if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = "";
+      }
+    }
+
+    function extractVideoUrl(payload) {
+      return payload.result_url
+        || payload.metadata?.url
+        || payload.url
+        || payload.content?.video_url
+        || payload.data?.result_url
+        || payload.data?.metadata?.url
+        || "";
+    }
+
+    async function showTaskResult(taskId, directUrl = "") {
+      if (directUrl) {
+        els.video.src = directUrl;
+        els.download.href = directUrl;
+        els.download.download = `${taskId}.mp4`;
+        els.result.style.display = "block";
+        setStatus("成片已就绪，可预览或下载。", "ok");
+        return;
+      }
+      setStatus("正在拉取成片预览…");
+      const p = profile();
+      const response = await fetch(`${apiBase()}${p.contentPath(taskId)}`, { headers: authHeaders() });
+      if (!response.ok) {
+        const data = await readJson(response);
+        throw new Error(formatError(data, response.status));
+      }
+      const blob = await response.blob();
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl = URL.createObjectURL(blob);
+      els.video.src = previewObjectUrl;
+      els.download.href = previewObjectUrl;
+      els.download.download = `${taskId}.mp4`;
+      els.result.style.display = "block";
+      setStatus("成片已就绪，可预览或下载。", "ok");
+    }
+
+    function renderTasks(tasks = readTasks()) {
+      els.taskList.innerHTML = "";
+      if (!tasks.length) {
+        const empty = document.createElement("div");
+        empty.className = "task-empty";
+        empty.textContent = "暂无任务。提交后会显示在这里。";
+        els.taskList.appendChild(empty);
+        return;
+      }
+      tasks.forEach((task) => {
+        const row = document.createElement("div");
+        row.className = "task-row";
+        const badge = document.createElement("div");
+        badge.className = "task-badge " + statusKind(task.status);
+        badge.textContent = statusLabel(task.status);
+        const mid = document.createElement("div");
+        mid.innerHTML = `<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis">${task.id}</div>
+          <div class="task-progress" style="margin-top:6px"><span style="--progress:${clampProgress(task.progress)}%"></span></div>`;
+        const percent = document.createElement("div");
+        percent.className = "task-percent";
+        percent.textContent = clampProgress(task.progress) + "%";
+        const actions = document.createElement("div");
+        actions.className = "task-actions";
+        const poll = document.createElement("button");
+        poll.type = "button";
+        poll.textContent = "刷新";
+        poll.onclick = () => pollOnce(task.id).catch((err) => setStatus(`轮询失败：${err.message}`, "bad"));
+        actions.appendChild(poll);
+        if (isSuccess(task.status)) {
+          const preview = document.createElement("button");
+          preview.type = "button";
+          preview.className = "preview-btn";
+          preview.textContent = "预览";
+          preview.onclick = () => showTaskResult(task.id, task.resultUrl || "").catch((err) => setStatus(err.message, "bad"));
+          actions.appendChild(preview);
+        }
+        row.appendChild(badge);
+        row.appendChild(mid);
+        row.appendChild(percent);
+        row.appendChild(actions);
+        els.taskList.appendChild(row);
+      });
+    }
+
+    async function submitTask() {
+      const error = validate();
+      if (error) { setStatus(error, "bad"); return; }
+      stopPolling();
+      hideTaskResult();
+      currentTaskId = "";
+      lock(true);
+      try {
+        let plan;
+        try {
+          const edited = JSON.parse(els.payloadPreview.value);
+          if (edited && edited._note) {
+            plan = buildRequestPlan();
+          } else {
+            plan = { ...buildRequestPlan(), body: edited, kind: "json", preferMultipart: false };
+          }
+        } catch {
+          plan = buildRequestPlan();
+        }
+
+        setStatus(plan.preferMultipart ? "准备 multipart 提交…" : "确认素材 / 上传图床…");
+        await ensureAssetsReady(plan.assets, plan.preferMultipart);
+        if (!plan.preferMultipart) {
+          // 图床上传后重建一次，确保 URL 写入 body（若用户未手改）
+          const fresh = buildRequestPlan();
+          if (!els.payloadPreview.dataset.dirty) {
+            plan = fresh;
+            rebuildPayloadPreview();
+          } else {
+            try { plan.body = JSON.parse(els.payloadPreview.value); } catch { /* keep */ }
+          }
+        }
+
+        setStatus("正在创建视频任务…");
+        let response;
+        if (plan.preferMultipart) {
+          const form = new FormData();
+          form.append("model", els.model.value);
+          form.append("prompt", promptText());
+          form.append("duration", String(Number(els.duration.value)));
+          form.append("aspect_ratio", els.aspectRatio.value);
+          form.append("resolution", els.resolution.value);
+          for (const asset of plan.assets) {
+            if (asset.file) form.append("reference_images", asset.file, asset.file.name);
+            else if (asset.publicUrl) form.append("images", asset.publicUrl);
+          }
+          response = await fetch(`${apiBase()}${plan.path}`, {
+            method: "POST",
+            headers: authHeaders({ Accept: "application/json" }),
+            body: form,
+          });
+        } else {
+          response = await fetch(`${apiBase()}${plan.path}`, {
+            method: "POST",
+            headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+            body: JSON.stringify(plan.body),
+          });
+        }
+        const data = await readJson(response);
+        if (!response.ok) throw new Error(formatError(data, response.status));
+        currentTaskId = data.task_id || data.id || data.data?.task_id || data.data?.id;
+        if (!currentTaskId) throw new Error("提交成功但未返回 task_id");
+        currentFamily = profile().family;
+        upsertTask({
+          id: currentTaskId,
+          status: data.status || data.data?.status || "queued",
+          progress: data.progress ?? data.data?.progress ?? 0,
+          family: currentFamily,
+          createdAt: Date.now(),
+        });
+        setStatus(`任务已创建：${currentTaskId}`, "ok");
+        els.payloadPreview.dataset.dirty = "";
+        startPolling();
+      } catch (err) {
+        setStatus(`提交失败：${err.message}`, "bad");
+      } finally {
+        lock(false);
+      }
+    }
+
+    async function pollOnce(taskId = currentTaskId) {
+      if (!taskId) { setStatus("没有可轮询的任务。", "bad"); return; }
+      const tokenError = ensureTokenReady();
+      if (tokenError) { setStatus(tokenError, "bad"); return; }
+      currentTaskId = taskId;
+      const taskMeta = readTasks().find((t) => t.id === taskId);
+      const family = taskMeta?.family || profile().family;
+      const p = Object.values(MODEL_PROFILES).find((x) => x.family === family) || profile();
+      const response = await fetch(`${apiBase()}${p.queryPath(taskId)}`, { headers: authHeaders() });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(formatError(data, response.status));
+      const payload = data.data || data;
+      const status = payload.status || "unknown";
+      const progress = payload.progress ?? 0;
+      const resultUrl = extractVideoUrl(payload) || extractVideoUrl(data);
+      const failReason = payload.fail_reason || payload.error?.message || payload.message || "";
+      upsertTask({
+        id: taskId,
+        status,
+        progress,
+        resultUrl,
+        fail_reason: failReason,
+        family,
+        updatedAt: Date.now(),
+      });
+      setStatus(`任务 ${taskId}\n状态：${statusLabel(status)}（${progress}）` + (failReason && isFailed(status) ? `\n原因：${failReason}` : ""));
+      if (isSuccess(status)) {
+        stopPolling();
+        await showTaskResult(taskId, resultUrl);
+      } else if (isFailed(status)) {
+        stopPolling();
+        setStatus(`任务失败：${failReason || status}`, "bad");
+      }
+    }
+
+    function startPolling() {
+      if (!currentTaskId || polling) return;
+      polling = true;
+      lock(false);
+      pollOnce().catch((err) => setStatus(`轮询失败：${err.message}`, "bad"));
+      pollTimer = window.setInterval(() => {
+        pollOnce().catch((err) => {
+          stopPolling();
+          setStatus(`轮询失败：${err.message}`, "bad");
+        });
+      }, 12000);
+    }
+    function stopPolling() {
+      polling = false;
+      window.clearInterval(pollTimer);
+      pollTimer = 0;
+      lock(false);
+    }
+
+    function clearAll() {
+      stopPolling();
+      currentTaskId = "";
+      assets.forEach((a) => a.previewUrl && a.previewUrl.startsWith("blob:") && URL.revokeObjectURL(a.previewUrl));
+      assets = [];
+      els.assetFiles.value = "";
+      hideTaskResult();
+      renderAssets();
+      renderTasks();
+      lock(false);
+      setStatus("已清空创作区。");
+    }
+
+    async function handleFilesSelected() {
+      const usedNames = new Set(assets.map((a) => a.name));
+      const incoming = Array.from(els.assetFiles.files || []).map((file) => {
+        const kind = assetKind(file);
+        return {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          file,
+          kind,
+          name: uniqueAssetName(fileBaseName(file), usedNames),
+          previewUrl: URL.createObjectURL(file),
+          uploadStatus: "pending",
+          publicUrl: "",
+          uploadError: "",
+        };
+      });
+      els.assetFiles.value = "";
+      assets = assets.concat(incoming);
+      renderAssets();
+      const p = profile();
+      const preferMultipart = p.family === "mingiz" && els.mingizSend.value === "multipart";
+      for (const asset of incoming) {
+        try {
+          if (preferMultipart && asset.file) {
+            asset.uploadStatus = "local";
+            renderAssets();
+          } else if (asset.kind === "image") {
+            await uploadToImageHost(asset);
+          } else {
+            asset.uploadStatus = "failed";
+            asset.uploadError = "请粘贴公网 URL";
+            renderAssets();
+          }
+        } catch (err) {
+          asset.uploadStatus = "failed";
+          asset.uploadError = err.message;
+          renderAssets();
+          setStatus(`素材 @${asset.name} 上传失败：${err.message}`, "bad");
+        }
+      }
+      const ok = incoming.filter((a) => a.publicUrl || a.uploadStatus === "local").length;
+      if (ok) setStatus(`已处理 ${ok} 个素材。`, "ok");
+      scheduleRebuild();
+    }
+
+    function addManualUrl() {
+      const url = (els.manualUrl.value || "").trim();
+      if (!/^https?:\/\//i.test(url)) {
+        setStatus("请输入有效的 http(s) URL。", "bad");
+        return;
+      }
+      const usedNames = new Set(assets.map((a) => a.name));
+      const kind = assetKind(url);
+      const asset = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        file: null,
+        kind,
+        name: uniqueAssetName(kindLabel(kind), usedNames),
+        previewUrl: kind === "image" || kind === "video" ? url : "",
+        uploadStatus: "ready",
+        publicUrl: url,
+        uploadError: "",
+      };
+      assets.push(asset);
+      els.manualUrl.value = "";
+      renderAssets();
+      setStatus(`已添加素材 URL：@${asset.name}`, "ok");
+    }
+
+    async function copyCurl() {
+      const plan = buildRequestPlan();
+      const key = token() || "sk-你的令牌";
+      let text = "";
+      if (plan.preferMultipart) {
+        text = `curl -X POST "${apiBase()}${plan.path}" \\\n  -H "Authorization: Bearer ${key}" \\\n  -H "Accept: application/json" \\\n  -F "model=${els.model.value}" \\\n  -F "prompt=${promptText().replace(/"/g, '\\"')}" \\\n  -F "duration=${els.duration.value}" \\\n  -F "aspect_ratio=${els.aspectRatio.value}" \\\n  -F "resolution=${els.resolution.value}" \\\n  -F "reference_images=@./ref.jpg"`;
+      } else {
+        let body = plan.body;
+        try { body = JSON.parse(els.payloadPreview.value); } catch { /* keep */ }
+        text = `curl -s -X POST "${apiBase()}${plan.path}" \\\n  -H "Authorization: Bearer ${key}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(body)}'`;
+      }
+      await navigator.clipboard.writeText(text);
+      setStatus("curl 已复制到剪贴板。", "ok");
+    }
+
+    function initModels() {
+      els.model.innerHTML = Object.entries(MODEL_PROFILES).map(([id, p]) =>
+        `<option value="${id}">${p.label}</option>`
+      ).join("");
+      const saved = readLocal(STORAGE.model);
+      els.model.value = MODEL_PROFILES[saved] ? saved : "doubao-seedance-2.0";
+    }
+
+    function init() {
+      initModels();
+      els.token.value = readLocal(STORAGE.key);
+      els.apiBase.value = readLocal(STORAGE.apiBase);
+      els.imageHost.value = readLocal(STORAGE.imageHost) || DEFAULT_IMAGE_HOST;
+      els.imageToken.value = readLocal(STORAGE.imageToken) || DEFAULT_IMAGE_TOKEN;
+      if (!readLocal(STORAGE.imageToken)) saveLocal(STORAGE.imageToken, DEFAULT_IMAGE_TOKEN);
+      if (!readLocal(STORAGE.imageHost)) saveLocal(STORAGE.imageHost, DEFAULT_IMAGE_HOST);
+      applyModelUI();
+      renderTasks();
+      renderAssets();
+      lock(false);
+      if (els.token.value) setStatus("已载入本地 API Key，可以开始。", "ok");
+    }
+
+    els.model.addEventListener("change", () => {
+      saveLocal(STORAGE.model, els.model.value);
+      applyModelUI();
+      setStatus(`已切换模型：${els.model.value}`, "ok");
+    });
+    ["mode", "mingizSend", "duration", "aspectRatio", "resolution", "generateAudio", "watermark"].forEach((id) => {
+      els[id].addEventListener("change", () => {
+        els.payloadPreview.dataset.dirty = "";
+        scheduleRebuild();
+      });
+    });
+    els.apiBase.addEventListener("change", () => {
+      saveLocal(STORAGE.apiBase, els.apiBase.value.trim());
+      applyModelUI();
+    });
+    els.payloadPreview.addEventListener("input", () => { els.payloadPreview.dataset.dirty = "1"; });
+    els.assetFiles.addEventListener("change", () => {
+      handleFilesSelected().catch((err) => setStatus(err.message, "bad"));
+    });
+    els.addUrlBtn.addEventListener("click", addManualUrl);
+    els.prompt.addEventListener("input", () => {
+      const selection = window.getSelection();
+      const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+      const node = range ? range.startContainer : null;
+      const before = node && node.nodeType === Node.TEXT_NODE ? node.textContent.slice(0, range.startOffset) : "";
+      if (before.endsWith("@")) {
+        mentionTriggerRange = range.cloneRange();
+        els.mentionMenu.classList.add("show");
+      } else {
+        mentionTriggerRange = null;
+        els.mentionMenu.classList.remove("show");
+      }
+      updateRefs();
+      scheduleRebuild();
+    });
+    els.prompt.addEventListener("blur", () => setTimeout(() => els.mentionMenu.classList.remove("show"), 180));
+    els.saveKeyBtn.addEventListener("click", () => {
+      const key = normalizeApiKey(els.token.value);
+      if (!key || !/^sk-/i.test(key)) { setStatus("请填写有效的 sk- API Key。", "bad"); return; }
+      saveLocal(STORAGE.key, key);
+      setStatus("Key 已保存。", "ok");
+    });
+    els.toggleKeyBtn.addEventListener("click", () => {
+      const show = els.token.type === "password";
+      els.token.type = show ? "text" : "password";
+      els.toggleKeyBtn.textContent = show ? "隐藏" : "显示";
+    });
+    els.clearKeyBtn.addEventListener("click", () => {
+      removeLocal(STORAGE.key);
+      els.token.value = "";
+      setStatus("Key 已清除。");
+    });
+    els.saveImageBtn.addEventListener("click", () => {
+      saveLocal(STORAGE.imageHost, imageHost());
+      saveLocal(STORAGE.imageToken, imageToken());
+      els.imageHost.value = imageHost();
+      els.imageToken.value = imageToken();
+      setStatus("图床配置已保存。", "ok");
+    });
+    els.toggleImageTokenBtn.addEventListener("click", () => {
+      const show = els.imageToken.type === "password";
+      els.imageToken.type = show ? "text" : "password";
+      els.toggleImageTokenBtn.textContent = show ? "隐藏" : "显示";
+    });
+    els.clearAllBtn.addEventListener("click", clearAll);
+    els.submitBtn.addEventListener("click", submitTask);
+    els.pollBtn.addEventListener("click", () => pollOnce().catch((err) => setStatus(`轮询失败：${err.message}`, "bad")));
+    els.stopBtn.addEventListener("click", stopPolling);
+    els.copyCurlBtn.addEventListener("click", () => copyCurl().catch((err) => setStatus(err.message, "bad")));
+    els.closePreviewBtn.addEventListener("click", hideTaskResult);
+
+    init();
+  </script>
+</body>
+</html>
