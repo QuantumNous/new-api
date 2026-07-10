@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -32,6 +32,13 @@ import {
 } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 import {
   Select,
   SelectContent,
@@ -49,6 +56,7 @@ import {
 } from '@/components/ui/table'
 
 import {
+  applyAutoGroupMappings,
   createFeishuGroupPackageMapping,
   deleteFeishuGroupPackageMapping,
   getFeishuGroupPackageMappings,
@@ -74,6 +82,8 @@ const emptyDraft: MappingDraft = {
   priority: 0,
   remark: '',
 }
+
+const pageSizeOptions = [5, 10, 20, 50, 100]
 
 function groupOptionValue(group: FeishuGroupOption) {
   return group.id || group.group_id || group.name
@@ -107,6 +117,8 @@ export function FeishuGroupMappings() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<MappingDraft>(emptyDraft)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
 
   const groupsQuery = useGroups()
   const tokenGroups = groupsQuery.data?.data ?? []
@@ -126,6 +138,17 @@ export function FeishuGroupMappings() {
     queryFn: getFeishuGroupPackageMappings,
   })
   const mappings = mappingsQuery.data?.data?.items ?? []
+  const pageCount = Math.max(1, Math.ceil(mappings.length / pageSize))
+  const pagedMappings = useMemo(
+    () => mappings.slice((page - 1) * pageSize, page * pageSize),
+    [mappings, page, pageSize]
+  )
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount)
+    }
+  }, [page, pageCount])
 
   const invalidateMappings = () =>
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.FEISHU_GROUP_MAPPINGS })
@@ -149,6 +172,34 @@ export function FeishuGroupMappings() {
         toast.success(t('Mapping updated successfully'))
         void invalidateMappings()
       }
+    },
+  })
+
+  const initializeMutation = useMutation({
+    mutationFn: async () => {
+      const apply = await applyAutoGroupMappings()
+      if (!apply.success) {
+        throw new Error(apply.message || t('Initialize failed'))
+      }
+      return apply.data
+    },
+    onSuccess: (result) => {
+      toast.success(
+        t('Initialization applied: {{applied}} users updated', {
+          applied: result?.applied ?? 0,
+        })
+      )
+      if (result) {
+        toast.message(
+          t('Scanned {{total}} users, {{skipped}} skipped', {
+            total: result.total_users,
+            skipped: result.skipped,
+          })
+        )
+      }
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : t('Initialize failed'))
     },
   })
 
@@ -191,12 +242,23 @@ export function FeishuGroupMappings() {
 
   return (
     <div className='flex min-h-0 flex-col gap-4'>
-      <Card size='sm'>
-        <CardHeader>
-          <CardTitle>{t('Feishu Group Package Mapping')}</CardTitle>
-          <CardDescription>
-            {t('Select Feishu contact groups and map them to token groups.')}
-          </CardDescription>
+      <Card size='sm' className='shrink-0'>
+        <CardHeader className='flex flex-row items-start justify-between gap-3'>
+          <div>
+            <CardTitle>{t('Feishu Group Package Mapping')}</CardTitle>
+            <CardDescription>
+              {t('Select Feishu contact groups and map them to token groups.')}
+            </CardDescription>
+          </div>
+          <Button
+            variant='secondary'
+            onClick={() => initializeMutation.mutate()}
+            disabled={initializeMutation.isPending}
+          >
+            {initializeMutation.isPending
+              ? t('Initializing')
+              : t('Initialize users by mappings')}
+          </Button>
         </CardHeader>
         <CardContent className='grid gap-3 md:grid-cols-[minmax(220px,1fr)_minmax(180px,240px)_100px_90px_auto]'>
           <Select
@@ -257,10 +319,11 @@ export function FeishuGroupMappings() {
         </CardContent>
       </Card>
 
-      <Card size='sm' className='min-h-0 flex-1 overflow-hidden'>
-        <CardContent className='p-0'>
-          <Table>
-            <TableHeader>
+      <Card size='sm' className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+        <CardContent className='flex min-h-0 flex-1 flex-col p-0'>
+          <div className='min-h-0 flex-1 overflow-auto overscroll-contain'>
+            <Table>
+              <TableHeader>
               <TableRow>
                 <TableHead>{t('Feishu contact group')}</TableHead>
                 <TableHead>{t('Token group')}</TableHead>
@@ -277,7 +340,7 @@ export function FeishuGroupMappings() {
                   </TableCell>
                 </TableRow>
               ) : (
-                mappings.map((mapping) => (
+                pagedMappings.map((mapping) => (
                   <TableRow key={mapping.id}>
                     <TableCell>
                       <div className='font-medium'>{mapping.feishu_group_name}</div>
@@ -329,8 +392,76 @@ export function FeishuGroupMappings() {
                   </TableRow>
                 ))
               )}
-            </TableBody>
-          </Table>
+              </TableBody>
+            </Table>
+          </div>
+          <div className='shrink-0 flex flex-col gap-3 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between'>
+            <div className='text-muted-foreground text-sm'>
+              {t('Showing {{start}}-{{end}} of {{total}} mappings', {
+                start: mappings.length === 0 ? 0 : (page - 1) * pageSize + 1,
+                end: Math.min(page * pageSize, mappings.length),
+                total: mappings.length,
+              })}
+            </div>
+            <div className='flex items-center gap-3'>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(value) => {
+                  setPageSize(Number(value))
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className='w-28'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageSizeOptions.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {t('{{count}} / page', { count: size })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Pagination className='mx-0 w-auto'>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href='#'
+                      text={t('Previous')}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        setPage((value) => Math.max(1, value - 1))
+                      }}
+                      aria-disabled={page <= 1}
+                      className={page <= 1 ? 'pointer-events-none opacity-50' : undefined}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <span className='text-muted-foreground px-2 text-sm'>
+                      {t('Page {{page}} of {{total}}', {
+                        page,
+                        total: pageCount,
+                      })}
+                    </span>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      href='#'
+                      text={t('Next')}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        setPage((value) => Math.min(pageCount, value + 1))
+                      }}
+                      aria-disabled={page >= pageCount}
+                      className={
+                        page >= pageCount ? 'pointer-events-none opacity-50' : undefined
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

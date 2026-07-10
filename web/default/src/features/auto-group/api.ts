@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   ApiResponse,
+  AutoGroupApplyMappingsResult,
   AutoGroupConfig,
   AutoGroupDashboard,
   AutoGroupIdentityRulesResponse,
@@ -197,6 +198,13 @@ export async function replayAutoGroupSuggestions(): Promise<
   ApiResponse<AutoGroupReplayResult>
 > {
   const res = await api.post('/api/auto-group/replay')
+  return res.data
+}
+
+export async function applyAutoGroupMappings(): Promise<
+  ApiResponse<AutoGroupApplyMappingsResult>
+> {
+  const res = await api.post('/api/auto-group/apply-mappings')
   return res.data
 }
 

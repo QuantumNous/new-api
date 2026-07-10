@@ -466,6 +466,15 @@ func ReplayAutoGroupSuggestions(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
+func ApplyAutoGroupMappingsNow(c *gin.Context) {
+	result, err := service.ApplyAutoGroupMappingsNow()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
 func ApplyHighConfidenceAutoGroupSuggestions(c *gin.Context) {
 	count, err := service.ApplyHighConfidenceAutoGroupSuggestions()
 	if err != nil {

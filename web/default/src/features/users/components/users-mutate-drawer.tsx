@@ -100,6 +100,25 @@ type UsersMutateDrawerProps = {
   accountType?: number
 }
 
+function parseStringList(value?: string) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    }
+  } catch {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 export function UsersMutateDrawer({
   open,
   onOpenChange,
@@ -162,6 +181,8 @@ export function UsersMutateDrawer({
   const selectedRole = form.watch('role')
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
+  const feishuGroupNames = parseStringList(displayUser?.feishu_group_names)
+  const feishuGroupIds = parseStringList(displayUser?.feishu_group_ids)
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate) {
@@ -728,6 +749,42 @@ export function UsersMutateDrawer({
                         }
                         disabled
                         className='mt-1'
+                      />
+                    </div>
+                    <div>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Manual Group Lock')}
+                      </Label>
+                      <Input
+                        value={
+                          displayUser?.manual_group_locked
+                            ? t('Locked')
+                            : t('Not locked')
+                        }
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
+                    <div className='sm:col-span-2'>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Feishu Groups')}
+                      </Label>
+                      <Textarea
+                        value={feishuGroupNames.join('\n') || '-'}
+                        disabled
+                        className='mt-1 resize-none'
+                        rows={Math.min(Math.max(feishuGroupNames.length, 2), 5)}
+                      />
+                    </div>
+                    <div className='sm:col-span-2'>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Feishu Group IDs')}
+                      </Label>
+                      <Textarea
+                        value={feishuGroupIds.join('\n') || '-'}
+                        disabled
+                        className='mt-1 resize-none font-mono text-xs'
+                        rows={Math.min(Math.max(feishuGroupIds.length, 2), 5)}
                       />
                     </div>
                   </div>

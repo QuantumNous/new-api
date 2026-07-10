@@ -58,6 +58,11 @@ type FeishuGroupInfo struct {
 	Name    string `json:"name"`
 }
 
+type FeishuUserGroupMembership struct {
+	Ids   []string
+	Names []string
+}
+
 func FetchFeishuGroupCatalog() (map[string]FeishuGroupInfo, error) {
 	settings := system_setting.GetFeishuSettings()
 	appID := strings.TrimSpace(settings.AppID)
@@ -114,15 +119,23 @@ func FetchFeishuGroupCatalog() (map[string]FeishuGroupInfo, error) {
 }
 
 func FetchFeishuUserGroupMembership(feishuOpenId string, catalog map[string]FeishuGroupInfo) ([]string, []string, error) {
+	membership, err := FetchFeishuUserGroupMembershipDetail(feishuOpenId, catalog)
+	if err != nil {
+		return nil, nil, err
+	}
+	return membership.Ids, membership.Names, nil
+}
+
+func FetchFeishuUserGroupMembershipDetail(feishuOpenId string, catalog map[string]FeishuGroupInfo) (FeishuUserGroupMembership, error) {
 	feishuOpenId = strings.TrimSpace(feishuOpenId)
 	if feishuOpenId == "" {
-		return nil, nil, fmt.Errorf("feishu open id is empty")
+		return FeishuUserGroupMembership{}, fmt.Errorf("feishu open id is empty")
 	}
 	settings := system_setting.GetFeishuSettings()
 	appID := strings.TrimSpace(settings.AppID)
 	appSecret := strings.TrimSpace(settings.AppSecret)
 	if appID == "" || appSecret == "" {
-		return nil, nil, feishuNotConfiguredErr
+		return FeishuUserGroupMembership{}, feishuNotConfiguredErr
 	}
 	client := lark.NewClient(appID, appSecret)
 	ids := make([]string, 0)
@@ -140,10 +153,10 @@ func FetchFeishuUserGroupMembership(feishuOpenId string, catalog map[string]Feis
 			}
 			resp, err := client.Contact.Group.MemberBelong(context.Background(), builder.Build())
 			if err != nil {
-				return nil, nil, err
+				return FeishuUserGroupMembership{}, err
 			}
 			if !resp.Success() {
-				return nil, nil, fmt.Errorf("feishu get user groups failed: code=%d msg=%s", resp.Code, resp.Msg)
+				return FeishuUserGroupMembership{}, fmt.Errorf("feishu get user groups failed: code=%d msg=%s", resp.Code, resp.Msg)
 			}
 			if resp.Data != nil {
 				for _, rawGroupId := range resp.Data.GroupList {
@@ -169,7 +182,29 @@ func FetchFeishuUserGroupMembership(feishuOpenId string, catalog map[string]Feis
 			break
 		}
 	}
-	return dedupeStrings(ids), dedupeStrings(names), nil
+	return FeishuUserGroupMembership{Ids: dedupeStrings(ids), Names: dedupeStrings(names)}, nil
+}
+
+func feishuGroupValuesToJson(values []string) string {
+	data, err := common.Marshal(values)
+	if err != nil {
+		return "[]"
+	}
+	return string(data)
+}
+
+func BuildFeishuUserGroupMembershipUpdates(membership FeishuUserGroupMembership) map[string]any {
+	return map[string]any{
+		"feishu_group_ids":   feishuGroupValuesToJson(membership.Ids),
+		"feishu_group_names": feishuGroupValuesToJson(membership.Names),
+	}
+}
+
+func UpdateUserFeishuGroupMembership(userId int, membership FeishuUserGroupMembership) error {
+	if userId <= 0 {
+		return nil
+	}
+	return model.DB.Model(&model.User{}).Where("id = ?", userId).Updates(BuildFeishuUserGroupMembershipUpdates(membership)).Error
 }
 
 func dedupeStrings(values []string) []string {
@@ -186,8 +221,7 @@ func dedupeStrings(values []string) []string {
 	return result
 }
 
-// TryAutoGroupOnUserCreate 在用户创建后尝试自动分组。
-// 它会：拉取飞书岗位 -> 根据规则决策 -> 应用变更（含订阅同步）。
+// TryAutoGroupOnUserCreate 在用户创建后按飞书通讯录用户组映射自动分组。
 // 安全失败：任何错误（包括飞书未配置、网络超时、SDK panic）只记日志，不影响用户创建。
 // 返回最终的 group。
 func TryAutoGroupOnUserCreate(userId int, currentGroup, feishuId string) string {
@@ -211,19 +245,10 @@ func TryAutoGroupOnUserCreate(userId int, currentGroup, feishuId string) string 
 			common.SysLog(fmt.Sprintf("auto-group: update job_title failed for user %d: %s", userId, uerr.Error()))
 		}
 	}
-	ctx := AutoGroupContext{UserId: userId, FeishuOpenId: feishuId, CurrentGroup: currentGroup, JobTitle: jobTitle}
-	catalog, catalogErr := FetchFeishuGroupCatalog()
-	if catalogErr == nil {
-		groupIds, groupNames, groupErr := FetchFeishuUserGroupMembership(feishuId, catalog)
-		if groupErr == nil {
-			ctx.FeishuGroupIds = groupIds
-			ctx.FeishuGroupNames = groupNames
-		}
-	}
-	decision := ClassifyAutoGroup(ctx)
-	if decision.Action == model.AutoGroupActionAutoApply && decision.SuggestedGroup != "" {
-		if applyErr := ApplyAutoGroupChange(userId, currentGroup, decision.SuggestedGroup); applyErr == nil {
-			return decision.SuggestedGroup
+	finalGroup, _ := ResolveAuthoritativeGroupForFeishuUser(userId, currentGroup, currentGroup, feishuId)
+	if finalGroup != "" && finalGroup != currentGroup {
+		if applyErr := ApplyAutoGroupChange(userId, currentGroup, finalGroup); applyErr == nil {
+			return finalGroup
 		}
 	}
 	return currentGroup

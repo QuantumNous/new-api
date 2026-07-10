@@ -19,6 +19,7 @@ type AutoGroupContext struct {
 	OrgPath              string   `json:"org_path"`
 	FeishuGroupIds       []string `json:"feishu_group_ids"`
 	FeishuGroupNames     []string `json:"feishu_group_names"`
+	ManualGroupLocked    bool     `json:"manual_group_locked"`
 }
 
 type AutoGroupDecision struct {
@@ -53,11 +54,18 @@ type AutoGroupReplayResult struct {
 	SkipCount            int `json:"skip_count"`
 }
 
+type AutoGroupApplyMappingsResult struct {
+	TotalUsers int `json:"total_users"`
+	Applied    int `json:"applied"`
+	Skipped    int `json:"skipped"`
+}
+
 func BuildAutoGroupContext(user model.User) AutoGroupContext {
 	return AutoGroupContext{
 		UserId:               user.Id,
 		FeishuOpenId:         user.FeishuId,
 		CurrentGroup:         user.Group,
+		ManualGroupLocked:    user.ManualGroupLocked,
 		JobTitle:             strings.TrimSpace(user.JobTitle),
 		OrgLevel1Name:        strings.TrimSpace(user.OrgLevel1Name),
 		OrgLevel2Name:        strings.TrimSpace(user.OrgLevel2Name),
@@ -70,6 +78,9 @@ func BuildAutoGroupContext(user model.User) AutoGroupContext {
 func ClassifyAutoGroup(ctx AutoGroupContext) AutoGroupDecision {
 	ctx.JobTitle = strings.TrimSpace(ctx.JobTitle)
 	ctx.CurrentGroup = strings.TrimSpace(ctx.CurrentGroup)
+	if ctx.ManualGroupLocked {
+		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "管理员手动维护分组", Source: "manual_group_locked"}
+	}
 	if IsProtectedGroup(ctx.CurrentGroup) {
 		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "当前分组受保护", Source: "protected"}
 	}
@@ -79,7 +90,10 @@ func ClassifyAutoGroup(ctx AutoGroupContext) AutoGroupDecision {
 		}
 		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: mapping.TargetGroup, Action: model.AutoGroupActionAutoApply, Confidence: model.AutoGroupConfidenceHigh, Reason: "飞书用户组命中套餐映射: " + mapping.FeishuGroupName, Source: "feishu_user_group"}
 	}
-	return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceLow, Reason: "未命中飞书用户组套餐映射", Source: "no_mapping"}
+	if ctx.CurrentGroup == "pending" {
+		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: "pending", Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "未命中飞书用户组套餐映射，已在 pending 分组", Source: "pending_fallback"}
+	}
+	return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: "pending", Action: model.AutoGroupActionAutoApply, Confidence: model.AutoGroupConfidenceHigh, Reason: "未命中飞书用户组套餐映射，归入 pending 分组", Source: "pending_fallback"}
 }
 
 func ReplayAutoGroupSuggestions() (*AutoGroupReplayResult, error) {
@@ -91,12 +105,19 @@ func ReplayAutoGroupSuggestions() (*AutoGroupReplayResult, error) {
 	result := &AutoGroupReplayResult{TotalUsers: len(users)}
 	catalog, catalogErr := FetchFeishuGroupCatalog()
 	for _, user := range users {
+		if strings.TrimSpace(user.FeishuId) == "" {
+			result.SkipCount++
+			continue
+		}
 		ctx := BuildAutoGroupContext(user)
 		if catalogErr == nil && strings.TrimSpace(ctx.FeishuOpenId) != "" {
-			groupIds, groupNames, groupErr := FetchFeishuUserGroupMembership(ctx.FeishuOpenId, catalog)
+			membership, groupErr := FetchFeishuUserGroupMembershipDetail(ctx.FeishuOpenId, catalog)
 			if groupErr == nil {
-				ctx.FeishuGroupIds = groupIds
-				ctx.FeishuGroupNames = groupNames
+				ctx.FeishuGroupIds = membership.Ids
+				ctx.FeishuGroupNames = membership.Names
+				if err := UpdateUserFeishuGroupMembership(user.Id, membership); err != nil {
+					common.SysLog("auto-group: update feishu user groups failed for user " + user.Username + ": " + err.Error())
+				}
 			} else if groupErr != feishuNotConfiguredErr {
 				common.SysLog("auto-group: fetch feishu user groups failed for user " + user.Username + ": " + groupErr.Error())
 			}
@@ -162,6 +183,46 @@ func GetAutoGroupDashboard() (*AutoGroupDashboard, error) {
 	}, nil
 }
 
+func ApplyAutoGroupMappingsNow() (*AutoGroupApplyMappingsResult, error) {
+	users, err := model.ListUsersForAutoGroupReplay()
+	if err != nil {
+		return nil, err
+	}
+	result := &AutoGroupApplyMappingsResult{TotalUsers: len(users)}
+	catalog, catalogErr := FetchFeishuGroupCatalog()
+	for _, user := range users {
+		if strings.TrimSpace(user.FeishuId) == "" {
+			result.Skipped++
+			continue
+		}
+		ctx := BuildAutoGroupContext(user)
+		if catalogErr == nil {
+			membership, groupErr := FetchFeishuUserGroupMembershipDetail(ctx.FeishuOpenId, catalog)
+			if groupErr == nil {
+				ctx.FeishuGroupIds = membership.Ids
+				ctx.FeishuGroupNames = membership.Names
+				if err := UpdateUserFeishuGroupMembership(user.Id, membership); err != nil {
+					common.SysLog("auto-group: update feishu user groups failed for user " + user.Username + ": " + err.Error())
+				}
+			} else if groupErr != feishuNotConfiguredErr {
+				common.SysLog("auto-group: fetch feishu user groups failed for user " + user.Username + ": " + groupErr.Error())
+			}
+		} else if catalogErr != feishuNotConfiguredErr {
+			common.SysLog("auto-group: fetch feishu group catalog failed: " + catalogErr.Error())
+		}
+		decision := ClassifyAutoGroup(ctx)
+		if decision.Action != model.AutoGroupActionAutoApply || decision.SuggestedGroup == "" {
+			result.Skipped++
+			continue
+		}
+		if err := ApplyAutoGroupChange(user.Id, user.Group, decision.SuggestedGroup); err != nil {
+			return result, err
+		}
+		result.Applied++
+	}
+	return result, nil
+}
+
 func ApplyHighConfidenceAutoGroupSuggestions() (int, error) {
 	suggestions, err := model.ListAutoGroupSuggestions(model.AutoGroupSuggestionPending)
 	if err != nil {
@@ -170,6 +231,10 @@ func ApplyHighConfidenceAutoGroupSuggestions() (int, error) {
 	applied := 0
 	for _, suggestion := range suggestions {
 		if suggestion.Action != model.AutoGroupActionAutoApply || suggestion.Confidence != model.AutoGroupConfidenceHigh || suggestion.SuggestedGroup == "" {
+			continue
+		}
+		var user model.User
+		if err := model.DB.Select("manual_group_locked").Where("id = ?", suggestion.UserId).First(&user).Error; err == nil && user.ManualGroupLocked {
 			continue
 		}
 		if IsProtectedGroup(suggestion.CurrentGroup) {

@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Activity, BarChart3, WalletCards } from 'lucide-react'
+import { Activity, BarChart3, UsersRound, WalletCards } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
@@ -39,8 +40,28 @@ interface ProfileHeaderProps {
   loading: boolean
 }
 
+function parseFeishuGroups(value?: string) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+    }
+  } catch {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   const { t } = useTranslation()
+  const feishuGroups = useMemo(
+    () => parseFeishuGroups(profile?.feishu_group_names || profile?.feishu_group_ids),
+    [profile?.feishu_group_ids, profile?.feishu_group_names]
+  )
 
   if (loading) {
     return (
@@ -147,6 +168,25 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
                   <span>•</span>
                   <span className='truncate'>{profile.group}</span>
                 </>
+              )}
+            </div>
+
+            <div className='flex flex-wrap items-center gap-1.5 text-xs'>
+              <span className='text-muted-foreground inline-flex items-center gap-1'>
+                <UsersRound className='size-3.5' />
+                {t('Feishu Groups')}
+              </span>
+              {feishuGroups.length > 0 ? (
+                feishuGroups.map((group) => (
+                  <StatusBadge
+                    key={group}
+                    label={group}
+                    variant='neutral'
+                    copyText={group}
+                  />
+                ))
+              ) : (
+                <span className='text-muted-foreground'>{t('No Feishu groups')}</span>
               )}
             </div>
           </div>

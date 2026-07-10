@@ -81,6 +81,10 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  /** Feishu contact group IDs stored as JSON string */
+  feishu_group_ids?: string
+  /** Feishu contact group names stored as JSON string */
+  feishu_group_names?: string
 }
 
 /**

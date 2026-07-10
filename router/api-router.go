@@ -380,6 +380,7 @@ func SetApiRouter(router *gin.Engine) {
 			autoGroupRoute.DELETE("/feishu-group-mappings/:id", controller.DeleteFeishuGroupPackageMapping)
 			autoGroupRoute.GET("/dashboard", controller.GetAutoGroupDashboard)
 			autoGroupRoute.POST("/replay", controller.ReplayAutoGroupSuggestions)
+			autoGroupRoute.POST("/apply-mappings", controller.ApplyAutoGroupMappingsNow)
 			autoGroupRoute.POST("/apply-high-confidence", controller.ApplyHighConfidenceAutoGroupSuggestions)
 			autoGroupRoute.GET("/suggestions", controller.ListAutoGroupSuggestions)
 			autoGroupRoute.POST("/suggestions/:id/confirm", controller.ConfirmAutoGroupSuggestion)

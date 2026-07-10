@@ -47,6 +47,47 @@ func IsProtectedGroup(group string) bool {
 	return false
 }
 
+func ResolveAuthoritativeGroupForFeishuUser(userId int, currentGroup, requestedGroup, feishuOpenId string) (string, string) {
+	currentGroup = strings.TrimSpace(currentGroup)
+	requestedGroup = strings.TrimSpace(requestedGroup)
+	feishuOpenId = strings.TrimSpace(feishuOpenId)
+	var user model.User
+	if userId > 0 {
+		if err := model.DB.Select("manual_group_locked").Where("id = ?", userId).First(&user).Error; err == nil && user.ManualGroupLocked {
+			return currentGroup, "管理员手动维护分组"
+		}
+	}
+	if IsProtectedGroup(currentGroup) {
+		return currentGroup, "当前分组受保护"
+	}
+	if feishuOpenId != "" {
+		ctx := AutoGroupContext{UserId: userId, FeishuOpenId: feishuOpenId, CurrentGroup: currentGroup}
+		catalog, catalogErr := FetchFeishuGroupCatalog()
+		if catalogErr == nil {
+			membership, groupErr := FetchFeishuUserGroupMembershipDetail(feishuOpenId, catalog)
+			if groupErr == nil {
+				ctx.FeishuGroupIds = membership.Ids
+				ctx.FeishuGroupNames = membership.Names
+				if err := UpdateUserFeishuGroupMembership(userId, membership); err != nil {
+					common.SysLog(fmt.Sprintf("auto-group: update feishu user groups failed for user %d: %s", userId, err.Error()))
+				}
+			} else if groupErr != feishuNotConfiguredErr {
+				common.SysLog(fmt.Sprintf("auto-group: fetch feishu user groups failed for user %d: %s", userId, groupErr.Error()))
+			}
+		} else if catalogErr != feishuNotConfiguredErr {
+			common.SysLog(fmt.Sprintf("auto-group: fetch feishu group catalog failed for user %d: %s", userId, catalogErr.Error()))
+		}
+		decision := ClassifyAutoGroup(ctx)
+		if decision.SuggestedGroup != "" {
+			return decision.SuggestedGroup, decision.Reason
+		}
+	}
+	if requestedGroup == "agentone" {
+		return "agentone", "未命中飞书用户组套餐映射，保留 agentone 小套餐"
+	}
+	return "pending", "未命中飞书用户组套餐映射，归入 pending 分组"
+}
+
 // ResolveAndCheckAutoGroup 是自动分组的统一决策入口。
 // 根据 jobTitle 算出目标 group，结合白名单检查是否需要变更。
 // 返回值：
@@ -54,10 +95,6 @@ func IsProtectedGroup(group string) bool {
 //   - changed: 是否需要变更
 //   - err: 查询错误
 func ResolveAndCheckAutoGroup(currentGroup, jobTitle string) (newGroup string, changed bool, err error) {
-	decision := ClassifyAutoGroup(AutoGroupContext{CurrentGroup: currentGroup, JobTitle: jobTitle})
-	if decision.Action == model.AutoGroupActionAutoApply && decision.SuggestedGroup != "" {
-		return decision.SuggestedGroup, currentGroup != decision.SuggestedGroup, nil
-	}
 	target, err := ResolveGroupByJobTitle(jobTitle)
 	if err != nil {
 		return currentGroup, false, err

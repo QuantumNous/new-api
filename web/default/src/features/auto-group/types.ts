@@ -104,6 +104,12 @@ export interface AutoGroupReplayResult {
   skip_count: number
 }
 
+export interface AutoGroupApplyMappingsResult {
+  total_users: number
+  applied: number
+  skipped: number
+}
+
 export interface AutoGroupSuggestion {
   id: number
   user_id: number

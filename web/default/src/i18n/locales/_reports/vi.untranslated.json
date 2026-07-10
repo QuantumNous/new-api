@@ -1,0 +1,11 @@
+{
+  "Convert to Organization": "Convert to Organization",
+  "Converted to organization account": "Converted to organization account",
+  "Failed to convert to organization account": "Failed to convert to organization account",
+  "Failed to create token": "Failed to create token",
+  "Failed to load data": "Failed to load data",
+  "Failed to load tokens": "Failed to load tokens",
+  "Please provide at least one user": "Please provide at least one user",
+  "Please provide feishu_open_id or feishu_user_id": "Please provide feishu_open_id or feishu_user_id",
+  "Query all plaintext keys for a Feishu user and create new key (permission-limited).": "Query all plaintext keys for a Feishu user and create new key (permission-limited)."
+}
