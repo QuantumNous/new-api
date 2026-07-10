@@ -420,12 +420,12 @@ func notifyClientGoneHedgeResultWithUsage(c *gin.Context, relayInfo *relaycommon
 		fmt.Sprintf("- 邮箱：`%s`", userEmail),
 		fmt.Sprintf("- body：`%.2f MB`", float64(bodySize)/1024/1024),
 		fmt.Sprintf("- 触发：主渠道 `%s` 超过阈值 `%ds` 未出首字", primary.channelLabel(), thresholdSeconds),
-		fmt.Sprintf("- 主渠道 frt：`%s`", primary.frtLabel()),
+		fmt.Sprintf("- 主渠道 frt：<font color='red'>**%s**</font>", primary.frtLabel()),
 	}
 	if hedge != nil {
 		lines = append(lines,
 			fmt.Sprintf("- hedge 渠道：`%s`（于 `+%.1fs` 启动）", hedge.channelLabel(), hedge.startedAt.Sub(relayInfo.StartTime).Seconds()),
-			fmt.Sprintf("- hedge frt：`%s`", hedge.frtLabel()),
+			fmt.Sprintf("- hedge frt：<font color='green'>**%s**</font>", hedge.frtLabel()),
 		)
 	} else {
 		lines = append(lines, "- hedge：`未能选出第二渠道（单路继续）`")
@@ -455,7 +455,15 @@ func notifyClientGoneHedgeResultWithUsage(c *gin.Context, relayInfo *relaycommon
 			lines = append(lines, fmt.Sprintf("- hedge 错误：`%s / HTTP %d`", hedge.err.GetErrorCode(), hedge.err.StatusCode))
 		}
 	} else if winner != nil {
-		title += "（成功）"
+		// 有效 = hedge 真的抢先救回了请求；无效 = hedge 白发（主渠道最终还是先出首字）
+		switch {
+		case hedge != nil && winner == hedge:
+			title += "（成功 · <font color='green'>**有效**</font>）"
+		case hedge != nil && winner == primary:
+			title += "（成功 · <font color='grey'>**无效**</font>）"
+		default:
+			title += "（成功 · 单路）"
+		}
 	}
 
 	gopool.Go(func() {
