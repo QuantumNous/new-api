@@ -208,11 +208,21 @@ func CatalogExport(c *gin.Context) {
 	// with_channel_data=1：在同一响应里附带逐模型的渠道数据（渠道数据页明细），
 	// 供下游 Roma 一次性同步、不必再逐模型请求 channel-data-export。
 	// 缺省时不含 channel_data，响应与旧行为一致（向后兼容）。
+	//
+	// 模型清单来自各渠道声明的 channels.models（去重），而非 Model 元数据表——
+	// 与渠道数据页 / Roma 快照同步的模型来源一致（Model 元数据表可能只有极少数条目）。
 	if isTruthyQuery(c.Query("with_channel_data")) {
+		modelSet := make(map[string]struct{})
+		for i := range channels {
+			for _, m := range strings.Split(channels[i].Models, ",") {
+				if m = strings.TrimSpace(m); m != "" {
+					modelSet[m] = struct{}{}
+				}
+			}
+		}
 		channelData := gin.H{}
-		for i := range models {
-			modelName := models[i].ModelName
-			if strings.TrimSpace(modelName) == "" || isHiddenChannelDataModel(modelName) {
+		for modelName := range modelSet {
+			if isHiddenChannelDataModel(modelName) {
 				continue
 			}
 			items, officialOK, officialIn, officialOut := getModelDataItems(c.Request.Context(), modelName)
