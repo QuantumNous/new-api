@@ -1136,6 +1136,23 @@ func UpdateUserUsedQuotaAndRequestCount(id int, quota int) {
 	updateUserUsedQuotaAndRequestCount(id, quota, 1)
 }
 
+func DecreaseUserUsedQuota(id int, quota int) {
+	if id <= 0 || quota <= 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUsedQuota, id, -quota)
+		return
+	}
+	err := DB.Model(&User{}).Where("id = ?", id).Update(
+		"used_quota",
+		gorm.Expr("CASE WHEN used_quota < ? THEN 0 ELSE used_quota - ? END", quota, quota),
+	).Error
+	if err != nil {
+		common.SysLog("failed to decrease user used quota: " + err.Error())
+	}
+}
+
 func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
@@ -1159,13 +1176,21 @@ func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, r
 		return
 	}
 
-	err := DB.Model(&User{}).Where("id = ?", id).Updates(
-		map[string]interface{}{
-			"quota":         gorm.Expr("quota + ?", quota),
-			"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
-			"request_count": gorm.Expr("request_count + ?", requestCount),
-		},
-	).Error
+	updates := map[string]interface{}{}
+	if quota != 0 {
+		updates["quota"] = gorm.Expr("quota + ?", quota)
+	}
+	if usedQuota > 0 {
+		updates["used_quota"] = gorm.Expr("used_quota + ?", usedQuota)
+	} else if usedQuota < 0 {
+		refund := -usedQuota
+		updates["used_quota"] = gorm.Expr("CASE WHEN used_quota < ? THEN 0 ELSE used_quota - ? END", refund, refund)
+	}
+	if requestCount != 0 {
+		updates["request_count"] = gorm.Expr("request_count + ?", requestCount)
+	}
+
+	err := DB.Model(&User{}).Where("id = ?", id).Updates(updates).Error
 	if err != nil {
 		common.SysLog("failed to batch update user quota, used quota and request count: " + err.Error())
 	}
