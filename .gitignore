@@ -35,6 +35,7 @@ data/
 .test
 token_estimator_test.go
 tmp/
+.worktrees/
 skills-lock.json
 /web/default/package-lock.json
 /web/default/bun.lock
