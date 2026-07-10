@@ -1502,7 +1502,7 @@
     "Each tier supports 0~2 conditions (over len, p, c); the last tier is the catch-all without conditions. Use len (full input length, including cache hits) for tier conditions to avoid mis-routing when cache hits reduce p.": "Mỗi bậc hỗ trợ 0~2 điều kiện (đối với len, p, c); bậc cuối là bậc dự phòng không cần điều kiện. Hãy dùng len (độ dài đầu vào đầy đủ, bao gồm cả cache hits) cho điều kiện bậc để tránh định tuyến sai khi cache hits làm giảm p.",
     "Each tier supports up to 2 conditions; the last tier is the catch-all without conditions. Use full input length for tier conditions to avoid mis-routing when cache hits reduce billable input tokens.": "Mỗi tầng hỗ trợ tối đa 2 điều kiện; tầng cuối cùng là tầng dự phòng không có điều kiện. Hãy dùng độ dài đầu vào đầy đủ cho điều kiện tầng để tránh chọn sai tầng khi cache hit làm giảm token đầu vào tính phí.",
     "Each tier supports up to 2 conditions. The last tier without conditions is the fallback.": "Mỗi tầng hỗ trợ tối đa 2 điều kiện. Tầng cuối cùng không có điều kiện là tầng dự phòng.",
-    "Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.": "Nhận phần thưởng khi người bạn giới thiệu nạp tiền",
+    "Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.": "Nhận phần thưởng khi người dùng đăng ký qua liên kết giới thiệu của bạn. Chuyển phần thưởng tích lũy vào số dư bất cứ lúc nào.",
     "Edit": "Chỉnh sửa",
     "Edit {{title}}": "Chỉnh sửa {{title}}",
     "Edit all channels with tag:": "Chỉnh sửa tất cả các kênh với thẻ:",

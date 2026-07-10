@@ -1502,7 +1502,7 @@
     "Each tier supports 0~2 conditions (over len, p, c); the last tier is the catch-all without conditions. Use len (full input length, including cache hits) for tier conditions to avoid mis-routing when cache hits reduce p.": "各層は 0~2 個の条件（len、p、c に対して）を設定でき、最後の層は条件なしのキャッチオール層です。キャッシュヒットによって p が下がり層が誤判定されるのを防ぐため、層の条件には len（キャッシュヒットを含む完全な入力長）を使用してください。",
     "Each tier supports up to 2 conditions; the last tier is the catch-all without conditions. Use full input length for tier conditions to avoid mis-routing when cache hits reduce billable input tokens.": "各階層は最大2つの条件をサポートします。最後の階層は条件なしのフォールバックです。キャッシュヒットで課金対象の入力トークンが減っても誤った階層にならないよう、条件には完全な入力長を使用してください。",
     "Each tier supports up to 2 conditions. The last tier without conditions is the fallback.": "各段階は最大 2 つの条件に対応します。条件のない最後の段階がフォールバックです。",
-    "Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.": "紹介者が資金を追加すると報酬を獲得できます。いつでも蓄積された報酬を残高に振り替えることができます。",
+    "Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.": "ユーザーがあなたの紹介リンクから登録すると報酬を獲得できます。貯まった報酬はいつでも残高へ振り替えられます。",
     "Edit": "編集",
     "Edit {{title}}": "{{title}}を編集",
     "Edit all channels with tag:": "タグを持つすべてのチャネルを編集:",
