@@ -863,8 +863,11 @@ func SyncUserBindGroupSubscriptions(userId int, oldGroup, newGroup string) error
 	if userId <= 0 {
 		return nil
 	}
+	oldGroup = strings.TrimSpace(oldGroup)
+	newGroup = strings.TrimSpace(newGroup)
 
-	if oldGroup != "" {
+	carriedUsed := int64(0)
+	if oldGroup != "" && oldGroup != newGroup {
 		var oldPlans []SubscriptionPlan
 		if err := DB.Where("bind_group = ? AND enabled = ?", oldGroup, true).Find(&oldPlans).Error; err != nil {
 			return err
@@ -873,6 +876,15 @@ func SyncUserBindGroupSubscriptions(userId int, oldGroup, newGroup string) error
 			planIds := make([]int, 0, len(oldPlans))
 			for _, p := range oldPlans {
 				planIds = append(planIds, p.Id)
+			}
+			var oldSubs []UserSubscription
+			if err := DB.Where("user_id = ? AND source = ? AND plan_id IN ?", userId, "bind_group", planIds).Find(&oldSubs).Error; err != nil {
+				return err
+			}
+			for _, sub := range oldSubs {
+				if sub.AmountUsed > carriedUsed {
+					carriedUsed = sub.AmountUsed
+				}
 			}
 			if err := DB.Where("user_id = ? AND source = ? AND plan_id IN ?", userId, "bind_group", planIds).
 				Delete(&UserSubscription{}).Error; err != nil {
@@ -887,27 +899,42 @@ func SyncUserBindGroupSubscriptions(userId int, oldGroup, newGroup string) error
 			return err
 		}
 		nowUnix := GetDBTimestamp()
+		now := common.GetTimestamp()
 		for _, p := range newPlans {
-			var count int64
-			DB.Model(&UserSubscription{}).
-				Where("user_id = ? AND plan_id = ?", userId, p.Id).
-				Count(&count)
-			if count > 0 {
+			var sub UserSubscription
+			err := DB.Where("user_id = ? AND plan_id = ? AND source = ?", userId, p.Id, "bind_group").First(&sub).Error
+			if err == nil {
+				amountUsed := sub.AmountUsed
+				if carriedUsed > amountUsed {
+					amountUsed = carriedUsed
+				}
+				if err := DB.Model(&sub).Updates(map[string]interface{}{
+					"amount_total": p.TotalAmount,
+					"amount_used":  amountUsed,
+					"end_time":     int64(0),
+					"status":       "active",
+					"updated_at":   now,
+				}).Error; err != nil {
+					return err
+				}
 				continue
 			}
-			sub := &UserSubscription{
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			sub = UserSubscription{
 				UserId:      userId,
 				PlanId:      p.Id,
 				AmountTotal: p.TotalAmount,
-				AmountUsed:  0,
+				AmountUsed:  carriedUsed,
 				StartTime:   nowUnix,
 				EndTime:     0,
 				Status:      "active",
 				Source:      "bind_group",
-				CreatedAt:   common.GetTimestamp(),
-				UpdatedAt:   common.GetTimestamp(),
+				CreatedAt:   now,
+				UpdatedAt:   now,
 			}
-			if err := DB.Create(sub).Error; err != nil {
+			if err := DB.Create(&sub).Error; err != nil {
 				common.SysLog(fmt.Sprintf("SyncUserBindGroupSubscriptions: failed to create sub for user %d plan %d: %s", userId, p.Id, err.Error()))
 			}
 		}
@@ -917,8 +944,17 @@ func SyncUserBindGroupSubscriptions(userId int, oldGroup, newGroup string) error
 }
 
 func SyncPlanBindGroupChange(planId int, oldBindGroup, newBindGroup string, totalAmount int64) {
-	if oldBindGroup != "" {
-		DB.Where("plan_id = ? AND source = ?", planId, "bind_group").Delete(&UserSubscription{})
+	oldBindGroup = strings.TrimSpace(oldBindGroup)
+	newBindGroup = strings.TrimSpace(newBindGroup)
+	if oldBindGroup != "" && oldBindGroup != newBindGroup {
+		var users []User
+		if err := DB.Where(fmt.Sprintf("%s = ?", commonGroupCol), oldBindGroup).Find(&users).Error; err == nil {
+			for _, u := range users {
+				if err := SyncUserBindGroupSubscriptions(u.Id, oldBindGroup, u.Group); err != nil {
+					common.SysLog(fmt.Sprintf("SyncPlanBindGroupChange: failed to sync old group user %d: %s", u.Id, err.Error()))
+				}
+			}
+		}
 	}
 	if newBindGroup != "" {
 		var users []User
@@ -926,29 +962,9 @@ func SyncPlanBindGroupChange(planId int, oldBindGroup, newBindGroup string, tota
 			common.SysLog(fmt.Sprintf("SyncPlanBindGroupChange: failed to find users for group %s: %s", newBindGroup, err.Error()))
 			return
 		}
-		nowUnix := GetDBTimestamp()
 		for _, u := range users {
-			var count int64
-			DB.Model(&UserSubscription{}).
-				Where("user_id = ? AND plan_id = ?", u.Id, planId).
-				Count(&count)
-			if count > 0 {
-				continue
-			}
-			sub := &UserSubscription{
-				UserId:      u.Id,
-				PlanId:      planId,
-				AmountTotal: totalAmount,
-				AmountUsed:  0,
-				StartTime:   nowUnix,
-				EndTime:     0,
-				Status:      "active",
-				Source:      "bind_group",
-				CreatedAt:   common.GetTimestamp(),
-				UpdatedAt:   common.GetTimestamp(),
-			}
-			if err := DB.Create(sub).Error; err != nil {
-				common.SysLog(fmt.Sprintf("SyncPlanBindGroupChange: failed to create sub for user %d: %s", u.Id, err.Error()))
+			if err := SyncUserBindGroupSubscriptions(u.Id, u.Group, newBindGroup); err != nil {
+				common.SysLog(fmt.Sprintf("SyncPlanBindGroupChange: failed to sync new group user %d: %s", u.Id, err.Error()))
 			}
 		}
 	}
@@ -1014,14 +1030,28 @@ func RepairBindGroupSubscriptions() {
 // HasActiveUserSubscription returns whether the user has any active subscription.
 // This is a lightweight existence check to avoid heavy pre-consume transactions.
 func HasActiveUserSubscription(userId int) (bool, error) {
+	return hasActiveUserSubscriptionInternal(userId, false)
+}
+
+// HasActiveUserSubscriptionExcludingBindGroup checks for active subscriptions
+// excluding company auto-assigned ones (source = 'bind_group').
+// Used when the request targets a personal funding group.
+func HasActiveUserSubscriptionExcludingBindGroup(userId int) (bool, error) {
+	return hasActiveUserSubscriptionInternal(userId, true)
+}
+
+func hasActiveUserSubscriptionInternal(userId int, excludeBindGroup bool) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
+	query := DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0)", userId, "active", now)
+	if excludeBindGroup {
+		query = query.Where("source != ?", "bind_group")
+	}
 	var count int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0)", userId, "active", now).
-		Count(&count).Error; err != nil {
+	if err := query.Count(&count).Error; err != nil {
 		return false, err
 	}
 	return count > 0, nil
@@ -1328,6 +1358,16 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscriptionInternal(requestId, userId, modelName, quotaType, amount, false)
+}
+
+// PreConsumeUserSubscriptionExcludingBindGroup pre-consumes from active subscriptions
+// excluding company auto-assigned ones (source = 'bind_group').
+func PreConsumeUserSubscriptionExcludingBindGroup(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscriptionInternal(requestId, userId, modelName, quotaType, amount, true)
+}
+
+func preConsumeUserSubscriptionInternal(requestId string, userId int, modelName string, quotaType int, amount int64, excludeBindGroup bool) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1364,8 +1404,12 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		}
 
 		var subs []UserSubscription
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0)", userId, "active", now).
+		subQuery := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0)", userId, "active", now)
+		if excludeBindGroup {
+			subQuery = subQuery.Where("source != ?", "bind_group")
+		}
+		if err := subQuery.
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
 			return errors.New("no active subscription")
@@ -1563,4 +1607,28 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		sub.AmountUsed = newUsed
 		return tx.Save(&sub).Error
 	})
+}
+
+// GetActiveSubscriptionBindGroups returns the deduplicated bind_group values
+// from all active, non-expired subscriptions for the given user.
+// Empty bind_group values are skipped.
+func GetActiveSubscriptionBindGroups(userId int) ([]string, error) {
+	if userId <= 0 {
+		return nil, nil
+	}
+	now := GetDBTimestamp()
+	var groups []string
+	err := DB.Model(&UserSubscription{}).
+		Select("subscription_plans.bind_group").
+		Joins("JOIN subscription_plans ON subscription_plans.id = user_subscriptions.plan_id").
+		Where("user_subscriptions.user_id = ?", userId).
+		Where("user_subscriptions.status = ?", "active").
+		Where("user_subscriptions.end_time > ?", now).
+		Where("subscription_plans.bind_group != ''").
+		Group("subscription_plans.bind_group").
+		Pluck("subscription_plans.bind_group", &groups).Error
+	if err != nil {
+		return nil, err
+	}
+	return groups, nil
 }

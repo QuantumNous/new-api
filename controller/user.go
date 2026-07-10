@@ -512,31 +512,33 @@ func GetSelf(c *gin.Context) {
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                user.Id,
-		"username":          user.Username,
-		"display_name":      user.DisplayName,
-		"role":              user.Role,
-		"status":            user.Status,
-		"email":             user.Email,
-		"github_id":         user.GitHubId,
-		"discord_id":        user.DiscordId,
-		"oidc_id":           user.OidcId,
-		"wechat_id":         user.WeChatId,
-		"telegram_id":       user.TelegramId,
-		"group":             user.Group,
-		"quota":             user.Quota,
-		"used_quota":        user.UsedQuota,
-		"request_count":     user.RequestCount,
-		"aff_code":          user.AffCode,
-		"aff_count":         user.AffCount,
-		"aff_quota":         user.AffQuota,
-		"aff_history_quota": user.AffHistoryQuota,
-		"inviter_id":        user.InviterId,
-		"linux_do_id":       user.LinuxDOId,
-		"setting":           user.Setting,
-		"stripe_customer":   user.StripeCustomer,
-		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":       permissions,                // 新增权限字段
+		"id":                 user.Id,
+		"username":           user.Username,
+		"display_name":       user.DisplayName,
+		"role":               user.Role,
+		"status":             user.Status,
+		"email":              user.Email,
+		"github_id":          user.GitHubId,
+		"discord_id":         user.DiscordId,
+		"oidc_id":            user.OidcId,
+		"wechat_id":          user.WeChatId,
+		"telegram_id":        user.TelegramId,
+		"group":              user.Group,
+		"quota":              user.Quota,
+		"used_quota":         user.UsedQuota,
+		"request_count":      user.RequestCount,
+		"aff_code":           user.AffCode,
+		"aff_count":          user.AffCount,
+		"aff_quota":          user.AffQuota,
+		"aff_history_quota":  user.AffHistoryQuota,
+		"inviter_id":         user.InviterId,
+		"linux_do_id":        user.LinuxDOId,
+		"feishu_group_ids":   user.FeishuGroupIds,
+		"feishu_group_names": user.FeishuGroupNames,
+		"setting":            user.Setting,
+		"stripe_customer":    user.StripeCustomer,
+		"sidebar_modules":    userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":        permissions,                // 新增权限字段
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -647,7 +649,7 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+	groups := service.GetUserUsableGroupsWithSubscriptions(user.Group, user.Id)
 	group := c.Query("group")
 	if group != "" {
 		if _, ok := groups[group]; !ok {
@@ -719,6 +721,10 @@ func UpdateUser(c *gin.Context) {
 	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
+	}
+	updatedUser.ManualGroupLocked = originUser.ManualGroupLocked
+	if strings.TrimSpace(updatedUser.Group) != "" && strings.TrimSpace(updatedUser.Group) != originUser.Group {
+		updatedUser.ManualGroupLocked = true
 	}
 	updatePassword := updatedUser.Password != ""
 	authzTouched := false
@@ -1058,15 +1064,21 @@ func CreateUser(c *gin.Context) {
 	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
-		Username:       user.Username,
-		Password:       user.Password,
-		DisplayName:    user.DisplayName,
-		Role:           user.Role, // 保持管理员设置的角色
-		AccountType:    user.AccountType,
-		OrgName:        user.OrgName,
-		OrgContactName: user.OrgContactName,
-		OrgContactInfo: user.OrgContactInfo,
-		OrgDescription: user.OrgDescription,
+		Username:          user.Username,
+		Password:          user.Password,
+		DisplayName:       user.DisplayName,
+		Role:              user.Role, // 保持管理员设置的角色
+		Group:             strings.TrimSpace(user.Group),
+		ManualGroupLocked: strings.TrimSpace(user.Group) != "",
+		FeishuId:          strings.TrimSpace(user.FeishuId),
+		FeishuUnionId:     strings.TrimSpace(user.FeishuUnionId),
+		FeishuUserId:      strings.TrimSpace(user.FeishuUserId),
+		JobTitle:          strings.TrimSpace(user.JobTitle),
+		AccountType:       user.AccountType,
+		OrgName:           user.OrgName,
+		OrgContactName:    user.OrgContactName,
+		OrgContactInfo:    user.OrgContactInfo,
+		OrgDescription:    user.OrgDescription,
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
@@ -1088,9 +1100,11 @@ func CreateUser(c *gin.Context) {
 	}
 	cleanUser.FinishInsert(0)
 
-	// 若新建用户绑定飞书身份，尝试按岗位自动分组（拉 job_title -> 决策 -> 应用）
+	// 若新建用户绑定飞书身份，按飞书用户组套餐映射自动归一分组。
 	if cleanUser.FeishuId != "" {
 		cleanUser.Group = service.TryAutoGroupOnUserCreate(cleanUser.Id, cleanUser.Group, cleanUser.FeishuId)
+	} else if cleanUser.Group != "" {
+		_ = model.SyncUserBindGroupSubscriptions(cleanUser.Id, "", cleanUser.Group)
 	}
 
 	recordManageAuditFor(c, cleanUser.Id, "user.create", map[string]interface{}{

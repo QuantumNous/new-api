@@ -154,6 +154,7 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 	}
 
 	updates := map[string]any{
+		"feishu_id":                     strings.TrimSpace(openID),
 		"feishu_department_id":          department.ID,
 		"feishu_department_name":        department.Name,
 		"feishu_parent_department_id":   parent.ID,
@@ -164,6 +165,19 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 		"org_level1_name":               orgPath.Level1Name,
 		"org_level2_name":               orgPath.Level2Name,
 	}
+	membership := FeishuUserGroupMembership{}
+	if catalog, catalogErr := FetchFeishuGroupCatalog(); catalogErr == nil {
+		if got, groupErr := FetchFeishuUserGroupMembershipDetail(openID, catalog); groupErr == nil {
+			membership = got
+			for key, value := range BuildFeishuUserGroupMembershipUpdates(membership) {
+				updates[key] = value
+			}
+		} else if groupErr != feishuNotConfiguredErr {
+			common.SysLog(fmt.Sprintf("feishu user info sync: fetch user groups failed for user %d: %s", user.Id, groupErr.Error()))
+		}
+	} else if catalogErr != feishuNotConfiguredErr {
+		common.SysLog(fmt.Sprintf("feishu user info sync: fetch group catalog failed for user %d: %s", user.Id, catalogErr.Error()))
+	}
 	if feishuUser.UserId != nil && strings.TrimSpace(*feishuUser.UserId) != "" {
 		updates["feishu_user_id"] = strings.TrimSpace(*feishuUser.UserId)
 	}
@@ -172,6 +186,9 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 	}
 	if feishuUser.JobTitle != nil {
 		updates["job_title"] = strings.TrimSpace(*feishuUser.JobTitle)
+	}
+	if feishuUser.EmployeeNo != nil {
+		updates["feishu_employee_no"] = strings.TrimSpace(*feishuUser.EmployeeNo)
 	}
 	if department.Name != "" {
 		updates["org_name"] = department.Name
@@ -191,8 +208,9 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 	jobTitle, _ := updates["job_title"].(string)
 	agCtx := AutoGroupContext{
 		UserId:               user.Id,
-		FeishuOpenId:         user.FeishuId,
+		FeishuOpenId:         strings.TrimSpace(openID),
 		CurrentGroup:         oldGroup,
+		ManualGroupLocked:    user.ManualGroupLocked,
 		JobTitle:             jobTitle,
 		OrgLevel1Name:        orgPath.Level1Name,
 		OrgLevel2Name:        orgPath.Level2Name,
@@ -200,11 +218,9 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 		ParentDepartmentName: parent.Name,
 		OrgPath:              orgPath.Path,
 	}
-	if catalog, catalogErr := FetchFeishuGroupCatalog(); catalogErr == nil && strings.TrimSpace(user.FeishuId) != "" {
-		if groupIds, groupNames, groupErr := FetchFeishuUserGroupMembership(user.FeishuId, catalog); groupErr == nil {
-			agCtx.FeishuGroupIds = groupIds
-			agCtx.FeishuGroupNames = groupNames
-		}
+	if len(membership.Ids) > 0 || len(membership.Names) > 0 {
+		agCtx.FeishuGroupIds = membership.Ids
+		agCtx.FeishuGroupNames = membership.Names
 	}
 	decision := ClassifyAutoGroup(agCtx)
 	if decision.Action == model.AutoGroupActionAutoApply && decision.SuggestedGroup != "" && decision.SuggestedGroup != oldGroup {

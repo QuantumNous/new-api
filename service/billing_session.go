@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -376,7 +377,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 
-	trySubscription := func() (*BillingSession, *types.NewAPIError) {
+	trySubscription := func(excludeBindGroup bool) (*BillingSession, *types.NewAPIError) {
 		subConsume := int64(preConsumedQuota)
 		if subConsume <= 0 {
 			subConsume = 1
@@ -384,10 +385,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		session := &BillingSession{
 			relayInfo: relayInfo,
 			funding: &SubscriptionFunding{
-				requestId: relayInfo.RequestId,
-				userId:    relayInfo.UserId,
-				modelName: relayInfo.OriginModelName,
-				amount:    subConsume,
+				requestId:        relayInfo.RequestId,
+				userId:           relayInfo.UserId,
+				modelName:        relayInfo.OriginModelName,
+				amount:           subConsume,
+				excludeBindGroup: excludeBindGroup,
 			},
 		}
 		// 必须传 subConsume 而非 preConsumedQuota，保证 SubscriptionFunding.amount、
@@ -398,16 +400,19 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 
+	// 个人付费分组：排除公司自动分配的订阅
+	isPersonalGroup := operation_setting.IsPersonalFundingGroup(relayInfo.UsingGroup)
+
 	switch pref {
 	case "subscription_only":
-		return trySubscription()
+		return trySubscription(isPersonalGroup)
 	case "wallet_only":
 		return tryWallet()
 	case "wallet_first":
 		session, err := tryWallet()
 		if err != nil {
 			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
-				return trySubscription()
+				return trySubscription(isPersonalGroup)
 			}
 			return nil, err
 		}
@@ -415,16 +420,26 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId)
+		var hasSub bool
+		var subCheckErr error
+		if isPersonalGroup {
+			hasSub, subCheckErr = model.HasActiveUserSubscriptionExcludingBindGroup(relayInfo.UserId)
+		} else {
+			hasSub, subCheckErr = model.HasActiveUserSubscription(relayInfo.UserId)
+		}
 		if subCheckErr != nil {
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
 		if !hasSub {
 			return tryWallet()
 		}
-		session, apiErr := trySubscription()
+		session, apiErr := trySubscription(isPersonalGroup)
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				if isPersonalGroup {
+					// 个人付费分组：直接回退钱包，不检查公司订阅的 allowOverflow
+					return tryWallet()
+				}
 				// 仅当用户的活跃订阅允许钱包回退时才回退到钱包，否则返回订阅额度不足错误
 				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflow(relayInfo.UserId)
 				if overflowErr != nil {

@@ -689,10 +689,8 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 			password = common.GetRandomString(12)
 		}
 
-		group := "default"
-		if item.Group != "" {
-			group = item.Group
-		}
+		requestedGroup := strings.TrimSpace(item.Group)
+		group, _ := service.ResolveAuthoritativeGroupForFeishuUser(0, "", requestedGroup, openId)
 
 		role := common.RoleCommonUser
 		if item.Role != nil {
@@ -742,7 +740,7 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 			}
 		}
 
-		if group != "" && group != "default" {
+		if group != "" {
 			_ = model.SyncUserBindGroupSubscriptions(newUser.Id, "", group)
 		}
 
@@ -1229,7 +1227,7 @@ func ExportUsers(c *gin.Context) {
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
-	_ = writer.Write([]string{"ID", "用户名", "显示名", "邮箱", "分组", "角色", "系统状态", "飞书OpenID", "飞书UnionID", "飞书UserID", "所在部门名称", "上级部门名称", "一级组织名称", "二级组织名称", "部门路径", "岗位", "飞书在职状态", "最近同步时间"})
+	_ = writer.Write([]string{"ID", "用户名", "显示名", "邮箱", "分组", "角色", "系统状态", "飞书OpenID", "飞书UnionID", "飞书UserID", "所在部门名称", "上级部门名称", "一级组织名称", "二级组织名称", "部门路径", "岗位", "飞书在职状态", "飞书工号", "最近同步时间"})
 	for _, user := range users {
 		syncedAt := ""
 		if user.FeishuSyncedAt > 0 {
@@ -1253,6 +1251,7 @@ func ExportUsers(c *gin.Context) {
 			sanitizeCSVField(user.OrgPath),
 			sanitizeCSVField(user.JobTitle),
 			sanitizeCSVField(user.FeishuEmploymentStatus),
+			sanitizeCSVField(user.FeishuEmployeeNo),
 			syncedAt,
 		})
 	}
@@ -1374,10 +1373,8 @@ func FeishuInitWebhook(c *gin.Context) {
 		if password == "" {
 			password = common.GetRandomString(12)
 		}
-		group := "default"
-		if item.Group != "" {
-			group = item.Group
-		}
+		requestedGroup := strings.TrimSpace(item.Group)
+		group, _ := service.ResolveAuthoritativeGroupForFeishuUser(0, "", requestedGroup, openId)
 		role := common.RoleCommonUser
 		if item.Role != nil {
 			role = *item.Role
@@ -1402,8 +1399,15 @@ func FeishuInitWebhook(c *gin.Context) {
 				common.SysError(fmt.Sprintf("failed to set quota for feishu user %d: %s", newUser.Id, err.Error()))
 			}
 		}
-		if group != "" && group != "default" {
+		if group != "" {
 			_ = model.SyncUserBindGroupSubscriptions(newUser.Id, "", group)
+		}
+		if openId != "" {
+			if syncErr := service.SyncOneFeishuUserInfoByOpenID(c.Request.Context(), &newUser, openId); syncErr != nil {
+				common.SysError(fmt.Sprintf("open_id=%s: sync feishu organization info failed: %s", openId, syncErr.Error()))
+			} else if err := model.DB.First(&newUser, newUser.Id).Error; err != nil {
+				common.SysError(fmt.Sprintf("open_id=%s: reload user after organization sync failed: %s", openId, err.Error()))
+			}
 		}
 		createdToken, tokenKey, tokenErr := createTokenForUser(&newUser, &createTokenOptions{Name: "feishu-init"})
 		if tokenErr != nil {
@@ -1579,9 +1583,16 @@ func BatchUpdateFeishuUsers(c *gin.Context) {
 			updates["password"] = hashedPassword
 		}
 
-		if item.Group != "" {
-			updates["group"] = item.Group
-			resultItem.NewGroup = item.Group
+		if item.Group != "" || user.FeishuId != "" {
+			requestedGroup := strings.TrimSpace(item.Group)
+			finalGroup := requestedGroup
+			if user.FeishuId != "" {
+				finalGroup, _ = service.ResolveAuthoritativeGroupForFeishuUser(user.Id, user.Group, requestedGroup, user.FeishuId)
+			}
+			if finalGroup != "" && finalGroup != user.Group {
+				updates["group"] = finalGroup
+				resultItem.NewGroup = finalGroup
+			}
 		}
 
 		if item.Quota != nil {

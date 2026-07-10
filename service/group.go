@@ -3,6 +3,8 @@ package service
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -33,6 +35,31 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 			groupsCopy[userGroup] = "用户分组"
 		}
 	}
+	return groupsCopy
+}
+
+// GetUserUsableGroupsWithSubscriptions returns the user's usable groups,
+// additionally including bind_groups from active subscriptions.
+// When userId <= 0, it behaves identically to GetUserUsableGroups.
+func GetUserUsableGroupsWithSubscriptions(userGroup string, userId int) map[string]string {
+	groupsCopy := GetUserUsableGroups(userGroup)
+
+	if userId <= 0 {
+		return groupsCopy
+	}
+
+	subGroups, err := model.GetActiveSubscriptionBindGroups(userId)
+	if err != nil {
+		common.SysError("GetActiveSubscriptionBindGroups failed: " + err.Error())
+		return groupsCopy
+	}
+
+	for _, g := range subGroups {
+		if _, exists := groupsCopy[g]; !exists {
+			groupsCopy[g] = "订阅分组"
+		}
+	}
+
 	return groupsCopy
 }
 

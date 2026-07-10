@@ -42,6 +42,10 @@ type User struct {
 	FeishuParentDepartmentId   string `json:"feishu_parent_department_id" gorm:"column:feishu_parent_department_id;type:varchar(128);default:'';index"`
 	FeishuParentDepartmentName string `json:"feishu_parent_department_name" gorm:"column:feishu_parent_department_name;type:varchar(255);default:'';index"`
 	FeishuEmploymentStatus     string `json:"feishu_employment_status" gorm:"column:feishu_employment_status;type:varchar(64);default:'';index"`
+	FeishuEmployeeNo           string `json:"feishu_employee_no" gorm:"column:feishu_employee_no;type:varchar(128);default:'';index"`
+	FeishuGroupIds             string `json:"feishu_group_ids" gorm:"column:feishu_group_ids;type:text"`
+	FeishuGroupNames           string `json:"feishu_group_names" gorm:"column:feishu_group_names;type:text"`
+	ManualGroupLocked          bool   `json:"manual_group_locked" gorm:"column:manual_group_locked;default:false;index"`
 	FeishuSyncedAt             int64  `json:"feishu_synced_at" gorm:"column:feishu_synced_at;default:0;index"`
 	OrgName                    string `json:"org_name" gorm:"column:org_name;type:varchar(255);default:'';index"`
 	OrgPath                    string `json:"org_path" gorm:"column:org_path;type:text"`
@@ -727,14 +731,15 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":         newUser.Username,
-		"display_name":     newUser.DisplayName,
-		"group":            newUser.Group,
-		"remark":           newUser.Remark,
-		"org_name":         newUser.OrgName,
-		"org_contact_name": newUser.OrgContactName,
-		"org_contact_info": newUser.OrgContactInfo,
-		"org_description":  newUser.OrgDescription,
+		"username":            newUser.Username,
+		"display_name":        newUser.DisplayName,
+		"group":               newUser.Group,
+		"manual_group_locked": newUser.ManualGroupLocked,
+		"remark":              newUser.Remark,
+		"org_name":            newUser.OrgName,
+		"org_contact_name":    newUser.OrgContactName,
+		"org_contact_info":    newUser.OrgContactInfo,
+		"org_description":     newUser.OrgDescription,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
