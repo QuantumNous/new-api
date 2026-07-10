@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -33,7 +33,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useDebounce } from '@/hooks/use-debounce'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -114,24 +113,31 @@ export function RechargeFormCard({
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
-  const debouncedAmount = useDebounce(localAmount, 500)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
+  const onTopupAmountChangeRef = useRef(onTopupAmountChange)
+  onTopupAmountChangeRef.current = onTopupAmountChange
 
+  // Any externally-driven amount change (preset click, initial load) is
+  // already authoritative — drop a pending debounced push so it can't fire
+  // later and clobber it.
   useEffect(() => {
     setLocalAmount(topupAmount.toString())
-  }, [topupAmount])
-
-  // Only push the recalculated amount upstream once typing/scrolling settles,
-  // so every keystroke or wheel tick on the number input doesn't fire its own
-  // preview request.
-  useEffect(() => {
-    const numValue = parseInt(debouncedAmount) || 0
-    if (numValue >= 0 && numValue !== topupAmount) {
-      onTopupAmountChange(numValue)
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     }
-  }, [debouncedAmount, topupAmount, onTopupAmountChange])
+  }, [topupAmount])
 
   const handleAmountChange = (value: string) => {
     setLocalAmount(value)
+    const numValue = parseInt(value) || 0
+    if (numValue < 0) return
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = setTimeout(() => {
+      onTopupAmountChangeRef.current(numValue)
+    }, 500)
   }
 
   const hasConfigurableTopup =
