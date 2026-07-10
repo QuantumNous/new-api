@@ -352,6 +352,37 @@ func GetCurrentBillingSubscriptionByUserID(userId int) (*BillingSubscription, er
 	return &sub, nil
 }
 
+func UpsertBillingSubscriptionByProviderID(input *BillingSubscription) error {
+	if input == nil {
+		return errors.New("billing subscription is nil")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var existing BillingSubscription
+		err := tx.Where("provider = ? AND provider_subscription_id = ?", input.Provider, input.ProviderSubscriptionId).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tx.Create(input).Error
+		}
+		if err != nil {
+			return err
+		}
+		updateMap := map[string]interface{}{
+			"user_id":               input.UserId,
+			"plan_id":               input.PlanId,
+			"provider_customer_id":  input.ProviderCustomerId,
+			"provider_price_id":     input.ProviderPriceId,
+			"status":                input.Status,
+			"cancel_at_period_end":  input.CancelAtPeriodEnd,
+			"current_period_start":  input.CurrentPeriodStart,
+			"current_period_end":    input.CurrentPeriodEnd,
+			"last_invoice_id":       input.LastInvoiceId,
+			"last_payment_status":   input.LastPaymentStatus,
+			"provider_payload":      input.ProviderPayload,
+			"updated_at":            common.GetTimestamp(),
+		}
+		return tx.Model(&existing).Updates(updateMap).Error
+	})
+}
+
 // User subscription instance
 type UserSubscription struct {
 	Id     int `json:"id"`

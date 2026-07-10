@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stripe/stripe-go/v81"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -82,6 +83,38 @@ func TestSubscriptionRequestStripeAutoRenew_RejectsSecondRecurringContract(t *te
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "auto-renew")
+}
+
+func TestHandleRecurringCheckoutSessionCompleted_UpsertsBillingSubscription(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+
+	raw, err := common.Marshal(map[string]any{
+		"id":           "cs_test_recurring_1",
+		"mode":         "subscription",
+		"subscription": "sub_auto_renew_123",
+		"customer":     "cus_auto_renew_123",
+		"metadata": map[string]string{
+			"user_id": "401",
+			"plan_id": "501",
+		},
+	})
+	require.NoError(t, err)
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{
+			Raw: raw,
+		},
+	}
+
+	require.NoError(t, handleRecurringCheckoutSessionCompleted(event))
+
+	sub, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_auto_renew_123")
+	require.NoError(t, err)
+	require.Equal(t, 401, sub.UserId)
+	require.Equal(t, 501, sub.PlanId)
+	require.Equal(t, "cus_auto_renew_123", sub.ProviderCustomerId)
+	require.Equal(t, "incomplete", sub.Status)
 }
 
 func setupSubscriptionControllerTestDB(t *testing.T) *gorm.DB {

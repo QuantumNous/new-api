@@ -177,6 +177,12 @@ func StripeWebhook(c *gin.Context) {
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe webhook 验签成功 event_type=%s client_ip=%s path=%q", string(event.Type), callerIp, c.Request.RequestURI))
 	switch event.Type {
 	case stripe.EventTypeCheckoutSessionCompleted:
+		if event.GetObjectValue("mode") == "subscription" {
+			if err := handleRecurringCheckoutSessionCompleted(event); err != nil {
+				logger.LogError(ctx, fmt.Sprintf("Stripe recurring checkout.session.completed failed error=%q", err.Error()))
+			}
+			break
+		}
 		sessionCompleted(ctx, event, callerIp)
 	case stripe.EventTypeCheckoutSessionExpired:
 		sessionExpired(ctx, event)
@@ -189,6 +195,38 @@ func StripeWebhook(c *gin.Context) {
 	}
 
 	c.Status(http.StatusOK)
+}
+
+func handleRecurringCheckoutSessionCompleted(event stripe.Event) error {
+	var payload struct {
+		Subscription string `json:"subscription"`
+		Customer     string `json:"customer"`
+		Metadata     struct {
+			UserID string `json:"user_id"`
+			PlanID string `json:"plan_id"`
+		} `json:"metadata"`
+	}
+	if err := common.Unmarshal(event.Data.Raw, &payload); err != nil {
+		return err
+	}
+
+	userID, _ := strconv.Atoi(payload.Metadata.UserID)
+	planID, _ := strconv.Atoi(payload.Metadata.PlanID)
+	subscriptionID := payload.Subscription
+	customerID := payload.Customer
+	if userID <= 0 || planID <= 0 || subscriptionID == "" {
+		return fmt.Errorf("missing recurring checkout metadata")
+	}
+
+	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+		UserId:                 userID,
+		PlanId:                 planID,
+		Provider:               "stripe",
+		ProviderSubscriptionId: subscriptionID,
+		ProviderCustomerId:     customerID,
+		Status:                 "incomplete",
+		ProviderPayload:        string(event.Data.Raw),
+	})
 }
 
 func sessionCompleted(ctx context.Context, event stripe.Event, callerIp string) {
