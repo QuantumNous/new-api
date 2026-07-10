@@ -6,15 +6,79 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestModelPriceHelperImagePerSizePreConsumesFullRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		operation_setting.RebuildImageModelIndex()
+	})
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"image_model_setting.models":      `{"image-test":{"billing_mode":"per_size","price_matrix":{"1k_high":0.08}}}`,
+		"group_ratio_setting.group_ratio": `{"default":1}`,
+	}))
+	operation_setting.RebuildImageModelIndex()
+
+	count := uint(2)
+	request := &dto.ImageRequest{
+		Model:   "image-test",
+		N:       &count,
+		Size:    "1024x1024",
+		Quality: "high",
+	}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "image-test",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		Request:         request,
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 0, request.GetTokenCountMeta())
+	require.NoError(t, err)
+	require.Equal(t, 80000, priceData.QuotaToPreConsume)
+	require.Equal(t, 0.08, priceData.ModelPrice)
+	require.True(t, ctx.GetBool("image_per_size_billing"))
+	require.Equal(t, 2, ctx.GetInt("image_per_size_count"))
+	require.Equal(t, "1k_high", ctx.GetString("image_price_tier_key"))
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"image_model_setting.models": `{"image-test":{"billing_mode":"per_size","price_matrix":{"1k_high":1000000000}}}`,
+	}))
+	operation_setting.RebuildImageModelIndex()
+	overflowInfo := &relaycommon.RelayInfo{
+		OriginModelName: "image-test",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		Request:         request,
+	}
+	overflowPriceData, err := ModelPriceHelper(ctx, overflowInfo, 0, request.GetTokenCountMeta())
+	require.NoError(t, err)
+	require.Equal(t, common.MaxQuota, overflowPriceData.QuotaToPreConsume)
+	require.NotNil(t, overflowInfo.QuotaClamp)
+	require.Equal(t, common.QuotaClampOverflow, overflowInfo.QuotaClamp.Kind)
+}
 
 func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)

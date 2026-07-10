@@ -244,7 +244,7 @@ function BillingBreakdown(props: {
         value: fmtPrice(other.model_price),
       })
     }
-  } else {
+  } else if (!other.image_per_size_billing) {
     rows.push({ label: t('Billing Mode'), value: t('Per-token') })
     if (other.model_ratio != null) {
       rows.push({
@@ -356,9 +356,14 @@ function BillingBreakdown(props: {
   if (other.image_per_size_billing && other.image_per_size_price != null) {
     const count = Math.max(1, other.image_per_size_count ?? 1)
     const tier = other.image_size_tier || '2K'
+    const tierMetadata = [
+      tier,
+      other.image_quality_tier,
+      other.image_price_tier_key,
+    ].filter(Boolean)
     rows.push({
       label: t('Image Generation'),
-      value: `${tier} × ${count} ${t('image(s)')} (${fmtPrice(other.image_per_size_price)}/${t('image')})`,
+      value: `${tierMetadata.join(' · ')} × ${count} ${t('image(s)')} (${fmtPrice(other.image_per_size_price)}/${t('image')})`,
     })
   }
 
@@ -386,7 +391,12 @@ function BillingBreakdown(props: {
   return (
     <DetailSection label={t('Billing Details')}>
       {rows.map((row) => (
-        <DetailRow key={row.label} label={row.label} value={row.value} mono />
+        <DetailRow
+          key={`${row.label}-${row.value}`}
+          label={row.label}
+          value={row.value}
+          mono
+        />
       ))}
     </DetailSection>
   )
@@ -452,7 +462,12 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   return (
     <DetailSection label={t('Token Breakdown')}>
       {rows.map((row) => (
-        <DetailRow key={row.label} label={row.label} value={row.value} mono />
+        <DetailRow
+          key={`${row.label}-${row.value}`}
+          label={row.label}
+          value={row.value}
+          mono
+        />
       ))}
     </DetailSection>
   )

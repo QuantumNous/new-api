@@ -205,10 +205,18 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		if seconds <= 0 {
 			seconds = operation_setting.GetVideoDefaultSeconds(modelName)
 		}
+		if seconds > relaycommon.MaxTaskDurationSeconds {
+			seconds = relaycommon.MaxTaskDurationSeconds
+		}
 		unitPrice, tierKey := operation_setting.GetVideoPerSecondPrice(modelName, resolution)
 		groupRatioInfo := helper.HandleGroupRatio(c, info)
-		quota := int(unitPrice * float64(seconds) * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
-		if unitPrice > 0 && quota == 0 {
+		quota := 0
+		if groupRatioInfo.GroupRatio > 0 {
+			var clamp *common.QuotaClamp
+			quota, clamp = common.QuotaFromFloatChecked(unitPrice * float64(seconds) * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+			noteTaskQuotaClamp(info, clamp)
+		}
+		if unitPrice > 0 && groupRatioInfo.GroupRatio > 0 && quota == 0 {
 			quota = 1
 		}
 		// OtherRatios 仅保留可安全记录/复用的字段：
@@ -222,7 +230,12 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		if tierKey != "" {
 			otherRatios["resolution_"+tierKey] = 1.0
 		}
+		freeModel := false
+		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+			freeModel = unitPrice == 0 || groupRatioInfo.GroupRatio <= 0
+		}
 		info.PriceData = types.PriceData{
+			FreeModel:      freeModel,
 			ModelPrice:     unitPrice, // USD/second；日志侧可直接读 model_price
 			UsePrice:       true,
 			Quota:          quota,

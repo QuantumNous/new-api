@@ -205,6 +205,8 @@ export interface LogOtherData {
   // Per-size image billing for the Image API path.
   image_per_size_billing?: boolean
   image_size_tier?: string // "1K" | "2K" | "4K"
+  image_quality_tier?: string
+  image_price_tier_key?: string
   image_per_size_count?: number
   image_per_size_price?: number // unit price per image (USD)
   is_system_prompt_overwritten?: boolean

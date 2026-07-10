@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import type { SystemStatus } from '@/features/auth/types'
@@ -74,19 +73,6 @@ export function useStatus() {
     // Cache expires after 30 minutes
     gcTime: 30 * 60 * 1000,
   })
-
-  useEffect(() => {
-    if (!data) return
-    try {
-      const { setConfig } = useSystemConfigStore.getState()
-      setConfig(mapStatusDataToConfig(data))
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.warn('[useStatus] Failed to sync cached status', err)
-      }
-    }
-  }, [data])
 
   return {
     status: data ?? null,

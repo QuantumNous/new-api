@@ -21,6 +21,7 @@ import {
   formatCurrencyFromUSD,
   type CurrencyFormatOptions,
 } from '@/lib/currency'
+
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
@@ -154,12 +155,7 @@ export function convertUsdPriceToDisplayCurrency(
   priceRate = 1,
   usdExchangeRate = 1
 ): number {
-  return applyRechargeRate(
-    price,
-    showRechargePrice,
-    priceRate,
-    usdExchangeRate
-  )
+  return applyRechargeRate(price, showRechargePrice, priceRate, usdExchangeRate)
 }
 
 /**

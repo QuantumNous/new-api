@@ -231,7 +231,9 @@ function buildTypeDetailSegments(
       Number.isFinite(other.image_generation_call_price)
 
     if (other.image_per_size_billing) {
-      const tier = other.image_size_tier
+      const tier = [other.image_size_tier, other.image_quality_tier]
+        .filter(Boolean)
+        .join('_')
       const count =
         other.image_per_size_count && other.image_per_size_count > 0
           ? other.image_per_size_count

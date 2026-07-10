@@ -161,12 +161,14 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 				summary.ImagePriceTierKey = tierKey
 			}
 		}
-		surcharge = surcharge.Add(
-			decimal.NewFromFloat(summary.ImagePerSizePrice).
-				Mul(decimal.NewFromInt(int64(summary.ImagePerSizeCount))).
-				Mul(dGroupRatio).
-				Mul(dQuotaPerUnit),
-		)
+		if summary.ImagePerSizePrice > 0 && summary.GroupRatio > 0 {
+			surcharge = surcharge.Add(
+				decimal.NewFromFloat(summary.ImagePerSizePrice).
+					Mul(decimal.NewFromInt(int64(summary.ImagePerSizeCount))).
+					Mul(dGroupRatio).
+					Mul(dQuotaPerUnit),
+			)
+		}
 	}
 
 	return surcharge
@@ -286,7 +288,9 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 
 	var audioInputQuota decimal.Decimal
 	if summary.ImagePerSizeBilling {
-		summary.Quota = int(summary.ToolCallSurchargeQuota.Round(0).IntPart())
+		quota, clamp := common.QuotaFromDecimalChecked(summary.ToolCallSurchargeQuota)
+		summary.Quota = quota
+		noteQuotaClamp(relayInfo, clamp)
 		if summary.TotalTokens == 0 {
 			summary.Quota = 0
 		} else if summary.ImagePerSizePrice > 0 && summary.Quota == 0 {
@@ -431,7 +435,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if summary.ImageGenerationCallPrice > 0 {
 		extraContent = append(extraContent, fmt.Sprintf("Image Generation Call 花费 %s", decimal.NewFromFloat(summary.ImageGenerationCallPrice).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
 	}
-	if summary.ImagePerSizeBilling && summary.ImagePerSizePrice > 0 {
+	if summary.ImagePerSizeBilling {
 		tierLabel := summary.ImagePriceTierKey
 		if tierLabel == "" {
 			tierLabel = summary.ImageSizeTier
@@ -517,7 +521,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["image_generation_call"] = true
 		other["image_generation_call_price"] = summary.ImageGenerationCallPrice
 	}
-	if summary.ImagePerSizeBilling && summary.ImagePerSizePrice > 0 {
+	if summary.ImagePerSizeBilling {
 		other["image_per_size_billing"] = true
 		other["image_size_tier"] = summary.ImageSizeTier
 		other["image_quality_tier"] = summary.ImageQualityTier

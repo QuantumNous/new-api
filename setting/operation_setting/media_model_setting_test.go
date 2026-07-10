@@ -1,6 +1,10 @@
 package operation_setting
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func float64Pointer(value float64) *float64 {
 	return &value
@@ -43,9 +47,8 @@ func TestImageTierPriceFallbacks(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			price, key := GetImageTierPrice("image-test", test.size, test.quality)
-			if price != test.price || key != test.key {
-				t.Fatalf("got (%v, %q), want (%v, %q)", price, key, test.price, test.key)
-			}
+			assert.Equal(t, test.price, price)
+			assert.Equal(t, test.key, key)
 		})
 	}
 }
@@ -70,16 +73,12 @@ func TestVideoPerSecondPriceFallbacks(t *testing.T) {
 	rebuildVideoModelIndex()
 
 	price, key := GetVideoPerSecondPrice("video-test", "1920x1080")
-	if price != 0.36 || key != VideoResolution1080p {
-		t.Fatalf("got (%v, %q), want (0.36, %q)", price, key, VideoResolution1080p)
-	}
+	assert.Equal(t, 0.36, price)
+	assert.Equal(t, VideoResolution1080p, key)
 
 	price, key = GetVideoPerSecondPrice("video-test", "720p")
-	if price != 0.15 || key != VideoResolutionDefault {
-		t.Fatalf("got (%v, %q), want (0.15, %q)", price, key, VideoResolutionDefault)
-	}
+	assert.Equal(t, 0.15, price)
+	assert.Equal(t, VideoResolutionDefault, key)
 
-	if seconds := ResolveVideoDurationSeconds("", 0, "video-test"); seconds != 8 {
-		t.Fatalf("got %d default seconds, want 8", seconds)
-	}
+	assert.Equal(t, 8, ResolveVideoDurationSeconds("", 0, "video-test"))
 }

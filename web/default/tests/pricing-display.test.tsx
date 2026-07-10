@@ -17,10 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
+
+import i18n from 'i18next'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+
 import type { PricingModel } from '../src/features/pricing/types'
 
 globalThis.localStorage = {
@@ -32,24 +34,16 @@ globalThis.localStorage = {
   length: 0,
 } as Storage
 
-const { useSystemConfigStore } = await import(
-  '../src/stores/system-config-store'
-)
-const { ModelCard } = await import(
-  '../src/features/pricing/components/model-card'
-)
-const { formatUsdUnitPrice } = await import(
-  '../src/features/pricing/lib/price'
-)
-const { QUOTA_TYPE_VALUES } = await import(
-  '../src/features/pricing/constants'
-)
-const { getImageSummaryPriceEntries } = await import(
-  '../src/features/pricing/lib/model-helpers'
-)
-const { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } = await import(
-  '../src/lib/constants'
-)
+const { useSystemConfigStore } =
+  await import('../src/stores/system-config-store')
+const { ModelCard } =
+  await import('../src/features/pricing/components/model-card')
+const { formatUsdUnitPrice } = await import('../src/features/pricing/lib/price')
+const { QUOTA_TYPE_VALUES } = await import('../src/features/pricing/constants')
+const { getImageSummaryPriceEntries } =
+  await import('../src/features/pricing/lib/model-helpers')
+const { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } =
+  await import('../src/lib/constants')
 
 if (!i18n.isInitialized) {
   await i18n.use(initReactI18next).init({
@@ -129,8 +123,9 @@ describe('pricing display', () => {
       />
     )
 
-    expect(getImageSummaryPriceEntries(imagePrices).map((entry) => entry.value))
-      .toEqual([0.05, 0.08, 0.15])
+    expect(
+      getImageSummaryPriceEntries(imagePrices).map((entry) => entry.value)
+    ).toEqual([0.05, 0.08, 0.15])
     expect(html).toContain('¥0.05')
     expect(html).toContain('¥0.08')
     expect(html).toContain('¥0.15')

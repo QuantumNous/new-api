@@ -19,11 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useCallback } from 'react'
 
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
+import { parseCurrencyDisplayType } from '@/lib/currency'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 import {
   useSystemConfigStore,
   type CurrencyConfig,
-  type CurrencyDisplayType,
   type SystemConfig,
   DEFAULT_CURRENCY_CONFIG,
 } from '@/stores/system-config-store'
@@ -67,9 +67,10 @@ export function mapStatusDataToConfig(
 ): Partial<SystemConfig> {
   if (!data) return {}
 
-  const quotaDisplayType =
-    (data.quota_display_type as CurrencyDisplayType | undefined) ??
+  const quotaDisplayType = parseCurrencyDisplayType(
+    data.quota_display_type,
     DEFAULT_CURRENCY_CONFIG.quotaDisplayType
+  )
 
   const currency: CurrencyConfig = {
     displayInCurrency:

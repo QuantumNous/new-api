@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -69,10 +70,67 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 	return groupRatioInfo
 }
 
+func modelPriceHelperImagePerSize(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ImageRequest, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	imageCount := uint(1)
+	if request.N != nil {
+		if *request.N > dto.MaxImageN {
+			return types.PriceData{}, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageN)
+		}
+		if *request.N > 0 {
+			imageCount = *request.N
+		}
+	}
+
+	sizeTier, ok := operation_setting.ClassifyImageSizeTier(request.Size)
+	if !ok {
+		sizeTier = operation_setting.ImageSizeTier2K
+	}
+	qualityTier := operation_setting.NormalizeImageQuality(request.Quality)
+	unitPrice, tierKey := operation_setting.GetImageTierPrice(info.OriginModelName, sizeTier, qualityTier)
+	quota := 0
+	if groupRatioInfo.GroupRatio > 0 {
+		var clamp *common.QuotaClamp
+		quota, clamp = common.QuotaFromFloatChecked(
+			unitPrice * float64(imageCount) * common.QuotaPerUnit * groupRatioInfo.GroupRatio,
+		)
+		if clamp != nil && info.QuotaClamp == nil {
+			info.QuotaClamp = clamp
+		}
+	}
+	if unitPrice > 0 && groupRatioInfo.GroupRatio > 0 && quota == 0 {
+		quota = 1
+	}
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		freeModel = unitPrice == 0 || groupRatioInfo.GroupRatio <= 0
+	}
+	priceData := types.PriceData{
+		FreeModel:         freeModel,
+		ModelPrice:        unitPrice,
+		UsePrice:          true,
+		GroupRatioInfo:    groupRatioInfo,
+		QuotaToPreConsume: quota,
+	}
+	info.PriceData = priceData
+	c.Set("image_per_size_billing", true)
+	c.Set("image_size_tier", sizeTier)
+	c.Set("image_quality_tier", qualityTier)
+	c.Set("image_price_tier_key", tierKey)
+	c.Set("image_per_size_count", int(imageCount))
+	c.Set("image_per_size_unit_price", unitPrice)
+	return priceData, nil
+}
+
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
+	if operation_setting.IsImagePerSizeBilling(info.OriginModelName) {
+		if request, ok := info.Request.(*dto.ImageRequest); ok {
+			return modelPriceHelperImagePerSize(c, info, request, groupRatioInfo)
+		}
+	}
 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
