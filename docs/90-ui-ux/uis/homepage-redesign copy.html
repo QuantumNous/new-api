@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lighting - 企业 AI 统一接入、交付与运营服务</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Noto+Sans+SC:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --ink: #172033;
+  --ink-soft: #4b5f7b;
+  --ink-muted: #71839d;
+  --blue: #1769e0;
+  --blue-strong: #0c54bd;
+  --blue-soft: #eaf3ff;
+  --teal: #0f8f84;
+  --teal-soft: #e6f7f4;
+  --amber: #c98400;
+  --amber-soft: #fff4d8;
+  --coral: #d95f4c;
+  --coral-soft: #fff0ed;
+  --green: #29845a;
+  --green-soft: #eaf7ef;
+  --paper: #ffffff;
+  --wash: #f6f9fd;
+  --wash-2: #eef6ff;
+  --line: #dce6f2;
+  --line-soft: #edf2f7;
+  --shadow: 0 18px 45px rgba(23, 32, 51, 0.10);
+  --shadow-soft: 0 8px 22px rgba(23, 32, 51, 0.08);
+  --radius: 8px;
+  --font: "Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font);
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, #fbfdff 0%, var(--wash) 42%, #ffffff 100%);
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.container {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.skip-link {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 999;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--blue);
+  color: #fff;
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.88);
+  border-bottom: 1px solid rgba(220, 230, 242, 0.88);
+  backdrop-filter: blur(18px);
+}
+
+.header-inner {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #f3f8ff;
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 16px rgba(23, 32, 51, 0.08);
+  flex: 0 0 auto;
+}
+
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 24% 48%;
+}
+
+.brand-copy {
+  display: grid;
+  gap: 1px;
+}
+
+.brand-name {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.brand-subtitle {
+  font-size: 12px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.site-nav a {
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.site-nav a:hover {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button-primary {
+  color: #fff;
+  background: var(--blue);
+  box-shadow: 0 10px 22px rgba(23, 105, 224, 0.22);
+}
+
+.button-primary:hover {
+  background: var(--blue-strong);
+}
+
+.button-secondary {
+  border-color: var(--line);
+  box-shadow: 0 4px 14px rgba(23, 32, 51, 0.05);
+}
+
+.button-secondary:hover {
+  border-color: #c8d6e8;
+  background: #f8fbff;
+}
+
+.button-teal {
+  color: #fff;
+  background: var(--teal);
+  box-shadow: 0 10px 22px rgba(15, 143, 132, 0.20);
+}
+
+.button-teal:hover {
+  background: #128f83;
+}
+
+.button-ghost {
+  color: var(--ink-soft);
+  background: transparent;
+}
+
+.button-ghost:hover {
+  color: var(--ink);
+  background: var(--wash-2);
+}
+
+.button-large {
+  min-height: 50px;
+  padding: 14px 20px;
+  font-size: 15px;
+}
+
+.arrow {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 88px 0 54px;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(23, 105, 224, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(23, 105, 224, 0.06) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 80%);
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+.hero-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(420px, 0.98fr);
+  gap: 52px;
+  align-items: center;
+}
+
+.hero-copy {
+  max-width: 650px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid #cfe0f7;
+  border-radius: var(--radius);
+  color: var(--blue);
+  background: rgba(234, 243, 255, 0.86);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.eyebrow-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgba(41, 132, 90, 0.14);
+}
+
+.hero-title {
+  max-width: 640px;
+  margin-top: 20px;
+  font-size: clamp(40px, 5.2vw, 68px);
+  font-weight: 800;
+  line-height: 1.08;
+  color: var(--ink);
+}
+
+.hero-title span {
+  color: var(--blue);
+}
+
+.hero-lede {
+  max-width: 610px;
+  margin-top: 20px;
+  color: var(--ink-soft);
+  font-size: 18px;
+  line-height: 1.82;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.hero-proof {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 34px;
+  max-width: 660px;
+}
+
+.proof-item {
+  padding: 12px 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.proof-value {
+  display: block;
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.proof-label {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.hero-visual {
+  position: relative;
+}
+
+.gateway-shell {
+  border: 1px solid #ccd9ea;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.gateway-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfdff;
+}
+
+.topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-weight: 800;
+}
+
+.topbar-light {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgba(41, 132, 90, 0.12);
+}
+
+.topbar-status {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.gateway-body {
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.route-board {
+  display: grid;
+  grid-template-columns: 1fr 0.9fr;
+  gap: 14px;
+}
+
+.provider-stack,
+.policy-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.mini-label {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.provider-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.provider-name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.provider-meta {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.policy-box {
+  min-height: 88px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.policy-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.policy-desc {
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.code-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfdff;
+  overflow: hidden;
+}
+
+.code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.code-row strong {
+  color: var(--ink);
+}
+
+.code-row:last-child {
+  border-bottom: 0;
+}
+
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.metric {
+  padding: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.metric strong {
+  display: block;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.metric span {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.section {
+  padding: 86px 0;
+}
+
+.section-muted {
+  background: #ffffff;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.section-heading {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+  margin-bottom: 34px;
+}
+
+.section-heading.center {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.section-kicker {
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.section-title {
+  color: var(--ink);
+  font-size: clamp(28px, 3.2vw, 42px);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.section-copy {
+  color: var(--ink-soft);
+  font-size: 16px;
+  line-height: 1.82;
+}
+
+.pain-grid {
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 28px;
+  align-items: stretch;
+}
+
+.quote-panel {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 32px;
+  border-radius: var(--radius);
+  border: 1px solid #cfe0f7;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f7ff 100%);
+}
+
+.quote-text {
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.32;
+}
+
+.quote-note {
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.pain-list {
+  display: grid;
+  gap: 12px;
+}
+
+.pain-item {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.item-index {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  color: var(--blue);
+  background: var(--blue-soft);
+  font-weight: 800;
+}
+
+.pain-item:nth-child(2) .item-index {
+  color: var(--teal);
+  background: var(--teal-soft);
+}
+
+.pain-item:nth-child(3) .item-index {
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+
+.pain-item h3 {
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.pain-item p {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.scenario-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 8px 24px rgba(23, 32, 51, 0.05);
+}
+
+.scenario-card:hover {
+  border-color: #c3d3e7;
+  box-shadow: var(--shadow-soft);
+}
+
+.scenario-tag {
+  width: fit-content;
+  padding: 6px 9px;
+  border-radius: var(--radius);
+  color: var(--blue);
+  background: var(--blue-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.scenario-card:nth-child(2) .scenario-tag {
+  color: var(--teal);
+  background: var(--teal-soft);
+}
+
+.scenario-card h3 {
+  margin-top: 18px;
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.scenario-card p {
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.feature-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+  list-style: none;
+}
+
+.feature-list li {
+  position: relative;
+  padding-left: 20px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.feature-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.card-action {
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.capability-card {
+  min-height: 250px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.capability-card:hover {
+  border-color: #c3d3e7;
+  box-shadow: var(--shadow-soft);
+}
+
+.capability-number {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.capability-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  margin-top: 14px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.capability-card:nth-child(1) .capability-label {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.capability-card:nth-child(2) .capability-label {
+  color: var(--teal);
+  background: var(--teal-soft);
+}
+
+.capability-card:nth-child(3) .capability-label {
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+
+.capability-card:nth-child(4) .capability-label {
+  color: var(--coral);
+  background: var(--coral-soft);
+}
+
+.capability-card h3 {
+  margin-top: 18px;
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.capability-card p {
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.governance-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.governance-panel {
+  padding: 28px;
+  border-radius: var(--radius);
+  border: 1px solid #cfe0f7;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f8ff 100%);
+}
+
+.governance-panel h2 {
+  color: var(--ink);
+  font-size: 34px;
+  line-height: 1.2;
+}
+
+.governance-panel p {
+  margin-top: 14px;
+  color: var(--ink-soft);
+}
+
+.boundary-box {
+  margin-top: 22px;
+  padding: 18px;
+  border-radius: var(--radius);
+  border: 1px solid #f0d493;
+  background: #fffaf0;
+}
+
+.boundary-box strong {
+  display: block;
+  color: #8b5b00;
+  font-size: 15px;
+}
+
+.boundary-box span {
+  display: block;
+  margin-top: 6px;
+  color: #69512b;
+  font-size: 14px;
+}
+
+.governance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.governance-item {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.governance-item h3 {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.governance-item p {
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.flow-step {
+  position: relative;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.flow-step::before {
+  content: "";
+  position: absolute;
+  top: 31px;
+  left: -17px;
+  width: 16px;
+  height: 1px;
+  background: var(--line);
+}
+
+.flow-step:first-child::before {
+  display: none;
+}
+
+.flow-number {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  color: #fff;
+  background: var(--blue);
+  font-weight: 800;
+}
+
+.flow-step:nth-child(2) .flow-number {
+  background: var(--teal);
+}
+
+.flow-step:nth-child(3) .flow-number {
+  background: var(--amber);
+}
+
+.flow-step:nth-child(4) .flow-number {
+  background: var(--green);
+}
+
+.flow-step h3 {
+  margin-top: 16px;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.flow-step p {
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.ecosystem {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 28px;
+  align-items: center;
+}
+
+.ecosystem-copy {
+  display: grid;
+  gap: 14px;
+}
+
+.ecosystem-copy h2 {
+  color: var(--ink);
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+}
+
+.ecosystem-copy p {
+  color: var(--ink-soft);
+}
+
+.logo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.logo-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 82px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.logo-card img {
+  max-height: 42px;
+  object-fit: contain;
+}
+
+.logo-card.text {
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.cta {
+  padding: 80px 0;
+}
+
+.cta-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: center;
+  padding: 34px;
+  border-radius: var(--radius);
+  border: 1px solid #cfe0f7;
+  background:
+    linear-gradient(135deg, #ffffff 0%, #eef6ff 52%, #f4fbf8 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+.cta-box h2 {
+  color: var(--ink);
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.2;
+}
+
+.cta-box p {
+  margin-top: 10px;
+  max-width: 720px;
+  color: var(--ink-soft);
+}
+
+.cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  background: #fff;
+  padding: 34px 0;
+}
+
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.footer-brand img {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  object-position: 24% 48%;
+  border: 1px solid var(--line);
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.footer-links a:hover {
+  color: var(--blue);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .button,
+  .scenario-card,
+  .capability-card,
+  .provider-pill,
+  .logo-card {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+
+  .provider-pill:hover,
+  .logo-card:hover {
+    transform: translateY(-1px);
+    border-color: #c3d3e7;
+    box-shadow: 0 8px 18px rgba(23, 32, 51, 0.06);
+  }
+}
+
+@media (max-width: 1060px) {
+  .hero-layout,
+  .pain-grid,
+  .governance-layout,
+  .ecosystem {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-visual {
+    max-width: 680px;
+  }
+
+  .capability-grid,
+  .flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cta-box {
+    grid-template-columns: 1fr;
+  }
+
+  .cta-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 820px) {
+  .site-nav {
+    display: none;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .hero-proof,
+  .scenario-grid,
+  .governance-grid,
+  .logo-grid,
+  .route-board,
+  .metric-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    padding-top: 64px;
+  }
+
+  .section {
+    padding: 64px 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .container {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .header-inner {
+    height: auto;
+    padding: 12px 0;
+    align-items: flex-start;
+  }
+
+  .header-actions .button-ghost {
+    display: none;
+  }
+
+  .button {
+    min-height: 40px;
+    padding: 9px 12px;
+  }
+
+  .hero-title {
+    font-size: 38px;
+  }
+
+  .hero-lede {
+    font-size: 16px;
+  }
+
+  .quote-text {
+    font-size: 22px;
+  }
+
+  .capability-grid,
+  .flow {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-step::before {
+    display: none;
+  }
+
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要内容</a>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="#" aria-label="Lighting 首页">
+      <span class="brand-logo">
+        <img src="../logo-b.png" alt="">
+      </span>
+      <span class="brand-copy">
+        <span class="brand-name">Lighting</span>
+        <span class="brand-subtitle">eLight AI Gateway Service</span>
+      </span>
+    </a>
+
+    <nav class="site-nav" aria-label="主导航">
+      <a href="#scenarios">场景</a>
+      <a href="#capabilities">能力</a>
+      <a href="#governance">治理</a>
+      <a href="#workflow">交付</a>
+      <a href="#ecosystem">生态</a>
+    </nav>
+
+    <div class="header-actions">
+      <a class="button button-ghost" href="#">登录</a>
+      <a class="button button-primary" href="#contact">获取方案</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <div class="container hero-layout">
+      <div class="hero-copy">
+        <div class="eyebrow">
+          <span class="eyebrow-mark"></span>
+          企业 AI 统一接入、交付与运营服务
+        </div>
+        <h1 class="hero-title">
+          让全球主流 AI 模型成为企业<span>可持续使用</span>的能力
+        </h1>
+        <p class="hero-lede">
+          Lighting 不是简单的 Token 转售。我们把 40+ 上游模型、OpenAI 兼容 API、渠道冗余、计费结算、组织报表和持续服务整合成一个企业级 AI 使用入口。
+        </p>
+
+        <div class="hero-actions" aria-label="主要行动">
+          <a class="button button-primary button-large" href="#scenarios">
+            选择接入模式
+            <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="button button-teal button-large" href="#contact">联系顾问</a>
+          <a class="button button-secondary button-large" href="#">查看文档</a>
+        </div>
+
+        <div class="hero-proof" aria-label="平台事实">
+          <div class="proof-item">
+            <span class="proof-value">40+</span>
+            <span class="proof-label">上游 AI 提供商</span>
+          </div>
+          <div class="proof-item">
+            <span class="proof-value">2</span>
+            <span class="proof-label">私有化与在线服务模式</span>
+          </div>
+          <div class="proof-item">
+            <span class="proof-value">6</span>
+            <span class="proof-label">前端语言覆盖</span>
+          </div>
+          <div class="proof-item">
+            <span class="proof-value">3</span>
+            <span class="proof-label">数据库引擎兼容</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="Lighting 统一网关示意">
+        <div class="gateway-shell">
+          <div class="gateway-topbar">
+            <div class="topbar-title">
+              <span class="topbar-light"></span>
+              Unified AI Gateway
+            </div>
+            <span class="topbar-status">routing healthy</span>
+          </div>
+          <div class="gateway-body">
+            <div class="route-board">
+              <div class="provider-stack">
+                <span class="mini-label">Upstream Providers</span>
+                <div class="provider-pill">
+                  <span class="provider-name"><span class="dot" style="background:#10a37f"></span>OpenAI</span>
+                  <span class="provider-meta">primary</span>
+                </div>
+                <div class="provider-pill">
+                  <span class="provider-name"><span class="dot" style="background:#d97706"></span>Claude</span>
+                  <span class="provider-meta">fallback</span>
+                </div>
+                <div class="provider-pill">
+                  <span class="provider-name"><span class="dot" style="background:#4285f4"></span>Gemini</span>
+                  <span class="provider-meta">weighted</span>
+                </div>
+                <div class="provider-pill">
+                  <span class="provider-name"><span class="dot" style="background:#1677ff"></span>Azure</span>
+                  <span class="provider-meta">enterprise</span>
+                </div>
+              </div>
+
+              <div class="policy-stack">
+                <span class="mini-label">Enterprise Controls</span>
+                <div class="policy-box">
+                  <div class="policy-title">SSO / OIDC</div>
+                  <div class="policy-desc">员工身份接入，权限、分组、模型可用性统一控制。</div>
+                </div>
+                <div class="policy-box">
+                  <div class="policy-title">Pre-consume → Settle</div>
+                  <div class="policy-desc">预扣、结算、退款链路完整，异常饱和裁剪可审计。</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="code-panel" aria-label="统一 API 调用示意">
+              <div class="code-row"><span>POST</span><strong>/v1/chat/completions</strong></div>
+              <div class="code-row"><span>model</span><strong>auto:best-for-task</strong></div>
+              <div class="code-row"><span>route</span><strong>priority + weight + fallback</strong></div>
+              <div class="code-row"><span>bill</span><strong>personal quota, org report</strong></div>
+            </div>
+
+            <div class="metric-strip">
+              <div class="metric">
+                <strong>API Key</strong>
+                <span>统一鉴权入口</span>
+              </div>
+              <div class="metric">
+                <strong>Audit</strong>
+                <span>模型、渠道、耗时、费用</span>
+              </div>
+              <div class="metric">
+                <strong>Report</strong>
+                <span>成员、模型、渠道拆分</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-muted" aria-labelledby="why-title">
+    <div class="container pain-grid">
+      <div class="quote-panel">
+        <div class="section-kicker">为什么需要 Lighting</div>
+        <h2 class="quote-text" id="why-title">企业真正缺的不是一个账号，而是一套可以持续使用的 AI 接入与服务体系。</h2>
+        <p class="quote-note">从多模型采购、账号稳定性、额度补给、权限审计到业务落地，Lighting 把碎片化问题收敛到一个统一服务窗口。</p>
+      </div>
+
+      <div class="pain-list">
+        <article class="pain-item">
+          <span class="item-index">01</span>
+          <div>
+            <h3>多模型分散，集成成本高</h3>
+            <p>不同上游能力、接口和结算方式各不相同，企业难以形成统一接入标准。</p>
+          </div>
+        </article>
+        <article class="pain-item">
+          <span class="item-index">02</span>
+          <div>
+            <h3>账号、额度与渠道稳定性不可控</h3>
+            <p>单一上游中断、额度不足或风控波动，都会影响真实业务连续性。</p>
+          </div>
+        </article>
+        <article class="pain-item">
+          <span class="item-index">03</span>
+          <div>
+            <h3>拿到模型不等于业务落地</h3>
+            <p>企业还需要 Prompt 工程、场景咨询、用量审计和持续运营支持。</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="scenarios">
+    <div class="container">
+      <div class="section-heading center">
+        <div class="section-kicker">两大业务场景</div>
+        <h2 class="section-title">同一套技术平台，服务两种企业阶段</h2>
+        <p class="section-copy">部署模式和运营主体不同，但都围绕统一接入、统一交付、统一运营和统一服务展开。</p>
+      </div>
+
+      <div class="scenario-grid">
+        <article class="scenario-card">
+          <span class="scenario-tag">企业治理型</span>
+          <h3>企业自有统一 AI 接入平台</h3>
+          <p>适合有明确 IT 治理、权限隔离、私有化或半托管需求的企业。</p>
+          <ul class="feature-list">
+            <li>统一企业所有 AI 接入，聚合 40+ 上游提供商。</li>
+            <li>对接企业 SSO / OIDC，按员工身份鉴权。</li>
+            <li>按部门和组织查看用量、费用、趋势和审计。</li>
+            <li>企业自主管理渠道、模型、Token、配额和权限。</li>
+          </ul>
+          <div class="card-action">
+            <a class="button button-primary" href="#governance">查看治理能力</a>
+          </div>
+        </article>
+
+        <article class="scenario-card">
+          <span class="scenario-tag">在线服务型</span>
+          <h3>eLight 在线 AI Token 服务</h3>
+          <p>适合不需要自建平台、但需要稳定多模型 Token 服务的团队和开发者。</p>
+          <ul class="feature-list">
+            <li>注册即获得 API Key，兼容 OpenAI SDK 快速接入。</li>
+            <li>一个 Key 访问多个模型，无需分别维护上游账号。</li>
+            <li>多渠道冗余和自动 fallback，降低单点中断风险。</li>
+            <li>API Credits、订阅代充、团队账户和透明账单。</li>
+          </ul>
+          <div class="card-action">
+            <a class="button button-teal" href="#contact">开始在线接入</a>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-muted" id="capabilities">
+    <div class="container">
+      <div class="section-heading">
+        <div class="section-kicker">四层核心能力</div>
+        <h2 class="section-title">从“能调用模型”升级到“能持续运营 AI”</h2>
+        <p class="section-copy">首页的主叙事从 Token 供应转向企业服务：接入、交付、运营、服务四层能力共同构成 Lighting 的价值。</p>
+      </div>
+
+      <div class="capability-grid">
+        <article class="capability-card">
+          <span class="capability-number">01</span>
+          <span class="capability-label">统一接入</span>
+          <h3>一个 API 对接多家上游</h3>
+          <p>覆盖 OpenAI、Claude、Gemini、Azure、AWS Bedrock 等主流平台，按模型、渠道、优先级和权重分发。</p>
+        </article>
+        <article class="capability-card">
+          <span class="capability-number">02</span>
+          <span class="capability-label">统一交付</span>
+          <h3>额度与交付方式标准化</h3>
+          <p>提供 API Credits、订阅代充、团队账户等交付形式，降低多平台采购和结算复杂度。</p>
+        </article>
+        <article class="capability-card">
+          <span class="capability-number">03</span>
+          <span class="capability-label">统一运营</span>
+          <h3>把可用变成稳定可用</h3>
+          <p>统一处理额度补给、问题响应、使用支持，通过多模型和多渠道冗余降低中断风险。</p>
+        </article>
+        <article class="capability-card">
+          <span class="capability-number">04</span>
+          <span class="capability-label">统一服务</span>
+          <h3>推动真实业务落地</h3>
+          <p>提供使用辅导、Prompt 工程、场景落地和持续运营，帮助客户从试用阶段进入生产阶段。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="governance">
+    <div class="container governance-layout">
+      <div class="governance-panel">
+        <div class="section-kicker">企业治理与账单边界</div>
+        <h2>既能给企业看全局，也不破坏个人扣费链路。</h2>
+        <p>Lighting 的组织能力用于成员集合、报表权限和汇总视图。真实扣费主体仍是个人账号，API 请求不需要携带或选择组织。</p>
+        <div class="boundary-box">
+          <strong>关键边界</strong>
+          <span>组织不是付款主体，不持有余额、订阅、充值订单或 API Key；组织账单基于成员有效期内已落库消费日志汇总。</span>
+        </div>
+      </div>
+
+      <div class="governance-grid">
+        <article class="governance-item">
+          <h3>身份与权限</h3>
+          <p>支持密码、OAuth、WebAuthn/Passkeys、JWT，以及企业 OAuth / OIDC SSO 集成。</p>
+        </article>
+        <article class="governance-item">
+          <h3>组织角色</h3>
+          <p>Owner、Admin、Billing、Member 分层授权，成员离开后仍可查看有效期内历史消费。</p>
+        </article>
+        <article class="governance-item">
+          <h3>计费安全</h3>
+          <p>预扣、结算、退款完整闭环，防止负扣费、溢出回绕和未审计的饱和裁剪。</p>
+        </article>
+        <article class="governance-item">
+          <h3>可观测性</h3>
+          <p>请求日志记录模型、渠道、Token 用量、耗时、状态码，支持筛选、导出和多维分析。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-muted" id="workflow">
+    <div class="container">
+      <div class="section-heading center">
+        <div class="section-kicker">交付路径</div>
+        <h2 class="section-title">从接入评估到持续运营，路径清晰可落地</h2>
+        <p class="section-copy">面向企业客户时强调治理与交付确定性；面向在线 Token 服务时强调即开即用和稳定调用。</p>
+      </div>
+
+      <div class="flow" aria-label="交付步骤">
+        <article class="flow-step">
+          <span class="flow-number">1</span>
+          <h3>接入评估</h3>
+          <p>确认业务场景、模型需求、部署模式、权限与账单口径。</p>
+        </article>
+        <article class="flow-step">
+          <span class="flow-number">2</span>
+          <h3>渠道配置</h3>
+          <p>配置上游 Key、模型可用性、路由优先级、权重和 fallback。</p>
+        </article>
+        <article class="flow-step">
+          <span class="flow-number">3</span>
+          <h3>统一调用</h3>
+          <p>通过兼容 OpenAI 的 API 接入应用、开发工具或企业内部系统。</p>
+        </article>
+        <article class="flow-step">
+          <span class="flow-number">4</span>
+          <h3>运营迭代</h3>
+          <p>持续跟踪用量、费用、渠道稳定性和业务落地效果。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="ecosystem">
+    <div class="container ecosystem">
+      <div class="ecosystem-copy">
+        <div class="section-kicker">生态兼容</div>
+        <h2>连接企业应用、开发工具和主流上游模型。</h2>
+        <p>统一 API 让客户无需分别处理多家上游的接口、账号和结算细节。前端与后端均保留多语言、多数据库和多主题扩展能力。</p>
+      </div>
+
+      <div class="logo-grid" aria-label="兼容生态与渠道">
+        <div class="logo-card"><img src="../../images/cherry-studio.png" alt="Cherry Studio"></div>
+        <div class="logo-card"><img src="../../images/aionui.png" alt="Aion UI"></div>
+        <div class="logo-card"><img src="../../images/io-net.png" alt="IO.NET"></div>
+        <div class="logo-card"><img src="../../images/aliyun.png" alt="Alibaba Cloud"></div>
+        <div class="logo-card"><img src="../../images/ucloud.png" alt="UCloud"></div>
+        <div class="logo-card text">OpenAI Compatible</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta" id="contact">
+    <div class="container">
+      <div class="cta-box">
+        <div>
+          <h2>把 AI 接入从分散采购变成统一服务。</h2>
+          <p>无论你要搭建企业内部 AI 网关，还是需要更稳定的在线 Token 服务，Lighting 都能提供一套可治理、可计费、可运营的接入方案。</p>
+        </div>
+        <div class="cta-actions">
+          <a class="button button-primary button-large" href="#">获取接入方案</a>
+          <a class="button button-secondary button-large" href="#">查看接口文档</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <img src="../logo-b.png" alt="">
+      <span>Lighting by eLight · 企业 AI 统一接入、交付与运营服务平台</span>
+    </div>
+    <nav class="footer-links" aria-label="页脚导航">
+      <a href="#">Docs</a>
+      <a href="#">Status</a>
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
