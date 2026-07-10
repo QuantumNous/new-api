@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -113,6 +114,29 @@ type AdminUpsertSubscriptionPlanRequest struct {
 	Plan model.SubscriptionPlan `json:"plan"`
 }
 
+func normalizeSubscriptionBillingMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case model.SubscriptionBillingModeAutoRenew:
+		return model.SubscriptionBillingModeAutoRenew
+	default:
+		return model.SubscriptionBillingModeOneTime
+	}
+}
+
+func validateSubscriptionPlanRecurringFields(plan *model.SubscriptionPlan) error {
+	if plan == nil {
+		return errors.New("plan is nil")
+	}
+	plan.BillingMode = normalizeSubscriptionBillingMode(plan.BillingMode)
+	if plan.BillingMode == model.SubscriptionBillingModeAutoRenew && strings.TrimSpace(plan.StripeRecurringPriceId) == "" {
+		return errors.New("stripe_recurring_price_id is required for auto_renew plan")
+	}
+	if plan.BillingMode == model.SubscriptionBillingModeOneTime {
+		plan.StripeRecurringPriceId = ""
+	}
+	return nil
+}
+
 func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
@@ -164,6 +188,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+		return
+	}
+	if err := validateSubscriptionPlanRecurringFields(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	err := model.DB.Create(&req.Plan).Error
@@ -234,6 +262,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 
+	if err := validateSubscriptionPlanRecurringFields(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
@@ -246,7 +279,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"custom_seconds":             req.Plan.CustomSeconds,
 			"enabled":                    req.Plan.Enabled,
 			"sort_order":                 req.Plan.SortOrder,
+			"billing_mode":               req.Plan.BillingMode,
 			"stripe_price_id":            req.Plan.StripePriceId,
+			"stripe_recurring_price_id":  req.Plan.StripeRecurringPriceId,
 			"creem_product_id":           req.Plan.CreemProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,

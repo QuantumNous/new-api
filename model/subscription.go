@@ -310,6 +310,48 @@ func GetBillingSubscriptionByProviderSubscriptionID(provider string, providerSub
 	return &sub, nil
 }
 
+func HasNonEndedAutoRenewContract(userId int) (bool, error) {
+	if userId <= 0 {
+		return false, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var count int64
+	err := DB.Model(&BillingSubscription{}).
+		Where(
+			"user_id = ? AND provider = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
+			userId,
+			"stripe",
+			[]string{"active", "trialing", "past_due"},
+			true,
+			now,
+		).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func GetCurrentBillingSubscriptionByUserID(userId int) (*BillingSubscription, error) {
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var sub BillingSubscription
+	err := DB.Where(
+		"user_id = ? AND provider = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
+		userId,
+		"stripe",
+		[]string{"active", "trialing", "past_due"},
+		true,
+		now,
+	).Order("current_period_end desc, id desc").First(&sub).Error
+	if err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
 // User subscription instance
 type UserSubscription struct {
 	Id     int `json:"id"`

@@ -3,6 +3,7 @@ package model
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,4 +40,22 @@ func TestBillingSubscription_CreateAndFindByProviderSubscriptionID(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, sub.UserId, got.UserId)
 	require.Equal(t, "active", got.Status)
+}
+
+func TestHasNonEndedAutoRenewContract_ReturnsTrueForCancelAtPeriodEndCurrentCycle(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create(&BillingSubscription{
+		UserId:                 200,
+		PlanId:                 1,
+		Provider:               "stripe",
+		ProviderSubscriptionId: "sub_guard_1",
+		Status:                 "active",
+		CancelAtPeriodEnd:      true,
+		CurrentPeriodEnd:       common.GetTimestamp() + 3600,
+	}).Error)
+
+	ok, err := HasNonEndedAutoRenewContract(200)
+	require.NoError(t, err)
+	require.True(t, ok)
 }
