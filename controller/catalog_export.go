@@ -13,17 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CatalogExport 只读导出完整的渠道/供应商/模型目录与 channel_model_pricings，
-// 供下游部署（Roma）定时拉取，把 new-api 作为渠道/模型目录的唯一主数据源做全量镜像。
+// CatalogExport 只读导出完整的渠道/供应商/模型目录，供下游部署（Roma）定时拉取，
+// 把 new-api 作为渠道/模型目录的唯一主数据源做全量镜像。
 //
-// 与 PricingExport 的区别：pricing-export 只导渠道费率 + 定价两张扁平数组，用于
-// auto-cheapest 选路；catalog-export 额外导出渠道全部展示元数据（含 setting/settings
-// 原始 JSON verbatim）、vendors、models，用于 Roma 端目录镜像与展示。
+// 响应 data：channels、vendors、models、generated_at。
+// 带 ?with_channel_data=1 时额外附带 channel_data（逐模型的渠道数据页明细 {items, official}），
+// 供 Roma 一次请求同步渠道目录 + 渠道数据，不必再逐模型请求 channel-data-export。
 //
 // 认证：请求头 X-Catalog-Export-Secret 必须等于环境变量 CATALOG_EXPORT_SECRET；
 // 未配置该环境变量时接口视为关闭（404）。
 //
-// 安全：渠道 key 不外发原文，只导出 SHA-256 哈希用于跨部署渠道匹配；不导出用户 token。
+// 安全：默认只导出渠道 key 的 SHA-256 哈希；仅当 CATALOG_EXPORT_INCLUDE_KEYS=true 时
+// 才导出明文 key（供建可转发副本）。不导出用户 token。
 type catalogExportChannel struct {
 	Id                         int      `json:"id"`
 	Name                       string   `json:"name"`
@@ -83,19 +84,6 @@ type catalogExportModel struct {
 	Status       int    `json:"status"`
 	SyncOfficial int    `json:"sync_official"`
 	NameRule     int    `json:"name_rule"`
-}
-
-type catalogExportPricing struct {
-	ChannelId          int     `json:"channel_id"`
-	ModelName          string  `json:"model_name"`
-	InputPrice         float64 `json:"input_price"`
-	OutputPrice        float64 `json:"output_price"`
-	CachePrice         float64 `json:"cache_price"`
-	CacheCreationPrice float64 `json:"cache_creation_price"`
-	GroupRatio         float64 `json:"group_ratio"`
-	Currency           string  `json:"currency"`
-	PricingSource      string  `json:"pricing_source"`
-	FetchedAt          int64   `json:"fetched_at"`
 }
 
 func CatalogExport(c *gin.Context) {
@@ -210,37 +198,47 @@ func CatalogExport(c *gin.Context) {
 		})
 	}
 
-	var pricingRows []model.ChannelModelPricing
-	if err := model.DB.Find(&pricingRows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	exportPricings := make([]catalogExportPricing, 0, len(pricingRows))
-	for _, row := range pricingRows {
-		exportPricings = append(exportPricings, catalogExportPricing{
-			ChannelId:          row.ChannelId,
-			ModelName:          row.ModelName,
-			InputPrice:         row.InputPrice,
-			OutputPrice:        row.OutputPrice,
-			CachePrice:         row.CachePrice,
-			CacheCreationPrice: row.CacheCreationPrice,
-			GroupRatio:         row.GroupRatio,
-			Currency:           row.Currency,
-			PricingSource:      row.PricingSource,
-			FetchedAt:          row.FetchedAt,
-		})
+	data := gin.H{
+		"generated_at": time.Now().Unix(),
+		"channels":     exportChannels,
+		"vendors":      exportVendors,
+		"models":       exportModels,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"generated_at": time.Now().Unix(),
-			"channels":     exportChannels,
-			"vendors":      exportVendors,
-			"models":       exportModels,
-			"pricings":     exportPricings,
-		},
-	})
+	// with_channel_data=1：在同一响应里附带逐模型的渠道数据（渠道数据页明细），
+	// 供下游 Roma 一次性同步、不必再逐模型请求 channel-data-export。
+	// 缺省时不含 channel_data，响应与旧行为一致（向后兼容）。
+	if isTruthyQuery(c.Query("with_channel_data")) {
+		channelData := gin.H{}
+		for i := range models {
+			modelName := models[i].ModelName
+			if strings.TrimSpace(modelName) == "" || isHiddenChannelDataModel(modelName) {
+				continue
+			}
+			items, officialOK, officialIn, officialOut := getModelDataItems(c.Request.Context(), modelName)
+			channelData[modelName] = gin.H{
+				"items": items,
+				"official": gin.H{
+					"input_price":     officialIn,
+					"output_price":    officialOut,
+					"ok":              officialOK,
+					"has_cache_write": channelDataAuditOfficialHasCacheWrite(modelName),
+				},
+			}
+		}
+		data["channel_data"] = channelData
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": data})
+}
+
+// isTruthyQuery 判定 query 参数是否为“真”（1 / true / yes，大小写不敏感）。
+func isTruthyQuery(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
 }
 
 // ChannelDataExport 是渠道数据页聚合视图的 secret 认证只读别名：认证通过后直接复用
