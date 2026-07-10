@@ -37,6 +37,8 @@ type Pricing struct {
 	BillingExpr              string   `json:"billing_expr,omitempty"`
 	UpstreamCostMultiplier   *float64 `json:"upstream_cost_multiplier,omitempty"`
 	VideoInputRatio          *float64 `json:"video_input_ratio,omitempty"`
+	// PerSecondResolutionPrice: absolute $/second by tier (480p/720p/1080p/4k/other).
+	PerSecondResolutionPrice map[string]float64 `json:"per_second_resolution_price,omitempty"`
 	PricingVersion           string   `json:"pricing_version,omitempty"`
 }
 
@@ -342,6 +344,28 @@ func updatePricing() {
 				}
 			case billing_setting.BillingModePerSecond:
 				pricing.BillingMode = billingMode
+				// 按秒计费在广场按「固定价/秒」展示，避免残留 ModelRatio 仍走按量展示
+				pricing.QuotaType = 1
+				if resPrices, ok := billing_setting.GetPerSecondResolutionPrice(model); ok {
+					pricing.PerSecondResolutionPrice = map[string]float64{}
+					for k, v := range resPrices {
+						if v > 0 {
+							pricing.PerSecondResolutionPrice[k] = v
+						}
+					}
+					// 未配 ModelPrice 时用「其他」档作为展示/兜底单价
+					if !findPrice {
+						if other := resPrices[billing_setting.ResolutionTierOther]; other > 0 {
+							pricing.ModelPrice = other
+							findPrice = true
+						}
+					}
+				}
+				if !findPrice {
+					// 仍无单价时保持 QuotaType=1，前端显示按秒占位而非 token 价
+					pricing.ModelRatio = 0
+					pricing.CompletionRatio = 0
+				}
 				if mult, ok := billing_setting.GetUpstreamCostMultiplier(model); ok {
 					pricing.UpstreamCostMultiplier = &mult
 				}

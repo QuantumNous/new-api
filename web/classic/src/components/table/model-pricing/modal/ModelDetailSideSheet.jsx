@@ -107,6 +107,36 @@ const ModelDetailSideSheet = ({
               </>
             )}
             {modelData.billing_mode === 'per_second' &&
+              modelData.per_second_resolution_price &&
+              Object.keys(modelData.per_second_resolution_price).length > 0 && (
+                <>
+                  <Divider margin={16} />
+                  <div style={{ padding: '0 24px' }}>
+                    <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                      {t('分辨率分档单价')}
+                    </Text>
+                    <Text type='secondary' size='small' style={{ display: 'block' }}>
+                      {[
+                        ['480p', '480p'],
+                        ['720p', '720p'],
+                        ['1080p', '1080p'],
+                        ['4k', '4K'],
+                        ['other', t('其他')],
+                      ]
+                        .filter(
+                          ([key]) =>
+                            modelData.per_second_resolution_price[key] > 0,
+                        )
+                        .map(
+                          ([key, label]) =>
+                            `${label}: $${modelData.per_second_resolution_price[key]} / ${t('秒')}`,
+                        )
+                        .join(' · ')}
+                    </Text>
+                  </div>
+                </>
+              )}
+            {modelData.billing_mode === 'per_second' &&
               modelData.upstream_cost_multiplier > 0 &&
               modelData.upstream_cost_multiplier !== 1 && (
                 <>

@@ -655,6 +655,59 @@ export const calculateModelPrice = ({
     };
   }
 
+  // 2.5 按秒计费（含分辨率分档）：优先于 quota_type，避免残留 ModelRatio 仍按 token 展示
+  if (record.billing_mode === 'per_second') {
+    const upstreamCostMultiplier =
+      record.upstream_cost_multiplier > 0
+        ? Number(record.upstream_cost_multiplier)
+        : 1;
+    const resMap =
+      record.per_second_resolution_price &&
+      typeof record.per_second_resolution_price === 'object'
+        ? record.per_second_resolution_price
+        : null;
+    const formatSecPrice = (usd) => {
+      if (usd === undefined || usd === null || !Number.isFinite(Number(usd))) {
+        return null;
+      }
+      return displayPrice(parseFloat(usd) * usedGroupRatio);
+    };
+    const resolutionPrices = resMap
+      ? [
+          { key: '480p', labelKey: '480p', value: formatSecPrice(resMap['480p']) },
+          { key: '720p', labelKey: '720p', value: formatSecPrice(resMap['720p']) },
+          {
+            key: '1080p',
+            labelKey: '1080p',
+            value: formatSecPrice(resMap['1080p']),
+          },
+          { key: '4k', labelKey: '4K', value: formatSecPrice(resMap['4k']) },
+          {
+            key: 'other',
+            labelKey: '其他',
+            value: formatSecPrice(resMap.other),
+          },
+        ].filter((item) => item.value != null)
+      : [];
+
+    const basePriceUSD = parseFloat(record.model_price);
+    const price =
+      Number.isFinite(basePriceUSD) && basePriceUSD > 0
+        ? displayPrice(basePriceUSD * usedGroupRatio)
+        : resolutionPrices[0]?.value || '-';
+
+    return {
+      price,
+      isPerSecond: true,
+      upstreamCostMultiplier,
+      resolutionPrices,
+      isPerToken: false,
+      isTokensDisplay: false,
+      usedGroup,
+      usedGroupRatio,
+    };
+  }
+
   // 3. 根据计费类型计算价格
   if (record.quota_type === 0) {
     // 按量计费
@@ -892,14 +945,27 @@ export const getModelPriceItems = (
     ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
   }
 
-  const items = [
-    {
+  const items = [];
+  if (
+    Array.isArray(priceData.resolutionPrices) &&
+    priceData.resolutionPrices.length > 0
+  ) {
+    for (const tier of priceData.resolutionPrices) {
+      items.push({
+        key: `res-${tier.key}`,
+        label: t(tier.labelKey || tier.label || tier.key),
+        value: tier.value,
+        suffix: ` / ${t('秒')}`,
+      });
+    }
+  } else {
+    items.push({
       key: 'fixed',
       label: t('模型价格'),
       value: priceData.price,
       suffix: priceData.isPerSecond ? ` / ${t('秒')}` : ` / ${t('次')}`,
-    },
-  ];
+    });
+  }
   if (
     priceData.isPerSecond &&
     priceData.upstreamCostMultiplier > 0 &&

@@ -1251,6 +1251,10 @@ export function useModelPricingEditorState({
             } else {
               delete resolutionPriceOutput[model.name];
             }
+            // 广场按 ModelPrice 识别固定价；未填「每秒价格」时用「其他」写入 ModelPrice
+            if (!hasValue(model.fixedPrice)) {
+              model.fixedPrice = String(other);
+            }
           } else {
             delete resolutionPriceOutput[model.name];
           }
