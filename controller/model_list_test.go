@@ -12,8 +12,11 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -197,6 +200,86 @@ func TestGetUserModelsFiltersByRequestedGroup(t *testing.T) {
 	GetUserModels(vipContext)
 
 	require.Empty(t, decodeUserModelsResponse(t, vipRecorder))
+}
+
+func TestGetUserModelsResolvesVirtualAndPricedGroups(t *testing.T) {
+	withModelListAutoOptSettings(t)
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP","unpriced":"Unpriced","auto":"Auto"}`))
+	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["default"]`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{"default":{"vip":0.5}}`))
+	require.NoError(t, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.UnmarshalJSON([]byte(`{"default":{"+:AutoOpt":"AutoOpt"}}`)))
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1003,
+		Username: "virtual-group-model-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-default-model", ChannelId: 1, Enabled: true},
+		{Group: "vip", Model: "zz-vip-model", ChannelId: 1, Enabled: true},
+		{Group: "unpriced", Model: "zz-unpriced-group-model", ChannelId: 1, Enabled: true},
+	}).Error)
+
+	tests := []struct {
+		name     string
+		group    string
+		expected []string
+	}{
+		{name: "all selectable groups", expected: []string{"zz-default-model", "zz-vip-model"}},
+		{name: "auto", group: "auto", expected: []string{"zz-default-model"}},
+		{name: "AutoOpt", group: service.AutoOptGroup, expected: []string{"zz-default-model", "zz-vip-model"}},
+		{name: "user-specific priced group", group: "vip", expected: []string{"zz-vip-model"}},
+		{name: "unpriced group", group: "unpriced", expected: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?group="+tt.group, nil)
+			ctx.Set("id", 1003)
+
+			GetUserModels(ctx)
+
+			require.ElementsMatch(t, tt.expected, decodeUserModelsResponse(t, recorder))
+		})
+	}
+}
+
+func TestListModelsAutoOptIncludesEveryCandidateGroup(t *testing.T) {
+	withModelListAutoOptSettings(t)
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0.5}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.UnmarshalJSON([]byte(`{"default":{"+:AutoOpt":"AutoOpt"}}`)))
+
+	originalSelfUseMode := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = originalSelfUseMode
+	})
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-autoopt-default-model", ChannelId: 1, Enabled: true},
+		{Group: "vip", Model: "zz-autoopt-vip-model", ChannelId: 1, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, service.AutoOptGroup)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "zz-autoopt-default-model")
+	require.Contains(t, ids, "zz-autoopt-vip-model")
 }
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {

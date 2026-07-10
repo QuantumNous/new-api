@@ -518,6 +518,7 @@
     "Automatically probe all channels in the background": "Automatically probe all channels in the background",
     "Automatically replaces upstream callback URLs with the server address.": "Automatically replaces upstream callback URLs with the server address.",
     "Automatically selects the best available group with circuit breaker mechanism": "Automatically selects the best available group with circuit breaker mechanism",
+    "Automatically selects the lowest-ratio available group for the requested model": "Automatically selects the lowest-ratio available group for the requested model",
     "Automatically sync model list when upstream changes are detected": "Automatically sync model list when upstream changes are detected",
     "Availability (last 24h)": "Availability (last 24h)",
     "Available": "Available",

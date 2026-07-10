@@ -518,6 +518,7 @@
     "Automatically probe all channels in the background": "在后台自动探测所有渠道",
     "Automatically replaces upstream callback URLs with the server address.": "自动将上游回调 URL 替换为服务器地址。",
     "Automatically selects the best available group with circuit breaker mechanism": "自动选择可用分组，失败时触发熔断切换",
+    "Automatically selects the lowest-ratio available group for the requested model": "自动为请求模型选择最低倍率可用分组",
     "Automatically sync model list when upstream changes are detected": "检测到上游模型变更时自动同步模型列表",
     "Availability (last 24h)": "可用率（最近 24 小时）",
     "Available": "可用",

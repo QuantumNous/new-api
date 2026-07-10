@@ -87,7 +87,26 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
-	if param.TokenGroup == "auto" {
+	if IsAutoOptGroup(param.TokenGroup) {
+		autoOptGroups := GetUserAutoOptGroups(userGroup)
+		if len(autoOptGroups) == 0 {
+			return nil, selectGroup, errors.New("AutoOpt groups is not available")
+		}
+		for _, autoOptGroup := range autoOptGroups {
+			logger.LogDebug(param.Ctx, "AutoOpt selecting group: %s, retry: %d", autoOptGroup, param.GetRetry())
+			channel, err = model.GetRandomSatisfiedChannel(autoOptGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+			if err != nil {
+				return nil, autoOptGroup, err
+			}
+			if channel == nil {
+				continue
+			}
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoOptGroup)
+			selectGroup = autoOptGroup
+			logger.LogDebug(param.Ctx, "AutoOpt selected group: %s", autoOptGroup)
+			break
+		}
+	} else if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
 			return nil, selectGroup, errors.New("auto groups is not enabled")
 		}

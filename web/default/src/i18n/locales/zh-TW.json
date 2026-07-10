@@ -518,6 +518,7 @@
     "Automatically probe all channels in the background": "在背景自動探測所有渠道",
     "Automatically replaces upstream callback URLs with the server address.": "自動將上游Callback URL 替換為伺服器地址。",
     "Automatically selects the best available group with circuit breaker mechanism": "自動選擇可用分組，失敗時觸發熔斷切換",
+    "Automatically selects the lowest-ratio available group for the requested model": "自動為請求模型選擇最低倍率可用分組",
     "Automatically sync model list when upstream changes are detected": "偵測到上游模型變更時自動同步模型清單",
     "Availability (last 24h)": "可用率（最近 24 小時）",
     "Available": "可用",

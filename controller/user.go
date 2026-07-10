@@ -615,38 +615,47 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+	usableGroups := service.GetUserUsableGroups(user.Group)
+	pricedGroups := service.GetUserPricedUsableGroups(user.Group)
 	group := c.Query("group")
 	if group != "" {
-		if _, ok := groups[group]; !ok {
-			c.JSON(http.StatusOK, gin.H{
-				"success": true,
-				"message": "",
-				"data":    []string{},
-			})
-			return
+		var modelGroups []string
+		switch {
+		case group == "auto":
+			if _, ok := usableGroups[group]; ok {
+				modelGroups = service.GetUserAutoGroup(user.Group)
+			}
+		case service.IsAutoOptGroup(group):
+			modelGroups = service.GetUserAutoOptGroups(user.Group)
+		default:
+			if _, ok := pricedGroups[group]; ok {
+				modelGroups = []string{group}
+			}
 		}
 
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
-			"data":    model.GetGroupEnabledModels(group),
+			"data":    model.GetGroupsEnabledModels(modelGroups),
 		})
 		return
 	}
 
-	var models []string
-	for group := range groups {
-		for _, g := range model.GetGroupEnabledModels(group) {
-			if !common.StringsContains(models, g) {
-				models = append(models, g)
+	modelGroups := make([]string, 0, len(pricedGroups))
+	for group := range pricedGroups {
+		modelGroups = append(modelGroups, group)
+	}
+	if _, ok := usableGroups["auto"]; ok {
+		for _, autoGroup := range service.GetUserAutoGroup(user.Group) {
+			if !common.StringsContains(modelGroups, autoGroup) {
+				modelGroups = append(modelGroups, autoGroup)
 			}
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    models,
+		"data":    model.GetGroupsEnabledModels(modelGroups),
 	})
 	return
 }
