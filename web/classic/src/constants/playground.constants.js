@@ -99,9 +99,9 @@ export const SEEDANCE_VIDEO_MODELS = [
 // ========== 配置默认值 ==========
 export const DEFAULT_CONFIG = {
   inputs: {
-    model: 'gpt-4o',
-    imageModel: 'gpt-image-2',
-    videoModel: 'doubao-seedance-1-0-lite-t2v',
+    model: '',
+    imageModel: '',
+    videoModel: '',
     group: '',
     temperature: 0.7,
     top_p: 1,
