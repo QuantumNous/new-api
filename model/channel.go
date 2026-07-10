@@ -37,7 +37,7 @@ type Channel struct {
 	Balance            float64 `json:"balance"` // in USD
 	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
 	Models             string  `json:"models"`
-	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
+	Group              string  `json:"group" gorm:"type:varchar(1024);default:'default'"`
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
 	ModelMapping       *string `json:"model_mapping" gorm:"type:text"`
 	//MaxInputTokens     *int    `json:"max_input_tokens" gorm:"default:0"`
@@ -860,8 +860,32 @@ func UpdateChannelUsedQuota(id int, quota int) {
 	updateChannelUsedQuota(id, quota)
 }
 
+func DecreaseChannelUsedQuota(id int, quota int) {
+	if id <= 0 || quota <= 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeChannelUsedQuota, id, -quota)
+		return
+	}
+	err := DB.Model(&Channel{}).Where("id = ?", id).Update(
+		"used_quota",
+		gorm.Expr("CASE WHEN used_quota < ? THEN 0 ELSE used_quota - ? END", quota, quota),
+	).Error
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to decrease channel used quota: channel_id=%d, delta_quota=%d, error=%v", id, quota, err))
+	}
+}
+
 func updateChannelUsedQuota(id int, quota int) {
-	err := DB.Model(&Channel{}).Where("id = ?", id).Update("used_quota", gorm.Expr("used_quota + ?", quota)).Error
+	var expr clause.Expr
+	if quota < 0 {
+		refund := -quota
+		expr = gorm.Expr("CASE WHEN used_quota < ? THEN 0 ELSE used_quota - ? END", refund, refund)
+	} else {
+		expr = gorm.Expr("used_quota + ?", quota)
+	}
+	err := DB.Model(&Channel{}).Where("id = ?", id).Update("used_quota", expr).Error
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to update channel used quota: channel_id=%d, delta_quota=%d, error=%v", id, quota, err))
 	}
