@@ -555,7 +555,7 @@ func migrateBillingHoldConfirmManageLogsToConsume() {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, email string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, filterUserId int) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -569,8 +569,8 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if username != "" {
 		tx = tx.Where("logs.username = ?", username)
 	}
-	if email != "" {
-		tx = tx.Where("logs.username IN (SELECT username FROM users WHERE email = ?)", email)
+	if filterUserId != 0 {
+		tx = tx.Where("logs.user_id = ?", filterUserId)
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
@@ -755,7 +755,7 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, filterUserId int) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
@@ -764,6 +764,10 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if username != "" {
 		tx = tx.Where("username = ?", username)
 		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
+	}
+	if filterUserId != 0 {
+		tx = tx.Where("user_id = ?", filterUserId)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", filterUserId)
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)

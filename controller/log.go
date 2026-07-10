@@ -23,7 +23,12 @@ func GetAllLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	email := c.Query("email")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, email)
+	emailUserId, err := resolveLogEmailUserId(email)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, emailUserId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -33,6 +38,24 @@ func GetAllLogs(c *gin.Context) {
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+// resolveLogEmailUserId resolves against the primary user DB before querying
+// LOG_DB. This works when logs are stored in a separate database and lets
+// email filters match refund/async logs whose username was not persisted.
+// A missing email maps to -1 so the caller returns an empty result set.
+func resolveLogEmailUserId(email string) (int, error) {
+	if email == "" {
+		return 0, nil
+	}
+	userId, err := model.GetUserIdByEmail(email)
+	if err != nil {
+		return 0, err
+	}
+	if userId == 0 {
+		return -1, nil
+	}
+	return userId, nil
 }
 
 func GetUserLogs(c *gin.Context) {
@@ -106,7 +129,12 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	emailUserId, err := resolveLogEmailUserId(c.Query("email"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, emailUserId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -133,7 +161,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, c.GetInt("id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
