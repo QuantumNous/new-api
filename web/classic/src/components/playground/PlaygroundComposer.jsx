@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { InputNumber, Select } from '@douyinfe/semi-ui';
+import { InputNumber, Select, Toast } from '@douyinfe/semi-ui';
 import { Bot, ImageIcon, Loader2, Paperclip, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
@@ -74,6 +74,7 @@ const PlaygroundComposer = ({
     selectedInlineFiles,
     onSelectInlineFile,
     onRemoveInlineFile,
+    maxInlineFileCount,
   } = usePlayground();
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
@@ -92,6 +93,11 @@ const PlaygroundComposer = ({
   const hasReadyFile = selectedFiles.some(
     (file) => !file.status || file.status === 'ready',
   );
+  const fileAttachmentTitle = isFileAttachmentDisabled
+    ? t('文件上传仅支持聊天模式')
+    : t('仅支持 PDF、DOCX、XLSX、TXT、JSON 文件，最多选择 {{count}} 个文件', {
+        count: maxInlineFileCount,
+      });
   const normalizedImageModel = String(inputs.imageModel || '').toLowerCase();
   const isQwenImageModel = normalizedImageModel.includes('qwen-image');
   const modelOptions = isVideoMode
@@ -371,27 +377,33 @@ const PlaygroundComposer = ({
                   if (isFileAttachmentDisabled) {
                     return;
                   }
+                  if (selectedFiles.length >= maxInlineFileCount) {
+                    Toast.warning({
+                      content: t('最多只能选择 {{count}} 个文件', {
+                        count: maxInlineFileCount,
+                      }),
+                      duration: 3,
+                    });
+                    return;
+                  }
                   pdfInputRef.current?.click();
                 }}
                 type='button'
                 aria-label={t('上传文件')}
-                title={
-                  isFileAttachmentDisabled
-                    ? t('文件上传仅支持聊天模式')
-                    : t('仅支持 PDF、DOCX、XLSX、TXT、JSON 文件')
-                }
+                title={fileAttachmentTitle}
               >
                 <Paperclip size={18} />
               </button>
               <input
                 ref={pdfInputRef}
                 type='file'
+                multiple
                 accept='application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx,text/plain,.txt,application/json,.json,.doc,.xls'
                 className='hidden'
                 onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    onSelectInlineFile?.(file);
+                  const files = Array.from(event.target.files || []);
+                  if (files.length > 0) {
+                    onSelectInlineFile?.(files);
                   }
                   event.target.value = '';
                 }}

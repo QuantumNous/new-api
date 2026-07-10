@@ -40,6 +40,7 @@ export const usePlayground = () => {
       selectedInlineFiles: [],
       onSelectInlineFile: () => {},
       onRemoveInlineFile: () => {},
+      maxInlineFileCount: 10,
     };
   }
   return context;

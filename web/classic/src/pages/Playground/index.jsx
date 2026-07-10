@@ -90,6 +90,7 @@ import {
 import { buildInlineFileContentParts } from '../../helpers/playgroundFileInline';
 
 const MAX_PLAYGROUND_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+const MAX_PLAYGROUND_INLINE_FILES = 10;
 const FILE_ATTACHMENT_STATUS = {
   LOADING: 'loading',
   READY: 'ready',
@@ -177,6 +178,30 @@ const buildApiContentWithInlineFiles = ({
     : []),
 ];
 
+const buildInlineFileSignature = (file, kind = getInlineFileType(file)) =>
+  [
+    String(file?.name || ''),
+    String(file?.size || 0),
+    String(file?.lastModified || 0),
+    kind,
+  ].join('::');
+
+const extractInlineFileText = async (file, kind) => {
+  if (kind === 'pdf') {
+    return extractPdfText(file);
+  }
+  if (kind === 'docx') {
+    return extractDocxText(file);
+  }
+  if (kind === 'xlsx') {
+    return extractXlsxText(file);
+  }
+  if (kind === 'json') {
+    return extractJsonText(file);
+  }
+  return extractPlainTextFile(file);
+};
+
 // 生成头像
 const generateAvatarDataUrl = (username) => {
   if (!username) {
@@ -212,7 +237,6 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   const imageAbortControllerRef = useRef(null);
   const imageCacheInFlightRef = useRef(new Set());
   const videoPollingRef = useRef(new Set());
-  const fileSelectionVersionRef = useRef(0);
   const playgroundUserIdentity = useMemo(
     () => ({
       id: userState?.user?.id || null,
@@ -2095,137 +2119,202 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   );
 
   const handleSelectInlineFile = useCallback(
-    async (file) => {
-      if (!file) {
+    async (filesOrFile) => {
+      const inputFiles = Array.isArray(filesOrFile)
+        ? filesOrFile
+        : Array.from(
+            filesOrFile && typeof filesOrFile.length === 'number'
+              ? filesOrFile
+              : filesOrFile
+                ? [filesOrFile]
+                : [],
+          );
+
+      if (inputFiles.length === 0) {
         return;
       }
 
-      const kind = getInlineFileType(file);
+      if (selectedInlineFiles.length >= MAX_PLAYGROUND_INLINE_FILES) {
+        Toast.warning({
+          content: t('最多只能选择 {{count}} 个文件', {
+            count: MAX_PLAYGROUND_INLINE_FILES,
+          }),
+          duration: 3,
+        });
+        return;
+      }
 
-      if (LEGACY_OFFICE_FILE_TYPES.has(kind)) {
+      const existingSignatures = new Set(
+        selectedInlineFiles.map((attachment) =>
+          buildInlineFileSignature(attachment.file, attachment.kind),
+        ),
+      );
+      const nextSignatures = new Set();
+      const attachmentsToAdd = [];
+      let hasLegacyOfficeFile = false;
+      let hasUnsupportedFile = false;
+      let hasOversizedFile = false;
+      let hasDuplicateFile = false;
+      let hasExceededLimit = false;
+
+      inputFiles.forEach((file) => {
+        const kind = getInlineFileType(file);
+
+        if (LEGACY_OFFICE_FILE_TYPES.has(kind)) {
+          hasLegacyOfficeFile = true;
+          return;
+        }
+
+        if (!SUPPORTED_INLINE_FILE_TYPES.has(kind)) {
+          hasUnsupportedFile = true;
+          return;
+        }
+
+        if (file.size > MAX_PLAYGROUND_ATTACHMENT_SIZE) {
+          hasOversizedFile = true;
+          return;
+        }
+
+        const signature = buildInlineFileSignature(file, kind);
+        if (existingSignatures.has(signature) || nextSignatures.has(signature)) {
+          hasDuplicateFile = true;
+          return;
+        }
+
+        if (
+          selectedInlineFiles.length + attachmentsToAdd.length >=
+          MAX_PLAYGROUND_INLINE_FILES
+        ) {
+          hasExceededLimit = true;
+          return;
+        }
+
+        nextSignatures.add(signature);
+        attachmentsToAdd.push({
+          id: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          file,
+          kind,
+          name: file.name,
+          size: file.size,
+          status: FILE_ATTACHMENT_STATUS.LOADING,
+          text: '',
+          error: null,
+        });
+      });
+
+      if (hasLegacyOfficeFile) {
         Toast.warning({
           content: t('暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传'),
           duration: 4,
         });
-        return;
       }
-
-      if (!SUPPORTED_INLINE_FILE_TYPES.has(kind)) {
+      if (hasUnsupportedFile) {
         Toast.error({
           content: t('仅支持 PDF、DOCX、XLSX、TXT、JSON 文件'),
           duration: 2,
         });
-        return;
       }
-
-      if (file.size > MAX_PLAYGROUND_ATTACHMENT_SIZE) {
+      if (hasOversizedFile) {
         Toast.error({
           content: t('文件不能超过 20MB'),
           duration: 3,
         });
-        return;
       }
-
-      const selectionVersion = fileSelectionVersionRef.current + 1;
-      fileSelectionVersionRef.current = selectionVersion;
-      const attachment = {
-        id: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        file,
-        kind,
-        name: file.name,
-        size: file.size,
-        status: FILE_ATTACHMENT_STATUS.LOADING,
-        text: '',
-        error: null,
-      };
-
-      setSelectedInlineFiles([attachment]);
-
-      try {
-        let result;
-
-        if (kind === 'pdf') {
-          result = await extractPdfText(file);
-        } else if (kind === 'docx') {
-          result = await extractDocxText(file);
-        } else if (kind === 'xlsx') {
-          result = await extractXlsxText(file);
-        } else if (kind === 'json') {
-          result = await extractJsonText(file);
-        } else {
-          result = await extractPlainTextFile(file);
-        }
-
-        if (fileSelectionVersionRef.current !== selectionVersion) {
-          return;
-        }
-
-        if (!result.text || result.text.trim() === '') {
-          setSelectedInlineFiles((prevFiles) =>
-            prevFiles.map((item) =>
-              item.id === attachment.id
-                ? {
-                    ...item,
-                    status: FILE_ATTACHMENT_STATUS.ERROR,
-                    error: 'empty',
-                  }
-                : item,
-            ),
-          );
-          Toast.error({
-            content: t('未能从文件中提取文本'),
-            duration: 3,
-          });
-          return;
-        }
-
-        setSelectedInlineFiles((prevFiles) =>
-          prevFiles.map((item) =>
-            item.id === attachment.id
-              ? {
-                  ...item,
-                  status: FILE_ATTACHMENT_STATUS.READY,
-                  text: result.text,
-                  pageCount: result.pageCount,
-                  sheetCount: result.sheetCount,
-                  truncated: result.truncated,
-                  error: null,
-                }
-              : item,
-          ),
-        );
-        Toast.success({
-          content: t('文件已添加'),
+      if (hasDuplicateFile) {
+        Toast.warning({
+          content: t('已跳过重复文件'),
           duration: 2,
         });
-      } catch (error) {
-        if (fileSelectionVersionRef.current !== selectionVersion) {
-          return;
-        }
-
-        console.error('读取文件失败:', error);
-        setSelectedInlineFiles((prevFiles) =>
-          prevFiles.map((item) =>
-            item.id === attachment.id
-              ? {
-                  ...item,
-                  status: FILE_ATTACHMENT_STATUS.ERROR,
-                  error,
-                }
-              : item,
-          ),
-        );
-        Toast.error({
-          content: t('读取文件失败，请重新选择文件'),
+      }
+      if (hasExceededLimit) {
+        Toast.warning({
+          content: t('最多只能选择 {{count}} 个文件', {
+            count: MAX_PLAYGROUND_INLINE_FILES,
+          }),
           duration: 3,
         });
       }
+
+      if (attachmentsToAdd.length === 0) {
+        return;
+      }
+
+      setSelectedInlineFiles((prevFiles) => [...prevFiles, ...attachmentsToAdd]);
+      Toast.success({
+        content:
+          attachmentsToAdd.length === 1
+            ? t('文件已添加')
+            : t('已添加 {{count}} 个文件', { count: attachmentsToAdd.length }),
+        duration: 2,
+      });
+
+      await Promise.all(
+        attachmentsToAdd.map(async (attachment) => {
+          try {
+            const result = await extractInlineFileText(
+              attachment.file,
+              attachment.kind,
+            );
+
+            if (!result.text || result.text.trim() === '') {
+              setSelectedInlineFiles((prevFiles) =>
+                prevFiles.map((item) =>
+                  item.id === attachment.id
+                    ? {
+                        ...item,
+                        status: FILE_ATTACHMENT_STATUS.ERROR,
+                        error: 'empty',
+                      }
+                    : item,
+                ),
+              );
+              Toast.error({
+                content: t('未能从文件中提取文本'),
+                duration: 3,
+              });
+              return;
+            }
+
+            setSelectedInlineFiles((prevFiles) =>
+              prevFiles.map((item) =>
+                item.id === attachment.id
+                  ? {
+                      ...item,
+                      status: FILE_ATTACHMENT_STATUS.READY,
+                      text: result.text,
+                      pageCount: result.pageCount,
+                      sheetCount: result.sheetCount,
+                      truncated: result.truncated,
+                      error: null,
+                    }
+                  : item,
+              ),
+            );
+          } catch (error) {
+            console.error('读取文件失败:', error);
+            setSelectedInlineFiles((prevFiles) =>
+              prevFiles.map((item) =>
+                item.id === attachment.id
+                  ? {
+                      ...item,
+                      status: FILE_ATTACHMENT_STATUS.ERROR,
+                      error,
+                    }
+                  : item,
+              ),
+            );
+            Toast.error({
+              content: t('读取文件失败，请重新选择文件'),
+              duration: 3,
+            });
+          }
+        }),
+      );
     },
-    [t],
+    [selectedInlineFiles, t],
   );
 
   const handleRemoveInlineFile = useCallback((indexToRemove) => {
-    fileSelectionVersionRef.current += 1;
     setSelectedInlineFiles((prevFiles) =>
       prevFiles.filter((_, index) => index !== indexToRemove),
     );
@@ -2241,6 +2330,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     imageUrls: inputs.imageUrls || [],
     imageEnabled: inputs.imageEnabled || false,
     selectedInlineFiles,
+    maxInlineFileCount: MAX_PLAYGROUND_INLINE_FILES,
   };
 
   return (

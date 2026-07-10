@@ -4308,6 +4308,7 @@
     "未能从 PDF 文件中提取文本": "Could not extract text from the PDF file",
     "上传文件": "Upload file",
     "文件上传仅支持聊天模式": "File upload is only supported in chat mode",
+    "最多只能选择 {{count}} 个文件": "You can select up to {{count}} files",
     "文件解析中": "Parsing file",
     "文件解析失败": "File parsing failed",
     "文件解析中，请稍候": "Parsing the file. Please wait",
@@ -4315,10 +4316,13 @@
     "移除文件": "Remove file",
     "文件不能超过 20MB": "File must not exceed 20 MB",
     "文件已添加": "File added",
+    "已添加 {{count}} 个文件": "{{count}} files added",
+    "已跳过重复文件": "Duplicate files were skipped",
     "读取文件失败，请重新选择文件": "Failed to read the file. Please choose it again",
     "未能从文件中提取文本": "Could not extract text from the file",
     "仅支持 PDF、DOCX、XLSX 文件": "Only PDF, DOCX, and XLSX files are supported",
     "仅支持 PDF、DOCX、XLSX、TXT、JSON 文件": "Only PDF, DOCX, XLSX, TXT, and JSON files are supported",
+    "仅支持 PDF、DOCX、XLSX、TXT、JSON 文件，最多选择 {{count}} 个文件": "Supports PDF, DOCX, XLSX, TXT, and JSON files, up to {{count}} files",
     "暂不支持 DOC 或 XLS 文件，请转换为 DOCX 或 XLSX 后上传": "DOC and XLS files are not supported yet. Please convert them to DOCX or XLSX before uploading"
   }
 }
