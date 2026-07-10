@@ -188,7 +188,9 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	}
 	summary.IsClaudeUsageSemantic = summary.UsageSemantic == "anthropic"
 
-	if usage == nil {
+	if usage == nil && shouldSkipEstimatedUsageForAbnormalStream(relayInfo) {
+		usage = &dto.Usage{}
+	} else if usage == nil {
 		usage = &dto.Usage{
 			PromptTokens:     relayInfo.GetEstimatePromptTokens(),
 			CompletionTokens: 0,
@@ -327,6 +329,13 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	return summary
 }
 
+func shouldSkipEstimatedUsageForAbnormalStream(relayInfo *relaycommon.RelayInfo) bool {
+	if relayInfo == nil || !relayInfo.IsStream || relayInfo.StreamStatus == nil {
+		return false
+	}
+	return !relayInfo.StreamStatus.IsNormalEnd()
+}
+
 func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) string {
 	if usage != nil && usage.UsageSemantic != "" {
 		return usage.UsageSemantic
@@ -341,6 +350,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	originUsage := usage
 	if usage == nil {
 		extraContent = append(extraContent, "上游无计费信息")
+		if shouldSkipEstimatedUsageForAbnormalStream(relayInfo) {
+			extraContent = append(extraContent, "流式响应异常结束，未返回计费信息，跳过扣费")
+		}
 	}
 	if originUsage != nil {
 		ObserveChannelAffinityUsageCacheByRelayFormat(ctx, usage, relayInfo.GetFinalRequestRelayFormat())

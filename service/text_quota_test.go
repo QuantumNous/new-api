@@ -150,6 +150,62 @@ func TestCalculateTextQuotaSummaryUsesAnthropicUsageSemanticFromUpstreamUsage(t 
 	require.Equal(t, 1488, summary.Quota)
 }
 
+func TestCalculateTextQuotaSummarySkipsEstimateForAbnormalStreamWithoutUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:        true,
+		StreamStatus:    streamStatus,
+		OriginModelName: "gpt-test",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio: 1,
+			},
+		},
+		StartTime: time.Now(),
+	}
+	relayInfo.SetEstimatePromptTokens(1000)
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, nil)
+
+	require.Zero(t, summary.TotalTokens)
+	require.Zero(t, summary.Quota)
+}
+
+func TestCalculateTextQuotaSummaryUsesEstimateForNormalStreamWithoutUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:        true,
+		StreamStatus:    streamStatus,
+		OriginModelName: "gpt-test",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio: 1,
+			},
+		},
+		StartTime: time.Now(),
+	}
+	relayInfo.SetEstimatePromptTokens(1000)
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, nil)
+
+	require.Equal(t, 1000, summary.TotalTokens)
+	require.Equal(t, 1000, summary.Quota)
+}
+
 func TestCacheWriteTokensTotal(t *testing.T) {
 	t.Run("split cache creation", func(t *testing.T) {
 		summary := textQuotaSummary{
