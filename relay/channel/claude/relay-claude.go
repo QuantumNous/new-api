@@ -617,6 +617,7 @@ func buildOpenAIStyleUsageFromClaudeUsage(usage *dto.Usage) dto.Usage {
 		usage.ClaudeCacheCreation1hTokens,
 	)
 	cacheCreationTokens := cacheCreationTokensForOpenAIUsage(usage)
+	clone.PromptTokensDetails.CacheWriteTokens = cacheCreationTokens
 	totalInputTokens := usage.PromptTokens + usage.PromptTokensDetails.CachedTokens + cacheCreationTokens
 	clone.PromptTokens = totalInputTokens
 	clone.InputTokens = totalInputTokens
