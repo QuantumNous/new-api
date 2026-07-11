@@ -555,15 +555,27 @@ func (c *ClaudeResponse) GetClaudeError() *types.ClaudeError {
 }
 
 type ClaudeUsage struct {
-	InputTokens              int                       `json:"input_tokens"`
-	CacheCreationInputTokens int                       `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int                       `json:"cache_read_input_tokens"`
-	OutputTokens             int                       `json:"output_tokens"`
-	CacheCreation            *ClaudeCacheCreationUsage `json:"cache_creation,omitempty"`
+	InputTokens              int                        `json:"input_tokens"`
+	CacheCreationInputTokens int                        `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int                        `json:"cache_read_input_tokens"`
+	OutputTokens             int                        `json:"output_tokens"`
+	OutputTokensDetails      *ClaudeOutputTokensDetails `json:"output_tokens_details,omitempty"`
+	CacheCreation            *ClaudeCacheCreationUsage  `json:"cache_creation,omitempty"`
 	// claude cache 1h
 	ClaudeCacheCreation5mTokens int                  `json:"claude_cache_creation_5_m_tokens"`
 	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens"`
 	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
+}
+
+type ClaudeOutputTokensDetails struct {
+	ThinkingTokens int `json:"thinking_tokens,omitempty"`
+}
+
+func (u *ClaudeUsage) GetThinkingTokens() int {
+	if u == nil || u.OutputTokensDetails == nil {
+		return 0
+	}
+	return u.OutputTokensDetails.ThinkingTokens
 }
 
 type ClaudeCacheCreationUsage struct {

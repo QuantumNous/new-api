@@ -735,6 +735,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Message.Usage.GetCacheCreation5mTokens()
 			claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Message.Usage.GetCacheCreation1hTokens()
 			claudeInfo.Usage.CompletionTokens = claudeResponse.Message.Usage.OutputTokens
+			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Message.Usage.GetThinkingTokens()
 		}
 	} else if claudeResponse.Type == "content_block_delta" {
 		if claudeResponse.Delta != nil {
@@ -767,6 +768,9 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			}
 			if claudeResponse.Usage.OutputTokens > 0 {
 				claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+			}
+			if thinkingTokens := claudeResponse.Usage.GetThinkingTokens(); thinkingTokens > 0 {
+				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = thinkingTokens
 			}
 			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 		}
@@ -909,6 +913,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeResponse.Usage != nil {
 		claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
 		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Usage.GetThinkingTokens()
 		claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
 		claudeInfo.Usage.UsageSemantic = "anthropic"
 		claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens

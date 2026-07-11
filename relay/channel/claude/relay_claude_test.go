@@ -223,6 +223,37 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	}
 }
 
+func TestFormatClaudeResponseInfo_ThinkingTokens(t *testing.T) {
+	claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+
+	require.True(t, FormatClaudeResponseInfo(&dto.ClaudeResponse{
+		Type: "message_start",
+		Message: &dto.ClaudeMediaMessage{
+			Id:    "msg_1",
+			Model: "claude-sonnet-5",
+			Usage: &dto.ClaudeUsage{
+				InputTokens:         8,
+				OutputTokens:        1,
+				OutputTokensDetails: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 5},
+			},
+		},
+	}, nil, claudeInfo))
+	require.Equal(t, 5, claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens)
+
+	require.True(t, FormatClaudeResponseInfo(&dto.ClaudeResponse{
+		Type: "message_delta",
+		Usage: &dto.ClaudeUsage{
+			OutputTokens:        66,
+			OutputTokensDetails: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 45},
+		},
+	}, nil, claudeInfo))
+	require.Equal(t, 66, claudeInfo.Usage.CompletionTokens)
+	require.Equal(t, 45, claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens)
+
+	openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+	require.Equal(t, 45, openAIUsage.CompletionTokenDetails.ReasoningTokens)
+}
+
 func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     100,
