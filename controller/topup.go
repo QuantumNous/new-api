@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -512,6 +513,29 @@ func AdminCompleteTopUp(c *gin.Context) {
 	// 订单级互斥，防止并发补单
 	LockOrder(req.TradeNo)
 	defer UnlockOrder(req.TradeNo)
+
+	// 虎皮椒优先查单确认已支付后再入账；查单明确未支付则拒绝，查单接口异常时回退管理员强制补单
+	if topUp := model.GetTopUpByTradeNo(req.TradeNo); topUp != nil && topUp.PaymentProvider == model.PaymentProviderXunhu {
+		if err := SyncXunhuTopUpByQuery(req.TradeNo, c.ClientIP()); err != nil {
+			if topUp = model.GetTopUpByTradeNo(req.TradeNo); topUp != nil && topUp.Status == common.TopUpStatusSuccess {
+				common.ApiSuccess(c, nil)
+				return
+			}
+			if strings.Contains(err.Error(), "未支付") {
+				common.ApiError(c, err)
+				return
+			}
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒查单失败，回退管理员补单 trade_no=%s error=%q", req.TradeNo, err.Error()))
+			if err := model.ManualCompleteTopUp(req.TradeNo, c.ClientIP()); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			common.ApiSuccess(c, nil)
+			return
+		}
+		common.ApiSuccess(c, nil)
+		return
+	}
 
 	if err := model.ManualCompleteTopUp(req.TradeNo, c.ClientIP()); err != nil {
 		common.ApiError(c, err)

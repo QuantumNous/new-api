@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -258,7 +259,7 @@ func RequestXunhuPay(c *gin.Context) {
 		return
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒充值订单创建成功 user_id=%d trade_no=%s amount=%d money=%.2f method=%s", id, tradeNo, req.Amount, payMoney, req.PaymentMethod))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒充值订单创建成功 user_id=%d trade_no=%s amount=%d money=%.2f method=%s notify_url=%s", id, tradeNo, req.Amount, payMoney, req.PaymentMethod, notifyUrl))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
@@ -270,57 +271,103 @@ func RequestXunhuPay(c *gin.Context) {
 	})
 }
 
-func XunhuNotify(c *gin.Context) {
-	if !isXunhuWebhookEnabled() {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
-		c.String(http.StatusOK, "fail")
+func writeXunhuNotifyResult(c *gin.Context, ok bool) {
+	c.Header("Content-Type", "text/plain; charset=utf-8")
+	if ok {
+		_, _ = c.Writer.Write([]byte("success"))
 		return
 	}
+	_, _ = c.Writer.Write([]byte("fail"))
+}
 
-	if err := c.Request.ParseForm(); err != nil {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 解析表单失败 client_ip=%s error=%q", c.ClientIP(), err.Error()))
-		c.String(http.StatusOK, "fail")
-		return
+func parseXunhuNotifyParams(c *gin.Context) (map[string]string, string) {
+	rawBody, _ := io.ReadAll(c.Request.Body)
+	c.Request.Body = io.NopCloser(bytes.NewReader(rawBody))
+	_ = c.Request.ParseForm()
+
+	params := make(map[string]string)
+	for k, values := range c.Request.Form {
+		if len(values) > 0 && values[0] != "" {
+			params[k] = values[0]
+		}
 	}
-
-	params := make(map[string]string, len(c.Request.PostForm))
 	for k, values := range c.Request.PostForm {
-		if len(values) > 0 {
+		if len(values) > 0 && values[0] != "" {
 			params[k] = values[0]
 		}
 	}
 
+	// 兼容 JSON 或纯 querystring body
+	if len(params) == 0 && len(rawBody) > 0 {
+		var jsonParams map[string]any
+		if err := common.Unmarshal(rawBody, &jsonParams); err == nil {
+			for k, v := range jsonParams {
+				if v == nil {
+					continue
+				}
+				s := strings.TrimSpace(fmt.Sprint(v))
+				if s != "" && s != "<nil>" {
+					params[k] = s
+				}
+			}
+		} else if values, err := url.ParseQuery(string(rawBody)); err == nil {
+			for k, vs := range values {
+				if len(vs) > 0 && vs[0] != "" {
+					params[k] = vs[0]
+				}
+			}
+		}
+	}
+
+	return params, string(rawBody)
+}
+
+func XunhuNotify(c *gin.Context) {
+	if !isXunhuWebhookEnabled() {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
+		writeXunhuNotifyResult(c, false)
+		return
+	}
+
+	params, rawBody := parseXunhuNotifyParams(c)
 	tradeNo := params["trade_order_id"]
 	appId := params["appid"]
 	status := params["status"]
 	hash := params["hash"]
 	totalFee := params["total_fee"]
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 收到请求 trade_no=%s status=%s appid=%s client_ip=%s", tradeNo, status, appId, c.ClientIP()))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 收到请求 trade_no=%s status=%s appid=%s client_ip=%s params=%q body=%q", tradeNo, status, appId, c.ClientIP(), common.GetJsonString(params), rawBody))
+
+	if tradeNo == "" || appId == "" {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 缺少必要参数 client_ip=%s body=%q", c.ClientIP(), rawBody))
+		writeXunhuNotifyResult(c, false)
+		return
+	}
 
 	secret, ok := setting.GetXunhuSecretByAppId(appId)
 	if !ok {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook appid 无效 trade_no=%s appid=%s client_ip=%s", tradeNo, appId, c.ClientIP()))
-		c.String(http.StatusOK, "fail")
+		writeXunhuNotifyResult(c, false)
 		return
 	}
 
-	if hash == "" || generateXunhuHash(params, secret) != hash {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 验签失败 trade_no=%s appid=%s client_ip=%s", tradeNo, appId, c.ClientIP()))
-		c.String(http.StatusOK, "fail")
+	expectedHash := generateXunhuHash(params, secret)
+	if hash == "" || expectedHash != hash {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 验签失败 trade_no=%s appid=%s client_ip=%s got=%s expect=%s", tradeNo, appId, c.ClientIP(), hash, expectedHash))
+		writeXunhuNotifyResult(c, false)
 		return
 	}
 
 	if status != "OD" {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 忽略非支付成功状态 trade_no=%s status=%s client_ip=%s", tradeNo, status, c.ClientIP()))
-		c.String(http.StatusOK, "success")
+		writeXunhuNotifyResult(c, true)
 		return
 	}
 
 	topUp := model.GetTopUpByTradeNo(tradeNo)
 	if topUp == nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 订单不存在 trade_no=%s client_ip=%s", tradeNo, c.ClientIP()))
-		c.String(http.StatusOK, "fail")
+		writeXunhuNotifyResult(c, false)
 		return
 	}
 
@@ -331,17 +378,101 @@ func XunhuNotify(c *gin.Context) {
 		}
 		if diff > 0.01 {
 			logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 金额不匹配 trade_no=%s expect=%.2f got=%s client_ip=%s", tradeNo, topUp.Money, totalFee, c.ClientIP()))
-			c.String(http.StatusOK, "fail")
+			writeXunhuNotifyResult(c, false)
 			return
 		}
 	}
 
+	LockOrder(tradeNo)
+	defer UnlockOrder(tradeNo)
+
 	if err := model.RechargeXunhu(tradeNo, c.ClientIP()); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("虎皮椒入账失败 trade_no=%s client_ip=%s error=%q", tradeNo, c.ClientIP(), err.Error()))
-		c.String(http.StatusOK, "fail")
+		writeXunhuNotifyResult(c, false)
 		return
 	}
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒入账成功 trade_no=%s client_ip=%s", tradeNo, c.ClientIP()))
-	c.String(http.StatusOK, "success")
+	writeXunhuNotifyResult(c, true)
+}
+
+func getXunhuQueryURL() string {
+	gateway := setting.GetXunhuGatewayUrl()
+	if strings.Contains(gateway, "/payment/do.html") {
+		return strings.Replace(gateway, "/payment/do.html", "/payment/query.html", 1)
+	}
+	return "https://api.xunhupay.com/payment/query.html"
+}
+
+type xunhuQueryResponse struct {
+	Errcode int    `json:"errcode"`
+	Errmsg  string `json:"errmsg"`
+	Data    struct {
+		Status string `json:"status"`
+	} `json:"data"`
+}
+
+// SyncXunhuTopUpByQuery 主动向虎皮椒查单，已支付则入账（用于回调丢失时补单）
+func SyncXunhuTopUpByQuery(tradeNo string, callerIp string) error {
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	if topUp == nil {
+		return fmt.Errorf("充值订单不存在")
+	}
+	if topUp.PaymentProvider != model.PaymentProviderXunhu {
+		return fmt.Errorf("非虎皮椒订单")
+	}
+	if topUp.Status == common.TopUpStatusSuccess {
+		return nil
+	}
+	if topUp.Status != common.TopUpStatusPending {
+		return fmt.Errorf("订单状态不是待支付")
+	}
+
+	appId, appSecret, ok := setting.GetXunhuCredentials(topUp.PaymentMethod)
+	if !ok {
+		return fmt.Errorf("虎皮椒渠道凭证未配置")
+	}
+
+	params := map[string]string{
+		"appid":           appId,
+		"out_trade_order": tradeNo,
+		"time":            strconv.FormatInt(time.Now().Unix(), 10),
+		"nonce_str":       randstr.String(16),
+	}
+	params["hash"] = generateXunhuHash(params, appSecret)
+
+	body, err := common.Marshal(params)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, getXunhuQueryURL(), bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := service.GetHttpClient().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var queryResp xunhuQueryResponse
+	if err := common.Unmarshal(respBody, &queryResp); err != nil {
+		return fmt.Errorf("解析查单响应失败: %w", err)
+	}
+	if queryResp.Errcode != 0 {
+		return fmt.Errorf("查单失败: %s", queryResp.Errmsg)
+	}
+	if queryResp.Data.Status != "OD" {
+		return fmt.Errorf("虎皮椒订单未支付，状态=%s", queryResp.Data.Status)
+	}
+
+	return model.RechargeXunhu(tradeNo, callerIp)
 }
