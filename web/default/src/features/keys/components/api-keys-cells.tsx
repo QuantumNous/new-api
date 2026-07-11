@@ -85,16 +85,6 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
     if (ok) markKeyCopied(apiKey.id)
   }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied])
 
-  let copyIcon = <Copy className='size-3.5' />
-  let copyTooltip = t('Copy API key')
-  if (isLoading) {
-    copyIcon = <Loader2 className='size-3.5 animate-spin' />
-    copyTooltip = t('Loading...')
-  } else if (isCopied) {
-    copyIcon = <Check className='size-3.5 text-green-600' />
-    copyTooltip = t('Copied!')
-  }
-
   return (
     <div className='flex max-w-full min-w-0 items-center'>
       <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
