@@ -489,13 +489,45 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success' && data) {
+          const tradeNo = data.trade_no;
           const isMobile =
             /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
               navigator.userAgent,
             );
+
+          const startXunhuSyncPoll = (orderId) => {
+            if (!orderId) return;
+            let attempts = 0;
+            const maxAttempts = 120;
+            const timer = setInterval(async () => {
+              attempts += 1;
+              try {
+                const syncRes = await API.post('/api/user/xunhu/sync', {
+                  trade_no: orderId,
+                });
+                const paid =
+                  syncRes?.data?.message === 'success' &&
+                  syncRes?.data?.data?.paid === true;
+                if (paid) {
+                  clearInterval(timer);
+                  Toast.success({ content: t('支付成功') });
+                  getUserQuota().then();
+                } else if (attempts >= maxAttempts) {
+                  clearInterval(timer);
+                }
+              } catch (_) {
+                if (attempts >= maxAttempts) {
+                  clearInterval(timer);
+                }
+              }
+            }, 5000);
+          };
+
           if (isMobile && data.url) {
+            startXunhuSyncPoll(tradeNo);
             window.location.href = data.url;
           } else if (data.url_qrcode) {
+            startXunhuSyncPoll(tradeNo);
             Modal.info({
               title: t('请扫码支付'),
               content: (
@@ -506,7 +538,7 @@ const TopUp = () => {
                     style={{ width: 220, height: 220, objectFit: 'contain' }}
                   />
                   <div style={{ marginTop: 8, color: 'var(--semi-color-text-2)' }}>
-                    {t('支付完成后请刷新余额')}
+                    {t('支付完成后将自动到账')}
                   </div>
                 </div>
               ),
@@ -514,6 +546,7 @@ const TopUp = () => {
               okText: t('关闭'),
             });
           } else if (data.url) {
+            startXunhuSyncPoll(tradeNo);
             window.location.href = data.url;
           } else {
             showError(t('支付请求失败'));
@@ -894,6 +927,33 @@ const TopUp = () => {
       setOpenHistory(true);
       searchParams.delete('show_history');
       setSearchParams(searchParams, { replace: true });
+    }
+    const xunhuTradeNo = searchParams.get('xunhu_trade_no');
+    if (xunhuTradeNo) {
+      let attempts = 0;
+      const timer = setInterval(async () => {
+        attempts += 1;
+        try {
+          const syncRes = await API.post('/api/user/xunhu/sync', {
+            trade_no: xunhuTradeNo,
+          });
+          const paid =
+            syncRes?.data?.message === 'success' &&
+            syncRes?.data?.data?.paid === true;
+          if (paid) {
+            clearInterval(timer);
+            Toast.success({ content: t('支付成功') });
+            getUserQuota().then();
+          } else if (attempts >= 120) {
+            clearInterval(timer);
+          }
+        } catch (_) {
+          if (attempts >= 120) clearInterval(timer);
+        }
+      }, 5000);
+      searchParams.delete('xunhu_trade_no');
+      setSearchParams(searchParams, { replace: true });
+      return () => clearInterval(timer);
     }
   }, []);
 

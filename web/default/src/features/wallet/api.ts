@@ -40,6 +40,7 @@ import type {
   WaffoPancakePaymentResponse,
   XunhuPaymentRequest,
   XunhuPaymentResponse,
+  XunhuSyncResponse,
 } from './types'
 
 // ============================================================================
@@ -191,6 +192,22 @@ export async function requestXunhuPayment(
   const res = await api.post('/api/user/xunhu/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Poll XunhuPay order status and credit if paid (callback fallback)
+ */
+export async function syncXunhuPayment(
+  tradeNo: string
+): Promise<XunhuSyncResponse> {
+  const res = await api.post(
+    '/api/user/xunhu/sync',
+    { trade_no: tradeNo },
+    {
+      skipBusinessError: true,
+    } as Record<string, unknown>
+  )
   return res.data
 }
 

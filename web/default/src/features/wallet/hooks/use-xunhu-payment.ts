@@ -16,10 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
-import { requestXunhuPayment, isApiSuccess } from '../api'
+import { requestXunhuPayment, syncXunhuPayment, isApiSuccess } from '../api'
+
+const SYNC_INTERVAL_MS = 5000
+const SYNC_MAX_ATTEMPTS = 120 // ~10 minutes
 
 function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') {
@@ -37,13 +40,94 @@ function getErrorMessage(message: string | undefined, data: unknown): string {
   return message || i18next.t('Payment request failed')
 }
 
-export function useXunhuPayment() {
+function isPaidSyncData(data: unknown): boolean {
+  return (
+    !!data &&
+    typeof data === 'object' &&
+    'paid' in data &&
+    (data as { paid?: boolean }).paid === true
+  )
+}
+
+export function useXunhuPayment(options?: {
+  onPaid?: () => void | Promise<void>
+}) {
   const [processing, setProcessing] = useState(false)
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
+  const [pendingTradeNo, setPendingTradeNo] = useState<string | null>(null)
+  const onPaidRef = useRef(options?.onPaid)
+  onPaidRef.current = options?.onPaid
+
+  const stopPolling = useCallback(() => {
+    setPendingTradeNo(null)
+  }, [])
 
   const closeQrDialog = useCallback(() => {
     setQrCodeUrl(null)
+    stopPolling()
+  }, [stopPolling])
+
+  const trySyncOnce = useCallback(async (tradeNo: string): Promise<boolean> => {
+    try {
+      const response = await syncXunhuPayment(tradeNo)
+      if (!isApiSuccess(response)) {
+        return false
+      }
+      return isPaidSyncData(response.data)
+    } catch {
+      return false
+    }
   }, [])
+
+  useEffect(() => {
+    if (!pendingTradeNo) {
+      return
+    }
+
+    let cancelled = false
+    let attempts = 0
+
+    const tick = async () => {
+      if (cancelled) return
+      attempts += 1
+      const paid = await trySyncOnce(pendingTradeNo)
+      if (cancelled) return
+      if (paid) {
+        toast.success(i18next.t('Payment successful'))
+        setQrCodeUrl(null)
+        setPendingTradeNo(null)
+        await onPaidRef.current?.()
+        return
+      }
+      if (attempts >= SYNC_MAX_ATTEMPTS) {
+        setPendingTradeNo(null)
+      }
+    }
+
+    void tick()
+    const timer = window.setInterval(() => {
+      void tick()
+    }, SYNC_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [pendingTradeNo, trySyncOnce])
+
+  const syncTradeNo = useCallback(
+    async (tradeNo: string) => {
+      const paid = await trySyncOnce(tradeNo)
+      if (paid) {
+        toast.success(i18next.t('Payment successful'))
+        await onPaidRef.current?.()
+        return true
+      }
+      setPendingTradeNo(tradeNo)
+      return false
+    },
+    [trySyncOnce]
+  )
 
   const processXunhuPayment = useCallback(
     async (topupAmount: number, paymentMethod: string) => {
@@ -71,6 +155,14 @@ export function useXunhuPayment() {
           'url_qrcode' in data && typeof data.url_qrcode === 'string'
             ? data.url_qrcode
             : ''
+        const tradeNo =
+          'trade_no' in data && typeof data.trade_no === 'string'
+            ? data.trade_no
+            : ''
+
+        if (tradeNo) {
+          setPendingTradeNo(tradeNo)
+        }
 
         if (isMobileDevice()) {
           if (!url) {
@@ -105,5 +197,11 @@ export function useXunhuPayment() {
     []
   )
 
-  return { processing, processXunhuPayment, qrCodeUrl, closeQrDialog }
+  return {
+    processing,
+    processXunhuPayment,
+    qrCodeUrl,
+    closeQrDialog,
+    syncTradeNo,
+  }
 }

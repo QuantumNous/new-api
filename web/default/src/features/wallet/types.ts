@@ -62,6 +62,13 @@ export type XunhuPaymentResponse = ApiResponse<
     }
   | string
 >
+export type XunhuSyncResponse = ApiResponse<
+  | {
+      status?: string
+      paid?: boolean
+    }
+  | string
+>
 
 /**
  * Creem product configuration

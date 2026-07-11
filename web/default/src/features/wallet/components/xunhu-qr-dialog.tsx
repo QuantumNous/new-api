@@ -44,7 +44,7 @@ export function XunhuQrDialog(props: XunhuQrDialogProps) {
           <DialogTitle>{t('Scan to Pay')}</DialogTitle>
           <DialogDescription>
             {t(
-              'Please scan the QR code with WeChat or Alipay. Refresh your balance after payment.'
+              'Please scan the QR code with WeChat or Alipay. Balance will update automatically after payment.'
             )}
           </DialogDescription>
         </DialogHeader>

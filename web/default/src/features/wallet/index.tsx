@@ -106,11 +106,6 @@ export function Wallet(props: WalletProps) {
   const { processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
-  const {
-    processXunhuPayment,
-    qrCodeUrl: xunhuQrCodeUrl,
-    closeQrDialog: closeXunhuQrDialog,
-  } = useXunhuPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -128,6 +123,17 @@ export function Wallet(props: WalletProps) {
     }
   }, [])
 
+  const {
+    processXunhuPayment,
+    qrCodeUrl: xunhuQrCodeUrl,
+    closeQrDialog: closeXunhuQrDialog,
+    syncTradeNo: syncXunhuTradeNo,
+  } = useXunhuPayment({
+    onPaid: async () => {
+      await fetchUser()
+    },
+  })
+
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
@@ -135,9 +141,16 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     if (props.initialShowHistory) {
       setBillingDialogOpen(true)
+    }
+    const params = new URLSearchParams(window.location.search)
+    const tradeNo = params.get('xunhu_trade_no')
+    if (tradeNo) {
+      void syncXunhuTradeNo(tradeNo)
+    }
+    if (props.initialShowHistory || tradeNo) {
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [props.initialShowHistory])
+  }, [props.initialShowHistory, syncXunhuTradeNo])
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {

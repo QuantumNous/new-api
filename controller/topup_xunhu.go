@@ -183,7 +183,7 @@ func RequestXunhuPay(c *gin.Context) {
 
 	callbackAddr := strings.TrimRight(service.GetCallbackAddress(), "/")
 	notifyUrl := callbackAddr + "/api/xunhu/notify"
-	returnUrl := paymentReturnPath("/console/topup?show_history=true")
+	returnUrl := paymentReturnPath("/console/topup?show_history=true&xunhu_trade_no=" + url.QueryEscape(tradeNo))
 
 	params := map[string]string{
 		"version":        "1.1",
@@ -287,19 +287,31 @@ func parseXunhuNotifyParams(c *gin.Context) (map[string]string, string) {
 	_ = c.Request.ParseForm()
 
 	params := make(map[string]string)
+	put := func(k, v string) {
+		v = strings.TrimSpace(v)
+		if k != "" && v != "" {
+			params[k] = v
+		}
+	}
+
+	for k, values := range c.Request.URL.Query() {
+		if len(values) > 0 {
+			put(k, values[0])
+		}
+	}
 	for k, values := range c.Request.Form {
-		if len(values) > 0 && values[0] != "" {
-			params[k] = values[0]
+		if len(values) > 0 {
+			put(k, values[0])
 		}
 	}
 	for k, values := range c.Request.PostForm {
-		if len(values) > 0 && values[0] != "" {
-			params[k] = values[0]
+		if len(values) > 0 {
+			put(k, values[0])
 		}
 	}
 
 	// 兼容 JSON 或纯 querystring body
-	if len(params) == 0 && len(rawBody) > 0 {
+	if len(rawBody) > 0 {
 		var jsonParams map[string]any
 		if err := common.Unmarshal(rawBody, &jsonParams); err == nil {
 			for k, v := range jsonParams {
@@ -308,13 +320,13 @@ func parseXunhuNotifyParams(c *gin.Context) (map[string]string, string) {
 				}
 				s := strings.TrimSpace(fmt.Sprint(v))
 				if s != "" && s != "<nil>" {
-					params[k] = s
+					put(k, s)
 				}
 			}
 		} else if values, err := url.ParseQuery(string(rawBody)); err == nil {
 			for k, vs := range values {
-				if len(vs) > 0 && vs[0] != "" {
-					params[k] = vs[0]
+				if len(vs) > 0 {
+					put(k, vs[0])
 				}
 			}
 		}
@@ -360,8 +372,10 @@ func XunhuNotify(c *gin.Context) {
 	}
 
 	if tradeNo == "" || appId == "" {
-		common.SysError(fmt.Sprintf("[xunhu-notify] missing fields trade_no=%q appid=%q body=%q", tradeNo, appId, rawBody))
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 缺少必要参数 client_ip=%s body=%q", c.ClientIP(), rawBody))
+		common.SysError(fmt.Sprintf("[xunhu-notify] missing fields method=%s trade_no=%q appid=%q content_type=%q body=%q hint=空 body 通常不是虎皮椒服务器回调（可能是浏览器探活或反代剥掉了 POST body）",
+			c.Request.Method, tradeNo, appId, c.GetHeader("Content-Type"), rawBody))
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 缺少必要参数 method=%s client_ip=%s content_type=%q body=%q",
+			c.Request.Method, c.ClientIP(), c.GetHeader("Content-Type"), rawBody))
 		writeXunhuNotifyResult(c, false)
 		return
 	}
@@ -498,7 +512,7 @@ func SyncXunhuTopUpByQuery(tradeNo string, callerIp string) error {
 
 	var queryResp xunhuQueryResponse
 	if err := common.Unmarshal(respBody, &queryResp); err != nil {
-		return fmt.Errorf("解析查单响应失败: %w", err)
+		return fmt.Errorf("解析查单响应失败: %w body=%s", err, string(respBody))
 	}
 	if queryResp.Errcode != 0 {
 		return fmt.Errorf("查单失败: %s", queryResp.Errmsg)
@@ -507,5 +521,57 @@ func SyncXunhuTopUpByQuery(tradeNo string, callerIp string) error {
 		return fmt.Errorf("虎皮椒订单未支付，状态=%s", queryResp.Data.Status)
 	}
 
+	LockOrder(tradeNo)
+	defer UnlockOrder(tradeNo)
 	return model.RechargeXunhu(tradeNo, callerIp)
+}
+
+type XunhuSyncRequest struct {
+	TradeNo string `json:"trade_no"`
+}
+
+// RequestXunhuSync 用户侧主动查单入账（回调丢失时的兜底，前端支付后轮询）
+func RequestXunhuSync(c *gin.Context) {
+	if !isXunhuTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "虎皮椒支付未启用"})
+		return
+	}
+
+	var req XunhuSyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.TradeNo) == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		return
+	}
+
+	tradeNo := strings.TrimSpace(req.TradeNo)
+	userId := c.GetInt("id")
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	if topUp == nil || topUp.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "订单不存在"})
+		return
+	}
+	if topUp.PaymentProvider != model.PaymentProviderXunhu {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "非虎皮椒订单"})
+		return
+	}
+
+	if topUp.Status == common.TopUpStatusSuccess {
+		c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"status": "success", "paid": true}})
+		return
+	}
+
+	if err := SyncXunhuTopUpByQuery(tradeNo, c.ClientIP()); err != nil {
+		// 未支付属于正常轮询结果，不要当成接口错误刷屏
+		if strings.Contains(err.Error(), "未支付") {
+			c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"status": "pending", "paid": false}})
+			return
+		}
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒用户查单失败 user_id=%d trade_no=%s error=%q", userId, tradeNo, err.Error()))
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return
+	}
+
+	common.SysLog(fmt.Sprintf("[xunhu-sync] recharge ok user_id=%d trade_no=%s", userId, tradeNo))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒查单入账成功 user_id=%d trade_no=%s", userId, tradeNo))
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"status": "success", "paid": true}})
 }
