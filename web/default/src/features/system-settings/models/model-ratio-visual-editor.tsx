@@ -216,11 +216,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
     const draftByName = new Map(draftRows.map((row) => [row.name, row]))
-    const modelNames = new Set([
-      ...(candidateModelNames ?? []),
-      ...savedByName.keys(),
-      ...draftByName.keys(),
-    ])
+    const modelNames =
+      filterMode === 'unset'
+        ? new Set(candidateModelNames ?? [])
+        : new Set([...savedByName.keys(), ...draftByName.keys()])
 
     return [...modelNames]
       .map((name) => {
