@@ -353,6 +353,25 @@ _trigger_last[task_id] = now
 
 ---
 
+## 指纹自动禁用开关 `FingerprintAutoDisableEnabled`（2026-07-11，长期关闭）
+
+**背景**：`service/auto_detect.go` 的指纹检测在结果 `suspicious` 时会调用 `disableModelForFingerprint` 禁用该渠道+模型的 ability。此前无任何开关拦截。为观察 v1.2（新增 gpt-5.6 三档）的误判率、避免误伤渠道，**长期暂停"禁用动作"**，检测/记录/飞书通知照旧。
+
+**实现**：新增运行时开关 `common.FingerprintAutoDisableEnabled`（`constants.go` 默认 `true`=历史行为；`model/option.go` 注册 + switch case）。`auto_detect.go` 的 `suspicious` 分支用它门控——`false` 时跳过禁用、打印 `auto-disable paused, skip disabling`。**同时覆盖定时任务与后台手动检测**（二者共用 `detectOneChannel`）。`pass→recover` 路径未改，已被禁用的模型仍可走 12 连过恢复。
+
+**生产状态**：只在 **apimaster-prod**（跑指纹 auto-detect 的网关，PostgreSQL）生效；romaapi-gateway 不跑指纹检测，无关。当前 `options` 表 `FingerprintAutoDisableEnabled=false`。
+
+**暂停/恢复操作**（改 DB 即可，`SyncOptions` ≤60s 自动重载，无需重启）：
+```sql
+-- 恢复自动禁用：
+UPDATE options SET value='true' WHERE key='FingerprintAutoDisableEnabled';
+-- 再次暂停：
+UPDATE options SET value='false' WHERE key='FingerprintAutoDisableEnabled';
+```
+**验证必须查内存值**（勿假设 SQL 立即生效）：`GET /api/option/`（admin token）看该 key，或等一次 `syncing options from database` 日志后确认。
+
+---
+
 ## 明日交接（2026-05-18）
 
 ### 当前系统状态
