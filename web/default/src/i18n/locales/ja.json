@@ -1892,6 +1892,7 @@
     "Failed to load": "読み込みに失敗しました",
     "Failed to load API keys": "APIキーの読み込みに失敗しました",
     "Failed to load billing history": "請求履歴の読み込みに失敗しました",
+    "Failed to load enabled models": "有効なモデルの取得に失敗しました",
     "Failed to load home page content": "ホームページの内容の読み込みに失敗しました",
     "Failed to load image": "画像の読み込みに失敗しました",
     "Failed to load key status": "キー状態の読み込みに失敗しました",

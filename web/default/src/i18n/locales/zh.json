@@ -1892,6 +1892,7 @@
     "Failed to load": "加载失败",
     "Failed to load API keys": "加载 API 密钥失败",
     "Failed to load billing history": "加载计费历史失败",
+    "Failed to load enabled models": "获取启用模型失败",
     "Failed to load home page content": "加载首页内容失败",
     "Failed to load image": "无法加载图像",
     "Failed to load key status": "加载密钥状态失败",
