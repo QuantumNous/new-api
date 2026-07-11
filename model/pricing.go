@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -10,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -107,6 +107,76 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 	return make([]constant.EndpointType, 0)
 }
 
+func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCustomConfigs map[int]*dto.AdvancedCustomConfig) []constant.EndpointType {
+	if ability.ChannelType != constant.ChannelTypeAdvancedCustom {
+		return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+	}
+	if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
+		return config.SupportedEndpointTypesForModel(ability.Model)
+	}
+	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+}
+
+// loadPricingAdvancedCustomConfigs runs inside updatePricing while
+// updatePricingLock is held, and nests channelSyncLock.RLock. This defines the
+// global lock order updatePricingLock -> channelSyncLock: any code path holding
+// channelSyncLock must release it before touching the pricing cache (see
+// InitChannelCache / CacheUpdateChannel), otherwise it deadlocks.
+// The returned configs are pointers shared with the channel cache; they are
+// replaced wholesale on update and never mutated in place, so reading them after
+// RUnlock is safe.
+func loadPricingAdvancedCustomConfigs(enableAbilities []AbilityWithChannel) map[int]*dto.AdvancedCustomConfig {
+	channelIDs := make([]int, 0)
+	seen := make(map[int]struct{})
+	for _, ability := range enableAbilities {
+		if ability.ChannelType != constant.ChannelTypeAdvancedCustom {
+			continue
+		}
+		if _, exists := seen[ability.ChannelId]; exists {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+	if len(channelIDs) == 0 {
+		return nil
+	}
+
+	configs := make(map[int]*dto.AdvancedCustomConfig, len(channelIDs))
+	if common.MemoryCacheEnabled {
+		channelSyncLock.RLock()
+		defer channelSyncLock.RUnlock()
+		for _, channelID := range channelIDs {
+			if config := channel2advancedCustomConfig[channelID]; config != nil {
+				configs[channelID] = config
+			}
+		}
+		return configs
+	}
+
+	for _, channelID := range channelIDs {
+		channel, err := CacheGetChannel(channelID)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("load advanced custom channel settings error: channel_id=%d, error=%v", channelID, err))
+			continue
+		}
+		if channel.Type != constant.ChannelTypeAdvancedCustom {
+			continue
+		}
+		if config := channel.GetOtherSettings().AdvancedCustom; config != nil {
+			configs[channelID] = config
+		}
+	}
+	return configs
+}
+
+func appendPricingEndpoint(endpoints []string, endpoint string) []string {
+	if endpoint == "" || common.StringsContains(endpoints, endpoint) {
+		return endpoints
+	}
+	return append(endpoints, endpoint)
+}
+
 func updatePricing() {
 	//modelRatios := common.GetModelRatios()
 	enableAbilities, err := GetAllEnableAbilityWithChannels()
@@ -201,11 +271,12 @@ func updatePricing() {
 
 	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
 	modelSupportEndpointsStr := make(map[string][]string)
+	advancedCustomConfigs := loadPricingAdvancedCustomConfigs(enableAbilities)
 
 	// 先根据已有能力填充原生端点
 	for _, ability := range enableAbilities {
 		endpoints := modelSupportEndpointsStr[ability.Model]
-		channelTypes := common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+		channelTypes := getPricingEndpointTypesForAbility(ability, advancedCustomConfigs)
 		for _, channelType := range channelTypes {
 			if !common.StringsContains(endpoints, string(channelType)) {
 				endpoints = append(endpoints, string(channelType))
@@ -214,20 +285,18 @@ func updatePricing() {
 		modelSupportEndpointsStr[ability.Model] = endpoints
 	}
 
-	// 再补充模型自定义端点：若配置有效则替换默认端点，不做合并
+	// 再补充模型自定义端点：若配置有效则追加到已有推断，不再裁剪渠道真实能力
 	for modelName, meta := range metaMap {
 		if strings.TrimSpace(meta.Endpoints) == "" {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
-			endpoints := make([]string, 0, len(raw))
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+			endpoints := modelSupportEndpointsStr[modelName]
 			for k, v := range raw {
 				switch v.(type) {
 				case string, map[string]interface{}:
-					if !common.StringsContains(endpoints, k) {
-						endpoints = append(endpoints, k)
-					}
+					endpoints = appendPricingEndpoint(endpoints, k)
 				}
 			}
 			if len(endpoints) > 0 {
@@ -264,7 +333,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			for k, v := range raw {
 				switch val := v.(type) {
 				case string:
