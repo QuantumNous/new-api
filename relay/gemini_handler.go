@@ -95,6 +95,9 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 	adaptor.Init(info)
 
+	// 模型级系统提示词（在渠道级之前）
+	helper.ApplyModelSystemPromptToGemini(c, request)
+
 	if info.ChannelSetting.SystemPrompt != "" {
 		if request.SystemInstructions == nil {
 			request.SystemInstructions = &dto.GeminiChatContent{

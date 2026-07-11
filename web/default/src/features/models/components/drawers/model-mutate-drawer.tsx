@@ -98,6 +98,8 @@ const extendedModelFormSchema = z.object({
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
+  system_prompt: z.string(),
+  system_prompt_mode: z.number().min(0).max(3),
   price: z.string().optional(),
   ratio: z.string().optional(),
   cacheRatio: z.string().optional(),
@@ -111,6 +113,13 @@ type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>
 
 type PricingMode = 'per-token' | 'per-request'
 type PricingSubMode = 'ratio' | 'price'
+
+function getSystemPromptModeDescription(mode: number, t: ReturnType<typeof useTranslation>['t']): string {
+  if (mode === 0) return t('Disabled: system prompt will not be applied')
+  if (mode === 1) return t('Inject: add system prompt only when request has no system message')
+  if (mode === 2) return t('Override: always replace request system message')
+  return t('Append: prepend to existing system message')
+}
 
 type ModelMutateDrawerProps = {
   open: boolean
@@ -237,6 +246,8 @@ export function ModelMutateDrawer({
       name_rule: 0,
       status: true,
       sync_official: true,
+      system_prompt: '',
+      system_prompt_mode: 0,
       price: '',
       ratio: '',
       cacheRatio: '',
@@ -297,6 +308,8 @@ export function ModelMutateDrawer({
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
+        system_prompt: model.system_prompt || '',
+        system_prompt_mode: model.system_prompt_mode || 0,
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -401,6 +414,8 @@ export function ModelMutateDrawer({
         name_rule: 0,
         status: true,
         sync_official: true,
+        system_prompt: '',
+        system_prompt_mode: 0,
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -1255,6 +1270,87 @@ export function ModelMutateDrawer({
                   </Collapsible>
                 </>
               )}
+            </SideDrawerSection>
+
+            {/* System Prompt Configuration */}
+            <SideDrawerSection>
+              <h3 className='text-sm font-semibold'>
+                {t('System Prompt')}
+              </h3>
+
+              <FormField
+                control={form.control}
+                name='system_prompt_mode'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Mode')}</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={(value) =>
+                          field.onChange(Number.parseInt(value))
+                        }
+                        value={String(field.value)}
+                        className='grid grid-cols-2 gap-4'
+                      >
+                        {[
+                          { value: '0', label: t('Disabled') },
+                          { value: '1', label: t('Inject') },
+                          { value: '2', label: t('Override') },
+                          { value: '3', label: t('Append') },
+                        ].map((option) => (
+                          <div
+                            key={option.value}
+                            className='flex items-center space-x-2'
+                          >
+                            <RadioGroupItem
+                              value={option.value}
+                              id={`sp-mode-${option.value}`}
+                            />
+                            <Label
+                              htmlFor={`sp-mode-${option.value}`}
+                              className='cursor-pointer font-normal'
+                            >
+                              {option.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormDescription>
+                      {getSystemPromptModeDescription(field.value, t)}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                 control={form.control}
+                 name='system_prompt'
+                 render={({ field }) => (
+                   <FormItem>
+                     <FormLabel>{t('Content')}</FormLabel>
+                     <FormDescription className='text-xs mb-1'>
+                       {t(
+                         'Supports multi-language JSON: {"en":"Hello", "zh":"你好"}. Auto-matched to user language.'
+                       )}
+                     </FormDescription>
+                     <FormControl>
+                       <Textarea
+                         value={field.value || ''}
+                         onChange={field.onChange}
+                         placeholder={
+                           '{\n  "en": "You are a helpful assistant.",\n  "zh": "你是一个有用的助手。"\n}'
+                         }
+                         rows={6}
+                         disabled={form.watch('system_prompt_mode') === 0}
+                         className='font-mono text-sm'
+                       />
+                     </FormControl>
+                     <FormMessage />
+                   </FormItem>
+                 )}
+               />
             </SideDrawerSection>
 
             {/* Status & Sync */}

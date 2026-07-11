@@ -50,6 +50,19 @@ function getCompactModelIcon(iconKey: string) {
   return getLobeIcon(`${baseIconKey}.Avatar.type={'platform'}`, 20)
 }
 
+// 解析多语言系统提示词文本，优先中文
+function resolveSystemPromptText(prompt: string): string {
+  try {
+    const obj = JSON.parse(prompt)
+    if (typeof obj === 'object' && obj !== null) {
+      return obj['zh'] || obj['en'] || Object.values(obj)[0] || prompt
+    }
+  } catch {
+    // 不是 JSON，纯文本直接返回
+  }
+  return prompt
+}
+
 /**
  * Generate models columns configuration
  */
@@ -314,6 +327,62 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         )
       },
       size: 150,
+      enableSorting: false,
+    },
+
+    // System Prompt column
+    {
+      accessorKey: 'system_prompt_mode',
+      header: t('System Prompt'),
+      meta: {
+        cardRole: 'secondary',
+        cardOrder: 35,
+        contentMode: 'wrap',
+      },
+      cell: ({ row }) => {
+        const mode = row.getValue('system_prompt_mode') as number
+        const prompt = (row.original as Model).system_prompt || ''
+
+        if (mode === 0 || !prompt) {
+          return <StatusBadge variant='neutral' size='sm'>-</StatusBadge>
+        }
+
+        let modeLabel: string
+        let modeVariant: 'neutral' | 'warning' | 'info'
+        if (mode === 1) {
+          modeLabel = t('Inject')
+          modeVariant = 'neutral'
+        } else if (mode === 2) {
+          modeLabel = t('Override')
+          modeVariant = 'warning'
+        } else {
+          modeLabel = t('Append')
+          modeVariant = 'info'
+        }
+
+        const resolved = resolveSystemPromptText(prompt)
+
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger render={<div />}>
+                <StatusBadge variant={modeVariant} size='sm'>
+                  {modeLabel}
+                </StatusBadge>
+              </TooltipTrigger>
+              <TooltipContent
+                side='top'
+                className='border-border bg-popover max-h-48 max-w-[360px] overflow-y-auto p-3'
+              >
+                <div className='whitespace-pre-wrap text-sm leading-relaxed'>
+                  {resolved}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      },
+      size: 120,
       enableSorting: false,
     },
 

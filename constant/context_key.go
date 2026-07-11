@@ -56,6 +56,10 @@ const (
 
 	ContextKeySystemPromptOverride ContextKey = "system_prompt_override"
 
+	// ContextKeyModelSystemPrompt stores model-level system prompt (JSON: {"en":"...", "zh":"..."})
+	ContextKeyModelSystemPrompt     ContextKey = "model_system_prompt"
+	ContextKeyModelSystemPromptMode ContextKey = "model_system_prompt_mode"
+
 	// ContextKeyFileSourcesToCleanup stores file sources that need cleanup when request ends
 	ContextKeyFileSourcesToCleanup ContextKey = "file_sources_to_cleanup"
 

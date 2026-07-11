@@ -45,6 +45,8 @@ export interface Model {
   sync_official: number
   created_time: number
   updated_time: number
+  system_prompt?: string
+  system_prompt_mode?: number
   name_rule: number
   // Runtime fields
   bound_channels?: BoundChannel[]
