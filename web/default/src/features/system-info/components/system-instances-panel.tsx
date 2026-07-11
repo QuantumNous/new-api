@@ -16,11 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, RefreshCw, ServerCog } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  AlertTriangle,
+  Loader2,
+  RefreshCw,
+  ServerCog,
+  Trash2,
+} from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ErrorState } from '@/components/error-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -47,13 +55,23 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { listSystemInstances } from '../api'
+import {
+  deleteStaleSystemInstance,
+  deleteStaleSystemInstances,
+  listSystemInstances,
+} from '../api'
 import type { SystemInstance, SystemInstanceStatus } from '../types'
 
 const INSTANCE_POLL_INTERVAL_MS = 30_000
+const INSTANCE_SKELETON_KEYS = [
+  'system-instance-skeleton-1',
+  'system-instance-skeleton-2',
+  'system-instance-skeleton-3',
+]
 
 const STATUS_CLASS_NAME: Record<SystemInstanceStatus, string> = {
   online:
@@ -209,6 +227,9 @@ function ResourceCell(props: ResourceCellProps) {
 
 type SystemInstancesTableProps = {
   instances: SystemInstance[]
+  deletingNodeName: string | null
+  isDeletingInstance: boolean
+  onDeleteStaleInstance: (instance: SystemInstance) => void
 }
 
 function SystemInstancesList(props: SystemInstancesTableProps) {
@@ -216,7 +237,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
 
   return (
     <div className='overflow-x-auto rounded-md border'>
-      <Table className='min-w-[1140px]'>
+      <Table className='min-w-[1230px]'>
         <TableHeader>
           <TableRow className='bg-muted/40 hover:bg-muted/40'>
             <TableHead className='h-9 min-w-[240px] px-4 text-xs'>
@@ -242,8 +263,11 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
             <TableHead className='h-9 w-[170px] text-xs'>
               {t('Started')}
             </TableHead>
-            <TableHead className='h-9 w-[170px] pr-4 text-xs'>
+            <TableHead className='h-9 w-[170px] text-xs'>
               {t('Last Seen')}
+            </TableHead>
+            <TableHead className='h-9 w-[90px] pr-4 text-right text-xs'>
+              {t('Actions')}
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -253,6 +277,9 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
               instance.info?.node?.should_configure_manually === true
             const resources = instance.info?.resources
             const storage = resources?.storage
+            const isDeletingThisInstance =
+              props.isDeletingInstance &&
+              props.deletingNodeName === instance.node_name
             return (
               <TableRow key={instance.node_name} className='hover:bg-muted/30'>
                 <TableCell className='px-4 py-2.5 align-middle'>
@@ -405,13 +432,52 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                   {formatTimestampToDate(instance.started_at)}
                 </TableCell>
                 <TableCell
-                  className='text-muted-foreground py-2.5 pr-4 align-middle text-xs whitespace-nowrap'
+                  className='text-muted-foreground py-2.5 align-middle text-xs whitespace-nowrap'
                   title={formatTimestampToDate(instance.last_seen_at)}
                 >
                   {formatTimestampRelative(
                     instance.last_seen_at,
                     'seconds',
-                    i18n.language
+                    toIntlLocale(i18n.language)
+                  )}
+                </TableCell>
+                <TableCell className='py-2.5 pr-4 text-right align-middle'>
+                  {instance.status === 'stale' ? (
+                    <TooltipProvider delay={100}>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type='button'
+                              variant='destructive'
+                              size='icon-xs'
+                              onClick={() =>
+                                props.onDeleteStaleInstance(instance)
+                              }
+                              disabled={
+                                props.isDeletingInstance ||
+                                isDeletingThisInstance
+                              }
+                              aria-label={t('Delete stale instance')}
+                            >
+                              {isDeletingThisInstance ? (
+                                <Loader2
+                                  className='size-3 animate-spin'
+                                  aria-hidden='true'
+                                />
+                              ) : (
+                                <Trash2 className='size-3' aria-hidden='true' />
+                              )}
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>
+                          {t('Delete stale instance')}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <span className='text-muted-foreground text-xs'>-</span>
                   )}
                 </TableCell>
               </TableRow>
@@ -425,6 +491,10 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
 
 export function SystemInstancesPanel() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [deleteTarget, setDeleteTarget] = useState<SystemInstance | null>(null)
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
+  const [deletingNodeName, setDeletingNodeName] = useState<string | null>(null)
   const instancesQuery = useQuery({
     queryKey: ['system-info', 'instances'],
     queryFn: async () => {
@@ -440,89 +510,236 @@ export function SystemInstancesPanel() {
   })
 
   const instances = instancesQuery.data ?? []
+  const staleInstances = instances.filter(
+    (instance) => instance.status === 'stale'
+  )
+  const hasStaleInstances = staleInstances.length > 0
   const loading = instancesQuery.isLoading
   const refreshing = instancesQuery.isFetching && !instancesQuery.isLoading
 
+  const invalidateInstances = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ['system-info', 'instances'],
+    })
+  }
+
+  const deleteStaleInstanceMutation = useMutation({
+    mutationFn: async (nodeName: string) => {
+      const res = await deleteStaleSystemInstance(nodeName)
+      if (!res.success) {
+        throw new Error(res.message || t('Delete failed'))
+      }
+      return res
+    },
+    onMutate: (nodeName) => {
+      setDeletingNodeName(nodeName)
+    },
+    onSuccess: async () => {
+      toast.success(t('Deleted stale instance'))
+      await invalidateInstances()
+      setDeleteTarget(null)
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : t('Delete failed'))
+      void invalidateInstances()
+    },
+    onSettled: () => {
+      setDeletingNodeName(null)
+    },
+  })
+
+  const deleteStaleInstancesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await deleteStaleSystemInstances()
+      if (!res.success) {
+        throw new Error(res.message || t('Delete failed'))
+      }
+      return res
+    },
+    onSuccess: async (res) => {
+      toast.success(
+        t('Deleted {{count}} stale instances', {
+          count: res.data?.deleted_count ?? 0,
+        })
+      )
+      await invalidateInstances()
+      setDeleteAllConfirmOpen(false)
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : t('Delete failed'))
+    },
+  })
+
+  const isMutatingInstance =
+    deletingNodeName !== null || deleteStaleInstanceMutation.isPending
+
+  let instancesContent: ReactNode
+  if (loading) {
+    instancesContent = (
+      <div className='space-y-2 p-4 sm:p-5'>
+        {INSTANCE_SKELETON_KEYS.map((key) => (
+          <Skeleton key={key} className='h-9 w-full rounded-md' />
+        ))}
+      </div>
+    )
+  } else if (instancesQuery.isError) {
+    instancesContent = (
+      <ErrorState
+        title={t('We could not load instances.')}
+        description={
+          instancesQuery.error instanceof Error
+            ? instancesQuery.error.message
+            : undefined
+        }
+        onRetry={() => {
+          void instancesQuery.refetch()
+        }}
+        className='min-h-[220px]'
+      />
+    )
+  } else if (instances.length === 0) {
+    instancesContent = (
+      <div className='px-4 py-10 text-center sm:px-5'>
+        <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
+          <ServerCog
+            className='text-muted-foreground size-5'
+            aria-hidden='true'
+          />
+        </div>
+        <p className='text-muted-foreground text-sm'>
+          {t('No instances have reported yet.')}
+        </p>
+      </div>
+    )
+  } else {
+    instancesContent = (
+      <div className='p-4 sm:p-5'>
+        <SystemInstancesList
+          instances={instances}
+          deletingNodeName={deletingNodeName}
+          isDeletingInstance={
+            isMutatingInstance || deleteStaleInstancesMutation.isPending
+          }
+          onDeleteStaleInstance={setDeleteTarget}
+        />
+      </div>
+    )
+  }
+
   return (
-    <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
-      <div className='flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5'>
-        <div className='min-w-0'>
-          <div className='flex items-center gap-2'>
-            <span className='bg-muted text-muted-foreground inline-flex size-7 items-center justify-center rounded-md'>
-              <ServerCog className='size-4' aria-hidden='true' />
-            </span>
-            <div className='min-w-0'>
-              <h3 className='text-sm font-semibold'>{t('Instances')}</h3>
-              <p className='text-muted-foreground mt-0.5 text-xs'>
-                {t(
-                  'Nodes reporting from this deployment and their latest heartbeat.'
-                )}
-              </p>
+    <>
+      <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
+        <div className='flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5'>
+          <div className='min-w-0'>
+            <div className='flex items-center gap-2'>
+              <span className='bg-muted text-muted-foreground inline-flex size-7 items-center justify-center rounded-md'>
+                <ServerCog className='size-4' aria-hidden='true' />
+              </span>
+              <div className='min-w-0'>
+                <h3 className='text-sm font-semibold'>{t('Instances')}</h3>
+                <p className='text-muted-foreground mt-0.5 text-xs'>
+                  {t(
+                    'Nodes reporting from this deployment and their latest heartbeat.'
+                  )}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-        <div className='flex shrink-0 items-center gap-3'>
-          <span className='text-muted-foreground text-xs' aria-live='polite'>
-            {t('Auto-refreshing every {{seconds}}s', {
-              seconds: INSTANCE_POLL_INTERVAL_MS / 1000,
-            })}
-          </span>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            onClick={() => void instancesQuery.refetch()}
-            disabled={instancesQuery.isFetching}
-            aria-label={t('Refresh')}
-          >
-            <RefreshCw
-              data-icon='inline-start'
-              className={cn('size-3.5', refreshing && 'animate-spin')}
-              aria-hidden='true'
-            />
-            {refreshing ? t('Refreshing...') : t('Refresh')}
-          </Button>
-        </div>
-      </div>
-
-      <div aria-busy={instancesQuery.isFetching}>
-        {loading ? (
-          <div className='space-y-2 p-4 sm:p-5'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-9 w-full rounded-md' />
-            ))}
-          </div>
-        ) : instancesQuery.isError ? (
-          <ErrorState
-            title={t('We could not load instances.')}
-            description={
-              instancesQuery.error instanceof Error
-                ? instancesQuery.error.message
-                : undefined
-            }
-            onRetry={() => {
-              void instancesQuery.refetch()
-            }}
-            className='min-h-[220px]'
-          />
-        ) : instances.length === 0 ? (
-          <div className='px-4 py-10 text-center sm:px-5'>
-            <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
-              <ServerCog
-                className='text-muted-foreground size-5'
+          <div className='flex shrink-0 flex-wrap items-center gap-2 sm:justify-end'>
+            <span className='text-muted-foreground text-xs' aria-live='polite'>
+              {t('Auto-refreshing every {{seconds}}s', {
+                seconds: INSTANCE_POLL_INTERVAL_MS / 1000,
+              })}
+            </span>
+            {hasStaleInstances ? (
+              <Button
+                type='button'
+                variant='destructive'
+                size='sm'
+                onClick={() => setDeleteAllConfirmOpen(true)}
+                disabled={
+                  isMutatingInstance || deleteStaleInstancesMutation.isPending
+                }
+              >
+                {deleteStaleInstancesMutation.isPending ? (
+                  <Loader2
+                    data-icon='inline-start'
+                    className='size-3.5 animate-spin'
+                    aria-hidden='true'
+                  />
+                ) : (
+                  <Trash2
+                    data-icon='inline-start'
+                    className='size-3.5'
+                    aria-hidden='true'
+                  />
+                )}
+                {t('Delete all stale')}
+              </Button>
+            ) : null}
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={() => void instancesQuery.refetch()}
+              disabled={instancesQuery.isFetching}
+              aria-label={t('Refresh')}
+            >
+              <RefreshCw
+                data-icon='inline-start'
+                className={cn('size-3.5', refreshing && 'animate-spin')}
                 aria-hidden='true'
               />
-            </div>
-            <p className='text-muted-foreground text-sm'>
-              {t('No instances have reported yet.')}
-            </p>
+              {refreshing ? t('Refreshing...') : t('Refresh')}
+            </Button>
           </div>
-        ) : (
-          <div className='p-4 sm:p-5'>
-            <SystemInstancesList instances={instances} />
-          </div>
+        </div>
+
+        <div aria-busy={instancesQuery.isFetching}>{instancesContent}</div>
+      </section>
+
+      <ConfirmDialog
+        open={deleteAllConfirmOpen}
+        onOpenChange={setDeleteAllConfirmOpen}
+        title={t('Delete stale instances')}
+        desc={t(
+          'Delete {{count}} stale instance records? Online instances will not be deleted.',
+          { count: staleInstances.length }
         )}
-      </div>
-    </section>
+        destructive
+        isLoading={deleteStaleInstancesMutation.isPending}
+        confirmText={
+          deleteStaleInstancesMutation.isPending
+            ? t('Deleting...')
+            : t('Delete')
+        }
+        handleConfirm={() => deleteStaleInstancesMutation.mutate()}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title={t('Delete stale instance')}
+        desc={
+          deleteTarget
+            ? t(
+                'Delete stale instance "{{name}}"? If it has reported again, it will not be deleted.',
+                { name: getNodeName(deleteTarget) }
+              )
+            : ''
+        }
+        destructive
+        isLoading={deleteStaleInstanceMutation.isPending}
+        confirmText={
+          deleteStaleInstanceMutation.isPending ? t('Deleting...') : t('Delete')
+        }
+        handleConfirm={() => {
+          if (!deleteTarget) return
+          deleteStaleInstanceMutation.mutate(deleteTarget.node_name)
+        }}
+      />
+    </>
   )
 }
