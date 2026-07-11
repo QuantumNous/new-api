@@ -248,8 +248,21 @@ For commercial licensing, please contact support@quantumnous.com
   --secondary-foreground: oklch(0.145 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.49 0 0);
-  --subtle-foreground: var(--muted-foreground);
-  --faint-foreground: var(--muted-foreground);
+  /* Low-emphasis text tiers below `muted-foreground`, used for secondary
+   * metadata (log sub-labels, placeholders). Translucent mixes keep them
+   * visibly greyer than `muted-foreground` on any background. Declared once:
+   * both `:root` and `.dark` target <html>, so the `var(--muted-foreground)`
+   * reference resolves against the active mode's value automatically. */
+  --subtle-foreground: color-mix(
+    in oklch,
+    var(--muted-foreground) 60%,
+    transparent
+  );
+  --faint-foreground: color-mix(
+    in oklch,
+    var(--muted-foreground) 40%,
+    transparent
+  );
   --accent: oklch(0.95 0 0);
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -326,16 +339,6 @@ For commercial licensing, please contact support@quantumnous.com
   --secondary-foreground: oklch(0.965 0 0);
   --muted: oklch(0.305 0 0);
   --muted-foreground: oklch(0.78 0 0);
-  --subtle-foreground: color-mix(
-    in oklch,
-    var(--muted-foreground) 60%,
-    transparent
-  );
-  --faint-foreground: color-mix(
-    in oklch,
-    var(--muted-foreground) 40%,
-    transparent
-  );
   --accent: oklch(0.365 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
