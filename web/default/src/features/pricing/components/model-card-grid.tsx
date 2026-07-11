@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/design-system/button'
@@ -46,6 +46,12 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const totalPages = Math.max(1, Math.ceil(props.models.length / pageSize))
   const currentPage = Math.min(page, totalPages)
+
+  // Search/filter/sort changes replace the models array; jump back to the
+  // first page so users see the best matches instead of a mid-result page.
+  useEffect(() => {
+    setPage(1)
+  }, [props.models])
 
   const perfQuery = useQuery({
     queryKey: ['perf-metrics-summary', 24],

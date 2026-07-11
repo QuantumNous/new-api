@@ -32,8 +32,9 @@ declare module '@tanstack/react-table' {
      */
     contentMode?: 'full' | 'wrap' | 'summary'
     /**
-     * Responsive card placement. Secondary fields stay accessible behind the
-     * shared details disclosure; only duplicate/technical fields use hidden.
+     * Responsive card placement. Primary and secondary fields are both always
+     * visible (secondary marks lower-emphasis details); only duplicate or
+     * technical fields use hidden.
      */
     cardRole?: 'title' | 'badge' | 'primary' | 'secondary' | 'hidden'
     cardOrder?: number

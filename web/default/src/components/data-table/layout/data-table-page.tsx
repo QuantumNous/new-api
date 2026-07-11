@@ -467,7 +467,7 @@ function renderMobile<TData>(
       aria-busy={props.isLoading || props.isFetching || undefined}
       className={cn(
         'min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto transition-opacity duration-150',
-        isFetchingOnly && 'opacity-60'
+        isFetchingOnly && 'pointer-events-none opacity-60'
       )}
     >
       {mobileContent}
@@ -494,7 +494,7 @@ function renderDesktop<TData>(
         className={cn(
           fixedHeight && 'min-h-0 flex-1 overflow-y-auto',
           'transition-opacity duration-150',
-          isFetchingOnly && 'opacity-60'
+          isFetchingOnly && 'pointer-events-none opacity-60'
         )}
         aria-busy={props.isLoading || props.isFetching || undefined}
       >
@@ -539,7 +539,7 @@ function renderDesktop<TData>(
       containerClassName={cn(
         fixedHeight && 'min-h-0 flex-1',
         'transition-opacity duration-150',
-        isFetchingOnly && 'opacity-60',
+        isFetchingOnly && 'pointer-events-none opacity-60',
         props.tableClassName
       )}
       containerProps={{

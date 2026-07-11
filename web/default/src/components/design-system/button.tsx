@@ -50,12 +50,33 @@ type ButtonProps = Omit<React.ComponentProps<typeof ShadcnButton>, 'size'> & {
   size?: ButtonSize
 }
 
-function Button({ className, size = 'default', ...props }: ButtonProps) {
+// When rendering a non-<button> element (e.g. <Link>), Base UI needs
+// nativeButton={false} to attach role='button' and keyboard semantics
+// instead of assuming a native button.
+function isNativeButtonRender(
+  render: React.ComponentProps<typeof ShadcnButton>['render']
+) {
+  if (!render || !React.isValidElement(render)) {
+    return true
+  }
+
+  return render.type === 'button'
+}
+
+function Button({
+  className,
+  size = 'default',
+  nativeButton,
+  render,
+  ...props
+}: ButtonProps) {
   return (
     <ShadcnButton
       data-control-size={size}
       size={size === 'xl' ? 'lg' : size}
       className={cn(responsiveButtonSizeVariants({ size }), className)}
+      nativeButton={nativeButton ?? isNativeButtonRender(render)}
+      render={render}
       {...props}
     />
   )
