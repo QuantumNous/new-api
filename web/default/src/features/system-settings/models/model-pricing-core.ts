@@ -20,6 +20,7 @@ import * as z from 'zod'
 
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 
+import { safeJsonParse } from '../utils/json-parser'
 import { formatPricingNumber } from './pricing-format'
 
 export const createModelPricingSchema = (t: (key: string) => string) =>
@@ -63,6 +64,92 @@ export type ModelRatioData = {
   billingExpr?: string
   requestRuleExpr?: string
 }
+
+export type ModelPricingOptionInput = {
+  modelPrice: string
+  modelRatio: string
+  cacheRatio: string
+  createCacheRatio: string
+  completionRatio: string
+  imageRatio: string
+  audioRatio: string
+  audioCompletionRatio: string
+  billingMode: string
+  billingExpr: string
+}
+
+export type ModelPricingOptionUpdates = {
+  ModelPrice: string
+  ModelRatio: string
+  CacheRatio: string
+  CreateCacheRatio: string
+  CompletionRatio: string
+  ImageRatio: string
+  AudioRatio: string
+  AudioCompletionRatio: string
+  'billing_setting.billing_mode': string
+  'billing_setting.billing_expr': string
+}
+
+type NumericOptionCurrentKey =
+  | 'modelPrice'
+  | 'modelRatio'
+  | 'cacheRatio'
+  | 'createCacheRatio'
+  | 'completionRatio'
+  | 'imageRatio'
+  | 'audioRatio'
+  | 'audioCompletionRatio'
+
+type NumericOptionOutputKey =
+  | 'ModelPrice'
+  | 'ModelRatio'
+  | 'CacheRatio'
+  | 'CreateCacheRatio'
+  | 'CompletionRatio'
+  | 'ImageRatio'
+  | 'AudioRatio'
+  | 'AudioCompletionRatio'
+
+type NumericOptionDataKey =
+  | 'price'
+  | 'ratio'
+  | 'cacheRatio'
+  | 'createCacheRatio'
+  | 'completionRatio'
+  | 'imageRatio'
+  | 'audioRatio'
+  | 'audioCompletionRatio'
+
+const pricingMapFields: Array<{
+  currentKey: NumericOptionCurrentKey
+  outputKey: NumericOptionOutputKey
+  dataKey: NumericOptionDataKey
+}> = [
+  { currentKey: 'modelPrice', outputKey: 'ModelPrice', dataKey: 'price' },
+  { currentKey: 'modelRatio', outputKey: 'ModelRatio', dataKey: 'ratio' },
+  { currentKey: 'cacheRatio', outputKey: 'CacheRatio', dataKey: 'cacheRatio' },
+  {
+    currentKey: 'createCacheRatio',
+    outputKey: 'CreateCacheRatio',
+    dataKey: 'createCacheRatio',
+  },
+  {
+    currentKey: 'completionRatio',
+    outputKey: 'CompletionRatio',
+    dataKey: 'completionRatio',
+  },
+  { currentKey: 'imageRatio', outputKey: 'ImageRatio', dataKey: 'imageRatio' },
+  { currentKey: 'audioRatio', outputKey: 'AudioRatio', dataKey: 'audioRatio' },
+  {
+    currentKey: 'audioCompletionRatio',
+    outputKey: 'AudioCompletionRatio',
+    dataKey: 'audioCompletionRatio',
+  },
+]
+
+const priceMapField = pricingMapFields[0]
+const ratioMapFields = pricingMapFields.slice(1)
 
 export type PreviewRow = {
   key: string
@@ -154,6 +241,110 @@ export function toNumberOrNull(value: unknown): number | null {
   if (!hasValue(value) && value !== 0) return null
   const num = Number(value)
   return Number.isFinite(num) ? num : null
+}
+
+export function buildModelPricingOptionUpdates({
+  current,
+  data,
+  targetNames = [data.name],
+}: {
+  current: ModelPricingOptionInput
+  data: ModelRatioData
+  targetNames?: string[]
+}): ModelPricingOptionUpdates {
+  const pricingMaps = Object.fromEntries(
+    pricingMapFields.map((field) => [
+      field.outputKey,
+      safeJsonParse<Record<string, number>>(current[field.currentKey], {
+        fallback: {},
+        silent: true,
+      }),
+    ])
+  ) as Record<NumericOptionOutputKey, Record<string, number>>
+
+  const priceMap = pricingMaps.ModelPrice
+
+  const setFieldIfPresent = (
+    field: (typeof pricingMapFields)[number],
+    name: string
+  ) => {
+    setIfPresent(pricingMaps[field.outputKey], name, data[field.dataKey])
+  }
+
+  const setFieldsIfPresent = (
+    fields: typeof pricingMapFields,
+    name: string
+  ) => {
+    fields.forEach((field) => setFieldIfPresent(field, name))
+  }
+
+  const billingModeMap = safeJsonParse<Record<string, string>>(
+    current.billingMode,
+    { fallback: {}, silent: true }
+  )
+  const billingExprMap = safeJsonParse<Record<string, string>>(
+    current.billingExpr,
+    { fallback: {}, silent: true }
+  )
+
+  const setIfPresent = (
+    target: Record<string, number>,
+    name: string,
+    value: string | undefined
+  ) => {
+    if (!value || value === '') return
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed)) target[name] = parsed
+  }
+
+  targetNames.forEach((name) => {
+    pricingMapFields.forEach((field) => {
+      delete pricingMaps[field.outputKey][name]
+    })
+    delete billingModeMap[name]
+    delete billingExprMap[name]
+
+    const mode =
+      data.billingMode ||
+      (data.price && data.price !== '' ? 'per-request' : 'per-token')
+
+    if (mode === 'tiered_expr') {
+      const combined = combineBillingExpr(
+        data.billingExpr || '',
+        data.requestRuleExpr || ''
+      )
+      if (combined) {
+        billingModeMap[name] = 'tiered_expr'
+        billingExprMap[name] = combined
+      }
+      setFieldsIfPresent(pricingMapFields, name)
+      return
+    }
+
+    if (mode === 'per-request') {
+      setFieldIfPresent(priceMapField, name)
+      return
+    }
+
+    setFieldsIfPresent(ratioMapFields, name)
+  })
+
+  return {
+    ModelPrice: JSON.stringify(priceMap, null, 2),
+    ModelRatio: JSON.stringify(pricingMaps.ModelRatio, null, 2),
+    CacheRatio: JSON.stringify(pricingMaps.CacheRatio, null, 2),
+    CreateCacheRatio: JSON.stringify(pricingMaps.CreateCacheRatio, null, 2),
+    CompletionRatio: JSON.stringify(pricingMaps.CompletionRatio, null, 2),
+    ImageRatio: JSON.stringify(pricingMaps.ImageRatio, null, 2),
+    AudioRatio: JSON.stringify(pricingMaps.AudioRatio, null, 2),
+    AudioCompletionRatio: JSON.stringify(
+      pricingMaps.AudioCompletionRatio,
+      null,
+      2
+    ),
+    'billing_setting.billing_mode': JSON.stringify(billingModeMap, null, 2),
+    'billing_setting.billing_expr': JSON.stringify(billingExprMap, null, 2),
+  }
 }
 
 function ratioToBasePrice(ratio: unknown): string {
