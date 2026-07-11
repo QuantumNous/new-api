@@ -2013,6 +2013,8 @@
     "Force format response to OpenAI standard (OpenAI channel only)": "Buộc định dạng phản hồi theo tiêu chuẩn OpenAI (chỉ kênh OpenAI)",
     "Force JSON object or schema-conforming output": "Bắt buộc xuất JSON hoặc theo schema",
     "Force SMTP authentication using AUTH LOGIN method": "Bắt buộc xác thực SMTP sử dụng phương thức AUTH LOGIN",
+    "Force Stream": "Bắt buộc luồng",
+    "Force streaming upstream and buffer the response as non-streaming JSON. Useful for upstream providers that only support streaming. Incompatible with Pass Through Body.": "Bắt buộc phát trực tuyến lên tuyến và lưu đệm phản hồi dưới dạng JSON không phát trực tuyến. Hữu ích cho các nhà cung cấp chỉ hỗ trợ phát trực tuyến. Không tương thích với truyền qua nội dung yêu cầu.",
     "Force-disabled two-factor authentication for the user": "Đã buộc tắt xác thực hai yếu tố của người dùng",
     "Forest Whisper": "Tiếng thì thầm rừng cây",
     "Forgot password": "Quên mật khẩu",

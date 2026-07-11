@@ -22,6 +22,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ApplyForceStream forces stream:true upstream and marks the response for SSE
+// buffering when the channel has ForceStream enabled, the client requested
+// non-streaming, and pass-through is not active. It is shared by the normal
+// relay path (TextHelper) and the channel test path (testChannel) so that
+// stream-only upstreams behave identically in both.
+//
+// ForceStreamBuffer is reassigned unconditionally (not just set to true) so
+// that a RelayInfo reused across retries onto a channel that does not force
+// streaming does not keep a stale buffering flag from a previous attempt.
+func ApplyForceStream(info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
+	active := info.ChannelSetting.ForceStream &&
+		!info.ChannelSetting.PassThroughBodyEnabled &&
+		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
+		!lo.FromPtrOr(request.Stream, false)
+	info.ForceStreamBuffer = active
+	if active {
+		request.Stream = common.GetPointer(true)
+	}
+}
+
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
@@ -34,6 +54,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+
+	ApplyForceStream(info, request)
 
 	if request.WebSearchOptions != nil {
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)

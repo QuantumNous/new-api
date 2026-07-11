@@ -2013,6 +2013,8 @@
     "Force format response to OpenAI standard (OpenAI channel only)": "応答をOpenAI標準に強制フォーマット (OpenAIチャネルのみ)",
     "Force JSON object or schema-conforming output": "JSON オブジェクトまたはスキーマ準拠の出力を強制します",
     "Force SMTP authentication using AUTH LOGIN method": "AUTH LOGIN方式を使用してSMTP認証を強制する",
+    "Force Stream": "ストリーム強制",
+    "Force streaming upstream and buffer the response as non-streaming JSON. Useful for upstream providers that only support streaming. Incompatible with Pass Through Body.": "上流のストリーミングを強制し、レスポンスを非ストリーミング JSON としてバッファリングします。ストリーミングのみをサポートする上流プロバイダーに役立ちます。パススルーボディとは互換性がありません。",
     "Force-disabled two-factor authentication for the user": "ユーザーの二段階認証を強制的に無効化しました",
     "Forest Whisper": "フォレストウィスパー",
     "Forgot password": "パスワードを忘れた場合",
