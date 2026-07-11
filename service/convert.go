@@ -146,17 +146,22 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			contents := content
 			var toolCalls []dto.ToolCallRequest
 			mediaMessages := make([]dto.MediaContent, 0, len(contents))
+			hasNonTextContent := false
 
 			for _, mediaMsg := range contents {
 				switch mediaMsg.Type {
 				case "text", "input_text":
 					message := dto.MediaContent{
-						Type:         "text",
-						Text:         mediaMsg.GetText(),
-						CacheControl: mediaMsg.CacheControl,
+						Type: "text",
+						Text: mediaMsg.GetText(),
+					}
+					// cache_control is an Anthropic extension; only OpenRouter accepts it
+					if isOpenRouter {
+						message.CacheControl = mediaMsg.CacheControl
 					}
 					mediaMessages = append(mediaMessages, message)
 				case "image":
+					hasNonTextContent = true
 					// Handle image conversion (base64 to URL or keep as is)
 					imageData := fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, mediaMsg.Source.Data)
 					//textContent += fmt.Sprintf("[Image: %s]", imageData)
@@ -203,7 +208,17 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			}
 
 			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
-				openAIMessage.SetMediaContent(mediaMessages)
+				if !isOpenRouter && !hasNonTextContent {
+					// strict OpenAI-compatible upstreams only accept string content;
+					// merge text-only blocks instead of sending a content parts array
+					var textBuilder strings.Builder
+					for _, mediaMessage := range mediaMessages {
+						textBuilder.WriteString(mediaMessage.Text)
+					}
+					openAIMessage.SetStringContent(textBuilder.String())
+				} else {
+					openAIMessage.SetMediaContent(mediaMessages)
+				}
 			}
 		}
 		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
