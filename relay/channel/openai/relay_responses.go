@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -114,7 +115,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		case "response.output_text.delta":
 			// 处理输出文本
-			responseTextBuilder.WriteString(streamResponse.Delta)
+			if streamResponse.Delta != "" {
+				common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
+				responseTextBuilder.WriteString(streamResponse.Delta)
+			}
 		case dto.ResponsesOutputTypeItemDone:
 			// 函数调用处理
 			if streamResponse.Item != nil {
@@ -122,7 +126,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				case dto.BuildInCallWebSearchCall:
 					if info != nil && info.ResponsesUsageInfo != nil && info.ResponsesUsageInfo.BuiltInTools != nil {
 						if webSearchTool, exists := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview]; exists && webSearchTool != nil {
+							common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
 							webSearchTool.CallCount++
+						}
+					}
+				case dto.BuildInCallFileSearchCall:
+					if info != nil && info.ResponsesUsageInfo != nil && info.ResponsesUsageInfo.BuiltInTools != nil {
+						if fileSearchTool, exists := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolFileSearch]; exists && fileSearchTool != nil {
+							common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
+							fileSearchTool.CallCount++
 						}
 					}
 				}

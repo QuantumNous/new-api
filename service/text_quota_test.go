@@ -17,6 +17,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newTextQuotaTestContext() *gin.Context {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	return ctx
+}
+
+func textQuotaTestPriceData() types.PriceData {
+	return types.PriceData{
+		ModelRatio:      1,
+		CompletionRatio: 1,
+		GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+	}
+}
+
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -172,6 +187,230 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 		}
 		require.Equal(t, 30, cacheWriteTokensTotal(summary))
 	})
+}
+
+func TestCalculateTextQuotaSummaryKeepsPreConsumedQuotaWhenStreamUsageMissingAfterResponse(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 2,
+		FinalPreConsumedQuota: 5000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	require.Equal(t, 0, summary.TotalTokens)
+	require.Equal(t, 5000, summary.Quota)
+	require.True(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryRefundsAbortedStreamWithNoResponse(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		FinalPreConsumedQuota: 5000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	require.Equal(t, 0, summary.TotalTokens)
+	require.Equal(t, 0, summary.Quota)
+	require.False(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryDoesNotKeepPreConsumedQuotaForNormalMissingUsageStream(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 2,
+		FinalPreConsumedQuota: 5000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	require.Equal(t, 0, summary.TotalTokens)
+	require.Equal(t, 0, summary.Quota)
+	require.False(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryKeepsPreConsumedQuotaWhenResponsesStreamEOFWithoutUsage(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 2,
+		FinalPreConsumedQuota: 5000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	require.Equal(t, 0, summary.TotalTokens)
+	require.Equal(t, 5000, summary.Quota)
+	require.True(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryKeepsPreConsumedQuotaWhenResponsesHandlerStopsWithError(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.RecordError("invalid stream chunk")
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 2,
+		FinalPreConsumedQuota: 5000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	require.Equal(t, 0, summary.TotalTokens)
+	require.Equal(t, 5000, summary.Quota)
+	require.True(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryKeepsPreConsumedQuotaForBillableToolOnlyResponsesStream(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		FinalPreConsumedQuota: 5000,
+		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
+			BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+				dto.BuildInToolFileSearch: {
+					CallCount: 1,
+				},
+			},
+		},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	require.Equal(t, 0, summary.TotalTokens)
+	require.Equal(t, 5000, summary.Quota)
+	require.Equal(t, 1, summary.FileSearchCallCount)
+	require.True(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryUsesActualUsageOverMissingUsageFallback(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 2,
+		FinalPreConsumedQuota: 5000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+	})
+
+	require.Equal(t, 120, summary.TotalTokens)
+	require.Equal(t, 120, summary.Quota)
+	require.False(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryDoesNotKeepPreConsumedQuotaForMetadataOnlyResponsesStream(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 2,
+		FinalPreConsumedQuota: 5000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	require.Equal(t, 0, summary.TotalTokens)
+	require.Equal(t, 0, summary.Quota)
+	require.False(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryDoesNotKeepPreConsumedQuotaForNonResponsesStream(t *testing.T) {
+	ctx := newTextQuotaTestContext()
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAI,
+		OriginModelName:       "gpt-5.5",
+		PriceData:             textQuotaTestPriceData(),
+		StartTime:             time.Now(),
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 2,
+		FinalPreConsumedQuota: 5000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	require.Equal(t, 0, summary.TotalTokens)
+	require.Equal(t, 0, summary.Quota)
+	require.False(t, summary.MissingUsagePreConsumed)
 }
 
 func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testing.T) {
