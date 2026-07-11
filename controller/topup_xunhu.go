@@ -260,6 +260,7 @@ func RequestXunhuPay(c *gin.Context) {
 	}
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒充值订单创建成功 user_id=%d trade_no=%s amount=%d money=%.2f method=%s notify_url=%s", id, tradeNo, req.Amount, payMoney, req.PaymentMethod, notifyUrl))
+	common.SysLog(fmt.Sprintf("[xunhu-pay] created trade_no=%s notify_url=%s money=%.2f method=%s", tradeNo, notifyUrl, payMoney, req.PaymentMethod))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
@@ -323,7 +324,17 @@ func parseXunhuNotifyParams(c *gin.Context) (map[string]string, string) {
 }
 
 func XunhuNotify(c *gin.Context) {
-	if !isXunhuWebhookEnabled() {
+	// 使用 SysLog 确保在 pm2/控制台一定可见，便于排查回调是否到达
+	common.SysLog(fmt.Sprintf("[xunhu-notify] hit method=%s path=%s ip=%s content_type=%q content_length=%s ua=%q",
+		c.Request.Method, c.Request.RequestURI, c.ClientIP(),
+		c.GetHeader("Content-Type"), c.GetHeader("Content-Length"), c.GetHeader("User-Agent")))
+
+	enabled := isXunhuWebhookEnabled()
+	common.SysLog(fmt.Sprintf("[xunhu-notify] enabled=%v xunhu_enabled=%v wx_configured=%v ali_configured=%v",
+		enabled, setting.XunhuEnabled, setting.IsXunhuWxConfigured(), setting.IsXunhuAliConfigured()))
+
+	if !enabled {
+		common.SysError("[xunhu-notify] rejected: webhook_disabled")
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
 		writeXunhuNotifyResult(c, false)
 		return
@@ -336,9 +347,20 @@ func XunhuNotify(c *gin.Context) {
 	hash := params["hash"]
 	totalFee := params["total_fee"]
 
+	common.SysLog(fmt.Sprintf("[xunhu-notify] parsed trade_no=%s status=%s appid=%s total_fee=%s hash=%s body=%q params=%s",
+		tradeNo, status, appId, totalFee, hash, rawBody, common.GetJsonString(params)))
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 收到请求 trade_no=%s status=%s appid=%s client_ip=%s params=%q body=%q", tradeNo, status, appId, c.ClientIP(), common.GetJsonString(params), rawBody))
 
+	// 浏览器直接打开回调地址时的探活提示（无业务参数）
+	if c.Request.Method == http.MethodGet && tradeNo == "" && rawBody == "" {
+		common.SysLog("[xunhu-notify] probe ok (empty GET)")
+		c.Header("Content-Type", "text/plain; charset=utf-8")
+		_, _ = c.Writer.Write([]byte("xunhu notify endpoint ok"))
+		return
+	}
+
 	if tradeNo == "" || appId == "" {
+		common.SysError(fmt.Sprintf("[xunhu-notify] missing fields trade_no=%q appid=%q body=%q", tradeNo, appId, rawBody))
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 缺少必要参数 client_ip=%s body=%q", c.ClientIP(), rawBody))
 		writeXunhuNotifyResult(c, false)
 		return
@@ -346,6 +368,8 @@ func XunhuNotify(c *gin.Context) {
 
 	secret, ok := setting.GetXunhuSecretByAppId(appId)
 	if !ok {
+		common.SysError(fmt.Sprintf("[xunhu-notify] unknown appid=%s trade_no=%s wx_appid=%q ali_appid=%q",
+			appId, tradeNo, setting.XunhuWxAppId, setting.XunhuAliAppId))
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook appid 无效 trade_no=%s appid=%s client_ip=%s", tradeNo, appId, c.ClientIP()))
 		writeXunhuNotifyResult(c, false)
 		return
@@ -353,12 +377,14 @@ func XunhuNotify(c *gin.Context) {
 
 	expectedHash := generateXunhuHash(params, secret)
 	if hash == "" || expectedHash != hash {
+		common.SysError(fmt.Sprintf("[xunhu-notify] bad sign trade_no=%s got=%s expect=%s", tradeNo, hash, expectedHash))
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 验签失败 trade_no=%s appid=%s client_ip=%s got=%s expect=%s", tradeNo, appId, c.ClientIP(), hash, expectedHash))
 		writeXunhuNotifyResult(c, false)
 		return
 	}
 
 	if status != "OD" {
+		common.SysLog(fmt.Sprintf("[xunhu-notify] ignore status=%s trade_no=%s", status, tradeNo))
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 忽略非支付成功状态 trade_no=%s status=%s client_ip=%s", tradeNo, status, c.ClientIP()))
 		writeXunhuNotifyResult(c, true)
 		return
@@ -366,10 +392,14 @@ func XunhuNotify(c *gin.Context) {
 
 	topUp := model.GetTopUpByTradeNo(tradeNo)
 	if topUp == nil {
+		common.SysError(fmt.Sprintf("[xunhu-notify] order not found trade_no=%s", tradeNo))
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 订单不存在 trade_no=%s client_ip=%s", tradeNo, c.ClientIP()))
 		writeXunhuNotifyResult(c, false)
 		return
 	}
+
+	common.SysLog(fmt.Sprintf("[xunhu-notify] local order trade_no=%s status=%s money=%.2f method=%s user_id=%d",
+		tradeNo, topUp.Status, topUp.Money, topUp.PaymentMethod, topUp.UserId))
 
 	if fee, err := strconv.ParseFloat(totalFee, 64); err == nil {
 		diff := fee - topUp.Money
@@ -377,6 +407,7 @@ func XunhuNotify(c *gin.Context) {
 			diff = -diff
 		}
 		if diff > 0.01 {
+			common.SysError(fmt.Sprintf("[xunhu-notify] amount mismatch trade_no=%s expect=%.2f got=%s", tradeNo, topUp.Money, totalFee))
 			logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 金额不匹配 trade_no=%s expect=%.2f got=%s client_ip=%s", tradeNo, topUp.Money, totalFee, c.ClientIP()))
 			writeXunhuNotifyResult(c, false)
 			return
@@ -387,11 +418,13 @@ func XunhuNotify(c *gin.Context) {
 	defer UnlockOrder(tradeNo)
 
 	if err := model.RechargeXunhu(tradeNo, c.ClientIP()); err != nil {
+		common.SysError(fmt.Sprintf("[xunhu-notify] recharge failed trade_no=%s err=%q", tradeNo, err.Error()))
 		logger.LogError(c.Request.Context(), fmt.Sprintf("虎皮椒入账失败 trade_no=%s client_ip=%s error=%q", tradeNo, c.ClientIP(), err.Error()))
 		writeXunhuNotifyResult(c, false)
 		return
 	}
 
+	common.SysLog(fmt.Sprintf("[xunhu-notify] recharge ok trade_no=%s", tradeNo))
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒入账成功 trade_no=%s client_ip=%s", tradeNo, c.ClientIP()))
 	writeXunhuNotifyResult(c, true)
 }

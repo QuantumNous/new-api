@@ -23,6 +23,21 @@ func SetApiRouter(router *gin.Engine) {
 		"/api/subscription/epay/notify",
 	})))
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
+
+	// 支付回调必须在全局限流之前注册，避免虎皮椒/第三方 IP 被 429 拦截后无法入账
+	{
+		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
+		apiRouter.POST("/creem/webhook", controller.CreemWebhook)
+		apiRouter.POST("/waffo/webhook", controller.WaffoWebhook)
+		//apiRouter.POST("/waffo-pancake/webhook", controller.WaffoPancakeWebhook)
+		apiRouter.POST("/xunhu/notify", controller.XunhuNotify)
+		apiRouter.GET("/xunhu/notify", controller.XunhuNotify)
+		apiRouter.POST("/user/epay/notify", controller.EpayNotify)
+		apiRouter.GET("/user/epay/notify", controller.EpayNotify)
+		apiRouter.POST("/subscription/epay/notify", controller.SubscriptionEpayNotify)
+		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
+	}
+
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	{
 		apiRouter.GET("/setup", controller.GetSetup)
@@ -60,13 +75,6 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
-		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
-		apiRouter.POST("/creem/webhook", controller.CreemWebhook)
-		apiRouter.POST("/waffo/webhook", controller.WaffoWebhook)
-		//apiRouter.POST("/waffo-pancake/webhook", controller.WaffoPancakeWebhook)
-		apiRouter.POST("/xunhu/notify", controller.XunhuNotify)
-		apiRouter.GET("/xunhu/notify", controller.XunhuNotify)
-
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
 
@@ -79,8 +87,6 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.POST("/passkey/login/finish", middleware.CriticalRateLimit(), controller.PasskeyLoginFinish)
 			//userRoute.POST("/tokenlog", middleware.CriticalRateLimit(), controller.TokenLog)
 			userRoute.GET("/logout", controller.Logout)
-			userRoute.POST("/epay/notify", controller.EpayNotify)
-			userRoute.GET("/epay/notify", controller.EpayNotify)
 			userRoute.GET("/groups", controller.GetUserGroups)
 
 			selfRoute := userRoute.Group("/")
@@ -183,9 +189,7 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
 		}
 
-		// Subscription payment callbacks (no auth)
-		apiRouter.POST("/subscription/epay/notify", controller.SubscriptionEpayNotify)
-		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
+		// Subscription payment return (no auth); notify 已在限流前注册
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		optionRoute := apiRouter.Group("/option")
