@@ -51,12 +51,23 @@ var classicBuildFS embed.FS
 //go:embed web/classic/dist/index.html
 var classicIndexPage []byte
 
+// 渠道数据页模型 tab 的单一来源（前端 constants.ts 同吃这份 JSON），
+// 随 catalog-export 的 model_tabs 字段下发给下游 Roma 副本。
+//
+//go:embed web/default/src/features/channel-data/model-tabs.json
+var modelTabsJSON []byte
+
 func main() {
 	startTime := time.Now()
 
 	err := InitResources()
 	if err != nil {
 		common.FatalLog("failed to initialize resources: " + err.Error())
+		return
+	}
+
+	if err := controller.SetModelTabsJSON(modelTabsJSON); err != nil {
+		common.FatalLog("invalid model-tabs.json: " + err.Error())
 		return
 	}
 
