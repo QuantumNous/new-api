@@ -520,6 +520,7 @@
     "Automatically sync model list when upstream changes are detected": "检测到上游模型变更时自动同步模型列表",
     "Availability (last 24h)": "可用率（最近 24 小时）",
     "Available": "可用",
+    "Available variables": "可用变量",
     "Available credits are ordered by soonest expiration.": "可用次数按最早到期排序。",
     "Available disk space": "可用磁盘空间",
     "Available Models": "可用模型",

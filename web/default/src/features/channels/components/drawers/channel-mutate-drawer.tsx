@@ -4157,6 +4157,10 @@ export function ChannelMutateDrawer({
                                     {t(
                                       'Default system prompt for this channel'
                                     )}
+                                    <br />
+                                    <span className='text-muted-foreground'>
+                                      {t('Available variables')}: {'{model_name}'}, {'{site_name}'}, {'{site_url}'}
+                                    </span>
                                   </FormDescription>
                                   <FormMessage />
                                 </FormItem>
