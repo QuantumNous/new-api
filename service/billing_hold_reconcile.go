@@ -132,6 +132,7 @@ func runBillingHoldReconcile(holdId int) {
 
 	hold, err := model.GetBillingHoldById(holdId)
 	if err != nil {
+		_ = model.ResetBillingHoldProcessing(holdId)
 		return
 	}
 	hold = enrichBillingHoldForVerify(hold)
@@ -332,22 +333,15 @@ func RefundBillingHold(hold *model.BillingHold, detail string) error {
 	if err != nil {
 		return err
 	}
-	if hasConsume {
-		model.DecreaseUserUsedQuota(hold.UserId, hold.PreConsumedQuota)
-		if hold.ChannelId > 0 {
-			model.UpdateChannelUsedQuota(hold.ChannelId, -hold.PreConsumedQuota)
-		}
-	}
-	if err := model.IncreaseUserQuota(hold.UserId, hold.PreConsumedQuota, false); err != nil {
-		return err
-	}
+	tokenKey := ""
 	if hold.TokenId > 0 {
 		token, err := model.GetTokenById(hold.TokenId)
 		if err == nil && token != nil {
-			if err := model.IncreaseTokenQuota(hold.TokenId, token.Key, hold.PreConsumedQuota); err != nil {
-				return err
-			}
+			tokenKey = token.Key
 		}
+	}
+	if err := model.ResolveBillingHoldRefund(hold, hasConsume, detail, tokenKey); err != nil {
+		return err
 	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    hold.UserId,
@@ -366,7 +360,7 @@ func RefundBillingHold(hold *model.BillingHold, detail string) error {
 			"action":                 "refund",
 		},
 	})
-	return model.MarkBillingHoldResolved(hold.Id, model.BillingHoldStatusRefunded, detail)
+	return nil
 }
 
 // ConfirmBillingHold 确认扣款：钱包/令牌已在预扣阶段扣除，补记 used_quota 并写入消费日志。
@@ -379,9 +373,8 @@ func ConfirmBillingHold(hold *model.BillingHold, detail string) error {
 		return err
 	}
 	if !hasConsume {
-		model.UpdateUserUsedQuotaAndRequestCount(hold.UserId, hold.PreConsumedQuota)
-		if hold.ChannelId > 0 {
-			model.UpdateChannelUsedQuota(hold.ChannelId, hold.PreConsumedQuota)
+		if err := model.ResolveBillingHoldConfirm(hold, false, detail); err != nil {
+			return err
 		}
 		model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 			UserId:    hold.UserId,
@@ -400,6 +393,7 @@ func ConfirmBillingHold(hold *model.BillingHold, detail string) error {
 				"action":                 "confirm_charge",
 			},
 		})
+		return nil
 	}
-	return model.MarkBillingHoldResolved(hold.Id, model.BillingHoldStatusConfirmed, detail)
+	return model.ResolveBillingHoldConfirm(hold, true, detail)
 }

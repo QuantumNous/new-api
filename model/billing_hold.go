@@ -2,9 +2,11 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
 
@@ -79,7 +81,10 @@ func ListDueBillingHolds(now int64, limit int) ([]*BillingHold, error) {
 		limit = 100
 	}
 	var holds []*BillingHold
-	err := DB.Where("status = ? AND reconcile_after <= ?", BillingHoldStatusPending, now).
+	// A process can die after claiming a hold. Reclaim processing rows whose
+	// lease (stored in resolved_at while processing) expired five minutes ago.
+	err := DB.Where("(status = ? AND reconcile_after <= ?) OR (status = ? AND resolved_at > 0 AND resolved_at <= ?)",
+		BillingHoldStatusPending, now, "processing", now-300).
 		Order("reconcile_after ASC").
 		Limit(limit).
 		Find(&holds).Error
@@ -97,6 +102,107 @@ func MarkBillingHoldResolved(id int, status, verifyDetail string) error {
 			"verify_detail": verifyDetail,
 			"resolved_at":   common.GetTimestamp(),
 		}).Error
+}
+
+// ResolveBillingHoldRefund applies the wallet/token refund and resolves the
+// claimed hold atomically. A crash can no longer leave money refunded while the
+// hold remains "processing" and is later refunded again.
+func ResolveBillingHoldRefund(hold *BillingHold, hasConsume bool, verifyDetail, tokenKey string) error {
+	if hold == nil || hold.Id <= 0 || hold.PreConsumedQuota <= 0 {
+		return errors.New("invalid billing hold refund")
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var current BillingHold
+		if err := tx.Where("id = ? AND status = ?", hold.Id, "processing").First(&current).Error; err != nil {
+			return err
+		}
+		quota := current.PreConsumedQuota
+		if res := tx.Model(&User{}).Where("id = ?", current.UserId).
+			Update("quota", gorm.Expr("quota + ?", quota)); res.Error != nil || res.RowsAffected != 1 {
+			if res.Error != nil {
+				return res.Error
+			}
+			return fmt.Errorf("billing hold refund user %d not found", current.UserId)
+		}
+		if hasConsume {
+			if err := tx.Model(&User{}).Where("id = ?", current.UserId).
+				Update("used_quota", gorm.Expr("CASE WHEN used_quota > ? THEN used_quota - ? ELSE 0 END", quota, quota)).Error; err != nil {
+				return err
+			}
+			if current.ChannelId > 0 {
+				if err := tx.Model(&Channel{}).Where("id = ?", current.ChannelId).
+					Update("used_quota", gorm.Expr("used_quota - ?", quota)).Error; err != nil {
+					return err
+				}
+			}
+		}
+		if current.TokenId > 0 {
+			if res := tx.Model(&Token{}).Where("id = ?", current.TokenId).Updates(map[string]interface{}{
+				"remain_quota":  gorm.Expr("remain_quota + ?", quota),
+				"used_quota":    gorm.Expr("used_quota - ?", quota),
+				"accessed_time": common.GetTimestamp(),
+			}); res.Error != nil || res.RowsAffected != 1 {
+				if res.Error != nil {
+					return res.Error
+				}
+				return fmt.Errorf("billing hold refund token %d not found", current.TokenId)
+			}
+		}
+		return tx.Model(&BillingHold{}).Where("id = ? AND status = ?", current.Id, "processing").Updates(map[string]interface{}{
+			"status":        BillingHoldStatusRefunded,
+			"verify_detail": verifyDetail,
+			"resolved_at":   common.GetTimestamp(),
+		}).Error
+	})
+	if err != nil {
+		return err
+	}
+	if common.RedisEnabled {
+		gopool.Go(func() {
+			if err := cacheIncrUserQuota(hold.UserId, int64(hold.PreConsumedQuota)); err != nil {
+				common.SysLog("failed to update billing hold wallet refund cache: " + err.Error())
+			}
+			if hold.TokenId > 0 && tokenKey != "" {
+				if err := cacheIncrTokenQuota(tokenKey, int64(hold.PreConsumedQuota)); err != nil {
+					common.SysLog("failed to update billing hold token refund cache: " + err.Error())
+				}
+			}
+		})
+	}
+	return nil
+}
+
+// ResolveBillingHoldConfirm records the derived counters and resolves the hold
+// in one transaction. Wallet/token quota was already deducted at pre-consume.
+func ResolveBillingHoldConfirm(hold *BillingHold, hasConsume bool, verifyDetail string) error {
+	if hold == nil || hold.Id <= 0 || hold.PreConsumedQuota <= 0 {
+		return errors.New("invalid billing hold confirmation")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var current BillingHold
+		if err := tx.Where("id = ? AND status = ?", hold.Id, "processing").First(&current).Error; err != nil {
+			return err
+		}
+		if !hasConsume {
+			if err := tx.Model(&User{}).Where("id = ?", current.UserId).Updates(map[string]interface{}{
+				"used_quota":    gorm.Expr("used_quota + ?", current.PreConsumedQuota),
+				"request_count": gorm.Expr("request_count + 1"),
+			}).Error; err != nil {
+				return err
+			}
+			if current.ChannelId > 0 {
+				if err := tx.Model(&Channel{}).Where("id = ?", current.ChannelId).
+					Update("used_quota", gorm.Expr("used_quota + ?", current.PreConsumedQuota)).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return tx.Model(&BillingHold{}).Where("id = ? AND status = ?", current.Id, "processing").Updates(map[string]interface{}{
+			"status":        BillingHoldStatusConfirmed,
+			"verify_detail": verifyDetail,
+			"resolved_at":   common.GetTimestamp(),
+		}).Error
+	})
 }
 
 // BillingHoldContextPatch carries fields learned after the hold was first created.
@@ -139,8 +245,12 @@ func UpdateBillingHoldContext(id int, patch BillingHoldContextPatch) error {
 
 func ClaimBillingHold(id int) (bool, error) {
 	res := DB.Model(&BillingHold{}).
-		Where("id = ? AND status = ?", id, BillingHoldStatusPending).
-		Update("status", "processing")
+		Where("id = ? AND (status = ? OR (status = ? AND resolved_at > 0 AND resolved_at <= ?))",
+			id, BillingHoldStatusPending, "processing", common.GetTimestamp()-300).
+		Updates(map[string]interface{}{
+			"status":      "processing",
+			"resolved_at": common.GetTimestamp(), // processing lease timestamp
+		})
 	if res.Error != nil {
 		return false, res.Error
 	}
@@ -150,51 +260,25 @@ func ClaimBillingHold(id int) (bool, error) {
 func ResetBillingHoldProcessing(id int) error {
 	return DB.Model(&BillingHold{}).
 		Where("id = ? AND status = ?", id, "processing").
-		Update("status", BillingHoldStatusPending).Error
+		Updates(map[string]interface{}{"status": BillingHoldStatusPending, "resolved_at": 0}).Error
 }
 
-// SumUserOrphanPreconsumeGap returns topups - (user.quota + user.used_quota).
+// SumUserOrphanPreconsumeGap is intentionally disabled. A user's funded quota
+// can come from top-ups, redemption codes, check-ins, referrals, subscriptions,
+// reseller adjustments, refunds, and admin operations. Treating top-ups as the
+// complete ledger can manufacture a false "orphan" charge.
+//
+// Deprecated: use the durable accounting reconciliation pipeline.
 func SumUserOrphanPreconsumeGap(userId int) (gap int, err error) {
-	user := &User{}
-	if err = DB.Select("quota", "used_quota").Where("id = ?", userId).First(user).Error; err != nil {
-		return 0, err
-	}
-	var topupSum float64
-	err = DB.Model(&TopUp{}).
-		Where("user_id = ? AND status = ?", userId, common.TopUpStatusSuccess).
-		Select("COALESCE(SUM((CASE WHEN credited_amount > 0 THEN credited_amount ELSE amount END) * ?), 0)", common.QuotaPerUnit).
-		Scan(&topupSum).Error
-	if err != nil {
-		return 0, err
-	}
-	accountTotal := user.Quota + user.UsedQuota
-	gap = int(topupSum) - accountTotal
-	return gap, nil
+	return 0, errors.New("unsafe orphan preconsume inference is disabled; reconcile against the complete funding and transaction ledger")
 }
 
+// ConfirmOrphanPreconsumeGap is intentionally disabled because a balance gap
+// alone cannot distinguish an unrefunded pre-consume from a missing charge.
+// Automatically converting that gap into consumption can charge users twice.
+//
+// Deprecated: resolve a persisted reconciliation case with an explicit refund
+// or charge decision and an idempotency key.
 func ConfirmOrphanPreconsumeGap(userId int, quota int, content string) error {
-	if userId <= 0 || quota <= 0 {
-		return errors.New("invalid user or quota")
-	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("used_quota", gorm.Expr("used_quota + ?", quota)).Error; err != nil {
-			return err
-		}
-		username, _ := GetUsernameById(userId, false)
-		log := &Log{
-			UserId:    userId,
-			Username:  username,
-			CreatedAt: common.GetTimestamp(),
-			Type:      LogTypeConsume,
-			Content:   content,
-			Quota:     quota,
-			Other: common.MapToJsonStr(map[string]interface{}{
-				"billing_hold_reconcile": true,
-				"orphan_preconsume_gap":  true,
-				"action":                 "confirm_charge",
-			}),
-		}
-		return LOG_DB.Create(log).Error
-	})
+	return errors.New("automatic orphan preconsume confirmation is disabled; classify the discrepancy before changing user funds")
 }

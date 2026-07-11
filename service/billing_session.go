@@ -71,6 +71,22 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		s.settled = true
 		return nil
 	}
+	if wallet, ok := s.funding.(*WalletFunding); ok {
+		if err := model.AdjustWalletAndTokenQuota(
+			wallet.userId, -delta,
+			s.relayInfo.TokenId, s.relayInfo.TokenKey, -delta,
+			s.relayInfo.IsPlayground,
+		); err != nil {
+			return err
+		}
+		wallet.consumed += delta
+		if !s.relayInfo.IsPlayground {
+			s.tokenConsumed += delta
+		}
+		s.fundingSettled = true
+		s.settled = true
+		return nil
+	}
 	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
 	if !s.fundingSettled {
 		if err := s.funding.Settle(delta); err != nil {
@@ -152,9 +168,9 @@ func (s *BillingSession) RefundSync(c *gin.Context) error {
 	s.refunded = true
 	s.mu.Unlock()
 
-	err := refundWithRetry(func() error {
-		return s.executeRefund(funding, tokenId, tokenKey, isPlayground, tokenConsumed, extraReserved, subscriptionId)
-	})
+	// Do not retry the whole refund sequence: wallet quota increments are not
+	// idempotent. SubscriptionFunding performs its own idempotent retry.
+	err := s.executeRefund(funding, tokenId, tokenKey, isPlayground, tokenConsumed, extraReserved, subscriptionId)
 	if err != nil {
 		s.mu.Lock()
 		s.refunded = false
@@ -179,6 +195,18 @@ func (s *BillingSession) executeRefund(
 	extraReserved int,
 	subscriptionId int,
 ) error {
+	if wallet, ok := funding.(*WalletFunding); ok {
+		walletQuota := wallet.consumed
+		if walletQuota <= 0 && tokenConsumed <= 0 {
+			return nil
+		}
+		if err := model.RefundWalletAndTokenQuota(
+			wallet.userId, walletQuota, tokenId, tokenKey, tokenConsumed, isPlayground,
+		); err != nil {
+			return fmt.Errorf("atomically refunding wallet and token quota: %w", err)
+		}
+		return nil
+	}
 	if err := funding.Refund(); err != nil {
 		return fmt.Errorf("refunding billing source: %w", err)
 	}
@@ -269,6 +297,22 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		logger.LogInfo(c, fmt.Sprintf("用户 %d 额度充足, 信任且不需要预扣费 (funding=%s)", s.relayInfo.UserId, s.funding.Source()))
 	} else if effectiveQuota > 0 {
 		logger.LogInfo(c, fmt.Sprintf("用户 %d 需要预扣费 %s (funding=%s)", s.relayInfo.UserId, logger.FormatQuota(effectiveQuota), s.funding.Source()))
+	}
+	if wallet, ok := s.funding.(*WalletFunding); ok && effectiveQuota > 0 {
+		if err := model.AdjustWalletAndTokenQuota(
+			wallet.userId, -effectiveQuota,
+			s.relayInfo.TokenId, s.relayInfo.TokenKey, -effectiveQuota,
+			s.relayInfo.IsPlayground,
+		); err != nil {
+			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+		}
+		wallet.consumed = effectiveQuota
+		if !s.relayInfo.IsPlayground {
+			s.tokenConsumed = effectiveQuota
+		}
+		s.preConsumedQuota = effectiveQuota
+		s.syncRelayInfo()
+		return nil
 	}
 
 	// ---- 1) 预扣令牌额度 ----

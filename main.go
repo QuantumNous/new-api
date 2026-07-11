@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -227,9 +231,33 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
-	if err != nil {
-		common.FatalLog("failed to start HTTP server: " + err.Error())
+	httpServer := &http.Server{Addr: ":" + port, Handler: server}
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- httpServer.ListenAndServe()
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(stop)
+
+	select {
+	case sig := <-stop:
+		common.SysLog("shutdown signal received: " + sig.String())
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(ctx); err != nil {
+			common.SysLog("HTTP graceful shutdown failed: " + err.Error())
+		}
+		if common.BatchUpdateEnabled {
+			if err := model.FlushBatchUpdates(); err != nil {
+				common.SysLog("final batch flush failed: " + err.Error())
+			}
+		}
+	case err := <-serverErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			common.FatalLog("failed to start HTTP server: " + err.Error())
+		}
 	}
 }
 
