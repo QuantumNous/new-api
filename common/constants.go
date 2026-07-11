@@ -141,6 +141,12 @@ var GptImage2RaceTimeout4K = 135        // 秒，4k/hd 分辨率触发竞速的�
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
+
+// FingerprintAutoDisableEnabled gates the auto-detect fingerprint path: when a
+// detection returns "suspicious", whether to actually disable that channel+model
+// ability. Default true (existing behavior). Set false to PAUSE auto-disable while
+// detection keeps running, logging, and Feishu-notifying as usual.
+var FingerprintAutoDisableEnabled = true
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
 

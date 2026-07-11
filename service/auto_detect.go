@@ -289,7 +289,13 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 	if ch.Status != common.ChannelStatusManuallyDisabled {
 		switch detectStatus {
 		case "suspicious":
-			disableModelForFingerprint(ch, targetModel, now, updates)
+			// Gated by FingerprintAutoDisableEnabled: when paused, detection still
+			// ran and was logged/notified above; we simply skip disabling the ability.
+			if common.FingerprintAutoDisableEnabled {
+				disableModelForFingerprint(ch, targetModel, now, updates)
+			} else {
+				logger.LogInfo(ctx, fmt.Sprintf("auto-detect: fingerprint auto-disable paused, skip disabling channel=%d model=%s (suspicious)", ch.Id, targetModel))
+			}
 		case "pass":
 			recoverModelForFingerprint(ch, targetModel, updates)
 			if ch.Status == common.ChannelStatusAutoDisabled {
