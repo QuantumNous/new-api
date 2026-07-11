@@ -1,0 +1,80 @@
+# Isolated modelroute TEST stack — DO NOT use production ports/volumes.
+# Host binds: 127.0.0.1:3010 -> app
+# Project name: new-api-modelroute-test
+#
+# Deploy dir on VPS: /opt/new-api-modelroute-test
+version: "3.8"
+
+services:
+  new-api:
+    image: ${NEW_API_IMAGE:-new-api-modelroute:test}
+    container_name: modelroute-test-api
+    restart: unless-stopped
+    command: --log-dir /app/logs
+    ports:
+      - "127.0.0.1:3010:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      - SQL_DSN=postgresql://${POSTGRES_USER:-mrtest}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-new_api_mrtest}
+      - REDIS_CONN_STRING=redis://:${REDIS_PASSWORD}@redis:6379
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - NODE_NAME=modelroute-test
+      - SESSION_SECRET=${SESSION_SECRET}
+      - CRYPTO_SECRET=${CRYPTO_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - modelroute-test-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: modelroute-test-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    networks:
+      - modelroute-test-net
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: modelroute-test-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mrtest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-new_api_mrtest}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - max_connections=50
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - modelroute-test-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mrtest} -d ${POSTGRES_DB:-new_api_mrtest}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+networks:
+  modelroute-test-net:
+    name: modelroute-test-net
+
+volumes:
+  pg_data:
+    name: modelroute-test-pg_data

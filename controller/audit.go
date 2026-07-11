@@ -29,6 +29,11 @@ var auditContentTemplates = map[string]string{
 	"user.passkey_delete":   "Deleted a passkey",
 	"user.reset_passkey":    "Reset the user passkey",
 	"option.update":         "Updated system setting ${key}",
+	"model_route.migrate":        "Migrated to model-level routing priority",
+	"model_route.reset_runtime":  "Reset runtime learning metrics",
+	"model_route.reset_all":      "Reset all learning including calibration",
+	"model_route.policy_priority":"Updated model route policy priority",
+	"model_route.metrics_action": "Model route metrics action ${action}",
 
 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
 	"channel.update":             "Updated channel ${name} (ID: ${id})",

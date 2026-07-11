@@ -42,6 +42,9 @@ const (
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
 
+	// ContextKeyModelRouteChain stores process-local model-priority try-list channel IDs for the request.
+	ContextKeyModelRouteChain ContextKey = "model_route_chain"
+
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"
 	ContextKeyUserSetting ContextKey = "user_setting"

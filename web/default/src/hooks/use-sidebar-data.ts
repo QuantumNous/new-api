@@ -125,6 +125,11 @@ export function useSidebarData(): SidebarData {
             icon: Radio,
           },
           {
+            title: t('Model Route'),
+            url: '/model-route',
+            icon: Activity,
+          },
+          {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,

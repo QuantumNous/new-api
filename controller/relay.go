@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/modelroute"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -223,12 +224,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			notifyModelRouteProduction(c, channel, relayInfo, true, 0, false)
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
+		streamInterrupted := relayInfo != nil && relayInfo.HasSendResponse()
+		notifyModelRouteProduction(c, channel, relayInfo, false, newAPIError.StatusCode, streamInterrupted)
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
@@ -654,3 +658,35 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 	}
 	return true
 }
+
+
+// notifyModelRouteProduction feeds production outcomes into modelroute when model_priority is enabled.
+func notifyModelRouteProduction(c *gin.Context, channel *model.Channel, relayInfo *relaycommon.RelayInfo, success bool, statusCode int, streamInterrupted bool) {
+	if channel == nil || relayInfo == nil || !modelroute.IsModelPriorityMode() {
+		return
+	}
+	mapping := ""
+	if c != nil {
+		mapping = common.GetContextKeyString(c, constant.ContextKeyChannelModelMapping)
+	}
+	if mapping == "" {
+		mapping = channel.GetModelMapping()
+	}
+	var ttft time.Duration
+	if success && relayInfo.HasSendResponse() {
+		ttft = relayInfo.FirstResponseTime.Sub(relayInfo.StartTime)
+		if ttft < 0 {
+			ttft = 0
+		}
+	}
+	modelroute.ApplyProductionOutcomeAsync(modelroute.ProductionOutcome{
+		ChannelID:         int64(channel.Id),
+		RequestedModel:    relayInfo.OriginModelName,
+		MappingJSON:       mapping,
+		Success:           success,
+		StatusCode:        statusCode,
+		StreamInterrupted: streamInterrupted,
+		TTFT:              ttft,
+	})
+}
+

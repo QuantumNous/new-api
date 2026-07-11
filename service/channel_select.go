@@ -1,12 +1,16 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/modelroute"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 )
@@ -47,41 +51,15 @@ func (p *RetryParam) ResetRetryNextTry() {
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
-// 尝试获取一个满足要求的随机渠道。
-//
-// For "auto" tokenGroup with cross-group Retry enabled:
-// 对于启用了跨分组重试的 "auto" tokenGroup：
-//
-//   - Each group will exhaust all its priorities before moving to the next group.
-//     每个分组会用完所有优先级后才会切换到下一个分组。
-//
-//   - Uses ContextKeyAutoGroupIndex to track current group index.
-//     使用 ContextKeyAutoGroupIndex 跟踪当前分组索引。
-//
-//   - Uses ContextKeyAutoGroupRetryIndex to track the global Retry count when current group started.
-//     使用 ContextKeyAutoGroupRetryIndex 跟踪当前分组开始时的全局重试次数。
-//
-//   - priorityRetry = Retry - startRetryIndex, represents the priority level within current group.
-//     priorityRetry = Retry - startRetryIndex，表示当前分组内的优先级级别。
-//
-//   - When GetRandomSatisfiedChannel returns nil (priorities exhausted), moves to next group.
-//     当 GetRandomSatisfiedChannel 返回 nil（优先级用完）时，切换到下一个分组。
-//
-// Example flow (2 groups, each with 2 priorities, RetryTimes=3):
-// 示例流程（2个分组，每个有2个优先级，RetryTimes=3）：
-//
-//	Retry=0: GroupA, priority0 (startRetryIndex=0, priorityRetry=0)
-//	         分组A, 优先级0
-//
-//	Retry=1: GroupA, priority1 (startRetryIndex=0, priorityRetry=1)
-//	         分组A, 优先级1
-//
-//	Retry=2: GroupA exhausted → GroupB, priority0 (startRetryIndex=2, priorityRetry=0)
-//	         分组A用完 → 分组B, 优先级0
-//
-//	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
-//	         分组B, 优先级1
+// When routing_priority_mode=model_priority, selection uses modelroute try-list (PRD §10–§11).
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	if modelroute.IsModelPriorityMode() {
+		return cacheGetModelPriorityChannel(param)
+	}
+	return cacheGetChannelPriorityChannel(param)
+}
+
+func cacheGetChannelPriorityChannel(param *RetryParam) (*model.Channel, string, error) {
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
@@ -93,8 +71,6 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 		autoGroups := GetUserAutoGroup(userGroup)
 
-		// startGroupIndex: the group index to start searching from
-		// startGroupIndex: 开始搜索的分组索引
 		startGroupIndex := 0
 		crossGroupRetry := common.GetContextKeyBool(param.Ctx, constant.ContextKeyTokenCrossGroupRetry)
 
@@ -106,11 +82,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 		for i := startGroupIndex; i < len(autoGroups); i++ {
 			autoGroup := autoGroups[i]
-			// Calculate priorityRetry for current group
-			// 计算当前分组的 priorityRetry
 			priorityRetry := param.GetRetry()
-			// If moved to a new group, reset priorityRetry and update startRetryIndex
-			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
 			if i > startGroupIndex {
 				priorityRetry = 0
 			}
@@ -118,14 +90,9 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath)
 			if channel == nil {
-				// Current group has no available channel for this model, try next group
-				// 当前分组没有该模型的可用渠道，尝试下一个分组
 				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, param.ModelName, priorityRetry)
-				// 重置状态以尝试下一个分组
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
 				param.SetRetry(0)
 				continue
 			}
@@ -133,22 +100,12 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			selectGroup = autoGroup
 			logger.LogDebug(param.Ctx, "Auto selected group: %s", autoGroup)
 
-			// Prepare state for next retry
-			// 为下一次重试准备状态
 			if crossGroupRetry && priorityRetry >= common.RetryTimes {
-				// Current group has exhausted all retries, prepare to switch to next group
-				// This request still uses current group, but next retry will use next group
-				// 当前分组已用完所有重试次数，准备切换到下一个分组
-				// 本次请求仍使用当前分组，但下次重试将使用下一个分组
 				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
 				param.SetRetry(0)
 				param.ResetRetryNextTry()
 			} else {
-				// Stay in current group, save current state
-				// 保持在当前分组，保存当前状态
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
 			}
 			break
@@ -160,4 +117,204 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+// cacheGetModelPriorityChannel selects by modelroute CandidateChain (group-filtered).
+// Retry index walks the filtered chain; already-used channel IDs are skipped.
+func cacheGetModelPriorityChannel(param *RetryParam) (*model.Channel, string, error) {
+	selectGroup := param.TokenGroup
+	if param.ModelName == "" {
+		return nil, selectGroup, errors.New("model name required")
+	}
+
+	chainIDs, selectGroups, err := ensureModelRouteChain(param)
+	if err != nil {
+		return nil, selectGroup, err
+	}
+	if len(chainIDs) == 0 {
+		if ch, g, ok := tryEmergencyRecoveredChannel(param); ok {
+			return ch, g, nil
+		}
+		return nil, selectGroup, nil
+	}
+
+	used := usedChannelIDSet(param.Ctx)
+	for i, id := range chainIDs {
+		if used[id] {
+			continue
+		}
+		ch, err := model.CacheGetChannel(id)
+		if err != nil || ch == nil {
+			logger.LogDebug(param.Ctx, "model_priority skip missing channel %d: %v", id, err)
+			continue
+		}
+		if ch.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if !channelSupportsPath(ch, param.RequestPath) {
+			continue
+		}
+		g := selectGroups[i]
+		if g == "" {
+			g = param.TokenGroup
+		}
+		if g != "" && g != "auto" {
+			selectGroup = g
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, g)
+		}
+		logger.LogDebug(param.Ctx, "model_priority selected channel=%d model=%s retry=%d group=%s", id, param.ModelName, param.GetRetry(), selectGroup)
+		return ch, selectGroup, nil
+	}
+	if ch, g, ok := tryEmergencyRecoveredChannel(param); ok {
+		return ch, g, nil
+	}
+	return nil, selectGroup, nil
+}
+
+func tryEmergencyRecoveredChannel(param *RetryParam) (*model.Channel, string, bool) {
+	if param == nil || param.ModelName == "" || !modelroute.IsModelPriorityMode() {
+		return nil, "", false
+	}
+	// Prefer already-recovered candidate from a concurrent Leader.
+	if cand, ok := modelroute.GlobalEmergency.GetRecovered(param.ModelName); ok && cand.ChannelID > 0 {
+		if ch, g, ok2 := channelFromCandidate(param, cand); ok2 {
+			return ch, g, true
+		}
+	}
+	// Live emergency: probe standby ranks when normal try-list is exhausted (PRD §28).
+	used := usedChannelIDSet(param.Ctx)
+	exclude := make(map[int64]struct{}, len(used))
+	for id := range used {
+		exclude[int64(id)] = struct{}{}
+	}
+	ctx := context.Background()
+	if param.Ctx != nil && param.Ctx.Request != nil {
+		ctx = param.Ctx.Request.Context()
+	}
+	cand, ok := modelroute.RunEmergencyRecoveryForModel(ctx, param.ModelName, exclude)
+	if !ok || cand.ChannelID <= 0 {
+		return nil, "", false
+	}
+	return channelFromCandidate(param, cand)
+}
+
+func channelFromCandidate(param *RetryParam, cand model.ResolvedRouteCandidate) (*model.Channel, string, bool) {
+	id := int(cand.ChannelID)
+	if id <= 0 || usedChannelIDSet(param.Ctx)[id] {
+		return nil, "", false
+	}
+	ch, err := model.CacheGetChannel(id)
+	if err != nil || ch == nil || ch.Status != common.ChannelStatusEnabled {
+		return nil, "", false
+	}
+	if !channelSupportsPath(ch, param.RequestPath) {
+		return nil, "", false
+	}
+	g := param.TokenGroup
+	if g == "auto" {
+		g = common.GetContextKeyString(param.Ctx, constant.ContextKeyAutoGroup)
+	}
+	// also try group match from ability if fixed group
+	if g != "" && g != "auto" && !model.IsChannelEnabledForGroupModel(g, param.ModelName, id) {
+		// still allow: emergency recovery may be cross-ability rare; keep group label
+	}
+	return ch, g, true
+}
+
+func ensureModelRouteChain(param *RetryParam) ([]int, []string, error) {
+	if param.Ctx != nil {
+		if v, ok := common.GetContextKey(param.Ctx, constant.ContextKeyModelRouteChain); ok {
+			if packed, ok := v.(modelRouteChainPacked); ok && len(packed.IDs) > 0 {
+				return packed.IDs, packed.Groups, nil
+			}
+		}
+	}
+
+	tryList, _, err := modelroute.BuildTryListForRequest(param.ModelName)
+	if err != nil {
+		return nil, nil, err
+	}
+	groups := allowedGroupsForParam(param)
+	var ids []int
+	var selGroups []string
+	for _, c := range tryList {
+		id := int(c.ChannelID)
+		if id <= 0 {
+			continue
+		}
+		g, ok := matchChannelGroup(id, param.ModelName, groups)
+		if !ok {
+			continue
+		}
+		ids = append(ids, id)
+		selGroups = append(selGroups, g)
+	}
+	if param.Ctx != nil {
+		common.SetContextKey(param.Ctx, constant.ContextKeyModelRouteChain, modelRouteChainPacked{IDs: ids, Groups: selGroups})
+	}
+	return ids, selGroups, nil
+}
+
+type modelRouteChainPacked struct {
+	IDs    []int
+	Groups []string
+}
+
+func allowedGroupsForParam(param *RetryParam) []string {
+	if param.TokenGroup == "auto" {
+		userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+		return GetUserAutoGroup(userGroup)
+	}
+	if param.TokenGroup == "" {
+		return nil
+	}
+	return []string{param.TokenGroup}
+}
+
+func matchChannelGroup(channelID int, modelName string, groups []string) (string, bool) {
+	if len(groups) == 0 {
+		// no group constraint (should be rare); allow
+		return "", true
+	}
+	for _, g := range groups {
+		if model.IsChannelEnabledForGroupModel(g, modelName, channelID) {
+			return g, true
+		}
+	}
+	return "", false
+}
+
+func usedChannelIDSet(c *gin.Context) map[int]bool {
+	out := make(map[int]bool)
+	if c == nil {
+		return out
+	}
+	for _, s := range c.GetStringSlice("use_channel") {
+		id, err := strconv.Atoi(s)
+		if err == nil {
+			out[id] = true
+		}
+	}
+	return out
+}
+
+func channelSupportsPath(channel *model.Channel, requestPath string) bool {
+	if channel == nil {
+		return false
+	}
+	if requestPath == "" || channel.Type != constant.ChannelTypeAdvancedCustom {
+		return true
+	}
+	cfg := channel.GetOtherSettings().AdvancedCustom
+	return cfg != nil && cfg.SupportsPath(requestPath)
+}
+
+// SelectModelPriorityChannel is an exported alias for tests.
+func SelectModelPriorityChannel(param *RetryParam) (*model.Channel, string, error) {
+	return cacheGetModelPriorityChannel(param)
+}
+
+// FormatModelRouteSelectDebug helps logs.
+func FormatModelRouteSelectDebug(channelID int, modelName string) string {
+	return fmt.Sprintf("channel=%d model=%s", channelID, modelName)
 }

@@ -71,6 +71,8 @@ const MODELS_SECTIONS = [
     build: (settings: ModelSettings) => (
       <RoutingReliabilitySection
         defaultValues={{
+          routing_priority_mode: settings.routing_priority_mode,
+          routing_behavior_mode: settings.routing_behavior_mode,
           RetryTimes: settings.RetryTimes,
           ChannelDisableThreshold: settings.ChannelDisableThreshold,
           AutomaticDisableChannelEnabled:

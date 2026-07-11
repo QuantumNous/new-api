@@ -66,8 +66,15 @@ const numericString = z.string().refine((value) => {
 const channelTestModes = ['scheduled_all', 'passive_recovery'] as const
 type ChannelTestMode = (typeof channelTestModes)[number]
 
+const routingPriorityModes = ['channel_priority', 'model_priority'] as const
+type RoutingPriorityMode = (typeof routingPriorityModes)[number]
+const routingBehaviorModes = ['experience_first', 'priority_first'] as const
+type RoutingBehaviorMode = (typeof routingBehaviorModes)[number]
+
 const routingReliabilitySchema = z
   .object({
+    routing_priority_mode: z.enum(routingPriorityModes),
+    routing_behavior_mode: z.enum(routingBehaviorModes),
     RetryTimes: z.coerce.number().min(0).max(10),
     ChannelDisableThreshold: numericString,
     AutomaticDisableChannelEnabled: z.boolean(),
@@ -117,6 +124,8 @@ type RoutingReliabilityFormInput = z.input<typeof routingReliabilitySchema>
 
 type RoutingReliabilitySectionProps = {
   defaultValues: {
+    routing_priority_mode: string
+    routing_behavior_mode: string
     RetryTimes: number
     ChannelDisableThreshold: string
     AutomaticDisableChannelEnabled: boolean
@@ -135,6 +144,8 @@ function normalizeLineEndings(value: string) {
 }
 
 type NormalizedRoutingReliabilityValues = {
+  routing_priority_mode: RoutingPriorityMode
+  routing_behavior_mode: RoutingBehaviorMode
   RetryTimes: number
   ChannelDisableThreshold: string
   AutomaticDisableChannelEnabled: boolean
@@ -151,9 +162,23 @@ function normalizeChannelTestMode(value?: string): ChannelTestMode {
   return value === 'passive_recovery' ? 'passive_recovery' : 'scheduled_all'
 }
 
+function normalizeRoutingPriorityMode(value?: string): RoutingPriorityMode {
+  return value === 'model_priority' ? 'model_priority' : 'channel_priority'
+}
+
+function normalizeRoutingBehaviorMode(value?: string): RoutingBehaviorMode {
+  return value === 'priority_first' ? 'priority_first' : 'experience_first'
+}
+
 const buildFormDefaults = (
   defaults: RoutingReliabilitySectionProps['defaultValues']
 ): RoutingReliabilityFormInput => ({
+  routing_priority_mode: normalizeRoutingPriorityMode(
+    defaults.routing_priority_mode
+  ),
+  routing_behavior_mode: normalizeRoutingBehaviorMode(
+    defaults.routing_behavior_mode
+  ),
   RetryTimes: defaults.RetryTimes ?? 0,
   ChannelDisableThreshold: defaults.ChannelDisableThreshold ?? '',
   AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
@@ -177,6 +202,12 @@ const buildFormDefaults = (
 const normalizeDefaults = (
   defaults: RoutingReliabilitySectionProps['defaultValues']
 ): NormalizedRoutingReliabilityValues => ({
+  routing_priority_mode: normalizeRoutingPriorityMode(
+    defaults.routing_priority_mode
+  ),
+  routing_behavior_mode: normalizeRoutingBehaviorMode(
+    defaults.routing_behavior_mode
+  ),
   RetryTimes: defaults.RetryTimes ?? 0,
   ChannelDisableThreshold: (defaults.ChannelDisableThreshold ?? '').trim(),
   AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
@@ -202,6 +233,8 @@ const normalizeDefaults = (
 const normalizeFormValues = (
   values: RoutingReliabilityFormValues
 ): NormalizedRoutingReliabilityValues => ({
+  routing_priority_mode: values.routing_priority_mode,
+  routing_behavior_mode: values.routing_behavior_mode,
   RetryTimes: values.RetryTimes,
   ChannelDisableThreshold: values.ChannelDisableThreshold.trim(),
   AutomaticDisableChannelEnabled: values.AutomaticDisableChannelEnabled,
@@ -289,6 +322,107 @@ export function RoutingReliabilitySection({
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
           />
+
+          <div className='flex min-w-0 flex-col gap-4'>
+            <div className='flex flex-col gap-1'>
+              <h4 className='text-sm font-medium'>{t('Model-level routing')}</h4>
+            </div>
+            <div className='grid min-w-0 gap-6 lg:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='routing_priority_mode'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Routing priority mode')}</FormLabel>
+                    <Select
+                      items={[
+                        {
+                          value: 'channel_priority',
+                          label: t('Channel priority (legacy)'),
+                        },
+                        {
+                          value: 'model_priority',
+                          label: t('Model priority'),
+                        },
+                      ]}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value='channel_priority'>
+                            {t('Channel priority (legacy)')}
+                          </SelectItem>
+                          <SelectItem value='model_priority'>
+                            {t('Model priority')}
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t(
+                        'Model priority uses channel_model_policy/metrics and CandidateChain; legacy keeps channels.priority/weight.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='routing_behavior_mode'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Routing behavior mode')}</FormLabel>
+                    <Select
+                      items={[
+                        {
+                          value: 'experience_first',
+                          label: t('Experience first'),
+                        },
+                        {
+                          value: 'priority_first',
+                          label: t('Priority first'),
+                        },
+                      ]}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value='experience_first'>
+                            {t('Experience first')}
+                          </SelectItem>
+                          <SelectItem value='priority_first'>
+                            {t('Priority first')}
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t(
+                        'Experience first favors EMA experience scores within the same priority band.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          <Separator />
 
           <div className='flex min-w-0 flex-col gap-4'>
             <div className='flex flex-col gap-1'>

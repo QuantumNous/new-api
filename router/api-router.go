@@ -227,6 +227,18 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
+		// Model-level routing admin APIs (PRD §4 / §18 / §34)
+		modelRoute := apiRouter.Group("/model_route")
+		modelRoute.Use(middleware.RootAuth())
+		{
+			modelRoute.POST("/migrate", controller.MigrateToModelPriority)
+			modelRoute.POST("/reset-runtime-learning", controller.ResetRuntimeLearning)
+			modelRoute.POST("/reset-all-learning", controller.ResetAllLearning)
+			modelRoute.GET("/policies", controller.ListModelRoutePolicies)
+			modelRoute.PUT("/policies/priority", controller.UpdateModelRoutePolicyPriority)
+			modelRoute.GET("/metrics", controller.ListModelRouteMetrics)
+			modelRoute.POST("/metrics/action", controller.ModelRouteMetricsAction)
+		}
 		registerChannelRoutes(apiRouter)
 		registerAuthzRoutes(apiRouter)
 		tokenRoute := apiRouter.Group("/token")
