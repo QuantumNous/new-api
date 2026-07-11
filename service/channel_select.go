@@ -103,6 +103,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		groups = GetUserAutoGroup(userGroup)
 	}
 
+	// 记录最后一个非 nil 错误，当所有分组都失败时返回
+	var lastErr error
 	if len(groups) > 0 {
 		startGroupIndex := 0
 		crossGroupRetry := common.GetContextKeyBool(param.Ctx, constant.ContextKeyTokenCrossGroupRetry)
@@ -125,7 +127,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", group, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(group, param.ModelName, priorityRetry, param.RequestPath)
+			channel, err = model.GetRandomSatisfiedChannel(group, param.ModelName, priorityRetry, param.RequestPath)
+			if err != nil {
+				lastErr = err
+			}
 			if channel == nil {
 				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", group, param.ModelName, priorityRetry)
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
@@ -152,6 +157,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
+	}
+	// 所有分组都未找到可用渠道，返回记录的错误
+	if channel == nil && lastErr != nil {
+		return nil, selectGroup, lastErr
 	}
 	return channel, selectGroup, nil
 }
