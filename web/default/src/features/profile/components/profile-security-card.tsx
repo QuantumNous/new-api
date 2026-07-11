@@ -20,6 +20,7 @@ import { Shield, Key, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import { useDialogs } from '@/hooks/use-dialog'
@@ -55,8 +56,8 @@ export function ProfileSecurityCard({
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
         <CardContent className='space-y-3 p-3 sm:p-5'>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className='h-16 w-full' />
+          {['password', 'token', 'delete'].map((key) => (
+            <Skeleton key={key} className='h-16 w-full' />
           ))}
         </CardContent>
       </Card>
@@ -95,6 +96,7 @@ export function ProfileSecurityCard({
         title={t('Security')}
         description={t('Manage your security settings and account access')}
         icon={<Shield className='h-4 w-4' />}
+        iconTone='success'
         disableHoverEffect
       >
         <div className='grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-3'>
@@ -107,15 +109,9 @@ export function ProfileSecurityCard({
                 item.variant === 'destructive' ? 'border-destructive/30' : ''
               }`}
             >
-              <div
-                className={`rounded-md p-2 ${
-                  item.variant === 'destructive'
-                    ? 'bg-destructive/10 text-destructive'
-                    : 'bg-muted'
-                }`}
-              >
-                <item.icon className='h-5 w-5' />
-              </div>
+              <IconBadge tone='neutral' size='sm'>
+                <item.icon />
+              </IconBadge>
               <div className='min-w-0 md:contents'>
                 <p className='text-sm font-medium'>{item.title}</p>
                 <p className='text-muted-foreground line-clamp-1 text-xs md:line-clamp-none'>

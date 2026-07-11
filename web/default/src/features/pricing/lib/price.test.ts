@@ -11,6 +11,10 @@ const tokenModel: PricingModel = {
   model_ratio: 1,
   completion_ratio: 3,
   enable_groups: ['default', 'vip'],
+  group_ratio: {
+    default: 1,
+    vip: 2,
+  },
 }
 
 const requestModel: PricingModel = {
@@ -19,37 +23,32 @@ const requestModel: PricingModel = {
   model_price: 10,
 }
 
-const groupRatio = {
-  default: 1,
-  vip: 2,
-}
-
 describe('pricing display prices', () => {
   test('uses the selected group ratio for token prices', () => {
     assert.equal(
-      formatPrice(tokenModel, 'input', 'M', false, 1, 1, 'vip', groupRatio),
+      formatPrice(tokenModel, 'input', 'M', false, 1, 1, 'vip'),
       '$4'
     )
     assert.equal(
-      formatPrice(tokenModel, 'output', 'M', false, 1, 1, 'vip', groupRatio),
+      formatPrice(tokenModel, 'output', 'M', false, 1, 1, 'vip'),
       '$12'
     )
   })
 
   test('uses the selected group ratio for request prices', () => {
     assert.equal(
-      formatRequestPrice(requestModel, false, 1, 1, 'vip', groupRatio),
+      formatRequestPrice(requestModel, false, 1, 1, 'vip'),
       '$20'
     )
   })
 
   test('falls back to the lowest enabled group price when no group is selected', () => {
     assert.equal(
-      formatPrice(tokenModel, 'input', 'M', false, 1, 1, undefined, groupRatio),
+      formatPrice(tokenModel, 'input', 'M', false, 1, 1),
       '$2'
     )
     assert.equal(
-      formatRequestPrice(requestModel, false, 1, 1, undefined, groupRatio),
+      formatRequestPrice(requestModel, false, 1, 1),
       '$10'
     )
   })

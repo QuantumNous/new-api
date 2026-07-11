@@ -35,7 +35,7 @@ export function getUserAvatarStyle(name: string): UserAvatarStyle {
   const lightness = 52 + ((hash >> 4) % 8)
 
   return {
-    backgroundColor: `hsl(${hue} ${saturation}% ${lightness}% / 0.82)`,
+    backgroundColor: `hsl(${hue} ${saturation}% ${lightness}%)`,
     color: 'white',
   }
 }

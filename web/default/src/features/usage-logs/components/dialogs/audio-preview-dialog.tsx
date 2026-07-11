@@ -24,6 +24,7 @@ import { toast } from 'sonner'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 export interface AudioClip {
@@ -153,7 +154,9 @@ export function AudioPreviewDialog(props: AudioPreviewDialogProps) {
       onOpenChange={props.onOpenChange}
       title={
         <>
-          <Music className='h-5 w-5' />
+          <IconBadge tone='chart-4' size='sm'>
+            <Music />
+          </IconBadge>
           {t('Audio Preview')}
         </>
       }

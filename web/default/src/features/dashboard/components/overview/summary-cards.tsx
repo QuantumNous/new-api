@@ -211,6 +211,20 @@ export function SummaryCards() {
   const runwayDays = getRunwayDays(remainQuota, recentUsage)
 
   const todayUsageDisplay = formatQuota(recentUsage)
+  let runwayDisplay: string
+  if (runwayDays !== null) {
+    if (runwayDays < 1) {
+      runwayDisplay = t('Less than 1 day left')
+    } else if (runwayDays > 999) {
+      runwayDisplay = `999+ ${t('days')}`
+    } else {
+      runwayDisplay = `~${formatNumber(Math.floor(runwayDays))} ${t('days')}`
+    }
+  } else if (remainQuota <= 0) {
+    runwayDisplay = t('Balance depleted')
+  } else {
+    runwayDisplay = t('No recent usage')
+  }
 
   const items = useSummaryCardsConfig({
     ...summaryValues,
@@ -218,7 +232,7 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['rose', 'teal', 'gray'] as const
+    const tones = ['accent-1', 'accent-2', 'accent-3'] as const
 
     return {
       key: config.key,
@@ -226,7 +240,7 @@ export function SummaryCards() {
       value: config.value,
       desc: config.description,
       icon: config.icon,
-      tone: tones[index] ?? 'gray',
+      tone: tones[index] ?? 'accent-3',
       sparkline:
         config.key === 'todayUsage'
           ? sparklineData.usage
@@ -238,22 +252,22 @@ export function SummaryCards() {
   return (
     <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
       <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
-        <div className='flex flex-col gap-3 p-4 sm:p-5'>
+        <div className='flex flex-col gap-2.5 p-3 sm:gap-3 sm:p-5'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div className='flex flex-col gap-1'>
-              <h3 className='text-base font-semibold'>
+              <h3 className='text-sm font-semibold sm:text-base'>
                 {t('Usage at a glance')}
               </h3>
-              <p className='text-muted-foreground text-sm'>
+              <p className='text-muted-foreground text-xs sm:text-sm'>
                 {t('Monitor balance, usage, and request volume')}
               </p>
             </div>
           </div>
-          <StaggerContainer className='grid gap-3 md:grid-cols-3'>
+          <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
             {items.map((it) => (
               <StaggerItem
                 key={it.key}
-                className='bg-background/60 rounded-xl border p-3'
+                className='bg-background/60 rounded-lg border px-2 py-1.5 sm:rounded-xl sm:p-3'
               >
                 <StatCard
                   title={it.title}
@@ -264,14 +278,15 @@ export function SummaryCards() {
                   sparkline={it.sparkline}
                   sparklineVariant={it.sparklineVariant}
                   loading={loading}
+                  compactMobile
                 />
               </StaggerItem>
             ))}
           </StaggerContainer>
         </div>
 
-        <div className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
-          <div className='flex flex-col gap-3'>
+        <div className='flex flex-col justify-between gap-3 border-t bg-[linear-gradient(135deg,color-mix(in_oklch,var(--overview-accent-2)_12%,var(--background))_0%,color-mix(in_oklch,oklch(0.82_0.04_155)_8%,var(--background))_48%,color-mix(in_oklch,var(--overview-accent-1)_7%,var(--background))_100%)] p-3 sm:gap-4 sm:p-5 xl:border-t-0 xl:border-l'>
+          <div className='flex flex-col gap-2 sm:gap-3'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-xs font-medium'>
                 {t('Credit remaining')}
@@ -287,7 +302,7 @@ export function SummaryCards() {
               </span>
             </div>
 
-            <div className='font-mono text-2xl font-semibold tracking-tight'>
+            <div className='font-mono text-xl font-semibold tracking-tight sm:text-2xl'>
               {formatQuota(remainQuota)}
             </div>
 
@@ -323,15 +338,7 @@ export function SummaryCards() {
                     healthLevel === 'caution' && 'text-warning'
                   )}
                 >
-                  {runwayDays !== null
-                    ? runwayDays < 1
-                      ? t('Less than 1 day left')
-                      : runwayDays > 999
-                        ? `999+ ${t('days')}`
-                        : `~${formatNumber(Math.floor(runwayDays))} ${t('days')}`
-                    : remainQuota <= 0
-                      ? t('Balance depleted')
-                      : t('No recent usage')}
+                  {runwayDisplay}
                 </div>
               </div>
             </div>

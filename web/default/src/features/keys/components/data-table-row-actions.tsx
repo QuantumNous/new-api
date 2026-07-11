@@ -50,6 +50,7 @@ import {
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
+import { encodeChannelConnectionInfo } from '@/lib/channel-connection-info'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
 import { updateApiKeyStatus } from '../api'
@@ -68,14 +69,6 @@ function getServerAddress(): string {
     /* empty */
   }
   return window.location.origin
-}
-
-function encodeConnectionString(key: string, url: string): string {
-  return JSON.stringify({
-    _type: 'newapi_channel_conn',
-    key,
-    url,
-  })
 }
 
 type DataTableRowActionsProps<TData> = {
@@ -262,7 +255,10 @@ export function DataTableRowActions<TData>({
           onClick={async () => {
             const realKey = getCachedRealKey()
             if (!realKey) return
-            const connStr = encodeConnectionString(realKey, getServerAddress())
+            const connStr = encodeChannelConnectionInfo(
+              realKey,
+              getServerAddress()
+            )
             const ok = await copyToClipboard(connStr)
             if (ok) toast.success(t('Copied'))
           }}
