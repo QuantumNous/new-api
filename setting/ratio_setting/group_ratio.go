@@ -27,10 +27,18 @@ var groupGroupRatioMap = types.NewRWMap[string, map[string]float64]()
 
 var defaultGroupSpecialUsableGroup = map[string]map[string]string{}
 
+// defaultModelGroupRatio 模型×分组交叉倍率
+// 格式: modelName -> groupName -> ratio
+// 当模型在特定分组中有自定义倍率时，覆盖全局 group_ratio
+var defaultModelGroupRatio = map[string]map[string]float64{}
+
+var modelGroupRatioMap = types.NewRWMap[string, map[string]float64]()
+
 type GroupRatioSetting struct {
 	GroupRatio              *types.RWMap[string, float64]            `json:"group_ratio"`
 	GroupGroupRatio         *types.RWMap[string, map[string]float64] `json:"group_group_ratio"`
 	GroupSpecialUsableGroup *types.RWMap[string, map[string]string]  `json:"group_special_usable_group"`
+	ModelGroupRatio         *types.RWMap[string, map[string]float64] `json:"model_group_ratio"`
 }
 
 var groupRatioSetting GroupRatioSetting
@@ -41,11 +49,13 @@ func init() {
 
 	groupRatioMap.AddAll(defaultGroupRatio)
 	groupGroupRatioMap.AddAll(defaultGroupGroupRatio)
+	modelGroupRatioMap.AddAll(defaultModelGroupRatio)
 
 	groupRatioSetting = GroupRatioSetting{
 		GroupSpecialUsableGroup: groupSpecialUsableGroup,
 		GroupRatio:              groupRatioMap,
 		GroupGroupRatio:         groupGroupRatioMap,
+		ModelGroupRatio:         modelGroupRatioMap,
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -117,4 +127,30 @@ func CheckGroupRatio(jsonStr string) error {
 		}
 	}
 	return nil
+}
+
+// GetModelGroupRatio 获取模型在指定分组中的倍率
+// 如果模型在该分组有自定义倍率则返回，否则返回传入的 fallbackGroupRatio
+func GetModelGroupRatio(modelName, group string, fallbackGroupRatio float64) float64 {
+	modelRatios, ok := modelGroupRatioMap.Get(modelName)
+	if !ok {
+		return fallbackGroupRatio
+	}
+	ratio, ok := modelRatios[group]
+	if !ok {
+		return fallbackGroupRatio
+	}
+	return ratio
+}
+
+func GetModelGroupRatioCopy() map[string]map[string]float64 {
+	return modelGroupRatioMap.ReadAll()
+}
+
+func ModelGroupRatio2JSONString() string {
+	return modelGroupRatioMap.MarshalJSONString()
+}
+
+func UpdateModelGroupRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonString(modelGroupRatioMap, jsonStr)
 }
