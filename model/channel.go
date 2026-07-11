@@ -436,6 +436,13 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 
 	order := resolveChannelSortOptions(idSort, sortOptions)
 
+	// name / base_url 的模糊匹配运算符：PostgreSQL 的 LIKE 大小写敏感，用 ILIKE
+	// 保证按渠道名搜索不区分大小写（与 MySQL LIKE 默认不敏感的行为一致）。
+	likeOp := "LIKE"
+	if common.UsingPostgreSQL {
+		likeOp = "ILIKE"
+	}
+
 	// 构造基础查询
 	baseQuery := DB.Model(&Channel{}).Omit("key")
 
@@ -450,10 +457,10 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 			// sqlite, PostgreSQL
 			groupCondition = `(',' || ` + commonGroupCol + ` || ',') LIKE ?`
 		}
-		whereClause = "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + ` LIKE ? AND ` + groupCondition
+		whereClause = "(id = ? OR name " + likeOp + " ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " " + likeOp + " ?) AND " + modelsCol + ` LIKE ? AND ` + groupCondition
 		args = append(args, common.String2Int(keyword), "%"+keyword+"%", keyword, "%"+keyword+"%", "%"+model+"%", "%,"+group+",%")
 	} else {
-		whereClause = "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"
+		whereClause = "(id = ? OR name " + likeOp + " ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " " + likeOp + " ?) AND " + modelsCol + " LIKE ?"
 		args = append(args, common.String2Int(keyword), "%"+keyword+"%", keyword, "%"+keyword+"%", "%"+model+"%")
 	}
 
