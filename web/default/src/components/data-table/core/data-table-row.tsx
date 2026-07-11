@@ -59,8 +59,10 @@ function DataTableRowInner<TData>({
               'max-w-full min-w-0',
               contentMode === 'full' &&
                 'max-w-none overflow-visible [&_.truncate]:overflow-visible [&_.truncate]:text-clip',
+              // Keep `.truncate` children single-line (ellipsis + tooltip)
+              // even in wrap mode, so table rows stay at most ~2 lines tall.
               contentMode === 'wrap' &&
-                'whitespace-normal break-words [overflow-wrap:anywhere] [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
+                'whitespace-normal break-words [overflow-wrap:anywhere]',
               contentMode === 'summary' &&
                 'whitespace-normal break-words [overflow-wrap:anywhere]',
               getColumnClassName?.(cell.column.id, 'cell')

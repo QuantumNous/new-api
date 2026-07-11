@@ -61,9 +61,14 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
           const plan = row.original.plan
           return (
             <div className='max-w-full min-w-0'>
-              <div className='font-medium'>{plan.title}</div>
+              <div className='truncate font-medium' title={plan.title}>
+                {plan.title}
+              </div>
               {plan.subtitle && (
-                <div className='text-muted-foreground text-xs'>
+                <div
+                  className='text-muted-foreground truncate text-xs'
+                  title={plan.subtitle}
+                >
                   {plan.subtitle}
                 </div>
               )}

@@ -585,7 +585,9 @@ export function useChannelsColumns(
         meta: {
           cardRole: 'title',
           cardSpan: 2,
-          contentMode: 'wrap',
+          // 'summary' keeps the name on a single truncated line (full name in
+          // tooltip), matching the Groups column instead of wrapping rows tall.
+          contentMode: 'summary',
         },
         cell: ({ row }) => {
           const isTagRow = isTagAggregateRow(row.original)
@@ -671,7 +673,7 @@ export function useChannelsColumns(
                     <Tooltip>
                       <TooltipTrigger
                         render={
-                          <span className='text-muted-foreground text-xs' />
+                          <span className='text-muted-foreground max-w-full truncate text-xs' />
                         }
                       >
                         {truncateText(channel.remark, 40)}

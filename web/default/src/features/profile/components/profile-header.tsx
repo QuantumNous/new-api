@@ -22,7 +22,7 @@ import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import { getUserAvatarFallback, getUserAvatarProps } from '@/lib/avatar'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
 
@@ -68,7 +68,7 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   const displayName = getDisplayName(profile)
   const avatarName = profile.username || displayName
   const avatarFallback = getUserAvatarFallback(avatarName)
-  const avatarFallbackStyle = getUserAvatarStyle(avatarName)
+  const avatarProps = getUserAvatarProps(avatarName)
   const roleLabel = getRoleLabel(profile.role)
   const stats = [
     {
@@ -91,8 +91,8 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
         <div className='flex items-center gap-3 sm:gap-4'>
           <Avatar className='size-12 rounded-xl text-base sm:size-14 sm:text-lg'>
             <AvatarFallback
-              className='rounded-xl font-semibold text-white'
-              style={avatarFallbackStyle}
+              className={`rounded-xl font-semibold ${avatarProps.className}`}
+              style={avatarProps.style}
             >
               {avatarFallback}
             </AvatarFallback>

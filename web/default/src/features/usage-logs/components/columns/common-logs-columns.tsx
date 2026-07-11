@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useGroupRatios } from '@/hooks/use-group-ratios'
-import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import { getUserAvatarFallback, getUserAvatarProps } from '@/lib/avatar'
 import { getIdentityTextColorClass } from '@/lib/colors'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import {
@@ -505,6 +505,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
           if (!log.username) return null
 
+          const avatarProps = sensitiveVisible
+            ? getUserAvatarProps(log.username)
+            : undefined
+
           return (
             <button
               type='button'
@@ -515,17 +519,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 setUserInfoDialogOpen(true)
               }}
             >
-              <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
+              <Avatar className='size-6 max-sm:hidden'>
                 <AvatarFallback
                   className={cn(
                     'text-xs font-semibold',
-                    !sensitiveVisible && 'bg-muted text-muted-foreground'
+                    avatarProps?.className
                   )}
-                  style={
-                    sensitiveVisible
-                      ? getUserAvatarStyle(log.username)
-                      : undefined
-                  }
+                  style={avatarProps?.style}
                 >
                   {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
                 </AvatarFallback>
@@ -609,7 +609,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </Tooltip>
           </TooltipProvider>
           {metaParts.length > 0 && (
-            <span className='text-subtle-foreground text-xs [overflow-wrap:anywhere] break-words'>
+            <span
+              className='text-subtle-foreground max-w-[150px] truncate text-xs'
+              title={sensitiveVisible ? metaParts.join(' · ') : undefined}
+            >
               {metaParts.join(' · ')}
             </span>
           )}
@@ -621,7 +624,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       cardRole: 'primary',
       cardOrder: 40,
       cardSpan: 2,
-      contentMode: 'full',
+      // 'summary' (not 'full') so the group/ratio meta line can truncate
+      // instead of overflowing or wrapping to extra rows.
+      contentMode: 'summary',
     },
   })
   columns.push(

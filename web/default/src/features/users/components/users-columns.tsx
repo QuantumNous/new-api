@@ -31,6 +31,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatQuotaWithCurrency } from '@/lib/currency'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -43,6 +45,12 @@ import {
 import type { User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
+/**
+ * Inline quota values longer than this switch to locale-aware compact
+ * notation (e.g. "¥4.8万"); precise values stay available in the tooltip.
+ */
+const MAX_INLINE_QUOTA_CHARS = 8
+
 function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 10) {
     return '[&_[data-slot=progress-indicator]]:bg-destructive'
@@ -54,7 +62,8 @@ function getQuotaProgressColor(percentage: number): string {
 }
 
 export function useUsersColumns(): ColumnDef<User>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   return [
     {
       id: 'select',
@@ -108,13 +117,23 @@ export function useUsersColumns(): ColumnDef<User>[] {
 
         return (
           <div className='flex min-w-0 flex-col gap-1 sm:min-w-[160px]'>
-            <div className='flex flex-wrap items-center gap-2'>
-              <LongText className='max-w-full font-medium sm:max-w-[140px]'>
+            <div className='flex min-w-0 items-center gap-2'>
+              <LongText className='max-w-full shrink-0 font-medium sm:max-w-[140px]'>
                 {username}
               </LongText>
               {remark && (
                 <Tooltip>
-                  <TooltipTrigger render={<StatusBadge variant='success' />}>
+                  <TooltipTrigger
+                    render={
+                      <StatusBadge
+                        variant='success'
+                        // Keep the remark on the username line: allow the badge
+                        // to shrink and ellipsize instead of wrapping to a new
+                        // row (full text stays in the tooltip).
+                        className='min-w-0 shrink overflow-hidden [&_[data-slot=status-badge-label]]:max-w-full [&_[data-slot=status-badge-label]]:min-w-0 [&_[data-slot=status-badge-label]]:shrink [&_[data-slot=status-badge-label]]:overflow-hidden [&_[data-slot=status-badge-label]]:text-ellipsis'
+                      />
+                    }
+                  >
                     {remark}
                   </TooltipTrigger>
                   <TooltipContent>
@@ -191,6 +210,14 @@ export function useUsersColumns(): ColumnDef<User>[] {
           return <StatusBadge variant='neutral'>{t('No Quota')}</StatusBadge>
         }
 
+        const toInlineQuota = (value: number) => {
+          const full = formatQuota(value)
+          if (full.length <= MAX_INLINE_QUOTA_CHARS) {
+            return full
+          }
+          return formatQuotaWithCurrency(value, { compact: true, locale })
+        }
+
         return (
           <Tooltip>
             <TooltipTrigger
@@ -198,12 +225,12 @@ export function useUsersColumns(): ColumnDef<User>[] {
                 <div className='w-full cursor-help space-y-1 sm:w-[150px]' />
               }
             >
-              <div className='flex justify-between text-xs'>
-                <span className='font-medium tabular-nums'>
-                  {formatQuota(remaining)}
+              <div className='flex justify-between gap-2 text-xs'>
+                <span className='truncate font-medium tabular-nums'>
+                  {toInlineQuota(remaining)}
                 </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatQuota(total)}
+                <span className='text-muted-foreground truncate tabular-nums'>
+                  {toInlineQuota(total)}
                 </span>
               </div>
               <Progress

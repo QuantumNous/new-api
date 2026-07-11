@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 
 import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import { getUserAvatarFallback, getUserAvatarProps } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -85,6 +85,9 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           useUsageLogsContext()
         const log = row.original
         const displayName = log.username || String(log.user_id || '?')
+        const avatarProps = sensitiveVisible
+          ? getUserAvatarProps(displayName)
+          : undefined
 
         return (
           <button
@@ -96,20 +99,18 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               setUserInfoDialogOpen(true)
             }}
           >
-            <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
+            <Avatar className='size-6 max-sm:hidden'>
               <AvatarFallback
-                className={cn(
-                  'text-xs font-semibold',
-                  !sensitiveVisible && 'bg-muted text-muted-foreground'
-                )}
-                style={
-                  sensitiveVisible ? getUserAvatarStyle(displayName) : undefined
-                }
+                className={cn('text-xs font-semibold', avatarProps?.className)}
+                style={avatarProps?.style}
               >
                 {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
               </AvatarFallback>
             </Avatar>
-            <span className='text-muted-foreground text-sm [overflow-wrap:anywhere] break-words hover:underline'>
+            <span
+              className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline'
+              title={sensitiveVisible ? displayName : undefined}
+            >
               {sensitiveVisible ? displayName : '••••'}
             </span>
           </button>
@@ -143,7 +144,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             >
               {taskId}
             </CopyableStatusBadge>
-            <span className='text-subtle-foreground text-xs [overflow-wrap:anywhere] break-words'>
+            <span className='text-subtle-foreground max-w-[200px] truncate text-xs'>
               {getTaskPlatformName(log.platform)} ·{' '}
               {t(taskActionMapper.getLabel(log.action))}
             </span>

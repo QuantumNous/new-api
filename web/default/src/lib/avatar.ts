@@ -18,40 +18,31 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { CSSProperties } from 'react'
 
-export type UserAvatarStyle = Pick<CSSProperties, 'backgroundImage' | 'color'>
+import { getIdentityTextColorClass } from '@/lib/colors'
 
-/*
- * Curated duotone gradients (avatar.vercel.sh style). A raw hash-to-hue
- * mapping lands on murky olive/mustard tones for many names; a hand-picked
- * palette keeps every user identity vivid and readable (white initial) in
- * both light and dark themes.
- */
-const AVATAR_GRADIENTS: ReadonlyArray<readonly [string, string]> = [
-  ['#4f46e5', '#7c3aed'], // indigo -> violet
-  ['#2563eb', '#0891b2'], // blue -> cyan
-  ['#7c3aed', '#db2777'], // violet -> pink
-  ['#e11d48', '#ea580c'], // rose -> orange
-  ['#059669', '#0d9488'], // emerald -> teal
-  ['#0284c7', '#4f46e5'], // sky -> indigo
-  ['#db2777', '#e11d48'], // pink -> rose
-  ['#0d9488', '#0284c7'], // teal -> sky
-]
-
-function hashString(value: string): number {
-  let hash = 0
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0
-  }
-  return hash
+export interface UserAvatarProps {
+  className: string
+  style: CSSProperties
 }
 
-export function getUserAvatarStyle(name: string): UserAvatarStyle {
-  const [from, to] =
-    AVATAR_GRADIENTS[hashString(name) % AVATAR_GRADIENTS.length]
-
+/**
+ * Soft identity tint (Linear/Notion style): a low-opacity wash of the user's
+ * stable identity hue, the initial in the full-strength hue, and a faint
+ * matching inner ring. The class sets the identity text color and the inline
+ * style derives background/ring from `currentColor` with the same mix ratios
+ * as identity badges, so avatars match group/model badges and adapt to
+ * light/dark themes automatically. Inline styles also win over the fallback's
+ * default `bg-muted` deterministically.
+ */
+export function getUserAvatarProps(name: string): UserAvatarProps {
   return {
-    backgroundImage: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`,
-    color: 'white',
+    className: getIdentityTextColorClass(name),
+    style: {
+      backgroundColor:
+        'color-mix(in oklch, currentColor var(--identity-surface-mix), transparent)',
+      boxShadow:
+        'inset 0 0 0 1px color-mix(in oklch, currentColor var(--identity-border-mix), transparent)',
+    },
   }
 }
 

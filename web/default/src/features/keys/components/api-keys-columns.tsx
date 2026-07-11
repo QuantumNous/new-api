@@ -30,6 +30,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useGroupRatios } from '@/hooks/use-group-ratios'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatQuotaWithCurrency } from '@/lib/currency'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -42,6 +44,12 @@ import {
 } from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
 
+/**
+ * Inline quota values longer than this switch to locale-aware compact
+ * notation (e.g. "¥4.8万"); precise values stay available in the tooltip.
+ */
+const MAX_INLINE_QUOTA_CHARS = 8
+
 function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 10) {
     return '[&_[data-slot=progress-indicator]]:bg-destructive'
@@ -51,8 +59,9 @@ function getQuotaProgressColor(percentage: number): string {
 }
 
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const groupRatios = useGroupRatios()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   return [
     {
       id: 'select',
@@ -81,9 +90,14 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'name',
       header: t('Name'),
-      cell: ({ row }) => (
-        <span className='font-medium'>{row.getValue('name')}</span>
-      ),
+      cell: ({ row }) => {
+        const name = row.getValue('name') as string
+        return (
+          <span className='block max-w-full truncate font-medium' title={name}>
+            {name}
+          </span>
+        )
+      },
       size: 180,
       meta: {
         cardRole: 'title',
@@ -140,15 +154,23 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const total = used + remaining
         const percentage = total > 0 ? (remaining / total) * 100 : 0
 
+        const toInlineQuota = (value: number) => {
+          const full = formatQuota(value)
+          if (full.length <= MAX_INLINE_QUOTA_CHARS) {
+            return full
+          }
+          return formatQuotaWithCurrency(value, { compact: true, locale })
+        }
+
         return (
           <Tooltip>
             <TooltipTrigger render={<div className='w-[150px] space-y-1' />}>
-              <div className='flex justify-between text-xs'>
-                <span className='font-medium tabular-nums'>
-                  {formatQuota(remaining)}
+              <div className='flex justify-between gap-2 text-xs'>
+                <span className='truncate font-medium tabular-nums'>
+                  {toInlineQuota(remaining)}
                 </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatQuota(total)}
+                <span className='text-muted-foreground truncate tabular-nums'>
+                  {toInlineQuota(total)}
                 </span>
               </div>
               <Progress

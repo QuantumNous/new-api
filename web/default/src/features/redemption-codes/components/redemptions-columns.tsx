@@ -85,9 +85,14 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         cardSpan: 2,
         contentMode: 'wrap',
       },
-      cell: ({ row }) => (
-        <span className='font-medium'>{row.getValue('name')}</span>
-      ),
+      cell: ({ row }) => {
+        const name = row.getValue('name') as string
+        return (
+          <span className='block max-w-full truncate font-medium' title={name}>
+            {name}
+          </span>
+        )
+      },
       size: 180,
     },
     {
