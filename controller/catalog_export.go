@@ -116,6 +116,29 @@ type catalogExportModel struct {
 	NameRule     int    `json:"name_rule"`
 }
 
+// exportedOptionKeys 是随 catalog-export 一并导出、供下游（Roma）镜像的 option 白名单。
+// 这些是「渠道数据页上跟随 apimaster 的只读开关」，下游据此镜像本地 options，保持 UI 一致。
+// 只导出白名单键，不导出任意 option。
+var exportedOptionKeys = []string{
+	commonAutoReenableOptionKey, // 封禁恢复开关（"model_data_common_auto_reenable_enabled"）
+}
+
+// exportCatalogOptions 按白名单从 OptionMap 取要导出的 option（键缺失按 "false" 兜底，
+// 保证下游拿到确定值而非空串）。
+func exportCatalogOptions() map[string]string {
+	out := make(map[string]string, len(exportedOptionKeys))
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	for _, k := range exportedOptionKeys {
+		if v, ok := common.OptionMap[k]; ok {
+			out[k] = v
+		} else {
+			out[k] = "false" // 键缺失（从未设置）时按关闭导出，避免下游拿到空串
+		}
+	}
+	return out
+}
+
 func CatalogExport(c *gin.Context) {
 	secret := strings.TrimSpace(common.GetEnvOrDefaultString("CATALOG_EXPORT_SECRET", ""))
 	if secret == "" {
@@ -233,6 +256,10 @@ func CatalogExport(c *gin.Context) {
 		"channels":     exportChannels,
 		"vendors":      exportVendors,
 		"models":       exportModels,
+		// options：随 catalog-export 一并下发的 option 白名单（如封禁恢复开关），
+		// 供下游 Roma 镜像本地 options，保持渠道数据页只读开关与 apimaster 一致。
+		// 纯增量、与 with_channel_data 无关，缺省也导出。
+		"options": exportCatalogOptions(),
 	}
 	// 渠道数据页模型 tab 策展清单（标签/配色/顺序）：与本站前端同源（model-tabs.json），
 	// 下游 Roma 据此渲染 tab，apimaster 加新模型 tab 后下游自动跟进、无需改代码。
