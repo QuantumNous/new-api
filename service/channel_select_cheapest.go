@@ -258,7 +258,7 @@ func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bo
 				Setting:      row.Setting,
 				RechargeRate: floatPointerOrDefault(row.RechargeRate, 1),
 				// per-model override > channel default > 1.0
-				ApimasterPriceRatio: EffectiveModelPriceRatio(row.ModelPriceRatios, row.ApimasterPriceRatio, modelName),
+				ApimasterPriceRatio: EffectiveModelPriceRatio(row.ModelPriceRatios, modelName),
 				Priority:            int64PointerOrDefault(row.Priority, 0),
 			}
 		}
