@@ -2299,3 +2299,133 @@ For commercial licensing, please contact support@quantumnous.com
     margin-top: 28px;
   }
 }
+
+/*
+ * Auth entrance (sign-in / sign-up / forgot-password / OTP / reset / oauth-callback).
+ * Mirrors the home design system so the login flow reads as a continuation of the
+ * marketing page: same brand blue, navy ink, cyan gradient wash, fine grid texture,
+ * soft elevation, and weight-800 type. The app is light-only, so these styles are
+ * tuned for a single light surface. Tokens are namespaced under `--auth-*` and
+ * mirror the `--home-*` values so the two surfaces stay pixel-aligned.
+ */
+.auth-page,
+.auth-card {
+  --auth-ink: #172033;
+  --auth-ink-soft: #4b5f7b;
+  --auth-blue: #1769e0;
+  --auth-blue-strong: #0c54bd;
+  --auth-blue-soft: #eaf3ff;
+  --auth-cyan: #20b9d6;
+  --auth-line: #dce6f2;
+  --auth-shadow: 0 18px 45px rgb(23 32 51 / 0.1);
+  --auth-shadow-soft: 0 8px 22px rgb(23 32 51 / 0.08);
+}
+
+.auth-page {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 24px 16px;
+  background:
+    linear-gradient(
+      115deg,
+      rgb(23 105 224 / 0.1) 0%,
+      rgb(255 255 255 / 0) 32%
+    ),
+    linear-gradient(
+      155deg,
+      rgb(32 185 214 / 0.12) 10%,
+      rgb(255 255 255 / 0) 42%
+    ),
+    linear-gradient(180deg, #fbfdff 0%, #f4f9ff 100%);
+}
+
+/* Fine brand grid — same recipe as .home-hero::before, masked to fade at the edges. */
+.auth-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgb(23 105 224 / 0.06) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(23 105 224 / 0.05) 1px, transparent 1px);
+  background-size: 56px 56px, 56px 56px;
+  mask-image: radial-gradient(
+    ellipse at center,
+    rgb(0 0 0 / 0.7),
+    transparent 75%
+  );
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: 440px;
+  flex-direction: column;
+  padding: 32px 28px;
+  background: var(--card);
+  border: 1px solid var(--auth-line);
+  border-radius: 16px;
+  box-shadow: var(--auth-shadow);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 24px;
+  color: var(--auth-ink);
+  transition: opacity 180ms ease;
+}
+
+.auth-brand:hover {
+  opacity: 0.85;
+}
+
+.auth-brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 6px 14px rgb(23 105 224 / 0.18);
+}
+
+.auth-brand-name {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--auth-ink);
+}
+
+/* Page headings rendered by each auth child are aligned to the home type ramp. */
+.auth-card h2 {
+  color: var(--auth-ink);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Each auth form exposes exactly one type=submit primary action → home blue + glow. */
+.auth-card button[type='submit'] {
+  background: var(--auth-blue);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgb(23 105 224 / 0.22);
+}
+
+.auth-card button[type='submit']:hover {
+  background: var(--auth-blue-strong);
+  color: #ffffff;
+}
+
+@media (min-width: 640px) {
+  .auth-card {
+    padding: 40px 36px;
+  }
+}

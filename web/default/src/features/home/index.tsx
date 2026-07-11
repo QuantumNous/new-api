@@ -138,7 +138,6 @@ export function Home() {
   return (
     <PublicLayout
       showMainContainer={false}
-      showThemeSwitch={false}
       headerProps={{
         variant: 'reference',
         logo: (
