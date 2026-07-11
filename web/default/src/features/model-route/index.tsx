@@ -168,7 +168,7 @@ export function ModelRouteAdmin() {
   )
 
   return (
-    <SectionPageLayout fixedContent>
+    <SectionPageLayout>
       <SectionPageLayout.Title>{t('Model Route')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <div className='flex flex-wrap items-center gap-2'>
