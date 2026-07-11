@@ -185,7 +185,9 @@ export function DataTableFilterPanel<TData>(
           )}
         >
           {!mobilePanelCollapsed && (
-            <div className='grid min-w-0 gap-2'>{props.mobilePinnedFilters}</div>
+            <div className='grid min-w-0 gap-2'>
+              {props.mobilePinnedFilters}
+            </div>
           )}
 
           <div
