@@ -60,6 +60,7 @@ import {
 import {
   buildModelSnapshots,
   getSnapshotSignature,
+  isBasePricingUnset,
   type ModelRow,
 } from './model-pricing-snapshots'
 import { buildModelRatioColumns } from './model-ratio-table-columns'
@@ -85,6 +86,8 @@ type ModelRatioVisualEditorProps = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  candidateModelNames?: string[]
+  filterMode?: 'all' | 'unset'
   onChange: (field: string, value: string) => void
   onSave: () => void | Promise<void>
   isSaving: boolean
@@ -121,6 +124,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    candidateModelNames,
+    filterMode = 'all',
     onChange,
     onSave,
     isSaving,
@@ -208,18 +213,23 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
     const draftByName = new Map(draftRows.map((row) => [row.name, row]))
-    const modelNames = new Set([...savedByName.keys(), ...draftByName.keys()])
+    const modelNames = new Set([
+      ...(candidateModelNames ?? []),
+      ...savedByName.keys(),
+      ...draftByName.keys(),
+    ])
 
     return Array.from(modelNames)
       .map((name) => {
         const saved = savedByName.get(name)
         const draft = draftByName.get(name)
-        const displayed = saved ?? draft
+        const displayed = saved ??
+          draft ?? { name, billingMode: 'per-token', hasConflict: false }
         const savedSignature = getSnapshotSignature(saved)
         const draftSignature = getSnapshotSignature(draft)
 
         return {
-          ...displayed!,
+          ...displayed,
           saved,
           draft,
           isDraftChanged: savedSignature !== draftSignature,
@@ -228,8 +238,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
         }
       })
       .filter((row) => !row.isDraftDeleted)
+      .filter((row) => filterMode !== 'unset' || isBasePricingUnset(row.saved))
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [
+    candidateModelNames,
+    filterMode,
     savedModelPrice,
     savedModelRatio,
     savedCacheRatio,
@@ -423,14 +436,25 @@ const ModelRatioVisualEditorComponent = forwardRef<
       buildModelRatioColumns({
         onDelete: handleDelete,
         onEdit: handleEdit,
+        deleteDisabled: filterMode === 'unset',
         t,
       }),
-    [handleEdit, handleDelete, t]
+    [handleEdit, handleDelete, filterMode, t]
   )
+
+  const ensurePageInRange = useCallback((pageCount: number) => {
+    setPagination((prev) =>
+      pageCount > 0 && prev.pageIndex >= pageCount
+        ? { ...prev, pageIndex: pageCount - 1 }
+        : prev
+    )
+  }, [])
 
   const { table } = useDataTable({
     data: models,
     columns,
+    getRowId: (row) => row.name,
+    ensurePageInRange,
     sorting,
     columnFilters,
     globalFilter,
@@ -585,10 +609,18 @@ const ModelRatioVisualEditorComponent = forwardRef<
     ]
   )
 
-  const handleBatchCopy = useCallback(() => {
+  const handleBatchCopy = useCallback(async () => {
     if (!editData) {
       toast.error(t('Open a source model first'))
       return
+    }
+
+    let sourceData = editData
+    if (editorOpen && editorPanelRef.current) {
+      const committed = await editorPanelRef.current.commitDraft()
+      if (!committed) return
+      sourceData = committed
+      setEditData(committed)
     }
 
     const targetNames = table
@@ -600,15 +632,15 @@ const ModelRatioVisualEditorComponent = forwardRef<
       return
     }
 
-    persistPricingData(editData, targetNames)
+    persistPricingData(sourceData, targetNames)
     table.resetRowSelection()
     toast.success(
       t('Applied {{name}} pricing to {{count}} models', {
-        name: editData.name,
+        name: sourceData.name,
         count: targetNames.length,
       })
     )
-  }, [editData, persistPricingData, t, table])
+  }, [editData, editorOpen, persistPricingData, t, table])
 
   useImperativeHandle(
     ref,
@@ -626,6 +658,13 @@ const ModelRatioVisualEditorComponent = forwardRef<
   )
 
   const hasRows = table.getRowModel().rows.length > 0
+
+  let emptyStateText = t('No models configured. Use Add model to get started.')
+  if (table.getState().globalFilter) {
+    emptyStateText = t('No models match your search')
+  } else if (filterMode === 'unset') {
+    emptyStateText = t('No models with unset prices')
+  }
 
   return (
     <div className='flex flex-col gap-4'>
@@ -658,18 +697,18 @@ const ModelRatioVisualEditorComponent = forwardRef<
               },
             ]}
             preActions={
-              <Button onClick={handleAdd}>
-                <Plus data-icon='inline-start' />
-                {t('Add model')}
-              </Button>
+              filterMode === 'unset' ? undefined : (
+                <Button onClick={handleAdd}>
+                  <Plus data-icon='inline-start' />
+                  {t('Add model')}
+                </Button>
+              )
             }
           />
 
           {!hasRows ? (
             <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
-              {table.getState().globalFilter
-                ? t('No models match your search')
-                : t('No models configured. Use Add model to get started.')}
+              {emptyStateText}
             </div>
           ) : (
             <DataTableView
@@ -743,10 +782,12 @@ const ModelRatioVisualEditorComponent = forwardRef<
                   'Use the full-width table to scan prices, then select a row to edit it here.'
                 )}
               </p>
-              <Button variant='outline' onClick={handleAdd}>
-                <Plus data-icon='inline-start' />
-                {t('Add model')}
-              </Button>
+              {filterMode !== 'unset' && (
+                <Button variant='outline' onClick={handleAdd}>
+                  <Plus data-icon='inline-start' />
+                  {t('Add model')}
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -790,6 +831,8 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.candidateModelNames === nextProps.candidateModelNames &&
+      prevProps.filterMode === nextProps.filterMode &&
       prevProps.onChange === nextProps.onChange &&
       prevProps.onSave === nextProps.onSave &&
       prevProps.isSaving === nextProps.isSaving
