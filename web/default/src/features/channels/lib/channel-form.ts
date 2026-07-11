@@ -88,6 +88,8 @@ export const channelFormSchema = z.object({
   apimaster_price_ratio: z.number().min(0).optional(),
   // Model Price Ratio：上游无 /api/pricing 时，用 romaapi 公开价格 × 此倍率作为回退定价；0 = 不启用
   model_price_ratio: z.number().min(0).optional(),
+  // 模型价格倍率覆盖：JSON 字符串 {"gpt-5.4":2.0}；未配置的模型回落渠道级 apimaster_price_ratio
+  model_price_ratios: z.string().optional(),
   // 检测接口格式：fingerprint 调用时使用的 API 格式（openai-compatible / anthropic）
   api_format: z.string().optional(),
   // 客户端专属：空=通用 / codex / claude_code
@@ -154,6 +156,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   recharge_rate: undefined,
   apimaster_price_ratio: undefined,
   model_price_ratio: undefined,
+  model_price_ratios: '',
   api_format: 'openai-compatible',
   client_exclusive: '',
 }
@@ -296,6 +299,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     recharge_rate: channel.recharge_rate ?? undefined,
     apimaster_price_ratio: channel.apimaster_price_ratio ?? undefined,
+    model_price_ratios: channel.model_price_ratios ?? '',
   }
 }
 
@@ -462,6 +466,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     other: formData.other || '',
     recharge_rate: formData.recharge_rate ?? null,
     apimaster_price_ratio: formData.apimaster_price_ratio ?? null,
+    model_price_ratios: formData.model_price_ratios?.trim() || null,
   }
 
   // Clean up empty strings to null for optional fields
@@ -512,6 +517,7 @@ export function transformFormDataToUpdatePayload(
     other: formData.other || '',
     recharge_rate: formData.recharge_rate ?? null,
     apimaster_price_ratio: formData.apimaster_price_ratio ?? null,
+    model_price_ratios: formData.model_price_ratios?.trim() || null,
   }
 
   // Only include key if it was changed (not empty)

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 type SettingsSectionProps = {
-  title: string
+  title?: string
   titleProps?: React.HTMLAttributes<HTMLHeadingElement>
   description?: string
   children: React.ReactNode
@@ -38,21 +38,25 @@ export function SettingsSection({
 
   return (
     <section className={sectionClassName}>
-      <div className='space-y-1'>
-        <h3
-          {...titleProps}
-          className={
-            titleProps?.className
-              ? `text-base font-semibold ${titleProps.className}`
-              : 'text-base font-semibold'
-          }
-        >
-          {title}
-        </h3>
-        {description && (
-          <p className='text-muted-foreground text-sm'>{description}</p>
-        )}
-      </div>
+      {(title || description) && (
+        <div className='space-y-1'>
+          {title && (
+            <h3
+              {...titleProps}
+              className={
+                titleProps?.className
+                  ? `text-base font-semibold ${titleProps.className}`
+                  : 'text-base font-semibold'
+              }
+            >
+              {title}
+            </h3>
+          )}
+          {description && (
+            <p className='text-muted-foreground text-sm'>{description}</p>
+          )}
+        </div>
+      )}
       {children}
     </section>
   )

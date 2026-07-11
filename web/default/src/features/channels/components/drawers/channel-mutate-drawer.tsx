@@ -618,6 +618,112 @@ function ApimasterPriceRatioField({ control }: { control: Control<ChannelFormVal
   )
 }
 
+// 模型价格倍率覆盖：行式编辑器（模型下拉 + 倍率输入），存 JSON 字符串到 model_price_ratios。
+// 未配置的模型回落上面的渠道级"用户价格倍率"。模型选项来自本表单已配置的模型列表。
+function ModelPriceRatiosField({
+  control,
+  modelOptions,
+}: {
+  control: Control<ChannelFormValues>
+  modelOptions: string[]
+}) {
+  const { t } = useTranslation()
+  const { field } = useController({ control, name: 'model_price_ratios' })
+
+  const rows = useMemo(() => {
+    if (!field.value?.trim()) return [] as { model: string; ratio: number | '' }[]
+    try {
+      const parsed = JSON.parse(field.value) as Record<string, number>
+      return Object.entries(parsed).map(([model, ratio]) => ({ model, ratio }))
+    } catch {
+      return []
+    }
+  }, [field.value])
+
+  const writeRows = (next: { model: string; ratio: number | '' }[]) => {
+    const map: Record<string, number> = {}
+    for (const row of next) {
+      if (row.model && row.ratio !== '' && Number(row.ratio) > 0) {
+        map[row.model] = Number(row.ratio)
+      }
+    }
+    // 保留未填完整的行需要本地渲染，但只序列化有效行；全空时置空字符串
+    field.onChange(Object.keys(map).length > 0 ? JSON.stringify(map) : '')
+  }
+
+  const [draft, setDraft] = useState<{ model: string; ratio: number | '' }[] | null>(null)
+  const displayRows = draft ?? rows
+
+  const commit = (next: { model: string; ratio: number | '' }[]) => {
+    setDraft(next)
+    writeRows(next)
+  }
+
+  const usedModels = new Set(displayRows.map((r) => r.model))
+
+  return (
+    <FormItem>
+      <FormLabel>{t('Model Price Ratios')}</FormLabel>
+      <div className='space-y-2'>
+        {displayRows.map((row, idx) => (
+          <div key={idx} className='flex items-center gap-2'>
+            <select
+              className='border-input bg-background h-9 flex-1 rounded-md border px-2 text-sm'
+              value={row.model}
+              onChange={(e) => {
+                const next = displayRows.map((r, i) => (i === idx ? { ...r, model: e.target.value } : r))
+                commit(next)
+              }}
+            >
+              <option value=''>{t('Select model')}</option>
+              {modelOptions
+                .filter((m) => m === row.model || !usedModels.has(m))
+                .map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+            </select>
+            <Input
+              type='number'
+              step='0.01'
+              min='0'
+              className='w-28'
+              placeholder='e.g. 1.5'
+              value={row.ratio}
+              onChange={(e) => {
+                const v = e.target.value === '' ? ('' as const) : parseFloat(e.target.value)
+                const next = displayRows.map((r, i) => (i === idx ? { ...r, ratio: v } : r))
+                commit(next)
+              }}
+            />
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              onClick={() => commit(displayRows.filter((_, i) => i !== idx))}
+            >
+              <Trash2 className='text-destructive size-4' />
+            </Button>
+          </div>
+        ))}
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={() => commit([...displayRows, { model: '', ratio: '' }])}
+        >
+          <Plus className='mr-1 size-4' />
+          {t('Add model ratio')}
+        </Button>
+      </div>
+      <FormDescription>
+        {t('Per-model markup override. Models not listed fall back to the channel-level User Price Ratio above.')}
+      </FormDescription>
+    </FormItem>
+  )
+}
+
 function CardHeading({ title, icon }: { title: string; icon?: ReactNode }) {
   return (
     <div className='flex items-center gap-2.5'>
@@ -2819,6 +2925,8 @@ export function ChannelMutateDrawer({
                 <ModelPriceRatioField control={form.control} />
 
                 <ApimasterPriceRatioField control={form.control} />
+
+                <ModelPriceRatiosField control={form.control} modelOptions={currentModelsArray} />
               </div>
 
               <Collapsible

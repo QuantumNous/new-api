@@ -125,6 +125,7 @@ func getModelDataItems(ctx context.Context, modelName string) ([]ModelDataItem, 
 		PricingSource              *string
 		RechargeRate               *float64
 		ApimasterPriceRatio        float64 // per-channel markup; COALESCE'd to 1.0
+		ModelPriceRatios           *string // per-model markup overrides JSON
 		Status                     int
 		ConsecutiveFingerprintPass int
 		ModelEnabled               bool    // abilities.enabled for this (channel, model)
@@ -153,7 +154,7 @@ func getModelDataItems(ctx context.Context, modelName string) ([]ModelDataItem, 
 	// (any non-NULL filter on the right table re-excludes the no-match rows).
 	var rows []row
 	model.DB.Table("channels c").
-		Select("c.id as channel_id, c.name as channel_name, c.base_url, c.setting, c.model_mapping, p.input_price, p.output_price, p.cache_price, p.cache_creation_price, p.group_ratio, p.pricing_source, c.recharge_rate, COALESCE(c.apimaster_price_ratio, 1.0) AS apimaster_price_ratio, c.status, c.consecutive_fingerprint_pass, COALESCE(a.enabled, true) as model_enabled, c.other_info").
+		Select("c.id as channel_id, c.name as channel_name, c.base_url, c.setting, c.model_mapping, p.input_price, p.output_price, p.cache_price, p.cache_creation_price, p.group_ratio, p.pricing_source, c.recharge_rate, COALESCE(c.apimaster_price_ratio, 1.0) AS apimaster_price_ratio, c.model_price_ratios, c.status, c.consecutive_fingerprint_pass, COALESCE(a.enabled, true) as model_enabled, c.other_info").
 		Joins("LEFT JOIN channel_model_pricings p ON c.id = p.channel_id AND p.model_name IN ?", candidates).
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		// Show all status (1/2/3) so the operator can act on auto-disabled ones from the table.
@@ -301,11 +302,9 @@ func getModelDataItems(ctx context.Context, modelName string) ([]ModelDataItem, 
 		// Pricing is nil when LEFT JOIN had no match (upstream /api/pricing
 		// 401/404 or cookie-only auth). Keep nil all the way to the API
 		// response so the frontend renders "—" rather than misleading "0".
-		// apimaster markup multiplier; nil/0 already coalesced to 1.0, guard anyway.
-		apimasterRatio := r.ApimasterPriceRatio
-		if apimasterRatio <= 0 {
-			apimasterRatio = 1.0
-		}
+		// Effective markup for THIS model: per-model override > channel default > 1.0.
+		channelRatio := r.ApimasterPriceRatio
+		apimasterRatio := service.EffectiveModelPriceRatio(r.ModelPriceRatios, &channelRatio, modelName)
 
 		var inputPricePtr, outputPricePtr, actualPricePtr, actualOutPricePtr *float64
 		var userPricePtr, actualOutputUserPricePtr *float64
@@ -729,6 +728,7 @@ func GetPublicMarketplace(c *gin.Context) {
 		GroupRatio          *float64
 		RechargeRate        *float64
 		ApimasterPriceRatio float64
+		ModelPriceRatios    *string
 		Status              int
 	}
 
@@ -743,7 +743,7 @@ func GetPublicMarketplace(c *gin.Context) {
 
 	var rows []row
 	model.DB.Table("channels c").
-		Select("c.id as channel_id, c.name as channel_name, c.setting, c.model_mapping, p.input_price, p.output_price, p.group_ratio, c.recharge_rate, COALESCE(c.apimaster_price_ratio, 1.0) AS apimaster_price_ratio, c.status").
+		Select("c.id as channel_id, c.name as channel_name, c.setting, c.model_mapping, p.input_price, p.output_price, p.group_ratio, c.recharge_rate, COALESCE(c.apimaster_price_ratio, 1.0) AS apimaster_price_ratio, c.model_price_ratios, c.status").
 		Joins("LEFT JOIN channel_model_pricings p ON c.id = p.channel_id AND p.model_name IN ?", candidates).
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
@@ -886,10 +886,8 @@ func GetPublicMarketplace(c *gin.Context) {
 			latencies = h.Latencies
 		}
 
-		apimasterRatio := r.ApimasterPriceRatio
-		if apimasterRatio <= 0 {
-			apimasterRatio = 1.0
-		}
+		marketChannelRatio := r.ApimasterPriceRatio
+		apimasterRatio := service.EffectiveModelPriceRatio(r.ModelPriceRatios, &marketChannelRatio, modelName)
 
 		var inputPricePtr, outputPricePtr, actualPricePtr, actualOutPricePtr *float64
 		var userPricePtr, actualOutputUserPricePtr *float64

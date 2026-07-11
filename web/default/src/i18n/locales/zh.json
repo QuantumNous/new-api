@@ -3392,6 +3392,9 @@
     "Retry Chain": "重试链路",
     "Retry Suggestion": "重试建议",
     "Retry Times": "重试次数",
+    "To trigger official fallback, Retry Times must be greater than Fallback After.": "要触发官方兜底，RetryTimes 需要大于 Fallback After。",
+    "Maximum fallback attempts after failures before the request stops retrying.": "失败后 fallback 的最大次数，超过后本次请求不再继续重试。",
+    "Used as the global upper bound for failure fallback retries.": "作为失败后 fallback 重试次数的全局上限。",
     "Return a custom error immediately": "立即返回自定义错误",
     "Return Custom Error": "返回自定义错误",
     "Return data conforming to a JSON schema": "返回符合 JSON Schema 的数据",
@@ -4586,5 +4589,9 @@
     "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 新用户专享 · 首充 {{pct}}% 优惠",
     "Channel Data": "渠道数据",
     "Channel pricing and detection stats by model": "按模型查看渠道价格与检测数据"
-  }
+  },
+  "Model Price Ratios": "模型价格倍率",
+  "Select model": "选择模型",
+  "Add model ratio": "添加模型倍率",
+  "Per-model markup override. Models not listed fall back to the channel-level User Price Ratio above.": "按模型覆盖加价倍率；未列出的模型回落上方渠道级“用户价格倍率”。"
 }

@@ -118,6 +118,13 @@ type channelPricingResolveContext struct {
 	Setting             *string
 	RechargeRate        float64
 	ApimasterPriceRatio float64
+	ModelPriceRatios    *string
+}
+
+// EffectivePriceRatio 返回该模型的生效用户价倍率：模型覆盖 > 渠道默认 > 1.0。
+func (ctx channelPricingResolveContext) EffectivePriceRatio(modelName string) float64 {
+	channelRatio := ctx.ApimasterPriceRatio
+	return EffectiveModelPriceRatio(ctx.ModelPriceRatios, &channelRatio, modelName)
 }
 
 func loadChannelPricingResolveContext(channelID int) (channelPricingResolveContext, error) {
@@ -126,9 +133,10 @@ func loadChannelPricingResolveContext(channelID int) (channelPricingResolveConte
 		Setting             *string
 		RechargeRate        *float64
 		ApimasterPriceRatio *float64
+		ModelPriceRatios    *string
 	}
 	if err := model.DB.Table("channels").
-		Select("model_mapping, setting, recharge_rate, apimaster_price_ratio").
+		Select("model_mapping, setting, recharge_rate, apimaster_price_ratio, model_price_ratios").
 		Where("id = ?", channelID).
 		Scan(&ch).Error; err != nil {
 		return channelPricingResolveContext{}, err
@@ -138,6 +146,7 @@ func loadChannelPricingResolveContext(channelID int) (channelPricingResolveConte
 		Setting:             ch.Setting,
 		RechargeRate:        1.0,
 		ApimasterPriceRatio: 1.0,
+		ModelPriceRatios:    ch.ModelPriceRatios,
 	}
 	if ch.RechargeRate != nil && *ch.RechargeRate > 0 {
 		out.RechargeRate = *ch.RechargeRate
@@ -190,7 +199,7 @@ func ChannelActualPricesResolved(channelID int, modelName string) (*model.Channe
 	if !ok {
 		return nil, nil
 	}
-	mult := ch.RechargeRate * ch.ApimasterPriceRatio
+	mult := ch.RechargeRate * ch.EffectivePriceRatio(modelName)
 	return &model.ChannelActualPrices{
 		InputPrice:         row.InputPrice * mult,
 		OutputPrice:        row.OutputPrice * mult,

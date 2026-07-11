@@ -27,6 +27,8 @@ type pricingExportChannel struct {
 	KeySHA256           string   `json:"key_sha256"`
 	RechargeRate        *float64 `json:"recharge_rate"`
 	ApimasterPriceRatio *float64 `json:"apimaster_price_ratio"`
+	// per-model markup overrides JSON (model → ratio); nil when channel has none.
+	ModelPriceRatios *string `json:"model_price_ratios,omitempty"`
 }
 
 type pricingExportPricing struct {
@@ -40,6 +42,8 @@ type pricingExportPricing struct {
 	Currency           string  `json:"currency"`
 	PricingSource      string  `json:"pricing_source"`
 	FetchedAt          int64   `json:"fetched_at"`
+	// effective user-price markup for THIS (channel, model): override > channel > 1.0
+	UserPriceRatio float64 `json:"user_price_ratio"`
 }
 
 func PricingExport(c *gin.Context) {
@@ -75,7 +79,12 @@ func PricingExport(c *gin.Context) {
 			KeySHA256:           keyHash,
 			RechargeRate:        ch.RechargeRate,
 			ApimasterPriceRatio: ch.ApimasterPriceRatio,
+			ModelPriceRatios:    ch.ModelPriceRatios,
 		})
+	}
+	channelByID := make(map[int]*model.Channel, len(channels))
+	for i := range channels {
+		channelByID[channels[i].Id] = &channels[i]
 	}
 
 	var pricingRows []model.ChannelModelPricing
@@ -85,6 +94,10 @@ func PricingExport(c *gin.Context) {
 	}
 	exportPricings := make([]pricingExportPricing, 0, len(pricingRows))
 	for _, row := range pricingRows {
+		userPriceRatio := 1.0
+		if ch, ok := channelByID[row.ChannelId]; ok {
+			userPriceRatio = ch.GetModelPriceRatio(row.ModelName)
+		}
 		exportPricings = append(exportPricings, pricingExportPricing{
 			ChannelId:          row.ChannelId,
 			ModelName:          row.ModelName,
@@ -96,6 +109,7 @@ func PricingExport(c *gin.Context) {
 			Currency:           row.Currency,
 			PricingSource:      row.PricingSource,
 			FetchedAt:          row.FetchedAt,
+			UserPriceRatio:     userPriceRatio,
 		})
 	}
 
