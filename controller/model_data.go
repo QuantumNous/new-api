@@ -302,9 +302,8 @@ func getModelDataItems(ctx context.Context, modelName string) ([]ModelDataItem, 
 		// Pricing is nil when LEFT JOIN had no match (upstream /api/pricing
 		// 401/404 or cookie-only auth). Keep nil all the way to the API
 		// response so the frontend renders "—" rather than misleading "0".
-		// Effective markup for THIS model: per-model override > channel default > 1.0.
-		channelRatio := r.ApimasterPriceRatio
-		apimasterRatio := service.EffectiveModelPriceRatio(r.ModelPriceRatios, &channelRatio, modelName)
+		// Effective markup for THIS model: per-model entry > 1.0 (unset = no markup).
+		apimasterRatio := service.EffectiveModelPriceRatio(r.ModelPriceRatios, modelName)
 
 		var inputPricePtr, outputPricePtr, actualPricePtr, actualOutPricePtr *float64
 		var userPricePtr, actualOutputUserPricePtr *float64
@@ -886,8 +885,7 @@ func GetPublicMarketplace(c *gin.Context) {
 			latencies = h.Latencies
 		}
 
-		marketChannelRatio := r.ApimasterPriceRatio
-		apimasterRatio := service.EffectiveModelPriceRatio(r.ModelPriceRatios, &marketChannelRatio, modelName)
+		apimasterRatio := service.EffectiveModelPriceRatio(r.ModelPriceRatios, modelName)
 
 		var inputPricePtr, outputPricePtr, actualPricePtr, actualOutPricePtr *float64
 		var userPricePtr, actualOutputUserPricePtr *float64

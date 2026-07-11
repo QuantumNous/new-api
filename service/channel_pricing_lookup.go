@@ -10,19 +10,16 @@ type ChannelModelPriceRatios struct {
 }
 
 // EffectiveModelPriceRatio resolves the user-price markup for a (channel, model)
-// pair: per-model override (tried across model name aliases) > channel-level
-// ratio > 1.0. Alias matching mirrors pricing-row lookup so an override keyed
-// "claude-haiku-4-5" also applies to dated variants.
-func EffectiveModelPriceRatio(modelPriceRatiosJSON *string, channelRatio *float64, modelName string) float64 {
+// pair: per-model entry (tried across model name aliases) > 1.0 (no markup).
+// Alias matching mirrors pricing-row lookup so an entry keyed "claude-haiku-4-5"
+// also applies to dated variants.
+func EffectiveModelPriceRatio(modelPriceRatiosJSON *string, modelName string) float64 {
 	for _, name := range ModelPricingLookupNames(modelName) {
 		if r, ok := model.LookupModelPriceRatio(modelPriceRatiosJSON, name); ok {
 			return r
 		}
 	}
-	if channelRatio == nil || *channelRatio <= 0 {
-		return 1.0
-	}
-	return *channelRatio
+	return 1.0
 }
 
 // ChannelModelPriceRatio derives newapi-internal ratio numbers from a specific
@@ -92,7 +89,7 @@ func ChannelModelPriceData(channelID int, modelName string) (ChannelModelPriceRa
 	// apimaster markup multiplier (per-model override > channel default > 1.0).
 	// Applied to ModelRatio (input). Output/cache ride along automatically because
 	// their ratios are relative to input_price.
-	apimasterRatio := EffectiveModelPriceRatio(ch.ModelPriceRatios, &ch.ApimasterPriceRatio, modelName)
+	apimasterRatio := EffectiveModelPriceRatio(ch.ModelPriceRatios, modelName)
 	priceData := ChannelModelPriceRatios{
 		ModelRatio:      row.InputPrice * rechargeRate * apimasterRatio / 2.0,
 		CompletionRatio: 1.0,

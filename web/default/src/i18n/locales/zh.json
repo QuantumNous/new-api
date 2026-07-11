@@ -4308,7 +4308,7 @@
     "User dashboard and quota controls.": "用户仪表板和配额控制。",
     "User Exclusive Ratio": "专属倍率",
     "User group description.default": "智能路由（最便宜可用渠道优先，失败自动 fallback，含 5% 服务费）",
-    "User final price = procurement price × this ratio. Leave blank or 1.0 for no markup. Affects actual billing and marketplace display.": "用户最终价格 = 采购价 × 此倍率。留空或填 1.0 表示不加价。影响实际计费与模型广场展示价格。",
+    "User final price = procurement price × this ratio. Leave blank or 1.0 for no markup. Affects actual billing and marketplace display.": "未单独配置模型倍率时的默认加价：用户最终价格 = 采购价 × 此倍率。留空或填 1.0 表示不加价。影响实际计费与模型广场展示价格。",
     "User group": "用户分组",
     "User Group": "用户分组",
     "User group name": "用户分组名称",
@@ -4323,7 +4323,7 @@
     "User Information": "用户信息",
     "User Menu": "用户菜单",
     "User personal functions": "用户个人功能",
-    "User Price Ratio": "用户价格倍率",
+    "User Price Ratio": "所有模型默认用户价格倍率",
     "User selectable": "用户可选",
     "User Subscription Management": "用户订阅管理",
     "User updated successfully": "用户更新成功",
@@ -4593,7 +4593,7 @@
     "Per-Model User Price Ratio": "按模型用户价格倍率",
     "Select model": "选择模型",
     "Add model ratio": "添加模型倍率",
-    "Overrides the User Price Ratio above for specific models. Models not listed keep using the channel-level ratio.": "对指定模型覆盖上方“用户价格倍率”；未列出的模型继续使用渠道级倍率。"
+    "Overrides the User Price Ratio above for specific models. Models not listed keep using the channel-level ratio.": "对指定模型覆盖上方“所有模型默认用户价格倍率”；未列出的模型继续使用默认倍率。"
   },
   "Model Price Ratios": "模型价格倍率",
   "Select model": "选择模型",
