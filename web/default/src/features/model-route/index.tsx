@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { RefreshCw, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -34,6 +35,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
+
+import { NumericSpinnerInput } from '@/features/channels/components/numeric-spinner-input'
 
 import {
   listModelRouteMetrics,
@@ -55,6 +59,10 @@ function fmtTs(ts?: number | null) {
   }
 }
 
+function fmtNum(v?: number | null, digits = 3) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—'
+  return Number(v).toFixed(digits)
+}
 
 function formatChannelLabel(channelId: number, channelName?: string) {
   const name = (channelName || '').trim()
@@ -62,33 +70,102 @@ function formatChannelLabel(channelId: number, channelName?: string) {
   return `#${channelId}`
 }
 
-function fmtNum(v?: number | null, digits = 3) {
-  if (v === null || v === undefined || Number.isNaN(v)) return '—'
-  return Number(v).toFixed(digits)
+function localizePolicySource(t: (key: string) => string, source?: string) {
+  const s = (source || '').trim().toLowerCase()
+  switch (s) {
+    case 'configured':
+      return t('Configured')
+    case 'mapped':
+      return t('Mapped')
+    case 'observed':
+      return t('Observed')
+    case 'lazy_created':
+      return t('Lazy created')
+    default:
+      return source || '—'
+  }
+}
+
+function localizeRouteState(t: (key: string) => string, state?: string) {
+  const s = (state || '').trim().toUpperCase()
+  switch (s) {
+    case 'UNKNOWN':
+      return t('UNKNOWN')
+    case 'HEALTHY':
+      return t('HEALTHY')
+    case 'RATE_LIMITED':
+      return t('RATE_LIMITED')
+    case 'OPEN':
+      return t('OPEN')
+    case 'PROBING':
+      return t('PROBING')
+    case 'RECOVERING':
+      return t('RECOVERING')
+    case 'MANUALLY_DISABLED':
+      return t('MANUALLY_DISABLED')
+    default:
+      return state || '—'
+  }
+}
+
+function localizeRouteRole(t: (key: string) => string, role?: string) {
+  const r = (role || '').trim().toUpperCase()
+  switch (r) {
+    case 'NONE':
+    case '':
+      return t('NONE')
+    case 'BOOTSTRAP':
+      return t('BOOTSTRAP')
+    case 'PRIMARY':
+      return t('PRIMARY')
+    case 'OVERFLOW':
+      return t('OVERFLOW')
+    default:
+      return role || t('NONE')
+  }
+}
+
+function includesIgnoreCase(haystack: string | undefined, needle: string) {
+  if (!needle) return true
+  return (haystack || '').toLowerCase().includes(needle.toLowerCase())
+}
+
+function PolicyPriorityCell({
+  row,
+  disabled,
+  onChange,
+}: {
+  row: ModelRoutePolicy
+  disabled?: boolean
+  onChange: (value: number) => void
+}) {
+  return (
+    <NumericSpinnerInput
+      value={row.manual_priority ?? 0}
+      onChange={onChange}
+      min={-999}
+      max={9999}
+      disabled={disabled}
+    />
+  )
 }
 
 export function ModelRouteAdmin() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [tab, setTab] = useState<'policies' | 'metrics'>('policies')
-  const [requestedModel, setRequestedModel] = useState('')
+  const [modelKeyword, setModelKeyword] = useState('')
   const [channelFilter, setChannelFilter] = useState('')
 
+  // Always load full lists; filter client-side for substring match (e.g. "4.5" → grok-4.5).
   const policyQuery = useQuery({
-    queryKey: ['model-route-policies', requestedModel, channelFilter],
-    queryFn: () =>
-      listModelRoutePolicies({
-        requested_model: requestedModel.trim() || undefined,
-        channel_id: channelFilter ? Number(channelFilter) : undefined,
-      }),
+    queryKey: ['model-route-policies'],
+    queryFn: () => listModelRoutePolicies(),
   })
 
   const metricsQuery = useQuery({
-    queryKey: ['model-route-metrics', channelFilter],
-    queryFn: () =>
-      listModelRouteMetrics({
-        channel_id: channelFilter ? Number(channelFilter) : undefined,
-      }),
+    queryKey: ['model-route-metrics'],
+    queryFn: () => listModelRouteMetrics(),
   })
 
   const migrateMut = useMutation({
@@ -158,45 +235,100 @@ export function ModelRouteAdmin() {
     onError: (err: Error) => toast.error(err.message),
   })
 
-  const policies = useMemo(
-    () => policyQuery.data?.data ?? [],
-    [policyQuery.data]
-  )
-  const metrics = useMemo(
-    () => metricsQuery.data?.data ?? [],
-    [metricsQuery.data]
-  )
+  const channelKeyword = channelFilter.trim()
+  const modelKw = modelKeyword.trim()
+
+  const policies = useMemo(() => {
+    const rows = [...(policyQuery.data?.data ?? [])]
+    const filtered = rows.filter((row) => {
+      if (channelKeyword) {
+        const idMatch = String(row.channel_id).includes(channelKeyword)
+        const nameMatch = includesIgnoreCase(row.channel_name, channelKeyword)
+        if (!idMatch && !nameMatch) return false
+      }
+      if (modelKw && !includesIgnoreCase(row.requested_model, modelKw)) {
+        return false
+      }
+      return true
+    })
+    filtered.sort((a, b) => {
+      if (a.manual_priority !== b.manual_priority) {
+        return b.manual_priority - a.manual_priority
+      }
+      if (a.channel_id !== b.channel_id) {
+        return a.channel_id - b.channel_id
+      }
+      return a.requested_model.localeCompare(b.requested_model)
+    })
+    return filtered
+  }, [policyQuery.data, channelKeyword, modelKw])
+
+  const metrics = useMemo(() => {
+    const rows = [...(metricsQuery.data?.data ?? [])]
+    const filtered = rows.filter((row) => {
+      if (channelKeyword) {
+        const idMatch = String(row.channel_id).includes(channelKeyword)
+        const nameMatch = includesIgnoreCase(row.channel_name, channelKeyword)
+        if (!idMatch && !nameMatch) return false
+      }
+      if (modelKw && !includesIgnoreCase(row.effective_model, modelKw)) {
+        return false
+      }
+      return true
+    })
+    filtered.sort((a, b) => {
+      if (a.channel_id !== b.channel_id) {
+        return a.channel_id - b.channel_id
+      }
+      return a.effective_model.localeCompare(b.effective_model)
+    })
+    return filtered
+  }, [metricsQuery.data, channelKeyword, modelKw])
+
+  const isRefreshing = policyQuery.isFetching || metricsQuery.isFetching
 
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Model Route')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <div className='flex flex-wrap items-center gap-2'>
-          <Input
-            className='w-40'
-            placeholder={t('Channel ID')}
-            value={channelFilter}
-            onChange={(e) => setChannelFilter(e.target.value)}
-          />
-          {tab === 'policies' && (
+          <div className='relative'>
+            <Search className='text-muted-foreground absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2' />
             <Input
-              className='w-48'
-              placeholder={t('Requested model')}
-              value={requestedModel}
-              onChange={(e) => setRequestedModel(e.target.value)}
+              className='h-8 w-40 pl-8 text-sm'
+              placeholder={t('Channel name or ID')}
+              value={channelFilter}
+              onChange={(e) => setChannelFilter(e.target.value)}
             />
-          )}
+          </div>
+          <div className='relative'>
+            <Search className='text-muted-foreground absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2' />
+            <Input
+              className='h-8 w-48 pl-8 text-sm'
+              placeholder={t('Search model...')}
+              value={modelKeyword}
+              onChange={(e) => setModelKeyword(e.target.value)}
+            />
+          </div>
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
+            disabled={isRefreshing}
             onClick={() => {
               void policyQuery.refetch()
               void metricsQuery.refetch()
             }}
           >
+            <RefreshCw
+              className={cn('mr-1.5 h-3.5 w-3.5', isRefreshing && 'animate-spin')}
+            />
             {t('Refresh')}
           </Button>
           <Button
             variant='secondary'
+            size='sm'
+            className='h-8'
             disabled={migrateMut.isPending}
             onClick={() => {
               if (
@@ -227,26 +359,35 @@ export function ModelRouteAdmin() {
 
           <TabsContent value='policies' className='mt-4'>
             <div className='overflow-x-auto rounded-md border'>
-              <table className='w-full min-w-[720px] text-sm'>
+              <table className='w-full min-w-[760px] text-sm'>
                 <thead className='bg-muted/40 text-left'>
                   <tr>
-                    <th className='p-2'>{t('Channel')}</th>
-                    <th className='p-2'>{t('Requested model')}</th>
-                    <th className='p-2'>{t('Priority')}</th>
-                    <th className='p-2'>{t('Enabled')}</th>
-                    <th className='p-2'>{t('Source')}</th>
-                    <th className='p-2'>{t('Actions')}</th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Channel')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Requested model')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Priority')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Enabled')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Source')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {policies.map((row: ModelRoutePolicy) => (
                     <tr
                       key={`${row.channel_id}:${row.requested_model}`}
-                      className='border-t'
+                      className='hover:bg-muted/30 border-t transition-colors'
                     >
-                      <td className='p-2'>
-                        <div className='flex flex-col gap-0.5'>
-                          <span className='font-medium'>
+                      <td className='p-2.5'>
+                        <div className='flex min-w-0 flex-col gap-0.5'>
+                          <span className='truncate font-medium'>
                             {formatChannelLabel(row.channel_id, row.channel_name)}
                           </span>
                           <span className='text-muted-foreground text-xs'>
@@ -254,52 +395,42 @@ export function ModelRouteAdmin() {
                           </span>
                         </div>
                       </td>
-                      <td className='p-2 font-mono text-xs'>
+                      <td className='p-2.5 font-mono text-xs'>
                         {row.requested_model}
                       </td>
-                      <td className='p-2'>{row.manual_priority}</td>
-                      <td className='p-2'>
+                      <td className='p-2.5'>
+                        <PolicyPriorityCell
+                          row={row}
+                          disabled={priorityMut.isPending}
+                          onChange={(value) => {
+                            if (value === row.manual_priority) return
+                            priorityMut.mutate({
+                              channel_id: row.channel_id,
+                              requested_model: row.requested_model,
+                              manual_priority: value,
+                            })
+                          }}
+                        />
+                      </td>
+                      <td className='p-2.5'>
                         {row.enabled ? (
                           <Badge variant='secondary'>{t('Yes')}</Badge>
                         ) : (
                           <Badge variant='outline'>{t('No')}</Badge>
                         )}
                       </td>
-                      <td className='p-2'>{row.source}</td>
-                      <td className='p-2'>
-                        <div className='flex items-center gap-1'>
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            onClick={() => {
-                              const raw = window.prompt(
-                                t('New manual priority'),
-                                String(row.manual_priority)
-                              )
-                              if (raw == null) return
-                              const n = Number(raw)
-                              if (Number.isNaN(n)) {
-                                toast.error(t('Invalid number'))
-                                return
-                              }
-                              priorityMut.mutate({
-                                channel_id: row.channel_id,
-                                requested_model: row.requested_model,
-                                manual_priority: n,
-                              })
-                            }}
-                          >
-                            {t('Edit priority')}
-                          </Button>
-                        </div>
+                      <td className='p-2.5'>
+                        <Badge variant='outline' className='font-normal'>
+                          {localizePolicySource(t, row.source)}
+                        </Badge>
                       </td>
                     </tr>
                   ))}
                   {!policyQuery.isLoading && policies.length === 0 && (
                     <tr>
                       <td
-                        colSpan={6}
-                        className='text-muted-foreground p-4 text-center'
+                        colSpan={5}
+                        className='text-muted-foreground p-6 text-center'
                       >
                         {t('No policies')}
                       </td>
@@ -308,6 +439,11 @@ export function ModelRouteAdmin() {
                 </tbody>
               </table>
             </div>
+            {!policyQuery.isLoading && policies.length > 0 && (
+              <p className='text-muted-foreground mt-2 text-xs'>
+                {t('{{count}} policies', { count: policies.length })}
+              </p>
+            )}
           </TabsContent>
 
           <TabsContent value='metrics' className='mt-4 space-y-3'>
@@ -315,27 +451,47 @@ export function ModelRouteAdmin() {
               <table className='w-full min-w-[980px] text-sm'>
                 <thead className='bg-muted/40 text-left'>
                   <tr>
-                    <th className='p-2'>{t('Channel')}</th>
-                    <th className='p-2'>{t('Effective model')}</th>
-                    <th className='p-2'>{t('State')}</th>
-                    <th className='p-2'>{t('Role')}</th>
-                    <th className='p-2'>{t('Score')}</th>
-                    <th className='p-2'>{t('Success EMA')}</th>
-                    <th className='p-2'>{t('TTFT EMA')}</th>
-                    <th className='p-2'>{t('Stale')}</th>
-                    <th className='p-2'>{t('Last success')}</th>
-                    <th className='p-2'>{t('Actions')}</th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Channel')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Effective model')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('State')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Role')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Score')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Success EMA')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('TTFT EMA')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Stale')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Last success')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Actions')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {metrics.map((row: ModelRouteMetrics) => (
                     <tr
                       key={`${row.channel_id}:${row.effective_model}`}
-                      className='border-t'
+                      className='hover:bg-muted/30 border-t transition-colors'
                     >
-                      <td className='p-2'>
-                        <div className='flex flex-col gap-0.5'>
-                          <span className='font-medium'>
+                      <td className='p-2.5'>
+                        <div className='flex min-w-0 flex-col gap-0.5'>
+                          <span className='truncate font-medium'>
                             {formatChannelLabel(row.channel_id, row.channel_name)}
                           </span>
                           <span className='text-muted-foreground text-xs'>
@@ -343,28 +499,38 @@ export function ModelRouteAdmin() {
                           </span>
                         </div>
                       </td>
-                      <td className='p-2 font-mono text-xs'>
+                      <td className='p-2.5 font-mono text-xs'>
                         {row.effective_model}
                       </td>
-                      <td className='p-2'>{row.route_state}</td>
-                      <td className='p-2'>{row.role || '—'}</td>
-                      <td className='p-2'>{fmtNum(row.experience_score)}</td>
-                      <td className='p-2'>
+                      <td className='p-2.5'>
+                        <Badge variant='outline' className='font-normal'>
+                          {localizeRouteState(t, row.route_state)}
+                        </Badge>
+                      </td>
+                      <td className='p-2.5'>
+                        {localizeRouteRole(t, row.role)}
+                      </td>
+                      <td className='p-2.5 tabular-nums'>
+                        {fmtNum(row.experience_score)}
+                      </td>
+                      <td className='p-2.5 tabular-nums'>
                         {fmtNum(row.production_success_ema)}
                       </td>
-                      <td className='p-2'>
+                      <td className='p-2.5 tabular-nums'>
                         {fmtNum(row.production_ttft_ema_ms, 1)}
                       </td>
-                      <td className='p-2'>
+                      <td className='p-2.5'>
                         {row.is_stale ? (
                           <Badge variant='destructive'>{t('Stale')}</Badge>
                         ) : (
                           '—'
                         )}
                       </td>
-                      <td className='p-2'>{fmtTs(row.last_success_at)}</td>
-                      <td className='p-2'>
-                        <div className='flex flex-wrap gap-1'>
+                      <td className='text-muted-foreground p-2.5 text-xs'>
+                        {fmtTs(row.last_success_at)}
+                      </td>
+                      <td className='p-2.5'>
+                        <div className='flex flex-wrap items-center gap-1.5'>
                           <Select
                             onValueChange={(action) => {
                               if (
@@ -412,6 +578,7 @@ export function ModelRouteAdmin() {
                           <Button
                             size='sm'
                             variant='outline'
+                            className='h-8'
                             onClick={() =>
                               resetRuntimeMut.mutate({
                                 channel_id: row.channel_id,
@@ -424,6 +591,7 @@ export function ModelRouteAdmin() {
                           <Button
                             size='sm'
                             variant='destructive'
+                            className='h-8'
                             onClick={() => {
                               if (
                                 !window.confirm(
@@ -451,7 +619,7 @@ export function ModelRouteAdmin() {
                     <tr>
                       <td
                         colSpan={10}
-                        className='text-muted-foreground p-4 text-center'
+                        className='text-muted-foreground p-6 text-center'
                       >
                         {t('No metrics')}
                       </td>
@@ -460,6 +628,11 @@ export function ModelRouteAdmin() {
                 </tbody>
               </table>
             </div>
+            {!metricsQuery.isLoading && metrics.length > 0 && (
+              <p className='text-muted-foreground text-xs'>
+                {t('{{count}} metrics', { count: metrics.length })}
+              </p>
+            )}
           </TabsContent>
         </Tabs>
       </SectionPageLayout.Content>

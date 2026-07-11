@@ -5144,6 +5144,21 @@
     "Routing behavior mode": "Routing behavior mode",
     "Experience first": "Experience first",
     "Priority first": "Priority first",
-    "Experience first favors EMA experience scores within the same priority band.": "Experience first favors EMA experience scores within the same priority band."
+    "Experience first favors EMA experience scores within the same priority band.": "Experience first favors EMA experience scores within the same priority band.",
+    "Configured": "Configured",
+    "Mapped": "Mapped",
+    "Observed": "Observed",
+    "Lazy created": "Lazy created",
+    "UNKNOWN": "UNKNOWN",
+    "HEALTHY": "HEALTHY",
+    "RATE_LIMITED": "RATE_LIMITED",
+    "OPEN": "OPEN",
+    "PROBING": "PROBING",
+    "RECOVERING": "RECOVERING",
+    "MANUALLY_DISABLED": "MANUALLY_DISABLED",
+    "NONE": "NONE",
+    "BOOTSTRAP": "BOOTSTRAP",
+    "PRIMARY": "PRIMARY",
+    "OVERFLOW": "OVERFLOW"
   }
 }

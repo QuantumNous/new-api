@@ -5144,6 +5144,25 @@
     "Routing behavior mode": "路由行为模式",
     "Experience first": "体验优先",
     "Priority first": "优先级优先",
-    "Experience first favors EMA experience scores within the same priority band.": "体验优先：在同优先级段内偏好 EMA 体验分更高的渠道。"
+    "Experience first favors EMA experience scores within the same priority band.": "体验优先：在同优先级段内偏好 EMA 体验分更高的渠道。",
+    "Configured": "已配置",
+    "Mapped": "映射生成",
+    "Observed": "观测到",
+    "Lazy created": "懒创建",
+    "UNKNOWN": "未知",
+    "HEALTHY": "健康",
+    "RATE_LIMITED": "限流中",
+    "OPEN": "熔断",
+    "PROBING": "探测中",
+    "RECOVERING": "恢复中",
+    "MANUALLY_DISABLED": "人工禁用",
+    "NONE": "无",
+    "BOOTSTRAP": "冷启动",
+    "PRIMARY": "主渠道",
+    "OVERFLOW": "溢出",
+    "Channel name or ID": "渠道名称或 ID",
+    "Search model...": "搜索模型…",
+    "{{count}} policies": "{{count}} 条策略",
+    "{{count}} metrics": "{{count}} 条指标"
   }
 }
