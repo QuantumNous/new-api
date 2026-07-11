@@ -99,13 +99,12 @@ import {
   SiOkta,
   SiOpenid,
   SiReddit,
-  SiSlack,
   SiTelegram,
   SiTwitch,
   SiWechat,
   SiX,
 } from 'react-icons/si';
-import { FaLinkedin } from 'react-icons/fa';
+import { FaLinkedin, FaSlack } from 'react-icons/fa';
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -512,7 +511,7 @@ const oauthProviderIconMap = {
   linkedin: FaLinkedin,
   x: SiX,
   twitter: SiX,
-  slack: SiSlack,
+  slack: FaSlack,
   telegram: SiTelegram,
   wechat: SiWechat,
   keycloak: SiKeycloak,

@@ -27,16 +27,21 @@ export function DataTableColgroup<TData>({
 }) {
   const columns = table.getVisibleLeafColumns()
   const sizedColumns = columns.filter(
-    (column) => !isContentSizedColumn(column.id)
+    (column) =>
+      !isContentSizedColumn(column.id, column.columnDef.meta?.contentSized)
   )
   const totalSize = sizedColumns.reduce((sum, col) => sum + col.getSize(), 0)
 
   return (
     <colgroup>
       {columns.map((column) => {
-        const width = isContentSizedColumn(column.id)
-          ? undefined
-          : getColumnWidth(column.getSize(), totalSize)
+        const width = getColumnWidth(
+          table,
+          column.id,
+          column.getSize(),
+          totalSize,
+          column.columnDef.meta?.contentSized
+        )
 
         return <col key={column.id} style={{ width }} />
       })}
@@ -44,7 +49,21 @@ export function DataTableColgroup<TData>({
   )
 }
 
-function getColumnWidth(columnSize: number, totalSize: number) {
+function getColumnWidth<TData>(
+  table: TanstackTable<TData>,
+  columnId: string,
+  columnSize: number,
+  totalSize: number,
+  contentSized?: boolean
+) {
+  if (isContentSizedColumn(columnId, contentSized)) {
+    return undefined
+  }
+
+  if (table.options.enableColumnResizing === true) {
+    return `${columnSize}px`
+  }
+
   if (totalSize <= 0) {
     return undefined
   }

@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { BarChart3, Trophy } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
+
 import { formatTokens } from '../lib/format'
 import type { ModelHistorySeries, ModelRanking, RankingPeriod } from '../types'
 import { ModelLeaderboard } from './model-leaderboard'
@@ -175,10 +177,10 @@ export function ModelsSection(props: ModelsSectionProps) {
           </p>
         </div>
         <div className='shrink-0 text-right'>
-          <div className='text-foreground font-mono text-2xl font-semibold tabular-nums'>
+          <div className='text-foreground text-2xl font-semibold tabular-nums'>
             {formatTokens(totalTokens)}
           </div>
-          <div className='text-muted-foreground/80 text-[10px] font-medium tracking-widest uppercase'>
+          <div className='text-muted-foreground/80 text-xs font-medium tracking-widest uppercase'>
             {t('tokens')}
           </div>
         </div>
@@ -208,7 +210,7 @@ export function ModelsSection(props: ModelsSectionProps) {
       <div className='border-t'>
         <header className='px-5 pt-4 pb-2'>
           <h3 className='text-foreground inline-flex items-center gap-2 text-sm font-semibold'>
-            <Trophy className='size-3.5 text-amber-500' />
+            <Trophy className='text-warning size-3.5' />
             {t('LLM Leaderboard')}
           </h3>
           <p className='text-muted-foreground/80 mt-0.5 text-xs'>

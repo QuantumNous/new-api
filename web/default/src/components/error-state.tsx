@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
 import { AlertTriangle, type LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
+import { FadeIn } from '@/components/page-transition'
 import {
   Empty,
   EmptyContent,
@@ -29,7 +30,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { FadeIn } from '@/components/page-transition'
+import { cn } from '@/lib/utils'
 
 interface ErrorStateProps {
   icon?: LucideIcon
@@ -60,7 +61,7 @@ export function ErrorState(props: ErrorStateProps) {
         </EmptyHeader>
         <EmptyContent>
           {props.onRetry != null && (
-            <Button variant='outline' size='sm' onClick={props.onRetry}>
+            <Button variant='outline' onClick={props.onRetry}>
               {t('Retry')}
             </Button>
           )}

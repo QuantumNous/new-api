@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
+import React from 'react'
+
 import { cn } from '@/lib/utils'
 
 const glowVariants = cva('absolute w-full', {
@@ -49,13 +50,13 @@ export function Glow({ className, variant, ...props }: GlowProps) {
     >
       <div
         className={cn(
-          'absolute left-1/2 h-[256px] w-[60%] -translate-x-1/2 scale-[2.5] rounded-[50%] bg-radial from-amber-500/60 from-10% to-amber-500/0 to-60% opacity-40 sm:h-[512px] dark:opacity-80',
+          'from-primary/60 to-primary/0 absolute left-1/2 h-[256px] w-[60%] -translate-x-1/2 scale-[2.5] rounded-[50%] bg-radial from-10% to-60% opacity-40 sm:h-[512px]',
           variant === 'center' && '-translate-y-1/2'
         )}
       />
       <div
         className={cn(
-          'absolute left-1/2 h-[128px] w-[40%] -translate-x-1/2 scale-200 rounded-[50%] bg-radial from-yellow-400/50 from-10% to-yellow-400/0 to-60% opacity-30 sm:h-[256px] dark:opacity-70',
+          'from-primary/40 to-primary/0 absolute left-1/2 h-[128px] w-[40%] -translate-x-1/2 scale-200 rounded-[50%] bg-radial from-10% to-60% opacity-30 sm:h-[256px]',
           variant === 'center' && '-translate-y-1/2'
         )}
       />

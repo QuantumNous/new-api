@@ -16,11 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { ExternalLink, Loader2, ChevronRight } from 'lucide-react'
+import { useMemo, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import {
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  useSidebar,
+} from '@/components/design-system/sidebar'
 import {
   Collapsible,
   CollapsibleContent,
@@ -32,14 +41,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  useSidebar,
-} from '@/components/ui/sidebar'
 import { fetchActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {
@@ -47,6 +48,7 @@ import {
   resolveChatUrl,
   type ChatPreset,
 } from '@/features/chat/lib/chat-links'
+
 import { normalizeHref } from '../lib/url-utils'
 import type { NavChatPresets } from '../types'
 

@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+
 import { handleCopyChannel } from '../../lib'
 import { useChannels } from '../channels-provider'
 

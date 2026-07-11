@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Mail,
   Globe,
@@ -28,11 +27,15 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiDiscord } from 'react-icons/si'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
-import { Button } from '@/components/ui/button'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Button } from '@/components/design-system/button'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -41,9 +44,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { api } from '@/lib/api'
+
 import {
   getUser,
   getUserOAuthBindings,
@@ -347,7 +349,6 @@ export function UserBindingDialog(props: Props) {
                       <Button
                         variant='ghost'
                         size='sm'
-                        className='h-7 gap-1.5 px-2 text-xs'
                         onClick={() => setShowBoundOnly((v) => !v)}
                       />
                     }
@@ -396,12 +397,9 @@ export function UserBindingDialog(props: Props) {
                               {binding.label}
                             </span>
                             {!binding.isEnabled && (
-                              <StatusBadge
-                                variant='neutral'
-                                label={t('Disabled')}
-                                copyable={false}
-                                size='sm'
-                              />
+                              <StatusBadge variant='neutral'>
+                                {t('Disabled')}
+                              </StatusBadge>
                             )}
                           </div>
                           <p className='text-muted-foreground max-w-[140px] truncate text-xs'>
@@ -412,8 +410,8 @@ export function UserBindingDialog(props: Props) {
                       {binding.isBound && (
                         <Button
                           variant='ghost'
-                          size='sm'
-                          className='text-destructive hover:text-destructive h-7 w-7 shrink-0 p-0'
+                          size='icon-sm'
+                          className='text-destructive hover:text-destructive shrink-0'
                           onClick={() => setUnbindTarget(binding)}
                         >
                           <Unlink className='h-3.5 w-3.5' />

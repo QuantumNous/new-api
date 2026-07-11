@@ -16,9 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
+import { type ReactNode, useState, useEffect } from 'react'
+
+import {
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  useSidebar,
+} from '@/components/design-system/sidebar'
 import { Badge } from '@/components/ui/badge'
 import {
   Collapsible,
@@ -34,17 +46,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  useSidebar,
-} from '@/components/ui/sidebar'
+
 import { checkIsActive } from '../lib/url-utils'
 import {
   type NavCollapsible,
@@ -64,7 +66,7 @@ export function NavGroup({ title, items }: NavGroupProps) {
 
   return (
     <SidebarGroup className='px-2 py-1'>
-      <SidebarGroupLabel className='text-muted-foreground/70 px-2 text-[11px] font-medium tracking-wider uppercase'>
+      <SidebarGroupLabel className='text-muted-foreground/70 px-2 text-xs font-medium tracking-wider uppercase'>
         {title}
       </SidebarGroupLabel>
       <SidebarMenu>

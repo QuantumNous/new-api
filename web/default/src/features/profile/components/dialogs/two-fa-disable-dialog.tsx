@@ -16,17 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { AlertTriangle, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { disable2FA } from '@/lib/api'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { disable2FA } from '@/lib/api'
 
 // ============================================================================
 // Two-FA Disable Dialog Component
@@ -73,7 +74,7 @@ export function TwoFADisableDialog({
       } else {
         toast.error(response.message || t('Failed to disable 2FA'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to disable 2FA'))
     } finally {
       setLoading(false)

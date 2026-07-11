@@ -340,12 +340,12 @@ export function formatBalance(balance: number | null | undefined): string {
  */
 export function getBalanceVariant(
   balance: number
-): 'success' | 'warning' | 'danger' | 'neutral' {
+): 'success' | 'warning' | 'destructive' | 'neutral' {
   if (balance === 0) {
     return 'neutral'
   }
   if (balance < 1) {
-    return 'danger'
+    return 'destructive'
   }
   if (balance < 10) {
     return 'warning'

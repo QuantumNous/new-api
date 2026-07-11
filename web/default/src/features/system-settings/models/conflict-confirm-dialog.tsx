@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
+
+import { StaticDataTable } from '@/components/data-table'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,8 +28,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { StaticDataTable } from '@/components/data-table'
+} from '@/components/design-system/alert-dialog'
 
 export type ConflictItem = {
   channel: string
@@ -54,7 +55,7 @@ export function ConflictConfirmDialog({
   const { t } = useTranslation()
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className='max-w-4xl'>
+      <AlertDialogContent className='sm:max-w-4xl'>
         <AlertDialogHeader>
           <AlertDialogTitle>{t('Confirm Billing Conflicts')}</AlertDialogTitle>
           <AlertDialogDescription>

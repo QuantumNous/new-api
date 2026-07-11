@@ -16,21 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { cn } from '@/lib/utils'
-import { useNotifications } from '@/hooks/use-notifications'
-import { useSystemConfig } from '@/hooks/use-system-config'
-import { useTopNavLinks } from '@/hooks/use-top-nav-links'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
+
+import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useNotifications } from '@/hooks/use-notifications'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { useTopNavLinks } from '@/hooks/use-top-nav-links'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
 import { HeaderLogo } from './header-logo'
@@ -284,8 +286,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                     <ProfileDropdown />
                   ) : (
                     <Button
-                      size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
+                      className='font-medium'
                       render={<Link to='/sign-in' />}
                     >
                       {t('Sign in')}
@@ -305,7 +306,6 @@ export function PublicHeader(props: PublicHeaderProps) {
                 type='button'
                 variant='ghost'
                 size='icon'
-                className='size-9'
                 onClick={() => setMobileOpen((v) => !v)}
                 aria-label={t('Toggle navigation menu')}
               >

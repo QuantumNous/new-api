@@ -138,7 +138,9 @@ const SENSITIVE_FLOW_KINDS = new Set<FlowNodeKind>([
   'channel',
 ])
 
-const OTHER_FLOW_NODE_ID_SET = new Set<string>(Object.values(OTHER_FLOW_NODE_IDS))
+const OTHER_FLOW_NODE_ID_SET = new Set<string>(
+  Object.values(OTHER_FLOW_NODE_IDS)
+)
 
 function numberValue(value: unknown): number {
   const n = Number(value)
@@ -146,7 +148,9 @@ function numberValue(value: unknown): number {
 }
 
 function isFlowNodeKind(value: unknown): value is FlowNodeKind {
-  return typeof value === 'string' && FLOW_NODE_KIND_SET.has(value as FlowNodeKind)
+  return (
+    typeof value === 'string' && FLOW_NODE_KIND_SET.has(value as FlowNodeKind)
+  )
 }
 
 function rowMetrics(row: FlowQuotaDataItem): FlowMetrics {
@@ -399,7 +403,9 @@ function selectedNodeFiltersExceptKind(
   selectedNodes: readonly FlowNodeFilter[] | undefined,
   kind: FlowNodeKind
 ): FlowNodeFilter[] | undefined {
-  const filtered = (selectedNodes ?? []).filter((filter) => filter.kind !== kind)
+  const filtered = (selectedNodes ?? []).filter(
+    (filter) => filter.kind !== kind
+  )
   return filtered.length > 0 ? filtered : undefined
 }
 
@@ -932,36 +938,13 @@ function buildNodeFilterOptions(
     }
   }
 
-  return options
-    .sort(
-      (a, b) =>
-        (stageOrder.get(a.kind) ?? 0) - (stageOrder.get(b.kind) ?? 0) ||
-        b.valueRaw - a.valueRaw ||
-        a.label.localeCompare(b.label) ||
-        a.value.localeCompare(b.value)
-    )
-}
-
-export function buildFlowFilterOptions(
-  rows: FlowQuotaDataItem[],
-  metric: FlowMetric = 'quota',
-  palette?: readonly string[],
-  role: FlowRole = DEFAULT_FLOW_ROLE,
-  visibleStages?: FlowNodeKind[],
-  selectedNodes?: readonly FlowNodeFilter[]
-): FlowFilterOptions {
-  return {
-    users: buildUserFilterOptions(rows, metric, palette),
-    nodes: buildNodeFilterOptions(
-      rows,
-      metric,
-      role,
-      visibleStages,
-      palette,
-      EMPTY_FLOW_PATH_CONTEXT,
-      selectedNodes
-    ),
-  }
+  return options.sort(
+    (a, b) =>
+      (stageOrder.get(a.kind) ?? 0) - (stageOrder.get(b.kind) ?? 0) ||
+      b.valueRaw - a.valueRaw ||
+      a.label.localeCompare(b.label) ||
+      a.value.localeCompare(b.value)
+  )
 }
 
 export function buildDashboardFlowData(
@@ -1041,17 +1024,11 @@ function sankeyDatumValue(
   return sankeyDatumSource(datum)[key]
 }
 
-function sankeyDatumFlag(
-  datum: Record<string, unknown>,
-  key: string
-): boolean {
+function sankeyDatumFlag(datum: Record<string, unknown>, key: string): boolean {
   return sankeyDatumValue(datum, key) === true
 }
 
-export function flowSankeyDatumValue(
-  datum: unknown,
-  key: string
-): unknown {
+export function flowSankeyDatumValue(datum: unknown, key: string): unknown {
   const record = recordValue(datum)
   return record ? sankeyDatumValue(record, key) : undefined
 }

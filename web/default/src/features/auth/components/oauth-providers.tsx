@@ -18,14 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import {
   IconDiscord,
   IconGithub,
   IconLinuxDo,
   IconWeChat,
 } from '@/assets/brand-icons'
+import { Button } from '@/components/design-system/button'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+
 import { useOAuthLogin } from '../hooks/use-oauth-login'
 import type { SystemStatus } from '../types'
 
@@ -157,7 +159,8 @@ export function OAuthProviders({
               type='button'
               disabled={disabled || isLoading || extraDisabled}
               onClick={onClick}
-              className='h-11 w-full justify-center gap-2 rounded-lg'
+              size='xl'
+              className='w-full justify-center rounded-lg'
             >
               {icon}
               {label}

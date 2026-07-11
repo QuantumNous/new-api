@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+
 import { Dialog } from '@/components/dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 // ============================================================================
 // Telegram Bind Dialog Component
@@ -59,8 +60,8 @@ export function TelegramBindDialog({
         </Alert>
 
         <div className='flex flex-col items-center justify-center gap-4 rounded-lg border p-6'>
-          <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900'>
-            <Send className='h-6 w-6 text-blue-600 dark:text-blue-400' />
+          <div className='bg-info/10 text-info flex h-12 w-12 items-center justify-center rounded-xl'>
+            <Send className='size-6' />
           </div>
 
           <div className='text-center'>

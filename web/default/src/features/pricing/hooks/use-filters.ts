@@ -16,14 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useCallback, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
+import { useMemo, useCallback, useState } from 'react'
+
 import {
   FILTER_ALL,
   SORT_OPTIONS,
   QUOTA_TYPES,
   ENDPOINT_TYPES,
   DEFAULT_TOKEN_UNIT,
+  DEFAULT_VIEW_MODE,
   VIEW_MODES,
   type ViewMode,
 } from '../constants'
@@ -44,10 +46,10 @@ type FilterState = {
 }
 
 function normalizeViewMode(value: unknown): ViewMode {
-  if (value === VIEW_MODES.TABLE) {
-    return VIEW_MODES.TABLE
+  if (value === VIEW_MODES.CARD) {
+    return VIEW_MODES.CARD
   }
-  return VIEW_MODES.CARD
+  return DEFAULT_VIEW_MODE
 }
 
 export function useFilters(models: PricingModel[]) {
@@ -129,7 +131,7 @@ export function useFilters(models: PricingModel[]) {
   )
   const setViewMode = useCallback(
     (v: ViewMode) =>
-      updateFilters({ view: v === VIEW_MODES.CARD ? undefined : v }),
+      updateFilters({ view: v === DEFAULT_VIEW_MODE ? undefined : v }),
     [updateFilters]
   )
   const setShowRechargePrice = useCallback(
@@ -185,6 +187,37 @@ export function useFilters(models: PricingModel[]) {
     [vendorFilter, groupFilter, quotaTypeFilter, endpointTypeFilter, tagFilter]
   )
 
+  const routeSearch = useMemo<FilterState>(
+    () => ({
+      search: searchInput || undefined,
+      sort: sortBy === SORT_OPTIONS.NAME ? undefined : sortBy,
+      vendor: vendorFilter === FILTER_ALL ? undefined : vendorFilter,
+      group: groupFilter === FILTER_ALL ? undefined : groupFilter,
+      quotaType:
+        quotaTypeFilter === QUOTA_TYPES.ALL ? undefined : quotaTypeFilter,
+      endpointType:
+        endpointTypeFilter === ENDPOINT_TYPES.ALL
+          ? undefined
+          : endpointTypeFilter,
+      tag: tagFilter === FILTER_ALL ? undefined : tagFilter,
+      tokenUnit: tokenUnit === DEFAULT_TOKEN_UNIT ? undefined : tokenUnit,
+      view: viewMode === DEFAULT_VIEW_MODE ? undefined : viewMode,
+      rechargePrice: showRechargePrice || undefined,
+    }),
+    [
+      endpointTypeFilter,
+      groupFilter,
+      quotaTypeFilter,
+      searchInput,
+      showRechargePrice,
+      sortBy,
+      tagFilter,
+      tokenUnit,
+      vendorFilter,
+      viewMode,
+    ]
+  )
+
   const clearFilters = useCallback(() => {
     updateFilters({
       vendor: undefined,
@@ -224,6 +257,7 @@ export function useFilters(models: PricingModel[]) {
     hasActiveFilters,
     activeFilterCount,
     availableTags,
+    routeSearch,
     clearFilters,
     clearSearch,
   }

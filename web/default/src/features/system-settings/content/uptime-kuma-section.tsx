@@ -16,13 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import * as z from 'zod'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,8 +35,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+} from '@/components/design-system/alert-dialog'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
@@ -44,10 +49,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { StaticDataTable } from '@/components/data-table/static/static-data-table'
-import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
-import { Dialog } from '@/components/dialog'
+
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -240,13 +242,12 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button onClick={handleAdd} size='sm'>
+            <Button onClick={handleAdd}>
               <Plus className='mr-2 h-4 w-4' />
               {t('Add Group')}
             </Button>
             <Button
               onClick={handleBatchDelete}
-              size='sm'
               variant='destructive'
               disabled={selectedIds.length === 0}
             >
@@ -256,7 +257,6 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             </Button>
             <Button
               onClick={handleSaveAll}
-              size='sm'
               variant='secondary'
               disabled={!hasChanges || updateOption.isPending}
             >

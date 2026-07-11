@@ -17,13 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
-import { quotaUnitsToDollars } from '@/lib/format'
+
 import {
   type PermissionCatalog,
   type AdminPermissionMatrix,
   normalizeAdminPermissions,
 } from '@/lib/admin-permissions'
+import { quotaUnitsToDollars } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
+
 import { DEFAULT_GROUP } from '../constants'
 import { type UserFormData, type User } from '../types'
 
@@ -39,7 +41,9 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
-  admin_permissions: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),
+  admin_permissions: z
+    .record(z.string(), z.record(z.string(), z.boolean()))
+    .optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>

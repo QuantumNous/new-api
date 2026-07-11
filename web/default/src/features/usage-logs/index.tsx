@@ -16,14 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSidebarConfig } from '@/hooks/use-sidebar-config'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+import { Tabs, TabsList, TabsTrigger } from '@/components/design-system/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
+import { useSidebarConfig } from '@/hooks/use-sidebar-config'
+
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
   UsageLogsProvider,
@@ -118,7 +120,7 @@ function UsageLogsContent() {
           <div className='flex h-full min-h-0 flex-col gap-4'>
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
-                <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+                <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto sm:group-data-horizontal/tabs:h-auto'>
                   {visibleSections.map((section) => (
                     <TabsTrigger key={section} value={section}>
                       {t(SECTION_META[section].titleKey)}

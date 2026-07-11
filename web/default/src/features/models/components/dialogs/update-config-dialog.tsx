@@ -16,15 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo } from 'react'
-import { z } from 'zod'
-import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+import { z } from 'zod'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
 import {
   Collapsible,
   CollapsibleContent,
@@ -38,9 +41,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog } from '@/components/dialog'
+
 import { getDeployment, updateDeployment } from '../../api'
 import { deploymentsQueryKeys } from '../../lib'
 

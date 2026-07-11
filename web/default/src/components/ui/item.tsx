@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import { mergeProps } from '@base-ui/react/merge-props'
 import { useRender } from '@base-ui/react/use-render'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '@/lib/utils'
+import * as React from 'react'
+
 import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (
@@ -160,7 +161,7 @@ function ItemDescription({ className, ...props }: React.ComponentProps<'p'>) {
     <p
       data-slot='item-description'
       className={cn(
-        'text-muted-foreground [&>a:hover]:text-primary line-clamp-2 text-left text-sm leading-normal font-normal group-data-[size=xs]/item:text-xs [&>a]:underline [&>a]:underline-offset-4',
+        'line-clamp-2 text-left text-sm leading-normal font-normal text-muted-foreground group-data-[size=xs]/item:text-xs [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
         className
       )}
       {...props}

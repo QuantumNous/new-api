@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { Dialog } from '@/components/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 type DescriptionDialogProps = {
   open: boolean
@@ -40,7 +41,7 @@ export function DescriptionDialog({
       onOpenChange={onOpenChange}
       title={modelName}
       description={t('Model Description')}
-      contentClassName='max-w-2xl'
+      contentClassName='sm:max-w-2xl'
       contentHeight='auto'
       bodyClassName='space-y-4'
     >

@@ -16,24 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -41,17 +33,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { Textarea } from '@/components/ui/textarea'
+} from '@/components/design-system/select'
 import {
   SideDrawerSection,
   sideDrawerContentClassName,
@@ -62,6 +44,26 @@ import {
 import { JsonEditor } from '@/components/json-editor'
 import { StatusBadge } from '@/components/status-badge'
 import { TagInput } from '@/components/tag-input'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Textarea } from '@/components/ui/textarea'
+
 import { createPrefillGroup, updatePrefillGroup } from '../../api'
 import { ENDPOINT_TEMPLATES } from '../../constants'
 import { prefillGroupsQueryKeys } from '../../lib'
@@ -141,27 +143,28 @@ export function PrefillGroupFormDrawer({
 
   const handleSubmit = async (values: PrefillGroupFormValues) => {
     setIsSaving(true)
+    let items: string | string[]
+    if (values.type === 'endpoint') {
+      items = typeof values.items === 'string' ? values.items : ''
+    } else {
+      items = Array.isArray(values.items) ? values.items : []
+    }
+
     const payload = {
       name: values.name.trim(),
       type: values.type,
       description: values.description?.trim() || '',
-      items:
-        values.type === 'endpoint'
-          ? typeof values.items === 'string'
-            ? values.items
-            : ''
-          : Array.isArray(values.items)
-            ? values.items
-            : [],
+      items,
     }
 
     try {
-      const response = isEdit
-        ? await updatePrefillGroup({
-            id: currentGroup!.id,
-            ...payload,
-          })
-        : await createPrefillGroup(payload)
+      const response =
+        isEdit && currentGroup
+          ? await updatePrefillGroup({
+              id: currentGroup.id,
+              ...payload,
+            })
+          : await createPrefillGroup(payload)
 
       if (response.success) {
         toast.success(
@@ -183,6 +186,12 @@ export function PrefillGroupFormDrawer({
 
   const meta =
     PREFILL_GROUP_TYPE_META[selectedType] || PREFILL_GROUP_TYPE_META.model
+  let submitLabel = t('Create')
+  if (isSaving) {
+    submitLabel = t('Saving...')
+  } else if (isEdit) {
+    submitLabel = t('Save changes')
+  }
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -275,22 +284,20 @@ export function PrefillGroupFormDrawer({
                   <FormItem>
                     <FormLabel>Group Type</FormLabel>
                     <Select
-                      items={[
-                        ...PREFILL_GROUP_TYPES.map((type) => ({
-                          value: type.value,
-                          label: (
-                            <div className='flex flex-col text-left'>
-                              <span className='font-medium'>{type.label}</span>
-                              <span
-                                data-prefill-description
-                                className='text-muted-foreground text-xs'
-                              >
-                                {type.description}
-                              </span>
-                            </div>
-                          ),
-                        })),
-                      ]}
+                      items={PREFILL_GROUP_TYPES.map((type) => ({
+                        value: type.value,
+                        label: (
+                          <div className='flex flex-col text-left'>
+                            <span className='font-medium'>{type.label}</span>
+                            <span
+                              data-prefill-description
+                              className='text-muted-foreground text-xs'
+                            >
+                              {type.description}
+                            </span>
+                          </div>
+                        ),
+                      }))}
                       value={field.value}
                       onValueChange={(value) =>
                         value !== null &&
@@ -333,12 +340,9 @@ export function PrefillGroupFormDrawer({
               <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                 <div className='flex items-center gap-2'>
                   <h4 className='text-sm font-medium'>{t('Project')}</h4>
-                  <StatusBadge
-                    label={meta.label}
-                    variant={meta.badge}
-                    size='sm'
-                    copyable={false}
-                  />
+                  <StatusBadge variant={meta.badge} size='sm'>
+                    {meta.label}
+                  </StatusBadge>
                 </div>
                 <FormField
                   control={form.control}
@@ -397,11 +401,7 @@ export function PrefillGroupFormDrawer({
           </SheetClose>
           <Button type='submit' form='prefill-group-form' disabled={isSaving}>
             {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {isSaving
-              ? t('Saving...')
-              : isEdit
-                ? t('Save changes')
-                : t('Create')}
+            {submitLabel}
           </Button>
         </SheetFooter>
       </SheetContent>

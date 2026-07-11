@@ -17,12 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import { cn } from '@/lib/utils'
+
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 type TruncatedCellProps = {
   children: React.ReactNode
@@ -49,7 +50,7 @@ export function TruncatedCell({
     return (
       <div
         className={cn(
-          'block max-w-full min-w-0 truncate',
+          'block max-w-full min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]',
           cellClassName,
           className
         )}
@@ -63,7 +64,8 @@ export function TruncatedCell({
     <Tooltip>
       <TooltipTrigger
         render={
-          <div
+          <span
+            tabIndex={0}
             className={cn(
               'block max-w-full min-w-0 truncate',
               cellClassName,
@@ -72,7 +74,9 @@ export function TruncatedCell({
           />
         }
       >
-        <div className={cn('truncate', contentClassName)}>{children}</div>
+        <span className={cn('block truncate', contentClassName)}>
+          {children}
+        </span>
       </TooltipTrigger>
       <TooltipContent
         side={side}

@@ -16,17 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import { useMemo } from 'react'
+
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
+
 import { type TopNavLink } from '../types'
 
 type TopNavProps = React.HTMLAttributes<HTMLElement> & {
@@ -56,7 +58,7 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
       <div className='lg:hidden'>
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger
-            render={<Button size='icon' variant='outline' className='size-7' />}
+            render={<Button size='icon' variant='outline' />}
           >
             <Menu />
           </DropdownMenuTrigger>

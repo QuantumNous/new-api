@@ -16,22 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Flame, ShieldCheck, TrendingDown } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
-import { formatNumber, formatQuota } from '@/lib/format'
-import { computeTimeRange } from '@/lib/time'
-import { cn } from '@/lib/utils'
-import { useStatus } from '@/hooks/use-status'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
+import { useStatus } from '@/hooks/use-status'
+import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
+import { formatNumber, formatQuota } from '@/lib/format'
+import { computeTimeRange } from '@/lib/time'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { StatCard } from '../ui/stat-card'
 
 const SUMMARY_SPARKLINE_BUCKETS = 12
@@ -279,7 +281,7 @@ export function SummaryCards() {
                   className={cn('size-1.5 rounded-full', healthCfg.dotClass)}
                   aria-hidden='true'
                 />
-                <span className='text-muted-foreground text-[11px] font-medium'>
+                <span className='text-muted-foreground text-xs font-medium'>
                   {t(healthCfg.labelKey)}
                 </span>
               </span>
@@ -291,7 +293,7 @@ export function SummaryCards() {
 
             <div className='grid grid-cols-2 gap-2'>
               <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
+                <div className='text-muted-foreground flex items-center gap-1 text-xs leading-none font-medium'>
                   <Flame className='size-3 shrink-0' aria-hidden='true' />
                   <span className='truncate'>{t('Last 24h usage')}</span>
                 </div>
@@ -300,7 +302,7 @@ export function SummaryCards() {
                 </div>
               </div>
               <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
+                <div className='text-muted-foreground flex items-center gap-1 text-xs leading-none font-medium'>
                   {runwayDays !== null && runwayDays < 3 ? (
                     <TrendingDown
                       className='size-3 shrink-0'

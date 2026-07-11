@@ -16,13 +16,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/design-system/select'
+import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
+} from '@/components/drawer-layout'
 import {
   Form,
   FormControl,
@@ -32,15 +50,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Sheet,
   SheetClose,
@@ -51,14 +60,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import {
-  SideDrawerSection,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-  sideDrawerSwitchItemClassName,
-} from '@/components/drawer-layout'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+
 import {
   createPlan,
   updatePlan,
@@ -66,7 +69,6 @@ import {
   createWaffoPancakeSubscriptionProduct,
   listWaffoPancakeSubscriptionProductOptions,
 } from '../api'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
   getPlanFormSchema,
@@ -457,7 +459,9 @@ export function SubscriptionsMutateDrawer({
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {t('Downgrade to this group after the subscription expires')}
+                        {t(
+                          'Downgrade to this group after the subscription expires'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

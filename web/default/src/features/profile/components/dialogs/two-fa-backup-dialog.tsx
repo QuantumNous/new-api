@@ -16,17 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { RefreshCw, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { regenerate2FABackupCodes } from '@/lib/api'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+
 import { CopyButton } from '@/components/copy-button'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Label } from '@/components/ui/label'
+import { regenerate2FABackupCodes } from '@/lib/api'
 
 // ============================================================================
 // Two-FA Backup Codes Dialog Component
@@ -64,7 +65,7 @@ export function TwoFABackupDialog({
       } else {
         toast.error(response.message || t('Failed to regenerate backup codes'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to regenerate backup codes'))
     } finally {
       setLoading(false)
@@ -106,25 +107,23 @@ export function TwoFABackupDialog({
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
-        <>
-          {backupCodes.length === 0 ? (
-            <>
-              <Button
-                variant='outline'
-                onClick={() => handleOpenChange(false)}
-                disabled={loading}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button onClick={handleRegenerate} disabled={loading || !code}>
-                {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {loading ? t('Generating...') : t('Generate New Codes')}
-              </Button>
-            </>
-          ) : (
-            <Button onClick={handleDone}>{t('Done')}</Button>
-          )}
-        </>
+        backupCodes.length === 0 ? (
+          <>
+            <Button
+              variant='outline'
+              onClick={() => handleOpenChange(false)}
+              disabled={loading}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button onClick={handleRegenerate} disabled={loading || !code}>
+              {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+              {loading ? t('Generating...') : t('Generate New Codes')}
+            </Button>
+          </>
+        ) : (
+          <Button onClick={handleDone}>{t('Done')}</Button>
+        )
       }
     >
       <div className='space-y-4 py-4'>
@@ -162,12 +161,12 @@ export function TwoFABackupDialog({
 
             <div className='rounded-lg border p-4'>
               <div className='grid grid-cols-2 gap-2'>
-                {backupCodes.map((code, index) => (
+                {backupCodes.map((backupCode) => (
                   <div
-                    key={index}
+                    key={backupCode}
                     className='bg-muted rounded-md p-2 text-center font-mono text-sm'
                   >
-                    {code}
+                    {backupCode}
                   </div>
                 ))}
               </div>

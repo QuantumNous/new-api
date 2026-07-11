@@ -18,16 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
 import {
   DISABLED_ROW_DESKTOP,
   DISABLED_ROW_MOBILE,
   DataTablePage,
   useDataTable,
 } from '@/components/data-table'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+
 import { getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
@@ -50,7 +51,6 @@ export function UsersTable() {
   const { t } = useTranslation()
   const columns = useUsersColumns()
   const { refreshTrigger } = useUsers()
-  const isMobile = useMediaQuery('(max-width: 640px)')
 
   const {
     globalFilter,
@@ -63,7 +63,11 @@ export function UsersTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
-    pagination: { defaultPage: 1, defaultPageSize: isMobile ? 10 : 20 },
+    pagination: {
+      defaultPage: 1,
+      defaultPageSize: 20,
+      pageSizeStorageKey: 'users:page-size:v1',
+    },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
@@ -165,6 +169,7 @@ export function UsersTable() {
     <DataTablePage
       table={table}
       columns={columns}
+      tableLabel={t('Users')}
       isLoading={isLoading}
       isFetching={isFetching}
       emptyTitle={t('No Users Found')}
@@ -190,13 +195,10 @@ export function UsersTable() {
           },
         ],
       }}
-      getRowClassName={(row, { isMobile }) =>
-        isDisabledUserRow(row.original)
-          ? isMobile
-            ? DISABLED_ROW_MOBILE
-            : DISABLED_ROW_DESKTOP
-          : undefined
-      }
+      getRowClassName={(row, { isMobile }) => {
+        if (!isDisabledUserRow(row.original)) return undefined
+        return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP
+      }}
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )

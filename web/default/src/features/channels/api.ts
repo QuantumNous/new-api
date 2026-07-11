@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api, type ApiRequestConfig } from '@/lib/api'
 import { getGroups as getUserGroups } from '@/features/users/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
+
 import type {
   AddChannelRequest,
   BatchDeleteParams,
@@ -375,7 +376,7 @@ export async function manageMultiKeys(
 export async function getMultiKeyStatus(
   channelId: number,
   page = 1,
-  pageSize = 50,
+  pageSize = 20,
   status?: number
 ): Promise<MultiKeyStatusResponse> {
   return manageMultiKeys({

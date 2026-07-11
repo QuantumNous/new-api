@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
+import type { UIMessage } from 'ai'
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import {
   type ComponentProps,
   createContext,
@@ -28,11 +30,10 @@ import {
   useMemo,
   useState,
 } from 'react'
-import type { UIMessage } from 'ai'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/design-system/button'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 
 type BranchContextType = {
   currentBranch: number
@@ -177,14 +178,14 @@ export const BranchPrevious = ({
     <Button
       aria-label={t('Previous branch')}
       className={cn(
-        'text-muted-foreground size-7 shrink-0 transition-colors',
+        'text-muted-foreground shrink-0 transition-colors',
         'hover:bg-accent hover:text-foreground',
         'disabled:pointer-events-none disabled:opacity-50',
         className
       )}
       disabled={totalBranches <= 1}
       onClick={goToPrevious}
-      size='icon'
+      size='icon-sm'
       type='button'
       variant='ghost'
       {...props}
@@ -208,14 +209,14 @@ export const BranchNext = ({
     <Button
       aria-label={t('Next branch')}
       className={cn(
-        'text-muted-foreground size-7 shrink-0 transition-colors',
+        'text-muted-foreground shrink-0 transition-colors',
         'hover:bg-accent hover:text-foreground',
         'disabled:pointer-events-none disabled:opacity-50',
         className
       )}
       disabled={totalBranches <= 1}
       onClick={goToNext}
-      size='icon'
+      size='icon-sm'
       type='button'
       variant='ghost'
       {...props}

@@ -16,19 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ChangeEvent, useRef, type SetStateAction, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { type ChangeEvent, useRef, type SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { StaticDataTable } from '@/components/data-table/static/static-data-table'
-import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
-import { Dialog } from '@/components/dialog'
+
 import { SettingsSwitchField } from '../components/settings-form-layout'
 
 export interface WaffoSettingsValues {
@@ -98,8 +100,9 @@ export function WaffoSettingsSection({
   }
 
   const saveMethod = () => {
-    if (!methodForm.name.trim())
-      {return toast.error(t('Payment method name is required'))}
+    if (!methodForm.name.trim()) {
+      return toast.error(t('Payment method name is required'))
+    }
     if (editingIdx === -1) {
       onPayMethodsChange((prev) => [...prev, methodForm])
     } else {
@@ -129,8 +132,7 @@ export function WaffoSettingsSection({
     reader.addEventListener('load', () => {
       setMethodForm((previous) => ({
         ...previous,
-        icon:
-          typeof reader.result === 'string' ? reader.result : '',
+        icon: typeof reader.result === 'string' ? reader.result : '',
       }))
     })
     reader.readAsDataURL(file)
@@ -319,7 +321,7 @@ export function WaffoSettingsSection({
 
         <div className='flex items-center justify-between'>
           <h4 className='font-medium'>{t('Payment Methods')}</h4>
-          <Button type='button' variant='outline' size='sm' onClick={openAdd}>
+          <Button type='button' variant='outline' onClick={openAdd}>
             <Plus className='mr-1 h-3 w-3' />
             {t('Add payment method')}
           </Button>

@@ -16,15 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ComponentProps, createContext, useContext } from 'react'
 import {
   ChevronDownIcon,
   ExternalLinkIcon,
   MessageCircleIcon,
 } from 'lucide-react'
+import { type ComponentProps, createContext, useContext } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 const providers = {
   github: {

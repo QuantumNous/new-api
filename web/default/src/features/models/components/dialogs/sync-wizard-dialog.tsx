@@ -16,18 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+
+import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
+
 import { syncUpstream, previewUpstreamDiff } from '../../api'
 import { getSyncLocaleOptions, getSyncSourceOptions } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
@@ -186,11 +188,7 @@ export function SyncWizardDialog({
                     <div className='flex items-center gap-2'>
                       <span className='font-medium'>{option.label}</span>
                       {option.value === 'official' && (
-                        <StatusBadge
-                          label='Default'
-                          variant='neutral'
-                          copyable={false}
-                        />
+                        <StatusBadge variant='neutral'>Default</StatusBadge>
                       )}
                     </div>
                     <p className='text-muted-foreground text-sm'>

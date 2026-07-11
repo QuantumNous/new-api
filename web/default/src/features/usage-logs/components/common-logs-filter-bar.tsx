@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import type { Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useIsAdmin } from '@/hooks/use-admin'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
 import {
   Select,
   SelectContent,
@@ -31,12 +31,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useIsAdmin } from '@/hooks/use-admin'
+
 import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -273,10 +275,10 @@ export function CommonLogsFilterBar<TData>(
         render={
           <Button
             variant='ghost'
-            size='icon'
+            size='icon-sm'
             onClick={() => setSensitiveVisible(!sensitiveVisible)}
             aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-            className='text-muted-foreground hover:text-foreground size-7'
+            className='text-muted-foreground hover:text-foreground'
           />
         }
       >

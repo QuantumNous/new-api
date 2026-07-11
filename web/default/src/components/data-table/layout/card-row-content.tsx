@@ -16,182 +16,130 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
-import type { Row } from '@tanstack/react-table'
-import { StatusBadgeTypeContext } from '@/components/status-badge'
+import type { Cell, Row } from '@tanstack/react-table'
+
 import { getCellLabel, renderCellContent } from './card-cell-utils'
+import { DataTableCardField, DataTableCardRow } from './card-field'
 
-/**
- * Shared, column-meta-driven card content rendering for TanStack rows.
- *
- * Both {@link MobileCardList} (mobile) and {@link DataTableCardGrid} (desktop
- * card view) render the same inner content; only the surrounding container
- * differs (single bordered list vs. responsive grid of cards). Keeping the
- * per-row content here guarantees the two stay visually consistent.
- *
- * Column meta extensions (see `card-cell-utils.ts`):
- * - `mobileTitle`  — card header (left, larger text)
- * - `mobileBadge`  — inline with title (right, e.g. status badge)
- * - `mobileHidden` — hidden in card content
- */
+type CardRole = 'title' | 'badge' | 'primary' | 'secondary' | 'hidden'
 
-/**
- * Compact content — structured layout with title header + side-by-side fields.
- * Used when columns define mobileTitle or mobileBadge meta.
- *
- * Visual structure:
- *   [Title content]             [Badge]
- *   [Field1 label] [Field2 label]
- *   [Field1 value] [Field2 value]
- *                          [Actions ⋯]
- */
-function CompactContent<TData>({ row }: { row: Row<TData> }) {
-  const allCells = row
-    .getVisibleCells()
-    .filter((cell) => cell.column.id !== 'select')
+function getCardRole<TData>(cell: Cell<TData, unknown>): CardRole {
+  const meta = cell.column.columnDef.meta
+  if (meta?.cardRole) return meta.cardRole
+  return 'primary'
+}
 
-  // Read each cell's meta once, then reuse for all categorisation checks.
-  const cellMetas = React.useMemo(
-    () => allCells.map((c) => c.column.columnDef.meta),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allCells.map((c) => c.id).join(',')]
-  )
+function orderCardCells<TData>(
+  cells: Cell<TData, unknown>[]
+): Cell<TData, unknown>[] {
+  return [...cells].sort((a, b) => {
+    const aOrder = a.column.columnDef.meta?.cardOrder
+    const bOrder = b.column.columnDef.meta?.cardOrder
 
-  const titleCell = allCells.find((_, i) => cellMetas[i]?.mobileTitle)
-  const badgeCell = allCells.find((_, i) => cellMetas[i]?.mobileBadge)
-  const actionsCell = allCells.find((c) => c.column.id === 'actions')
-  const fieldCells = allCells.filter(
-    (c, i) =>
-      c !== titleCell &&
-      c !== badgeCell &&
-      c !== actionsCell &&
-      !cellMetas[i]?.mobileHidden
-  )
+    if (aOrder == null && bOrder == null) return 0
+    if (aOrder == null) return 1
+    if (bOrder == null) return -1
+    return aOrder - bOrder
+  })
+}
 
-  return (
-    <>
-      {/* Row 1: Title + Badge */}
-      <div className='flex items-center justify-between gap-2'>
-        {titleCell && (
-          <div className='min-w-0 flex-1 text-sm font-medium [&_[data-slot=status-badge]]:max-w-full [&_[data-slot=status-badge]]:whitespace-normal'>
-            {renderCellContent(titleCell)}
-          </div>
-        )}
-        {badgeCell && (
-          <div className='flex-none [&_[data-slot=status-badge]]:max-w-none'>
-            {renderCellContent(badgeCell)}
-          </div>
-        )}
-      </div>
-
-      {/* Row 2: Key fields wrap into compact columns instead of squeezing */}
-      {fieldCells.length > 0 && (
-        <div className='mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5'>
-          {fieldCells.map((cell) => {
-            const label = getCellLabel(cell)
-            return (
-              <div key={cell.id} className='min-w-0 flex-1 overflow-hidden'>
-                {label && (
-                  <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
-                    {label}
-                  </div>
-                )}
-                <div className='min-w-0 overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'>
-                  <StatusBadgeTypeContext.Provider value='text'>
-                    {renderCellContent(cell) ?? '-'}
-                  </StatusBadgeTypeContext.Provider>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Actions */}
-      {actionsCell && (
-        <div className='mt-1 -mb-0.5 flex justify-end'>
-          {renderCellContent(actionsCell)}
-        </div>
-      )}
-    </>
-  )
+function isWideField<TData>(cell: Cell<TData, unknown>): boolean {
+  const meta = cell.column.columnDef.meta
+  return meta?.cardSpan === 2 || meta?.contentMode === 'summary'
 }
 
 /**
- * Fallback content — condensed label:value pairs for tables without
- * mobileTitle/mobileBadge. Still respects mobileHidden.
- */
-function FallbackContent<TData>({ row }: { row: Row<TData> }) {
-  const allCells = row
-    .getVisibleCells()
-    .filter((cell) => cell.column.id !== 'select')
-
-  const cellMetas = React.useMemo(
-    () => allCells.map((c) => c.column.columnDef.meta),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allCells.map((c) => c.id).join(',')]
-  )
-
-  const actionsCell = allCells.find((c) => c.column.id === 'actions')
-  const contentCells = allCells.filter(
-    (c, i) => c.column.id !== 'actions' && !cellMetas[i]?.mobileHidden
-  )
-
-  return (
-    <>
-      {contentCells.map((cell) => {
-        const label = getCellLabel(cell)
-
-        if (!label) {
-          return (
-            <div
-              key={cell.id}
-              className='flex justify-end overflow-hidden [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'
-            >
-              <StatusBadgeTypeContext.Provider value='text'>
-                {renderCellContent(cell)}
-              </StatusBadgeTypeContext.Provider>
-            </div>
-          )
-        }
-
-        return (
-          <div
-            key={cell.id}
-            className='flex items-start justify-between gap-2 overflow-hidden'
-          >
-            <span className='text-muted-foreground shrink-0 text-[10px] font-medium select-none'>
-              {label}
-            </span>
-            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'>
-              <StatusBadgeTypeContext.Provider value='text'>
-                {renderCellContent(cell) ?? '-'}
-              </StatusBadgeTypeContext.Provider>
-            </div>
-          </div>
-        )
-      })}
-      {actionsCell && (
-        <div className='-mb-0.5 flex justify-end pt-0.5'>
-          {renderCellContent(actionsCell)}
-        </div>
-      )}
-    </>
-  )
-}
-
-/**
- * Renders a single row's card content, auto-selecting the compact or fallback
- * layout. Callers compute `compact` once per table (via `tableHasCompactMeta`)
- * and pass it down to avoid recomputation per row.
+ * Shared row content for both the mobile list and optional desktop card grid.
+ * All visible fields render immediately — no "More" click to reveal content.
  */
 export function CardRowContent<TData>(props: {
   row: Row<TData>
   compact: boolean
 }) {
-  return props.compact ? (
-    <CompactContent row={props.row} />
-  ) : (
-    <FallbackContent row={props.row} />
+  const cells = props.row
+    .getVisibleCells()
+    .filter((cell) => cell.column.id !== 'select')
+  const titleCell = cells.find((cell) => getCardRole(cell) === 'title')
+  const badgeCell = cells.find((cell) => getCardRole(cell) === 'badge')
+  const actionsCell = cells.find((cell) => cell.column.id === 'actions')
+  const bodyCells = orderCardCells(
+    cells.filter(
+      (cell) =>
+        cell !== titleCell &&
+        cell !== badgeCell &&
+        cell !== actionsCell &&
+        getCardRole(cell) !== 'hidden'
+    )
+  )
+  const rowCells = bodyCells.filter((cell) => !isWideField(cell))
+  const wideCells = bodyCells.filter((cell) => isWideField(cell))
+
+  return (
+    <div className='flex min-w-0 flex-col'>
+      {props.compact && (titleCell || badgeCell) && (
+        <div className='flex min-w-0 flex-wrap items-start justify-between gap-3'>
+          <div className='min-w-0 flex-1 text-[15px] leading-tight font-semibold [overflow-wrap:anywhere] break-words whitespace-normal [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal'>
+            {titleCell ? renderCellContent(titleCell) : null}
+          </div>
+          {badgeCell && (
+            <div className='shrink-0 text-right'>
+              {renderCellContent(badgeCell)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!props.compact && (
+        <div className='grid grid-cols-2 gap-x-3 gap-y-2'>
+          {bodyCells.map((cell) => {
+            const meta = cell.column.columnDef.meta
+            return (
+              <DataTableCardField
+                key={cell.id}
+                label={getCellLabel(cell)}
+                contentMode={meta?.contentMode}
+                span={meta?.cardSpan}
+              >
+                {renderCellContent(cell)}
+              </DataTableCardField>
+            )
+          })}
+        </div>
+      )}
+
+      {props.compact && rowCells.length > 0 && (
+        <div className='mt-3 space-y-0.5 border-t pt-3'>
+          {rowCells.map((cell) => (
+            <DataTableCardRow
+              key={cell.id}
+              label={getCellLabel(cell)}
+              contentMode={cell.column.columnDef.meta?.contentMode}
+            >
+              {renderCellContent(cell)}
+            </DataTableCardRow>
+          ))}
+        </div>
+      )}
+
+      {props.compact && wideCells.length > 0 && (
+        <div className='mt-3 space-y-3 border-t pt-3'>
+          {wideCells.map((cell) => (
+            <DataTableCardField
+              key={cell.id}
+              label={getCellLabel(cell)}
+              contentMode={cell.column.columnDef.meta?.contentMode ?? 'full'}
+            >
+              {renderCellContent(cell)}
+            </DataTableCardField>
+          ))}
+        </div>
+      )}
+
+      {actionsCell && (
+        <div className='mt-3 flex justify-end border-t pt-2'>
+          {renderCellContent(actionsCell)}
+        </div>
+      )}
+    </div>
   )
 }

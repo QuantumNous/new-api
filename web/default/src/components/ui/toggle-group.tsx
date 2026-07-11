@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import { Toggle as TogglePrimitive } from '@base-ui/react/toggle'
 import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group'
 import { type VariantProps } from 'class-variance-authority'
-import { cn } from '@/lib/utils'
+import * as React from 'react'
+
 import { toggleVariants } from '@/components/ui/toggle'
+import { cn } from '@/lib/utils'
 
 const ToggleGroupContext = React.createContext<
   VariantProps<typeof toggleVariants> & {
@@ -31,7 +32,7 @@ const ToggleGroupContext = React.createContext<
 >({
   size: 'default',
   variant: 'default',
-  spacing: 0,
+  spacing: 2,
   orientation: 'horizontal',
 })
 
@@ -39,7 +40,7 @@ function ToggleGroup({
   className,
   variant,
   size,
-  spacing = 0,
+  spacing = 2,
   orientation = 'horizontal',
   children,
   ...props
@@ -57,7 +58,7 @@ function ToggleGroup({
       data-orientation={orientation}
       style={{ '--gap': spacing } as React.CSSProperties}
       className={cn(
-        'group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] rounded-lg data-vertical:flex-col data-vertical:items-stretch data-[size=sm]:rounded-md',
+        'group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] rounded-lg data-[size=sm]:rounded-[min(var(--radius-md),10px)] data-vertical:flex-col data-vertical:items-stretch',
         className
       )}
       {...props}

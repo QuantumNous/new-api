@@ -2,11 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
 import type { FlowQuotaDataItem } from '../types'
-import {
-  buildDashboardFlowData,
-  buildFlowFilterOptions,
-  buildFlowSankeySpec,
-} from './flow'
+import { buildDashboardFlowData, buildFlowSankeySpec } from './flow'
 
 const rows: FlowQuotaDataItem[] = [
   {
@@ -276,7 +272,9 @@ describe('dashboard flow data', () => {
   })
 
   test('builds user filter options with stable values', () => {
-    const options = buildFlowFilterOptions(rows, 'quota')
+    const options = buildDashboardFlowData(rows, 'quota', {
+      role: 'admin',
+    }).filterOptions
 
     assert.deepEqual(
       options.users.map((user) => [user.value, user.label, user.valueLabel]),
@@ -297,8 +295,7 @@ describe('dashboard flow data', () => {
 
     assert.equal(
       result.filterOptions.nodes.some(
-        (option) =>
-          option.kind === 'model' && option.value === 'model:model-c'
+        (option) => option.kind === 'model' && option.value === 'model:model-c'
       ),
       true
     )
@@ -779,8 +776,7 @@ describe('dashboard flow data', () => {
     )
     const dimmedLink = values.links.find(
       (link: Record<string, unknown>) =>
-        link.source === 'model:claude-4-sonnet' &&
-        link.target === 'channel:101'
+        link.source === 'model:claude-4-sonnet' && link.target === 'channel:101'
     )
     const nodeOpacity = flowSpec.node.style.fillOpacity
     const linkOpacity = flowSpec.link.style.fillOpacity

@@ -18,16 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import type { ComponentProps } from 'react'
 import { ChevronDownIcon, PaperclipIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import type { ComponentProps } from 'react'
+
+import { Button } from '@/components/design-system/button'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 
 export type QueueMessagePart = {
   type: string
@@ -235,7 +236,7 @@ export const QueueSectionTrigger = ({
       <Button
         variant='ghost'
         className={cn(
-          'group bg-muted/40 text-muted-foreground hover:bg-muted h-auto w-full justify-between px-3 py-2 text-left',
+          'group bg-muted/40 text-muted-foreground hover:bg-muted h-auto sm:h-auto w-full justify-between px-3 py-2 text-left',
           className
         )}
         type='button'

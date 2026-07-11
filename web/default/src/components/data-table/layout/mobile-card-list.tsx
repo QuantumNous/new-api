@@ -34,13 +34,16 @@ import { cn } from '@/lib/utils'
 import { tableHasCompactMeta } from './card-cell-utils'
 import { CardRowContent } from './card-row-content'
 
-interface MobileCardListProps<TData> {
+export interface MobileCardListProps<TData> {
   table: Table<TData>
   isLoading?: boolean
   emptyTitle?: string
   emptyDescription?: string
+  emptyIcon?: React.ReactNode
+  emptyAction?: React.ReactNode
   getRowKey?: (row: Row<TData>) => string | number
   getRowClassName?: (row: Row<TData>) => string | undefined
+  renderCard?: (row: Row<TData>) => React.ReactNode
 }
 
 function ListSkeleton() {
@@ -93,7 +96,7 @@ function FallbackListSkeleton() {
  *
  * Per-row content is shared with the desktop card view via
  * {@link CardRowContent}; see `card-row-content.tsx` for the column-meta
- * extensions (`mobileTitle`, `mobileBadge`, `mobileHidden`).
+ * extensions (`cardRole`, `cardOrder`, `cardSpan`, `contentMode`).
  */
 export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
   const {
@@ -128,29 +131,34 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
-              <Database className='size-6' />
+              {props.emptyIcon ?? <Database className='size-6' />}
             </EmptyMedia>
             <EmptyTitle>{resolvedEmptyTitle}</EmptyTitle>
             <EmptyDescription>{resolvedEmptyDescription}</EmptyDescription>
           </EmptyHeader>
+          {props.emptyAction}
         </Empty>
       </div>
     )
   }
 
   return (
-    <div className='divide-y overflow-hidden rounded-lg border'>
+    <div className='min-w-0 divide-y overflow-hidden rounded-lg border'>
       {rows.map((row) => {
         const key = getRowKey ? getRowKey(row) : row.id
         return (
           <div
             key={key}
             className={cn(
-              '[background-color:var(--data-table-card-bg,var(--table-row))] px-3 py-2.5',
+              '[background-color:var(--data-table-card-bg,var(--table-row))] px-3.5 py-3',
               getRowClassName?.(row)
             )}
           >
-            <CardRowContent row={row} compact={hasCompactMeta} />
+            {props.renderCard ? (
+              props.renderCard(row)
+            ) : (
+              <CardRowContent row={row} compact={hasCompactMeta} />
+            )}
           </div>
         )
       })}

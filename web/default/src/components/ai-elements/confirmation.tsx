@@ -18,16 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
+import type { ToolUIPart } from 'ai'
 import {
   type ComponentProps,
   createContext,
   type ReactNode,
   useContext,
 } from 'react'
-import type { ToolUIPart } from 'ai'
-import { cn } from '@/lib/utils'
+
+import { Button } from '@/components/design-system/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 // Workaround for missing types in 'ai' package
 type ExtendedToolState =
@@ -168,5 +169,5 @@ export const ConfirmationActions = ({
 export type ConfirmationActionProps = ComponentProps<typeof Button>
 
 export const ConfirmationAction = (props: ConfirmationActionProps) => (
-  <Button className='h-8 px-3 text-sm' type='button' {...props} />
+  <Button type='button' {...props} />
 )

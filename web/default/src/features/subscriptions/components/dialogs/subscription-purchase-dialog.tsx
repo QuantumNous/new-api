@@ -16,15 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
 import { Crown, CalendarClock, Package } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
-import { formatQuota } from '@/lib/format'
-import { useSystemConfig } from '@/hooks/use-system-config'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
 import {
   Select,
   SelectContent,
@@ -32,10 +29,15 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
+} from '@/components/design-system/select'
 import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { formatQuota } from '@/lib/format'
+import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
+
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,

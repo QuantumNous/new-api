@@ -16,22 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
-import * as z from 'zod'
-import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Code2, Eye, ShieldAlert } from 'lucide-react'
+import * as React from 'react'
+import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
+import * as z from 'zod'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/design-system/tabs'
+import { RiskAcknowledgementDialog } from '@/components/risk-acknowledgement-dialog'
 import {
   Alert,
   AlertAction,
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -41,11 +49,10 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { RiskAcknowledgementDialog } from '@/components/risk-acknowledgement-dialog'
+import { cn } from '@/lib/utils'
+
 import { confirmPaymentCompliance } from '../api'
 import {
   SettingsForm,
@@ -817,7 +824,6 @@ export function PaymentSettingsSection({
           <AlertAction>
             <Button
               type='button'
-              size='sm'
               variant='destructive'
               onClick={() => setShowComplianceDialog(true)}
             >
@@ -956,7 +962,6 @@ export function PaymentSettingsSection({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
                           onClick={() =>
                             setPayMethodsVisualMode(!payMethodsVisualMode)
                           }
@@ -1015,7 +1020,6 @@ export function PaymentSettingsSection({
                           <Button
                             type='button'
                             variant='outline'
-                            size='sm'
                             onClick={() =>
                               setAmountOptionsVisualMode(
                                 !amountOptionsVisualMode
@@ -1071,7 +1075,6 @@ export function PaymentSettingsSection({
                           <Button
                             type='button'
                             variant='outline'
-                            size='sm'
                             onClick={() =>
                               setAmountDiscountVisualMode(
                                 !amountDiscountVisualMode
@@ -1248,24 +1251,24 @@ export function PaymentSettingsSection({
                   </p>
                 </div>
 
-                <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+                <div className='border-info/25 bg-info/8 rounded-md border p-4 text-sm'>
                   <p className='mb-2 font-medium'>
                     {t('Webhook Configuration:')}
                   </p>
                   <ul className='list-inside list-disc space-y-1'>
                     <li>
                       {t('Webhook URL:')}{' '}
-                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                      <code className='bg-info/10 rounded px-1 py-0.5 text-xs'>
                         {'<ServerAddress>/api/stripe/webhook'}
                       </code>
                     </li>
                     <li>
                       {t('Required events:')}{' '}
-                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                      <code className='bg-info/10 rounded px-1 py-0.5 text-xs'>
                         {t('checkout.session.completed')}
                       </code>{' '}
                       {t('and')}{' '}
-                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                      <code className='bg-info/10 rounded px-1 py-0.5 text-xs'>
                         {t('checkout.session.expired')}
                       </code>
                     </li>
@@ -1440,14 +1443,14 @@ export function PaymentSettingsSection({
                   </p>
                 </div>
 
-                <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+                <div className='border-info/25 bg-info/8 rounded-md border p-4 text-sm'>
                   <p className='mb-2 font-medium'>
                     {t('Webhook Configuration:')}
                   </p>
                   <ul className='list-inside list-disc space-y-1'>
                     <li>
                       {t('Webhook URL:')}{' '}
-                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                      <code className='bg-info/10 rounded px-1 py-0.5 text-xs'>
                         {'<ServerAddress>/api/creem/webhook'}
                       </code>
                     </li>
@@ -1540,7 +1543,6 @@ export function PaymentSettingsSection({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
                           onClick={() =>
                             setCreemProductsVisualMode(!creemProductsVisualMode)
                           }

@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { type ColumnDef, type RowSelectionState } from '@tanstack/react-table'
+import type { ColumnDef, RowSelectionState } from '@tanstack/react-table'
 import {
   Search,
   Info,
@@ -26,17 +25,13 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+
+import { DataTableView, useDataTable } from '@/components/data-table'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -44,10 +39,17 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { DataTableView, useDataTable } from '@/components/data-table'
+} from '@/components/design-system/select'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { useIsMobile } from '@/hooks/use-mobile'
+
 import { applyUpstreamOverwrite } from '../../api'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
 import type { SyncOverwritePayload } from '../../types'
@@ -117,7 +119,7 @@ export function UpstreamConflictDialog({
   const [search, setSearch] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(20)
   const [pageIndex, setPageIndex] = useState(0)
 
   useEffect(() => {
@@ -211,12 +213,9 @@ export function UpstreamConflictDialog({
               {row.original.fieldKey}
             </span>
             {isMobile ? (
-              <StatusBadge
-                label={row.original.fieldLabel}
-                variant='neutral'
-                size='sm'
-                copyable={false}
-              />
+              <StatusBadge variant='neutral' size='sm'>
+                {row.original.fieldLabel}
+              </StatusBadge>
             ) : null}
           </div>
         </div>
@@ -233,11 +232,7 @@ export function UpstreamConflictDialog({
         <Popover>
           <PopoverTrigger
             render={
-              <Button
-                variant='ghost'
-                size='sm'
-                className={isMobile ? 'h-7 w-7 p-0' : 'h-7 gap-2 px-2 text-xs'}
-              />
+              <Button variant='ghost' size={isMobile ? 'icon-sm' : 'sm'} />
             }
           >
             <MousePointerClick className='h-3.5 w-3.5' />
@@ -245,25 +240,17 @@ export function UpstreamConflictDialog({
           </PopoverTrigger>
           <PopoverContent className='w-[min(90vw,24rem)] space-y-4 text-sm'>
             <div>
-              <StatusBadge
-                label='Local'
-                variant='neutral'
-                size='sm'
-                copyable={false}
-                className='mb-1'
-              />
+              <StatusBadge variant='neutral' size='sm' className='mb-1'>
+                Local
+              </StatusBadge>
               <pre className='bg-muted rounded-md p-2 text-xs'>
                 {formatValue(row.original.localValue)}
               </pre>
             </div>
             <div>
-              <StatusBadge
-                label='Upstream'
-                variant='info'
-                size='sm'
-                copyable={false}
-                className='mb-1'
-              />
+              <StatusBadge variant='info' size='sm' className='mb-1'>
+                Upstream
+              </StatusBadge>
               <pre className='bg-muted rounded-md p-2 text-xs'>
                 {formatValue(row.original.upstreamValue)}
               </pre>
@@ -307,12 +294,9 @@ export function UpstreamConflictDialog({
         accessorKey: 'fieldLabel',
         header: 'Field',
         cell: ({ row }) => (
-          <StatusBadge
-            label={row.original.fieldLabel}
-            variant='neutral'
-            size='sm'
-            copyable={false}
-          />
+          <StatusBadge variant='neutral' size='sm'>
+            {row.original.fieldLabel}
+          </StatusBadge>
         ),
         enableSorting: false,
         size: 160,
@@ -394,7 +378,7 @@ export function UpstreamConflictDialog({
     const payload: SyncOverwritePayload[] = Object.entries(groupedSelections)
       .map(([modelName, fields]) => ({
         model_name: modelName,
-        fields: Array.from(fields),
+        fields: [...fields],
       }))
       .filter((item) => item.fields.length > 0)
 
@@ -510,7 +494,6 @@ export function UpstreamConflictDialog({
                 </div>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={clearSelections}
                   disabled={!hasSelection}
                 >
@@ -558,7 +541,7 @@ export function UpstreamConflictDialog({
                           setPageIndex(0)
                         }}
                       >
-                        <SelectTrigger className='h-8 w-[70px] text-xs sm:h-8 sm:w-[72px]'>
+                        <SelectTrigger className='w-[70px] text-xs sm:w-[72px]'>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent alignItemWithTrigger={false}>
@@ -576,7 +559,6 @@ export function UpstreamConflictDialog({
                       <Button
                         variant='outline'
                         size='icon'
-                        className='h-7 w-7 sm:h-8 sm:w-8'
                         onClick={() =>
                           setPageIndex((prev) => Math.max(0, prev - 1))
                         }
@@ -594,7 +576,6 @@ export function UpstreamConflictDialog({
                       <Button
                         variant='outline'
                         size='icon'
-                        className='h-7 w-7 sm:h-8 sm:w-8'
                         onClick={() =>
                           setPageIndex((prev) =>
                             Math.min(totalPages - 1, prev + 1)

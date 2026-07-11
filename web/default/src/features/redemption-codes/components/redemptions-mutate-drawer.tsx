@@ -16,15 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { zodResolver } from '@hookform/resolvers/zod'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
-import { addTimeToDate } from '@/lib/time'
-import { Button } from '@/components/ui/button'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import {
   Form,
   FormControl,
@@ -34,7 +41,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetClose,
@@ -44,14 +50,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { DateTimePicker } from '@/components/datetime-picker'
-import {
-  SideDrawerSection,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { addTimeToDate } from '@/lib/time'
+
 import { createRedemption, updateRedemption, getRedemption } from '../api'
 import { SUCCESS_MESSAGES } from '../constants'
 import {
@@ -258,7 +260,6 @@ export function RedemptionsMutateDrawer({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
                           onClick={() => handleSetExpiry(0, 0, 0)}
                         >
                           {t('Never')}
@@ -266,7 +267,6 @@ export function RedemptionsMutateDrawer({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
                           onClick={() => handleSetExpiry(1, 0, 0)}
                         >
                           {t('1M')}
@@ -274,7 +274,6 @@ export function RedemptionsMutateDrawer({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
                           onClick={() => handleSetExpiry(0, 7, 0)}
                         >
                           {t('1W')}
@@ -282,7 +281,6 @@ export function RedemptionsMutateDrawer({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
                           onClick={() => handleSetExpiry(0, 1, 0)}
                         >
                           {t('1 Day')}

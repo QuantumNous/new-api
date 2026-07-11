@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { RotateCcw, Save } from 'lucide-react'
 import {
   createContext,
   useContext,
@@ -23,10 +24,10 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
-import { RotateCcw, Save } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
 
 type SettingsPageContextValue = {
   actionsContainer: HTMLDivElement | null
@@ -122,7 +123,6 @@ export function SettingsPageFormActions(props: SettingsPageFormActionsProps) {
       {props.onReset && (
         <Button
           type='button'
-          size='sm'
           variant={props.resetVariant ?? 'outline'}
           onClick={props.onReset}
           disabled={props.isResetDisabled || props.isSaving}
@@ -134,7 +134,6 @@ export function SettingsPageFormActions(props: SettingsPageFormActionsProps) {
       <Button
         ref={props.saveButtonRef}
         type='button'
-        size='sm'
         onClick={props.onSave}
         disabled={props.isSaving || props.isSaveDisabled}
       >

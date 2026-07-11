@@ -16,14 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import * as z from 'zod'
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,8 +33,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+} from '@/components/design-system/alert-dialog'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { StatusBadge } from '@/components/status-badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Form,
   FormControl,
@@ -45,11 +47,11 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { StatusBadge } from '@/components/status-badge'
+import { api } from '@/lib/api'
+
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -533,11 +535,11 @@ export function PerformanceSection(props: Props) {
       <div className='space-y-4'>
         <div className='flex items-center gap-2'>
           <h4 className='font-medium'>{t('Performance Monitor')}</h4>
-          <Button variant='outline' size='sm' onClick={fetchStats}>
+          <Button variant='outline' onClick={fetchStats}>
             {t('Refresh Stats')}
           </Button>
           <AlertDialog>
-            <AlertDialogTrigger render={<Button variant='outline' size='sm' />}>
+            <AlertDialogTrigger render={<Button variant='outline' />}>
               {t('Clean up inactive cache')}
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -562,10 +564,10 @@ export function PerformanceSection(props: Props) {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          <Button variant='outline' size='sm' onClick={resetStats}>
+          <Button variant='outline' onClick={resetStats}>
             {t('Reset Stats')}
           </Button>
-          <Button variant='outline' size='sm' onClick={forceGC}>
+          <Button variant='outline' onClick={forceGC}>
             {t('Run GC')}
           </Button>
         </div>
@@ -591,7 +593,7 @@ export function PerformanceSection(props: Props) {
                     {stats.cache_stats?.active_disk_files ?? 0}
                   </span>
                 </div>
-                <StatusBadge variant='neutral' copyable={false}>
+                <StatusBadge variant='neutral'>
                   {t('Disk Hits')}: {stats.cache_stats?.disk_cache_hits ?? 0}
                 </StatusBadge>
               </div>
@@ -611,7 +613,7 @@ export function PerformanceSection(props: Props) {
                     {stats.cache_stats?.active_memory_buffers ?? 0}
                   </span>
                 </div>
-                <StatusBadge variant='neutral' copyable={false}>
+                <StatusBadge variant='neutral'>
                   {t('Memory Hits')}:{' '}
                   {stats.cache_stats?.memory_cache_hits ?? 0}
                 </StatusBadge>

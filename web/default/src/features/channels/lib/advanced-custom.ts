@@ -78,11 +78,7 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
   [
     {
       value: '/v1/chat/completions',
-      label: 'OpenAI Chat Completions',
-    },
-    {
-      value: '/v1/completions',
-      label: 'OpenAI Completions',
+      label: 'OpenAI Chat',
     },
     {
       value: '/v1/responses',
@@ -103,6 +99,10 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
     {
       value: '/v1/images/edits',
       label: 'OpenAI Image Edits',
+    },
+    {
+      value: '/v1/completions',
+      label: 'OpenAI Completions',
     },
     {
       value: '/v1/audio/speech',
@@ -141,6 +141,10 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
       label: 'Gemini Batch Embed Contents',
     },
   ]
+
+const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
+  '/v1/chat/completions': 'OpenAI Chat',
+}
 
 export type AdvancedCustomValidationError = {
   message: string
@@ -357,8 +361,17 @@ export function isAdvancedCustomIncomingPathAllowed(
   incomingPath: string,
   converter: AdvancedCustomConverter
 ): boolean {
-  return getAdvancedCustomIncomingPathOptions(converter).some(
-    (option) => option.value === incomingPath
+  return isConverterPathAllowed(incomingPath, converter)
+}
+
+export function getAdvancedCustomConverterOptions(
+  incomingPath: string
+): typeof ADVANCED_CUSTOM_CONVERTER_OPTIONS {
+  const normalizedIncomingPath = incomingPath.trim()
+  return ADVANCED_CUSTOM_CONVERTER_OPTIONS.filter(
+    (option) =>
+      option.value === 'none' ||
+      isConverterPathAllowed(normalizedIncomingPath, option.value)
   )
 }
 
@@ -483,15 +496,28 @@ export function advancedCustomConfigUsesRelativeUpstreamPath(
 export function getAdvancedCustomStats(value: string | undefined): {
   routeCount: number
   valid: boolean
+  routeTypeLabels: string[]
 } {
   const config = parseAdvancedCustomConfig(value)
   if (!config) {
-    return { routeCount: 0, valid: false }
+    return { routeCount: 0, valid: false, routeTypeLabels: [] }
   }
   const normalized = normalizeAdvancedCustomConfig(config)
+  const routes = normalized.advanced_routes || []
+  const routeTypeLabels: string[] = []
+  const seenRouteTypeLabels = new Set<string>()
+
+  for (const route of routes) {
+    const label = getAdvancedCustomRouteSummaryLabel(route)
+    if (!label || seenRouteTypeLabels.has(label)) continue
+    routeTypeLabels.push(label)
+    seenRouteTypeLabels.add(label)
+  }
+
   return {
-    routeCount: normalized.advanced_routes?.length || 0,
+    routeCount: routes.length,
     valid: validateAdvancedCustomConfig(normalized) === null,
+    routeTypeLabels,
   }
 }
 
@@ -539,8 +565,21 @@ function normalizeAdvancedCustomRoute(
   return nextRoute
 }
 
-function getAdvancedCustomRouteUpstreamPath(route: AdvancedCustomRoute): string {
+function getAdvancedCustomRouteUpstreamPath(
+  route: AdvancedCustomRoute
+): string {
   return (route.upstream_path || '').trim()
+}
+
+function getAdvancedCustomRouteSummaryLabel(
+  route: AdvancedCustomRoute
+): string | null {
+  const incomingPath = route.incoming_path?.trim() || ''
+  if (!incomingPath) return null
+  return (
+    ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS[incomingPath] ||
+    getAdvancedCustomIncomingPathLabel(incomingPath)
+  )
 }
 
 function isFullHttpURLOrAbsolutePath(value: string): boolean {

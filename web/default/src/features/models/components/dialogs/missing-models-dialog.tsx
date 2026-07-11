@@ -16,12 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
+import { CopyableStatusBadge } from '@/components/status-badge'
 import {
   Empty,
   EmptyDescription,
@@ -29,9 +32,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { Input } from '@/components/ui/input'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { useIsMobile } from '@/hooks/use-mobile'
+
 import { getMissingModels } from '../../api'
 import { DEFAULT_PAGE_SIZE } from '../../constants'
 import { modelsQueryKeys } from '../../lib'
@@ -116,24 +118,26 @@ export function MissingModelsDialog({
       description={t(
         'Models that are being used but not configured in the system'
       )}
-      contentClassName='flex max-h-[85vh] max-w-2xl flex-col gap-3 p-4'
+      contentClassName='flex max-h-[85vh] flex-col gap-3 p-4 sm:max-w-2xl'
       headerClassName='flex-shrink-0 text-start'
       contentHeight='min(74vh, 760px)'
       bodyClassName='space-y-4'
       initialFocus={!isMobile}
     >
-      {isLoading ? (
+      {isLoading && (
         <div className='flex items-center justify-center py-12'>
           <Loader2 className='h-8 w-8 animate-spin' />
         </div>
-      ) : missingModels.length === 0 ? (
+      )}
+      {!isLoading && missingModels.length === 0 && (
         <div className='text-muted-foreground py-12 text-center'>
           <p>{t('No missing models found.')}</p>
           <p className='text-sm'>
             {t('All models in use are properly configured.')}
           </p>
         </div>
-      ) : (
+      )}
+      {!isLoading && missingModels.length > 0 && (
         <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto'>
           <div className='flex flex-shrink-0 items-center justify-between gap-3'>
             <div className='text-muted-foreground text-sm whitespace-nowrap'>
@@ -175,14 +179,11 @@ export function MissingModelsDialog({
                     className='flex items-center justify-between gap-3 p-3'
                   >
                     <div className='min-w-0 flex-1'>
-                      <StatusBadge
-                        label={modelName}
-                        variant='neutral'
-                        copyText={modelName}
-                      />
+                      <CopyableStatusBadge value={modelName} variant='neutral'>
+                        {modelName}
+                      </CopyableStatusBadge>
                     </div>
                     <Button
-                      size='sm'
                       className='flex-shrink-0 gap-1'
                       onClick={() => handleConfigureModel(modelName)}
                     >
@@ -205,7 +206,6 @@ export function MissingModelsDialog({
                     <Button
                       variant='outline'
                       size='icon'
-                      className='h-8 w-8'
                       onClick={() =>
                         setCurrentPage((prev) => Math.max(1, prev - 1))
                       }
@@ -217,7 +217,6 @@ export function MissingModelsDialog({
                     <Button
                       variant='outline'
                       size='icon'
-                      className='h-8 w-8'
                       onClick={() =>
                         setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                       }

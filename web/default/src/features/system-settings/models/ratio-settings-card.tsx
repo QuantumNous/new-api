@@ -16,15 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import * as z from 'zod'
+
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/design-system/tabs'
+
 import { resetModelRatios } from '../api'
 import { SettingsPageTitleStatusPortal } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
@@ -56,18 +63,24 @@ function formatJsonValidationError(
     )
   }
 
-  const parts = [
-    error.line && error.column
-      ? t('JSON is invalid at line {{line}}, column {{column}}.', {
-          line: error.line,
-          column: error.column,
-        })
-      : error.position !== undefined
-        ? t('JSON is invalid at position {{position}}.', {
-            position: error.position,
-          })
-        : t('JSON is invalid. Please check the syntax.'),
-  ]
+  let locationMessage: string
+  if (error.line && error.column) {
+    locationMessage = t(
+      'JSON is invalid at line {{line}}, column {{column}}.',
+      {
+        line: error.line,
+        column: error.column,
+      }
+    )
+  } else if (error.position !== undefined) {
+    locationMessage = t('JSON is invalid at position {{position}}.', {
+      position: error.position,
+    })
+  } else {
+    locationMessage = t('JSON is invalid. Please check the syntax.')
+  }
+
+  const parts = [locationMessage]
 
   if (error.missingCommaLine) {
     parts.push(
@@ -457,14 +470,14 @@ export function RatioSettingsCard({
           {renderTabContent(defaultTab)}
         </SettingsSection>
       ) : (
-        <Tabs defaultValue={defaultTab} className='space-y-6'>
+        <Tabs defaultValue={defaultTab} className='h-full min-h-0 gap-6'>
           <SettingsPageTitleStatusPortal>
             {renderTabSwitcher()}
           </SettingsPageTitleStatusPortal>
 
-          <SettingsSection title={t(titleKey)}>
+          <SettingsSection title={t(titleKey)} className='min-h-0 flex-1'>
             {visibleTabs.map((tab) => (
-              <TabsContent key={tab} value={tab}>
+              <TabsContent key={tab} value={tab} className='min-h-0'>
                 {renderTabContent(tab)}
               </TabsContent>
             ))}

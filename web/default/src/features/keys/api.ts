@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+
 import type {
   ApiKey,
   ApiResponse,
@@ -34,7 +35,7 @@ import type {
 export async function getApiKeys(
   params: GetApiKeysParams = {}
 ): Promise<GetApiKeysResponse> {
-  const { p = 1, size = 10 } = params
+  const { p = 1, size = 20 } = params
   const res = await api.get(`/api/token/?p=${p}&size=${size}`)
   return res.data
 }

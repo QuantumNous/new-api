@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useRef } from 'react'
 import { Minus, Plus } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useState, useEffect, useRef } from 'react'
+
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 interface NumericSpinnerInputProps {
   value: number | null | undefined
@@ -95,7 +96,7 @@ export function NumericSpinnerInput({
   const commitValue = () => {
     setEditing(false)
     const num = Number(localValue)
-    if (isNaN(num) || localValue === '' || localValue === '-') {
+    if (Number.isNaN(num) || localValue === '' || localValue === '-') {
       setLocalValue(String(value ?? 0))
       return
     }
@@ -166,7 +167,7 @@ export function NumericSpinnerInput({
             disabled={disabled}
             title={localValue}
             className={cn(
-              'h-7 min-w-8 max-w-16 cursor-text truncate px-1 text-center font-mono text-sm tabular-nums',
+              'h-7 min-w-8 max-w-16 cursor-text truncate px-1 text-center text-sm tabular-nums',
               disabled && 'cursor-default opacity-50'
             )}
           >

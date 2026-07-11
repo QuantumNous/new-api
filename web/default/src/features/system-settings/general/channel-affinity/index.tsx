@@ -16,25 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Edit, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { StaticDataTable } from '@/components/data-table'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { StaticDataTable } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
+
 import { SettingsSwitchField } from '../../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../../components/settings-page-context'
 import { SettingsSection } from '../../components/settings-section'
@@ -64,12 +66,9 @@ function RuleBadgeList(props: { items: string[] }) {
       max={2}
       getKey={(item) => item}
       renderItem={(item) => (
-        <StatusBadge
-          label={item}
-          variant='neutral'
-          size='sm'
-          copyable={false}
-        />
+        <StatusBadge variant='neutral' size='sm'>
+          {item}
+        </StatusBadge>
       )}
     />
   )
@@ -254,43 +253,48 @@ export function ChannelAffinitySection(props: Props) {
     try {
       const updates: { key: string; value: string }[] = []
 
-      if (enabled !== props.defaultValues['channel_affinity_setting.enabled'])
-        {updates.push({
+      if (enabled !== props.defaultValues['channel_affinity_setting.enabled']) {
+        updates.push({
           key: 'channel_affinity_setting.enabled',
           value: String(enabled),
-        })}
+        })
+      }
       if (
         switchOnSuccess !==
         props.defaultValues['channel_affinity_setting.switch_on_success']
-      )
-        {updates.push({
+      ) {
+        updates.push({
           key: 'channel_affinity_setting.switch_on_success',
           value: String(switchOnSuccess),
-        })}
+        })
+      }
       if (
         keepOnChannelDisabled !==
         props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
-      )
-        {updates.push({
+      ) {
+        updates.push({
           key: 'channel_affinity_setting.keep_on_channel_disabled',
           value: String(keepOnChannelDisabled),
-        })}
+        })
+      }
       if (
         maxEntries !==
         props.defaultValues['channel_affinity_setting.max_entries']
-      )
-        {updates.push({
+      ) {
+        updates.push({
           key: 'channel_affinity_setting.max_entries',
           value: String(maxEntries),
-        })}
+        })
+      }
       if (
         defaultTtl !==
         props.defaultValues['channel_affinity_setting.default_ttl_seconds']
-      )
-        {updates.push({
+      ) {
+        updates.push({
           key: 'channel_affinity_setting.default_ttl_seconds',
           value: String(defaultTtl),
-        })}
+        })
+      }
 
       const origRules = props.defaultValues['channel_affinity_setting.rules']
       const origSerialized = (() => {
@@ -455,22 +459,18 @@ export function ChannelAffinitySection(props: Props) {
         <SettingsPageActionsPortal>
           <Button
             variant={editMode === 'visual' ? 'default' : 'outline'}
-            size='sm'
             onClick={editMode === 'json' ? switchToVisualMode : undefined}
           >
             {t('Visual')}
           </Button>
           <Button
             variant={editMode === 'json' ? 'default' : 'outline'}
-            size='sm'
             onClick={editMode === 'visual' ? switchToJsonMode : undefined}
           >
             JSON
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant='outline' size='sm' />}
-            >
+            <DropdownMenuTrigger render={<Button variant='outline' />}>
               <Plus className='mr-1 h-3 w-3' />
               {t('Add Rule')}
             </DropdownMenuTrigger>
@@ -504,16 +504,15 @@ export function ChannelAffinitySection(props: Props) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant='outline' size='sm' onClick={handleFillTemplates}>
+          <Button variant='outline' onClick={handleFillTemplates}>
             <FileText className='mr-1 h-3 w-3' />
             {t('Fill Templates')}
           </Button>
-          <Button size='sm' onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving}>
             {saving ? t('Saving...') : t('Save')}
           </Button>
           <Button
             variant='outline'
-            size='sm'
             onClick={refreshCache}
             disabled={cacheLoading}
           >
@@ -524,7 +523,6 @@ export function ChannelAffinitySection(props: Props) {
           </Button>
           <Button
             variant='destructive'
-            size='sm'
             onClick={() => setClearAllDialogOpen(true)}
           >
             {t('Clear All Cache')}
@@ -580,12 +578,12 @@ export function ChannelAffinitySection(props: Props) {
                 header: t('Retry'),
                 cell: (rule) => (
                   <StatusBadge
-                    label={
-                      rule.skip_retry_on_failure ? t('No Retry') : t('Retry')
+                    variant={
+                      rule.skip_retry_on_failure ? 'destructive' : 'neutral'
                     }
-                    variant={rule.skip_retry_on_failure ? 'danger' : 'neutral'}
-                    copyable={false}
-                  />
+                  >
+                    {rule.skip_retry_on_failure ? t('No Retry') : t('Retry')}
+                  </StatusBadge>
                 ),
               },
               {
@@ -619,8 +617,7 @@ export function ChannelAffinitySection(props: Props) {
                     {rule.include_rule_name && (
                       <Button
                         variant='ghost'
-                        size='icon'
-                        className='h-7 w-7'
+                        size='icon-sm'
                         onClick={() => setClearRuleName(rule.name)}
                         title={t('Clear cache for this rule')}
                       >
@@ -629,8 +626,7 @@ export function ChannelAffinitySection(props: Props) {
                     )}
                     <Button
                       variant='ghost'
-                      size='icon'
-                      className='h-7 w-7'
+                      size='icon-sm'
                       onClick={() => {
                         setEditingRule(rule)
                         setRuleTemplateKey(null)
@@ -641,8 +637,7 @@ export function ChannelAffinitySection(props: Props) {
                     </Button>
                     <Button
                       variant='ghost'
-                      size='icon'
-                      className='h-7 w-7'
+                      size='icon-sm'
                       onClick={() => handleDeleteRule(idx)}
                     >
                       <Trash2 className='h-3 w-3' />

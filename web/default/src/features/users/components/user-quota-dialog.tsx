@@ -19,13 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
+import { Label } from '@/components/ui/label'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Dialog } from '@/components/dialog'
+
 import { adjustUserQuota } from '../api'
 import type { QuotaAdjustMode } from '../types'
 
@@ -137,7 +139,6 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
                 key={m}
                 type='button'
                 variant='outline'
-                size='sm'
                 className={cn(
                   mode === m &&
                     'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'

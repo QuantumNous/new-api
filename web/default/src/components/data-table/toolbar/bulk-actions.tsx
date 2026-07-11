@@ -16,19 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { X } from 'lucide-react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
+import { Button } from '@/components/design-system/button'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 type DataTableBulkActionsProps<TData> = {
   table: Table<TData>
@@ -183,9 +184,8 @@ export function DataTableBulkActions<TData>({
               render={
                 <Button
                   variant='outline'
-                  size='icon'
+                  size='icon-xs'
                   onClick={handleClearSelection}
-                  className='size-6'
                   aria-label={t('Clear selection')}
                   title={t('Clear selection (Escape)')}
                 />

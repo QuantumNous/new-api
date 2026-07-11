@@ -18,14 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import { useStatus } from '@/hooks/use-status'
-import { useSystemConfig } from '@/hooks/use-system-config'
+
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from '@/components/ui/sidebar'
+} from '@/components/design-system/sidebar'
+import { useStatus } from '@/hooks/use-status'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { cn } from '@/lib/utils'
 
 type SystemBrandProps = {
   defaultName?: string

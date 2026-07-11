@@ -16,18 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getUserModels, getUserGroups } from '@/lib/api'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { cn } from '@/lib/utils'
-import { useStatus } from '@/hooks/use-status'
-import { Button } from '@/components/ui/button'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  SideDrawerSection,
+  SideDrawerSectionHeader,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
+} from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import {
   Collapsible,
   CollapsibleContent,
@@ -42,7 +51,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetClose,
@@ -54,17 +62,11 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { DateTimePicker } from '@/components/datetime-picker'
-import {
-  SideDrawerSection,
-  SideDrawerSectionHeader,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-  sideDrawerSwitchItemClassName,
-} from '@/components/drawer-layout'
-import { MultiSelect } from '@/components/multi-select'
+import { useStatus } from '@/hooks/use-status'
+import { getUserModels, getUserGroups } from '@/lib/api'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { cn } from '@/lib/utils'
+
 import { createApiKey, updateApiKey, getApiKey } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -258,9 +260,7 @@ export function ApiKeysMutateDrawer({
         }
       }}
     >
-      <SheetContent
-        className={sideDrawerContentClassName('max-w-none sm:!max-w-[620px]')}
-      >
+      <SheetContent className={sideDrawerContentClassName('sm:max-w-[620px]')}>
         <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>
             {isUpdate ? t('Update API Key') : t('Create API Key')}
@@ -362,8 +362,6 @@ export function ApiKeysMutateDrawer({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
                           onClick={() => handleSetExpiry(0, 0, 0)}
                         >
                           {t('Never')}
@@ -371,8 +369,6 @@ export function ApiKeysMutateDrawer({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
                           onClick={() => handleSetExpiry(1, 0, 0)}
                         >
                           {t('1 Month')}
@@ -380,8 +376,6 @@ export function ApiKeysMutateDrawer({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
                           onClick={() => handleSetExpiry(0, 1, 0)}
                         >
                           {t('1 Day')}
@@ -389,8 +383,6 @@ export function ApiKeysMutateDrawer({
                         <Button
                           type='button'
                           variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
                           onClick={() => handleSetExpiry(0, 0, 1)}
                         >
                           {t('1 Hour')}

@@ -18,11 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import { type ComponentProps, createContext, useContext } from 'react'
 import { ChevronsUpDownIcon } from 'lucide-react'
+import { type ComponentProps, createContext, useContext } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
 import {
   Card,
   CardAction,
@@ -37,6 +37,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
+
 import { Shimmer } from './shimmer'
 
 type PlanContextValue = {
@@ -154,7 +156,7 @@ export const PlanTrigger = ({ className, ...props }: PlanTriggerProps) => {
     <CollapsibleTrigger
       render={
         <Button
-          className={cn('size-8', className)}
+          className={cn(className)}
           data-slot='plan-trigger'
           size='icon'
           variant='ghost'

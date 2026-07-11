@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { Link, createFileRoute, redirect } from '@tanstack/react-router'
 import { Loader2, MessageCircleWarning } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/design-system/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { useActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -26,8 +26,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+} from '@/components/design-system/alert-dialog'
+import { Button } from '@/components/design-system/button'
+import { cn } from '@/lib/utils'
 
 type ConfirmDialogProps = {
   open: boolean

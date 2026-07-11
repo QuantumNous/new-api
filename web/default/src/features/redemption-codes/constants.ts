@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
-import { type StatusBadgeProps } from '@/components/status-badge'
+import type { TFunction } from 'i18next'
+
+import type { StatusVariant } from '@/components/status-badge'
 
 // ============================================================================
 // Redemption Status Configuration
@@ -36,8 +37,9 @@ export const REDEMPTION_STATUS_VALUES = Object.values(REDEMPTION_STATUS).map(
 // labelKey values are i18n keys; use t(config.labelKey) in components
 export const REDEMPTION_STATUSES: Record<
   number,
-  Pick<StatusBadgeProps, 'variant'> & {
+  {
     labelKey: string
+    variant: StatusVariant
     value: number
   }
 > = {
@@ -61,6 +63,13 @@ export const REDEMPTION_STATUSES: Record<
 // Virtual status filter value for expired redemption codes
 // Note: "Expired" is not a real DB status, it's computed from expired_time
 export const REDEMPTION_FILTER_EXPIRED = 'expired'
+
+export const REDEMPTION_FILTER_VALUES = [
+  String(REDEMPTION_STATUS.ENABLED),
+  String(REDEMPTION_STATUS.DISABLED),
+  String(REDEMPTION_STATUS.USED),
+  REDEMPTION_FILTER_EXPIRED,
+] as const
 
 export function getRedemptionStatusOptions(t: TFunction) {
   return [

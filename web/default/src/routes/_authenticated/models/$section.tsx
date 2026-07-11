@@ -16,25 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+import z from 'zod'
+
 import { Models } from '@/features/models'
 import {
   MODELS_SECTION_IDS,
   MODELS_DEFAULT_SECTION,
 } from '@/features/models/section-registry'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 const modelsSearchSchema = z.object({
   page: z.number().optional().catch(1),
-  pageSize: z.number().optional().catch(10),
+  pageSize: z.number().optional().catch(20),
   filter: z.string().optional().catch(''),
   vendor: z.array(z.string()).optional().catch([]),
   status: z.array(z.string()).optional().catch([]),
   sync: z.array(z.string()).optional().catch([]),
   dPage: z.number().optional().catch(1),
-  dPageSize: z.number().optional().catch(10),
+  dPageSize: z.number().optional().catch(20),
   dFilter: z.string().optional().catch(''),
   dStatus: z.array(z.string()).optional().catch([]),
 })

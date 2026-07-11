@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback } from 'react'
 import i18next from 'i18next'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
+
 import { useIsAdmin } from '@/hooks/use-admin'
+
 import {
   getUserBillingHistory,
   getAllBillingHistory,
@@ -40,7 +42,7 @@ interface UseBillingHistoryOptions {
 }
 
 export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
-  const { initialPage = 1, initialPageSize = 10 } = options
+  const { initialPage = 1, initialPageSize = 20 } = options
   const isAdmin = useIsAdmin()
 
   const [records, setRecords] = useState<TopupRecord[]>([])

@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback } from 'react'
 import { Check, Copy, Loader2 } from 'lucide-react'
+import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
-import { Button } from '@/components/ui/button'
+
+import { BadgeCell } from '@/components/data-table'
+import { Button } from '@/components/design-system/button'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Popover,
   PopoverContent,
@@ -32,9 +34,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { BadgeCell } from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
-import { type ApiKey } from '../types'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
+
+import type { ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
 export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
@@ -52,6 +54,19 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   const resolvedFullKey = resolvedKeys[apiKey.id]
   const isCopied = copiedKeyId === apiKey.id
   const maskedKey = `sk-${apiKey.key}`
+  let copyIcon = <Copy className='size-3.5' />
+  if (isLoading) {
+    copyIcon = <Loader2 className='size-3.5 animate-spin' />
+  } else if (isCopied) {
+    copyIcon = <Check className='text-success size-3.5' />
+  }
+
+  let copyTooltip = t('Copy API key')
+  if (isLoading) {
+    copyTooltip = t('Loading...')
+  } else if (isCopied) {
+    copyTooltip = t('Copied!')
+  }
 
   const handlePopoverOpen = useCallback(
     (open: boolean) => {
@@ -84,7 +99,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
             <Button
               variant='ghost'
               size='sm'
-              className='text-muted-foreground h-7 max-w-full min-w-0 justify-start truncate px-0 font-mono text-xs hover:bg-transparent aria-expanded:bg-transparent'
+              className='text-muted-foreground max-w-full min-w-0 justify-start truncate px-0 font-mono text-xs hover:bg-transparent aria-expanded:bg-transparent'
             />
           }
         >
@@ -120,8 +135,8 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
           render={
             <Button
               variant='ghost'
-              size='icon'
-              className='size-7 shrink-0'
+              size='icon-sm'
+              className='shrink-0'
               onClick={handleCopy}
               onFocus={() => {
                 if (!resolvedFullKey) void resolveRealKey(apiKey.id)
@@ -133,21 +148,9 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
             />
           }
         >
-          {isLoading ? (
-            <Loader2 className='size-3.5 animate-spin' />
-          ) : isCopied ? (
-            <Check className='size-3.5 text-green-600' />
-          ) : (
-            <Copy className='size-3.5' />
-          )}
+          {copyIcon}
         </TooltipTrigger>
-        <TooltipContent>
-          {isLoading
-            ? t('Loading...')
-            : isCopied
-              ? t('Copied!')
-              : t('Copy API key')}
-        </TooltipContent>
+        <TooltipContent>{copyTooltip}</TooltipContent>
       </Tooltip>
     </div>
   )
@@ -157,14 +160,7 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
   const { t } = useTranslation()
 
   if (!apiKey.model_limits_enabled || !apiKey.model_limits) {
-    return (
-      <StatusBadge
-        label={t('Unlimited')}
-        variant='neutral'
-        copyable={false}
-        className='-ml-1.5'
-      />
-    )
+    return <StatusBadge variant='neutral'>{t('Unlimited')}</StatusBadge>
   }
 
   const models = apiKey.model_limits.split(',').filter(Boolean)
@@ -172,11 +168,9 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
   return (
     <Tooltip>
       <TooltipTrigger render={<BadgeCell />}>
-        <StatusBadge
-          label={t('{{count}} model(s)', { count: models.length })}
-          variant='neutral'
-          copyable={false}
-        />
+        <StatusBadge variant='neutral'>
+          {t('{{count}} model(s)', { count: models.length })}
+        </StatusBadge>
       </TooltipTrigger>
       <TooltipContent side='top' className='max-w-xs'>
         <div className='max-h-[200px] space-y-0.5 overflow-y-auto text-xs'>
@@ -196,14 +190,7 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
   const allowIps = apiKey.allow_ips?.trim()
 
   if (!allowIps) {
-    return (
-      <StatusBadge
-        label={t('No restriction')}
-        variant='neutral'
-        copyable={false}
-        className='-ml-1.5'
-      />
-    )
+    return <StatusBadge variant='neutral'>{t('No restriction')}</StatusBadge>
   }
 
   const ips = allowIps
@@ -214,11 +201,9 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
   return (
     <Tooltip>
       <TooltipTrigger render={<BadgeCell />}>
-        <StatusBadge
-          label={t('{{count}} IP(s)', { count: ips.length })}
-          variant='neutral'
-          copyable={false}
-        />
+        <StatusBadge variant='neutral'>
+          {t('{{count}} IP(s)', { count: ips.length })}
+        </StatusBadge>
       </TooltipTrigger>
       <TooltipContent side='top' className='max-w-xs'>
         <div className='max-h-[200px] space-y-0.5 overflow-y-auto text-xs'>

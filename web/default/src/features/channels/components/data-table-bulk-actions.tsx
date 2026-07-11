@@ -16,28 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import { Power, PowerOff, Tag, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+
+import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
 import { Label } from '@/components/ui/label'
-import { useAuthStore } from '@/stores/auth-store'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
 import { cn } from '@/lib/utils'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
+import { useAuthStore } from '@/stores/auth-store'
+
 import {
   handleBatchDelete,
   handleBatchDisable,
@@ -114,7 +116,6 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleEnableAll}
-                className='size-8'
                 aria-label={t('Enable selected channels')}
                 title={t('Enable selected channels')}
               />
@@ -135,7 +136,6 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleDisableAll}
-                className='size-8'
                 aria-label={t('Disable selected channels')}
                 title={t('Disable selected channels')}
               />
@@ -156,7 +156,6 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={() => setShowTagDialog(true)}
-                className='size-8'
                 aria-label={t('Set tag for selected channels')}
                 title={t('Set tag for selected channels')}
               />
@@ -184,7 +183,6 @@ export function DataTableBulkActions<TData>({
                 }}
                 aria-disabled={!canEditSensitive}
                 className={cn(
-                  'size-8',
                   !canEditSensitive && 'cursor-not-allowed opacity-50'
                 )}
                 aria-label={t('Delete selected channels')}

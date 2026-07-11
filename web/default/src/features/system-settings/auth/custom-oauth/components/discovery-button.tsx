@@ -16,11 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { UseFormReturn } from 'react-hook-form'
 import { Search } from 'lucide-react'
+import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
+
 import { useDiscoverEndpoints } from '../hooks/use-custom-oauth-mutations'
 import type { CustomOAuthFormValues } from '../types'
 
@@ -84,7 +86,6 @@ export function DiscoveryButton(props: DiscoveryButtonProps) {
     <Button
       type='button'
       variant='outline'
-      size='sm'
       onClick={handleDiscover}
       disabled={discover.isPending}
     >

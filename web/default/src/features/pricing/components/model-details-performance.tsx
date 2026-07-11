@@ -16,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, HeartPulse, Timer } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
@@ -34,6 +34,8 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
+import { cn } from '@/lib/utils'
+
 import { type UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
@@ -49,22 +51,20 @@ function StatCard(props: {
   const Icon = props.icon
   return (
     <div className='bg-background flex flex-col gap-1 rounded-lg border p-3'>
-      <span className='text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase'>
+      <span className='text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium'>
         <Icon className='size-3' />
         {props.label}
       </span>
       <span
         className={cn(
-          'text-foreground font-mono text-lg font-semibold tabular-nums',
+          'text-foreground text-lg font-semibold tabular-nums',
           props.valueClassName
         )}
       >
         {props.value}
       </span>
       {props.hint && (
-        <span className='text-muted-foreground/70 text-[11px]'>
-          {props.hint}
-        </span>
+        <span className='text-muted-foreground/70 text-xs'>{props.hint}</span>
       )}
     </div>
   )
@@ -328,7 +328,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           }
           accent={
             incidentCount > 0 ? (
-              <span className='inline-flex items-center gap-1 text-amber-600 dark:text-amber-400'>
+              <span className='text-warning inline-flex items-center gap-1'>
                 <AlertTriangle className='size-3.5' />
                 {t('{{count}} incidents', {
                   count: incidentCount,

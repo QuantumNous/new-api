@@ -16,20 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-/* eslint-disable react-refresh/only-export-components */
-import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Zap } from 'lucide-react'
-import { formatTimestampToDate, formatTokens } from '@/lib/format'
-import { cn } from '@/lib/utils'
+/* eslint-disable react-refresh/only-export-components */
+import { useState } from 'react'
+
+import { DataTableColumnHeader } from '@/components/data-table'
+import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableColumnHeader } from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { formatTimestampToDate, formatTokens } from '@/lib/format'
+
 import { formatDuration } from '../../lib/format'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 
@@ -52,7 +53,7 @@ export function CacheTooltip({
       <Tooltip>
         <TooltipTrigger
           render={<Zap className={`size-3 flex-shrink-0 ${color}`} />}
-        ></TooltipTrigger>
+        />
         <TooltipContent side='top'>
           <p className='text-xs'>
             {label}: {formatTokens(tokens)}
@@ -85,15 +86,20 @@ export function createTimestampColumn<T>(config: {
     cell: ({ row }) => {
       const timestamp = row.getValue(accessorKey) as number
       if (!timestamp) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className='text-subtle-foreground text-xs'>-</span>
       }
       return (
-        <span className='font-mono text-xs tabular-nums'>
+        <span className='text-xs tabular-nums'>
           {formatTimestampToDate(timestamp, unit)}
         </span>
       )
     },
-    meta: { label: title },
+    meta: {
+      label: title,
+      cardRole: 'primary',
+      cardOrder: 10,
+      contentMode: 'full',
+    },
   }
 }
 
@@ -129,32 +135,24 @@ export function createDurationColumn<T>(config: {
       )
 
       if (!duration) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className='text-subtle-foreground text-xs'>-</span>
       }
 
       const variant =
-        duration.durationSec > warningThresholdSec ? 'danger' : 'success'
-
-      const durationBgMap: Record<string, string> = {
-        success:
-          'border border-emerald-200/40 bg-emerald-50/35 !text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/15 dark:!text-emerald-400',
-        warning:
-          'border border-amber-200/45 bg-amber-50/35 !text-amber-600 dark:border-amber-900/40 dark:bg-amber-950/15 dark:!text-amber-400',
-        danger:
-          'border border-rose-200/50 bg-rose-50/35 !text-red-600 dark:border-rose-900/40 dark:bg-rose-950/15 dark:!text-red-400',
-      }
+        duration.durationSec > warningThresholdSec ? 'destructive' : 'success'
 
       return (
-        <StatusBadge
-          label={`${duration.durationSec.toFixed(1)}s`}
-          variant={variant}
-          size='sm'
-          copyable={false}
-          className={cn('rounded-md font-mono', durationBgMap[variant])}
-        />
+        <StatusBadge variant={variant} size='sm' className='tabular-nums'>
+          {duration.durationSec.toFixed(1)}s
+        </StatusBadge>
       )
     },
-    meta: { label: headerLabel },
+    meta: {
+      label: headerLabel,
+      cardRole: 'primary',
+      cardOrder: 40,
+      contentMode: 'full',
+    },
   }
 }
 
@@ -175,20 +173,25 @@ export function createChannelColumn<T>(config: {
     cell: ({ row }) => {
       const channelId = row.getValue(accessorKey) as number
       if (!channelId) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className='text-subtle-foreground text-xs'>-</span>
       }
       return (
-        <StatusBadge
-          label={`#${channelId}`}
-          autoColor={String(channelId)}
-          copyText={String(channelId)}
+        <CopyableStatusBadge
+          value={String(channelId)}
+          variant='neutral'
           size='sm'
-          showDot={false}
           className='font-mono'
-        />
+        >
+          #{channelId}
+        </CopyableStatusBadge>
       )
     },
-    meta: { label: headerLabel },
+    meta: {
+      label: headerLabel,
+      cardRole: 'primary',
+      cardOrder: 20,
+      contentMode: 'full',
+    },
   }
 }
 
@@ -212,7 +215,7 @@ export function createFailReasonColumn<T>(config: {
       const [dialogOpen, setDialogOpen] = useState(false)
 
       if (!failReason) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className='text-subtle-foreground text-xs'>-</span>
       }
 
       return (
@@ -223,7 +226,7 @@ export function createFailReasonColumn<T>(config: {
             onClick={() => setDialogOpen(true)}
             title={cellTitle}
           >
-            <span className='truncate leading-snug text-red-600 group-hover:underline dark:text-red-400'>
+            <span className='text-destructive truncate leading-snug group-hover:underline'>
               {failReason}
             </span>
           </button>
@@ -235,7 +238,13 @@ export function createFailReasonColumn<T>(config: {
         </>
       )
     },
-    meta: { label: headerLabel },
+    meta: {
+      label: headerLabel,
+      cardRole: 'secondary',
+      cardOrder: 30,
+      cardSpan: 2,
+      contentMode: 'summary',
+    },
   }
 }
 
@@ -256,14 +265,19 @@ export function createProgressColumn<T>(config: {
     cell: ({ row }) => {
       const progress = row.getValue(accessorKey) as string
       if (!progress) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className='text-subtle-foreground text-xs'>-</span>
       }
       return (
-        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-xs'>
+        <StatusBadge variant='neutral' className='font-mono'>
           {progress}
-        </span>
+        </StatusBadge>
       )
     },
-    meta: { label: headerLabel },
+    meta: {
+      label: headerLabel,
+      cardRole: 'secondary',
+      cardOrder: 10,
+      contentMode: 'full',
+    },
   }
 }

@@ -16,12 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import * as z from 'zod'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/design-system/select'
+import { Dialog } from '@/components/dialog'
 import {
   Form,
   FormControl,
@@ -31,17 +42,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Dialog } from '@/components/dialog'
 import type { CreemProduct } from '@/features/wallet/types'
+
 import { safeNumberFieldProps } from '../utils/numeric-field'
 
 const creemProductDialogSchema = z.object({

@@ -16,12 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useRef } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect, useMemo, useRef } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import * as z from 'zod'
+
+import { Input } from '@/components/design-system/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/design-system/select'
 import {
   Form,
   FormControl,
@@ -31,16 +41,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -102,7 +104,8 @@ const normalizeDefaults = (
   'perf_metrics_setting.enabled': defaults['perf_metrics_setting.enabled'],
   'perf_metrics_setting.flush_interval':
     defaults['perf_metrics_setting.flush_interval'],
-  'perf_metrics_setting.bucket_time': defaults['perf_metrics_setting.bucket_time'],
+  'perf_metrics_setting.bucket_time':
+    defaults['perf_metrics_setting.bucket_time'],
   'perf_metrics_setting.retention_days':
     defaults['perf_metrics_setting.retention_days'],
 })

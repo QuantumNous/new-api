@@ -32,15 +32,17 @@ import {
   LogIn,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/design-system/button'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge, type StatusVariant } from '@/components/status-badge'
+import { Label } from '@/components/ui/label'
+import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
-import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+
 import type { UsageLog } from '../../data/schema'
 import {
   parseLogOther,
@@ -72,14 +74,6 @@ const CHANNEL_FIELD_LABELS: Record<string, string> = {
   key: 'Key',
 }
 
-function timingTextColorClass(
-  variant: 'success' | 'warning' | 'danger'
-): string {
-  if (variant === 'success') return 'text-emerald-600'
-  if (variant === 'warning') return 'text-amber-600'
-  return 'text-rose-600'
-}
-
 function DetailRow(props: {
   label: React.ReactNode
   value: React.ReactNode
@@ -107,16 +101,16 @@ function DetailRow(props: {
 function DetailSection(props: {
   icon?: React.ReactNode
   label: string
-  variant?: 'default' | 'danger'
+  variant?: 'default' | 'destructive'
   children: React.ReactNode
 }) {
-  const isDanger = props.variant === 'danger'
+  const isDestructive = props.variant === 'destructive'
   return (
     <div className='min-w-0 space-y-1.5'>
       <Label
         className={cn(
           'flex items-center gap-1.5 text-xs font-semibold',
-          isDanger && 'text-red-500'
+          isDestructive && 'text-destructive'
         )}
       >
         {props.icon}
@@ -125,8 +119,8 @@ function DetailSection(props: {
       <div
         className={cn(
           'min-w-0 space-y-1 overflow-hidden rounded-md border p-2.5 max-sm:p-2',
-          isDanger
-            ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20'
+          isDestructive
+            ? 'border-destructive/25 bg-destructive/10'
             : 'bg-muted/30'
         )}
       >
@@ -139,6 +133,15 @@ function DetailSection(props: {
 function formatRatio(ratio: number | undefined): string {
   if (ratio == null) return '-'
   return ratio.toFixed(4)
+}
+
+function quotaSaturationKindLabel(
+  kind: 'overflow' | 'underflow' | 'nan',
+  t: (key: string) => string
+): string {
+  if (kind === 'overflow') return t('Overflow')
+  if (kind === 'underflow') return t('Underflow')
+  return t('Invalid (NaN)')
 }
 
 function BillingBreakdown(props: {
@@ -324,8 +327,8 @@ function BillingBreakdown(props: {
 
   return (
     <DetailSection label={t('Billing Details')}>
-      {rows.map((row, idx) => (
-        <DetailRow key={idx} label={row.label} value={row.value} mono />
+      {rows.map((row) => (
+        <DetailRow key={row.label} label={row.label} value={row.value} mono />
       ))}
     </DetailSection>
   )
@@ -390,8 +393,8 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
 
   return (
     <DetailSection label={t('Token Breakdown')}>
-      {rows.map((row, idx) => (
-        <DetailRow key={idx} label={row.label} value={row.value} mono />
+      {rows.map((row) => (
+        <DetailRow key={row.label} label={row.label} value={row.value} mono />
       ))}
     </DetailSection>
   )
@@ -410,6 +413,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const details = props.log.content ?? ''
   const other = parseLogOther(props.log.other)
   const typeConfig = getLogTypeConfig(props.log.type)
+  let reasoningEffortVariant: StatusVariant = 'success'
+  if (other?.reasoning_effort === 'high') {
+    reasoningEffortVariant = 'warning'
+  } else if (other?.reasoning_effort === 'medium') {
+    reasoningEffortVariant = 'info'
+  }
 
   const isViolation = isViolationFeeLog(other)
   const isRefund = props.log.type === 6
@@ -540,12 +549,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
       title={
         <>
           {t('Log Details')}
-          <StatusBadge
-            label={t(typeConfig.label)}
-            variant={typeConfig.color as StatusBadgeProps['variant']}
-            size='sm'
-            copyable={false}
-          />
+          <StatusBadge variant={typeConfig.variant} size='sm'>
+            {t(typeConfig.label)}
+          </StatusBadge>
         </>
       }
       description={t('View the complete details for this log entry')}
@@ -617,7 +623,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
               label={t('IP Address')}
               value={
                 <span className='flex items-center gap-1'>
-                  <Globe className='size-3 text-amber-500' aria-hidden='true' />
+                  <Globe
+                    className='text-muted-foreground size-3'
+                    aria-hidden='true'
+                  />
                   {props.log.ip}
                 </span>
               }
@@ -629,32 +638,25 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <DetailRow
               label={t('Response Time')}
               value={
-                <span
-                  className={cn(
-                    'font-medium',
-                    timingTextColorClass(
-                      getResponseTimeColor(
-                        props.log.use_time,
-                        props.log.completion_tokens
-                      )
-                    )
-                  )}
-                >
-                  {formatUseTime(props.log.use_time)}
+                <span className='flex flex-wrap items-center gap-1'>
+                  <StatusBadge
+                    appearance='plain'
+                    variant={getResponseTimeColor(
+                      props.log.use_time,
+                      props.log.completion_tokens
+                    )}
+                  >
+                    {formatUseTime(props.log.use_time)}
+                  </StatusBadge>
                   {props.log.is_stream &&
                     other?.frt != null &&
                     other.frt > 0 && (
-                      <span
-                        className={cn(
-                          'font-normal',
-                          timingTextColorClass(
-                            getFirstResponseTimeColor(other.frt / 1000)
-                          )
-                        )}
+                      <StatusBadge
+                        appearance='plain'
+                        variant={getFirstResponseTimeColor(other.frt / 1000)}
                       >
-                        {' '}
-                        (FRT: {formatUseTime(other.frt / 1000)})
-                      </span>
+                        {`(FRT: ${formatUseTime(other.frt / 1000)})`}
+                      </StatusBadge>
                     )}
                 </span>
               }
@@ -668,14 +670,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <div className='relative min-w-0'>
               <Button
                 variant='ghost'
-                size='sm'
-                className='absolute top-0 right-0 h-5 w-5 p-0'
+                size='icon-xs'
+                className='absolute top-0 right-0'
                 onClick={() => copyToClipboard(conversionLabel)}
                 title={t('Copy to clipboard')}
                 aria-label={t('Copy to clipboard')}
               >
                 {copiedText === conversionLabel ? (
-                  <Check className='size-3 text-green-600' />
+                  <Check className='text-success size-3' />
                 ) : (
                   <Copy className='size-3' />
                 )}
@@ -702,12 +704,47 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
+        {/* Quota saturation marker (admin only) */}
+        {props.isAdmin && other?.admin_info?.quota_saturation && (
+          <DetailSection
+            icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}
+            label={t('Quota clamped')}
+            variant='destructive'
+          >
+            <p className='mb-1 text-xs wrap-break-word'>
+              {t('Quota saturation protection triggered')}
+            </p>
+            <DetailRow
+              label={t('Kind')}
+              value={quotaSaturationKindLabel(
+                other.admin_info.quota_saturation.kind,
+                t
+              )}
+            />
+            <DetailRow
+              label={t('Original value')}
+              value={String(other.admin_info.quota_saturation.original)}
+              mono
+            />
+            <DetailRow
+              label={t('Clamped to')}
+              value={String(other.admin_info.quota_saturation.clamped)}
+              mono
+            />
+            <DetailRow
+              label={t('Operation')}
+              value={other.admin_info.quota_saturation.op}
+              mono
+            />
+          </DetailSection>
+        )}
+
         {/* Reject reason (admin only) */}
         {props.isAdmin && other?.reject_reason && (
           <DetailSection
             icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}
             label={t('Reject Reason')}
-            variant='danger'
+            variant='destructive'
           >
             <p className='text-xs wrap-break-word'>{other.reject_reason}</p>
           </DetailSection>
@@ -718,7 +755,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
           <DetailSection
             icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}
             label={t('Violation Fee')}
-            variant='danger'
+            variant='destructive'
           >
             {other.violation_fee_code && (
               <DetailRow
@@ -759,20 +796,20 @@ export function DetailsDialog(props: DetailsDialogProps) {
             icon={<ShieldCheck className='size-3.5' aria-hidden='true' />}
             label={t('Top-up Audit Info')}
           >
-            {topupAuditFields.map((field, idx) => (
+            {topupAuditFields.map((field) => (
               <DetailRow
-                key={idx}
+                key={field.label}
                 label={field.label}
                 value={field.value}
                 mono
               />
             ))}
             {showLegacyTopupWarning && (
-              <div className='flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400'>
+              <div className='text-warning flex items-start gap-1.5 text-xs'>
                 <Info className='mt-0.5 size-3.5 shrink-0' aria-hidden='true' />
                 <span>
                   {t(
-                    'This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.'
+                    'This historical record predates audit-info tracking and cannot be backfilled. The current instance already records server IP, callback IP, payment method, and system version for new top-ups going forward.'
                   )}
                 </span>
               </div>
@@ -848,9 +885,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {operationText != null && (
               <DetailRow label={t('Operation')} value={operationText} />
             )}
-            {loginAuditFields.map((field, idx) => (
+            {loginAuditFields.map((field) => (
               <DetailRow
-                key={idx}
+                key={field.label}
                 label={field.label}
                 value={field.value}
                 mono
@@ -901,18 +938,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
           <DetailRow
             label={t('Reasoning Effort')}
             value={
-              <StatusBadge
-                label={other.reasoning_effort}
-                variant={
-                  other.reasoning_effort === 'high'
-                    ? 'orange'
-                    : other.reasoning_effort === 'medium'
-                      ? 'yellow'
-                      : 'green'
-                }
-                size='sm'
-                copyable={false}
-              />
+              <StatusBadge variant={reasoningEffortVariant} size='sm'>
+                {other.reasoning_effort}
+              </StatusBadge>
             }
           />
         )}
@@ -922,12 +950,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
           <DetailRow
             label={t('System Prompt')}
             value={
-              <StatusBadge
-                label={t('Overwritten')}
-                variant='orange'
-                size='sm'
-                copyable={false}
-              />
+              <StatusBadge variant='warning' size='sm'>
+                {t('Overwritten')}
+              </StatusBadge>
             }
           />
         )}
@@ -964,13 +989,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
         {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
         {isTieredBilling && other?.expr_b64 && (
-          <div className='bg-muted/30 min-w-0 overflow-hidden rounded-md border px-3 max-sm:px-2'>
+          <DetailSection label={t('Dynamic Pricing')}>
             <DynamicPricingBreakdown
+              compact
               billingExpr={decodeBillingExprB64(other.expr_b64)}
               matchedTierLabel={other.matched_tier}
               hideCacheColumns={!hasAnyCacheTokens(other)}
             />
-          </div>
+          </DetailSection>
         )}
 
         {/* Admin billing mode indicator for non-consume */}
@@ -983,9 +1009,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
               value={
                 <span className='flex items-center gap-1'>
                   {other.admin_info.local_count_tokens ? (
-                    <Monitor className='size-3 text-blue-500' />
+                    <Monitor className='text-muted-foreground size-3' />
                   ) : (
-                    <Cloud className='size-3 text-emerald-500' />
+                    <Cloud className='text-muted-foreground size-3' />
                   )}
                   <span className='text-xs'>
                     {other.admin_info.local_count_tokens
@@ -1005,12 +1031,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
               <DetailRow
                 label={t('Status')}
                 value={
-                  <StatusBadge
-                    label={other.stream_status.status || t('Error')}
-                    variant='red'
-                    size='sm'
-                    copyable={false}
-                  />
+                  <StatusBadge variant='destructive' size='sm'>
+                    {other.stream_status.status || t('Error')}
+                  </StatusBadge>
                 }
               />
               {other.stream_status.end_reason && (
@@ -1033,7 +1056,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               )}
               {Array.isArray(other.stream_status.errors) &&
                 other.stream_status.errors.length > 0 && (
-                  <pre className='bg-background/60 mt-1 max-h-32 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed wrap-break-word whitespace-pre-wrap'>
+                  <pre className='bg-background/60 mt-1 max-h-32 overflow-y-auto rounded border p-2 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap'>
                     {other.stream_status.errors.join('\n')}
                   </pre>
                 )}
@@ -1094,21 +1117,18 @@ export function DetailsDialog(props: DetailsDialogProps) {
             icon={<Settings2 className='size-3.5' aria-hidden='true' />}
             label={`${t('Param Override')} (${other.po.length})`}
           >
-            {other.po.filter(Boolean).map((line, idx) => {
+            {other.po.filter(Boolean).map((line) => {
               const parsed = parseAuditLine(line)
               if (!parsed) return null
               return (
                 <div
-                  key={idx}
+                  key={line}
                   className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
                 >
-                  <StatusBadge
-                    variant='neutral'
-                    label={getParamOverrideActionLabel(parsed.action, t)}
-                    className='shrink-0 font-medium'
-                    copyable={false}
-                  />
-                  <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:wrap-break-word'>
+                  <StatusBadge variant='neutral' className='shrink-0'>
+                    {getParamOverrideActionLabel(parsed.action, t)}
+                  </StatusBadge>
+                  <span className='min-w-0 font-mono text-xs leading-relaxed break-all sm:wrap-break-word'>
                     {parsed.content}
                   </span>
                 </div>
@@ -1124,14 +1144,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-md border p-2.5'>
               <Button
                 variant='ghost'
-                size='sm'
-                className='absolute top-1.5 right-1.5 h-5 w-5 p-0'
+                size='icon-xs'
+                className='absolute top-1.5 right-1.5'
                 onClick={() => copyToClipboard(details)}
                 title={t('Copy to clipboard')}
                 aria-label={t('Copy to clipboard')}
               >
                 {copiedText === details ? (
-                  <Check className='size-3 text-green-600' />
+                  <Check className='text-success size-3' />
                 ) : (
                   <Copy className='size-3' />
                 )}

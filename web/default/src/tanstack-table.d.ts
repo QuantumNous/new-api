@@ -24,9 +24,19 @@ declare module '@tanstack/react-table' {
     description?: string
     className?: string
     pinned?: 'left' | 'right'
-    // Mobile card list layout hints (used by MobileCardList)
-    mobileTitle?: boolean // card title area (left, larger text)
-    mobileBadge?: boolean // status badge alongside title (right)
-    mobileHidden?: boolean // hide this column on mobile entirely
+    contentSized?: boolean
+    /**
+     * Desktop and card content policy. `full` keeps the complete value visible,
+     * `wrap` allows natural line wrapping, and `summary` delegates progressive
+     * disclosure to the cell.
+     */
+    contentMode?: 'full' | 'wrap' | 'summary'
+    /**
+     * Responsive card placement. Secondary fields stay accessible behind the
+     * shared details disclosure; only duplicate/technical fields use hidden.
+     */
+    cardRole?: 'title' | 'badge' | 'primary' | 'secondary' | 'hidden'
+    cardOrder?: number
+    cardSpan?: 1 | 2
   }
 }

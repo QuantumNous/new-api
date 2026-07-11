@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type * as React from 'react'
 import type { Row, Table as TanstackTable } from '@tanstack/react-table'
+import type * as React from 'react'
 
 export type DataTableColumnClassName = (
   columnId: string,
@@ -42,6 +42,7 @@ export type DataTableViewProps<TData> = {
   rows?: Row<TData>[]
   emptyTitle?: string
   emptyDescription?: string
+  scrollLabel?: string
   emptyIcon?: React.ReactNode
   emptyAction?: React.ReactNode
   emptyContent?: React.ReactNode

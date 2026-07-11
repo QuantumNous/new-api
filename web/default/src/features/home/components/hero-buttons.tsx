@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+
+import { Button } from '@/components/design-system/button'
 
 interface HeroButtonsProps {
   isAuthenticated: boolean

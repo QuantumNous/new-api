@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import dayjs from '@/lib/dayjs'
+
 import {
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
@@ -251,32 +252,4 @@ export function parseTimestampFromInput(value: string): number {
   }
   const date = new Date(value)
   return Math.floor(date.getTime() / 1000)
-}
-
-// ============================================================================
-// Color Generation
-// ============================================================================
-
-/**
- * Generate a consistent color from a string
- * Uses HSL for better color distribution
- */
-export function stringToColor(str: string): string {
-  if (!str) return 'gray'
-
-  // Generate hash from string
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash)
-    hash = hash & hash // Convert to 32-bit integer
-  }
-
-  // Use hash to generate hue (0-360)
-  const hue = Math.abs(hash % 360)
-
-  // Use saturation and lightness that work well for tags
-  const saturation = 65 + (Math.abs(hash) % 10) // 65-75%
-  const lightness = 55 + (Math.abs(hash >> 8) % 10) // 55-65%
-
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }

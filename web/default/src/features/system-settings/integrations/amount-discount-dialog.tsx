@@ -16,12 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect, useMemo } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import * as z from 'zod'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
 import {
   Form,
   FormControl,
@@ -31,8 +34,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Dialog } from '@/components/dialog'
 
 const createAmountDiscountDialogSchema = (t: (key: string) => string) =>
   z.object({
@@ -155,7 +156,7 @@ export function AmountDiscountDialog({
                     placeholder={t('e.g., 100')}
                     {...field}
                     onChange={(e) =>
-                      field.onChange(parseInt(e.target.value) || 0)
+                      field.onChange(Number.parseInt(e.target.value) || 0)
                     }
                     disabled={isEditMode}
                   />
@@ -187,14 +188,14 @@ export function AmountDiscountDialog({
                     placeholder={t('e.g., 0.95')}
                     {...field}
                     onChange={(e) =>
-                      field.onChange(parseFloat(e.target.value) || 0)
+                      field.onChange(Number.parseFloat(e.target.value) || 0)
                     }
                   />
                 </FormControl>
                 <FormDescription>
                   {t('Final price multiplier (0.95 = 5% discount')}
                   {discountPercentage > 0 && (
-                    <span className='ml-1 font-medium text-green-600 dark:text-green-400'>
+                    <span className='text-status-success ml-1 font-medium'>
                       = {discountPercentage}
                       {t('% off')}
                     </span>

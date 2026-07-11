@@ -16,13 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ExternalLink, Copy } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
-import { ExternalLink, Copy, Music } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Dialog } from '@/components/dialog'
+
+import { Button } from '@/components/design-system/button'
 import { StatusBadge } from '@/components/status-badge'
 
 export interface AudioClip {
@@ -40,12 +39,6 @@ export interface AudioClip {
   }
 }
 
-interface AudioPreviewDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  clips: AudioClip[]
-}
-
 function formatDuration(seconds?: number): string {
   if (!seconds || seconds <= 0) return '--:--'
   const m = Math.floor(seconds / 60)
@@ -53,7 +46,7 @@ function formatDuration(seconds?: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-function AudioClipCard({ clip }: { clip: AudioClip }) {
+export function AudioClipCard({ clip }: { clip: AudioClip }) {
   const { t } = useTranslation()
   const [hasError, setHasError] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -87,12 +80,9 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
         <div className='mb-1 flex items-center gap-2'>
           <span className='truncate text-sm font-medium'>{title}</span>
           {duration != null && duration > 0 && (
-            <StatusBadge
-              label={formatDuration(duration)}
-              variant='neutral'
-              className='shrink-0'
-              copyable={false}
-            />
+            <StatusBadge variant='neutral' className='shrink-0'>
+              {formatDuration(duration)}
+            </StatusBadge>
           )}
         </div>
 
@@ -107,8 +97,6 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
             </span>
             <Button
               variant='outline'
-              size='sm'
-              className='h-7 gap-1 text-xs'
               onClick={() => window.open(audioUrl, '_blank')}
             >
               <ExternalLink className='h-3 w-3' />
@@ -116,8 +104,6 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
             </Button>
             <Button
               variant='outline'
-              size='sm'
-              className='h-7 gap-1 text-xs'
               onClick={() => {
                 navigator.clipboard.writeText(audioUrl)
                 toast.success(t('Copied'))
@@ -139,41 +125,5 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
         )}
       </div>
     </div>
-  )
-}
-
-export function AudioPreviewDialog(props: AudioPreviewDialogProps) {
-  const { t } = useTranslation()
-  const clips = Array.isArray(props.clips) ? props.clips : []
-
-  return (
-    <Dialog
-      open={props.open}
-      onOpenChange={props.onOpenChange}
-      title={
-        <>
-          <Music className='h-5 w-5' />
-          {t('Audio Preview')}
-        </>
-      }
-      contentClassName='sm:max-w-lg'
-      titleClassName='flex items-center gap-2'
-      contentHeight='auto'
-      bodyClassName='space-y-4'
-    >
-      {clips.length === 0 ? (
-        <p className='text-muted-foreground py-4 text-center text-sm'>
-          {t('None')}
-        </p>
-      ) : (
-        <ScrollArea className='max-h-[60vh]'>
-          <div className='space-y-3 pr-2'>
-            {clips.map((clip, idx) => (
-              <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
-            ))}
-          </div>
-        </ScrollArea>
-      )}
-    </Dialog>
   )
 }

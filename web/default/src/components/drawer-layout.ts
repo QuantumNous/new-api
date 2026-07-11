@@ -17,17 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createElement, type ReactNode } from 'react'
+
 import { cn } from '@/lib/utils'
 
 export const sideDrawerContentClassName = (className?: string) =>
   cn(
-    'bg-background text-foreground flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 shadow-none',
+    // Width: pass `sm:max-w-*` (or `sm:max-w-none`) in className. SheetContent
+    // defaults to 75% width on mobile and `sm:max-w-sm` for left/right.
+    // Match its side variants so product drawers occupy the full mobile viewport.
+    'bg-background text-foreground flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 shadow-none data-[side=left]:w-full data-[side=right]:w-full',
     className
   )
 
 export const sideDrawerHeaderClassName = (className?: string) =>
   cn(
-    'border-border/70 bg-background/95 border-b px-4 py-3 text-start backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6 sm:py-4',
+    // pr-12 reserves space for SheetContent's absolute close button
+    'border-border/70 bg-background/95 border-b px-4 py-3 pr-12 text-start backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6 sm:py-4 sm:pr-14',
     className
   )
 

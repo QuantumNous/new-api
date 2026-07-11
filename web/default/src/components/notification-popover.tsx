@@ -19,12 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 import { Bell, Megaphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/design-system/button'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/design-system/tabs'
 import { RichContent } from '@/components/rich-content'
-import { getAnnouncementColorClass } from '@/lib/colors'
-import { formatDateTimeObject } from '@/lib/time'
-import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Empty,
   EmptyDescription,
@@ -41,7 +45,9 @@ import {
 } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { getAnnouncementColorClass } from '@/lib/colors'
+import { formatDateTimeObject } from '@/lib/time'
+import { cn } from '@/lib/utils'
 
 interface AnnouncementItem {
   id?: number | string
@@ -308,7 +314,7 @@ export function NotificationPopover({
           <Button
             variant='ghost'
             size='icon'
-            className={cn('relative size-9', className)}
+            className={cn('relative', className)}
             aria-label={t('Notifications')}
           />
         }
@@ -317,7 +323,7 @@ export function NotificationPopover({
         {unreadCount > 0 ? (
           <Badge
             variant='destructive'
-            className='absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1 text-[10px] font-semibold tabular-nums'
+            className='absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1 text-xs font-semibold tabular-nums'
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </Badge>
@@ -365,9 +371,7 @@ export function NotificationPopover({
         </Tabs>
 
         <div className='flex justify-end'>
-          <Button size='sm' onClick={() => onOpenChange(false)}>
-            {t('Close')}
-          </Button>
+          <Button onClick={() => onOpenChange(false)}>{t('Close')}</Button>
         </div>
       </PopoverContent>
     </Popover>

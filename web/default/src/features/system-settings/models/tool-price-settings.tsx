@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { Code2, Copy, Eye, Plus, Trash2 } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+
 import { StaticDataTable } from '@/components/data-table'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Textarea } from '@/components/ui/textarea'
+
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const OPTION_KEY = 'tool_price_setting.prices'
@@ -217,27 +219,27 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
         <div className='flex flex-wrap items-center gap-2'>
           {editMode === 'visual' ? (
             <>
-              <Button variant='outline' size='sm' onClick={addRow}>
+              <Button variant='outline' onClick={addRow}>
                 <Plus className='mr-2 h-4 w-4' />
                 {t('Add')}
               </Button>
-              <Button variant='ghost' size='sm' onClick={resetToDefault}>
+              <Button variant='ghost' onClick={resetToDefault}>
                 {t('Restore defaults')}
               </Button>
             </>
           ) : (
             <>
-              <Button variant='ghost' size='sm' onClick={handleCopyJson}>
+              <Button variant='ghost' onClick={handleCopyJson}>
                 <Copy className='mr-2 h-4 w-4' />
                 {t('Copy')}
               </Button>
-              <Button variant='ghost' size='sm' onClick={resetToDefault}>
+              <Button variant='ghost' onClick={resetToDefault}>
                 {t('Restore defaults')}
               </Button>
             </>
           )}
         </div>
-        <Button variant='outline' size='sm' onClick={toggleEditMode}>
+        <Button variant='outline' onClick={toggleEditMode}>
           {editMode === 'visual' ? (
             <>
               <Code2 className='mr-2 h-4 w-4' />

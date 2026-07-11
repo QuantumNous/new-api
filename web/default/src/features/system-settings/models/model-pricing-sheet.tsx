@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertTriangle, Save } from 'lucide-react'
 import {
   forwardRef,
   useCallback,
@@ -25,12 +27,23 @@ import {
   useState,
 } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/design-system/input-group'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/design-system/tabs'
+import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import {
   Field,
   FieldDescription,
@@ -46,12 +59,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group'
 import {
   Sheet,
   SheetContent,
@@ -59,8 +66,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { sideDrawerContentClassName } from '@/components/drawer-layout'
+import { cn } from '@/lib/utils'
+
 import {
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,

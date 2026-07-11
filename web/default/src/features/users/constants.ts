@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Shield, User, Users } from 'lucide-react'
+
 import type { User as UserType } from './types'
 
 // ============================================================================
@@ -50,7 +51,7 @@ export const USER_STATUSES = {
   },
   [USER_STATUS.DELETED]: {
     labelKey: 'Deleted',
-    variant: 'danger' as const,
+    variant: 'destructive' as const,
     value: USER_STATUS.DELETED,
   },
 } as const

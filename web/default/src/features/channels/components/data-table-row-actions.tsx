@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useContext, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Row } from '@tanstack/react-table'
 import {
@@ -35,16 +34,11 @@ import {
   RefreshCw,
   Loader2,
 } from 'lucide-react'
+import { useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Button } from '@/components/ui/button'
-import {
-  ADMIN_PERMISSION_ACTIONS,
-  ADMIN_PERMISSION_RESOURCES,
-  hasPermission,
-} from '@/lib/admin-permissions'
-import { useAuthStore } from '@/stores/auth-store'
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,6 +52,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { MODEL_FETCHABLE_TYPES } from '../constants'
 import {
@@ -213,8 +213,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               <Button
                 variant='ghost'
                 size='icon-sm'
-                onClick={(e) => {
-                  e.stopPropagation()
+                onClick={(event) => {
+                  event.stopPropagation()
                   handleTest()
                 }}
                 aria-label={t('Test Channel Connection')}
@@ -255,8 +255,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         <DropdownMenuTrigger
           render={
             <Button
+              size='icon-sm'
               variant='ghost'
-              className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+              className='data-popup-open:bg-muted'
             />
           }
         >
@@ -280,7 +281,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               <PlugZap size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
-
           {/* Query Balance */}
           <DropdownMenuItem onClick={handleQueryBalance}>
             {t('Query Balance')}

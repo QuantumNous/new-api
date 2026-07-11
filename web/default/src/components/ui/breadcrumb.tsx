@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import { mergeProps } from '@base-ui/react/merge-props'
 import { useRender } from '@base-ui/react/use-render'
 import {
@@ -24,6 +23,8 @@ import {
   MoreHorizontalCircle01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import * as React from 'react'
+
 import { cn } from '@/lib/utils'
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<'nav'>) {
@@ -42,7 +43,7 @@ function BreadcrumbList({ className, ...props }: React.ComponentProps<'ol'>) {
     <ol
       data-slot='breadcrumb-list'
       className={cn(
-        'text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm wrap-break-word',
+        'flex flex-wrap items-center gap-1.5 text-sm wrap-break-word text-muted-foreground',
         className
       )}
       {...props}
@@ -87,7 +88,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<'span'>) {
       role='link'
       aria-disabled='true'
       aria-current='page'
-      className={cn('text-foreground font-normal', className)}
+      className={cn('font-normal text-foreground', className)}
       {...props}
     />
   )
