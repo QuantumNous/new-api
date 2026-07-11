@@ -16,35 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { flexRender, type Cell, type Table } from '@tanstack/react-table'
-import { Database } from 'lucide-react'
+import {
+  flexRender,
+  type Cell,
+  type Row,
+  type Table,
+} from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 
 import {
-  dotColorMap,
-  textColorMap,
-  type StatusVariant,
-} from '@/components/status-badge'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty'
-import { Skeleton } from '@/components/ui/skeleton'
-import { formatTimestampToDate } from '@/lib/format'
+  DataTableCardField,
+  DataTableCardRow,
+  MobileCardList,
+} from '@/components/data-table'
 import { cn } from '@/lib/utils'
 
 import { LOG_TYPE_ENUM } from '../constants'
-import { getLogTypeConfig } from '../lib/utils'
-import type { LogCategory } from '../types'
 
 const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]:
-    'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/50 dark:border-rose-900/30',
-  [LOG_TYPE_ENUM.REFUND]:
-    'bg-blue-50/30 dark:bg-blue-950/15 border-blue-200/50 dark:border-blue-900/30',
+  [LOG_TYPE_ENUM.ERROR]: 'bg-destructive/5 border-destructive/20',
+  [LOG_TYPE_ENUM.REFUND]: 'bg-info/5 border-info/20',
 }
 
 interface UsageLogsMobileListProps<TData> {
@@ -52,296 +43,116 @@ interface UsageLogsMobileListProps<TData> {
   isLoading?: boolean
   emptyTitle?: string
   emptyDescription?: string
-  logCategory: LogCategory
+  getRowClassName?: (row: Row<TData>) => string | undefined
 }
 
-function UsageLogsMobileSkeleton() {
+type CardRole = 'title' | 'badge' | 'primary' | 'secondary' | 'hidden'
+
+function getCardRole<TData>(cell: Cell<TData, unknown>): CardRole {
+  return cell.column.columnDef.meta?.cardRole ?? 'primary'
+}
+
+function getCardLabel<TData>(cell: Cell<TData, unknown>): string {
+  const metaLabel = cell.column.columnDef.meta?.label
+  if (metaLabel) return metaLabel
+
+  const header = cell.column.columnDef.header
+  return typeof header === 'string' ? header : cell.column.id
+}
+
+function orderCardCells<TData>(
+  cells: Cell<TData, unknown>[]
+): Cell<TData, unknown>[] {
+  return [...cells].sort((a, b) => {
+    const aOrder = a.column.columnDef.meta?.cardOrder
+    const bOrder = b.column.columnDef.meta?.cardOrder
+    if (aOrder == null && bOrder == null) return 0
+    if (aOrder == null) return 1
+    if (bOrder == null) return -1
+    return aOrder - bOrder
+  })
+}
+
+function isWideField<TData>(cell: Cell<TData, unknown>): boolean {
+  const meta = cell.column.columnDef.meta
+  return meta?.cardSpan === 2 || meta?.contentMode === 'summary'
+}
+
+function UsageLogCard<TData>(props: { cells: Cell<TData, unknown>[] }) {
+  const titleCell = props.cells.find((cell) => getCardRole(cell) === 'title')
+  const badgeCell = props.cells.find((cell) => getCardRole(cell) === 'badge')
+  const bodyCells = orderCardCells(
+    props.cells.filter(
+      (cell) =>
+        getCardRole(cell) !== 'title' &&
+        getCardRole(cell) !== 'badge' &&
+        getCardRole(cell) !== 'hidden'
+    )
+  )
+  const rowCells = bodyCells.filter((cell) => !isWideField(cell))
+  const wideCells = bodyCells.filter((cell) => isWideField(cell))
+
   return (
-    <div className='border-border/50 bg-card overflow-hidden rounded-lg border'>
-      {[1, 2, 3].map((i) => (
+    <div className='flex min-w-0 flex-col'>
+      {(titleCell || badgeCell) && (
+        <div className='flex min-w-0 items-start justify-between gap-3'>
+          {titleCell && (
+            <div className='min-w-0 flex-1 text-base leading-tight font-semibold break-words'>
+              {flexRender(
+                titleCell.column.columnDef.cell,
+                titleCell.getContext()
+              )}
+            </div>
+          )}
+          {badgeCell && (
+            <div className='max-w-1/2 shrink text-right tabular-nums'>
+              {flexRender(
+                badgeCell.column.columnDef.cell,
+                badgeCell.getContext()
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {bodyCells.length > 0 && (
         <div
-          key={i}
-          className='border-border/40 space-y-2.5 border-b p-3 last:border-b-0'
+          className={cn(
+            'flex flex-col gap-3',
+            (titleCell || badgeCell) && 'mt-3'
+          )}
         >
-          <div className='flex items-center justify-between gap-3'>
-            <Skeleton className='h-5 w-40 rounded-md' />
-            <Skeleton className='h-5 w-16 rounded-md' />
-          </div>
-          <div className='grid grid-cols-2 gap-x-4 gap-y-2'>
-            {[1, 2, 3, 4, 5, 6].map((j) => (
-              <div key={j} className='min-w-0 space-y-1'>
-                <Skeleton className='h-3 w-10 rounded' />
-                <Skeleton className='h-4 w-full rounded' />
-              </div>
-            ))}
-          </div>
+          {rowCells.length > 0 && (
+            <div className='flex flex-col gap-0.5'>
+              {rowCells.map((cell) => (
+                <DataTableCardRow
+                  key={cell.id}
+                  label={getCardLabel(cell)}
+                  contentMode={cell.column.columnDef.meta?.contentMode}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </DataTableCardRow>
+              ))}
+            </div>
+          )}
+
+          {wideCells.length > 0 && (
+            <div className='bg-muted/30 flex flex-col gap-3 rounded-md px-2.5 py-2'>
+              {wideCells.map((cell) => (
+                <DataTableCardField
+                  key={cell.id}
+                  label={getCardLabel(cell)}
+                  contentMode={
+                    cell.column.columnDef.meta?.contentMode ?? 'full'
+                  }
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </DataTableCardField>
+              ))}
+            </div>
+          )}
         </div>
-      ))}
-    </div>
-  )
-}
-
-function CompactCell<TData>({
-  cell,
-  fallback = '-',
-  className,
-  primaryOnly = false,
-  clip = true,
-}: {
-  cell?: Cell<TData, unknown>
-  fallback?: string
-  className?: string
-  primaryOnly?: boolean
-  /**
-   * When true (default) the cell is width-constrained and its inner content is
-   * clipped/truncated — used for the flexible left/primary column. Set to false
-   * for short trailing badges (status, code, quota) so they render in full
-   * instead of being truncated to a single glyph.
-   */
-  clip?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        'min-w-0 leading-tight',
-        clip && 'overflow-hidden [&_button]:max-w-full [&_span]:max-w-full',
-        primaryOnly &&
-          '[&_.flex-col]:min-w-0 [&_.flex-col>*:not(:first-child)]:hidden',
-        className
       )}
-    >
-      {cell ? (
-        flexRender(cell.column.columnDef.cell, cell.getContext())
-      ) : (
-        <span className='text-muted-foreground/50'>{fallback}</span>
-      )}
-    </div>
-  )
-}
-
-function SummaryField<TData>({
-  label,
-  cell,
-  className,
-  valueClassName,
-  primaryOnly = false,
-}: {
-  label: string
-  cell?: Cell<TData, unknown>
-  className?: string
-  valueClassName?: string
-  primaryOnly?: boolean
-}) {
-  if (!cell) return null
-
-  return (
-    <div
-      className={cn('bg-muted/20 min-w-0 rounded-md px-2 py-1.5', className)}
-    >
-      <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
-        {label}
-      </div>
-      <CompactCell
-        cell={cell}
-        primaryOnly={primaryOnly}
-        className={valueClassName}
-      />
-    </div>
-  )
-}
-
-function MobileLogTimeStatus({
-  createdAt,
-  type,
-}: {
-  createdAt: unknown
-  type: unknown
-}) {
-  const { t } = useTranslation()
-  const timestamp = typeof createdAt === 'number' ? createdAt : undefined
-  const logType = typeof type === 'number' ? type : undefined
-  const config = getLogTypeConfig(logType ?? LOG_TYPE_ENUM.UNKNOWN)
-  const variant = config.color as StatusVariant
-
-  return (
-    <div className='space-y-1'>
-      <div className='font-mono text-xs leading-tight tabular-nums'>
-        {formatTimestampToDate(timestamp)}
-      </div>
-      <div
-        className={cn(
-          'inline-flex items-center gap-1 text-xs leading-none font-medium',
-          textColorMap[variant]
-        )}
-      >
-        <span
-          className={cn('size-1.5 shrink-0 rounded-full', dotColorMap[variant])}
-          aria-hidden='true'
-        />
-        <span>{t(config.label)}</span>
-      </div>
-    </div>
-  )
-}
-
-function CommonLogsCard<TData>({
-  cells,
-}: {
-  cells: Map<string, Cell<TData, unknown>>
-}) {
-  const { t } = useTranslation()
-
-  const modelCell = cells.get('model_name')
-  const quotaCell = cells.get('quota')
-  const rowData = cells.get('created_at')?.row.original as
-    | Record<string, unknown>
-    | undefined
-
-  return (
-    <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-center justify-between gap-2'>
-        <CompactCell cell={modelCell} className='min-w-0 flex-1' />
-        <CompactCell
-          cell={quotaCell}
-          clip={false}
-          className='shrink-0 text-right [&_.flex-col]:items-end'
-        />
-      </div>
-
-      <div className='grid grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-1.5'>
-        <div className='bg-muted/20 min-w-0 rounded-md px-2 py-1.5'>
-          <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
-            {t('Time')}
-          </div>
-          <MobileLogTimeStatus
-            createdAt={rowData?.created_at}
-            type={rowData?.type}
-          />
-        </div>
-        <SummaryField
-          label={t('Channel')}
-          cell={cells.get('channel')}
-          valueClassName='[&_.flex-col]:max-w-none'
-        />
-        <SummaryField label={t('User')} cell={cells.get('user')} primaryOnly />
-        <SummaryField
-          label={t('Token')}
-          cell={cells.get('token_name')}
-          valueClassName='[&_.flex-col]:max-w-none [&_.flex-col>*:not(:first-child)]:text-[11px] [&_.flex-col>*:not(:first-child)]:leading-none'
-        />
-        <SummaryField
-          label={t('Timing')}
-          cell={cells.get('use_time')}
-          primaryOnly
-        />
-        <SummaryField
-          label={t('Tokens')}
-          cell={cells.get('prompt_tokens')}
-          primaryOnly
-        />
-        <SummaryField
-          label={t('Details')}
-          cell={cells.get('content')}
-          className='col-span-2 bg-transparent px-0 py-0'
-        />
-      </div>
-    </div>
-  )
-}
-
-function TaskLogsCard<TData>({
-  cells,
-}: {
-  cells: Map<string, Cell<TData, unknown>>
-}) {
-  const { t } = useTranslation()
-
-  const taskIdCell = cells.get('task_id')
-  const statusCell = cells.get('status')
-  const submitTimeCell = cells.get('submit_time')
-
-  return (
-    <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-start justify-between gap-2'>
-        <CompactCell cell={taskIdCell} className='min-w-0 flex-1' />
-        <CompactCell
-          cell={statusCell}
-          clip={false}
-          className='shrink-0 text-right whitespace-nowrap'
-        />
-      </div>
-
-      <div className='grid grid-cols-2 gap-1.5'>
-        <SummaryField label={t('Submit Time')} cell={submitTimeCell} />
-        <SummaryField label={t('User')} cell={cells.get('user')} primaryOnly />
-        <SummaryField label={t('Cost')} cell={cells.get('quota')} primaryOnly />
-        <SummaryField
-          label={t('Duration')}
-          cell={cells.get('duration')}
-          primaryOnly
-        />
-        <SummaryField
-          label={t('Progress')}
-          cell={cells.get('progress')}
-          primaryOnly
-        />
-        <SummaryField
-          label={t('Details')}
-          cell={cells.get('details')}
-          className='col-span-2 bg-transparent px-0 py-0'
-        />
-      </div>
-    </div>
-  )
-}
-
-function DrawingLogsCard<TData>({
-  cells,
-}: {
-  cells: Map<string, Cell<TData, unknown>>
-}) {
-  const { t } = useTranslation()
-
-  const actionCell = cells.get('action')
-  const codeCell = cells.get('code')
-  const submitTimeCell = cells.get('submit_time')
-
-  return (
-    <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-start justify-between gap-2'>
-        <CompactCell cell={actionCell} className='min-w-0 flex-1' />
-        <CompactCell
-          cell={codeCell}
-          clip={false}
-          className='shrink-0 text-right whitespace-nowrap'
-        />
-      </div>
-
-      <div className='grid grid-cols-2 gap-1.5'>
-        <SummaryField label={t('Submit Time')} cell={submitTimeCell} />
-        <SummaryField
-          label={t('Channel')}
-          cell={cells.get('channel')}
-          primaryOnly
-        />
-        <SummaryField label={t('Task ID')} cell={cells.get('mj_id')} />
-        <SummaryField
-          label={t('Duration')}
-          cell={cells.get('duration')}
-          primaryOnly
-        />
-        <SummaryField label={t('Image')} cell={cells.get('image_url')} />
-        <SummaryField
-          label={t('Prompt')}
-          cell={cells.get('prompt')}
-          primaryOnly
-        />
-        <SummaryField
-          label={t('Fail Reason')}
-          cell={cells.get('fail_reason')}
-          className='col-span-2 bg-transparent px-0 py-0'
-        />
-      </div>
     </div>
   )
 }
@@ -351,7 +162,7 @@ export function UsageLogsMobileList<TData>({
   isLoading = false,
   emptyTitle,
   emptyDescription,
-  logCategory,
+  getRowClassName,
 }: UsageLogsMobileListProps<TData>) {
   const { t } = useTranslation()
 
@@ -360,54 +171,24 @@ export function UsageLogsMobileList<TData>({
     emptyDescription ??
     t('No usage logs available. Logs will appear here once API calls are made.')
 
-  if (isLoading) {
-    return <UsageLogsMobileSkeleton />
-  }
-
-  const rows = table.getRowModel().rows
-
-  if (!rows || rows.length === 0) {
-    return (
-      <div className='rounded-lg border p-6'>
-        <Empty className='border-none p-0'>
-          <EmptyHeader>
-            <EmptyMedia variant='icon'>
-              <Database className='size-6' />
-            </EmptyMedia>
-            <EmptyTitle>{resolvedEmptyTitle}</EmptyTitle>
-            <EmptyDescription>{resolvedEmptyDescription}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </div>
-    )
-  }
-
   return (
-    <div className='border-border/50 bg-card overflow-hidden rounded-lg border'>
-      {rows.map((row) => {
-        const cells = new Map(
-          row.getVisibleCells().map((cell) => [cell.column.id, cell])
-        )
-
+    <MobileCardList
+      table={table}
+      isLoading={isLoading}
+      emptyTitle={resolvedEmptyTitle}
+      emptyDescription={resolvedEmptyDescription}
+      renderCard={(row) => <UsageLogCard cells={row.getVisibleCells()} />}
+      getRowClassName={(row) => {
         const logType = (row.original as Record<string, unknown>).type as
           | number
           | undefined
         const tintClass = logType != null ? (logTypeRowTint[logType] ?? '') : ''
-
-        return (
-          <div
-            key={row.id}
-            className={cn(
-              'border-border/40 border-b border-l-2 border-l-transparent p-3 transition-colors last:border-b-0',
-              tintClass
-            )}
-          >
-            {logCategory === 'common' && <CommonLogsCard cells={cells} />}
-            {logCategory === 'task' && <TaskLogsCard cells={cells} />}
-            {logCategory === 'drawing' && <DrawingLogsCard cells={cells} />}
-          </div>
+        return cn(
+          'border-l-2 border-l-transparent transition-colors',
+          tintClass,
+          getRowClassName?.(row)
         )
-      })}
-    </div>
+      }}
+    />
   )
 }

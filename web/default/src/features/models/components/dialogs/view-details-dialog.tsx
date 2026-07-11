@@ -22,8 +22,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
-import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -145,13 +145,12 @@ export function ViewDetailsDialog({
             <span className='font-mono'>{deploymentId}</span>
           </div>
           <div className='grid grid-cols-2 gap-2 sm:flex sm:items-center'>
-            <Button variant='outline' size='sm' onClick={handleCopyId}>
+            <Button variant='outline' onClick={handleCopyId}>
               <Copy className='mr-2 h-4 w-4' />
               {t('Copy')}
             </Button>
             <Button
               variant='outline'
-              size='sm'
               onClick={handleRefresh}
               disabled={isFetchingDetails || isFetchingContainers}
             >
@@ -257,7 +256,6 @@ export function ViewDetailsDialog({
                         {url ? (
                           <Button
                             variant='outline'
-                            size='sm'
                             onClick={() => window.open(url, '_blank')}
                           >
                             <ExternalLink className='mr-2 h-4 w-4' />

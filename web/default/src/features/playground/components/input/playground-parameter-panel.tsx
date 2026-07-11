@@ -20,8 +20,8 @@ import { SlidersHorizontalIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { PromptInputButton } from '@/components/ai-elements/prompt-input'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/design-system/input'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Popover,
   PopoverContent,
@@ -123,12 +123,9 @@ function PlaygroundParameterContent({
                   >
                     {t(control.labelKey)}
                   </label>
-                  <Badge
-                    className='h-5 max-w-24 shrink-0 px-1.5 font-mono text-[11px]'
-                    variant='outline'
-                  >
+                  <StatusBadge appearance='outline'>
                     {t(getParameterControlValueText(control.key, value))}
-                  </Badge>
+                  </StatusBadge>
                 </div>
                 <p className='text-muted-foreground text-xs leading-4'>
                   {t(control.descriptionKey)}
@@ -249,7 +246,6 @@ export function PlaygroundParameterPanel(props: PlaygroundParameterPanelProps) {
       <PopoverContent
         align='start'
         className='w-[22rem] max-w-[calc(100vw-2rem)] gap-3 p-3'
-        collisionPadding={8}
         side='top'
         sideOffset={8}
       >

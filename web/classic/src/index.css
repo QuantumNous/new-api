@@ -1021,6 +1021,22 @@ html.dark .with-pastel-balls::before {
   padding: 10px !important;
 }
 
+/* Keep badge text complete and on one line. */
+.semi-tag {
+  flex-shrink: 0;
+  min-width: max-content;
+  max-width: none;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.semi-tag-content {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
 /* ==================== 使用日志: channel affinity tag ==================== */
 .semi-tag.channel-affinity-tag {
   border: 1px solid rgba(var(--semi-cyan-5), 0.35);

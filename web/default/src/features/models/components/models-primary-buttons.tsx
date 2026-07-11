@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,14 +66,14 @@ export function ModelsPrimaryButtons() {
   return (
     <div className='flex items-center gap-2'>
       {/* Create Model */}
-      <Button onClick={handleCreateModel} size='sm'>
+      <Button onClick={handleCreateModel}>
         <Plus className='h-4 w-4' />
         {t('Add Model')}
       </Button>
 
       {/* More Actions */}
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant='outline' size='sm' />}>
+        <DropdownMenuTrigger render={<Button variant='outline' />}>
           <MoreHorizontal className='h-4 w-4' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-56'>

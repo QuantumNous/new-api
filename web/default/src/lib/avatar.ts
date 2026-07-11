@@ -18,25 +18,31 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { CSSProperties } from 'react'
 
-export type UserAvatarStyle = Pick<CSSProperties, 'backgroundColor' | 'color'>
+import { getIdentityTextColorClass } from '@/lib/colors'
 
-function hashString(value: string): number {
-  let hash = 0
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0
-  }
-  return hash
+export interface UserAvatarProps {
+  className: string
+  style: CSSProperties
 }
 
-export function getUserAvatarStyle(name: string): UserAvatarStyle {
-  const hash = hashString(name)
-  const hue = hash % 360
-  const saturation = 54 + (hash % 8)
-  const lightness = 52 + ((hash >> 4) % 8)
-
+/**
+ * Soft identity tint (Linear/Notion style): a low-opacity wash of the user's
+ * stable identity hue, the initial in the full-strength hue, and a faint
+ * matching inner ring. The class sets the identity text color and the inline
+ * style derives background/ring from `currentColor` with the same mix ratios
+ * as identity badges, so avatars match group/model badges and adapt to
+ * light/dark themes automatically. Inline styles also win over the fallback's
+ * default `bg-muted` deterministically.
+ */
+export function getUserAvatarProps(name: string): UserAvatarProps {
   return {
-    backgroundColor: `hsl(${hue} ${saturation}% ${lightness}% / 0.82)`,
-    color: 'white',
+    className: getIdentityTextColorClass(name),
+    style: {
+      backgroundColor:
+        'color-mix(in oklch, currentColor var(--identity-surface-mix), transparent)',
+      boxShadow:
+        'inset 0 0 0 1px color-mix(in oklch, currentColor var(--identity-border-mix), transparent)',
+    },
   }
 }
 

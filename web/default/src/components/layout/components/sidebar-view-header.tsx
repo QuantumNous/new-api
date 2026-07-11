@@ -26,7 +26,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from '@/components/ui/sidebar'
+} from '@/components/design-system/sidebar'
 import { cn } from '@/lib/utils'
 
 import type { SidebarView } from '../types'
@@ -46,7 +46,7 @@ export function SidebarViewHeader(props: SidebarViewHeaderProps) {
   const { setOpenMobile } = useSidebar()
 
   return (
-    <SidebarHeader className='border-sidebar-border border-b px-2 py-2'>
+    <SidebarHeader className='border-sidebar-border border-b px-2 py-2 md:mt-[var(--app-header-height,3rem)]'>
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton

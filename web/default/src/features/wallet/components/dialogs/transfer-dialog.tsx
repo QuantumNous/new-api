@@ -20,9 +20,9 @@ import { Loader2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   formatQuota,
@@ -50,9 +50,7 @@ export function TransferDialog({
   transferring,
 }: TransferDialogProps) {
   const { t } = useTranslation()
-  const currencyConfig = useSystemConfigStore(
-    (state) => state.config.currency
-  )
+  const currencyConfig = useSystemConfigStore((state) => state.config.currency)
   const minimumQuota = Math.ceil(
     currencyConfig.quotaPerUnit > 0
       ? currencyConfig.quotaPerUnit

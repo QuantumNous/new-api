@@ -16,13 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatQuota } from '@/lib/format'
 
@@ -44,69 +43,58 @@ export function AffiliateRewardsCard({
   loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
+
   if (loading) {
     return (
-      <Card data-card-hover='false' className='bg-muted/20 py-0'>
-        <CardContent className='grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,0.72fr)_minmax(320px,1.15fr)] lg:items-center'>
-          <div>
-            <Skeleton className='h-5 w-32' />
-            <Skeleton className='mt-2 h-4 w-48' />
-          </div>
-          <Skeleton className='h-14 rounded-lg' />
-          <Skeleton className='h-10 rounded-lg' />
+      <Card data-card-hover='false' className='py-0'>
+        <CardContent className='space-y-3 p-4 sm:p-5'>
+          <Skeleton className='h-5 w-32' />
+          <Skeleton className='h-4 w-full max-w-md' />
+          <Skeleton className='h-8 w-full' />
         </CardContent>
       </Card>
     )
   }
 
   const hasRewards = (user?.aff_quota ?? 0) > 0
+  const stats = [
+    [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
+    [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
+    [t('Invites'), String(user?.aff_count ?? 0)],
+  ]
 
   return (
-    <Card data-card-hover='false' className='bg-muted/20 py-0'>
-      <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>
-        <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border'>
-            <Share2 className='text-muted-foreground size-4' />
-          </div>
-          <div className='min-w-0'>
-            <h3 className='truncate text-sm font-semibold'>
-              {t('Referral Program')}
-            </h3>
-            <p className='text-muted-foreground line-clamp-1 text-xs'>
-              {t(
-                'Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.'
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className='grid grid-cols-3 gap-1.5 text-center'>
-          {[
-            [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
-            [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
-            [t('Invites'), String(user?.aff_count ?? 0)],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+    <Card data-card-hover='false' className='gap-0 py-0'>
+      <CardContent className='flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between'>
+        <div className='min-w-0'>
+          <h3 className='text-sm font-medium'>{t('Referral Program')}</h3>
+          <p className='text-muted-foreground mt-0.5 line-clamp-2 text-xs'>
+            {t(
+              'Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.'
+            )}
+          </p>
+          <div className='text-muted-foreground mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs'>
+            {stats.map(([label, value]) => (
+              <span key={label} className='inline-flex items-baseline gap-1.5'>
                 {label}
-              </div>
-              <div className='mt-0.5 truncate text-sm font-semibold tabular-nums'>
-                {value}
-              </div>
-            </div>
-          ))}
+                <span className='text-foreground font-medium tabular-nums'>
+                  {value}
+                </span>
+              </span>
+            ))}
+          </div>
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className='flex w-full items-center gap-2 lg:w-auto lg:max-w-xl lg:flex-1 lg:justify-end'>
           <Input
             value={affiliateLink}
             readOnly
-            className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
+            className='min-w-0 flex-1 font-mono text-xs lg:max-w-sm'
           />
           <CopyButton
             value={affiliateLink}
             variant='outline'
-            className='bg-background size-9 shrink-0'
+            className='shrink-0'
             iconClassName='size-4'
             tooltip={t('Copy referral link')}
             aria-label={t('Copy referral link')}
@@ -115,21 +103,20 @@ export function AffiliateRewardsCard({
             <Button
               onClick={onTransfer}
               disabled={!complianceConfirmed}
-              className='h-9 shrink-0 px-3'
-              size='sm'
+              className='shrink-0'
             >
               {t('Transfer to Balance')}
             </Button>
           )}
         </div>
-        {!complianceConfirmed ? (
-          <p className='text-muted-foreground text-xs lg:col-span-3'>
-            {t(
-              'Referral reward transfer is disabled until the administrator confirms compliance terms.'
-            )}
-          </p>
-        ) : null}
       </CardContent>
+      {!complianceConfirmed && (
+        <div className='text-muted-foreground border-t px-4 py-2.5 text-xs sm:px-5'>
+          {t(
+            'Referral reward transfer is disabled until the administrator confirms compliance terms.'
+          )}
+        </div>
+      )}
     </Card>
   )
 }

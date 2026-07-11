@@ -83,20 +83,14 @@ export function buildModelRatioColumns({
         <div className='flex min-w-0 items-center gap-2 font-medium'>
           <span className='min-w-0 truncate'>{row.getValue('name')}</span>
           {row.original.billingMode === 'tiered_expr' && (
-            <StatusBadge
-              label={t('Tiered')}
-              variant='info'
-              copyable={false}
-              className='shrink-0'
-            />
+            <StatusBadge variant='info' className='shrink-0'>
+              {t('Tiered')}
+            </StatusBadge>
           )}
           {row.original.hasConflict && (
-            <StatusBadge
-              label={t('Conflict')}
-              variant='danger'
-              copyable={false}
-              className='shrink-0'
-            />
+            <StatusBadge variant='destructive' className='shrink-0'>
+              {t('Conflict')}
+            </StatusBadge>
           )}
         </div>
       ),
@@ -108,13 +102,9 @@ export function buildModelRatioColumns({
         <DataTableColumnHeader column={column} title={t('Mode')} />
       ),
       cell: ({ row }) => (
-        <StatusBadge
-          label={t(getModeLabel(row.original.billingMode))}
-          variant={getModeVariant(row.original.billingMode)}
-          copyable={false}
-          showDot={false}
-          className='-ml-1.5 px-0'
-        />
+        <StatusBadge variant={getModeVariant(row.original.billingMode)}>
+          {t(getModeLabel(row.original.billingMode))}
+        </StatusBadge>
       ),
       filterFn: (row, id, value) =>
         filterBySelectedValues(row.getValue(id), value),

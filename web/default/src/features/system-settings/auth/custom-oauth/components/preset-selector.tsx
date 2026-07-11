@@ -20,8 +20,7 @@ import { useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -29,7 +28,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
+import { Label } from '@/components/ui/label'
 
 import { SettingsControlGroup } from '../../../components/settings-form-layout'
 import { OAUTH_PRESETS, type CustomOAuthFormValues } from '../types'

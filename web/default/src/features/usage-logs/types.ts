@@ -289,6 +289,8 @@ export interface TaskLog {
   data?: unknown
   properties?: TaskLogProperties | string
   fail_reason?: string
+  // Task result URL (video address, etc.). Backend falls back to fail_reason
+  // when no dedicated result URL is stored, so always validate before use.
   result_url?: string
   status: string // NOT_START, SUBMITTED, IN_PROGRESS, SUCCESS, FAILURE, QUEUED, UNKNOWN
   created_at?: number

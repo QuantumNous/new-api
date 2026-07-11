@@ -32,7 +32,7 @@ export const useSubscriptionsData = () => {
 
   // Pagination (client-side for now)
   const [activePage, setActivePage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
 
   // Drawer states
   const [showEdit, setShowEdit] = useState(false);

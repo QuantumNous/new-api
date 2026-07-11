@@ -155,14 +155,19 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		}
 	}
 
-	// n is NOT included here; it is handled via OtherRatio("n") in
-	// image_handler.go (default) or channel adaptors (actual count).
-	// Including n here caused double-counting for channels that also
-	// set OtherRatio("n") (e.g. Ali/Bailian).
+	imageN := uint(1)
+	if i.N != nil && *i.N > 0 {
+		imageN = *i.N
+	}
+
+	// Keep n separate from ImagePriceRatio so size/quality and count remain
+	// independent billing dimensions. Fixed-price pre-consume stores this on
+	// PriceData, and image settlement reuses or replaces the same "n" ratio.
 	return &types.TokenCountMeta{
 		CombineText:     i.Prompt,
 		MaxTokens:       1584,
 		ImagePriceRatio: sizeRatio * qualityRatio,
+		BillingRatios:   map[string]float64{"n": float64(imageN)},
 	}
 }
 

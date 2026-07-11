@@ -17,18 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Table } from '@tanstack/react-table'
-import { ChevronDown, Loader2, X as Cross2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/design-system/input'
 import { useDebounce } from '@/hooks'
-import { cn } from '@/lib/utils'
 
 import { DataTableFacetedFilter } from './faceted-filter'
-import { DataTableViewOptions } from './view-options'
+import { DataTableFilterField, DataTableFilterPanel } from './filter-panel'
 
 type FilterDef = {
   columnId: string
@@ -153,7 +150,6 @@ export type DataTableToolbarProps<TData> = {
  */
 export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
   const [isSearchComposing, setIsSearchComposing] = useState(false)
 
   const filters = props.filters ?? []
@@ -246,32 +242,29 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const searchInput = (
     <Input
       placeholder={placeholder}
+      aria-label={placeholder}
       value={searchValue}
       onChange={handleSearchChange}
       onCompositionStart={handleSearchCompositionStart}
       onCompositionEnd={handleSearchCompositionEnd}
-      className='w-full sm:w-[200px] lg:w-[240px]'
+      className='w-full'
     />
   )
 
-  const filterChips = React.useMemo(
-    () =>
-      filters.map((filter) => {
-        const column = props.table.getColumn(filter.columnId)
-        if (!column) return null
-        return (
-          <DataTableFacetedFilter
-            key={filter.columnId}
-            column={column}
-            title={filter.title}
-            options={filter.options}
-            singleSelect={filter.singleSelect}
-          />
-        )
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [props.filters, props.table]
-  )
+  const filterChips = filters.map((filter) => {
+    const column = props.table.getColumn(filter.columnId)
+    if (!column) return null
+    return (
+      <DataTableFilterField key={filter.columnId}>
+        <DataTableFacetedFilter
+          column={column}
+          title={filter.title}
+          options={filter.options}
+          singleSelect={filter.singleSelect}
+        />
+      </DataTableFilterField>
+    )
+  })
 
   const handleReset = () => {
     setIsSearchComposing(false)
@@ -281,118 +274,57 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     props.onReset?.()
   }
 
-  // Reset: outline text-only for form mode (always visible, disabled when
-  // nothing to reset); ghost text + X for filter-as-you-type mode (only
-  // visible when active filters exist).
-  let resetButton: ReactNode = null
-  if (hasSearch) {
-    resetButton = (
-      <Button variant='outline' onClick={handleReset} disabled={!isFiltered}>
-        {t('Reset')}
-      </Button>
-    )
-  } else if (isFiltered) {
-    resetButton = (
-      <Button
-        variant='ghost'
-        onClick={handleReset}
-        className='text-muted-foreground hover:text-foreground gap-1 px-2'
-      >
-        {t('Reset')}
-        <Cross2Icon />
-      </Button>
-    )
-  }
-
-  const searchButton = hasSearch ? (
-    <Button onClick={props.onSearch} disabled={props.searchLoading}>
-      {props.searchLoading && <Loader2 className='animate-spin' />}
-      {t('Search')}
-    </Button>
-  ) : null
-
-  const viewOptionsNode = !props.hideViewOptions ? (
-    <DataTableViewOptions table={props.table} />
-  ) : null
-
-  const viewToggleNode = props.viewToggle ?? null
-
-  const expandToggle = hasExpandable ? (
-    <Button
-      variant='ghost'
-      onClick={() => setExpanded((p) => !p)}
-      aria-expanded={expanded}
-      className={cn(
-        'text-muted-foreground hover:text-foreground gap-1 px-2',
-        props.hasExpandedActiveFilters &&
-          !expanded &&
-          'text-primary hover:text-primary'
-      )}
-    >
-      {expanded ? t('Collapse') : t('Expand')}
-      <ChevronDown
-        className={cn(
-          'size-3.5 transition-transform duration-200',
-          expanded && 'rotate-180'
-        )}
-      />
-    </Button>
-  ) : null
-
-  const hasLeftActions = props.leftActions != null
-
-  if (hasLeftActions) {
-    return (
-      <div className={cn('flex flex-col gap-2', props.className)}>
-        <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
-          {props.customSearch !== undefined ? props.customSearch : searchInput}
-          {props.additionalSearch}
-          {filterChips}
-          <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
-            {expandToggle}
-          </div>
-        </div>
-
-        {expanded && hasExpandable && (
-          <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
-            {props.expandable}
-          </div>
-        )}
-
-        <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
-          {props.leftActions}
-          <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
-            {props.preActions}
-            {resetButton}
-            {searchButton}
-            {viewToggleNode}
-            {viewOptionsNode}
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const primarySearch =
+    props.customSearch !== undefined ? props.customSearch : searchInput
+  const additionalFilterCount =
+    filters.length + (props.additionalSearch != null ? 1 : 0)
+  const inlineActions =
+    additionalFilterCount <= 3 && !hasExpandable && props.leftActions == null
+  const useWidePrimarySearch = !inlineActions && additionalFilterCount <= 3
+  const secondaryMobileFilters =
+    props.additionalSearch != null ||
+    filterChips.some(Boolean) ||
+    hasExpandable ? (
+      <>
+        {props.additionalSearch}
+        {filterChips}
+        {props.expandable}
+      </>
+    ) : undefined
+  const nonSearchColumnFilterCount = props.table
+    .getState()
+    .columnFilters.filter((filter) => filter.id !== props.searchKey).length
+  const mobileFilterCount =
+    nonSearchColumnFilterCount + (props.hasExpandedActiveFilters ? 1 : 0)
 
   return (
-    <div
-      className={cn(
-        'flex flex-wrap items-center gap-2 sm:gap-3',
-        props.className
-      )}
-    >
-      {props.customSearch !== undefined ? props.customSearch : searchInput}
-      {props.additionalSearch}
-      {filterChips}
-      {expanded && hasExpandable && props.expandable}
-
-      <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
-        {props.preActions}
-        {resetButton}
-        {searchButton}
-        {viewToggleNode}
-        {viewOptionsNode}
-        {expandToggle}
-      </div>
-    </div>
+    <DataTableFilterPanel
+      table={props.table}
+      primaryFilters={
+        <>
+          <DataTableFilterField wide={useWidePrimarySearch}>
+            {primarySearch}
+          </DataTableFilterField>
+          {props.additionalSearch}
+          {filterChips}
+        </>
+      }
+      advancedFilters={props.expandable}
+      mobilePinnedFilters={primarySearch}
+      mobileFilters={secondaryMobileFilters}
+      mobileFilterCount={mobileFilterCount}
+      stats={props.leftActions}
+      actionStart={props.preActions}
+      viewToggle={props.viewToggle}
+      hideViewOptions={props.hideViewOptions}
+      hasActiveFilters={isFiltered}
+      hasAdvancedActiveFilters={props.hasExpandedActiveFilters}
+      advancedFilterCount={props.hasExpandedActiveFilters ? 1 : 0}
+      searchLoading={props.searchLoading}
+      onReset={handleReset}
+      onSearch={hasSearch ? props.onSearch : undefined}
+      inlineActions={inlineActions}
+      className={props.className}
+    />
   )
 }

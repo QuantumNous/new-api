@@ -16,416 +16,629 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Check, Copy, ExternalLink, Info, Video } from 'lucide-react'
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  ExternalLink,
+  Music,
+  Video,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
-import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { TASK_STATUS } from '../../constants'
-import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
+import { TASK_ACTIONS, TASK_PLATFORMS, TASK_STATUS } from '../../constants'
+import { formatDuration } from '../../lib/format'
 import {
-  extractTaskUpstreamScalars,
-  formatTaskDurationSec,
-  formatTaskJson,
-  getTaskModelName,
-  getTaskVideoResultUrl,
-  isTaskVideoAction,
-  parseTaskDataArray,
-  parseTaskDataValue,
-  parseTaskProperties,
-  resolveTaskPlatformLabel,
-} from '../../lib/task-log-utils'
+  getTaskPlatformName,
+  taskActionMapper,
+  taskStatusMapper,
+} from '../../lib/mappers'
 import type { TaskLog } from '../../types'
-import { VideoPreviewDialog } from './video-preview-dialog'
+import { AudioClipCard, type AudioClip } from './audio-preview-dialog'
+
+const VIDEO_ACTIONS = new Set<string>([
+  TASK_ACTIONS.GENERATE,
+  TASK_ACTIONS.TEXT_GENERATE,
+  TASK_ACTIONS.FIRST_TAIL_GENERATE,
+  TASK_ACTIONS.REFERENCE_GENERATE,
+  TASK_ACTIONS.REMIX_GENERATE,
+])
+
+const MAX_VALUE_LENGTH = 800
+
+function parseJson(raw: unknown): unknown {
+  if (raw == null || raw === '') return null
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return raw
+    }
+  }
+  return raw
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+// snake_case / camelCase -> "Title Case" with common acronym fixes, so any
+// upstream provider payload renders with readable labels.
+function humanizeKey(key: string): string {
+  const spaced = key
+    .replaceAll('_', ' ')
+    .replaceAll(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+  return spaced
+    .replaceAll(/\b\w/g, (c) => c.toUpperCase())
+    .replaceAll(/\bUrl\b/g, 'URL')
+    .replaceAll(/\bId\b/g, 'ID')
+    .replaceAll(/\bApi\b/g, 'API')
+    .replaceAll(/\bFps\b/g, 'FPS')
+}
+
+function formatScalar(value: unknown): string {
+  if (value == null) return '-'
+  const str = typeof value === 'string' ? value : String(value)
+  if (str.length > MAX_VALUE_LENGTH) return `${str.slice(0, MAX_VALUE_LENGTH)}…`
+  return str
+}
+
+interface FlatEntry {
+  label: string
+  value: string
+  mono?: boolean
+}
+
+// Flatten a nested upstream payload into readable rows. Nested objects are
+// prefixed with their parent label ("Cost › Currency"); arrays of scalars are
+// joined, arrays of objects are shown as compact JSON.
+function flattenEntries(
+  obj: Record<string, unknown>,
+  parent = ''
+): FlatEntry[] {
+  const entries: FlatEntry[] = []
+  for (const [key, value] of Object.entries(obj)) {
+    const label = parent ? `${parent} › ${humanizeKey(key)}` : humanizeKey(key)
+    if (isPlainObject(value)) {
+      entries.push(...flattenEntries(value, label))
+    } else if (Array.isArray(value)) {
+      const allScalar = value.every((v) => v == null || typeof v !== 'object')
+      if (allScalar) {
+        entries.push({
+          label,
+          value: value.map(formatScalar).join(', ') || '-',
+        })
+      } else {
+        entries.push({
+          label,
+          value: formatScalar(JSON.stringify(value)),
+          mono: true,
+        })
+      }
+    } else {
+      entries.push({
+        label,
+        value: formatScalar(value),
+        mono: typeof value !== 'boolean',
+      })
+    }
+  }
+  return entries
+}
+
+// The DTO's result_url falls back to fail_reason when no dedicated URL is
+// stored, so only treat http(s) links or the internal video proxy path as a
+// playable URL.
+function resolveVideoUrl(log: TaskLog): string {
+  const raw = (log.result_url ?? '').trim()
+  const isHttp = /^https?:\/\//i.test(raw)
+  const isProxy = raw.startsWith('/v1/videos/')
+  if (isHttp || isProxy) return raw
+  if (VIDEO_ACTIONS.has(log.action) && log.status === TASK_STATUS.SUCCESS) {
+    if (log.task_id) return `/v1/videos/${log.task_id}/content`
+  }
+  return ''
+}
 
 function DetailRow(props: {
-  label: string
+  label: React.ReactNode
   value: React.ReactNode
   mono?: boolean
-  muted?: boolean
 }) {
   return (
-    <div className='grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3'>
+    <div className='grid min-w-0 grid-cols-[6rem_minmax(0,1fr)] gap-2 text-sm sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3'>
       <span className='text-muted-foreground min-w-0 text-xs'>
         {props.label}
       </span>
       <span
         className={cn(
           'max-w-full min-w-0 text-xs break-all sm:wrap-break-word',
-          props.mono && 'font-mono',
-          props.muted && 'text-muted-foreground'
+          props.mono && 'font-mono'
         )}
       >
-        {props.value ?? '-'}
+        {props.value}
       </span>
     </div>
   )
 }
 
 function DetailSection(props: {
+  icon?: React.ReactNode
   label: string
+  variant?: 'default' | 'destructive'
+  action?: React.ReactNode
   children: React.ReactNode
-  variant?: 'default' | 'danger'
 }) {
-  const isDanger = props.variant === 'danger'
+  const isDestructive = props.variant === 'destructive'
   return (
     <div className='min-w-0 space-y-1.5'>
-      <Label
+      <div className='flex items-center justify-between gap-2'>
+        <Label
+          className={cn(
+            'flex items-center gap-1.5 text-xs font-semibold',
+            isDestructive && 'text-destructive'
+          )}
+        >
+          {props.icon}
+          {props.label}
+        </Label>
+        {props.action}
+      </div>
+      <div
         className={cn(
-          'flex items-center gap-1.5 text-xs font-semibold',
-          isDanger && 'text-red-500'
+          'min-w-0 space-y-1 overflow-hidden rounded-md border p-2.5 max-sm:p-2',
+          isDestructive
+            ? 'border-destructive/25 bg-destructive/10'
+            : 'bg-muted/30'
         )}
       >
-        {props.label}
-      </Label>
-      <div className='bg-muted/20 space-y-2 rounded-md border px-3 py-2.5'>
         {props.children}
       </div>
     </div>
   )
 }
 
-function CopyableValue({ value }: { value: string }) {
+function CopyButton(props: {
+  text: string
+  copied: boolean
+  onCopy: () => void
+}) {
   const { t } = useTranslation()
-  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
+  return (
+    <Button
+      variant='ghost'
+      size='icon-xs'
+      onClick={props.onCopy}
+      title={t('Copy to clipboard')}
+      aria-label={t('Copy to clipboard')}
+    >
+      {props.copied ? (
+        <Check className='text-success size-3' />
+      ) : (
+        <Copy className='size-3' />
+      )}
+    </Button>
+  )
+}
 
-  if (!value) return <>-</>
+function VideoPreview({ url }: { url: string }) {
+  const { t } = useTranslation()
+  const [hasError, setHasError] = useState(false)
+
+  if (hasError) {
+    return (
+      <div className='flex flex-wrap items-center gap-2'>
+        <span className='text-muted-foreground text-xs'>
+          {t('Failed to load video')}
+        </span>
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+        >
+          <ExternalLink className='size-3' />
+          {t('Open in new tab')}
+        </Button>
+      </div>
+    )
+  }
 
   return (
-    <div className='flex min-w-0 items-start gap-1.5'>
-      <span className='min-w-0 flex-1 font-mono break-all'>{value}</span>
-      <Button
-        variant='ghost'
-        size='sm'
-        className='h-6 w-6 shrink-0 p-0'
-        onClick={() => copyToClipboard(value)}
-        title={t('Copy to clipboard')}
-      >
-        {copiedText === value ? (
-          <Check className='size-3.5 text-green-600' />
-        ) : (
-          <Copy className='size-3.5' />
-        )}
-      </Button>
+    <video
+      src={url}
+      controls
+      preload='metadata'
+      onError={() => setHasError(true)}
+      className='bg-background max-h-[420px] w-full rounded-md border'
+    />
+  )
+}
+
+function AudioPreview({ clips }: { clips: AudioClip[] }) {
+  return (
+    <div className='space-y-3'>
+      {clips.map((clip, idx) => (
+        <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
+      ))}
     </div>
   )
 }
 
-function formatTimestamp(value?: number) {
-  if (!value) return '-'
-  return formatTimestampToDate(value, 'seconds')
-}
-
 interface TaskDetailsDialogProps {
   log: TaskLog
+  isAdmin: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
-  isAdmin?: boolean
 }
 
 export function TaskDetailsDialog(props: TaskDetailsDialogProps) {
   const { t } = useTranslation()
-  const [videoOpen, setVideoOpen] = useState(false)
-  const { log, isAdmin = false } = props
+  const { log, isAdmin } = props
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
-  const properties = useMemo(
-    () => parseTaskProperties(log.properties),
-    [log.properties]
-  )
-  const parsedData = useMemo(() => parseTaskDataValue(log.data), [log.data])
-  const upstreamScalars = useMemo(
-    () => extractTaskUpstreamScalars(parsedData),
+  const platformName = getTaskPlatformName(log.platform)
+  const duration = formatDuration(log.submit_time, log.finish_time, 'seconds')
+  const videoUrl = resolveVideoUrl(log)
+  const resultUrl = (log.result_url ?? '').trim()
+  const isResultLink =
+    /^https?:\/\//i.test(resultUrl) || resultUrl.startsWith('/v1/videos/')
+
+  const parsedData = useMemo(() => parseJson(log.data), [log.data])
+  const props_ = useMemo(() => {
+    if (isPlainObject(log.properties)) return log.properties
+    const parsed = parseJson(log.properties)
+    return isPlainObject(parsed) ? parsed : null
+  }, [log.properties])
+
+  const asString = (v: unknown): string | undefined =>
+    typeof v === 'string' && v !== '' ? v : undefined
+  const originModel = asString(props_?.origin_model_name)
+  const upstreamModel = asString(props_?.upstream_model_name)
+  const inputPrompt = asString(props_?.input)
+  const dataModel = isPlainObject(parsedData)
+    ? asString(parsedData.model)
+    : undefined
+  const model = originModel || upstreamModel || dataModel
+
+  const audioClips = useMemo(() => {
+    if (log.platform !== TASK_PLATFORMS.SUNO) return []
+    if (log.status !== TASK_STATUS.SUCCESS) return []
+    if (!Array.isArray(parsedData)) return []
+    return parsedData.filter(
+      (c) =>
+        c && typeof c === 'object' && (c as Record<string, unknown>).audio_url
+    ) as AudioClip[]
+  }, [log.platform, log.status, parsedData])
+
+  const upstreamEntries = useMemo(
+    () => (isPlainObject(parsedData) ? flattenEntries(parsedData) : []),
     [parsedData]
   )
-  const sunoClips = useMemo(() => parseTaskDataArray(log.data), [log.data])
-  const modelName = useMemo(() => getTaskModelName(log), [log])
-  const videoResultUrl = useMemo(
-    () => getTaskVideoResultUrl(log, log.fail_reason),
-    [log]
-  )
-  const rawJson = useMemo(() => formatTaskJson(log), [log])
-  const duration = formatTaskDurationSec(log.submit_time, log.finish_time)
+  const upstreamRaw = useMemo(() => {
+    if (isPlainObject(parsedData) || parsedData == null) return ''
+    try {
+      return JSON.stringify(parsedData, null, 2)
+    } catch {
+      return String(parsedData)
+    }
+  }, [parsedData])
 
-  const showVideoPreview =
-    log.status === TASK_STATUS.SUCCESS &&
-    isTaskVideoAction(log.action) &&
-    !!videoResultUrl
+  const rawJson = useMemo(() => {
+    try {
+      return JSON.stringify(log, null, 2)
+    } catch {
+      return ''
+    }
+  }, [log])
+
+  const hasFailReason = !!log.fail_reason && log.fail_reason.trim() !== ''
 
   return (
-    <>
-      <Dialog
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        title={
-          <>
-            <Info className='h-5 w-5' />
-            {t('Task Log Details')}
-          </>
-        }
-        description={t('View the complete details for this task log entry')}
-        contentClassName='sm:max-w-2xl'
-        titleClassName='flex items-center gap-2'
-        contentHeight='auto'
-        bodyClassName='space-y-4'
-      >
-        <ScrollArea className='max-h-[75vh] pr-3'>
-          <div className='space-y-4 pb-1'>
-            <DetailSection label={t('Overview')}>
-              <DetailRow
-                label={t('Task ID')}
-                value={<CopyableValue value={log.task_id} />}
-                mono
-              />
-              <DetailRow
-                label={t('Internal ID')}
-                value={log.id ? String(log.id) : '-'}
-                mono
-              />
-              <DetailRow
-                label={t('Platform')}
-                value={resolveTaskPlatformLabel(log.platform, t)}
-              />
-              <DetailRow
-                label={t('Action')}
-                value={t(taskActionMapper.getLabel(log.action))}
-              />
-              <DetailRow
-                label={t('Status')}
-                value={
-                  <StatusBadge
-                    label={t(
-                      taskStatusMapper.getLabel(
-                        log.status,
-                        log.status || 'Submitting'
-                      )
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={
+        <>
+          {t('Task Details')}
+          <StatusBadge
+            variant={taskStatusMapper.getVariant(log.status)}
+            size='sm'
+          >
+            {t(
+              taskStatusMapper.getLabel(log.status, log.status || 'Submitting')
+            )}
+          </StatusBadge>
+        </>
+      }
+      description={t('View the complete details for this task')}
+      contentClassName='min-w-0 overflow-hidden max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:w-[calc(100vw-1.5rem)] max-sm:max-w-[calc(100vw-1.5rem)] max-sm:p-4 sm:max-w-lg'
+      headerClassName='max-sm:gap-1'
+      titleClassName='flex items-center gap-2 text-base'
+      descriptionClassName='sr-only'
+      contentHeight='min(78dvh, 760px)'
+      bodyClassName='pr-2 sm:pr-4'
+    >
+      <div className='w-full max-w-full min-w-0 space-y-3 overflow-x-hidden py-1'>
+        {/* Overview */}
+        <DetailSection label={t('Overview')}>
+          {log.task_id && (
+            <DetailRow
+              label={t('Task ID')}
+              value={
+                <span className='flex items-start gap-1'>
+                  <span className='min-w-0 break-all'>{log.task_id}</span>
+                  <button
+                    type='button'
+                    className='text-muted-foreground hover:text-foreground mt-0.5 shrink-0'
+                    onClick={() => copyToClipboard(log.task_id)}
+                    title={t('Copy to clipboard')}
+                    aria-label={t('Copy to clipboard')}
+                  >
+                    {copiedText === log.task_id ? (
+                      <Check className='text-success size-3' />
+                    ) : (
+                      <Copy className='size-3' />
                     )}
-                    variant={taskStatusMapper.getVariant(log.status)}
-                    size='sm'
-                    copyable={false}
-                    className='-ml-1.5'
-                  />
-                }
-              />
-              <DetailRow label={t('Progress')} value={log.progress || '-'} />
-              {modelName ? (
-                <DetailRow label={t('Model')} value={modelName} mono />
-              ) : null}
-            </DetailSection>
-
-            <DetailSection label={t('Timing')}>
-              <DetailRow
-                label={t('Created At')}
-                value={formatTimestamp(log.created_at)}
-                mono
-              />
-              <DetailRow
-                label={t('Updated At')}
-                value={formatTimestamp(log.updated_at)}
-                mono
-              />
-              <DetailRow
-                label={t('Submit Time')}
-                value={formatTimestamp(log.submit_time)}
-                mono
-              />
-              <DetailRow
-                label={t('Start Time')}
-                value={formatTimestamp(log.start_time)}
-                mono
-              />
-              <DetailRow
-                label={t('Finish Time')}
-                value={formatTimestamp(log.finish_time)}
-                mono
-              />
-              <DetailRow label={t('Duration')} value={duration || '-'} mono />
-            </DetailSection>
-
-            <DetailSection label={t('Billing')}>
-              <DetailRow
-                label={t('Cost')}
-                value={log.quota ? formatLogQuota(log.quota) : '-'}
-              />
-              <DetailRow label={t('Group')} value={log.group || '-'} />
-              {isAdmin ? (
-                <>
-                  <DetailRow
-                    label={t('Channel')}
-                    value={log.channel_id ? `#${log.channel_id}` : '-'}
-                    mono
-                  />
-                  <DetailRow
-                    label={t('User')}
-                    value={
-                      log.username || (log.user_id ? String(log.user_id) : '-')
-                    }
-                  />
-                  <DetailRow
-                    label={t('User ID')}
-                    value={log.user_id ? String(log.user_id) : '-'}
-                    mono
-                  />
-                </>
-              ) : null}
-            </DetailSection>
-
-            {(properties.input ||
-              properties.origin_model_name ||
-              properties.upstream_model_name) && (
-              <DetailSection label={t('Request Properties')}>
-                {properties.origin_model_name ? (
-                  <DetailRow
-                    label={t('Origin Model Name')}
-                    value={properties.origin_model_name}
-                    mono
-                  />
-                ) : null}
-                {properties.upstream_model_name ? (
-                  <DetailRow
-                    label={t('Upstream Model Name')}
-                    value={properties.upstream_model_name}
-                    mono
-                  />
-                ) : null}
-                {properties.input ? (
-                  <div className='space-y-1'>
-                    <span className='text-muted-foreground text-xs'>
-                      {t('Input Prompt')}
-                    </span>
-                    <p className='text-xs leading-relaxed break-all whitespace-pre-wrap'>
-                      {properties.input}
-                    </p>
-                  </div>
-                ) : null}
-              </DetailSection>
-            )}
-
-            {(videoResultUrl || log.fail_reason) && (
-              <DetailSection
-                label={t('Result')}
-                variant={
-                  log.status === TASK_STATUS.FAILURE ? 'danger' : 'default'
-                }
+                  </button>
+                </span>
+              }
+              mono
+            />
+          )}
+          {log.id > 0 && (
+            <DetailRow label={t('Internal ID')} value={String(log.id)} mono />
+          )}
+          <DetailRow label={t('Platform')} value={platformName} />
+          <DetailRow
+            label={t('Action')}
+            value={t(taskActionMapper.getLabel(log.action, log.action))}
+          />
+          <DetailRow
+            label={t('Status')}
+            value={
+              <StatusBadge
+                variant={taskStatusMapper.getVariant(log.status)}
+                size='sm'
               >
-                {videoResultUrl ? (
-                  <div className='space-y-2'>
-                    <DetailRow
-                      label={t('Result URL')}
-                      value={<CopyableValue value={videoResultUrl} />}
-                    />
-                    {showVideoPreview ? (
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        className='gap-1.5'
-                        onClick={() => setVideoOpen(true)}
-                      >
-                        <Video className='size-3.5' />
-                        {t('Click to preview video')}
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
-                {log.fail_reason && !log.fail_reason.startsWith('http') ? (
-                  <div className='space-y-1'>
-                    <span className='text-xs font-medium text-red-600 dark:text-red-400'>
-                      {t('Fail Reason')}
-                    </span>
-                    <p className='text-xs leading-relaxed break-all whitespace-pre-wrap text-red-600 dark:text-red-400'>
-                      {log.fail_reason}
-                    </p>
-                  </div>
-                ) : null}
-              </DetailSection>
-            )}
+                {t(
+                  taskStatusMapper.getLabel(
+                    log.status,
+                    log.status || 'Submitting'
+                  )
+                )}
+              </StatusBadge>
+            }
+          />
+          {log.progress && (
+            <DetailRow
+              label={t('Progress')}
+              value={
+                <StatusBadge variant='neutral' size='sm' className='font-mono'>
+                  {log.progress}
+                </StatusBadge>
+              }
+            />
+          )}
+          {model && <DetailRow label={t('Model')} value={model} mono />}
+        </DetailSection>
 
-            {log.platform === 'suno' && sunoClips.length > 0 && (
-              <DetailSection label={t('Audio Clips')}>
-                <div className='space-y-2'>
-                  {sunoClips.map((clip, index) => {
-                    if (!clip || typeof clip !== 'object') return null
-                    const item = clip as Record<string, unknown>
-                    const audioUrl =
-                      typeof item.audio_url === 'string' ? item.audio_url : ''
-                    const title =
-                      typeof item.title === 'string'
-                        ? item.title
-                        : `#${index + 1}`
-                    return (
-                      <div
-                        key={String(item.clip_id || item.id || index)}
-                        className='space-y-1 rounded-md border px-2.5 py-2'
-                      >
-                        <div className='text-xs font-medium'>{title}</div>
-                        {audioUrl ? (
-                          <>
-                            <audio
-                              src={audioUrl}
-                              controls
-                              preload='none'
-                              className='h-9 w-full'
-                            />
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-7 gap-1 px-0 text-xs'
-                              onClick={() => window.open(audioUrl, '_blank')}
-                            >
-                              <ExternalLink className='size-3' />
-                              {t('Open in new tab')}
-                            </Button>
-                          </>
-                        ) : (
-                          <span className='text-muted-foreground text-xs'>
-                            -
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </DetailSection>
-            )}
+        {/* Timing */}
+        <DetailSection label={t('Timing')}>
+          {log.created_at ? (
+            <DetailRow
+              label={t('Created At')}
+              value={formatTimestampToDate(log.created_at, 'seconds')}
+              mono
+            />
+          ) : null}
+          {log.updated_at ? (
+            <DetailRow
+              label={t('Updated At')}
+              value={formatTimestampToDate(log.updated_at, 'seconds')}
+              mono
+            />
+          ) : null}
+          <DetailRow
+            label={t('Submit Time')}
+            value={formatTimestampToDate(log.submit_time, 'seconds')}
+            mono
+          />
+          {log.start_time ? (
+            <DetailRow
+              label={t('Start Time')}
+              value={formatTimestampToDate(log.start_time, 'seconds')}
+              mono
+            />
+          ) : null}
+          {log.finish_time ? (
+            <DetailRow
+              label={t('Finish Time')}
+              value={formatTimestampToDate(log.finish_time, 'seconds')}
+              mono
+            />
+          ) : null}
+          {duration && (
+            <DetailRow
+              label={t('Duration')}
+              value={
+                <StatusBadge
+                  variant={duration.variant}
+                  size='sm'
+                  className='tabular-nums'
+                >
+                  {duration.durationSec.toFixed(1)}s
+                </StatusBadge>
+              }
+            />
+          )}
+        </DetailSection>
 
-            {upstreamScalars.length > 0 && (
-              <DetailSection label={t('Upstream Response')}>
-                {upstreamScalars.map((row) => (
-                  <DetailRow
-                    key={row.label}
-                    label={t(row.label)}
-                    value={row.value}
-                    mono={
-                      row.label === 'Upstream Task ID' || row.label === 'Model'
+        {/* Billing */}
+        <DetailSection label={t('Billing')}>
+          {typeof log.quota === 'number' && (
+            <DetailRow
+              label={t('Cost')}
+              value={formatLogQuota(log.quota)}
+              mono
+            />
+          )}
+          {log.group && <DetailRow label={t('Group')} value={log.group} mono />}
+          {isAdmin && log.channel_id > 0 && (
+            <DetailRow label={t('Channel')} value={`#${log.channel_id}`} mono />
+          )}
+          {isAdmin && log.username && (
+            <DetailRow label={t('User')} value={log.username} />
+          )}
+          {isAdmin && log.user_id > 0 && (
+            <DetailRow label={t('User ID')} value={String(log.user_id)} mono />
+          )}
+        </DetailSection>
+
+        {/* Request properties */}
+        {(originModel || upstreamModel || inputPrompt) && (
+          <DetailSection label={t('Request Properties')}>
+            {originModel && (
+              <DetailRow
+                label={t('Original Model Name')}
+                value={originModel}
+                mono
+              />
+            )}
+            {upstreamModel && (
+              <DetailRow
+                label={t('Upstream Model Name')}
+                value={upstreamModel}
+                mono
+              />
+            )}
+            {inputPrompt && (
+              <div className='space-y-1'>
+                <span className='text-muted-foreground text-xs'>
+                  {t('Input Prompt')}
+                </span>
+                <p className='text-xs leading-relaxed break-all whitespace-pre-wrap'>
+                  {inputPrompt}
+                </p>
+              </div>
+            )}
+          </DetailSection>
+        )}
+
+        {/* Fail reason */}
+        {hasFailReason && (
+          <DetailSection
+            icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}
+            label={t('Fail Reason')}
+            variant='destructive'
+            action={
+              <CopyButton
+                text={log.fail_reason ?? ''}
+                copied={copiedText === log.fail_reason}
+                onCopy={() => copyToClipboard(log.fail_reason ?? '')}
+              />
+            }
+          >
+            <p className='text-destructive text-xs leading-relaxed break-all whitespace-pre-wrap sm:wrap-break-word'>
+              {log.fail_reason}
+            </p>
+          </DetailSection>
+        )}
+
+        {/* Result */}
+        {(videoUrl || isResultLink || audioClips.length > 0) && (
+          <DetailSection
+            icon={<Video className='size-3.5' aria-hidden='true' />}
+            label={t('Result')}
+            action={
+              isResultLink ? (
+                <div className='flex items-center gap-1'>
+                  <Button
+                    variant='ghost'
+                    size='icon-xs'
+                    onClick={() =>
+                      window.open(resultUrl, '_blank', 'noopener,noreferrer')
                     }
+                    title={t('Open in new tab')}
+                    aria-label={t('Open in new tab')}
+                  >
+                    <ExternalLink className='size-3' />
+                  </Button>
+                  <CopyButton
+                    text={resultUrl}
+                    copied={copiedText === resultUrl}
+                    onCopy={() => copyToClipboard(resultUrl)}
                   />
-                ))}
-              </DetailSection>
+                </div>
+              ) : undefined
+            }
+          >
+            {isResultLink && (
+              <DetailRow label={t('Result URL')} value={resultUrl} mono />
             )}
+            {videoUrl && <VideoPreview url={videoUrl} />}
+            {audioClips.length > 0 && (
+              <div className='flex items-center gap-1.5 pt-1'>
+                <Music
+                  className='text-muted-foreground size-3.5'
+                  aria-hidden='true'
+                />
+                <span className='text-xs font-medium'>
+                  {t('Audio Preview')}
+                </span>
+              </div>
+            )}
+            {audioClips.length > 0 && <AudioPreview clips={audioClips} />}
+          </DetailSection>
+        )}
 
-            <DetailSection label={t('Raw JSON')}>
-              <pre className='bg-muted/40 max-h-64 overflow-auto rounded-md p-3 font-mono text-[11px] leading-relaxed break-all whitespace-pre-wrap'>
-                {rawJson || '-'}
+        {/* Upstream response (parsed task data) */}
+        {(upstreamEntries.length > 0 || upstreamRaw) && (
+          <DetailSection label={t('Upstream Response')}>
+            {upstreamEntries.length > 0 ? (
+              upstreamEntries.map((entry) => (
+                <DetailRow
+                  key={entry.label}
+                  label={entry.label}
+                  value={entry.value}
+                  mono={entry.mono}
+                />
+              ))
+            ) : (
+              <pre className='bg-background/60 max-h-64 min-w-0 overflow-auto rounded border p-2 font-mono text-xs leading-relaxed whitespace-pre'>
+                {upstreamRaw}
               </pre>
-            </DetailSection>
-          </div>
-        </ScrollArea>
-      </Dialog>
+            )}
+          </DetailSection>
+        )}
 
-      {videoResultUrl ? (
-        <VideoPreviewDialog
-          open={videoOpen}
-          onOpenChange={setVideoOpen}
-          videoUrl={videoResultUrl}
-        />
-      ) : null}
-    </>
+        {/* Raw JSON */}
+        {rawJson && (
+          <DetailSection
+            label={t('Raw Data')}
+            action={
+              <CopyButton
+                text={rawJson}
+                copied={copiedText === rawJson}
+                onCopy={() => copyToClipboard(rawJson)}
+              />
+            }
+          >
+            <pre className='bg-background/60 max-h-72 min-w-0 overflow-auto rounded border p-2 font-mono text-xs leading-relaxed whitespace-pre'>
+              {rawJson}
+            </pre>
+          </DetailSection>
+        )}
+      </div>
+    </Dialog>
   )
 }

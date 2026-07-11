@@ -32,13 +32,14 @@ import { IconSidebarSidebar } from '@/assets/custom/icon-sidebar-sidebar'
 import { IconThemeDark } from '@/assets/custom/icon-theme-dark'
 import { IconThemeLight } from '@/assets/custom/icon-theme-light'
 import { IconThemeSystem } from '@/assets/custom/icon-theme-system'
+import { Button } from '@/components/design-system/button'
+import { useSidebar } from '@/components/design-system/sidebar'
 import {
   sideDrawerContentClassName,
   sideDrawerFooterClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
-import { Button } from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
@@ -62,23 +63,33 @@ import {
 } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
 
-import { useSidebar } from './ui/sidebar'
-
 const Item = RadioPrimitive.Root
 
-export function ConfigDrawer() {
+type ConfigDrawerProps = {
+  /**
+   * Whether to show console-only sections (sidebar, layout, content width).
+   * Requires SidebarProvider/LayoutProvider; disable on public pages.
+   * @default true
+   */
+  showLayoutControls?: boolean
+  /**
+   * Extra classes for the trigger button (e.g. to override `max-md:hidden`).
+   */
+  triggerClassName?: string
+}
+
+export function ConfigDrawer({
+  showLayoutControls = true,
+  triggerClassName,
+}: ConfigDrawerProps) {
   const { t } = useTranslation()
-  const { setOpen } = useSidebar()
   const { resetDir } = useDirection()
   const { resetTheme } = useTheme()
-  const { resetLayout } = useLayout()
   const { resetCustomization } = useThemeCustomization()
 
-  const handleReset = () => {
-    setOpen(true)
+  const resetAppearance = () => {
     resetDir()
     resetTheme()
-    resetLayout()
     resetCustomization()
   }
 
@@ -91,7 +102,7 @@ export function ConfigDrawer() {
             variant='ghost'
             aria-label={t('Open theme settings')}
             aria-describedby='config-drawer-description'
-            className='max-md:hidden'
+            className={cn('max-md:hidden', triggerClassName)}
           />
         }
       >
@@ -110,22 +121,57 @@ export function ConfigDrawer() {
           <FontConfig />
           <RadiusConfig />
           <ScaleConfig />
-          <SidebarConfig />
-          <LayoutConfig />
-          <ContentLayoutConfig />
+          {showLayoutControls && (
+            <>
+              <SidebarConfig />
+              <LayoutConfig />
+              <ContentLayoutConfig />
+            </>
+          )}
           <DirConfig />
         </div>
         <SheetFooter className={sideDrawerFooterClassName('grid-cols-1')}>
-          <Button
-            variant='destructive'
-            onClick={handleReset}
-            aria-label={t('Reset all settings to default values')}
-          >
-            {t('Reset')}
-          </Button>
+          {showLayoutControls ? (
+            <ConsoleResetButton onReset={resetAppearance} />
+          ) : (
+            <Button
+              variant='destructive'
+              onClick={resetAppearance}
+              aria-label={t('Reset all settings to default values')}
+            >
+              {t('Reset')}
+            </Button>
+          )}
         </SheetFooter>
       </SheetContent>
     </Sheet>
+  )
+}
+
+/**
+ * Reset button variant that also restores sidebar/layout state. Kept as a
+ * separate component because it consumes SidebarProvider/LayoutProvider hooks
+ * that only exist inside the console layout.
+ */
+function ConsoleResetButton(props: { onReset: () => void }) {
+  const { t } = useTranslation()
+  const { setOpen } = useSidebar()
+  const { resetLayout } = useLayout()
+
+  const handleReset = () => {
+    setOpen(true)
+    resetLayout()
+    props.onReset()
+  }
+
+  return (
+    <Button
+      variant='destructive'
+      onClick={handleReset}
+      aria-label={t('Reset all settings to default values')}
+    >
+      {t('Reset')}
+    </Button>
   )
 }
 
@@ -145,9 +191,8 @@ function SectionTitle(props: {
       {props.title}
       {props.showReset && props.onReset && (
         <Button
-          size='icon'
+          size='icon-xs'
           variant='secondary'
-          className='size-4'
           onClick={props.onReset}
           aria-label='Reset'
         >
@@ -324,6 +369,7 @@ const FONT_OPTIONS: {
   preview?: string
 }[] = [
   { value: 'default', label: 'Auto', preview: undefined },
+  { value: 'mono', label: 'Mono', preview: 'var(--font-mono)' },
   { value: 'sans', label: 'Sans', preview: 'var(--font-sans)' },
   { value: 'serif', label: 'Serif', preview: 'var(--font-serif)' },
 ]
@@ -341,7 +387,7 @@ function FontConfig() {
       <Radio
         value={customization.font}
         onValueChange={(v) => setFont(v as ThemeFont)}
-        className='grid w-full grid-cols-3 gap-4'
+        className='grid w-full grid-cols-4 gap-4'
         aria-label={t('Select body font')}
       >
         {FONT_OPTIONS.map((option) => (

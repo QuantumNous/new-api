@@ -24,8 +24,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import { Turnstile } from '@/components/turnstile'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -34,7 +35,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { sendPasswordResetEmail } from '@/features/auth/api'
 import {
   forgotPasswordFormSchema,
@@ -113,6 +113,7 @@ export function ForgotPasswordForm({
 
         <Button
           type='submit'
+          size='xl'
           className='mt-2'
           disabled={isLoading || isActive || !turnstileReady}
         >

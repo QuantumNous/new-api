@@ -260,12 +260,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             {isTokenBased ? t('Token-based') : t('Per Request')}
           </span>
           {isDynamicPricing && (
-            <StatusBadge
-              label={t('Dynamic Pricing')}
-              variant='warning'
-              copyable={false}
-              size='sm'
-            />
+            <StatusBadge variant='warning' size='sm'>
+              {t('Dynamic Pricing')}
+            </StatusBadge>
           )}
         </div>
         <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />

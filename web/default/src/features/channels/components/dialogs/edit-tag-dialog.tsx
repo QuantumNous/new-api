@@ -17,18 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Dialog } from '@/components/dialog'
-import { GroupBadge } from '@/components/group-badge'
-import { StatusBadge } from '@/components/status-badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -36,7 +31,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
+import { Dialog } from '@/components/dialog'
+import { GroupBadge } from '@/components/group-badge'
+import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -229,7 +229,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
       description={t(
         'Batch edit all channels with this tag. Leave fields empty to keep current values.'
       )}
-      contentClassName='max-h-[90vh] max-w-2xl'
+      contentClassName='max-h-[90vh] sm:max-w-2xl'
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
@@ -285,15 +285,16 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                 <div className='flex min-h-[60px] flex-wrap gap-2 rounded-md border p-3'>
                   {selectedModels.length > 0 ? (
                     selectedModels.map((model) => (
-                      <StatusBadge
+                      <Badge
                         key={model}
-                        variant='neutral'
-                        className='cursor-pointer transition-opacity hover:opacity-70'
-                        copyable={false}
+                        variant='secondary'
+                        render={<button type='button' />}
                         onClick={() => handleRemoveModel(model)}
+                        aria-label={`${t('Remove')}: ${model}`}
                       >
-                        {model} ×
-                      </StatusBadge>
+                        {model}
+                        <X data-icon='inline-end' aria-hidden='true' />
+                      </Badge>
                     ))
                   ) : (
                     <span className='text-muted-foreground text-sm'>
@@ -304,12 +305,10 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
                 <div className='flex gap-2'>
                   <Select<string>
-                    items={[
-                      ...availableModels.map((model) => ({
-                        value: model,
-                        label: model,
-                      })),
-                    ]}
+                    items={availableModels.map((model) => ({
+                      value: model,
+                      label: model,
+                    }))}
                     onValueChange={(value) => {
                       if (value === null) return
                       if (!selectedModels.includes(value)) {
@@ -382,7 +381,6 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
               <Button
                 type='button'
                 variant='outline'
-                size='sm'
                 onClick={() =>
                   setModelMapping(
                     JSON.stringify(
@@ -398,7 +396,6 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
               <Button
                 type='button'
                 variant='outline'
-                size='sm'
                 onClick={() => setModelMapping(JSON.stringify({}, null, 2))}
               >
                 {t('Clear Mapping')}
@@ -406,7 +403,6 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
               <Button
                 type='button'
                 variant='outline'
-                size='sm'
                 onClick={() => setModelMapping('')}
               >
                 {t('No Change')}

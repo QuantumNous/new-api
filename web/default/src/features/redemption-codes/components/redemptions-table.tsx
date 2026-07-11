@@ -28,7 +28,6 @@ import {
   DataTablePage,
   useDataTable,
 } from '@/components/data-table'
-import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 
 import { getRedemptions, searchRedemptions } from '../api'
@@ -56,7 +55,6 @@ export function RedemptionsTable() {
   const { t } = useTranslation()
   const columns = useRedemptionsColumns()
   const { refreshTrigger } = useRedemptions()
-  const isMobile = useMediaQuery('(max-width: 640px)')
 
   const {
     globalFilter,
@@ -69,7 +67,11 @@ export function RedemptionsTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
-    pagination: { defaultPage: 1, defaultPageSize: isMobile ? 10 : 20 },
+    pagination: {
+      defaultPage: 1,
+      defaultPageSize: 20,
+      pageSizeStorageKey: 'redemption-codes:page-size:v1',
+    },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [{ columnId: 'status', searchKey: 'status', type: 'array' }],
   })
@@ -160,6 +162,7 @@ export function RedemptionsTable() {
     <DataTablePage
       table={table}
       columns={columns}
+      tableLabel={t('Redemption Codes')}
       isLoading={isLoading}
       isFetching={isFetching}
       emptyTitle={t('No Redemption Codes Found')}
