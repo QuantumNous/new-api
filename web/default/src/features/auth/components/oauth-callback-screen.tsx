@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { Loader2, Send, Shield, UserRound, type LucideIcon } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiLinux, SiWechat } from 'react-icons/si'
+
+import { IconGithub, IconLinuxDo, IconWeChat } from '@/assets/brand-icons'
 
 import { AuthLayout } from '../auth-layout'
 
@@ -37,42 +38,39 @@ const providerDictionary: Record<string, ProviderMeta> = {
   github: {
     label: 'GitHub',
     Icon: (props: { className?: string }) => (
-      <SiGithub className={props.className} focusable='false' />
+      <IconGithub className={props.className} />
     ),
   },
   oidc: { label: 'OIDC', Icon: Shield },
   linuxdo: {
     label: 'LinuxDO',
     Icon: (props: { className?: string }) => (
-      <SiLinux className={props.className} focusable='false' />
+      <IconLinuxDo className={props.className} />
     ),
   },
   telegram: { label: 'Telegram', Icon: Send },
   wechat: {
     label: 'WeChat',
     Icon: (props: { className?: string }) => (
-      <SiWechat className={props.className} focusable='false' />
+      <IconWeChat className={props.className} />
     ),
   },
 }
 
-export function OAuthCallbackScreen({
-  provider,
-  mode,
-}: OAuthCallbackScreenProps) {
+export function OAuthCallbackScreen(props: OAuthCallbackScreenProps) {
   const { t } = useTranslation()
   const { label, Icon } = useMemo(() => {
-    const normalized = provider?.toLowerCase() ?? ''
+    const normalized = props.provider?.toLowerCase() ?? ''
     return (
       providerDictionary[normalized] || {
         label: 'account',
         Icon: UserRound,
       }
     )
-  }, [provider])
+  }, [props.provider])
 
   const providerLabel = t(label)
-  const isBindMode = mode === 'bind'
+  const isBindMode = props.mode === 'bind'
 
   const headline = isBindMode
     ? t('Binding your {{provider}} account', { provider: providerLabel })
@@ -91,34 +89,28 @@ export function OAuthCallbackScreen({
       )
 
   return (
-    <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='flex flex-col items-center space-y-4 text-center'>
-          <div className='bg-muted flex h-16 w-16 items-center justify-center rounded-2xl'>
-            <Icon className='h-8 w-8' />
-          </div>
-          <div className='space-y-2'>
-            <h2 className='text-center text-2xl font-semibold tracking-tight'>
-              {headline}
-            </h2>
-            <p className='text-muted-foreground text-sm sm:text-base'>
-              {description}
-            </p>
-          </div>
+    <AuthLayout
+      icon={
+        <div className='bg-muted flex h-12 w-12 items-center justify-center rounded-full'>
+          <Icon className='h-6 w-6' />
         </div>
-
-        <div className='space-y-4 text-center'>
-          <div className='flex items-center justify-center gap-2 text-sm font-medium'>
-            <Loader2 className='h-4 w-4 animate-spin' />
-            <span>{t('Processing OAuth response...')}</span>
-          </div>
-          <p className='text-muted-foreground text-sm'>{secondaryNote}</p>
-          <p className='text-muted-foreground text-xs'>
-            {t(
-              'This may take a few moments while we validate the request and update your session.'
-            )}
-          </p>
+      }
+      title={headline}
+      description={description}
+    >
+      <div className='space-y-4 text-center'>
+        <div className='flex items-center justify-center gap-2 text-sm font-medium'>
+          <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+          <span>{t('Processing OAuth response...')}</span>
         </div>
+        <p className='text-muted-foreground text-sm text-balance'>
+          {secondaryNote}
+        </p>
+        <p className='text-muted-foreground text-xs text-balance'>
+          {t(
+            'This may take a few moments while we validate the request and update your session.'
+          )}
+        </p>
       </div>
     </AuthLayout>
   )

@@ -20,20 +20,22 @@ import { Eye, EyeOff } from 'lucide-react'
 import * as React from 'react'
 
 import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
+import { Input, type InputSize } from '@/components/design-system/input'
 import { cn } from '@/lib/utils'
 
 type PasswordInputProps = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
-  'type'
+  'type' | 'size'
 > & {
   ref?: React.Ref<HTMLInputElement>
+  size?: InputSize
 }
 
 export function PasswordInput({
   className,
   disabled,
   ref,
+  size,
   ...props
 }: PasswordInputProps) {
   const [showPassword, setShowPassword] = React.useState(false)
@@ -44,6 +46,8 @@ export function PasswordInput({
         type={showPassword ? 'text' : 'password'}
         ref={ref}
         disabled={disabled}
+        size={size}
+        className='pr-8'
         {...props}
       />
       <Button

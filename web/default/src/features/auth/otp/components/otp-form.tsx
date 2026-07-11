@@ -159,6 +159,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
               <FormControl>
                 {useBackupCode ? (
                   <Input
+                    size='xl'
                     placeholder={t('Enter backup code (e.g., CAWD-OQDV)')}
                     {...field}
                     maxLength={BACKUP_CODE_LENGTH}

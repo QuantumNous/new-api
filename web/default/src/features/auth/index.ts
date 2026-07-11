@@ -115,6 +115,7 @@ export { useEmailVerification } from './hooks/use-email-verification'
 
 export { AuthLayout } from './auth-layout'
 export { OAuthProviders } from './components/oauth-providers'
+export { WeChatLoginDialog } from './components/wechat-login-dialog'
 export { TermsFooter } from './components/terms-footer'
 export { LegalConsent } from './components/legal-consent'
 export { SignIn } from './sign-in'
