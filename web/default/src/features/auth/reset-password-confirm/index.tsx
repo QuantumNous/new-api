@@ -105,100 +105,103 @@ export function ResetPasswordConfirm({
     }
   }
 
+  let confirmButtonLabel: string
+  if (newPassword) {
+    confirmButtonLabel = t('auth.resetPasswordConfirm.backToLogin')
+  } else if (isActive) {
+    confirmButtonLabel = t('auth.resetPasswordConfirm.retry', {
+      seconds: secondsLeft,
+    })
+  } else {
+    confirmButtonLabel = t('auth.resetPasswordConfirm.confirm')
+  }
+
   return (
-    <AuthLayout>
-      <div className='w-full space-y-8'>
+    <AuthLayout
+      title={t('Reset password')}
+      description={
+        newPassword
+          ? t('auth.resetPasswordConfirm.success')
+          : t('auth.resetPasswordConfirm.description')
+      }
+    >
+      <div className='space-y-4'>
+        {!isValidResetLink && (
+          <Alert variant='destructive'>
+            <AlertDescription>
+              {t('Invalid reset link, please request a new password reset.')}
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Reset password')}
-          </h2>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {newPassword
-              ? t('auth.resetPasswordConfirm.success')
-              : t('auth.resetPasswordConfirm.description')}
-          </p>
-        </div>
-
-        <div className='space-y-4'>
-          {!isValidResetLink && (
-            <Alert variant='destructive'>
-              <AlertDescription>
-                {t('Invalid reset link, please request a new password reset.')}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className='space-y-2'>
-            <Label htmlFor='email'>{t('Email')}</Label>
-            <Input
-              id='email'
-              type='email'
-              value={email || ''}
-              disabled
-              placeholder={t('Waiting for email...')}
-            />
-          </div>
-
-          {newPassword && (
-            <div className='space-y-2'>
-              <Label htmlFor='password'>{t('New password')}</Label>
-              <div className='flex gap-2'>
-                <Input
-                  id='password'
-                  value={newPassword}
-                  disabled
-                  className='font-mono'
-                />
-                <Button
-                  type='button'
-                  size='icon'
-                  variant='outline'
-                  onClick={handleCopy}
-                >
-                  {copied ? (
-                    <CheckIcon className='h-4 w-4' />
-                  ) : (
-                    <CopyIcon className='h-4 w-4' />
-                  )}
-                </Button>
-              </div>
-              <p className='text-muted-foreground text-xs'>
-                {t('Password has been copied to clipboard')}
-              </p>
-            </div>
-          )}
-
-          <Button
+          <Label htmlFor='email'>{t('Email')}</Label>
+          <Input
+            id='email'
             size='xl'
-            className='w-full'
-            onClick={
-              newPassword
-                ? () => navigate({ to: '/sign-in', replace: true })
-                : handleSubmit
-            }
-            disabled={
-              newPassword ? false : loading || isActive || !isValidResetLink
-            }
-          >
-            {newPassword
-              ? t('auth.resetPasswordConfirm.backToLogin')
-              : isActive
-                ? t('auth.resetPasswordConfirm.retry', {
-                    seconds: secondsLeft,
-                  })
-                : t('auth.resetPasswordConfirm.confirm')}
-          </Button>
-
-          {!newPassword && (
-            <Button
-              variant='link'
-              className='w-full'
-              onClick={() => navigate({ to: '/sign-in', replace: true })}
-            >
-              {t('Back to login')}
-            </Button>
-          )}
+            type='email'
+            value={email || ''}
+            disabled
+            placeholder={t('Waiting for email...')}
+          />
         </div>
+
+        {newPassword && (
+          <div className='space-y-2'>
+            <Label htmlFor='password'>{t('New password')}</Label>
+            <div className='relative'>
+              <Input
+                id='password'
+                size='xl'
+                value={newPassword}
+                disabled
+                className='pr-8 font-mono'
+              />
+              <Button
+                type='button'
+                size='icon-xs'
+                variant='ghost'
+                className='text-muted-foreground absolute end-1 top-1/2 -translate-y-1/2'
+                aria-label={t('Copy password')}
+                onClick={handleCopy}
+              >
+                {copied ? (
+                  <CheckIcon className='h-4 w-4' />
+                ) : (
+                  <CopyIcon className='h-4 w-4' />
+                )}
+              </Button>
+            </div>
+            <p className='text-muted-foreground text-xs'>
+              {t('Password has been copied to clipboard')}
+            </p>
+          </div>
+        )}
+
+        <Button
+          size='xl'
+          className='w-full'
+          onClick={
+            newPassword
+              ? () => navigate({ to: '/sign-in', replace: true })
+              : handleSubmit
+          }
+          disabled={
+            newPassword ? false : loading || isActive || !isValidResetLink
+          }
+        >
+          {confirmButtonLabel}
+        </Button>
+
+        {!newPassword && (
+          <Button
+            variant='link'
+            className='w-full'
+            onClick={() => navigate({ to: '/sign-in', replace: true })}
+          >
+            {t('Back to login')}
+          </Button>
+        )}
       </div>
     </AuthLayout>
   )

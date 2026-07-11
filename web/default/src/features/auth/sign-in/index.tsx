@@ -30,36 +30,31 @@ export function SignIn() {
   const { redirect } = useSearch({ from: '/(auth)/sign-in' })
   const { status } = useStatus()
 
+  const showRegisterLink =
+    !status?.self_use_mode_enabled && status?.register_enabled !== false
+
   return (
-    <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Sign in')}
-          </h2>
-          {!status?.self_use_mode_enabled &&
-            status?.register_enabled !== false && (
-              <p className='text-muted-foreground text-left text-sm sm:text-base'>
-                {t("Don't have an account?")}{' '}
-                <Link
-                  to='/sign-up'
-                  className='hover:text-primary font-medium underline underline-offset-4'
-                >
-                  {t('Sign up')}
-                </Link>
-                .
-              </p>
-            )}
+    <AuthLayout
+      title={t('Sign in')}
+      description={t('Welcome back! Please sign in to continue.')}
+      footer={
+        <div className='space-y-3'>
+          {showRegisterLink && (
+            <p>
+              {t("Don't have an account?")}{' '}
+              <Link
+                to='/sign-up'
+                className='text-foreground hover:text-primary font-medium underline underline-offset-4'
+              >
+                {t('Sign up')}
+              </Link>
+            </p>
+          )}
+          <TermsFooter variant='sign-in' status={status} />
         </div>
-
-        <UserAuthForm redirectTo={redirect} />
-
-        <TermsFooter
-          variant='sign-in'
-          status={status}
-          className='text-center'
-        />
-      </div>
+      }
+    >
+      <UserAuthForm redirectTo={redirect} />
     </AuthLayout>
   )
 }

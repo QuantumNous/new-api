@@ -16,22 +16,42 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
 
 import { Input as ShadcnInput } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-function Input({
-  className,
-  ...props
-}: React.ComponentProps<typeof ShadcnInput>) {
+const responsiveInputSizeVariants = cva('', {
+  variants: {
+    size: {
+      default: 'h-7 sm:h-8',
+      // CTA tier matching Button size='xl' (40px -> 44px), used on auth pages.
+      xl: 'h-10 px-3 sm:h-11',
+    },
+  },
+  defaultVariants: {
+    size: 'default',
+  },
+})
+
+type InputSize = NonNullable<
+  VariantProps<typeof responsiveInputSizeVariants>['size']
+>
+
+type InputProps = Omit<React.ComponentProps<typeof ShadcnInput>, 'size'> & {
+  size?: InputSize
+}
+
+function Input({ className, size = 'default', ...props }: InputProps) {
   return (
     <ShadcnInput
-      data-control-size='default'
-      className={cn('h-7 sm:h-8', className)}
+      data-control-size={size}
+      className={cn(responsiveInputSizeVariants({ size }), className)}
       {...props}
     />
   )
 }
 
 export { Input }
+export type { InputProps, InputSize }

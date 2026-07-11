@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Globe, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,6 +24,7 @@ import {
   IconDiscord,
   IconGithub,
   IconLinuxDo,
+  IconTelegram,
   IconWeChat,
 } from '@/assets/brand-icons'
 import { Button } from '@/components/design-system/button'
@@ -36,7 +38,6 @@ type OAuthProvidersProps = {
   disabled?: boolean
   className?: string
   onWeChatLogin?: () => void
-  isWeChatLoading?: boolean
 }
 
 type ProviderButton = {
@@ -47,14 +48,9 @@ type ProviderButton = {
   disabled?: boolean
 }
 
-export function OAuthProviders({
-  status,
-  disabled = false,
-  className,
-  onWeChatLogin,
-  isWeChatLoading = false,
-}: OAuthProvidersProps) {
+export function OAuthProviders(props: OAuthProvidersProps) {
   const { t } = useTranslation()
+  const status = props.status
   const {
     isLoading,
     githubButtonText,
@@ -69,13 +65,12 @@ export function OAuthProviders({
 
   const providerButtons: ProviderButton[] = []
 
-  if (status?.wechat_login && onWeChatLogin) {
+  if (status?.wechat_login && props.onWeChatLogin) {
     providerButtons.push({
       key: 'wechat',
       label: t('Continue with WeChat'),
-      onClick: onWeChatLogin,
+      onClick: props.onWeChatLogin,
       icon: <IconWeChat className='h-4 w-4' />,
-      disabled: isWeChatLoading,
     })
   }
 
@@ -103,6 +98,7 @@ export function OAuthProviders({
       key: 'oidc',
       label: t('Continue with OIDC'),
       onClick: handleOIDCLogin,
+      icon: <ShieldCheck className='h-4 w-4' aria-hidden='true' />,
     })
   }
 
@@ -120,10 +116,10 @@ export function OAuthProviders({
       key: 'telegram',
       label: t('Continue with Telegram'),
       onClick: handleTelegramLogin,
+      icon: <IconTelegram className='h-4 w-4' />,
     })
   }
 
-  // Custom OAuth providers
   const customProviders = status?.custom_oauth_providers
   if (customProviders && customProviders.length > 0) {
     for (const provider of customProviders) {
@@ -131,6 +127,7 @@ export function OAuthProviders({
         key: `custom-${provider.slug}`,
         label: t('Continue with {{name}}', { name: provider.name }),
         onClick: () => handleCustomOAuthLogin(provider),
+        icon: <Globe className='h-4 w-4' aria-hidden='true' />,
       })
     }
   }
@@ -138,36 +135,21 @@ export function OAuthProviders({
   if (providerButtons.length === 0) return null
 
   return (
-    <div className={cn('space-y-3', className)}>
-      <div className='relative'>
-        <div className='absolute inset-0 flex items-center'>
-          <span className='w-full border-t' />
-        </div>
-        <div className='relative flex justify-center text-xs uppercase'>
-          <span className='bg-background text-muted-foreground px-2'>
-            {t('Or continue with')}
-          </span>
-        </div>
-      </div>
-
-      <div className='flex flex-col gap-2'>
-        {providerButtons.map(
-          ({ key, label, onClick, icon, disabled: extraDisabled }) => (
-            <Button
-              key={key}
-              variant='outline'
-              type='button'
-              disabled={disabled || isLoading || extraDisabled}
-              onClick={onClick}
-              size='xl'
-              className='w-full justify-center rounded-lg'
-            >
-              {icon}
-              {label}
-            </Button>
-          )
-        )}
-      </div>
+    <div className={cn('flex flex-col gap-2', props.className)}>
+      {providerButtons.map((button) => (
+        <Button
+          key={button.key}
+          variant='outline'
+          type='button'
+          disabled={props.disabled || isLoading || button.disabled}
+          onClick={button.onClick}
+          size='xl'
+          className='w-full justify-center'
+        >
+          {button.icon}
+          {button.label}
+        </Button>
+      ))}
     </div>
   )
 }

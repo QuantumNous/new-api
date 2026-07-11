@@ -350,7 +350,7 @@ function isZeroDraft(value: string): boolean {
 
 type DraftNumberInputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
-  'type' | 'value' | 'onChange'
+  'type' | 'value' | 'onChange' | 'size'
 > & {
   value: number | string
   onValueChange: (next: number) => void
