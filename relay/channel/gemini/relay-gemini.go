@@ -819,9 +819,25 @@ func cleanFunctionParametersShallow(params interface{}) interface{} {
 	}
 }
 
+func inferGeminiSchemaType(schema map[string]interface{}) string {
+	if _, ok := schema["properties"]; ok {
+		return "OBJECT"
+	}
+	if _, ok := schema["items"]; ok {
+		return "ARRAY"
+	}
+	if _, ok := schema["enum"]; ok {
+		return "STRING"
+	}
+	return ""
+}
+
 func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 	rawType, ok := schema["type"]
 	if !ok || rawType == nil {
+		if inferred := inferGeminiSchemaType(schema); inferred != "" {
+			schema["type"] = inferred
+		}
 		return
 	}
 
