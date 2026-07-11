@@ -22,7 +22,8 @@ export const modelGroupSelectorLayoutClasses = {
   desktopContent:
     'grid h-[min(50vh,28rem)] max-h-[min(50vh,28rem)] min-h-0 gap-3 p-2 md:grid-cols-[9.5rem_minmax(0,1fr)]',
   groupColumn: 'flex h-full min-h-0 min-w-0 flex-col overflow-hidden',
-  groupScroll: 'mt-2 grid min-h-0 flex-1 gap-1 overflow-y-auto pr-1',
+  groupScroll:
+    'mt-2 grid min-h-0 flex-1 auto-rows-[2rem] content-start gap-1 overflow-y-auto pr-1',
   modelColumn: 'flex h-full min-h-0 min-w-0 overflow-hidden rounded-lg border',
   modelCommand: 'min-h-0 flex-1 rounded-lg border-0 bg-transparent p-1',
   modelList:

@@ -47,7 +47,7 @@ import { cn } from '@/lib/utils'
 import {
   modelGroupSelectorLayoutClasses,
   scrollSelectedOptionIntoView,
-} from './model-group-selector-layout'
+} from './model-group-selector/layout'
 
 interface ModelOption {
   label: string
