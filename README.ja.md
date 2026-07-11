@@ -306,6 +306,7 @@ docker run --name new-api -d --restart always \
 | **ローカルデータベース** | SQLite（Dockerは `/data` ディレクトリをマウントする必要があります）|
 | **リモートデータベース** | MySQL ≥ 5.7.8 または PostgreSQL ≥ 9.6 |
 | **コンテナエンジン** | Docker / Docker Compose |
+| **システムアーキテクチャ** | 64ビットのみ対応（amd64 / arm64）。32ビットシステムは非対応 |
 
 ### ⚙️ 環境変数設定
 

@@ -3,7 +3,11 @@ package dto
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
+	"sync"
+
+	"github.com/QuantumNous/new-api/constant"
 )
 
 type ChannelSettings struct {
@@ -59,13 +63,14 @@ func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 }
 
 const (
-	AdvancedCustomConverterNone                                         = "none"
-	AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions     = "anthropic_messages_to_openai_chat_completions"
-	AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages     = "openai_chat_completions_to_anthropic_messages"
-	AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses       = "openai_chat_completions_to_openai_responses"
-	AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions       = "openai_responses_to_openai_chat_completions"
-	AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions = "gemini_generate_content_to_openai_chat_completions"
-	AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent = "openai_chat_completions_to_gemini_generate_content"
+	advancedCustomConverterNone                        = "none"
+	advancedCustomConverterClaudeMessagesToOpenAIChat  = "anthropic_messages_to_openai_chat_completions"
+	advancedCustomConverterOpenAIChatToClaudeMessages  = "openai_chat_completions_to_anthropic_messages"
+	advancedCustomConverterOpenAIChatToOpenAIResponses = "openai_chat_completions_to_openai_responses"
+	advancedCustomConverterOpenAIResponsesToOpenAIChat = "openai_responses_to_openai_chat_completions"
+	advancedCustomConverterOpenAIResponsesToGemini     = "openai_responses_to_gemini_generate_content"
+	advancedCustomConverterGeminiContentToOpenAIChat   = "gemini_generate_content_to_openai_chat_completions"
+	advancedCustomConverterOpenAIChatToGeminiContent   = "openai_chat_completions_to_gemini_generate_content"
 )
 
 const (
@@ -82,6 +87,7 @@ type AdvancedCustomRoute struct {
 	IncomingPath string                   `json:"incoming_path,omitempty"`
 	UpstreamPath string                   `json:"upstream_path,omitempty"`
 	Converter    string                   `json:"converter,omitempty"`
+	Models       []string                 `json:"models,omitempty"`
 	Auth         *AdvancedCustomRouteAuth `json:"auth,omitempty"`
 }
 
@@ -91,7 +97,20 @@ type AdvancedCustomRouteAuth struct {
 	Value string `json:"value,omitempty"`
 }
 
-const advancedCustomModelPlaceholder = "{model}"
+const (
+	advancedCustomModelPlaceholder = "{model}"
+	advancedCustomModelRegexPrefix = "re:"
+)
+
+const (
+	advancedCustomEndpointPathOpenAIChat             = "/v1/chat/completions"
+	advancedCustomEndpointPathOpenAIResponses        = "/v1/responses"
+	advancedCustomEndpointPathOpenAIResponsesCompact = "/v1/responses/compact"
+	advancedCustomEndpointPathClaudeMessages         = "/v1/messages"
+	advancedCustomEndpointPathJinaRerank             = "/v1/rerank"
+	advancedCustomEndpointPathImageGeneration        = "/v1/images/generations"
+	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
+)
 
 // MatchPath returns the first route whose IncomingPath matches requestPath.
 // Matching mirrors the relay adaptor: exact match, {model} placeholder, and
@@ -108,10 +127,131 @@ func (c *AdvancedCustomConfig) MatchPath(requestPath string) (AdvancedCustomRout
 	return AdvancedCustomRoute{}, false
 }
 
+// MatchPathForModel returns the first route whose IncomingPath and Models match.
+// An empty Models list is a catch-all fallback for that incoming path.
+func (c *AdvancedCustomConfig) MatchPathForModel(requestPath string, model string) (AdvancedCustomRoute, bool) {
+	if c == nil {
+		return AdvancedCustomRoute{}, false
+	}
+	model = strings.TrimSpace(model)
+	for _, route := range c.Routes {
+		if matchAdvancedCustomIncomingPath(strings.TrimSpace(route.IncomingPath), requestPath) &&
+			matchAdvancedCustomRouteModel(route.Models, model) {
+			return route, true
+		}
+	}
+	return AdvancedCustomRoute{}, false
+}
+
 // SupportsPath reports whether any route matches requestPath.
 func (c *AdvancedCustomConfig) SupportsPath(requestPath string) bool {
 	_, ok := c.MatchPath(requestPath)
 	return ok
+}
+
+// SupportsPathForModel reports whether any route matches requestPath and model.
+func (c *AdvancedCustomConfig) SupportsPathForModel(requestPath string, model string) bool {
+	_, ok := c.MatchPathForModel(requestPath, model)
+	return ok
+}
+
+func (c *AdvancedCustomConfig) SupportedEndpointTypesForModel(model string) []constant.EndpointType {
+	if c == nil {
+		return nil
+	}
+	model = strings.TrimSpace(model)
+	endpoints := make([]constant.EndpointType, 0, len(c.Routes))
+	seen := make(map[constant.EndpointType]struct{}, len(c.Routes))
+	for _, route := range c.Routes {
+		if !matchAdvancedCustomRouteModel(route.Models, model) {
+			continue
+		}
+		endpointType, ok := advancedCustomEndpointTypeFromIncomingPath(strings.TrimSpace(route.IncomingPath))
+		if !ok {
+			continue
+		}
+		if _, exists := seen[endpointType]; exists {
+			continue
+		}
+		seen[endpointType] = struct{}{}
+		endpoints = append(endpoints, endpointType)
+	}
+	return endpoints
+}
+
+func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (constant.EndpointType, bool) {
+	switch incomingPath {
+	case advancedCustomEndpointPathOpenAIChat:
+		return constant.EndpointTypeOpenAI, true
+	case advancedCustomEndpointPathOpenAIResponses:
+		return constant.EndpointTypeOpenAIResponse, true
+	case advancedCustomEndpointPathOpenAIResponsesCompact:
+		return constant.EndpointTypeOpenAIResponseCompact, true
+	case advancedCustomEndpointPathClaudeMessages:
+		return constant.EndpointTypeAnthropic, true
+	case advancedCustomEndpointPathJinaRerank:
+		return constant.EndpointTypeJinaRerank, true
+	case advancedCustomEndpointPathImageGeneration:
+		return constant.EndpointTypeImageGeneration, true
+	case advancedCustomEndpointPathEmbeddings:
+		return constant.EndpointTypeEmbeddings, true
+	default:
+		if isAdvancedCustomGeminiIncomingPath(incomingPath) {
+			return constant.EndpointTypeGemini, true
+		}
+		return "", false
+	}
+}
+
+func isAdvancedCustomGeminiIncomingPath(incomingPath string) bool {
+	if !strings.HasPrefix(incomingPath, "/v1beta/models/") {
+		return false
+	}
+	return strings.Contains(incomingPath, ":generateContent") || strings.Contains(incomingPath, ":streamGenerateContent")
+}
+
+func matchAdvancedCustomRouteModel(models []string, model string) bool {
+	normalizedModels := normalizeAdvancedCustomRouteModels(models)
+	if len(normalizedModels) == 0 {
+		return true
+	}
+	for _, allowedModel := range normalizedModels {
+		if matchAdvancedCustomRouteModelRule(allowedModel, model) {
+			return true
+		}
+	}
+	return false
+}
+
+// advancedCustomModelRegexCache caches compiled route model patterns. Route model
+// matching runs on the request hot path (distributor affinity, ability filtering,
+// channel cache filtering, adaptor resolve), so patterns must not be recompiled per
+// request. Invalid patterns are cached as nil to avoid recompiling them as well.
+var advancedCustomModelRegexCache sync.Map // pattern string -> *regexp.Regexp (nil when invalid)
+
+func compileAdvancedCustomModelRegex(pattern string) *regexp.Regexp {
+	if cached, ok := advancedCustomModelRegexCache.Load(pattern); ok {
+		re, _ := cached.(*regexp.Regexp)
+		return re
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		re = nil
+	}
+	advancedCustomModelRegexCache.Store(pattern, re)
+	return re
+}
+
+func matchAdvancedCustomRouteModelRule(rule string, model string) bool {
+	if !strings.HasPrefix(rule, advancedCustomModelRegexPrefix) {
+		return rule == model
+	}
+	pattern := strings.TrimPrefix(rule, advancedCustomModelRegexPrefix)
+	if pattern == "" {
+		return false
+	}
+	re := compileAdvancedCustomModelRegex(pattern)
+	return re != nil && re.MatchString(model)
 }
 
 func matchAdvancedCustomIncomingPath(configuredPath string, requestPath string) bool {
@@ -144,13 +284,14 @@ func matchAdvancedCustomIncomingPathTemplate(configuredPath string, requestPath 
 
 func IsAdvancedCustomConverterAllowed(converter string) bool {
 	switch converter {
-	case AdvancedCustomConverterNone,
-		AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions,
-		AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages,
-		AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses,
-		AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions,
-		AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions,
-		AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent:
+	case advancedCustomConverterNone,
+		advancedCustomConverterClaudeMessagesToOpenAIChat,
+		advancedCustomConverterOpenAIChatToClaudeMessages,
+		advancedCustomConverterOpenAIChatToOpenAIResponses,
+		advancedCustomConverterOpenAIResponsesToOpenAIChat,
+		advancedCustomConverterOpenAIResponsesToGemini,
+		advancedCustomConverterGeminiContentToOpenAIChat,
+		advancedCustomConverterOpenAIChatToGeminiContent:
 		return true
 	default:
 		return false
@@ -165,14 +306,14 @@ func (c *AdvancedCustomConfig) Validate() error {
 		return fmt.Errorf("advanced_custom requires at least one route")
 	}
 
-	seenPaths := make(map[string]struct{}, len(c.Routes))
+	paths := make(map[string]*advancedCustomPathModelState, len(c.Routes))
 	for i := range c.Routes {
 		route := c.Routes[i]
 		route.IncomingPath = strings.TrimSpace(route.IncomingPath)
 		upstreamPath := strings.TrimSpace(route.UpstreamPath)
 		route.Converter = strings.TrimSpace(route.Converter)
 		if route.Converter == "" {
-			route.Converter = AdvancedCustomConverterNone
+			route.Converter = advancedCustomConverterNone
 		}
 
 		if route.IncomingPath == "" {
@@ -184,10 +325,9 @@ func (c *AdvancedCustomConfig) Validate() error {
 		if strings.Contains(route.IncomingPath, "?") {
 			return fmt.Errorf("advanced_custom.advanced_routes[%d].incoming_path must not include query", i)
 		}
-		if _, exists := seenPaths[route.IncomingPath]; exists {
-			return fmt.Errorf("advanced_custom.advanced_routes[%d].incoming_path must be unique: %s", i, route.IncomingPath)
+		if err := validateAdvancedCustomRouteModels(i, route.IncomingPath, route.Models, paths); err != nil {
+			return err
 		}
-		seenPaths[route.IncomingPath] = struct{}{}
 
 		if upstreamPath == "" {
 			return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path is required", i)
@@ -210,6 +350,79 @@ func (c *AdvancedCustomConfig) Validate() error {
 	return nil
 }
 
+type advancedCustomPathModelState struct {
+	catchAllIndex int
+	modelIndexes  map[string]int
+}
+
+func validateAdvancedCustomRouteModels(index int, incomingPath string, models []string, paths map[string]*advancedCustomPathModelState) error {
+	state := paths[incomingPath]
+	if state == nil {
+		state = &advancedCustomPathModelState{
+			catchAllIndex: -1,
+			modelIndexes:  make(map[string]int),
+		}
+		paths[incomingPath] = state
+	}
+
+	normalizedModels := normalizeAdvancedCustomRouteModels(models)
+	if len(normalizedModels) == 0 {
+		if state.catchAllIndex >= 0 {
+			return fmt.Errorf("advanced_custom.advanced_routes[%d].models catch-all already exists for incoming_path: %s", index, incomingPath)
+		}
+		state.catchAllIndex = index
+		return nil
+	}
+
+	if state.catchAllIndex >= 0 {
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].models catch-all route must be last for incoming_path: %s", index, incomingPath)
+	}
+
+	seenInRoute := make(map[string]struct{}, len(normalizedModels))
+	for _, model := range normalizedModels {
+		if err := validateAdvancedCustomRouteModelRule(index, incomingPath, model); err != nil {
+			return err
+		}
+		if _, exists := seenInRoute[model]; exists {
+			return fmt.Errorf("advanced_custom.advanced_routes[%d].models contains duplicate model for incoming_path %s: %s", index, incomingPath, model)
+		}
+		seenInRoute[model] = struct{}{}
+		if existingIndex, exists := state.modelIndexes[model]; exists {
+			return fmt.Errorf("advanced_custom.advanced_routes[%d].models overlaps with advanced_routes[%d] for incoming_path %s: %s", index, existingIndex, incomingPath, model)
+		}
+		state.modelIndexes[model] = index
+	}
+	return nil
+}
+
+func validateAdvancedCustomRouteModelRule(index int, incomingPath string, model string) error {
+	if !strings.HasPrefix(model, advancedCustomModelRegexPrefix) {
+		return nil
+	}
+	pattern := strings.TrimPrefix(model, advancedCustomModelRegexPrefix)
+	if pattern == "" {
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].models regex is empty for incoming_path %s: %s", index, incomingPath, model)
+	}
+	if _, err := regexp.Compile(pattern); err != nil {
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].models regex is invalid for incoming_path %s: %s", index, incomingPath, model)
+	}
+	return nil
+}
+
+func normalizeAdvancedCustomRouteModels(models []string) []string {
+	if len(models) == 0 {
+		return nil
+	}
+	normalized := make([]string, 0, len(models))
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		if model != "" {
+			normalized = append(normalized, model)
+		}
+	}
+	return normalized
+}
+
 func validateAdvancedCustomUpstreamTarget(index int, upstreamPath string) error {
 	if strings.HasPrefix(upstreamPath, "/") {
 		if strings.HasPrefix(upstreamPath, "//") {
@@ -230,23 +443,27 @@ func validateAdvancedCustomUpstreamTarget(index int, upstreamPath string) error 
 
 func validateAdvancedCustomConverterPath(index int, incomingPath string, converter string) error {
 	switch converter {
-	case AdvancedCustomConverterNone:
+	case advancedCustomConverterNone:
 		return nil
-	case AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions:
+	case advancedCustomConverterClaudeMessagesToOpenAIChat:
 		if incomingPath == "/v1/messages" {
 			return nil
 		}
-	case AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages,
-		AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses,
-		AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent:
+	case advancedCustomConverterOpenAIChatToClaudeMessages,
+		advancedCustomConverterOpenAIChatToOpenAIResponses,
+		advancedCustomConverterOpenAIChatToGeminiContent:
 		if incomingPath == "/v1/chat/completions" {
 			return nil
 		}
-	case AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions:
+	case advancedCustomConverterOpenAIResponsesToOpenAIChat:
 		if incomingPath == "/v1/responses" {
 			return nil
 		}
-	case AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions:
+	case advancedCustomConverterOpenAIResponsesToGemini:
+		if incomingPath == "/v1/responses" {
+			return nil
+		}
+	case advancedCustomConverterGeminiContentToOpenAIChat:
 		if strings.Contains(incomingPath, ":generateContent") || strings.Contains(incomingPath, ":streamGenerateContent") {
 			return nil
 		}

@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import { Code2, Eye, RotateCcw, Save } from 'lucide-react'
-import { memo, useCallback, useRef, useState } from 'react'
-import { type UseFormReturn } from 'react-hook-form'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { JsonCodeEditor } from '@/components/json-code-editor'
 import { Button } from '@/components/ui/button'
@@ -33,6 +35,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import { getEnabledModels } from '@/features/channels/api'
 
 import {
   SettingsForm,
@@ -65,6 +68,7 @@ type ModelRatioFormProps = {
   onReset: () => void
   isSaving: boolean
   isResetting: boolean
+  variant?: 'default' | 'unset'
 }
 
 type ModelJsonFieldName =
@@ -164,10 +168,30 @@ export const ModelRatioForm = memo(function ModelRatioForm({
   onReset,
   isSaving,
   isResetting,
+  variant = 'default',
 }: ModelRatioFormProps) {
   const { t } = useTranslation()
+  const isUnsetVariant = variant === 'unset'
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const visualEditorRef = useRef<ModelRatioVisualEditorHandle>(null)
+
+  const enabledModelsQuery = useQuery({
+    queryKey: ['enabled-models'],
+    queryFn: getEnabledModels,
+    enabled: isUnsetVariant,
+  })
+
+  const enabledModelsError = isUnsetVariant
+    ? enabledModelsQuery.isError ||
+      (enabledModelsQuery.data !== undefined &&
+        !enabledModelsQuery.data.success)
+    : false
+  const enabledModelsErrorMessage = enabledModelsQuery.data?.message
+
+  useEffect(() => {
+    if (!enabledModelsError) return
+    toast.error(enabledModelsErrorMessage || t('Failed to load enabled models'))
+  }, [enabledModelsError, enabledModelsErrorMessage, t])
 
   const handleFieldChange = useCallback(
     (field: keyof ModelFormValues, value: string) => {
@@ -194,42 +218,44 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 
   return (
     <div className='space-y-6'>
-      <div className='flex flex-wrap justify-end gap-2'>
-        <Button
-          type='button'
-          variant='destructive'
-          size='sm'
-          onClick={onReset}
-          disabled={isResetting}
-        >
-          <RotateCcw data-icon='inline-start' />
-          {t('Reset prices')}
-        </Button>
-        {editMode === 'json' && (
+      {!isUnsetVariant && (
+        <div className='flex flex-wrap justify-end gap-2'>
           <Button
             type='button'
+            variant='destructive'
             size='sm'
-            onClick={handleSave}
-            disabled={isSaving}
+            onClick={onReset}
+            disabled={isResetting}
           >
-            <Save data-icon='inline-start' />
-            {isSaving ? t('Saving...') : t('Save model prices')}
+            <RotateCcw data-icon='inline-start' />
+            {t('Reset prices')}
           </Button>
-        )}
-        <Button variant='outline' size='sm' onClick={toggleEditMode}>
-          {editMode === 'visual' ? (
-            <>
-              <Code2 className='mr-2 h-4 w-4' />
-              {t('Switch to JSON')}
-            </>
-          ) : (
-            <>
-              <Eye className='mr-2 h-4 w-4' />
-              {t('Switch to Visual')}
-            </>
+          {editMode === 'json' && (
+            <Button
+              type='button'
+              size='sm'
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              <Save data-icon='inline-start' />
+              {isSaving ? t('Saving...') : t('Save model prices')}
+            </Button>
           )}
-        </Button>
-      </div>
+          <Button variant='outline' size='sm' onClick={toggleEditMode}>
+            {editMode === 'visual' ? (
+              <>
+                <Code2 className='mr-2 h-4 w-4' />
+                {t('Switch to JSON')}
+              </>
+            ) : (
+              <>
+                <Eye className='mr-2 h-4 w-4' />
+                {t('Switch to Visual')}
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       <Form {...form}>
         {editMode === 'visual' ? (
@@ -256,6 +282,13 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               audioCompletionRatio={form.watch('AudioCompletionRatio')}
               billingMode={form.watch('BillingMode')}
               billingExpr={form.watch('BillingExpr')}
+              candidateModelNames={
+                isUnsetVariant ? enabledModelsQuery.data?.data : undefined
+              }
+              candidateModelsLoading={
+                isUnsetVariant && enabledModelsQuery.isLoading
+              }
+              filterMode={isUnsetVariant ? 'unset' : 'all'}
               onSave={handleSave}
               isSaving={isSaving}
               onChange={(field, value) => {
@@ -269,28 +302,30 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               }}
             />
 
-            <FormField
-              control={form.control}
-              name='ExposeRatioEnabled'
-              render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Expose ratio API')}</FormLabel>
-                    <FormDescription>
-                      {t(
-                        'Allow clients to query configured ratios via `/api/ratio`.'
-                      )}
-                    </FormDescription>
-                  </SettingsSwitchContent>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </SettingsSwitchItem>
-              )}
-            />
+            {!isUnsetVariant && (
+              <FormField
+                control={form.control}
+                name='ExposeRatioEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Expose ratio API')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Allow clients to query configured ratios via `/api/ratio`.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            )}
           </div>
         ) : (
           <SettingsForm onSubmit={form.handleSubmit(onSave)}>

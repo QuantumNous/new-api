@@ -37,6 +37,7 @@ export function Playground() {
     setModels,
     setGroups,
     updateConfig,
+    updateParameterEnabled,
     clearMessages,
   } = usePlaygroundState()
 
@@ -95,6 +96,7 @@ export function Playground() {
       {/* Input area: center content and constrain to the same container width */}
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
+          config={config}
           disabled={isGenerating}
           groups={groups}
           groupValue={config.group}
@@ -103,10 +105,13 @@ export function Playground() {
           modelValue={config.model}
           models={models}
           onGroupChange={(value) => updateConfig('group', value)}
+          onConfigChange={updateConfig}
           onClearMessages={handleClearMessages}
           onModelChange={(value) => updateConfig('model', value)}
+          onParameterEnabledChange={updateParameterEnabled}
           onStop={stopGeneration}
           onSubmit={handleSendMessage}
+          parameterEnabled={parameterEnabled}
           hasMessages={messages.length > 0}
         />
       </div>
