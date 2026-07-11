@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -121,6 +122,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
+	}
+	if relayInfo.RelayMode == relayconstant.RelayModeImagesGenerations {
+		if _, enabled := ratio_setting.GetImageRatio(relayInfo.OriginModelName); !enabled {
+			newAPIError = types.NewErrorWithStatusCode(
+				errors.New("image generation is currently not supported"),
+				types.ErrorCodeInvalidRequest,
+				http.StatusOK,
+				types.ErrOptionWithSkipRetry(),
+			)
+			return
+		}
 	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
