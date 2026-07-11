@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +14,34 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
+
+// catalogModelTabsJSON 是渠道数据页模型 tab 的策展清单（原样 JSON，顺序即展示顺序），
+// 由 main 启动时经 SetModelTabsJSON 注入（go:embed 前端 model-tabs.json，单一来源），
+// 随 catalog-export 的 model_tabs 字段下发给下游 Roma 副本。
+var catalogModelTabsJSON []byte
+
+// SetModelTabsJSON 校验并注入 model-tabs.json（启动时调用，非法 JSON 直接拒绝启动，
+// 避免坏清单静默下发到下游）。
+func SetModelTabsJSON(b []byte) error {
+	var tabs []struct {
+		ModelID string `json:"model_id"`
+		Label   string `json:"label"`
+		Accent  string `json:"accent"`
+	}
+	if err := common.Unmarshal(b, &tabs); err != nil {
+		return err
+	}
+	if len(tabs) == 0 {
+		return fmt.Errorf("model tabs list is empty")
+	}
+	for i, t := range tabs {
+		if strings.TrimSpace(t.ModelID) == "" || strings.TrimSpace(t.Label) == "" {
+			return fmt.Errorf("model tab #%d missing model_id or label", i)
+		}
+	}
+	catalogModelTabsJSON = b
+	return nil
+}
 
 // CatalogExport 只读导出完整的渠道/供应商/模型目录，供下游部署（Roma）定时拉取，
 // 把 new-api 作为渠道/模型目录的唯一主数据源做全量镜像。
@@ -203,6 +233,11 @@ func CatalogExport(c *gin.Context) {
 		"channels":     exportChannels,
 		"vendors":      exportVendors,
 		"models":       exportModels,
+	}
+	// 渠道数据页模型 tab 策展清单（标签/配色/顺序）：与本站前端同源（model-tabs.json），
+	// 下游 Roma 据此渲染 tab，apimaster 加新模型 tab 后下游自动跟进、无需改代码。
+	if len(catalogModelTabsJSON) > 0 {
+		data["model_tabs"] = json.RawMessage(catalogModelTabsJSON)
 	}
 
 	// with_channel_data=1：在同一响应里附带逐模型的渠道数据（渠道数据页明细），

@@ -22,6 +22,13 @@ const (
 
 var billingSummaryOnce sync.Once
 
+func billingHourExpr(col string) string {
+	if common.UsingMySQL {
+		return fmt.Sprintf("(%s DIV 3600) * 3600", col)
+	}
+	return fmt.Sprintf("(%s / 3600) * 3600", col)
+}
+
 // StartBillingSummaryTask starts the hourly job that rolls Log accounting
 // fields up into billing_hourly_summaries, backing the 平台账单 admin page.
 func StartBillingSummaryTask() {
@@ -49,17 +56,18 @@ func runBillingSummaryOnce() {
 	// its rows and clobbers the previously complete value (found 2026-07-10:
 	// every bucket lost its pre-boundary slice ~26h after its hour).
 	since := time.Now().Add(-billingSummaryLookback).Unix() / 3600 * 3600
+	hourExpr := billingHourExpr("created_at")
 
 	var rows []model.BillingHourlySummary
 	err := model.LOG_DB.Table("logs").
-		Select(`(created_at / 3600 * 3600) as hour_bucket,
+		Select(hourExpr+` as hour_bucket,
 		         model_name,
 		         channel_id,
 		         SUM(accounting_channel_cost_amount_usd) as cost_usd,
 		         SUM(accounting_user_final_amount_usd) as revenue_usd,
 		         COUNT(*) as request_count`).
-		Where("accounting_status = ? AND created_at >= ?", "ok", since).
-		Group("(created_at / 3600 * 3600), model_name, channel_id").
+		Where("type = ? AND quota > 0 AND accounting_status = ? AND created_at >= ?", model.LogTypeConsume, "ok", since).
+		Group(hourExpr + ", model_name, channel_id").
 		Scan(&rows).Error
 	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("billing-summary: aggregate failed: %v", err))

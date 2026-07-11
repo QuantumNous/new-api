@@ -9,6 +9,22 @@ type ChannelModelPriceRatios struct {
 	CacheCreationRatio float64
 }
 
+// EffectiveModelPriceRatio resolves the user-price markup for a (channel, model)
+// pair: per-model override (tried across model name aliases) > channel-level
+// ratio > 1.0. Alias matching mirrors pricing-row lookup so an override keyed
+// "claude-haiku-4-5" also applies to dated variants.
+func EffectiveModelPriceRatio(modelPriceRatiosJSON *string, channelRatio *float64, modelName string) float64 {
+	for _, name := range ModelPricingLookupNames(modelName) {
+		if r, ok := model.LookupModelPriceRatio(modelPriceRatiosJSON, name); ok {
+			return r
+		}
+	}
+	if channelRatio == nil || *channelRatio <= 0 {
+		return 1.0
+	}
+	return *channelRatio
+}
+
 // ChannelModelPriceRatio derives newapi-internal ratio numbers from a specific
 // channel's row in channel_model_pricings. Returns (0, 0, false) when no
 // pricing row exists for the (channel, model) pair.
@@ -28,9 +44,10 @@ func ChannelModelPriceData(channelID int, modelName string) (ChannelModelPriceRa
 		Setting             *string
 		RechargeRate        float64
 		ApimasterPriceRatio float64
+		ModelPriceRatios    *string
 	}
 	_ = model.DB.Table("channels").
-		Select("model_mapping, setting, COALESCE(recharge_rate, 1.0) AS recharge_rate, COALESCE(apimaster_price_ratio, 1.0) AS apimaster_price_ratio").
+		Select("model_mapping, setting, COALESCE(recharge_rate, 1.0) AS recharge_rate, COALESCE(apimaster_price_ratio, 1.0) AS apimaster_price_ratio, model_price_ratios").
 		Where("id = ?", channelID).
 		Scan(&ch).Error
 
@@ -72,13 +89,10 @@ func ChannelModelPriceData(channelID int, modelName string) (ChannelModelPriceRa
 	if rechargeRate <= 0 {
 		rechargeRate = 1.0
 	}
-	// apimaster markup multiplier; nil/0 already coalesced to 1.0, guard for safety.
+	// apimaster markup multiplier (per-model override > channel default > 1.0).
 	// Applied to ModelRatio (input). Output/cache ride along automatically because
 	// their ratios are relative to input_price.
-	apimasterRatio := ch.ApimasterPriceRatio
-	if apimasterRatio <= 0 {
-		apimasterRatio = 1.0
-	}
+	apimasterRatio := EffectiveModelPriceRatio(ch.ModelPriceRatios, &ch.ApimasterPriceRatio, modelName)
 	priceData := ChannelModelPriceRatios{
 		ModelRatio:      row.InputPrice * rechargeRate * apimasterRatio / 2.0,
 		CompletionRatio: 1.0,

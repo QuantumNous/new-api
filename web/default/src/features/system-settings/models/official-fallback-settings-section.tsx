@@ -55,6 +55,7 @@ const policySchema = z.object({
 
 const schema = z
   .object({
+    RetryTimes: z.coerce.number().int().min(0).max(10),
     policies: z.array(policySchema),
   })
   .superRefine((values, ctx) => {
@@ -84,10 +85,18 @@ const schema = z
     })
   })
 
+type OfficialFallbackPolicyValues = z.output<typeof policySchema>
+type OfficialFallbackPolicyInput = z.input<typeof policySchema>
+type OfficialFallbackPoliciesValues = {
+  policies: OfficialFallbackPolicyValues[]
+}
+type OfficialFallbackPoliciesInput = {
+  policies: OfficialFallbackPolicyInput[]
+}
 type OfficialFallbackSettingsValues = z.output<typeof schema>
 type OfficialFallbackSettingsInput = z.input<typeof schema>
 
-const emptyPolicy: OfficialFallbackSettingsValues['policies'][number] = {
+const emptyPolicy: OfficialFallbackPolicyValues = {
   enabled: true,
   model_id: '',
   fallback_after: 1,
@@ -95,8 +104,8 @@ const emptyPolicy: OfficialFallbackSettingsValues['policies'][number] = {
 }
 
 function normalizePolicy(
-  policy: OfficialFallbackSettingsInput['policies'][number]
-): OfficialFallbackSettingsValues['policies'][number] {
+  policy: OfficialFallbackPolicyInput
+): OfficialFallbackPolicyValues {
   return {
     enabled: Boolean(policy.enabled),
     model_id: String(policy.model_id ?? '').trim(),
@@ -106,8 +115,8 @@ function normalizePolicy(
 }
 
 function normalizeValues(
-  values: OfficialFallbackSettingsInput
-): OfficialFallbackSettingsValues {
+  values: OfficialFallbackPoliciesInput
+): OfficialFallbackPoliciesValues {
   return {
     policies: Array.isArray(values.policies)
       ? values.policies.map(normalizePolicy)
@@ -116,14 +125,14 @@ function normalizeValues(
 }
 
 type ParseOfficialFallbackSettingsResult = {
-  values: OfficialFallbackSettingsValues
+  values: OfficialFallbackPoliciesValues
   error: string
 }
 
 function parseOfficialFallbackSettings(
   rawValue: string
 ): ParseOfficialFallbackSettingsResult {
-  const fallback: OfficialFallbackSettingsValues = { policies: [] }
+  const fallback: OfficialFallbackPoliciesValues = { policies: [] }
   const trimmed = (rawValue ?? '').toString().trim()
 
   if (!trimmed) {
@@ -135,9 +144,9 @@ function parseOfficialFallbackSettings(
 
   try {
     const parsed = JSON.parse(trimmed) as
-      | OfficialFallbackSettingsInput['policies']
+      | OfficialFallbackPolicyInput[]
       | {
-          policies?: Array<OfficialFallbackSettingsInput['policies'][number]>
+          policies?: OfficialFallbackPolicyInput[]
         }
     const policies = Array.isArray(parsed)
       ? parsed
@@ -160,7 +169,7 @@ function parseOfficialFallbackSettings(
 }
 
 function serializeOfficialFallbackSettings(
-  values: OfficialFallbackSettingsValues
+  values: OfficialFallbackPoliciesValues
 ): string {
   return JSON.stringify(
     {
@@ -173,8 +182,10 @@ function serializeOfficialFallbackSettings(
 
 export function OfficialFallbackSettingsSection({
   defaultValue,
+  defaultRetryTimes,
 }: {
   defaultValue: string
+  defaultRetryTimes: number
 }) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -191,7 +202,13 @@ export function OfficialFallbackSettingsSection({
     () => parseOfficialFallbackSettings(defaultValue),
     [defaultValue]
   )
-  const parsedDefaults = parsedResult.values
+  const parsedDefaults = useMemo(
+    () => ({
+      RetryTimes: defaultRetryTimes,
+      policies: parsedResult.values.policies,
+    }),
+    [defaultRetryTimes, parsedResult.values.policies]
+  )
 
   const form = useForm<
     OfficialFallbackSettingsInput,
@@ -214,28 +231,39 @@ export function OfficialFallbackSettingsSection({
   }, [form, parsedDefaults])
 
   const onSubmit = async (values: OfficialFallbackSettingsValues) => {
-    const nextSerialized = serializeOfficialFallbackSettings(values)
-    const defaultSerialized = serializeOfficialFallbackSettings(parsedDefaults)
+    const nextSerialized = serializeOfficialFallbackSettings({
+      policies: values.policies,
+    })
+    const defaultSerialized = serializeOfficialFallbackSettings({
+      policies: parsedDefaults.policies,
+    })
+    const retryTimesChanged = values.RetryTimes !== parsedDefaults.RetryTimes
 
-    if (nextSerialized === defaultSerialized) {
+    if (!retryTimesChanged && nextSerialized === defaultSerialized) {
       toast.info(t('No changes to save'))
       return
     }
 
-    await updateOption.mutateAsync({
-      key: 'model_fallback_setting',
-      value: nextSerialized,
-    })
+    if (retryTimesChanged) {
+      await updateOption.mutateAsync({
+        key: 'RetryTimes',
+        value: values.RetryTimes,
+      })
+    }
+
+    if (nextSerialized !== defaultSerialized) {
+      await updateOption.mutateAsync({
+        key: 'model_fallback_setting',
+        value: nextSerialized,
+      })
+    }
 
     form.reset(values)
   }
 
   return (
     <SettingsSection
-      title={t('Official Fallback')}
-      description={t(
-        'Configure which request model IDs switch to an official fallback channel after a number of failed attempts.'
-      )}
+      title=''
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -249,6 +277,54 @@ export function OfficialFallbackSettingsSection({
               </AlertDescription>
             </Alert>
           ) : null}
+
+          <div className="rounded-lg border">
+            <div className="border-b px-4 py-3">
+              <p className="text-sm font-medium">{t('Retry Times')}</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t(
+                  'Maximum fallback attempts after failures before the request stops retrying.'
+                )}
+              </p>
+            </div>
+            <div className="p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <FormField
+                  control={form.control}
+                  name='RetryTimes'
+                  render={({ field }) => (
+                    <FormItem className="max-w-[440px] flex-1 space-y-2">
+                      <FormLabel>{t('Retry Times')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={10}
+                          step={1}
+                          value={Number(field.value ?? 0)}
+                          onChange={(event) =>
+                            field.onChange(event.target.valueAsNumber)
+                          }
+                          disabled={updateOption.isPending || isSubmitting}
+                        />
+                      </FormControl>
+                      <p className="text-[11px] text-muted-foreground">
+                        {t(
+                          'Used as the global upper bound for failure fallback retries.'
+                        )}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="text-sm text-amber-600 dark:text-amber-400 lg:max-w-[360px] lg:pt-9">
+                  {t(
+                    'To trigger official fallback, Retry Times must be greater than Fallback After.'
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div className="rounded-lg border">
             <div className="border-b px-4 py-3">
@@ -356,7 +432,7 @@ export function OfficialFallbackSettingsSection({
                               min={0}
                               step={1}
                               {...fallbackField}
-                              value={fallbackField.value ?? 0}
+                              value={Number(fallbackField.value ?? 0)}
                               onChange={(event) =>
                                 fallbackField.onChange(event.target.value)
                               }
@@ -385,7 +461,11 @@ export function OfficialFallbackSettingsSection({
                               min={1}
                               step={1}
                               {...channelField}
-                              value={channelField.value ?? ''}
+                              value={
+                                channelField.value == null
+                                  ? ''
+                                  : Number(channelField.value)
+                              }
                               onChange={(event) =>
                                 channelField.onChange(event.target.value)
                               }

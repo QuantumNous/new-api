@@ -228,12 +228,13 @@ func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bo
 		InputPrice          *float64
 		RechargeRate        *float64
 		ApimasterPriceRatio *float64
+		ModelPriceRatios    *string
 		Priority            *int64
 	}
 	var rows []pricedCandidateRow
 
 	q := model.DB.Table("channels c").
-		Select(`c.id AS channel_id, c.setting, p.input_price, c.recharge_rate, c.apimaster_price_ratio, c.priority`).
+		Select(`c.id AS channel_id, c.setting, p.input_price, c.recharge_rate, c.apimaster_price_ratio, c.model_price_ratios, c.priority`).
 		Joins("LEFT JOIN channel_model_pricings p ON p.channel_id = c.id AND p.model_name IN ? AND p.input_price > 0", candidates).
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
@@ -253,10 +254,11 @@ func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bo
 		candidate, ok := candidatesByChannel[row.ChannelID]
 		if !ok {
 			candidate = pricedRouteCandidate{
-				ChannelID:           row.ChannelID,
-				Setting:             row.Setting,
-				RechargeRate:        floatPointerOrDefault(row.RechargeRate, 1),
-				ApimasterPriceRatio: floatPointerOrDefault(row.ApimasterPriceRatio, 1),
+				ChannelID:    row.ChannelID,
+				Setting:      row.Setting,
+				RechargeRate: floatPointerOrDefault(row.RechargeRate, 1),
+				// per-model override > channel default > 1.0
+				ApimasterPriceRatio: EffectiveModelPriceRatio(row.ModelPriceRatios, row.ApimasterPriceRatio, modelName),
 				Priority:            int64PointerOrDefault(row.Priority, 0),
 			}
 		}

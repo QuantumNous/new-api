@@ -156,6 +156,7 @@ const MODELS_SECTIONS = [
       <div className="space-y-6">
         <OfficialFallbackSettingsSection
           defaultValue={settings['model_fallback_setting']}
+          defaultRetryTimes={settings.RetryTimes}
         />
         <ClientGoneFallbackSettingsSection
           defaultValue={settings['clientgone_fallback_setting']}

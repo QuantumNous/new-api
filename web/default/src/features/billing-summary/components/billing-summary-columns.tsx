@@ -43,6 +43,23 @@ export function buildBillingSummaryColumns(
         ),
     },
     {
+      id: 'accounting_requests',
+      header: () => <span>{t('Accounting OK / Requests (%)')}</span>,
+      cell: ({ row }) => {
+        const okCount = row.original.accounting_ok_request_count ?? 0
+        const targetCount = row.original.accounting_target_request_count ?? 0
+        const ratio = targetCount > 0 ? (okCount / targetCount) * 100 : null
+        return (
+          <span className='font-mono text-sm whitespace-nowrap'>
+            {okCount} / {targetCount}
+            <span className='text-xs text-muted-foreground'>
+              {ratio == null ? '' : ` (${ratio.toFixed(1)}%)`}
+            </span>
+          </span>
+        )
+      },
+    },
+    {
       accessorKey: 'cost_usd',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Platform Cost')} />

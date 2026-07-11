@@ -50,8 +50,18 @@ export function BillingSummaryPage() {
       (acc, row) => ({
         cost_usd: acc.cost_usd + row.cost_usd,
         revenue_usd: acc.revenue_usd + row.revenue_usd,
+        accounting_ok_request_count:
+          acc.accounting_ok_request_count + row.accounting_ok_request_count,
+        accounting_target_request_count:
+          acc.accounting_target_request_count +
+          row.accounting_target_request_count,
       }),
-      { cost_usd: 0, revenue_usd: 0 }
+      {
+        cost_usd: 0,
+        revenue_usd: 0,
+        accounting_ok_request_count: 0,
+        accounting_target_request_count: 0,
+      }
     )
     return [{ day: 0, ...totals, isTotal: true }, ...rows]
   }, [rows])

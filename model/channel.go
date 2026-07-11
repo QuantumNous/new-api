@@ -71,17 +71,61 @@ type Channel struct {
 	// column for fast access in the billing path (ChannelModelPriceData).
 	ApimasterPriceRatio *float64 `json:"apimaster_price_ratio" gorm:"column:apimaster_price_ratio"`
 
+	// per-model user-price markup overrides: JSON map model_name → ratio, e.g.
+	// {"gpt-5.4":1.5,"gpt-5.5":2.0}. Effective rule: model override > channel-level
+	// ApimasterPriceRatio > 1.0 — a model absent from the map keeps the channel
+	// default, so pre-existing channel ratios stay in force with zero data
+	// migration. Kept on channels (not channel_model_pricings) because the pricing
+	// table is periodically overwritten/deleted by FetchChannelPricing.
+	ModelPriceRatios *string `json:"model_price_ratios" gorm:"column:model_price_ratios;type:text"`
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
 }
 
-// GetApimasterPriceRatio returns the markup multiplier applied on top of the
-// procurement price. nil / non-positive values fall back to 1.0 (no markup).
+// GetApimasterPriceRatio returns the channel-level markup multiplier applied on
+// top of the procurement price. nil / non-positive values fall back to 1.0.
 func (channel *Channel) GetApimasterPriceRatio() float64 {
 	if channel.ApimasterPriceRatio == nil || *channel.ApimasterPriceRatio <= 0 {
 		return 1.0
 	}
 	return *channel.ApimasterPriceRatio
+}
+
+// LookupModelPriceRatio returns the per-model markup override for an exact
+// model name key in a ModelPriceRatios JSON map. (0, false) when the map is
+// empty/invalid or the model has no positive entry.
+func LookupModelPriceRatio(modelPriceRatiosJSON *string, modelName string) (float64, bool) {
+	if modelPriceRatiosJSON == nil || strings.TrimSpace(*modelPriceRatiosJSON) == "" {
+		return 0, false
+	}
+	var ratios map[string]float64
+	if err := common.Unmarshal([]byte(*modelPriceRatiosJSON), &ratios); err != nil {
+		return 0, false
+	}
+	r, ok := ratios[modelName]
+	if !ok || r <= 0 {
+		return 0, false
+	}
+	return r, true
+}
+
+// ResolveModelPriceRatio implements the effective-markup rule (exact model name):
+// per-model override > channel-level ratio > 1.0. Alias-aware resolution wraps
+// this in service.EffectiveModelPriceRatio.
+func ResolveModelPriceRatio(modelPriceRatiosJSON *string, channelRatio *float64, modelName string) float64 {
+	if r, ok := LookupModelPriceRatio(modelPriceRatiosJSON, modelName); ok {
+		return r
+	}
+	if channelRatio == nil || *channelRatio <= 0 {
+		return 1.0
+	}
+	return *channelRatio
+}
+
+// GetModelPriceRatio returns the effective user-price markup for one model.
+func (channel *Channel) GetModelPriceRatio(modelName string) float64 {
+	return ResolveModelPriceRatio(channel.ModelPriceRatios, channel.ApimasterPriceRatio, modelName)
 }
 
 type ChannelInfo struct {
