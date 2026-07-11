@@ -17,6 +17,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -48,20 +49,19 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	if converter == dto.AdvancedCustomConverterNone {
+	if converter == relayconvert.ConverterNone {
 		return a.convertOpenAICompatibleRequest(c, info, request)
 	}
 
 	switch converter {
-	case dto.AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages:
-		return a.claudeAdaptor.ConvertOpenAIRequest(c, info, request)
-	case dto.AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses:
-		if request == nil {
-			return nil, errors.New("request is nil")
+	case relayconvert.ConverterOpenAIChatToClaudeMessages,
+		relayconvert.ConverterOpenAIChatToOpenAIResponses,
+		relayconvert.ConverterOpenAIChatToGeminiContent:
+		result, err := service.ConvertRequestByID(c, info, converter, request)
+		if err != nil {
+			return nil, err
 		}
-		return service.ChatCompletionsRequestToResponsesRequest(request)
-	case dto.AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent:
-		return a.geminiAdaptor.ConvertOpenAIRequest(c, info, request)
+		return result.Value, nil
 	default:
 		return nil, fmt.Errorf("converter %q does not support OpenAI chat completions requests", converter)
 	}
@@ -74,10 +74,18 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	switch converter {
-	case dto.AdvancedCustomConverterNone:
+	case relayconvert.ConverterNone:
 		return a.claudeAdaptor.ConvertClaudeRequest(c, info, request)
-	case dto.AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions:
-		return a.convertClaudeToOpenAICompatibleRequest(c, info, request)
+	case relayconvert.ConverterClaudeMessagesToOpenAIChat:
+		result, err := service.ConvertRequestByID(c, info, converter, request)
+		if err != nil {
+			return nil, err
+		}
+		chatRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
+		}
+		return a.convertOpenAICompatibleRequest(c, info, chatRequest)
 	default:
 		return nil, fmt.Errorf("converter %q does not support Anthropic Messages requests", converter)
 	}
@@ -90,10 +98,18 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	switch converter {
-	case dto.AdvancedCustomConverterNone:
+	case relayconvert.ConverterNone:
 		return a.geminiAdaptor.ConvertGeminiRequest(c, info, request)
-	case dto.AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions:
-		return a.convertGeminiToOpenAICompatibleRequest(c, info, request)
+	case relayconvert.ConverterGeminiContentToOpenAIChat:
+		result, err := service.ConvertRequestByID(c, info, converter, request)
+		if err != nil {
+			return nil, err
+		}
+		chatRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
+		}
+		return a.convertOpenAICompatibleRequest(c, info, chatRequest)
 	default:
 		return nil, fmt.Errorf("converter %q does not support Gemini generateContent requests", converter)
 	}
@@ -105,14 +121,28 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		return nil, err
 	}
 	switch converter {
-	case dto.AdvancedCustomConverterNone:
+	case relayconvert.ConverterNone:
 		return a.convertOpenAICompatibleResponsesRequest(c, info, request)
-	case dto.AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions:
-		chatReq, err := service.ResponsesRequestToChatCompletionsRequest(&request)
+	case relayconvert.ConverterOpenAIResponsesToOpenAIChat:
+		result, err := service.ConvertRequestByID(c, info, converter, request)
 		if err != nil {
 			return nil, err
 		}
-		return a.convertOpenAICompatibleRequest(c, info, chatReq)
+		chatRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
+		}
+		return a.convertOpenAICompatibleRequest(c, info, chatRequest)
+	case relayconvert.ConverterOpenAIResponsesToGemini:
+		result, err := service.ConvertRequestByID(c, info, converter, request)
+		if err != nil {
+			return nil, err
+		}
+		geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
+		}
+		return geminiRequest, nil
 	default:
 		return nil, fmt.Errorf("converter %q does not support OpenAI Responses requests", converter)
 	}
@@ -123,7 +153,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	if err != nil {
 		return nil, err
 	}
-	if converter != dto.AdvancedCustomConverterNone {
+	if converter != relayconvert.ConverterNone {
 		return nil, fmt.Errorf("converter %q does not support embedding requests", converter)
 	}
 	return a.convertOpenAICompatibleEmbeddingRequest(c, info, request)
@@ -134,7 +164,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil, err
 	}
-	if converter != dto.AdvancedCustomConverterNone {
+	if converter != relayconvert.ConverterNone {
 		return nil, fmt.Errorf("converter %q does not support audio requests", converter)
 	}
 	return a.convertOpenAICompatibleAudioRequest(c, info, request)
@@ -145,7 +175,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil, err
 	}
-	if converter != dto.AdvancedCustomConverterNone {
+	if converter != relayconvert.ConverterNone {
 		return nil, fmt.Errorf("converter %q does not support image requests", converter)
 	}
 	return a.convertOpenAICompatibleImageRequest(c, info, request)
@@ -194,7 +224,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	if err := a.resolve(c, info); err != nil {
 		return nil, err
 	}
-	if !a.converted && a.converter != dto.AdvancedCustomConverterNone {
+	if !a.converted && a.converter != relayconvert.ConverterNone {
 		return nil, errors.New("advanced custom converter routes cannot be used with pass-through request body")
 	}
 
@@ -215,21 +245,23 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	switch a.converter {
-	case dto.AdvancedCustomConverterNone:
+	case relayconvert.ConverterNone:
 		return a.doNativeResponse(c, resp, info)
-	case dto.AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions,
-		dto.AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions:
+	case relayconvert.ConverterClaudeMessagesToOpenAIChat,
+		relayconvert.ConverterGeminiContentToOpenAIChat:
 		return a.openaiAdaptor.DoResponse(c, resp, info)
-	case dto.AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages:
+	case relayconvert.ConverterOpenAIChatToClaudeMessages:
 		return a.claudeAdaptor.DoResponse(c, resp, info)
-	case dto.AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent:
+	case relayconvert.ConverterOpenAIChatToGeminiContent:
 		return a.geminiAdaptor.DoResponse(c, resp, info)
-	case dto.AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses:
+	case relayconvert.ConverterOpenAIResponsesToGemini:
+		return a.geminiAdaptor.DoResponse(c, resp, info)
+	case relayconvert.ConverterOpenAIChatToOpenAIResponses:
 		if info.IsStream {
 			return openai.OaiResponsesToChatStreamHandler(c, info, resp)
 		}
 		return openai.OaiResponsesToChatHandler(c, info, resp)
-	case dto.AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions:
+	case relayconvert.ConverterOpenAIResponsesToOpenAIChat:
 		if info.IsStream {
 			return openai.OaiChatToResponsesStreamHandler(c, info, resp)
 		}
@@ -286,18 +318,18 @@ func (a *Adaptor) resolve(c *gin.Context, info *relaycommon.RelayInfo) error {
 	}
 
 	incomingPath := incomingRequestPath(c, info)
-	route, ok := config.MatchPath(incomingPath)
+	route, ok := config.MatchPathForModel(incomingPath, info.OriginModelName)
 	if ok {
 		route.Converter = strings.TrimSpace(route.Converter)
 		if route.Converter == "" {
-			route.Converter = dto.AdvancedCustomConverterNone
+			route.Converter = relayconvert.ConverterNone
 		}
 		a.route = route
 		a.converter = route.Converter
 		a.resolved = true
 		return nil
 	}
-	return fmt.Errorf("advanced custom channel does not support request path: %s", incomingPath)
+	return fmt.Errorf("advanced custom channel does not support request path %s for model %s", incomingPath, info.OriginModelName)
 }
 
 func incomingRequestPath(c *gin.Context, info *relaycommon.RelayInfo) string {
@@ -391,7 +423,8 @@ func applyUpstreamPathTemplate(upstreamPath string, info *relaycommon.RelayInfo)
 func shouldUseGeminiStreamURL(converter string, info *relaycommon.RelayInfo) bool {
 	return info != nil &&
 		info.IsStream &&
-		converter == dto.AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent
+		(converter == relayconvert.ConverterOpenAIChatToGeminiContent ||
+			converter == relayconvert.ConverterOpenAIResponsesToGemini)
 }
 
 func useGeminiStreamGenerateContentURL(parsedURL *url.URL) {
@@ -406,8 +439,8 @@ func useGeminiStreamGenerateContentURL(parsedURL *url.URL) {
 }
 
 func shouldApplyClaudeHeaders(converter string, info *relaycommon.RelayInfo) bool {
-	return converter == dto.AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages ||
-		(converter == dto.AdvancedCustomConverterNone && info != nil && info.RelayFormat == types.RelayFormatClaude)
+	return converter == relayconvert.ConverterOpenAIChatToClaudeMessages ||
+		(converter == relayconvert.ConverterNone && info != nil && info.RelayFormat == types.RelayFormatClaude)
 }
 
 func applyClaudeHeaders(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) {
@@ -439,22 +472,6 @@ func (a *Adaptor) convertOpenAICompatibleRequest(c *gin.Context, info *relaycomm
 	old := info.ChannelType
 	info.ChannelType = constant.ChannelTypeOpenAI
 	converted, err := a.openaiAdaptor.ConvertOpenAIRequest(c, info, request)
-	info.ChannelType = old
-	return converted, err
-}
-
-func (a *Adaptor) convertClaudeToOpenAICompatibleRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	old := info.ChannelType
-	info.ChannelType = constant.ChannelTypeOpenAI
-	converted, err := a.openaiAdaptor.ConvertClaudeRequest(c, info, request)
-	info.ChannelType = old
-	return converted, err
-}
-
-func (a *Adaptor) convertGeminiToOpenAICompatibleRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	old := info.ChannelType
-	info.ChannelType = constant.ChannelTypeOpenAI
-	converted, err := a.openaiAdaptor.ConvertGeminiRequest(c, info, request)
 	info.ChannelType = old
 	return converted, err
 }

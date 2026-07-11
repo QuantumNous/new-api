@@ -41,12 +41,14 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		responsesReq = req
 	case *dto.OpenAIResponsesCompactionRequest:
 		responsesReq = &dto.OpenAIResponsesRequest{
-			Model:              req.Model,
-			Input:              req.Input,
-			Instructions:       req.Instructions,
-			PreviousResponseID: req.PreviousResponseID,
-			ParallelToolCalls:  req.ParallelToolCalls,
-			ServiceTier:        req.ServiceTier,
+			Model:                req.Model,
+			Input:                req.Input,
+			Instructions:         req.Instructions,
+			PreviousResponseID:   req.PreviousResponseID,
+			ParallelToolCalls:    req.ParallelToolCalls,
+			ServiceTier:          req.ServiceTier,
+			PromptCacheOptions:   req.PromptCacheOptions,
+			PromptCacheRetention: req.PromptCacheRetention,
 		}
 	default:
 		return types.NewErrorWithStatusCode(
