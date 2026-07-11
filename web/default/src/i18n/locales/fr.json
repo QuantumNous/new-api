@@ -1842,6 +1842,7 @@
     "Failed to load": "Échec du chargement",
     "Failed to load API keys": "Échec du chargement des Clés API",
     "Failed to load billing history": "Échec du chargement de l'historique de facturation",
+    "Failed to load enabled models": "Échec du chargement des modèles activés",
     "Failed to load home page content": "Échec du chargement du contenu de la page d'accueil",
     "Failed to load image": "Échec du chargement de l'image",
     "Failed to load key status": "Échec du chargement du statut des clés",

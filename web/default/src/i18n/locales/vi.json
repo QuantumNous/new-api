@@ -1842,6 +1842,7 @@
     "Failed to load": "Tải thất bại",
     "Failed to load API keys": "Không thể tải khóa API",
     "Failed to load billing history": "Không thể tải lịch sử thanh toán",
+    "Failed to load enabled models": "Không thể tải các mô hình đã bật",
     "Failed to load home page content": "Không thể tải nội dung trang chủ",
     "Failed to load image": "Không thể tải ảnh",
     "Failed to load key status": "Không thể tải trạng thái khóa",

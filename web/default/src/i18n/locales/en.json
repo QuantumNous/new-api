@@ -1842,6 +1842,7 @@
     "Failed to load": "Failed to load",
     "Failed to load API keys": "Failed to load API keys",
     "Failed to load billing history": "Failed to load billing history",
+    "Failed to load enabled models": "Failed to load enabled models",
     "Failed to load home page content": "Failed to load home page content",
     "Failed to load image": "Failed to load image",
     "Failed to load key status": "Failed to load key status",

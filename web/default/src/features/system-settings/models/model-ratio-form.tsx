@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { Code2, Eye, RotateCcw, Save } from 'lucide-react'
-import { memo, useCallback, useRef, useState } from 'react'
-import { type UseFormReturn } from 'react-hook-form'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/design-system/button'
 import { JsonCodeEditor } from '@/components/json-code-editor'
@@ -180,6 +181,18 @@ export const ModelRatioForm = memo(function ModelRatioForm({
     enabled: isUnsetVariant,
   })
 
+  const enabledModelsError = isUnsetVariant
+    ? enabledModelsQuery.isError ||
+      (enabledModelsQuery.data !== undefined &&
+        !enabledModelsQuery.data.success)
+    : false
+  const enabledModelsErrorMessage = enabledModelsQuery.data?.message
+
+  useEffect(() => {
+    if (!enabledModelsError) return
+    toast.error(enabledModelsErrorMessage || t('Failed to load enabled models'))
+  }, [enabledModelsError, enabledModelsErrorMessage, t])
+
   const handleFieldChange = useCallback(
     (field: keyof ModelFormValues, value: string) => {
       form.setValue(field, value, {
@@ -265,6 +278,9 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               billingExpr={form.watch('BillingExpr')}
               candidateModelNames={
                 isUnsetVariant ? enabledModelsQuery.data?.data : undefined
+              }
+              candidateModelsLoading={
+                isUnsetVariant && enabledModelsQuery.isLoading
               }
               filterMode={isUnsetVariant ? 'unset' : 'all'}
               onSave={handleSave}

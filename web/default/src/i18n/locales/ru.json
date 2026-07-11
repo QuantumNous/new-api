@@ -1842,6 +1842,7 @@
     "Failed to load": "Не удалось загрузить",
     "Failed to load API keys": "Не удалось загрузить API ключи",
     "Failed to load billing history": "Не удалось загрузить историю платежей",
+    "Failed to load enabled models": "Не удалось загрузить включённые модели",
     "Failed to load home page content": "Не удалось загрузить содержимое главной страницы",
     "Failed to load image": "Не удалось загрузить изображение",
     "Failed to load key status": "Не удалось загрузить статус ключей",
