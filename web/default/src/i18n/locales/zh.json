@@ -4589,7 +4589,11 @@
     "≈ ${{amount}} USD": "≈ ${{amount}} USD",
     "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 新用户专享 · 首充 {{pct}}% 优惠",
     "Channel Data": "渠道数据",
-    "Channel pricing and detection stats by model": "按模型查看渠道价格与检测数据"
+    "Channel pricing and detection stats by model": "按模型查看渠道价格与检测数据",
+    "Per-Model User Price Ratio": "按模型用户价格倍率",
+    "Select model": "选择模型",
+    "Add model ratio": "添加模型倍率",
+    "Overrides the User Price Ratio above for specific models. Models not listed keep using the channel-level ratio.": "对指定模型覆盖上方“用户价格倍率”；未列出的模型继续使用渠道级倍率。"
   },
   "Model Price Ratios": "模型价格倍率",
   "Select model": "选择模型",

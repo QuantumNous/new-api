@@ -663,7 +663,7 @@ function ModelPriceRatiosField({
 
   return (
     <FormItem>
-      <FormLabel>{t('Model Price Ratios')}</FormLabel>
+      <FormLabel>{t('Per-Model User Price Ratio')}</FormLabel>
       <div className='space-y-2'>
         {displayRows.map((row, idx) => (
           <div key={idx} className='flex items-center gap-2'>
@@ -718,7 +718,7 @@ function ModelPriceRatiosField({
         </Button>
       </div>
       <FormDescription>
-        {t('Per-model markup override. Models not listed fall back to the channel-level User Price Ratio above.')}
+        {t('Overrides the User Price Ratio above for specific models. Models not listed keep using the channel-level ratio.')}
       </FormDescription>
     </FormItem>
   )
