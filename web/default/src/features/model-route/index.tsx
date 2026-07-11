@@ -55,6 +55,13 @@ function fmtTs(ts?: number | null) {
   }
 }
 
+
+function formatChannelLabel(channelId: number, channelName?: string) {
+  const name = (channelName || '').trim()
+  if (name) return `${name} (#${channelId})`
+  return `#${channelId}`
+}
+
 function fmtNum(v?: number | null, digits = 3) {
   if (v === null || v === undefined || Number.isNaN(v)) return '—'
   return Number(v).toFixed(digits)
@@ -237,7 +244,16 @@ export function ModelRouteAdmin() {
                       key={`${row.channel_id}:${row.requested_model}`}
                       className='border-t'
                     >
-                      <td className='p-2'>{row.channel_id}</td>
+                      <td className='p-2'>
+                        <div className='flex flex-col gap-0.5'>
+                          <span className='font-medium'>
+                            {formatChannelLabel(row.channel_id, row.channel_name)}
+                          </span>
+                          <span className='text-muted-foreground text-xs'>
+                            ID: {row.channel_id}
+                          </span>
+                        </div>
+                      </td>
                       <td className='p-2 font-mono text-xs'>
                         {row.requested_model}
                       </td>
@@ -317,7 +333,16 @@ export function ModelRouteAdmin() {
                       key={`${row.channel_id}:${row.effective_model}`}
                       className='border-t'
                     >
-                      <td className='p-2'>{row.channel_id}</td>
+                      <td className='p-2'>
+                        <div className='flex flex-col gap-0.5'>
+                          <span className='font-medium'>
+                            {formatChannelLabel(row.channel_id, row.channel_name)}
+                          </span>
+                          <span className='text-muted-foreground text-xs'>
+                            ID: {row.channel_id}
+                          </span>
+                        </div>
+                      </td>
                       <td className='p-2 font-mono text-xs'>
                         {row.effective_model}
                       </td>
