@@ -34,6 +34,8 @@ export interface BillingDailyRow {
   day: number // unix seconds, floored to the day (UTC)
   cost_usd: number
   revenue_usd: number
+  accounting_ok_request_count: number
+  accounting_target_request_count: number
 }
 
 // Frontend-only row shape: a synthetic "Total" row is prepended to the table

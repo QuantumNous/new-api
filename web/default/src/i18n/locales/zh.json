@@ -949,6 +949,7 @@
     "Cost": "费用",
     "Cost in USD per request, regardless of tokens used.": "每请求的美元费用，不考虑使用的令牌数。",
     "Platform Cost": "成本",
+    "Accounting OK / Requests (%)": "记账OK/请求数(%)",
     "Profit": "利润",
     "Margin": "利润率",
     "Yesterday": "昨天",

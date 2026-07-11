@@ -949,6 +949,7 @@
     "Cost": "Cost",
     "Cost in USD per request, regardless of tokens used.": "Cost in USD per request, regardless of tokens used.",
     "Platform Cost": "Cost",
+    "Accounting OK / Requests (%)": "Accounting OK / Requests (%)",
     "Profit": "Profit",
     "Margin": "Margin",
     "Yesterday": "Yesterday",
