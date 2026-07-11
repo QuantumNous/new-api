@@ -108,10 +108,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
       <DataTableRowActionMenu ariaLabel={t('Open menu')}>
         <DropdownMenuItem
-          onSelect={(e) => {
-            e.preventDefault()
-            setDeleteConfirmOpen(true)
-          }}
+          closeOnClick={false}
+          onClick={() => setDeleteConfirmOpen(true)}
           className='text-destructive focus:text-destructive'
         >
           {t('Delete')}

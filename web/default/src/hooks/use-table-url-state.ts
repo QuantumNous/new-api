@@ -25,11 +25,20 @@ import { useEffect, useMemo, useState } from 'react'
 
 type SearchRecord = Record<string, unknown>
 
+// Legacy global key shared with the classic theme (raw number string). Used
+// as a read fallback so preferences saved before the per-table keys existed
+// are not lost, and mirrored on write so the choice still carries over from
+// and to classic.
+const LEGACY_PAGE_SIZE_STORAGE_KEY = 'page-size'
+
 function getStoredPageSize(storageKey: string | undefined): number | undefined {
   if (!storageKey || typeof window === 'undefined') return undefined
 
   try {
-    const n = Number.parseInt(window.localStorage.getItem(storageKey) ?? '', 10)
+    const raw =
+      window.localStorage.getItem(storageKey) ??
+      window.localStorage.getItem(LEGACY_PAGE_SIZE_STORAGE_KEY)
+    const n = Number.parseInt(raw ?? '', 10)
     return n > 0 ? n : undefined // n > 0 also rejects NaN
   } catch {
     return undefined
@@ -41,6 +50,7 @@ function setStoredPageSize(storageKey: string | undefined, size: number) {
 
   try {
     window.localStorage.setItem(storageKey, String(size))
+    window.localStorage.setItem(LEGACY_PAGE_SIZE_STORAGE_KEY, String(size))
   } catch {
     /* ignore */
   }

@@ -87,6 +87,15 @@ export function PricingTable(props: PricingTableProps) {
     [onModelClick]
   )
 
+  const handleRowKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTableRowElement>, model: PricingModel) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      handleRowClick(model)
+    },
+    [handleRowClick]
+  )
+
   return (
     <div className='space-y-4'>
       <DataTableView
@@ -103,8 +112,11 @@ export function PricingTable(props: PricingTableProps) {
           <DataTableRow
             key={row.id}
             row={row}
-            className='hover:bg-muted/30 cursor-pointer transition-colors'
+            tabIndex={0}
+            aria-label={`${t('View details')}: ${row.original.model_name}`}
+            className='hover:bg-muted/30 focus-visible:ring-ring cursor-pointer transition-colors focus-visible:ring-2 focus-visible:outline-none'
             onClick={() => handleRowClick(row.original)}
+            onKeyDown={(event) => handleRowKeyDown(event, row.original)}
           />
         )}
       />
