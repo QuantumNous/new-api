@@ -3,16 +3,59 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
+
+func normalizeTokenAutoOptConfig(token *model.Token, userId int) error {
+	if !service.IsAutoOptGroup(token.Group) {
+		token.AutoOptMode = ""
+		token.AutoOptGroups = ""
+		return nil
+	}
+	token.CrossGroupRetry = false
+
+	if token.AutoOptMode == "" {
+		token.AutoOptMode = service.AutoOptModeBlacklist
+	}
+	if token.AutoOptMode != service.AutoOptModeWhitelist && token.AutoOptMode != service.AutoOptModeBlacklist {
+		return fmt.Errorf("invalid AutoOpt filter mode")
+	}
+	groups, valid := token.GetAutoOptGroups()
+	if !valid {
+		return fmt.Errorf("AutoOpt group filter exceeds %d bytes", model.MaxAutoOptGroupsLength)
+	}
+	if token.AutoOptMode == service.AutoOptModeWhitelist && len(groups) == 0 {
+		return fmt.Errorf("AutoOpt whitelist must contain at least one group")
+	}
+
+	userGroup, err := model.GetUserGroup(userId, false)
+	if err != nil {
+		return err
+	}
+	if !service.UserCanUseAutoOptGroup(userGroup) {
+		return fmt.Errorf("AutoOpt is not available for user group %s", userGroup)
+	}
+	usableGroups := service.GetUserPricedUsableGroups(userGroup)
+	for _, group := range groups {
+		if _, ok := usableGroups[group]; !ok {
+			return fmt.Errorf("group %s is not available for AutoOpt", group)
+		}
+	}
+
+	sort.Strings(groups)
+	token.AutoOptGroups = strings.Join(groups, ",")
+	return nil
+}
 
 func buildMaskedTokenResponse(token *model.Token) *model.Token {
 	if token == nil {
@@ -187,6 +230,10 @@ func AddToken(c *gin.Context) {
 			return
 		}
 	}
+	if err := normalizeTokenAutoOptConfig(&token, c.GetInt("id")); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	// 检查用户令牌数量是否已达上限
 	maxTokens := operation_setting.GetMaxUserTokens()
 	count, err := model.CountUserTokens(c.GetInt("id"))
@@ -221,6 +268,8 @@ func AddToken(c *gin.Context) {
 		AllowIps:           token.AllowIps,
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
+		AutoOptMode:        token.AutoOptMode,
+		AutoOptGroups:      token.AutoOptGroups,
 	}
 	err = cleanToken.Insert()
 	if err != nil {
@@ -271,6 +320,12 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
+	if statusOnly == "" {
+		if err := normalizeTokenAutoOptConfig(&token, userId); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	cleanToken, err := model.GetTokenByIds(token.Id, userId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -299,6 +354,8 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		cleanToken.AutoOptMode = token.AutoOptMode
+		cleanToken.AutoOptGroups = token.AutoOptGroups
 	}
 	err = cleanToken.Update()
 	if err != nil {

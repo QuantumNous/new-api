@@ -29,19 +29,25 @@ func GetUserGroups(c *gin.Context) {
 	userId := c.GetInt("id")
 	userGroup, _ = model.GetUserGroup(userId, false)
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
-	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
-		// UserUsableGroups contains the groups that the user can use
-		if desc, ok := userUsableGroups[groupName]; ok {
-			usableGroups[groupName] = map[string]interface{}{
-				"ratio": service.GetUserGroupRatio(userGroup, groupName),
-				"desc":  desc,
-			}
+	for groupName, desc := range service.GetUserPricedUsableGroups(userGroup) {
+		usableGroups[groupName] = map[string]interface{}{
+			"ratio": service.GetUserGroupRatio(userGroup, groupName),
+			"desc":  desc,
 		}
 	}
 	if _, ok := userUsableGroups["auto"]; ok {
 		usableGroups["auto"] = map[string]interface{}{
 			"ratio": "自动",
 			"desc":  setting.GetUsableGroupDescription("auto"),
+		}
+	}
+	if desc, ok := userUsableGroups[service.AutoOptGroup]; ok && len(service.GetUserAutoOptGroups(userGroup)) > 0 {
+		if desc == "" {
+			desc = "自动选择最低倍率可用分组"
+		}
+		usableGroups[service.AutoOptGroup] = map[string]interface{}{
+			"ratio": "最低",
+			"desc":  desc,
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{

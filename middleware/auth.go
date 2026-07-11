@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-contrib/sessions"
@@ -425,9 +424,9 @@ func TokenAuth() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
 				return
 			}
-			// check group in common.GroupRatio
-			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
-				if tokenGroup != "auto" {
+			// check that the token group has a global or user-specific ratio
+			if !service.HasUserGroupRatio(userGroup, tokenGroup) {
+				if tokenGroup != "auto" && !service.IsAutoOptGroup(tokenGroup) {
 					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
 					return
 				}
@@ -464,6 +463,13 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	}
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
 	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
+	autoOptGroups, validAutoOptGroups := token.GetAutoOptGroups()
+	autoOptMode := token.AutoOptMode
+	if !validAutoOptGroups {
+		autoOptMode = "invalid"
+	}
+	common.SetContextKey(c, constant.ContextKeyTokenAutoOptMode, autoOptMode)
+	common.SetContextKey(c, constant.ContextKeyTokenAutoOptGroups, autoOptGroups)
 	if len(parts) > 1 {
 		if model.IsAdmin(token.UserId) {
 			c.Set("specific_channel_id", parts[1])

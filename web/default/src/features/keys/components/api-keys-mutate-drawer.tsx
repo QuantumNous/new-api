@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -62,6 +62,7 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
@@ -76,7 +77,7 @@ import {
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
-import { type ApiKey } from '../types'
+import type { ApiKey } from '../types'
 import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
@@ -119,14 +120,24 @@ export function ApiKeysMutateDrawer({
   })
 
   const models = modelsData?.data || []
-  const groupsRaw = groupsData?.data || {}
-  const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw).map(
-    ([key, info]) => ({
-      value: key,
-      label: key,
-      desc: info.desc || key,
-      ratio: info.ratio,
-    })
+  const groupsRaw = groupsData?.data
+  const groups = useMemo<ApiKeyGroupOption[]>(
+    () =>
+      Object.entries(groupsRaw ?? {}).map(([key, info]) => ({
+        value: key,
+        label: key,
+        desc: info.desc || key,
+        ratio: info.ratio,
+      })),
+    [groupsRaw]
+  )
+  const autoOptGroupOptions = useMemo(
+    () =>
+      groups
+        .filter((group) => group.value !== 'auto' && group.value !== 'AutoOpt')
+        .map((group) => ({ label: group.label, value: group.value }))
+        .sort((left, right) => left.label.localeCompare(right.label)),
+    [groups]
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
   const schema = getApiKeyFormSchema(t)
@@ -139,17 +150,21 @@ export function ApiKeysMutateDrawer({
   // Load existing data when updating
   useEffect(() => {
     if (open && isUpdate && currentRow) {
-      getApiKey(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformApiKeyToFormDefaults(result.data))
-        }
-      })
+      getApiKey(currentRow.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformApiKeyToFormDefaults(result.data))
+          }
+        })
+        .catch(() => {
+          toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+        })
     } else if (open && !isUpdate) {
       form.reset(
         getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
       )
     }
-  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
+  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto, t])
 
   // Correct group after groups load: if the form value is not in available groups, fall back
   useEffect(() => {
@@ -215,7 +230,7 @@ export function ApiKeysMutateDrawer({
           triggerRefresh()
         }
       }
-    } catch (_error) {
+    } catch {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
@@ -248,6 +263,7 @@ export function ApiKeysMutateDrawer({
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
+  const autoOptMode = form.watch('auto_opt_mode')
   const unlimitedQuota = form.watch('unlimited_quota')
 
   return (
@@ -343,6 +359,64 @@ export function ApiKeysMutateDrawer({
                 />
               )}
 
+              {selectedGroup === 'AutoOpt' && (
+                <div className='grid gap-4'>
+                  <FormField
+                    control={form.control}
+                    name='auto_opt_mode'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('AutoOpt group filter')}</FormLabel>
+                        <FormControl>
+                          <ToggleGroup
+                            value={[field.value]}
+                            onValueChange={(value) => {
+                              if (value[0]) field.onChange(value[0])
+                            }}
+                            variant='outline'
+                            className='grid w-full grid-cols-2'
+                            aria-label={t('AutoOpt group filter')}
+                          >
+                            <ToggleGroupItem value='whitelist'>
+                              {t('Whitelist')}
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value='blacklist'>
+                              {t('Blacklist')}
+                            </ToggleGroupItem>
+                          </ToggleGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='auto_opt_groups'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Groups')}</FormLabel>
+                        <FormControl>
+                          <MultiSelect
+                            options={autoOptGroupOptions}
+                            selected={field.value}
+                            onChange={field.onChange}
+                            placeholder={t('Select AutoOpt groups...')}
+                            maxVisibleChips={5}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {autoOptMode === 'whitelist'
+                            ? t('Only selected groups can be used by AutoOpt.')
+                            : t('Selected groups are excluded from AutoOpt.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
               <FormField
                 control={form.control}
                 name='expired_time'
@@ -408,7 +482,9 @@ export function ApiKeysMutateDrawer({
                           min='1'
                           placeholder={t('Number of keys to create')}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value, 10) || 1)
+                            field.onChange(
+                              Number.parseInt(e.target.value, 10) || 1
+                            )
                           }
                         />
                       </FormControl>
@@ -444,7 +520,9 @@ export function ApiKeysMutateDrawer({
                           step={tokensOnly ? 1 : 0.01}
                           placeholder={quotaPlaceholder}
                           onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
+                            field.onChange(
+                              Number.parseFloat(e.target.value) || 0
+                            )
                           }
                         />
                       </FormControl>

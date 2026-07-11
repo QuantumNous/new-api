@@ -87,7 +87,38 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
-	if param.TokenGroup == "auto" {
+	if IsAutoOptGroup(param.TokenGroup) {
+		autoOptGroups := GetUserAutoOptGroupsWithPolicy(
+			userGroup,
+			common.GetContextKeyString(param.Ctx, constant.ContextKeyTokenAutoOptMode),
+			common.GetContextKeyStringSlice(param.Ctx, constant.ContextKeyTokenAutoOptGroups),
+		)
+		if len(autoOptGroups) == 0 {
+			return nil, selectGroup, errors.New("AutoOpt groups is not available")
+		}
+		var lastGroupErr error
+		var lastErrorGroup string
+		for _, autoOptGroup := range autoOptGroups {
+			logger.LogDebug(param.Ctx, "AutoOpt selecting group: %s, retry: %d", autoOptGroup, param.GetRetry())
+			channel, err = model.GetRandomSatisfiedChannel(autoOptGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+			if err != nil {
+				logger.LogDebug(param.Ctx, "AutoOpt error for group %s: %v", autoOptGroup, err)
+				lastGroupErr = err
+				lastErrorGroup = autoOptGroup
+				continue
+			}
+			if channel == nil {
+				continue
+			}
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoOptGroup)
+			selectGroup = autoOptGroup
+			logger.LogDebug(param.Ctx, "AutoOpt selected group: %s", autoOptGroup)
+			break
+		}
+		if channel == nil && lastGroupErr != nil {
+			return nil, lastErrorGroup, lastGroupErr
+		}
+	} else if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
 			return nil, selectGroup, errors.New("auto groups is not enabled")
 		}

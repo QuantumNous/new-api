@@ -210,6 +210,24 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             </Tooltip>
           )
         }
+        if (group === 'AutoOpt') {
+          return (
+            <Tooltip>
+              <TooltipTrigger
+                render={<BadgeCell className='gap-1.5 text-xs' />}
+              >
+                <GroupBadge group='AutoOpt' />
+              </TooltipTrigger>
+              <TooltipContent>
+                <span className='text-xs'>
+                  {t(
+                    'Automatically selects the lowest-ratio available group for the requested model'
+                  )}
+                </span>
+              </TooltipContent>
+            </Tooltip>
+          )
+        }
         return (
           <TruncatedCell
             tooltipContent={group || '-'}

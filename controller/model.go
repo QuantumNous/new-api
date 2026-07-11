@@ -193,6 +193,20 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 			ownerGroups: service.GetUserAutoGroup(userGroup),
 		}, nil
 	}
+	if service.IsAutoOptGroup(tokenGroup) {
+		if !service.UserCanUseAutoOptGroup(userGroup) {
+			return modelListGroups{}, fmt.Errorf("group %s is not available for user group %s", tokenGroup, userGroup)
+		}
+		return modelListGroups{
+			userGroup:  userGroup,
+			tokenGroup: tokenGroup,
+			ownerGroups: service.GetUserAutoOptGroupsWithPolicy(
+				userGroup,
+				common.GetContextKeyString(c, constant.ContextKeyTokenAutoOptMode),
+				common.GetContextKeyStringSlice(c, constant.ContextKeyTokenAutoOptGroups),
+			),
+		}, nil
+	}
 
 	group := userGroup
 	if tokenGroup != "" {
@@ -246,16 +260,9 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	} else {
 		var models []string
-		if groups.tokenGroup == "auto" {
-			for _, autoGroup := range ownerGroups {
-				groupModels := model.GetGroupEnabledModels(autoGroup)
-				for _, g := range groupModels {
-					if !common.StringsContains(models, g) {
-						models = append(models, g)
-					}
-				}
-			}
-		} else {
+		if groups.tokenGroup == "auto" || service.IsAutoOptGroup(groups.tokenGroup) {
+			models = model.GetGroupsEnabledModels(ownerGroups)
+		} else if len(ownerGroups) > 0 {
 			models = model.GetGroupEnabledModels(ownerGroups[0])
 		}
 		for _, modelName := range models {
@@ -288,12 +295,15 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
-		c.JSON(200, gin.H{
+		response := gin.H{
 			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
 			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
-		})
+		}
+		if len(useranthropicModels) > 0 {
+			response["first_id"] = useranthropicModels[0].ID
+			response["last_id"] = useranthropicModels[len(useranthropicModels)-1].ID
+		}
+		c.JSON(200, response)
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
 		for i, model := range userOpenAiModels {

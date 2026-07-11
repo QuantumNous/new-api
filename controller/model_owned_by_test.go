@@ -6,6 +6,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -82,4 +85,56 @@ func TestGetModelListGroupsUsesExplicitTokenGroup(t *testing.T) {
 	require.Equal(t, "default", groups.userGroup)
 	require.Equal(t, "vip", groups.tokenGroup)
 	require.Equal(t, []string{"vip"}, groups.ownerGroups)
+}
+
+func withModelListAutoOptSettings(t *testing.T) {
+	t.Helper()
+
+	oldUsableGroups := setting.UserUsableGroups2JSONString()
+	oldAutoGroups := setting.AutoGroups2JsonString()
+	oldGroupRatio := ratio_setting.GroupRatio2JSONString()
+	oldGroupGroupRatio := ratio_setting.GroupGroupRatio2JSONString()
+	oldSpecialUsable := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.MarshalJSONString()
+
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(oldUsableGroups))
+		require.NoError(t, setting.UpdateAutoGroupsByJsonString(oldAutoGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(oldGroupRatio))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(oldGroupGroupRatio))
+		require.NoError(t, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.UnmarshalJSON([]byte(oldSpecialUsable)))
+	})
+}
+
+func TestGetModelListGroupsUsesAutoOptWhenPermitted(t *testing.T) {
+	withModelListAutoOptSettings(t)
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0.5}`))
+	require.NoError(t, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.UnmarshalJSON([]byte(`{"default":{"+:AutoOpt":"AutoOpt"}}`)))
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, service.AutoOptGroup)
+
+	groups, err := getModelListGroups(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, "default", groups.userGroup)
+	require.Equal(t, service.AutoOptGroup, groups.tokenGroup)
+	require.Equal(t, []string{"vip", "default"}, groups.ownerGroups)
+}
+
+func TestGetModelListGroupsRejectsAutoOptWhenNotPermitted(t *testing.T) {
+	withModelListAutoOptSettings(t)
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0.5}`))
+	require.NoError(t, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.UnmarshalJSON([]byte(`{}`)))
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, service.AutoOptGroup)
+
+	_, err := getModelListGroups(ctx)
+	require.Error(t, err)
 }

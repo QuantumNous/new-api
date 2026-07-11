@@ -1,11 +1,22 @@
 package service
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
+
+const (
+	AutoOptGroup         = "AutoOpt"
+	AutoOptModeWhitelist = "whitelist"
+	AutoOptModeBlacklist = "blacklist"
+)
+
+func IsAutoOptGroup(group string) bool {
+	return group == AutoOptGroup
+}
 
 func GetUserUsableGroups(userGroup string) map[string]string {
 	groupsCopy := setting.GetUserUsableGroupsCopy()
@@ -41,6 +52,10 @@ func GroupInUserUsableGroups(userGroup, groupName string) bool {
 	return ok
 }
 
+func UserCanUseAutoOptGroup(userGroup string) bool {
+	return GroupInUserUsableGroups(userGroup, AutoOptGroup)
+}
+
 // GetUserAutoGroup 根据用户分组获取自动分组设置
 func GetUserAutoGroup(userGroup string) []string {
 	groups := GetUserUsableGroups(userGroup)
@@ -62,4 +77,66 @@ func GetUserGroupRatio(userGroup, group string) float64 {
 		return ratio
 	}
 	return ratio_setting.GetGroupRatio(group)
+}
+
+func HasUserGroupRatio(userGroup, group string) bool {
+	if _, ok := ratio_setting.GetGroupGroupRatio(userGroup, group); ok {
+		return true
+	}
+	return ratio_setting.ContainsGroupRatio(group)
+}
+
+func GetUserPricedUsableGroups(userGroup string) map[string]string {
+	pricedGroups := make(map[string]string)
+	for group, desc := range GetUserUsableGroups(userGroup) {
+		if IsAutoOptGroup(group) || group == "auto" {
+			continue
+		}
+		if HasUserGroupRatio(userGroup, group) {
+			pricedGroups[group] = desc
+		}
+	}
+	return pricedGroups
+}
+
+func GetUserAutoOptGroups(userGroup string) []string {
+	return GetUserAutoOptGroupsWithPolicy(userGroup, AutoOptModeBlacklist, nil)
+}
+
+func GetUserAutoOptGroupsWithPolicy(userGroup, mode string, configuredGroups []string) []string {
+	if !UserCanUseAutoOptGroup(userGroup) {
+		return nil
+	}
+	if mode == "" {
+		mode = AutoOptModeBlacklist
+	}
+	if mode != AutoOptModeWhitelist && mode != AutoOptModeBlacklist {
+		return nil
+	}
+
+	configured := make(map[string]struct{}, len(configuredGroups))
+	for _, group := range configuredGroups {
+		configured[group] = struct{}{}
+	}
+	pricedGroups := GetUserPricedUsableGroups(userGroup)
+	groups := make([]string, 0, len(pricedGroups))
+	for group := range pricedGroups {
+		_, selected := configured[group]
+		if mode == AutoOptModeWhitelist && !selected {
+			continue
+		}
+		if mode == AutoOptModeBlacklist && selected {
+			continue
+		}
+		groups = append(groups, group)
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		leftRatio := GetUserGroupRatio(userGroup, groups[i])
+		rightRatio := GetUserGroupRatio(userGroup, groups[j])
+		if leftRatio == rightRatio {
+			return groups[i] < groups[j]
+		}
+		return leftRatio < rightRatio
+	})
+	return groups
 }
