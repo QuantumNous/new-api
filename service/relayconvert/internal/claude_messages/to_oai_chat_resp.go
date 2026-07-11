@@ -216,6 +216,9 @@ func buildOpenAIStyleUsageFromClaudeUsage(usage *dto.Usage) dto.Usage {
 		usage.ClaudeCacheCreation1hTokens,
 	)
 	cacheCreationTokens := cacheCreationTokensForOpenAIUsage(usage)
+	// Expose the standard OpenAI cache-write field alongside the legacy
+	// cached_creation_tokens so OpenAI-format clients can bill cache writes.
+	clone.PromptTokensDetails.CacheWriteTokens = cacheCreationTokens
 	totalInputTokens := usage.PromptTokens + usage.PromptTokensDetails.CachedTokens + cacheCreationTokens
 	clone.PromptTokens = totalInputTokens
 	clone.InputTokens = totalInputTokens

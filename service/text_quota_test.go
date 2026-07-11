@@ -375,6 +375,62 @@ func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testi
 	require.Equal(t, 1624, summary.Quota)
 }
 
+func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "gpt-5.1",
+		PriceData: types.PriceData{
+			ModelRatio:         1,
+			CompletionRatio:    2,
+			CacheRatio:         0.1,
+			CacheCreationRatio: 1.25,
+			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	t.Run("uncached remainder stays positive", func(t *testing.T) {
+		usage := &dto.Usage{
+			PromptTokens:     1473,
+			CompletionTokens: 19,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CacheWriteTokens: 1470,
+			},
+		}
+
+		summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+		require.Equal(t, 1470, summary.CacheCreationTokens)
+		// (1473-0-1470) + 1470*1.25 + 19*2 = 3 + 1837.5 + 38 = 1878.5 => 1879
+		require.Equal(t, 1879, summary.Quota)
+	})
+
+	t.Run("uncached remainder clamps to zero", func(t *testing.T) {
+		// Real OpenAI payload shape: cached_tokens + cache_write_tokens exceeds
+		// prompt_tokens, so the uncached remainder must clamp to 0 instead of
+		// producing a negative charge component.
+		usage := &dto.Usage{
+			PromptTokens:     3619,
+			CompletionTokens: 36,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens:     2921,
+				CacheWriteTokens: 3616,
+			},
+		}
+
+		summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+		require.Equal(t, 3619, summary.PromptTokens)
+		require.Equal(t, 3616, summary.CacheCreationTokens)
+		// max(3619-2921-3616, 0) + 2921*0.1 + 3616*1.25 + 36*2 = 4884.1 => 4884
+		require.Equal(t, 4884, summary.Quota)
+	})
+}
+
 func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheReadFromPromptBilling(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

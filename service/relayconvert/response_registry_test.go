@@ -277,6 +277,7 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 	assert.Equal(t, 22, toChat.Usage.TotalTokens)
 	assert.Equal(t, 3, toChat.Usage.PromptTokensDetails.CachedTokens)
 	assert.Equal(t, 4, toChat.Usage.PromptTokensDetails.CachedCreationTokens)
+	assert.Equal(t, 4, toChat.Usage.PromptTokensDetails.CacheWriteTokens)
 	require.NotNil(t, toChat.Usage.BillingUsage)
 	require.NotNil(t, toChat.Usage.BillingUsage.ClaudeUsage)
 	assert.Equal(t, dto.BillingUsageSourceClaudeMessages, toChat.Usage.BillingUsage.Source)
@@ -539,6 +540,7 @@ func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 		PromptTokensDetails: dto.InputTokenDetails{
 			CachedTokens:         3,
 			CachedCreationTokens: 2,
+			CacheWriteTokens:     6,
 			TextTokens:           4,
 			AudioTokens:          1,
 			ImageTokens:          5,
@@ -558,6 +560,7 @@ func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 	require.NotNil(t, result.Usage.InputTokensDetails)
 	assert.Equal(t, 3, result.Usage.InputTokensDetails.CachedTokens)
 	assert.Equal(t, 2, result.Usage.InputTokensDetails.CachedCreationTokens)
+	assert.Equal(t, 6, result.Usage.InputTokensDetails.CacheWriteTokens)
 	assert.Equal(t, 4, result.Usage.InputTokensDetails.TextTokens)
 	assert.Equal(t, 1, result.Usage.InputTokensDetails.AudioTokens)
 	assert.Equal(t, 5, result.Usage.InputTokensDetails.ImageTokens)
@@ -579,6 +582,7 @@ func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 			InputTokensDetails: &dto.InputTokenDetails{
 				CachedTokens:         4,
 				CachedCreationTokens: 1,
+				CacheWriteTokens:     7,
 				TextTokens:           5,
 				AudioTokens:          2,
 				ImageTokens:          1,
@@ -598,6 +602,7 @@ func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 	assert.Equal(t, 21, result.Usage.TotalTokens)
 	assert.Equal(t, 4, result.Usage.PromptTokensDetails.CachedTokens)
 	assert.Equal(t, 1, result.Usage.PromptTokensDetails.CachedCreationTokens)
+	assert.Equal(t, 7, result.Usage.PromptTokensDetails.CacheWriteTokens)
 	assert.Equal(t, 5, result.Usage.PromptTokensDetails.TextTokens)
 	assert.Equal(t, 2, result.Usage.PromptTokensDetails.AudioTokens)
 	assert.Equal(t, 1, result.Usage.PromptTokensDetails.ImageTokens)

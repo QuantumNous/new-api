@@ -137,6 +137,7 @@ func UsageFromChatUsage(src *dto.Usage) *dto.Usage {
 		src.PromptTokensDetails.ImageTokens != 0 ||
 		src.PromptTokensDetails.AudioTokens != 0 ||
 		src.PromptTokensDetails.CachedCreationTokens != 0 ||
+		src.PromptTokensDetails.CacheWriteTokens != 0 ||
 		src.PromptTokensDetails.TextTokens != 0 {
 		details := src.PromptTokensDetails
 		usage.InputTokensDetails = &details
