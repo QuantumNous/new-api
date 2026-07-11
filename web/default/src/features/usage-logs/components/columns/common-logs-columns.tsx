@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { CircleAlert, GitBranch, Sparkles } from 'lucide-react'
+import { GitBranch, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,19 +38,13 @@ import { useGroupRatios } from '@/hooks/use-group-ratios'
 import { getUserAvatarFallback, getUserAvatarProps } from '@/lib/avatar'
 import { getIdentityTextColorClass } from '@/lib/colors'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import {
-  formatUseTime,
-  formatLogQuota,
-  formatTimestampToDate,
-} from '@/lib/format'
+import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { LOG_TYPE_ALL_VALUE } from '../../constants'
 import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
-  getFirstResponseTimeColor,
-  getResponseTimeColor,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
@@ -66,6 +60,7 @@ import {
 import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
+import { TimingMetricsCell, StreamTpsCell } from '../timing-metrics-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
 interface DetailSegment {
@@ -656,104 +651,34 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       },
     },
     {
-      accessorKey: 'use_time',
-      header: t('Timing'),
+      accessorKey: 'is_stream',
+      header: t('Stream'),
       cell: ({ row }) => {
         const log = row.original
         if (!isTimingLogType(log.type)) return null
 
         const useTime = row.getValue('use_time') as number
         const other = parseLogOther(log.other)
-        const frt = other?.frt
         const tokensPerSecond =
           useTime > 0 && log.completion_tokens > 0
             ? log.completion_tokens / useTime
             : null
-        const timeVariant = getResponseTimeColor(useTime, log.completion_tokens)
-        const frtVariant = frt
-          ? getFirstResponseTimeColor(frt / 1000)
-          : 'neutral'
 
         return (
-          <div className='flex flex-col gap-1'>
-            <div className='flex items-center gap-1.5'>
-              <StatusBadge
-                variant={timeVariant}
-                size='sm'
-                className='tabular-nums'
-              >
-                {formatUseTime(useTime)}
-              </StatusBadge>
-              {log.is_stream &&
-                (frt != null && frt > 0 ? (
-                  <StatusBadge
-                    variant={frtVariant}
-                    size='sm'
-                    className='tabular-nums'
-                  >
-                    {formatUseTime(frt / 1000)}
-                  </StatusBadge>
-                ) : (
-                  <StatusBadge
-                    variant='neutral'
-                    size='sm'
-                    className='tabular-nums'
-                  >
-                    N/A
-                  </StatusBadge>
-                ))}
-            </div>
-            <div className='flex items-center gap-1 text-xs leading-none'>
-              <span className='text-subtle-foreground text-xs leading-none'>
-                {log.is_stream ? t('Stream') : t('Non-stream')}
-                {tokensPerSecond != null && (
-                  <>
-                    {' · '}
-                    <span className='tabular-nums'>
-                      {Math.round(tokensPerSecond)}
-                    </span>
-                    {' t/s'}
-                  </>
-                )}
-              </span>
-              {log.is_stream &&
-                other?.stream_status &&
-                other.stream_status.status !== 'ok' && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <CircleAlert className='text-destructive size-3' />
-                        }
-                      />
-                      <TooltipContent>
-                        <div className='space-y-0.5 text-xs'>
-                          <p>
-                            {t('Stream Status')}: {t('Error')}
-                          </p>
-                          <p>{other.stream_status.end_reason || 'unknown'}</p>
-                          {(other.stream_status.error_count ?? 0) > 0 && (
-                            <p>
-                              {t('Soft Errors')}:{' '}
-                              {other.stream_status.error_count}
-                            </p>
-                          )}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-            </div>
-          </div>
+          <StreamTpsCell
+            isStream={log.is_stream}
+            tokensPerSecond={tokensPerSecond}
+            streamStatus={other?.stream_status}
+          />
         )
       },
       meta: {
+        label: t('Stream'),
         cardRole: 'primary',
         cardOrder: 50,
         contentMode: 'full',
       },
     },
-
     {
       accessorKey: 'prompt_tokens',
       header: 'Tokens',
@@ -807,7 +732,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         contentMode: 'full',
       },
     },
-
     {
       accessorKey: 'quota',
       header: t('Cost'),
@@ -848,6 +772,32 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       },
       meta: {
         cardRole: 'badge',
+        contentMode: 'full',
+      },
+    },
+
+    {
+      accessorKey: 'use_time',
+      header: t('Timing'),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isTimingLogType(log.type)) return null
+
+        const useTime = row.getValue('use_time') as number
+        const other = parseLogOther(log.other)
+
+        return (
+          <TimingMetricsCell
+            useTimeSec={useTime}
+            completionTokens={log.completion_tokens}
+            frtMs={other?.frt}
+            isStream={log.is_stream}
+          />
+        )
+      },
+      meta: {
+        cardRole: 'primary',
+        cardOrder: 55,
         contentMode: 'full',
       },
     },
