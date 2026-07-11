@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -590,6 +592,33 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				if source == nil {
 					continue
 				}
+
+				if info.ChannelType == constant.ChannelTypeVertexAi {
+					if urlSource, ok := source.(*types.URLSource); ok && (strings.HasPrefix(urlSource.URL, "http") || strings.HasPrefix(urlSource.URL, "gs://")) {
+						mimeType := "image/jpeg"
+						parsedUrl, err := url.Parse(urlSource.URL)
+						if err == nil {
+							ext := strings.ToLower(path.Ext(parsedUrl.Path))
+							switch ext {
+							case ".png":
+								mimeType = "image/png"
+							case ".webp":
+								mimeType = "image/webp"
+							case ".gif":
+								mimeType = "image/gif"
+							}
+						}
+						
+						parts = append(parts, dto.GeminiPart{
+							FileData: &dto.GeminiFileData{
+								MimeType: mimeType,
+								FileUri:  urlSource.URL,
+							},
+						})
+						continue
+					}
+				}
+
 				base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Gemini")
 				if err != nil {
 					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
