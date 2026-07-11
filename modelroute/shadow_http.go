@@ -36,13 +36,20 @@ func EnsureDefaultShadowWiring() {
 	if GlobalShadowDispatcher.Builder == nil {
 		GlobalShadowDispatcher.Builder = TextShadowBuilder{}
 	}
+	// Prefer external WireShadowExecutor (relay-billed). Only fall back to lightweight HTTP
+	// when no production wire is registered (unit tests).
 	if GlobalShadowDispatcher.Executor == nil {
-		GlobalShadowDispatcher.Executor = OpenAICompatibleShadowExecutor
+		if WireShadowExecutor != nil {
+			WireShadowExecutor()
+		}
+		if GlobalShadowDispatcher.Executor == nil {
+			GlobalShadowDispatcher.Executor = OpenAICompatibleShadowExecutor
+		}
 	}
 }
 
-// OpenAICompatibleShadowExecutor probes channel via POST {base}/v1/chat/completions (PRD §12/§13).
-// No billing, no tools, stream=false, small max_tokens; never writes to user response.
+// OpenAICompatibleShadowExecutor is a low-level HTTP probe (tests / emergency fallback).
+// Production wiring prefers controller.BilledRelayShadowExecutor (full request, upstream-billed).
 func OpenAICompatibleShadowExecutor(ctx context.Context, req *ShadowRequest) ShadowResult {
 	out := ShadowResult{BuildResult: ShadowTransportFailure, TransportOK: false}
 	if req == nil || req.ChannelID <= 0 {
@@ -172,7 +179,8 @@ func buildShadowChatBody(req *ShadowRequest) map[string]any {
 		msgs = append(msgs, map[string]string{"role": role, "content": m.Text})
 	}
 	if len(msgs) == 0 {
-		msgs = append(msgs, map[string]string{"role": "user", "content": "ping"})
+		// no synthetic body — caller must supply production-derived messages
+		return map[string]any{"model": modelName, "messages": []map[string]string{}, "stream": false}
 	}
 	// no tools — PRD §12
 	return map[string]any{
@@ -185,14 +193,29 @@ func buildShadowChatBody(req *ShadowRequest) map[string]any {
 
 // OpenAICompatibleEmergencyTry is an EmergencyTryFunc using the same HTTP probe as shadow.
 func OpenAICompatibleEmergencyTry(ctx context.Context, c model.ResolvedRouteCandidate) BufferedAttemptResult {
+	msgs := []ShadowMessage{}
+	if cap := LookupShadowCapture("", c.RequestedModel); cap != nil {
+		msgs = cap.View.Messages
+	}
+	if len(msgs) == 0 {
+		// no production sample available — cannot fabricate simplified body
+		return BufferedAttemptResult{Success: false, IsRetryableFailure: true, StatusCode: 0}
+	}
 	req := &ShadowRequest{
 		ChannelID:      c.ChannelID,
 		RequestedModel: c.RequestedModel,
 		EffectiveModel: c.EffectiveModel,
 		MaxTokens:      model.DefaultShadowProbeMaxTokens,
-		Messages:       []ShadowMessage{{Role: "user", Text: "ping"}},
+		Messages:       msgs,
 	}
-	res := OpenAICompatibleShadowExecutor(ctx, req)
+	if WireShadowExecutor != nil {
+		WireShadowExecutor()
+	}
+	exec := OpenAICompatibleShadowExecutor
+	if GlobalShadowDispatcher != nil && GlobalShadowDispatcher.Executor != nil {
+		exec = GlobalShadowDispatcher.Executor
+	}
+	res := exec(ctx, req)
 	ok := res.TransportOK && res.StatusCode >= 200 && res.StatusCode < 300
 	return BufferedAttemptResult{
 		Success:            ok,

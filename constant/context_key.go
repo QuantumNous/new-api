@@ -44,6 +44,8 @@ const (
 
 	// ContextKeyModelRouteChain stores process-local model-priority try-list channel IDs for the request.
 	ContextKeyModelRouteChain ContextKey = "model_route_chain"
+	// ContextKeyModelRouteProdSlot holds *modelroute.ProductionSlot for current attempt.
+	ContextKeyModelRouteProdSlot ContextKey = "model_route_prod_slot"
 
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"

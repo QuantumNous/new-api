@@ -162,6 +162,19 @@ func cacheGetModelPriorityChannel(param *RetryParam) (*model.Channel, string, er
 			selectGroup = g
 			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, g)
 		}
+		// production concurrency slot (PRD §19): skip when limited & full
+		mapping := ch.GetModelMapping()
+		slot, _, okSlot := modelroute.AcquireProductionSlotForRequest(int64(id), param.ModelName, mapping)
+		if !okSlot {
+			logger.LogDebug(param.Ctx, "model_priority skip full channel %d model=%s", id, param.ModelName)
+			continue
+		}
+		if param.Ctx != nil && slot != nil {
+			// release any previous unreleased slot from an earlier selection in same request
+			releaseModelRouteSlot(param.Ctx)
+			common.SetContextKey(param.Ctx, constant.ContextKeyModelRouteProdSlot, slot)
+		}
+		modelroute.NoteOverflowRoute(param.ModelName, int64(id))
 		logger.LogDebug(param.Ctx, "model_priority selected channel=%d model=%s retry=%d group=%s", id, param.ModelName, param.GetRetry(), selectGroup)
 		return ch, selectGroup, nil
 	}
@@ -317,4 +330,23 @@ func SelectModelPriorityChannel(param *RetryParam) (*model.Channel, string, erro
 // FormatModelRouteSelectDebug helps logs.
 func FormatModelRouteSelectDebug(channelID int, modelName string) string {
 	return fmt.Sprintf("channel=%d model=%s", channelID, modelName)
+}
+
+
+func releaseModelRouteSlot(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	if v, ok := common.GetContextKey(c, constant.ContextKeyModelRouteProdSlot); ok && v != nil {
+		if slot, ok2 := v.(*modelroute.ProductionSlot); ok2 && slot != nil {
+			slot.Release()
+		}
+		// clear
+		common.SetContextKey(c, constant.ContextKeyModelRouteProdSlot, (*modelroute.ProductionSlot)(nil))
+	}
+}
+
+// ReleaseModelRouteProductionSlot frees the production concurrency slot for the current attempt.
+func ReleaseModelRouteProductionSlot(c *gin.Context) {
+	releaseModelRouteSlot(c)
 }

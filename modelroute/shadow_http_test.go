@@ -43,7 +43,7 @@ func TestOpenAICompatibleShadowExecutorSuccess(t *testing.T) {
 		assert.Contains(t, r.URL.Path, "chat/completions")
 		assert.Equal(t, "1", r.Header.Get("X-New-Api-Shadow-Probe"))
 		b, _ := io.ReadAll(r.Body)
-		assert.Contains(t, string(b), "ping")
+		assert.Contains(t, string(b), "hello-probe")
 		assert.NotContains(t, string(b), "tools")
 		return &http.Response{
 			StatusCode: 200,
@@ -56,7 +56,7 @@ func TestOpenAICompatibleShadowExecutorSuccess(t *testing.T) {
 
 	res := OpenAICompatibleShadowExecutor(context.Background(), &ShadowRequest{
 		ChannelID: 101, RequestedModel: "gpt-shadow", EffectiveModel: "gpt-shadow",
-		MaxTokens: 8, Messages: []ShadowMessage{{Role: "user", Text: "ping"}},
+		MaxTokens: 8, Messages: []ShadowMessage{{Role: "user", Text: "hello-probe"}},
 	})
 	assert.True(t, res.TransportOK)
 	assert.Equal(t, 200, res.StatusCode)
@@ -73,6 +73,7 @@ func TestEnsureDefaultShadowWiringSetsExecutor(t *testing.T) {
 func TestRunEmergencyRecoveryUsesHTTP(t *testing.T) {
 	clearRouteTables(t)
 	SetRoutingPriorityMode(model.RoutingPriorityModeModel)
+	ClearShadowCaptures()
 	pri := int64(1)
 	base := "https://em.example"
 	ch := &model.Channel{
@@ -86,9 +87,20 @@ func TestRunEmergencyRecoveryUsesHTTP(t *testing.T) {
 	require.NoError(t, model.UpsertChannelModelMetrics(&model.ChannelModelMetrics{
 		ChannelID: 202, EffectiveModel: "gpt-em2", RouteState: string(model.RouteUnknown),
 	}))
+	// emergency requires a real production capture (no synthetic ping)
+	RememberShadowCapture(&ProductionShadowCapture{
+		OriginModel: "gpt-em2",
+		View: ProductionRequestView{
+			RequestedModel: "gpt-em2",
+			Messages:       []ShadowMessage{{Role: "user", Text: "real production prompt for probe"}},
+		},
+	})
 
 	old := ShadowHTTPClient
 	ShadowHTTPClient = doerFunc(func(r *http.Request) (*http.Response, error) {
+		b, _ := io.ReadAll(r.Body)
+		assert.Contains(t, string(b), "real production prompt for probe")
+		assert.NotContains(t, string(b), `"ping"`)
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
@@ -101,4 +113,12 @@ func TestRunEmergencyRecoveryUsesHTTP(t *testing.T) {
 	cand, ok := RunEmergencyRecoveryForModel(context.Background(), "gpt-em2", nil)
 	require.True(t, ok)
 	assert.Equal(t, int64(202), cand.ChannelID)
+}
+
+func TestRunEmergencyWithoutCaptureFails(t *testing.T) {
+	clearRouteTables(t)
+	SetRoutingPriorityMode(model.RoutingPriorityModeModel)
+	ClearShadowCaptures()
+	_, ok := RunEmergencyRecoveryForModel(context.Background(), "no-capture", nil)
+	assert.False(t, ok)
 }

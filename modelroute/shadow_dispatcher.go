@@ -147,6 +147,7 @@ func (d *ShadowDispatcher) MaybeDispatchShadowProbeAsync(
 			// weight 0 — do not OPEN
 			return
 		}
+		req.SourceRequestID = productionRequestID
 		res := d.Executor(ctx, req)
 		res.BuildResult = buildRes
 		res.SourceRequest = productionRequestID

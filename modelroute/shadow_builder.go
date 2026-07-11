@@ -43,6 +43,16 @@ type ShadowRequest struct {
 	MaxTokens      int
 	Messages       []ShadowMessage
 	MultimodalKept bool
+	// SourceRequestID is the production request that spawned this probe (for capture lookup).
+	SourceRequestID string
+}
+
+// SourceRequestIDHint returns the production request id when known.
+func (r *ShadowRequest) SourceRequestIDHint() string {
+	if r == nil {
+		return ""
+	}
+	return r.SourceRequestID
 }
 
 // ShadowMessage is a minimal text message for shadow probes.

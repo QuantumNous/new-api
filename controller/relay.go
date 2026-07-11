@@ -225,6 +225,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError == nil {
 			relayInfo.LastError = nil
 			notifyModelRouteProduction(c, channel, relayInfo, true, 0, false)
+			// release concurrency after success (stream already finished when helper returns)
+			service.ReleaseModelRouteProductionSlot(c)
 			return
 		}
 
@@ -234,6 +236,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		streamInterrupted := relayInfo != nil && relayInfo.HasSendResponse()
 		notifyModelRouteProduction(c, channel, relayInfo, false, newAPIError.StatusCode, streamInterrupted)
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		// free slot so overflow capacity is available for next try / concurrent requests
+		service.ReleaseModelRouteProductionSlot(c)
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
@@ -665,6 +669,8 @@ func notifyModelRouteProduction(c *gin.Context, channel *model.Channel, relayInf
 	if channel == nil || relayInfo == nil || !modelroute.IsModelPriorityMode() {
 		return
 	}
+	// ensure billed shadow executor is wired (idempotent)
+	EnsureBilledShadowExecutor()
 	mapping := ""
 	if c != nil {
 		mapping = common.GetContextKeyString(c, constant.ContextKeyChannelModelMapping)
@@ -679,6 +685,10 @@ func notifyModelRouteProduction(c *gin.Context, channel *model.Channel, relayInf
 			ttft = 0
 		}
 	}
+	var shadow *modelroute.ProductionShadowCapture
+	if success && relayInfo.Request != nil {
+		shadow = BuildProductionShadowCaptureFromRelay(c, relayInfo, relayInfo.Request)
+	}
 	modelroute.ApplyProductionOutcomeAsync(modelroute.ProductionOutcome{
 		ChannelID:         int64(channel.Id),
 		RequestedModel:    relayInfo.OriginModelName,
@@ -687,6 +697,7 @@ func notifyModelRouteProduction(c *gin.Context, channel *model.Channel, relayInf
 		StatusCode:        statusCode,
 		StreamInterrupted: streamInterrupted,
 		TTFT:              ttft,
+		Shadow:            shadow,
 	})
 }
 

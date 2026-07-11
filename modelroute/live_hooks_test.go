@@ -41,3 +41,17 @@ func TestApplyProductionOutcomeDisabledWhenChannelPriority(t *testing.T) {
 	ApplyProductionOutcome(ProductionOutcome{ChannelID: 1, RequestedModel: "x", Success: true})
 	assert.Nil(t, GlobalMetricsRuntime.Get(MakeMetricsKey(1, "x")))
 }
+
+
+func TestScheduleShadowWithoutCaptureSkipsPing(t *testing.T) {
+	clearRouteTables(t)
+	SetRoutingPriorityMode(model.RoutingPriorityModeModel)
+	ClearShadowCaptures()
+	// empty capture must not dispatch
+	ScheduleShadowProbeAfterProduction(nil, 1, "m")
+	// capture without user messages must not dispatch
+	ScheduleShadowProbeAfterProduction(&ProductionShadowCapture{
+		OriginModel: "m",
+		View:        ProductionRequestView{Messages: nil},
+	}, 1, "m")
+}

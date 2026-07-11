@@ -19,6 +19,24 @@ type ProductionOutcome struct {
 	TTFT              time.Duration
 	// FirstByteCommitted means response headers/body already exposed to client — cannot transparent-retry.
 	FirstByteCommitted bool
+	// Shadow is optional capture of the production request for billed shadow probes.
+	Shadow *ProductionShadowCapture
+}
+
+// ProductionShadowCapture carries enough of the production request to replay a full probe (not a simplified ping).
+// Executor is expected to hit upstream via the normal relay adaptor path so the provider bills.
+type ProductionShadowCapture struct {
+	View          ProductionRequestView
+	UserID        int
+	TokenID       int
+	TokenName     string
+	Group         string
+	RequestID     string
+	RequestPath   string
+	RelayFormat   string // types.RelayFormat string form when available
+	OriginModel   string
+	// MaxTokens from production when known; 0 means leave to executor/model defaults.
+	MaxTokens int
 }
 
 // ResolveEffectiveForChannel maps requested_model through channel mapping for MetricsKey.
@@ -79,8 +97,8 @@ func ApplyProductionOutcome(out ProductionOutcome) {
 	if out.StreamInterrupted {
 		RecordStreamInterruptionSample(m, true)
 		RecordProductionFailureSample(m)
-		// stay productive state-wise; soft signal only
 		_ = RefreshExperienceScore(m)
+		GlobalCalibrationPersister.MarkDirty(MakeMetricsKey(out.ChannelID, eff))
 		return
 	}
 
@@ -92,14 +110,13 @@ func ApplyProductionOutcome(out ProductionOutcome) {
 			RecordProductionTTFT(m, out.TTFT)
 		}
 		ApplyTransition(m, EventProductionSuccess, 0)
-		// promote bootstrap / none → primary after success
 		mk := MakeMetricsKey(out.ChannelID, eff)
 		role := GlobalRoles.Get(mk)
 		if role == model.RoleBootstrap || role == model.RoleNone {
 			GlobalRoles.Set(mk, model.RolePrimary)
 		}
 		_ = RefreshExperienceScore(m)
-		// critical success may snapshot later; invalidate plan soft
+		GlobalCalibrationPersister.MarkDirty(MakeMetricsKey(out.ChannelID, eff))
 		InvalidateRoutePlan(out.RequestedModel)
 		return
 	}
@@ -108,7 +125,6 @@ func ApplyProductionOutcome(out ProductionOutcome) {
 	RecordProductionFailureSample(m)
 	class, ev := ClassifyHTTPStatus(out.StatusCode)
 	if out.StatusCode == 0 {
-		// transport / unknown
 		class, ev = model.ErrorTemporary, EventTemporaryFail
 	}
 	switch class {
@@ -122,35 +138,61 @@ func ApplyProductionOutcome(out ProductionOutcome) {
 		RecordTemporaryErrorSample(m, false)
 	}
 	ApplyTransition(m, ev, 0)
-	// if entered PROBING via cooldown advance or OPEN, ensure probe queue has item
 	if st := m.State(); st == model.RouteProbing || st == model.RouteOpen || st == model.RouteRateLimited {
 		EnqueueFromMetrics(m, 0)
 	}
 	_ = RefreshExperienceScore(m)
+	GlobalCalibrationPersister.MarkDirty(MakeMetricsKey(out.ChannelID, eff))
+	// hard failures already SnapshotCritical via ApplyTransition; ensure dirty for soft fails
 	InvalidateRoutePlan(out.RequestedModel)
 }
 
 // ScheduleShadowProbeAfterProduction non-blocking schedules at most one due probe (PRD §12).
-func ScheduleShadowProbeAfterProduction(requestedModel, productionRequestID string, primaryChannelID int64, primaryEffective string) {
+// Requires a real production capture; does not invent simplified ping bodies.
+func ScheduleShadowProbeAfterProduction(capture *ProductionShadowCapture, primaryChannelID int64, primaryEffective string) {
 	if !IsModelPriorityMode() {
 		return
 	}
-	EnsureDefaultShadowWiring()
+	if capture == nil {
+		return
+	}
+	// Ensure external wiring (relay-billed executor) has been installed when available.
+	if WireShadowExecutor != nil {
+		WireShadowExecutor()
+	}
 	if GlobalShadowDispatcher == nil || GlobalShadowDispatcher.Executor == nil {
 		return
 	}
-	// default pure-text view when production body is not available on this hook
-	prod := &ProductionRequestView{
-		RequestedModel:          requestedModel,
-		Messages:                []ShadowMessage{{Role: "user", Text: "ping"}},
-		TextIndependentComplete: true,
+	// Reject empty / unprobeable content — no synthetic ping fallback.
+	if len(capture.View.Messages) == 0 {
+		return
 	}
+	hasUser := false
+	for _, m := range capture.View.Messages {
+		if m.Role == "user" && m.Text != "" {
+			hasUser = true
+			break
+		}
+	}
+	if !hasUser {
+		return
+	}
+	prod := &capture.View
+	if prod.RequestedModel == "" {
+		prod.RequestedModel = capture.OriginModel
+	}
+	// stash capture for executor via process-local last-capture map keyed by request id / model
+	RememberShadowCapture(capture)
 	exclude := model.MetricsKey{}
 	if primaryChannelID > 0 && primaryEffective != "" {
 		exclude = MakeMetricsKey(primaryChannelID, primaryEffective)
 	}
-	GlobalShadowDispatcher.MaybeDispatchShadowProbeAsync(prod, requestedModel, productionRequestID, exclude)
+	GlobalShadowDispatcher.MaybeDispatchShadowProbeAsync(prod, capture.OriginModel, capture.RequestID, exclude)
 }
+
+// WireShadowExecutor is set by the service layer to install a relay-billed executor.
+// modelroute never imports service (avoids cycles).
+var WireShadowExecutor func()
 
 // ApplyProductionOutcomeAsync runs ApplyProductionOutcome off the request path.
 func ApplyProductionOutcomeAsync(out ProductionOutcome) {
@@ -161,7 +203,46 @@ func ApplyProductionOutcomeAsync(out ProductionOutcome) {
 		ApplyProductionOutcome(out)
 		if out.Success {
 			eff, _ := ResolveEffectiveForChannel(out.ChannelID, out.RequestedModel, out.MappingJSON)
-			ScheduleShadowProbeAfterProduction(out.RequestedModel, "", out.ChannelID, eff)
+			ScheduleShadowProbeAfterProduction(out.Shadow, out.ChannelID, eff)
 		}
 	})
+}
+
+
+// AcquireProductionSlotForRequest takes a production concurrency slot for channel×model (PRD §19).
+// Returns nil slot when model_priority is off (caller should not track) or unlimited capacity always ok.
+// ok=false means limited and full — caller should try next candidate.
+func AcquireProductionSlotForRequest(channelID int64, requestedModel, mappingJSON string) (slot *ProductionSlot, metricsKey model.MetricsKey, ok bool) {
+	if !IsModelPriorityMode() || channelID <= 0 {
+		return nil, model.MetricsKey{}, true
+	}
+	eff, err := ResolveEffectiveForChannel(channelID, requestedModel, mappingJSON)
+	if err != nil || eff == "" {
+		eff = requestedModel
+	}
+	if eff == "" {
+		return nil, model.MetricsKey{}, true
+	}
+	mk := MakeMetricsKey(channelID, eff)
+	// ensure metrics exist so limits can be applied later
+	_ = EnsureRuntimeMetrics(channelID, eff)
+	s, acquired := GlobalConcurrency.TryAcquireProductionSlot(mk)
+	if !acquired {
+		return nil, mk, false
+	}
+	return s, mk, true
+}
+
+// NoteOverflowRoute records whether this attempt used overflow path for sticky stats (PRD §23).
+func NoteOverflowRoute(requestedModel string, channelID int64) {
+	if !IsModelPriorityMode() || requestedModel == "" {
+		return
+	}
+	usedOverflow := false
+	if lease := GlobalLeases.GetValidOverflowLease(requestedModel); lease != nil {
+		if lease.Candidate.ChannelID == channelID {
+			usedOverflow = true
+		}
+	}
+	GlobalConcurrency.RecordRouteOutcome(requestedModel, usedOverflow)
 }

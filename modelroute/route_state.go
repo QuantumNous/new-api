@@ -269,9 +269,18 @@ func ApplyTransition(m *model.ChannelModelMetrics, event TransitionEvent, retryA
 	if after != before {
 		m.UpdatedAt = now().Unix()
 		GlobalMetricsRuntime.Put(m)
+		// critical transitions persist immediately (PRD §17)
+		switch after {
+		case model.RouteOpen, model.RouteRateLimited, model.RouteManuallyDisabled,
+			model.RouteHealthy, model.RouteProbing, model.RouteRecovering:
+			_ = GlobalCalibrationPersister.SnapshotCritical(m)
+		default:
+			GlobalCalibrationPersister.MarkDirty(mk)
+		}
 		return true
 	}
 	GlobalMetricsRuntime.Put(m)
+	GlobalCalibrationPersister.MarkDirty(mk)
 	return false
 }
 

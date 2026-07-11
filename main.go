@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/modelroute"
 	"github.com/QuantumNous/new-api/oauth"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
@@ -62,6 +63,11 @@ func main() {
 	}
 
 	common.SysLog("New API " + common.Version + " started")
+	// model-route: install relay-billed shadow probe executor (no-op until model_priority)
+	controller.EnsureBilledShadowExecutor()
+	modelroute.WireShadowExecutor = controller.EnsureBilledShadowExecutor
+	modelroute.GlobalCalibrationPersister.StartPeriodicSnapshot(0)
+
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -237,6 +243,14 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(fmt.Sprintf("server forced to shutdown: %v", err))
 	}
+	// model-route: flush runtime metrics/calibration before exit (PRD §17)
+	if n, snapErr := modelroute.GlobalCalibrationPersister.SnapshotNow(); snapErr != nil {
+		common.SysError(fmt.Sprintf("modelroute snapshot on shutdown failed: %v", snapErr))
+	} else if n > 0 {
+		common.SysLog(fmt.Sprintf("modelroute snapshot on shutdown: %d rows", n))
+	}
+	modelroute.GlobalCalibrationPersister.StopPeriodicSnapshot()
+
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()
