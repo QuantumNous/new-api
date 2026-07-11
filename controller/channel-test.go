@@ -247,6 +247,13 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	info.IsChannelTest = true
 	info.InitChannelMeta(c)
 
+	// 与正常请求路径 (TextHelper) 保持一致：渠道开启 ForceStream 时，
+	// 强制上游流式并缓冲成单 JSON，使只支持流式的上游也能通过非流式测试。
+	// 仅对 chat completions 生效（OaiStreamBufferHandler 只处理该格式）。
+	if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
+		relay.ApplyForceStream(info, generalReq)
+	}
+
 	err = attachTestBillingRequestInput(info, request)
 	if err != nil {
 		return testResult{

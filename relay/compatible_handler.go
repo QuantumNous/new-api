@@ -22,6 +22,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ApplyForceStream forces stream:true upstream and marks the response for SSE
+// buffering when the channel has ForceStream enabled, the client requested
+// non-streaming, and pass-through is not active. It is shared by the normal
+// relay path (TextHelper) and the channel test path (testChannel) so that
+// stream-only upstreams behave identically in both.
+func ApplyForceStream(info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
+	if info.ChannelSetting.ForceStream &&
+		!info.ChannelSetting.PassThroughBodyEnabled &&
+		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
+		!lo.FromPtrOr(request.Stream, false) {
+		request.Stream = common.GetPointer(true)
+		info.ForceStreamBuffer = true
+	}
+}
+
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
@@ -35,17 +50,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	// If the channel is configured to force streaming upstream but the client
-	// requested non-streaming, force stream:true upstream and buffer the SSE
-	// response into a single non-stream JSON for the client. This is
-	// incompatible with pass-through mode, which sends the raw body as-is.
-	if info.ChannelSetting.ForceStream &&
-		!info.ChannelSetting.PassThroughBodyEnabled &&
-		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
-		!lo.FromPtrOr(request.Stream, false) {
-		request.Stream = common.GetPointer(true)
-		info.ForceStreamBuffer = true
-	}
+	ApplyForceStream(info, request)
 
 	if request.WebSearchOptions != nil {
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
