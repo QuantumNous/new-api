@@ -121,9 +121,10 @@ type channelPricingResolveContext struct {
 	ModelPriceRatios    *string
 }
 
-// EffectivePriceRatio 返回该模型的生效用户价倍率：模型行 > 1.0（未配置不加价）。
+// EffectivePriceRatio 返回该模型的生效用户价倍率：模型覆盖 > 渠道默认 > 1.0。
 func (ctx channelPricingResolveContext) EffectivePriceRatio(modelName string) float64 {
-	return EffectiveModelPriceRatio(ctx.ModelPriceRatios, modelName)
+	channelRatio := ctx.ApimasterPriceRatio
+	return EffectiveModelPriceRatio(ctx.ModelPriceRatios, &channelRatio, modelName)
 }
 
 func loadChannelPricingResolveContext(channelID int) (channelPricingResolveContext, error) {
