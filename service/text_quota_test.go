@@ -411,8 +411,8 @@ func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {
 
 	t.Run("uncached remainder clamps to zero", func(t *testing.T) {
 		// Real OpenAI payload shape: cached_tokens + cache_write_tokens exceeds
-		// prompt_tokens, so the uncached remainder must clamp to 0 instead of
-		// producing a negative charge component.
+		// prompt_tokens because both are unadjusted prefix counts. The negative
+		// remainder must clamp to zero, never turn into a negative base charge.
 		usage := &dto.Usage{
 			PromptTokens:     3619,
 			CompletionTokens: 36,
