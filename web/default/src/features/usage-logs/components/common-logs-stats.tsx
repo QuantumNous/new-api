@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatLogQuota } from '@/lib/format'
+import { formatQuotaWithCurrency } from '@/lib/currency'
 
 import { getLogStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
@@ -96,7 +96,15 @@ export function CommonLogsStats() {
       <StatBadge
         label={t('Usage')}
         tone='usage'
-        value={sensitiveVisible ? formatLogQuota(stats?.quota || 0) : '••••'}
+        value={
+          sensitiveVisible
+            ? formatQuotaWithCurrency(stats?.quota || 0, {
+                digitsLarge: 2,
+                digitsSmall: 6,
+                abbreviate: false,
+              })
+            : '••••'
+        }
       />
       <StatBadge label={t('RPM')} tone='rpm' value={stats?.rpm || 0} />
       <StatBadge label={t('TPM')} tone='tpm' value={stats?.tpm || 0} />
