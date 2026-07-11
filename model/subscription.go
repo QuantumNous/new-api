@@ -178,6 +178,9 @@ type SubscriptionPlan struct {
 	// Downgrade user group on expiry (empty = revert to the group held before purchase)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
+	// Restrict subscription quota to these groups, comma separated (empty = usable in any group)
+	QuotaUsableGroups string `json:"quota_usable_groups" gorm:"type:varchar(255);default:''"`
+
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
 
@@ -208,6 +211,32 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 	if p.AllowWalletOverflow == nil {
 		p.AllowWalletOverflow = common.GetPointer(true)
 	}
+}
+
+// QuotaUsableGroupList 返回套餐额度可用分组列表（逗号分隔，空 = 不限制）。
+func (p *SubscriptionPlan) QuotaUsableGroupList() []string {
+	raw := strings.Split(p.QuotaUsableGroups, ",")
+	groups := make([]string, 0, len(raw))
+	for _, g := range raw {
+		if g = strings.TrimSpace(g); g != "" {
+			groups = append(groups, g)
+		}
+	}
+	return groups
+}
+
+// IsQuotaUsableForGroup 判断套餐额度是否可用于指定分组（未配置可用分组时不限制）。
+func (p *SubscriptionPlan) IsQuotaUsableForGroup(group string) bool {
+	groups := p.QuotaUsableGroupList()
+	if len(groups) == 0 {
+		return true
+	}
+	for _, g := range groups {
+		if g == group {
+			return true
+		}
+	}
+	return false
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)
@@ -869,6 +898,31 @@ func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
 	return strictCount == 0, nil
 }
 
+// UserHasUsableSubscriptionForGroup 返回用户是否存在额度可用于指定分组的活跃订阅
+// （套餐未配置额度可用分组时视为不限制）。
+func UserHasUsableSubscriptionForGroup(userId int, group string) (bool, error) {
+	if userId <= 0 {
+		return false, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var subs []UserSubscription
+	if err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Find(&subs).Error; err != nil {
+		return false, err
+	}
+	for _, sub := range subs {
+		plan, err := GetSubscriptionPlanById(sub.PlanId)
+		if err != nil {
+			// 套餐缺失的订阅无法消耗，跳过
+			continue
+		}
+		if plan.IsQuotaUsableForGroup(group) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
 func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	if userId <= 0 {
@@ -1270,7 +1324,7 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+func PreConsumeUserSubscription(requestId string, userId int, modelName string, group string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1321,6 +1375,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			// 套餐配置了额度可用分组时，跳过不适用于当前请求分组的订阅
+			if !plan.IsQuotaUsableForGroup(group) {
+				continue
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err

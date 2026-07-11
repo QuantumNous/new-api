@@ -477,6 +477,30 @@ export function SubscriptionsMutateDrawer({
 
                 <FormField
                   control={form.control}
+                  name='quota_usable_groups'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Quota Usable Groups')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder={t(
+                            'Comma-separated group names (empty = no restriction)'
+                          )}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Subscription quota is only usable in these groups; requests in other groups are billed from wallet balance'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name='max_purchase_per_user'
                   render={({ field }) => (
                     <FormItem>

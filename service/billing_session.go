@@ -387,6 +387,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 				requestId: relayInfo.RequestId,
 				userId:    relayInfo.UserId,
 				modelName: relayInfo.OriginModelName,
+				group:     relayInfo.UsingGroup,
 				amount:    subConsume,
 			},
 		}
@@ -415,11 +416,13 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId)
+		// 无活跃订阅，或订阅套餐限定了额度可用分组且当前请求分组不匹配时，
+		// 直接走钱包（分组不匹配不属于额度耗尽，不受 allow_wallet_overflow 限制）
+		hasUsableSub, subCheckErr := model.UserHasUsableSubscriptionForGroup(relayInfo.UserId, relayInfo.UsingGroup)
 		if subCheckErr != nil {
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
-		if !hasSub {
+		if !hasUsableSub {
 			return tryWallet()
 		}
 		session, apiErr := trySubscription()
