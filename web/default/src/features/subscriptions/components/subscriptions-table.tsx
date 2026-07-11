@@ -53,6 +53,7 @@ export function SubscriptionsTable() {
     <DataTablePage
       table={table}
       columns={columns}
+      tableLabel={t('Subscriptions')}
       isLoading={isLoading}
       emptyTitle={t('No subscription plans yet')}
       emptyDescription={t(

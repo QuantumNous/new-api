@@ -20,7 +20,7 @@ import { Calendar as CalendarIcon } from 'lucide-react'
 import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import { Calendar } from '@/components/ui/calendar'
 import {
   Popover,

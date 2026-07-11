@@ -79,7 +79,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
       )}
     >
       <div title={t('Average latency')} className='min-w-0'>
-        <div className='text-muted-foreground/55 text-[10px] leading-4'>
+        <div className='text-muted-foreground/55 text-xs leading-4'>
           {t('Latency short')}
         </div>
         <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
@@ -87,7 +87,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         </div>
       </div>
       <div title={t('Throughput')} className='min-w-0'>
-        <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
+        <div className='text-muted-foreground/55 truncate text-xs leading-4'>
           {t('Throughput short')}
         </div>
         <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
@@ -98,7 +98,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         title={`${t('Success rate')}: ${success_rate.toFixed(1)}%`}
         className='min-w-0'
       >
-        <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
+        <div className='text-muted-foreground/55 truncate text-xs leading-4'>
           {t('Status short')}
         </div>
         <div className='flex h-4 items-center justify-end gap-0.5'>

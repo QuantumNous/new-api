@@ -26,8 +26,8 @@ import {
   useContext,
 } from 'react'
 
+import { Button } from '@/components/design-system/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 // Workaround for missing types in 'ai' package
@@ -169,5 +169,5 @@ export const ConfirmationActions = ({
 export type ConfirmationActionProps = ComponentProps<typeof Button>
 
 export const ConfirmationAction = (props: ConfirmationActionProps) => (
-  <Button className='h-8 px-3 text-sm' type='button' {...props} />
+  <Button type='button' {...props} />
 )

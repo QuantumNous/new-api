@@ -22,7 +22,7 @@ import { type LucideIcon, XIcon } from 'lucide-react'
 import type { ComponentProps, HTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   Tooltip,
   TooltipContent,
@@ -63,17 +63,14 @@ export type ArtifactCloseProps = ComponentProps<typeof Button>
 export const ArtifactClose = ({
   className,
   children,
-  size = 'sm',
+  size = 'icon',
   variant = 'ghost',
   ...props
 }: ArtifactCloseProps) => {
   const { t } = useTranslation()
   return (
     <Button
-      className={cn(
-        'text-muted-foreground hover:text-foreground size-8 p-0',
-        className
-      )}
+      className={cn('text-muted-foreground hover:text-foreground', className)}
       size={size}
       type='button'
       variant={variant}
@@ -124,16 +121,13 @@ export const ArtifactAction = ({
   icon: Icon,
   children,
   className,
-  size = 'sm',
+  size = 'icon',
   variant = 'ghost',
   ...props
 }: ArtifactActionProps) => {
   const button = (
     <Button
-      className={cn(
-        'text-muted-foreground hover:text-foreground size-8 p-0',
-        className
-      )}
+      className={cn('text-muted-foreground hover:text-foreground', className)}
       size={size}
       type='button'
       variant={variant}

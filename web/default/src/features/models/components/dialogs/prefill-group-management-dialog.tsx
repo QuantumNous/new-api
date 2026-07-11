@@ -32,11 +32,12 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -196,7 +197,7 @@ export function PrefillGroupManagementDialog({
               <div className='space-y-2'>
                 <CardTitle className='flex flex-wrap items-center gap-2'>
                   {group.name}
-                  <StatusBadge variant={meta.badge} size='sm' copyable={false}>
+                  <StatusBadge variant={meta.badge} size='sm'>
                     {meta.label}
                     <span className='text-muted-foreground/30'>·</span>
                     <span className='text-muted-foreground font-mono'>
@@ -238,30 +239,21 @@ export function PrefillGroupManagementDialog({
             <CardContent className='space-y-3'>
               <div className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide uppercase'>
                 <span>Items</span>
-                <StatusBadge
-                  label={`${parsedItems.length} item${parsedItems.length === 1 ? '' : 's'}`}
-                  variant='neutral'
-                  size='sm'
-                  copyable={false}
-                />
+                <Badge variant='outline'>
+                  {`${parsedItems.length} item${parsedItems.length === 1 ? '' : 's'}`}
+                </Badge>
               </div>
               {parsedItems.length > 0 ? (
                 <div className='flex flex-wrap gap-2'>
                   {parsedItems.slice(0, 6).map((item) => (
-                    <StatusBadge
-                      key={item}
-                      label={item}
-                      autoColor={item}
-                      size='sm'
-                    />
+                    <StatusBadge key={item} variant='neutral' size='sm'>
+                      {item}
+                    </StatusBadge>
                   ))}
                   {parsedItems.length > 6 && (
-                    <StatusBadge
-                      label={`+${parsedItems.length - 6} more`}
-                      variant='neutral'
-                      size='sm'
-                      copyable={false}
-                    />
+                    <StatusBadge variant='neutral' size='sm'>
+                      {`+${parsedItems.length - 6} more`}
+                    </StatusBadge>
                   )}
                 </div>
               ) : (
@@ -310,12 +302,9 @@ export function PrefillGroupManagementDialog({
             header: t('Type'),
             cellClassName: 'align-top',
             cell: ({ meta }) => (
-              <StatusBadge
-                label={meta.label}
-                variant={meta.badge}
-                size='sm'
-                copyable={false}
-              />
+              <StatusBadge variant={meta.badge} size='sm'>
+                {meta.label}
+              </StatusBadge>
             ),
           },
           {
@@ -329,20 +318,14 @@ export function PrefillGroupManagementDialog({
                   {parsedItems.length > 0 ? (
                     <>
                       {parsedItems.slice(0, 6).map((item) => (
-                        <StatusBadge
-                          key={item}
-                          label={item}
-                          autoColor={item}
-                          size='sm'
-                        />
+                        <StatusBadge key={item} variant='neutral' size='sm'>
+                          {item}
+                        </StatusBadge>
                       ))}
                       {parsedItems.length > 6 && (
-                        <StatusBadge
-                          label={`+${parsedItems.length - 6} more`}
-                          variant='neutral'
-                          size='sm'
-                          copyable={false}
-                        />
+                        <StatusBadge variant='neutral' size='sm'>
+                          {`+${parsedItems.length - 6} more`}
+                        </StatusBadge>
                       )}
                     </>
                   ) : (
@@ -408,12 +391,11 @@ export function PrefillGroupManagementDialog({
       >
         <div className='bg-muted/30 flex flex-wrap items-center justify-between gap-3 rounded-md border p-2 text-sm'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button size='sm' onClick={onCreateGroup}>
+            <Button onClick={onCreateGroup}>
               <Plus className='mr-2 h-4 w-4' />
               {t('New Group')}
             </Button>
             <Button
-              size='sm'
               variant='ghost'
               onClick={() => refetchGroups()}
               disabled={isFetching}
@@ -426,11 +408,9 @@ export function PrefillGroupManagementDialog({
               {t('Refresh')}
             </Button>
           </div>
-          <StatusBadge
-            label={`${groups.length} group${groups.length === 1 ? '' : 's'}`}
-            variant='neutral'
-            copyable={false}
-          />
+          <Badge variant='outline'>
+            {`${groups.length} group${groups.length === 1 ? '' : 's'}`}
+          </Badge>
         </div>
 
         <div className='flex flex-col gap-3'>

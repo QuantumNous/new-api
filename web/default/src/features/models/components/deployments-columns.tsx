@@ -21,9 +21,9 @@ import { Eye, Info, Pencil, Settings2, Timer, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
-import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/design-system/button'
+import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -53,7 +53,12 @@ export function useDeploymentsColumns(opts: {
     {
       accessorKey: 'id',
       header: t('ID'),
-      meta: { mobileHidden: true },
+      meta: {
+        cardRole: 'secondary',
+        cardOrder: 10,
+        cardSpan: 2,
+        contentMode: 'full',
+      },
       cell: ({ row }) => {
         const id = row.original.id
         return <TableId value={id} />
@@ -65,17 +70,17 @@ export function useDeploymentsColumns(opts: {
       accessorFn: (row) =>
         row.container_name || row.deployment_name || row.name || '',
       header: t('Name'),
-      meta: { mobileTitle: true },
+      meta: {
+        cardRole: 'title',
+        cardSpan: 2,
+        contentMode: 'wrap',
+      },
       cell: ({ getValue }) => {
         const name = String(getValue() || '-') || '-'
         return (
-          <StatusBadge
-            label={name}
-            variant='neutral'
-            copyText={name}
-            size='sm'
-            className='-ml-1.5 font-mono'
-          />
+          <CopyableStatusBadge value={name} variant='neutral' size='sm'>
+            {name}
+          </CopyableStatusBadge>
         )
       },
       minSize: 220,
@@ -83,7 +88,7 @@ export function useDeploymentsColumns(opts: {
     {
       accessorKey: 'status',
       header: t('Status'),
-      meta: { mobileBadge: true },
+      meta: { cardRole: 'badge', contentMode: 'wrap' },
       cell: ({ row }) => {
         const raw = row.original.status
         const key = normalizeDeploymentStatus(raw)
@@ -93,13 +98,9 @@ export function useDeploymentsColumns(opts: {
           variant: 'neutral' as const,
         }
         return (
-          <StatusBadge
-            label={config.label}
-            variant={config.variant}
-            size='sm'
-            copyable={false}
-            className='-ml-1.5'
-          />
+          <StatusBadge variant={config.variant} size='sm'>
+            {config.label}
+          </StatusBadge>
         )
       },
       filterFn: (row, id, value) => {
@@ -125,17 +126,19 @@ export function useDeploymentsColumns(opts: {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
         return (
-          <StatusBadge
-            label={String(provider)}
-            autoColor={String(provider)}
-            size='sm'
-            copyable={false}
-            className='-ml-1.5'
-          />
+          <StatusBadge variant='neutral' size='sm'>
+            {String(provider)}
+          </StatusBadge>
         )
       },
       size: 140,
       enableSorting: false,
+      meta: {
+        cardRole: 'primary',
+        cardOrder: 10,
+        cardSpan: 2,
+        contentMode: 'wrap',
+      },
     },
     {
       accessorKey: 'time_remaining',
@@ -168,12 +171,9 @@ export function useDeploymentsColumns(opts: {
             <div className='flex flex-wrap items-center gap-2'>
               <span className='font-medium'>{remainingText}</span>
               {status === 'running' && percentRemain !== null ? (
-                <StatusBadge
-                  label={`${percentRemain}%`}
-                  variant='info'
-                  size='sm'
-                  copyable={false}
-                />
+                <StatusBadge variant='info' size='sm'>
+                  {`${percentRemain}%`}
+                </StatusBadge>
               ) : null}
             </div>
             {remainingHuman ? (
@@ -186,11 +186,22 @@ export function useDeploymentsColumns(opts: {
       },
       minSize: 220,
       enableSorting: false,
+      meta: {
+        cardRole: 'primary',
+        cardOrder: 20,
+        cardSpan: 2,
+        contentMode: 'full',
+      },
     },
     {
       id: 'hardware',
       header: t('Hardware'),
-      meta: { mobileHidden: true },
+      meta: {
+        cardRole: 'secondary',
+        cardOrder: 20,
+        cardSpan: 2,
+        contentMode: 'wrap',
+      },
       accessorFn: (row) =>
         row.hardware_info || row.hardware_name || row.brand_name || '',
       cell: ({ row }) => {
@@ -207,13 +218,14 @@ export function useDeploymentsColumns(opts: {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
         return (
-          <div className='flex max-w-full min-w-0 flex-nowrap items-center gap-2 overflow-hidden'>
-            <StatusBadge
-              label={String(hardware)}
+          <div className='flex max-w-full min-w-0 flex-wrap items-center gap-2'>
+            <CopyableStatusBadge
+              value={String(hardware)}
               variant='neutral'
-              copyText={String(hardware)}
               size='sm'
-            />
+            >
+              {String(hardware)}
+            </CopyableStatusBadge>
             {qty !== null ? (
               <span className='text-muted-foreground text-xs'>×{qty}</span>
             ) : null}
@@ -226,7 +238,11 @@ export function useDeploymentsColumns(opts: {
     {
       accessorKey: 'created_at',
       header: t('Created'),
-      meta: { mobileHidden: true },
+      meta: {
+        cardRole: 'secondary',
+        cardOrder: 30,
+        contentMode: 'full',
+      },
       cell: ({ row }) => {
         let ts: number | undefined
         if (typeof row.original.created_at === 'number') {

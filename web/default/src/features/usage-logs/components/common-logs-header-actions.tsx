@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   Tooltip,
   TooltipContent,
@@ -48,10 +48,10 @@ export function CommonLogsHeaderActions() {
           render={
             <Button
               variant='ghost'
-              size='icon'
+              size='icon-sm'
               onClick={() => setSensitiveVisible(!sensitiveVisible)}
               aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-              className='text-muted-foreground hover:text-foreground size-7'
+              className='text-muted-foreground hover:text-foreground'
             />
           }
         >

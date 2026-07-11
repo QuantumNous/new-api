@@ -25,7 +25,7 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -33,17 +33,22 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
 
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 import { useUpstreamRatioSyncColumns } from './upstream-ratio-sync-columns'
 import {
+  getAlignedRatioTypes,
+  getEffectiveResolutionSelections,
   getOrderedRatioTypes,
-  getPreferredSyncField,
+  getUpstreamDisplayName,
+  isSelectedResolutionValue,
   isSelectableUpstreamValue,
   RATIO_SYNC_FIELDS,
   type ModelRow,
+  type ResolutionRemovalPlan,
+  type ResolutionSelection,
   type ResolutionsMap,
 } from './upstream-ratio-sync-helpers'
 
@@ -58,7 +63,17 @@ type UpstreamRatioSyncTableProps = {
     value: number | string,
     sourceName: string
   ) => void
+  onSelectValues: (selections: ResolutionSelection[]) => void
   onUnselectValue: (model: string, ratioType: RatioType) => void
+  onUnselectValues: (plan: ResolutionRemovalPlan) => void
+}
+
+export type UpstreamBulkSelectState = {
+  displayName: string
+  selections: ResolutionSelection[]
+  removalPlan: ResolutionRemovalPlan
+  selectableCount: number
+  selectedCount: number
 }
 
 export function UpstreamRatioSyncTable({
@@ -67,7 +82,9 @@ export function UpstreamRatioSyncTable({
   isDisabled,
   isSyncing,
   onSelectValue,
+  onSelectValues,
   onUnselectValue,
+  onUnselectValues,
 }: UpstreamRatioSyncTableProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
@@ -112,57 +129,88 @@ export function UpstreamRatioSyncTable({
         }
       )
     })
-    return Array.from(set)
+    return [...set]
   }, [filteredData, ratioTypeFilter])
 
-  const handleBulkSelect = useCallback(
-    (upstream: string, rows: ModelRow[]) => {
-      rows.forEach((row) => {
-        getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
-          (ratioType) => {
-            const upstreamVal = row.ratioTypes[ratioType]?.upstreams?.[upstream]
-            const preferredField = getPreferredSyncField(
-              row.ratioTypes,
-              ratioType,
-              upstream
-            )
-            if (
-              preferredField === ratioType &&
-              isSelectableUpstreamValue(upstreamVal)
-            ) {
-              onSelectValue(
-                row.model,
+  const bulkSelectStateByUpstream = useMemo<
+    Record<string, UpstreamBulkSelectState>
+  >(() => {
+    return upstreamNames.reduce<Record<string, UpstreamBulkSelectState>>(
+      (states, upstreamName) => {
+        const selections: ResolutionSelection[] = []
+        const removalPlan: ResolutionRemovalPlan = new Map()
+
+        filteredData.forEach((row) => {
+          getAlignedRatioTypes(
+            row.ratioTypes,
+            [upstreamName],
+            ratioTypeFilter
+          ).forEach((ratioType) => {
+            const upstreamVal =
+              row.ratioTypes[ratioType]?.upstreams?.[upstreamName]
+            if (isSelectableUpstreamValue(upstreamVal)) {
+              selections.push({
+                model: row.model,
                 ratioType,
-                upstreamVal as number | string,
-                upstream
-              )
+                value: upstreamVal as number | string,
+                sourceName: upstreamName,
+              })
+              const removalRatioTypes = removalPlan.get(row.model)
+              if (removalRatioTypes) {
+                removalRatioTypes.add(ratioType)
+              } else {
+                removalPlan.set(row.model, new Set([ratioType]))
+              }
             }
-          }
+          })
+        })
+
+        const effectiveSelections = getEffectiveResolutionSelections(
+          differences,
+          selections
         )
-      })
+        const selectedCount = effectiveSelections.filter((selection) =>
+          isSelectedResolutionValue(
+            resolutions,
+            selection.model,
+            selection.ratioType,
+            selection.value
+          )
+        ).length
+
+        states[upstreamName] = {
+          displayName: getUpstreamDisplayName(upstreamName),
+          selections: effectiveSelections,
+          removalPlan,
+          selectableCount: effectiveSelections.length,
+          selectedCount,
+        }
+        return states
+      },
+      {}
+    )
+  }, [differences, filteredData, ratioTypeFilter, resolutions, upstreamNames])
+
+  const handleBulkSelect = useCallback(
+    (upstream: string) => {
+      const selections = bulkSelectStateByUpstream[upstream]?.selections ?? []
+      onSelectValues(selections)
     },
-    [ratioTypeFilter, onSelectValue]
+    [bulkSelectStateByUpstream, onSelectValues]
   )
 
   const handleBulkUnselect = useCallback(
-    (upstream: string, rows: ModelRow[]) => {
-      rows.forEach((row) => {
-        getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
-          (ratioType) => {
-            if (
-              row.ratioTypes[ratioType]?.upstreams?.[upstream] !== undefined
-            ) {
-              onUnselectValue(row.model, ratioType)
-            }
-          }
-        )
-      })
+    (upstream: string) => {
+      const removalPlan =
+        bulkSelectStateByUpstream[upstream]?.removalPlan ?? new Map()
+      onUnselectValues(removalPlan)
     },
-    [ratioTypeFilter, onUnselectValue]
+    [bulkSelectStateByUpstream, onUnselectValues]
   )
 
   const columns = useUpstreamRatioSyncColumns(
     upstreamNames,
+    bulkSelectStateByUpstream,
     resolutions,
     ratioTypeFilter,
     isDisabled,
@@ -176,7 +224,7 @@ export function UpstreamRatioSyncTable({
     data: filteredData,
     columns,
     getRowId: (row) => row.key,
-    initialPagination: { pageIndex: 0, pageSize: 10 },
+    initialPagination: { pageIndex: 0, pageSize: 20 },
     withFilteredRowModel: false,
     withSortedRowModel: false,
     withFacetedRowModel: false,
@@ -209,8 +257,8 @@ export function UpstreamRatioSyncTable({
   }
 
   return (
-    <div className='space-y-4'>
-      <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+    <div className='flex h-full min-h-[520px] flex-col gap-4'>
+      <div className='flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center'>
         <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2' />
           <Input
@@ -251,15 +299,23 @@ export function UpstreamRatioSyncTable({
 
       <DataTableView
         table={table}
-        containerClassName='rounded-md'
-        tableContainerClassName='overflow-x-auto'
-        getColumnClassName={() => 'align-top'}
+        containerClassName='min-h-0 flex-1 rounded-md'
+        tableContainerClassName='h-full min-h-0'
+        tableHeaderClassName='[background-color:var(--table-header)]'
+        splitHeaderScrollClassName='h-full'
+        bodyContainerClassName='[scrollbar-gutter:stable]'
+        splitHeader
+        getColumnClassName={(_, part) =>
+          part === 'header' ? 'h-11 align-middle' : 'align-top'
+        }
         getRowClassName={() => 'align-top'}
         emptyContent={t('No results found')}
         emptyCellClassName='h-24 text-center'
       />
 
-      <DataTablePagination table={table} />
+      <div className='shrink-0'>
+        <DataTablePagination table={table} />
+      </div>
     </div>
   )
 }

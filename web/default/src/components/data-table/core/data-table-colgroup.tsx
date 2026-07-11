@@ -27,7 +27,8 @@ export function DataTableColgroup<TData>({
 }) {
   const columns = table.getVisibleLeafColumns()
   const sizedColumns = columns.filter(
-    (column) => !isContentSizedColumn(column.id)
+    (column) =>
+      !isContentSizedColumn(column.id, column.columnDef.meta?.contentSized)
   )
   const totalSize = sizedColumns.reduce((sum, col) => sum + col.getSize(), 0)
 
@@ -38,7 +39,8 @@ export function DataTableColgroup<TData>({
           table,
           column.id,
           column.getSize(),
-          totalSize
+          totalSize,
+          column.columnDef.meta?.contentSized
         )
 
         return <col key={column.id} style={{ width }} />
@@ -51,9 +53,10 @@ function getColumnWidth<TData>(
   table: TanstackTable<TData>,
   columnId: string,
   columnSize: number,
-  totalSize: number
+  totalSize: number,
+  contentSized?: boolean
 ) {
-  if (isContentSizedColumn(columnId)) {
+  if (isContentSizedColumn(columnId, contentSized)) {
     return undefined
   }
 

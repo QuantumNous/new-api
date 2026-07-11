@@ -21,38 +21,35 @@ import { cn } from '@/lib/utils'
 
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 
-type ProviderBadgeProps = Omit<StatusBadgeProps, 'children' | 'label'> & {
+type ProviderBadgeProps = Omit<StatusBadgeProps, 'children' | 'variant'> & {
   iconKey?: string | null
-  iconSize?: number
   label: string
-  /** Color the label text by provider name. Set false for a neutral label. */
-  colorText?: boolean
 }
 
 export function ProviderBadge({
   className,
   iconKey,
-  iconSize = 14,
   label,
-  colorText = true,
   ...badgeProps
 }: ProviderBadgeProps) {
-  const icon = iconKey ? getLobeIcon(iconKey, iconSize) : null
+  const icon = iconKey ? getLobeIcon(iconKey, 12) : null
 
   return (
-    <div
-      data-slot='provider-badge'
-      className={cn('flex max-w-full min-w-0 items-center gap-1.5', className)}
+    <StatusBadge
+      {...badgeProps}
+      variant='neutral'
+      className={cn('shrink-0 overflow-visible', className)}
     >
-      {icon && <span className='flex shrink-0 items-center'>{icon}</span>}
-      <StatusBadge
-        label={label}
-        autoColor={colorText ? label : undefined}
-        variant={colorText ? undefined : 'neutral'}
-        size='sm'
-        className={cn('min-w-0 shrink overflow-hidden', !icon && 'pl-0')}
-        {...badgeProps}
-      />
-    </div>
+      {icon && (
+        <span
+          data-icon='inline-start'
+          className='flex items-center'
+          aria-hidden='true'
+        >
+          {icon}
+        </span>
+      )}
+      {label}
+    </StatusBadge>
   )
 }

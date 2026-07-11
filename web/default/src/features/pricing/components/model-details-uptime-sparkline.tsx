@@ -128,7 +128,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
       {showOverall && (
         <span
           className={cn(
-            'font-mono text-sm font-semibold tabular-nums',
+            'text-sm font-semibold tabular-nums',
             getSuccessRateTextClass(overall)
           )}
         >
@@ -164,13 +164,11 @@ export function UptimeStatusRow(props: {
         : AlertCircle
 
   const statusColour =
-    status === 'operational'
-      ? 'text-emerald-600 dark:text-emerald-400'
-      : status === 'minor'
-        ? 'text-emerald-600 dark:text-emerald-400'
-        : status === 'degraded'
-          ? 'text-amber-600 dark:text-amber-400'
-          : 'text-rose-600 dark:text-rose-400'
+    status === 'operational' || status === 'minor'
+      ? 'text-success'
+      : status === 'degraded'
+        ? 'text-warning'
+        : 'text-destructive'
 
   const statusLabel =
     status === 'operational'

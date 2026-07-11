@@ -21,9 +21,9 @@ import { X, User, Wallet, LogOut } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
@@ -135,7 +135,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
         <Button
           variant='ghost'
           onClick={() => setSignOutOpen(true)}
-          className='text-destructive hover:text-destructive/80 h-auto w-full justify-start gap-2.5 p-2.5 hover:bg-transparent'
+          className='text-destructive hover:text-destructive/80 h-auto w-full justify-start gap-2.5 p-2.5 hover:bg-transparent sm:h-auto'
         >
           <LogOut className='size-4' />
           {t('Sign out')}
@@ -159,8 +159,7 @@ function MobileSignInButton({ onNavigate }: MobileSignInButtonProps) {
   return (
     <Button
       variant='secondary'
-      size='sm'
-      className='h-10 w-full'
+      className='w-full'
       render={<Link to='/sign-in' onClick={onNavigate} />}
     >
       {t('Sign in')}

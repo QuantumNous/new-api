@@ -65,6 +65,11 @@ export type DataTablePageProps<TData> = {
   columns: ColumnDef<TData, unknown>[]
 
   /**
+   * Localized accessible name for the keyboard-scrollable table region.
+   */
+  tableLabel?: string
+
+  /**
    * Initial loading state — renders {@link TableSkeleton} or mobile skeleton.
    */
   isLoading?: boolean
@@ -319,6 +324,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
     <>
       <div
         className={cn(
+          'w-full min-w-0',
           props.fixedHeight !== false
             ? 'flex h-full min-h-0 flex-col gap-2.5 sm:gap-3'
             : 'space-y-2.5 sm:space-y-3',
@@ -406,6 +412,7 @@ function renderMobile<TData>(
           isLoading={props.isLoading}
           emptyTitle={props.emptyTitle}
           emptyDescription={props.emptyDescription}
+          scrollLabel={props.tableLabel}
           emptyIcon={props.emptyIcon}
           emptyAction={props.emptyAction}
           skeletonKeyPrefix={props.skeletonKeyPrefix}
@@ -417,11 +424,7 @@ function renderMobile<TData>(
           )}
           getColumnClassName={props.getColumnClassName}
           pinnedColumns={props.pinnedColumns}
-          containerClassName={cn(
-            'transition-opacity duration-150',
-            isFetchingOnly && 'pointer-events-none opacity-60',
-            props.tableClassName
-          )}
+          containerClassName={props.tableClassName}
           getRowClassName={(row) =>
             props.getRowClassName?.(row, { isMobile: false })
           }
@@ -435,6 +438,7 @@ function renderMobile<TData>(
           emptyTitle={props.emptyTitle}
           emptyDescription={props.emptyDescription}
           emptyIcon={props.emptyIcon}
+          emptyAction={props.emptyAction}
           renderCard={props.renderCard}
           gridClassName={props.cardGridClassName ?? 'grid grid-cols-1 gap-3'}
           skeletonKeyPrefix={props.skeletonKeyPrefix}
@@ -449,6 +453,8 @@ function renderMobile<TData>(
           isLoading={props.isLoading}
           emptyTitle={props.emptyTitle}
           emptyDescription={props.emptyDescription}
+          emptyIcon={props.emptyIcon}
+          emptyAction={props.emptyAction}
           getRowKey={props.mobileProps?.getRowKey}
           getRowClassName={mobileGetRowClassName}
         />
@@ -456,7 +462,17 @@ function renderMobile<TData>(
     }
   }
 
-  return <div className='min-h-0 flex-1 overflow-y-auto'>{mobileContent}</div>
+  return (
+    <div
+      aria-busy={props.isLoading || props.isFetching || undefined}
+      className={cn(
+        'min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto transition-opacity duration-150',
+        isFetchingOnly && 'opacity-60'
+      )}
+    >
+      {mobileContent}
+    </div>
+  )
 }
 
 function renderDesktop<TData>(
@@ -478,8 +494,9 @@ function renderDesktop<TData>(
         className={cn(
           fixedHeight && 'min-h-0 flex-1 overflow-y-auto',
           'transition-opacity duration-150',
-          isFetchingOnly && 'pointer-events-none opacity-60'
+          isFetchingOnly && 'opacity-60'
         )}
+        aria-busy={props.isLoading || props.isFetching || undefined}
       >
         <DataTableCardGrid
           table={props.table}
@@ -487,6 +504,7 @@ function renderDesktop<TData>(
           emptyTitle={props.emptyTitle}
           emptyDescription={props.emptyDescription}
           emptyIcon={props.emptyIcon}
+          emptyAction={props.emptyAction}
           renderCard={props.renderCard}
           gridClassName={props.cardGridClassName}
           skeletonKeyPrefix={props.skeletonKeyPrefix}
@@ -504,6 +522,7 @@ function renderDesktop<TData>(
       isLoading={props.isLoading}
       emptyTitle={props.emptyTitle}
       emptyDescription={props.emptyDescription}
+      scrollLabel={props.tableLabel}
       emptyIcon={props.emptyIcon}
       emptyAction={props.emptyAction}
       skeletonKeyPrefix={props.skeletonKeyPrefix}
@@ -520,9 +539,12 @@ function renderDesktop<TData>(
       containerClassName={cn(
         fixedHeight && 'min-h-0 flex-1',
         'transition-opacity duration-150',
-        isFetchingOnly && 'pointer-events-none opacity-60',
+        isFetchingOnly && 'opacity-60',
         props.tableClassName
       )}
+      containerProps={{
+        'aria-busy': props.isLoading || props.isFetching || undefined,
+      }}
       getRowClassName={(row) =>
         props.getRowClassName?.(row, { isMobile: false })
       }

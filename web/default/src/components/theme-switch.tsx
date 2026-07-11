@@ -20,7 +20,7 @@ import { Check, Moon, Sun } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,21 +32,19 @@ import { cn } from '@/lib/utils'
 
 export function ThemeSwitch() {
   const { t } = useTranslation()
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, theme, setTheme } = useTheme()
 
   /* Update theme-color meta tag
    * when theme is updated */
   useEffect(() => {
-    const themeColor = theme === 'dark' ? '#020817' : '#fff'
+    const themeColor = resolvedTheme === 'dark' ? '#2c2c2c' : '#fff'
     const metaThemeColor = document.querySelector("meta[name='theme-color']")
     if (metaThemeColor) metaThemeColor.setAttribute('content', themeColor)
-  }, [theme])
+  }, [resolvedTheme])
 
   return (
     <DropdownMenu modal={false}>
-      <DropdownMenuTrigger
-        render={<Button variant='ghost' size='icon' className='h-9 w-9' />}
-      >
+      <DropdownMenuTrigger render={<Button variant='ghost' size='icon' />}>
         <Sun className='size-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90' />
         <Moon className='absolute size-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0' />
         <span className='sr-only'>{t('Toggle theme')}</span>

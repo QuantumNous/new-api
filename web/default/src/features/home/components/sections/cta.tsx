@@ -21,7 +21,7 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { AnimateInView } from '@/components/animate-in-view'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 
 interface CTAProps {
   className?: string

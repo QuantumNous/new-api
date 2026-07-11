@@ -20,9 +20,19 @@ export { DataTablePagination } from './core/pagination'
 export { DataTableColumnHeader } from './core/column-header'
 export { BadgeCell } from './core/badge-cell'
 export { BadgeListCell } from './core/badge-list-cell'
+export {
+  BadgeListCellDisplayContext,
+  type BadgeListCellDisplay,
+} from './core/badge-list-cell-context'
 export { TruncatedCell } from './core/truncated-cell'
 export { DataTableViewOptions } from './toolbar/view-options'
 export { DataTableToolbar } from './toolbar/toolbar'
+export {
+  DataTableFilterField,
+  DataTableFilterInput,
+  DataTableFilterPanel,
+  type DataTableFilterPanelProps,
+} from './toolbar/filter-panel'
 export { DataTableBulkActions } from './toolbar/bulk-actions'
 export {
   StaticDataTable,
@@ -38,13 +48,21 @@ export {
   type DataTablePinnedColumn,
   type DataTableRenderRowHelpers,
 } from './core/data-table-view'
-export { MobileCardList } from './layout/mobile-card-list'
+export {
+  MobileCardList,
+  type MobileCardListProps,
+} from './layout/mobile-card-list'
 export {
   DataTableCardGrid,
   type DataTableCardGridProps,
   type DataTableCardHelpers,
 } from './layout/card-grid'
 export { CardRowContent } from './layout/card-row-content'
+export {
+  DataTableCardField,
+  DataTableCardRow,
+  type DataTableContentMode,
+} from './layout/card-field'
 export { tableHasCompactMeta } from './layout/card-cell-utils'
 export {
   DataTablePage,

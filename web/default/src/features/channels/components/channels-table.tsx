@@ -35,8 +35,8 @@ import {
   useDebouncedColumnFilter,
   useDataTable,
 } from '@/components/data-table'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Tooltip,
   TooltipContent,
@@ -114,7 +114,8 @@ export function ChannelsTable() {
     navigate: route.useNavigate(),
     pagination: {
       defaultPage: 1,
-      defaultPageSize: isMobile ? 10 : DEFAULT_PAGE_SIZE,
+      defaultPageSize: DEFAULT_PAGE_SIZE,
+      pageSizeStorageKey: 'channels:page-size:v1',
     },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
@@ -312,10 +313,6 @@ export function ChannelsTable() {
     columns,
     totalCount,
     sorting,
-    initialColumnVisibility: {
-      models: false,
-      tag: false,
-    },
     columnVisibilityStorageKey: CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY,
     columnSizingStorageKey: isMobile
       ? false
@@ -409,6 +406,7 @@ export function ChannelsTable() {
     <DataTablePage
       table={table}
       columns={columns}
+      tableLabel={t('Channels')}
       isLoading={isLoading}
       isFetching={isFetching}
       emptyTitle={t('No Channels Found')}
@@ -421,17 +419,19 @@ export function ChannelsTable() {
       renderCard={(row, { isSelected }) => (
         <ChannelCard row={row} isSelected={isSelected} />
       )}
-      cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
+      cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3'
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name, ID, or key...'),
         searchDebounceMs: 500,
+        hasAdditionalFilters: Boolean(modelFilterInput.trim()),
         onReset: () => {
           resetModelFilterInput()
         },
         additionalSearch: (
           <Input
             placeholder={t('Filter by model...')}
+            aria-label={t('Filter by model...')}
             value={modelFilterInput}
             onChange={onModelFilterInputChange}
             onCompositionStart={onModelFilterCompositionStart}
@@ -468,7 +468,7 @@ export function ChannelsTable() {
                   size='icon'
                   onClick={() => setSensitiveVisible(!sensitiveVisible)}
                   aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-                  className='text-muted-foreground hover:text-foreground size-8'
+                  className='text-muted-foreground hover:text-foreground'
                 />
               }
             >

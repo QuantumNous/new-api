@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 
 type PlaygroundEmptyStateProps = {
   onSelectPrompt: (prompt: string) => void
@@ -67,7 +67,7 @@ export function PlaygroundEmptyState({
 
             return (
               <Button
-                className='h-auto min-h-11 justify-start gap-2 px-3 py-2.5 text-left whitespace-normal'
+                className='h-auto min-h-11 justify-start gap-2 px-3 py-2.5 text-left whitespace-normal sm:h-auto'
                 key={text}
                 onClick={() => onSelectPrompt(prompt)}
                 variant='outline'

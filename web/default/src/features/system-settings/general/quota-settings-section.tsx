@@ -22,6 +22,7 @@ import type { Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
+import { Input } from '@/components/design-system/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Form,
@@ -32,7 +33,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { formatQuota } from '@/lib/format'
 

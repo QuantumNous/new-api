@@ -269,12 +269,19 @@ export interface TaskLog {
   task_id: string
   action: string // MUSIC, LYRICS, GENERATE, TEXT_GENERATE, etc.
   channel_id: number
+  group?: string
+  quota?: number
   submit_time: number // seconds
+  start_time?: number // seconds
   finish_time?: number // seconds
   progress?: string
   progress_message_en?: string
   data?: string // JSON string
   fail_reason?: string
+  // Task result URL (video address, etc.). Backend falls back to fail_reason
+  // when no dedicated result URL is stored, so always validate before use.
+  result_url?: string
+  properties?: unknown
   status: string // NOT_START, SUBMITTED, IN_PROGRESS, SUCCESS, FAILURE, QUEUED, UNKNOWN
   other?: string
   created_at?: number

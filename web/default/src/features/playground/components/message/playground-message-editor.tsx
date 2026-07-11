@@ -20,7 +20,7 @@ import { Check, RotateCcw, Send, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { CodeBlockEditor } from '@/components/ai-elements/code-block'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 
 import { getMessageEditorState } from '../../lib'
 import type { Message } from '../../types'

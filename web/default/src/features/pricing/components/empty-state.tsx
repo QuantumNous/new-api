@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 
 export interface EmptyStateProps {
   searchQuery?: string
@@ -49,7 +49,7 @@ export function EmptyState(props: EmptyStateProps) {
       </p>
 
       {(props.hasActiveFilters || hasSearch) && (
-        <Button variant='outline' size='sm' onClick={props.onClearFilters}>
+        <Button variant='outline' onClick={props.onClearFilters}>
           {t('Clear all filters')}
         </Button>
       )}

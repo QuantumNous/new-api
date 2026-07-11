@@ -25,7 +25,7 @@ import {
   IconLinuxDo,
   IconWeChat,
 } from '@/assets/brand-icons'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import { cn } from '@/lib/utils'
 
 import { useOAuthLogin } from '../hooks/use-oauth-login'
@@ -159,7 +159,8 @@ export function OAuthProviders({
               type='button'
               disabled={disabled || isLoading || extraDisabled}
               onClick={onClick}
-              className='h-11 w-full justify-center gap-2 rounded-lg'
+              size='xl'
+              className='w-full justify-center rounded-lg'
             >
               {icon}
               {label}

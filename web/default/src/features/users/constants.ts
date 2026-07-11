@@ -51,7 +51,7 @@ export const USER_STATUSES = {
   },
   [USER_STATUS.DELETED]: {
     labelKey: 'Deleted',
-    variant: 'danger' as const,
+    variant: 'destructive' as const,
     value: USER_STATUS.DELETED,
   },
 } as const

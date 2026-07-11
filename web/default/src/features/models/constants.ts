@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
+
+import type { StatusBadgeProps } from '@/components/status-badge'
 
 import type { NameRule, ModelStatus, SyncSource } from './types'
 
@@ -39,28 +41,33 @@ export function getNameRuleOptions(t: TFunction) {
   ] as const
 }
 
-export function getNameRuleConfig(
-  t: TFunction
-): Record<NameRule, { label: string; color: string; description: string }> {
+export function getNameRuleConfig(t: TFunction): Record<
+  NameRule,
+  {
+    label: string
+    variant: StatusBadgeProps['variant']
+    description: string
+  }
+> {
   return {
     0: {
       label: t('Exact'),
-      color: 'green',
+      variant: 'neutral',
       description: t('Match model name exactly'),
     },
     1: {
       label: t('Prefix'),
-      color: 'blue',
+      variant: 'neutral',
       description: t('Match models starting with this name'),
     },
     2: {
       label: t('Contains'),
-      color: 'orange',
+      variant: 'neutral',
       description: t('Match models containing this name'),
     },
     3: {
       label: t('Suffix'),
-      color: 'purple',
+      variant: 'neutral',
       description: t('Match models ending with this name'),
     },
   }
@@ -80,7 +87,10 @@ export function getModelStatusOptions(t: TFunction) {
 
 export function getModelStatusConfig(
   t: TFunction
-): Record<ModelStatus, { label: string; variant: 'success' | 'neutral' }> {
+): Record<
+  ModelStatus,
+  { label: string; variant: StatusBadgeProps['variant'] }
+> {
   return {
     1: { label: t('Enabled'), variant: 'success' },
     0: { label: t('Disabled'), variant: 'neutral' },
@@ -119,15 +129,15 @@ export function getDeploymentStatusConfig(t: TFunction): Record<
   string,
   {
     label: string
-    variant: 'success' | 'neutral' | 'warning' | 'danger'
+    variant: StatusBadgeProps['variant']
   }
 > {
   return {
     running: { label: t('Running'), variant: 'success' },
     completed: { label: t('Completed'), variant: 'success' },
-    failed: { label: t('Failed'), variant: 'danger' },
-    error: { label: t('Failed'), variant: 'danger' },
-    destroyed: { label: t('Destroyed'), variant: 'danger' },
+    failed: { label: t('Failed'), variant: 'destructive' },
+    error: { label: t('Failed'), variant: 'destructive' },
+    destroyed: { label: t('Destroyed'), variant: 'destructive' },
     'deployment requested': {
       label: t('Deployment requested'),
       variant: 'warning',
@@ -145,10 +155,10 @@ export function getDeploymentStatusConfig(t: TFunction): Record<
 
 export function getQuotaTypeConfig(
   t: TFunction
-): Record<number, { label: string; color: string }> {
+): Record<number, { label: string; variant: StatusBadgeProps['variant'] }> {
   return {
-    0: { label: t('Usage-based'), color: 'violet' },
-    1: { label: t('Per-call'), color: 'teal' },
+    0: { label: t('Usage-based'), variant: 'neutral' },
+    1: { label: t('Per-call'), variant: 'neutral' },
   }
 }
 

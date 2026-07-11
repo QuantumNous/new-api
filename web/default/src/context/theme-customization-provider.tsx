@@ -20,7 +20,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from 'react'
@@ -133,9 +133,11 @@ export function ThemeCustomizationProvider(props: {
     )
   )
 
-  // Mirror state to the <body> via data-* attributes so theme-presets.css can
-  // override CSS variables at the right cascade layer.
-  useEffect(() => {
+  // Mirror state to <body> via data-* attributes before paint so theme-
+  // presets.css can override CSS variables without a one-frame size/font flash.
+  // useLayoutEffect (not useEffect) is required: useEffect runs after paint,
+  // which is exactly when users see text jump from default → cookie scale/font.
+  useLayoutEffect(() => {
     applyAttribute(
       'data-theme-preset',
       preset === DEFAULT_THEME_CUSTOMIZATION.preset ? null : preset
@@ -148,25 +150,25 @@ export function ThemeCustomizationProvider(props: {
   // Resolving here (instead of in CSS via `:not()` selectors) keeps the
   // stylesheet to one simple `[data-theme-font='serif']` selector and lets
   // future presets opt into typography via `PRESET_DEFAULT_FONT` alone.
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute('data-theme-font', resolveThemeFont(font, preset))
   }, [font, preset])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute(
       'data-theme-radius',
       radius === DEFAULT_THEME_CUSTOMIZATION.radius ? null : radius
     )
   }, [radius])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute(
       'data-theme-scale',
       scale === DEFAULT_THEME_CUSTOMIZATION.scale ? null : scale
     )
   }, [scale])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute('data-theme-content-layout', contentLayout)
   }, [contentLayout])
 

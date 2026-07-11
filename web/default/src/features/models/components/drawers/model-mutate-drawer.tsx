@@ -25,6 +25,16 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/design-system/select'
 import {
   SideDrawerSection,
   sideDrawerContentClassName,
@@ -35,7 +45,6 @@ import {
 } from '@/components/drawer-layout'
 import { JsonEditor } from '@/components/json-editor'
 import { TagInput } from '@/components/tag-input'
-import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -50,17 +59,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Sheet,
   SheetClose,
@@ -870,7 +870,7 @@ export function ModelMutateDrawer({
                     v !== null && handleFillEndpointTemplate(v)
                   }
                 >
-                  <SelectTrigger size='sm' className='w-[200px]'>
+                  <SelectTrigger className='w-[200px]'>
                     <SelectValue placeholder={t('Load template...')} />
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>

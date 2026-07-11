@@ -135,7 +135,7 @@ export function PerformanceHealthPanel() {
         ) : (
           hasData && (
             <div>
-              <span className='text-muted-foreground mb-1 block text-[11px] font-medium'>
+              <span className='text-muted-foreground mb-1 block text-xs font-medium'>
                 {t('Top models by traffic')}
               </span>
               <div className='grid grid-cols-1 gap-x-4 sm:grid-cols-2'>
@@ -144,7 +144,7 @@ export function PerformanceHealthPanel() {
                     key={model.model_name}
                     className='flex items-center justify-between gap-2 rounded px-1.5 py-1'
                   >
-                    <span className='min-w-0 flex-1 truncate font-mono text-[11px]'>
+                    <span className='min-w-0 flex-1 truncate font-mono text-xs'>
                       {model.model_name}
                     </span>
                     <span className='inline-flex shrink-0 items-center gap-1'>
@@ -157,7 +157,7 @@ export function PerformanceHealthPanel() {
                       />
                       <span
                         className={cn(
-                          'font-mono text-[11px] font-semibold tabular-nums',
+                          'text-xs font-semibold tabular-nums',
                           getSuccessRateTextClass(model.success_rate)
                         )}
                       >
@@ -185,7 +185,7 @@ function MetricCell(props: {
   const Icon = props.icon
   return (
     <div className='bg-muted/40 rounded-xl px-3 py-2.5'>
-      <div className='text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium'>
+      <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
         <Icon className='size-3 shrink-0' aria-hidden='true' />
         <span className='truncate'>{props.label}</span>
       </div>
@@ -194,7 +194,7 @@ function MetricCell(props: {
       ) : (
         <div
           className={cn(
-            'mt-1.5 font-mono text-sm font-semibold tabular-nums',
+            'mt-1.5 text-sm font-semibold tabular-nums',
             props.valueClassName
           )}
         >

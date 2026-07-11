@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 import type { TokenUnit } from './types'
 
@@ -141,5 +141,11 @@ export const VIEW_MODES = {
 
 export type ViewMode = (typeof VIEW_MODES)[keyof typeof VIEW_MODES]
 
+/** Price comparison is the primary catalog experience. */
+export const DEFAULT_VIEW_MODE: ViewMode = VIEW_MODES.TABLE
+
 /** Default page size for pricing table */
 export const DEFAULT_PRICING_PAGE_SIZE = 20
+
+/** Card pages use complete rows at common desktop widths. */
+export const DEFAULT_PRICING_CARD_PAGE_SIZE = 12

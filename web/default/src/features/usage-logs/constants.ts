@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Shared constants for usage logs feature
  */
-import type { StatusBadgeProps } from '@/components/status-badge'
+import type { StatusVariant } from '@/components/status-badge'
 
 import type { LogStatistics, LogCategory } from './types'
 
@@ -90,14 +90,14 @@ export const TIME_RANGE_PRESETS = [
  * Log types configuration for filtering and display
  */
 export const LOG_TYPES = [
-  { value: 0, label: 'Unknown', color: 'default' },
-  { value: 1, label: 'Top-up', color: 'cyan' },
-  { value: 2, label: 'Consume', color: 'green' },
-  { value: 3, label: 'Manage', color: 'orange' },
-  { value: 4, label: 'System', color: 'purple' },
-  { value: 5, label: 'Error', color: 'red' },
-  { value: 6, label: 'Refund', color: 'blue' },
-  { value: 7, label: 'Login', color: 'teal' },
+  { value: 0, label: 'Unknown', variant: 'neutral' },
+  { value: 1, label: 'Top-up', variant: 'info' },
+  { value: 2, label: 'Consume', variant: 'success' },
+  { value: 3, label: 'Manage', variant: 'neutral' },
+  { value: 4, label: 'System', variant: 'neutral' },
+  { value: 5, label: 'Error', variant: 'destructive' },
+  { value: 6, label: 'Refund', variant: 'info' },
+  { value: 7, label: 'Login', variant: 'info' },
 ] as const
 
 /**
@@ -220,42 +220,45 @@ export const TASK_PLATFORMS = {
  */
 export interface StatusMapping {
   label: string
-  variant: StatusBadgeProps['variant']
+  variant: StatusVariant
 }
 
 /**
  * MjProxy task type mappings
  */
 export const MJ_TASK_TYPE_MAPPINGS: Record<string, StatusMapping> = {
-  [MJ_TASK_TYPES.IMAGINE]: { label: 'Draw', variant: 'blue' },
-  [MJ_TASK_TYPES.UPSCALE]: { label: 'Upscale', variant: 'orange' },
-  [MJ_TASK_TYPES.VIDEO]: { label: 'Video', variant: 'orange' },
-  [MJ_TASK_TYPES.EDITS]: { label: 'Edit', variant: 'orange' },
-  [MJ_TASK_TYPES.VARIATION]: { label: 'Vary', variant: 'violet' },
-  [MJ_TASK_TYPES.HIGH_VARIATION]: { label: 'Vary (Strong)', variant: 'violet' },
-  [MJ_TASK_TYPES.LOW_VARIATION]: { label: 'Vary (Subtle)', variant: 'violet' },
-  [MJ_TASK_TYPES.PAN]: { label: 'Pan', variant: 'cyan' },
-  [MJ_TASK_TYPES.DESCRIBE]: { label: 'Describe', variant: 'yellow' },
-  [MJ_TASK_TYPES.BLEND]: { label: 'Blend', variant: 'lime' },
-  [MJ_TASK_TYPES.UPLOAD]: { label: 'Upload', variant: 'blue' },
-  [MJ_TASK_TYPES.SHORTEN]: { label: 'Shorten', variant: 'pink' },
-  [MJ_TASK_TYPES.REROLL]: { label: 'Reroll', variant: 'indigo' },
-  [MJ_TASK_TYPES.INPAINT]: { label: 'Inpaint', variant: 'teal' },
-  [MJ_TASK_TYPES.SWAP_FACE]: { label: 'Swap Face', variant: 'purple' },
-  [MJ_TASK_TYPES.ZOOM]: { label: 'Zoom', variant: 'green' },
-  [MJ_TASK_TYPES.CUSTOM_ZOOM]: { label: 'Custom Zoom', variant: 'green' },
+  [MJ_TASK_TYPES.IMAGINE]: { label: 'Draw', variant: 'neutral' },
+  [MJ_TASK_TYPES.UPSCALE]: { label: 'Upscale', variant: 'neutral' },
+  [MJ_TASK_TYPES.VIDEO]: { label: 'Video', variant: 'neutral' },
+  [MJ_TASK_TYPES.EDITS]: { label: 'Edit', variant: 'neutral' },
+  [MJ_TASK_TYPES.VARIATION]: { label: 'Vary', variant: 'neutral' },
+  [MJ_TASK_TYPES.HIGH_VARIATION]: {
+    label: 'Vary (Strong)',
+    variant: 'neutral',
+  },
+  [MJ_TASK_TYPES.LOW_VARIATION]: { label: 'Vary (Subtle)', variant: 'neutral' },
+  [MJ_TASK_TYPES.PAN]: { label: 'Pan', variant: 'neutral' },
+  [MJ_TASK_TYPES.DESCRIBE]: { label: 'Describe', variant: 'neutral' },
+  [MJ_TASK_TYPES.BLEND]: { label: 'Blend', variant: 'neutral' },
+  [MJ_TASK_TYPES.UPLOAD]: { label: 'Upload', variant: 'neutral' },
+  [MJ_TASK_TYPES.SHORTEN]: { label: 'Shorten', variant: 'neutral' },
+  [MJ_TASK_TYPES.REROLL]: { label: 'Reroll', variant: 'neutral' },
+  [MJ_TASK_TYPES.INPAINT]: { label: 'Inpaint', variant: 'neutral' },
+  [MJ_TASK_TYPES.SWAP_FACE]: { label: 'Swap Face', variant: 'neutral' },
+  [MJ_TASK_TYPES.ZOOM]: { label: 'Zoom', variant: 'neutral' },
+  [MJ_TASK_TYPES.CUSTOM_ZOOM]: { label: 'Custom Zoom', variant: 'neutral' },
 }
 
 /**
  * MjProxy task status mappings
  */
 export const MJ_STATUS_MAPPINGS: Record<string, StatusMapping> = {
-  [MJ_TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'green' },
+  [MJ_TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'success' },
   [MJ_TASK_STATUS.NOT_START]: { label: 'Not Started', variant: 'neutral' },
-  [MJ_TASK_STATUS.SUBMITTED]: { label: 'Queued', variant: 'yellow' },
-  [MJ_TASK_STATUS.IN_PROGRESS]: { label: 'In Progress', variant: 'blue' },
-  [MJ_TASK_STATUS.FAILURE]: { label: 'Failed', variant: 'red' },
-  [MJ_TASK_STATUS.MODAL]: { label: 'Waiting', variant: 'amber' },
+  [MJ_TASK_STATUS.SUBMITTED]: { label: 'Queued', variant: 'warning' },
+  [MJ_TASK_STATUS.IN_PROGRESS]: { label: 'In Progress', variant: 'info' },
+  [MJ_TASK_STATUS.FAILURE]: { label: 'Failed', variant: 'destructive' },
+  [MJ_TASK_STATUS.MODAL]: { label: 'Waiting', variant: 'warning' },
 }
 
 /**
@@ -264,19 +267,19 @@ export const MJ_STATUS_MAPPINGS: Record<string, StatusMapping> = {
 export const MJ_SUBMIT_RESULT_MAPPINGS: Record<string, StatusMapping> = {
   [String(MJ_SUBMIT_RESULT_CODES.SUBMITTED)]: {
     label: 'Submitted',
-    variant: 'green',
+    variant: 'success',
   },
   [String(MJ_SUBMIT_RESULT_CODES.WAITING)]: {
     label: 'Waiting',
-    variant: 'lime',
+    variant: 'warning',
   },
   [String(MJ_SUBMIT_RESULT_CODES.DUPLICATE)]: {
     label: 'Duplicate',
-    variant: 'orange',
+    variant: 'warning',
   },
   [String(MJ_SUBMIT_RESULT_CODES.NOT_SUBMITTED)]: {
     label: 'Not Submitted',
-    variant: 'yellow',
+    variant: 'warning',
   },
 }
 
@@ -285,20 +288,23 @@ export const MJ_SUBMIT_RESULT_MAPPINGS: Record<string, StatusMapping> = {
  */
 export const TASK_ACTION_MAPPINGS: Record<string, StatusMapping> = {
   [TASK_ACTIONS.MUSIC]: { label: 'Generate Music', variant: 'neutral' },
-  [TASK_ACTIONS.LYRICS]: { label: 'Generate Lyrics', variant: 'pink' },
-  [TASK_ACTIONS.GENERATE]: { label: 'Image to Video', variant: 'blue' },
-  [TASK_ACTIONS.TEXT_GENERATE]: { label: 'Text to Video', variant: 'blue' },
+  [TASK_ACTIONS.LYRICS]: { label: 'Generate Lyrics', variant: 'neutral' },
+  [TASK_ACTIONS.GENERATE]: { label: 'Image to Video', variant: 'neutral' },
+  [TASK_ACTIONS.TEXT_GENERATE]: {
+    label: 'Text to Video',
+    variant: 'neutral',
+  },
   [TASK_ACTIONS.FIRST_TAIL_GENERATE]: {
     label: 'First/Last Frame to Video',
-    variant: 'blue',
+    variant: 'neutral',
   },
   [TASK_ACTIONS.REFERENCE_GENERATE]: {
     label: 'Reference Video',
-    variant: 'blue',
+    variant: 'neutral',
   },
   [TASK_ACTIONS.REMIX_GENERATE]: {
     label: 'Video Remix',
-    variant: 'blue',
+    variant: 'neutral',
   },
 }
 
@@ -306,12 +312,12 @@ export const TASK_ACTION_MAPPINGS: Record<string, StatusMapping> = {
  * Task status mappings
  */
 export const TASK_STATUS_MAPPINGS: Record<string, StatusMapping> = {
-  [TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'green' },
+  [TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'success' },
   [TASK_STATUS.NOT_START]: { label: 'Not Started', variant: 'neutral' },
-  [TASK_STATUS.SUBMITTED]: { label: 'Queued', variant: 'yellow' },
-  [TASK_STATUS.IN_PROGRESS]: { label: 'In Progress', variant: 'blue' },
-  [TASK_STATUS.FAILURE]: { label: 'Failed', variant: 'red' },
-  [TASK_STATUS.QUEUED]: { label: 'Queued', variant: 'orange' },
+  [TASK_STATUS.SUBMITTED]: { label: 'Queued', variant: 'warning' },
+  [TASK_STATUS.IN_PROGRESS]: { label: 'In Progress', variant: 'info' },
+  [TASK_STATUS.FAILURE]: { label: 'Failed', variant: 'destructive' },
+  [TASK_STATUS.QUEUED]: { label: 'Queued', variant: 'warning' },
   [TASK_STATUS.UNKNOWN]: { label: 'Unknown', variant: 'neutral' },
 }
 
@@ -319,11 +325,11 @@ export const TASK_STATUS_MAPPINGS: Record<string, StatusMapping> = {
  * Task platform mappings
  */
 export const TASK_PLATFORM_MAPPINGS: Record<string, StatusMapping> = {
-  [TASK_PLATFORMS.SUNO]: { label: 'suno', variant: 'green' },
-  [TASK_PLATFORMS.KLING]: { label: 'kling', variant: 'blue' },
-  [TASK_PLATFORMS.RUNWAY]: { label: 'runway', variant: 'violet' },
-  [TASK_PLATFORMS.LUMA]: { label: 'luma', variant: 'orange' },
-  [TASK_PLATFORMS.VIGGLE]: { label: 'viggle', variant: 'pink' },
+  [TASK_PLATFORMS.SUNO]: { label: 'suno', variant: 'neutral' },
+  [TASK_PLATFORMS.KLING]: { label: 'kling', variant: 'neutral' },
+  [TASK_PLATFORMS.RUNWAY]: { label: 'runway', variant: 'neutral' },
+  [TASK_PLATFORMS.LUMA]: { label: 'luma', variant: 'neutral' },
+  [TASK_PLATFORMS.VIGGLE]: { label: 'viggle', variant: 'neutral' },
 }
 
 // ============================================================================

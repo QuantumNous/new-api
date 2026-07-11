@@ -21,9 +21,9 @@ import { User, Wallet, LogOut, Settings } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,11 +59,11 @@ export function ProfileDropdown() {
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          render={<Button variant='ghost' className='relative size-6 p-0' />}
+          render={<Button size='icon' variant='ghost' className='relative' />}
         >
           <Avatar className='size-6'>
             <AvatarFallback
-              className={`${avatarFallbackClassName} text-[11px]`}
+              className={`${avatarFallbackClassName} text-xs`}
               style={avatarFallbackStyle}
             >
               {avatarFallback}

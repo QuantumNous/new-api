@@ -20,8 +20,6 @@ import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,10 +29,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from '@/components/design-system/alert-dialog'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -42,7 +39,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
+import { Dialog } from '@/components/dialog'
+import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatCurrencyFromUSD } from '@/lib/currency'
@@ -116,7 +116,7 @@ export function BillingHistoryDialog({
                 placeholder={t('Search by order number...')}
                 value={keyword}
                 onChange={(e) => handleSearch(e.target.value)}
-                className='h-9 pl-10'
+                className='pl-10'
               />
             </div>
             <Select
@@ -128,10 +128,11 @@ export function BillingHistoryDialog({
               ]}
               value={pageSize.toString()}
               onValueChange={(value) =>
-                value !== null && handlePageSizeChange(parseInt(value))
+                value !== null &&
+                handlePageSizeChange(Number.parseInt(value, 10))
               }
             >
-              <SelectTrigger className='h-9 w-[92px] sm:w-32'>
+              <SelectTrigger className='w-[92px] sm:w-32'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -147,10 +148,10 @@ export function BillingHistoryDialog({
 
           {/* Records List */}
           <div className='max-h-[min(54vh,520px)] overflow-y-auto pr-1'>
-            {loading ? (
+            {loading && (
               <div className='space-y-3'>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className='rounded-lg border p-3 sm:p-4'>
+                {['r1', 'r2', 'r3', 'r4', 'r5'].map((key) => (
+                  <div key={key} className='rounded-lg border p-3 sm:p-4'>
                     <div className='flex items-start justify-between'>
                       <div className='flex-1 space-y-2'>
                         <Skeleton className='h-4 w-48' />
@@ -166,7 +167,8 @@ export function BillingHistoryDialog({
                   </div>
                 ))}
               </div>
-            ) : records.length === 0 ? (
+            )}
+            {!loading && records.length === 0 && (
               <div className='text-muted-foreground flex min-h-40 flex-col items-center justify-center py-10 text-center'>
                 <p className='text-sm font-medium'>
                   {t('No billing records found')}
@@ -177,7 +179,8 @@ export function BillingHistoryDialog({
                     : t('Your transaction history will appear here')}
                 </p>
               </div>
-            ) : (
+            )}
+            {!loading && records.length > 0 && (
               <div className='space-y-3'>
                 {records.map((record) => {
                   const statusConfig = getStatusConfig(record.status)
@@ -195,8 +198,7 @@ export function BillingHistoryDialog({
                             </code>
                             <Button
                               variant='ghost'
-                              size='sm'
-                              className='h-5 w-5 p-0'
+                              size='icon-xs'
                               onClick={() => copyToClipboard(record.trade_no)}
                             >
                               {copiedText === record.trade_no ? (
@@ -206,24 +208,20 @@ export function BillingHistoryDialog({
                               )}
                             </Button>
                             {isAdmin && record.user_id != null && (
-                              <StatusBadge
-                                label={`${t('User ID')}: ${record.user_id}`}
-                                variant='neutral'
-                                size='sm'
-                                copyText={String(record.user_id)}
-                              />
+                              <CopyableStatusBadge
+                                value={String(record.user_id)}
+                              >
+                                {t('User ID')}: {record.user_id}
+                              </CopyableStatusBadge>
                             )}
                           </div>
                           <div className='text-muted-foreground text-xs'>
                             {formatTimestamp(record.create_time)}
                           </div>
                         </div>
-                        <StatusBadge
-                          label={statusConfig.label}
-                          variant={statusConfig.variant}
-                          showDot
-                          copyable={false}
-                        />
+                        <StatusBadge variant={statusConfig.variant}>
+                          {statusConfig.label}
+                        </StatusBadge>
                       </div>
 
                       {/* Details Grid */}
@@ -252,7 +250,7 @@ export function BillingHistoryDialog({
                           <Label className='text-muted-foreground text-xs'>
                             {t('Payment')}
                           </Label>
-                          <div className='text-sm font-semibold text-red-600'>
+                          <div className='text-sm font-semibold tabular-nums'>
                             {formatNumber(record.money)}
                           </div>
                         </div>
@@ -262,7 +260,6 @@ export function BillingHistoryDialog({
                       {isAdmin && record.status === 'pending' && (
                         <div className='mt-4 flex justify-end'>
                           <Button
-                            size='sm'
                             variant='outline'
                             onClick={() => setConfirmTradeNo(record.trade_no)}
                             disabled={completing}
@@ -288,10 +285,9 @@ export function BillingHistoryDialog({
               <div className='flex items-center gap-2'>
                 <Button
                   variant='outline'
-                  size='sm'
+                  size='icon'
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page <= 1}
-                  className='h-8 w-8 p-0'
                 >
                   <ChevronLeft className='h-4 w-4' />
                 </Button>
@@ -302,10 +298,9 @@ export function BillingHistoryDialog({
                 </div>
                 <Button
                   variant='outline'
-                  size='sm'
+                  size='icon'
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page >= totalPages}
-                  className='h-8 w-8 p-0'
                 >
                   <ChevronRight className='h-4 w-4' />
                 </Button>

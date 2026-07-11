@@ -16,10 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  HtmlContent,
-  type HtmlContentVariant,
-} from '@/components/html-content'
+import { HtmlContent, type HtmlContentVariant } from '@/components/html-content'
 import { Markdown } from '@/components/ui/markdown'
 
 type RichContentMode = 'markdown' | 'html'
