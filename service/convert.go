@@ -58,6 +58,9 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			openAIRequest.Reasoning = reasoningJSON
 		}
 	} else {
+		if effort := claudeRequest.GetEfforts(); effort != "" {
+			openAIRequest.ReasoningEffort = effort
+		}
 		thinkingSuffix := "-thinking"
 		if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
 			!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
