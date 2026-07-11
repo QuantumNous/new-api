@@ -14,6 +14,7 @@ const (
 	responsesInputTypeFunctionCall       = "function_call"
 	responsesInputTypeFunctionCallOutput = "function_call_output"
 	responsesInputTypeCustomToolCall     = "custom_tool_call"
+	responsesToolSearchProxyName         = "tool_search"
 )
 
 func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
@@ -331,6 +332,37 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 			continue
 		}
 
+		if toolType == "mcp_server" || toolType == "namespace" {
+			innerTools := responsesFlattenInnerTools(tool)
+			out = append(out, innerTools...)
+			continue
+		}
+
+		if toolType == "tool_search" {
+			out = append(out, dto.ToolCallRequest{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:        responsesToolSearchProxyName,
+					Description: "Search and load Codex tools, plugins, connectors, and MCP namespaces for the current task.",
+					Parameters: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"query": map[string]any{
+								"type":        "string",
+								"description": "Search query for tools or connectors to load.",
+							},
+							"limit": map[string]any{
+								"type":        "integer",
+								"description": "Maximum number of tool groups to return.",
+							},
+						},
+						"required": []string{"query"},
+					},
+				},
+			})
+			continue
+		}
+
 		rawTool, err := common.Marshal(tool)
 		if err != nil {
 			return nil, err
@@ -341,6 +373,51 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 		})
 	}
 	return out, nil
+}
+
+func responsesFlattenToolName(namespace string, name string) string {
+	return namespace + "__" + name
+}
+
+// responsesFlattenInnerTools converts the inner tools array of an
+// mcp_server or namespace tool into individual function tool entries.
+// Fields specific to the Responses API (e.g. defer_loading) are stripped.
+func responsesFlattenInnerTools(tool map[string]any) []dto.ToolCallRequest {
+	innerTools, ok := tool["tools"].([]any)
+	if !ok {
+		return nil
+	}
+	namespace := strings.TrimSpace(common.Interface2String(tool["name"]))
+
+	out := make([]dto.ToolCallRequest, 0, len(innerTools))
+	for _, item := range innerTools {
+		tool, ok := item.(map[string]any)
+		if !ok {
+			common.SysError("responses to chat conversion skipped malformed inner tool entry")
+			continue
+		}
+		name := strings.TrimSpace(common.Interface2String(tool["name"]))
+		if name == "" {
+			continue
+		}
+		chatName := name
+		if namespace != "" {
+			chatName = responsesFlattenToolName(namespace, name)
+		}
+		params, ok := tool["parameters"].(map[string]any)
+		if !ok || params == nil {
+			params = map[string]any{"type": "object", "properties": map[string]any{}}
+		}
+		out = append(out, dto.ToolCallRequest{
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Name:        chatName,
+				Description: common.Interface2String(tool["description"]),
+				Parameters:  params,
+			},
+		})
+	}
+	return out
 }
 
 func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
@@ -362,6 +439,11 @@ func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
 	if common.Interface2String(choice["type"]) == "function" {
 		name := strings.TrimSpace(common.Interface2String(choice["name"]))
 		if name != "" {
+			if namespace := strings.TrimSpace(common.Interface2String(choice["server_label"])); namespace != "" {
+				name = responsesFlattenToolName(namespace, name)
+			} else if namespace = strings.TrimSpace(common.Interface2String(choice["namespace"])); namespace != "" {
+				name = responsesFlattenToolName(namespace, name)
+			}
 			return map[string]any{
 				"type": "function",
 				"function": map[string]any{
@@ -369,6 +451,23 @@ func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
 				},
 			}, nil
 		}
+	}
+	if choiceType := strings.TrimSpace(common.Interface2String(choice["type"])); choiceType == "mcp" || choiceType == "mcp_server" || choiceType == "namespace" {
+		name := strings.TrimSpace(common.Interface2String(choice["name"]))
+		if name == "" {
+			return choice, nil
+		}
+		if namespace := strings.TrimSpace(common.Interface2String(choice["server_label"])); namespace != "" {
+			name = responsesFlattenToolName(namespace, name)
+		} else if namespace = strings.TrimSpace(common.Interface2String(choice["namespace"])); namespace != "" {
+			name = responsesFlattenToolName(namespace, name)
+		}
+		return map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name": name,
+			},
+		}, nil
 	}
 	return choice, nil
 }

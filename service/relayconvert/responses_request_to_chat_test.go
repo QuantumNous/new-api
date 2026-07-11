@@ -268,3 +268,182 @@ func mustRawMessage(t *testing.T, value any) []byte {
 	require.NoError(t, err)
 	return raw
 }
+
+func TestResponsesRequestToChatCompletionsRequestMcpServerToolsFlattened(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{
+				"type": "mcp_server",
+				"name": "github",
+				"tools": []map[string]any{
+					{"name": "list_issues", "defer_loading": true, "parameters": map[string]any{"type": "object", "properties": map[string]any{}}},
+					{"name": "create_pr", "defer_loading": true, "parameters": map[string]any{"type": "object", "properties": map[string]any{}}},
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 2)
+	for _, tool := range got.Tools {
+		assert.Equal(t, "function", tool.Type)
+		assert.Empty(t, tool.Custom)
+	}
+	assert.Equal(t, "github__list_issues", got.Tools[0].Function.Name)
+	assert.Equal(t, "github__create_pr", got.Tools[1].Function.Name)
+	assert.Equal(t, "object", got.Tools[0].Function.Parameters.(map[string]any)["type"])
+}
+
+func TestResponsesRequestToChatCompletionsRequestNamespaceToolsFlattened(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{
+				"type": "namespace",
+				"name": "fs",
+				"tools": []map[string]any{
+					{"name": "read_file", "description": "Read a file", "parameters": map[string]any{"type": "object"}},
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 1)
+	assert.Equal(t, "function", got.Tools[0].Type)
+	assert.Equal(t, "fs__read_file", got.Tools[0].Function.Name)
+	assert.Equal(t, "Read a file", got.Tools[0].Function.Description)
+	assert.Equal(t, "object", got.Tools[0].Function.Parameters.(map[string]any)["type"])
+}
+
+func TestResponsesRequestToChatCompletionsRequestToolSearchProxied(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{"type": "tool_search"},
+			{
+				"type":        "function",
+				"name":        "lookup",
+				"description": "Lookup data",
+				"parameters":  map[string]any{"type": "object"},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 2)
+	assert.Equal(t, "function", got.Tools[0].Type)
+	assert.Equal(t, "tool_search", got.Tools[0].Function.Name)
+	assert.Equal(t, "Lookup data", got.Tools[1].Function.Description)
+	params, ok := got.Tools[0].Function.Parameters.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "object", params["type"])
+	query, ok := params["properties"].(map[string]any)["query"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "string", query["type"])
+	assert.Equal(t, "function", got.Tools[0].Type)
+	assert.Equal(t, "lookup", got.Tools[1].Function.Name)
+}
+
+func TestResponsesRequestToChatCompletionsRequestMcpServerAndFunctionMixed(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{
+				"type": "mcp_server",
+				"name": "github",
+				"tools": []map[string]any{
+					{"name": "list_issues", "parameters": map[string]any{"type": "object"}},
+					{"name": "create_pr", "parameters": map[string]any{"type": "object"}},
+				},
+			},
+			{
+				"type":        "function",
+				"name":        "lookup",
+				"description": "Lookup data",
+				"parameters":  map[string]any{"type": "object"},
+			},
+			{"type": "tool_search"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 4)
+	assert.Equal(t, "github__list_issues", got.Tools[0].Function.Name)
+	assert.Equal(t, "github__create_pr", got.Tools[1].Function.Name)
+	assert.Equal(t, "lookup", got.Tools[2].Function.Name)
+	assert.Equal(t, "tool_search", got.Tools[3].Function.Name)
+}
+
+func TestResponsesRequestToChatCompletionsRequestMcpServerInnerToolNilParameters(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{
+				"type": "mcp_server",
+				"name": "github",
+				"tools": []map[string]any{
+					{"name": "list_issues"},
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 1)
+	assert.Equal(t, "function", got.Tools[0].Type)
+	assert.Equal(t, "github__list_issues", got.Tools[0].Function.Name)
+	params, ok := got.Tools[0].Function.Parameters.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "object", params["type"])
+}
+
+func TestResponsesRequestToChatCompletionsRequestMcpServerInnerToolEmptyNameSkipped(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{
+				"type": "mcp_server",
+				"name": "github",
+				"tools": []map[string]any{
+					{"name": "list_issues", "parameters": map[string]any{"type": "object"}},
+					{"description": "no name"},
+					{"name": "  ", "parameters": map[string]any{"type": "object"}},
+					{"name": "create_pr", "parameters": map[string]any{"type": "object"}},
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 2)
+	assert.Equal(t, "github__list_issues", got.Tools[0].Function.Name)
+	assert.Equal(t, "github__create_pr", got.Tools[1].Function.Name)
+}
+
+func TestResponsesRequestToChatCompletionsRequestMcpToolChoiceUsesFlattenedName(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		ToolChoice: mustRawMessage(t, map[string]any{
+			"type":         "mcp",
+			"server_label": "docs-svc",
+			"name":         "search_docs",
+		}),
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name": "docs-svc__search_docs",
+		},
+	}, got.ToolChoice)
+}
