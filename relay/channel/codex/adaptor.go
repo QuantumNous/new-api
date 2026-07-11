@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -56,7 +57,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
 
 	if info != nil && info.ChannelSetting.SystemPrompt != "" {
-		systemPrompt := info.ChannelSetting.SystemPrompt
+		systemPrompt := helper.ApplyChannelSystemPromptVariables(info.ChannelSetting.SystemPrompt, info)
 
 		if len(request.Instructions) == 0 {
 			if b, err := common.Marshal(systemPrompt); err == nil {

@@ -12,6 +12,7 @@ import (
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -26,6 +27,7 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 		return
 	}
 
+	systemPrompt := helper.ApplyChannelSystemPromptVariables(info.ChannelSetting.SystemPrompt, info)
 	systemRole := request.GetSystemRoleName()
 
 	containSystemPrompt := false
@@ -38,7 +40,7 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 	if !containSystemPrompt {
 		systemMessage := dto.Message{
 			Role:    systemRole,
-			Content: info.ChannelSetting.SystemPrompt,
+			Content: systemPrompt,
 		}
 		request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
 		return
@@ -54,14 +56,14 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 			continue
 		}
 		if message.IsStringContent() {
-			request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
+			request.Messages[i].SetStringContent(systemPrompt + "\n" + message.StringContent())
 			return
 		}
 		contents := message.ParseContent()
 		contents = append([]dto.MediaContent{
 			{
 				Type: dto.ContentTypeText,
-				Text: info.ChannelSetting.SystemPrompt,
+				Text: systemPrompt,
 			},
 		}, contents...)
 		request.Messages[i].Content = contents
