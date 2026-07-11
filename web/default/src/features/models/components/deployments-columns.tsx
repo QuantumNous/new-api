@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
+import { getIdentityTextColorClass } from '@/lib/colors'
 import { formatTimestampToDate } from '@/lib/format'
 
 import { getDeploymentStatusConfig } from '../constants'
@@ -126,7 +127,11 @@ export function useDeploymentsColumns(opts: {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
         return (
-          <StatusBadge variant='neutral' size='sm'>
+          <StatusBadge
+            variant='neutral'
+            size='sm'
+            className={getIdentityTextColorClass(String(provider))}
+          >
             {String(provider)}
           </StatusBadge>
         )

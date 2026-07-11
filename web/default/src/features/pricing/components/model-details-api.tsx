@@ -109,7 +109,7 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
       `curl ${url} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${bodyJson.replace(/\n/g, '\n     ')}'`,
+      `  -d '${bodyJson.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
 
@@ -177,7 +177,7 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
       `  -H "x-api-key: $${ctx.apiKeyEnv}" \\`,
       `  -H "anthropic-version: 2023-06-01" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -249,7 +249,7 @@ function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
     return [
       `curl '${url}' \\`,
       `  -H 'Content-Type: application/json' \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -291,7 +291,7 @@ function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
 
 function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
-  const text = 'The food was delicious and the waiter…'
+  const text = 'The food was delicious and the waiter?'
 
   if (lang === 'curl') {
     const body = JSON.stringify({ model: ctx.modelName, input: text }, null, 2)
@@ -299,7 +299,7 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
       `curl ${url} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -365,7 +365,7 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
       `curl ${url} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -430,8 +430,9 @@ function buildSample(
 ): string {
   if (endpointType === 'anthropic') return buildAnthropicSample(lang, ctx)
   if (endpointType === 'gemini') return buildGeminiSample(lang, ctx)
-  if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
+  if (endpointType === 'embeddings' || endpointType === 'jina-rerank') {
     return buildEmbeddingSample(lang, ctx)
+  }
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
   return buildChatSample(lang, ctx)
 }
@@ -502,12 +503,12 @@ function CodeSamplesSection(props: {
       <div className='flex flex-wrap items-center gap-2'>
         {endpoints.length > 1 && (
           <Tabs value={endpointType} onValueChange={setEndpointType}>
-            <TabsList className='bg-muted/40 p-0.5'>
+            <TabsList className='bg-muted/40 h-8 p-0.5'>
               {endpoints.map((ep) => (
                 <TabsTrigger
                   key={ep.type}
                   value={ep.type}
-                  className='px-2.5 text-xs'
+                  className='h-7 px-2.5 text-xs'
                 >
                   {ep.type}
                 </TabsTrigger>
@@ -521,9 +522,9 @@ function CodeSamplesSection(props: {
           onValueChange={(v) => setLang(v as Lang)}
           className='ml-auto'
         >
-          <TabsList className='bg-muted/40 p-0.5'>
+          <TabsList className='bg-muted/40 h-8 p-0.5'>
             {(Object.keys(LANG_LABELS) as Lang[]).map((l) => (
-              <TabsTrigger key={l} value={l} className='px-2.5 text-xs'>
+              <TabsTrigger key={l} value={l} className='h-7 px-2.5 text-xs'>
                 {LANG_LABELS[l]}
               </TabsTrigger>
             ))}
@@ -539,7 +540,7 @@ function CodeSamplesSection(props: {
 
       <p className='text-muted-foreground mt-2 text-xs'>
         {t('Replace')}{' '}
-        <code className='bg-muted rounded px-1 py-0.5 font-mono text-xs'>
+        <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
           {'<YOUR_API_KEY>'}
         </code>{' '}
         {t('with the API key from your token settings.')}
@@ -582,7 +583,7 @@ function SupportedParametersSection(props: { model: PricingModel }) {
                 {p.required && (
                   <Badge
                     variant='outline'
-                    className='border-destructive/40 text-destructive h-6 px-2 text-sm'
+                    className='h-6 border-rose-500/40 px-2 text-sm text-rose-600 dark:text-rose-400'
                   >
                     {t('required')}
                   </Badge>
@@ -598,7 +599,7 @@ function SupportedParametersSection(props: { model: PricingModel }) {
             cell: (p) => (
               <Badge
                 variant='secondary'
-                className='rounded-full px-2.5 font-mono text-sm font-normal'
+                className='h-7 rounded-full px-2.5 font-mono text-sm font-normal'
               >
                 {p.type}
               </Badge>
@@ -658,7 +659,7 @@ function ParamRangeCell(props: { param: SupportedParameter }) {
       </div>
     )
   }
-  return <span className='text-muted-foreground/60 text-sm'>—</span>
+  return <span className='text-muted-foreground/60 text-sm'>?</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -711,7 +712,7 @@ function RateLimitsSection(props: { model: PricingModel }) {
           },
         ]}
       />
-      <p className='text-muted-foreground mt-2 text-xs leading-relaxed'>
+      <p className='text-muted-foreground mt-2 text-[11px] leading-relaxed'>
         {t(
           'RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.'
         )}
@@ -734,11 +735,11 @@ function AuthSection() {
         <div className='space-y-1.5 text-xs leading-relaxed'>
           <p>
             {t('All requests must include')}{' '}
-            <code className='bg-muted rounded px-1 py-0.5 font-mono text-xs'>
+            <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
               Authorization: Bearer &lt;TOKEN&gt;
             </code>{' '}
             {t('header. Anthropic-formatted endpoints accept the')}{' '}
-            <code className='bg-muted rounded px-1 py-0.5 font-mono text-xs'>
+            <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
               x-api-key
             </code>{' '}
             {t('header instead.')}

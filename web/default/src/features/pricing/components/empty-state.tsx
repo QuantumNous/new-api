@@ -49,7 +49,7 @@ export function EmptyState(props: EmptyStateProps) {
       </p>
 
       {(props.hasActiveFilters || hasSearch) && (
-        <Button variant='outline' onClick={props.onClearFilters}>
+        <Button variant='outline' size='sm' onClick={props.onClearFilters}>
           {t('Clear all filters')}
         </Button>
       )}

@@ -30,6 +30,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { getIdentityTextColorClass } from '@/lib/colors'
+import { cn } from '@/lib/utils'
 
 import type { RatioType } from '../types'
 import {
@@ -121,7 +123,10 @@ export function useUpstreamRatioSyncColumns(
                     <StatusBadge
                       variant='neutral'
                       size='sm'
-                      className={syncFieldLabelClassName}
+                      className={cn(
+                        syncFieldLabelClassName,
+                        getIdentityTextColorClass(ratioType)
+                      )}
                     >
                       {getSyncFieldLabel(ratioType, t)}
                     </StatusBadge>
@@ -230,7 +235,10 @@ export function useUpstreamRatioSyncColumns(
                     <StatusBadge
                       variant='neutral'
                       size='sm'
-                      className={syncFieldLabelClassName}
+                      className={cn(
+                        syncFieldLabelClassName,
+                        getIdentityTextColorClass(ratioType)
+                      )}
                     >
                       {getSyncFieldLabel(ratioType, t)}
                     </StatusBadge>

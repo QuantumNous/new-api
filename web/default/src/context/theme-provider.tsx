@@ -98,6 +98,10 @@ export function ThemeProvider({
       root.classList.remove('light', 'dark')
       root.classList.add(nextResolvedTheme)
       setResolvedTheme(nextResolvedTheme)
+
+      const themeColor = nextResolvedTheme === 'dark' ? '#2c2c2c' : '#fff'
+      const metaThemeColor = document.querySelector("meta[name='theme-color']")
+      if (metaThemeColor) metaThemeColor.setAttribute('content', themeColor)
     }
 
     applyTheme()

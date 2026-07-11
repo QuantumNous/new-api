@@ -29,7 +29,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { getIdentityTextColorClass } from '@/lib/colors'
 import { formatTimestampToDate, formatTokens } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 import { formatDuration } from '../../lib/format'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
@@ -180,7 +182,10 @@ export function createChannelColumn<T>(config: {
           value={String(channelId)}
           variant='neutral'
           size='sm'
-          className='font-mono'
+          className={cn(
+            'font-mono',
+            getIdentityTextColorClass(String(channelId))
+          )}
         >
           #{channelId}
         </CopyableStatusBadge>

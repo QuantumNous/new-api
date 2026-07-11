@@ -132,9 +132,10 @@
 **颜色**
 
 - 后台界面（除 `features/home/` 营销页外）**禁止硬编码 Tailwind 调色板类**（如 `text-emerald-600`、`bg-amber-50`、`border-rose-200`），一律使用语义令牌：`success` / `warning` / `destructive` / `info` / `neutral`、`primary` / `muted` / `accent` / `border` / `ring`。暗色适配由令牌完成，禁止 `dark:text-emerald-400` 之类逐处覆写。
-- 状态色仅表达状态（成功/警告/错误/信息），不得用于装饰或分类；分类信息（模型名、分组名、渠道名等）一律中性呈现，身份靠文本与图标传达。`StatusBadge` 的 `autoColor` 已废弃为 neutral，禁止恢复字符串哈希取色。
-- 需要浅底状态胶囊时使用 `status-badge.tsx` 的 `tintedBadgeClassMap`，不要再手写 `bg-xxx-50 text-xxx-700 dark:...` 组合。
-- 图表用 `--chart-1..5`；用户头像身份色走 `getAvatarColorClass`。这两处是仅有的多色场景。
+- 状态色仅表达状态（成功/警告/错误/信息），不得用于装饰；实体分类信息（模型名、分组名、渠道名、标签、端点、供应商等）使用**身份色**呈现：经 `lib/colors.ts` 的 `getIdentityTextColorClass` / `getIdentityColorClass`（字符串哈希稳定取色，同名同色）映射到 `text-identity-*` 令牌，不得为实体信息挪用状态色，也不得绕过身份色系统硬编码调色板类。
+- 身份色令牌（`--color-identity-*`）与状态文字色（`--color-status-*`）集中定义在 `styles/theme.css`，亮/暗模式的混合比例由 `--identity-color-mix` / `--status-color-mix` 控制；调整观感改这些变量，不要在组件里逐处覆写。
+- 需要浅底胶囊时使用 `StatusBadge` 的 `appearance='soft'`（或 `getIdentityColorClass` 的 currentColor 底色），不要手写 `bg-xxx-50 text-xxx-700 dark:...` 组合。
+- 图表用 `--chart-1..5`；用户头像身份色走 `lib/avatar.ts` 的 `getUserAvatarStyle`。
 - 禁止用 `!important`（`!text-*` 等）压制文字颜色/字号；若需要覆盖，说明层级设计有误，先修组件。
 
 **排版**
@@ -170,7 +171,7 @@
 
 **徽章与图标**
 
-- 文本徽章统一 `StatusBadge`（五种语义 voice）；模型/分组/渠道等实体徽章统一中性底（`border-border/60 bg-muted/30`）。不要新造第三种徽章样式。
+- 文本徽章统一 `StatusBadge`（五种语义 voice）；模型/分组/渠道/标签/端点等实体徽章保持中性 `variant`，文字色通过 `getIdentityTextColorClass(name)` 叠加身份色（需要浅底时用 `appearance='soft'` 或 `getIdentityColorClass`）。不要新造第三种徽章样式。
 - 业务代码图标一律 `lucide-react`；`components/ui/` 由 shadcn 生成器维护（Hugeicons），不要手改基础组件图标库；AI 品牌图标用 `@lobehub/icons`（经 `getLobeIcon`）。
 
 ### 3.11 文件组织

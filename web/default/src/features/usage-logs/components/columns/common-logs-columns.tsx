@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useGroupRatios } from '@/hooks/use-group-ratios'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import { getIdentityTextColorClass } from '@/lib/colors'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import {
   formatUseTime,
@@ -374,7 +375,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       value={String(log.channel)}
                       variant='neutral'
                       size='sm'
-                      className='font-mono'
+                      className={cn(
+                        'font-mono',
+                        getIdentityTextColorClass(String(log.channel))
+                      )}
                     >
                       {channelIdDisplay}
                     </CopyableStatusBadge>
@@ -894,7 +898,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           <>
             <button
               type='button'
-              className='group flex max-w-[200px] flex-col gap-0.5 text-left text-xs'
+              className='group flex max-w-[200px] flex-col gap-0.5 text-left text-sm'
               onClick={() => setDialogOpen(true)}
               title={t('Click to view full details')}
             >

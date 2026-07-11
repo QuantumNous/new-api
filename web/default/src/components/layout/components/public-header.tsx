@@ -20,12 +20,12 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ConfigDrawer } from '@/components/config-drawer'
 import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -263,7 +263,12 @@ export function PublicHeader(props: PublicHeaderProps) {
               )}
 
               {showLanguageSwitcher && <LanguageSwitcher />}
-              {showThemeSwitch && <ThemeSwitch />}
+              {showThemeSwitch && (
+                <ConfigDrawer
+                  showLayoutControls={false}
+                  triggerClassName='max-md:inline-flex'
+                />
+              )}
               {showNotifications && (
                 <NotificationPopover
                   open={notifications.popoverOpen}
@@ -298,7 +303,12 @@ export function PublicHeader(props: PublicHeaderProps) {
 
             {/* Mobile: compact actions + hamburger */}
             <div className='flex items-center gap-2 sm:hidden'>
-              {showThemeSwitch && <ThemeSwitch />}
+              {showThemeSwitch && (
+                <ConfigDrawer
+                  showLayoutControls={false}
+                  triggerClassName='max-md:inline-flex'
+                />
+              )}
               {showAuthButtons && !loading && isAuthenticated && (
                 <ProfileDropdown />
               )}

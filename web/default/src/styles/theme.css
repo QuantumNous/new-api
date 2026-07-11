@@ -19,12 +19,21 @@ For commercial licensing, please contact support@quantumnous.com
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Primary UI face. `@fontsource-variable/public-sans` registers the family
-   * as 'Public Sans Variable' (NOT 'Public Sans'), so that name must lead the
-   * stack or the webfont silently never applies. Public Sans carries no CJK
-   * glyphs, so explicit CJK UI fonts (PingFang / YaHei UI / Noto Sans CJK)
-   * sit BEFORE the western system fallbacks — otherwise Windows browsers pick
-   * a legacy serif-ish CJK default and Latin/CJK baselines drift apart. */
+  /* Monospace face for `.font-mono`, code/pre, and the `mono` option of the
+   * theme's font axis. Fontsource registers the family as 'JetBrains Mono
+   * Variable' (NOT 'JetBrains Mono'), so that name must lead the stack or
+   * the webfont silently never applies. JetBrains Mono carries no CJK
+   * glyphs; CJK text falls back to the system UI fonts listed after it. */
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC',
+    'Noto Sans CJK SC', monospace;
+  /* Default body face — humanist sans, also the `sans` option of the
+   * theme's font axis. Same Fontsource naming caveat: 'Public Sans
+   * Variable' must lead. Public Sans carries no CJK glyphs, so explicit
+   * CJK UI fonts sit BEFORE the western system fallbacks — otherwise
+   * Windows browsers pick a legacy serif-ish CJK default and Latin/CJK
+   * baselines drift apart. */
   --font-sans:
     'Public Sans Variable', 'Public Sans', -apple-system, BlinkMacSystemFont,
     'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei',
@@ -220,14 +229,14 @@ For commercial licensing, please contact support@quantumnous.com
   /* Static build-channel fallback consumed when JS hasn't booted yet. */
   --app-rev: '2k6e8r7p';
   /* Currently active body font. The font axis swaps this between
-   * `--font-sans` and `--font-serif` via `[data-theme-font='...']` blocks
-   * in theme-presets.css. Default mirrors `--font-sans` so behavior is
-   * identical when no font preference is set. */
+   * `--font-mono`, `--font-sans`, and `--font-serif` via
+   * `[data-theme-font='...']` blocks in theme-presets.css. Default mirrors
+   * `--font-sans` so behavior is identical when no font preference is set. */
   --font-body: var(--font-sans);
-  /* Light mode uses a quiet neutral canvas with white content surfaces.
-   * Keeping the layers distinct prevents dense admin pages from collapsing
-   * into one flat white plane while preserving the macaron accents. */
-  --background: oklch(0.985 0 0);
+  /* Light mode uses a bright pure-white canvas (matching the original
+   * palette) with soft light-grey borders and accents, so the UI reads
+   * crisp instead of collapsing into muddy greys. */
+  --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -237,11 +246,11 @@ For commercial licensing, please contact support@quantumnous.com
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.95 0 0);
   --secondary-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.955 0 0);
+  --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.49 0 0);
   --subtle-foreground: var(--muted-foreground);
   --faint-foreground: var(--muted-foreground);
-  --accent: oklch(0.935 0 0);
+  --accent: oklch(0.95 0 0);
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
@@ -253,37 +262,37 @@ For commercial licensing, please contact support@quantumnous.com
   --info-foreground: oklch(0.985 0 0);
   --neutral: oklch(0.708 0 0);
   --neutral-foreground: oklch(0.145 0 0);
-  --border: oklch(0.895 0 0);
-  --input: oklch(0.875 0 0);
+  --border: oklch(0.93 0 0);
+  --input: oklch(0.93 0 0);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.96 0 0);
+  --sidebar: oklch(0.975 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.13 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.9 0 0);
+  --sidebar-accent: oklch(0.92 0 0);
   --sidebar-accent-foreground: oklch(0.145 0 0);
-  --sidebar-border: oklch(0.895 0 0);
+  --sidebar-border: oklch(0.93 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --skeleton-base: oklch(0.955 0 0);
+  --skeleton-base: oklch(0.97 0 0);
   --skeleton-highlight: oklch(0.985 0 0);
-  --status-color-mix: 65%;
-  --identity-color-mix: 60%;
-  /* Cancels the chroma diluted by the 60% mix toward the near-black
-   * foreground (1 / 0.6), so light mode keeps the darkened lightness for
-   * contrast but stays vivid instead of fading into pastel. */
-  --identity-chroma-scale: 1.6667;
+  /* 100% keeps the original vivid semantic hues (matching the old palette
+   * where status text was raw `text-success`/`text-warning`/etc.) instead
+   * of darkening them toward the near-black foreground. */
+  --status-color-mix: 100%;
+  --identity-color-mix: 100%;
+  --identity-chroma-scale: 1;
   --identity-surface-mix: 13%;
   --identity-border-mix: 28%;
   --table-row: var(--card);
-  --table-header: color-mix(in oklch, var(--foreground) 3%, var(--table-row));
+  --table-header: color-mix(in oklch, var(--foreground) 1.5%, var(--table-row));
   --table-header-hover: color-mix(
     in oklch,
-    var(--foreground) 5%,
+    var(--foreground) 3%,
     var(--table-row)
   );
   --table-disabled: color-mix(

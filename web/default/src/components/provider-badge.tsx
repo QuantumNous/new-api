@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { getIdentityTextColorClass } from '@/lib/colors'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
@@ -24,12 +25,15 @@ import { StatusBadge, type StatusBadgeProps } from './status-badge'
 type ProviderBadgeProps = Omit<StatusBadgeProps, 'children' | 'variant'> & {
   iconKey?: string | null
   label: string
+  /** Color the label text by provider name. Set false for a neutral label. */
+  colorText?: boolean
 }
 
 export function ProviderBadge({
   className,
   iconKey,
   label,
+  colorText = true,
   ...badgeProps
 }: ProviderBadgeProps) {
   const icon = iconKey ? getLobeIcon(iconKey, 12) : null
@@ -38,7 +42,11 @@ export function ProviderBadge({
     <StatusBadge
       {...badgeProps}
       variant='neutral'
-      className={cn('shrink-0 overflow-visible', className)}
+      className={cn(
+        'shrink-0 overflow-visible',
+        colorText && getIdentityTextColorClass(label),
+        className
+      )}
     >
       {icon && (
         <span

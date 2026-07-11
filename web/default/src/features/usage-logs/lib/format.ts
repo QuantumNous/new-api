@@ -344,6 +344,9 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   // Channel
   'channel.create': 'Created channel {{name}} (type {{type}}, count {{count}})',
   'channel.update': 'Updated channel {{name}} (ID: {{id}})',
+  'channel.status_update': 'Updated channel status (ID: {{id}})',
+  'channel.status_update_batch':
+    'Batch updated {{count}} of {{total}} channel statuses',
   'channel.delete': 'Deleted channel {{name}} (ID: {{id}})',
   'channel.delete_batch': 'Batch deleted {{count}} channels',
   'channel.delete_disabled': 'Deleted all disabled channels ({{count}})',

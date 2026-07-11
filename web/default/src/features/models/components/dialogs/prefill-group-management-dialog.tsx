@@ -53,6 +53,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { getIdentityTextColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 
 import { deletePrefillGroup, getPrefillGroups } from '../../api'
@@ -246,7 +247,12 @@ export function PrefillGroupManagementDialog({
               {parsedItems.length > 0 ? (
                 <div className='flex flex-wrap gap-2'>
                   {parsedItems.slice(0, 6).map((item) => (
-                    <StatusBadge key={item} variant='neutral' size='sm'>
+                    <StatusBadge
+                      key={item}
+                      variant='neutral'
+                      size='sm'
+                      className={getIdentityTextColorClass(item)}
+                    >
                       {item}
                     </StatusBadge>
                   ))}
@@ -318,7 +324,12 @@ export function PrefillGroupManagementDialog({
                   {parsedItems.length > 0 ? (
                     <>
                       {parsedItems.slice(0, 6).map((item) => (
-                        <StatusBadge key={item} variant='neutral' size='sm'>
+                        <StatusBadge
+                          key={item}
+                          variant='neutral'
+                          size='sm'
+                          className={getIdentityTextColorClass(item)}
+                        >
                           {item}
                         </StatusBadge>
                       ))}

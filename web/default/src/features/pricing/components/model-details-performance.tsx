@@ -36,7 +36,7 @@ import {
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
 import { cn } from '@/lib/utils'
 
-import { type UptimeDayPoint } from '../lib/mock-stats'
+import type { UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
@@ -51,20 +51,22 @@ function StatCard(props: {
   const Icon = props.icon
   return (
     <div className='bg-background flex flex-col gap-1 rounded-lg border p-3'>
-      <span className='text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium'>
+      <span className='text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase'>
         <Icon className='size-3' />
         {props.label}
       </span>
       <span
         className={cn(
-          'text-foreground text-lg font-semibold tabular-nums',
+          'text-foreground font-mono text-lg font-semibold tabular-nums',
           props.valueClassName
         )}
       >
         {props.value}
       </span>
       {props.hint && (
-        <span className='text-muted-foreground/70 text-xs'>{props.hint}</span>
+        <span className='text-muted-foreground/70 text-[11px]'>
+          {props.hint}
+        </span>
       )}
     </div>
   )
@@ -95,7 +97,7 @@ function toLatencySeries(groups: PerformanceGroup[]) {
     }
   }
 
-  return Array.from(byTs.entries())
+  return [...byTs.entries()]
     .sort(([a], [b]) => a - b)
     .map(([ts, values]) => ({
       timestamp: new Date(ts * 1000).toISOString(),
@@ -119,7 +121,7 @@ function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
       byTs.set(point.ts, current)
     }
   }
-  return Array.from(byTs.entries())
+  return [...byTs.entries()]
     .sort(([a], [b]) => a - b)
     .map(([ts, value]) => {
       const uptime =
@@ -328,7 +330,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           }
           accent={
             incidentCount > 0 ? (
-              <span className='text-warning inline-flex items-center gap-1'>
+              <span className='inline-flex items-center gap-1 text-amber-600 dark:text-amber-400'>
                 <AlertTriangle className='size-3.5' />
                 {t('{{count}} incidents', {
                   count: incidentCount,

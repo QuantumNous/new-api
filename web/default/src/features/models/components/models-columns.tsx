@@ -31,6 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { getIdentityTextColorClass } from '@/lib/colors'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
@@ -166,7 +167,11 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         }
 
         const badge = (
-          <StatusBadge variant={config.variant} size='sm'>
+          <StatusBadge
+            variant={config.variant}
+            size='sm'
+            className={config.className}
+          >
             {label}
           </StatusBadge>
         )
@@ -178,7 +183,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           model.matched_models.length > 0
         ) {
           const matchedBadges = model.matched_models.map((m) => (
-            <StatusBadge key={m} variant='neutral' size='sm'>
+            <StatusBadge
+              key={m}
+              variant='neutral'
+              size='sm'
+              className={getIdentityTextColorClass(m)}
+            >
               {m}
             </StatusBadge>
           ))
@@ -306,7 +316,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return (
           <BadgeListCell
             items={tagArray.map((tag) => (
-              <StatusBadge key={tag} variant='neutral' size='sm'>
+              <StatusBadge
+                key={tag}
+                variant='neutral'
+                size='sm'
+                className={getIdentityTextColorClass(tag)}
+              >
                 {tag}
               </StatusBadge>
             ))}
@@ -333,7 +348,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return (
           <BadgeListCell
             items={endpointArray.map((ep) => (
-              <StatusBadge key={ep} variant='neutral' size='sm'>
+              <StatusBadge
+                key={ep}
+                variant='neutral'
+                size='sm'
+                className={getIdentityTextColorClass(ep)}
+              >
                 {ep}
               </StatusBadge>
             ))}
@@ -368,6 +388,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
                 key={`${c.id}-${c.name}-${c.type ?? ''}`}
                 variant='neutral'
                 size='sm'
+                className={getIdentityTextColorClass(c.name)}
               >
                 {`${c.name} (${c.type})`}
               </StatusBadge>
@@ -424,6 +445,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
                   key={qt}
                   variant={config?.variant || 'neutral'}
                   size='sm'
+                  className={config?.className}
                 >
                   {config?.label || String(qt)}
                 </StatusBadge>

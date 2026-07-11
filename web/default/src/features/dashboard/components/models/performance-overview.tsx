@@ -21,14 +21,13 @@ import { Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
-  getSuccessRateLevel,
+  getSuccessRateDotClass,
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
@@ -207,22 +206,25 @@ function InlineMetric(props: {
 
 function ModelBadge(props: { model: PerfModelSummary }) {
   const model = props.model
-  const level = getSuccessRateLevel(model.success_rate)
-  let variant: StatusVariant = 'neutral'
-  if (level === 'excellent' || level === 'good') {
-    variant = 'success'
-  } else if (level === 'warning') {
-    variant = 'warning'
-  } else if (level === 'critical') {
-    variant = 'destructive'
-  }
 
   return (
-    <StatusBadge variant={variant}>
-      <span className='mr-1 whitespace-nowrap'>{model.model_name}</span>
-      <span className='tabular-nums'>
+    <span className='bg-muted/50 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1'>
+      <span className='max-w-[10rem] truncate text-xs'>{model.model_name}</span>
+      <span
+        className={cn(
+          'size-1.5 rounded-full',
+          getSuccessRateDotClass(model.success_rate)
+        )}
+        aria-hidden='true'
+      />
+      <span
+        className={cn(
+          'text-xs font-semibold tabular-nums',
+          getSuccessRateTextClass(model.success_rate)
+        )}
+      >
         {formatUptimePct(model.success_rate)}
       </span>
-    </StatusBadge>
+    </span>
   )
 }

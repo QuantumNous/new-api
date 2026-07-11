@@ -19,9 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-/* Public Sans + Lora with `font-display: optional` (see fonts.css). Avoids
- * the mid-session size jump from Fontsource's default `swap` policy. */
-@import './fonts.css';
+/* Bundled webfonts (Fontsource, `font-display: swap`) so the UI always
+ * settles on the project's own faces instead of the system fonts.
+ * Public Sans is the default body face; Lora backs the `serif` option of
+ * the theme's font axis and JetBrains Mono backs `mono` plus all
+ * `.font-mono` / code contexts. */
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/public-sans';
+@import '@fontsource-variable/lora';
 
 @import './theme.css';
 @import './theme-presets.css';

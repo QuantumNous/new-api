@@ -47,13 +47,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
+import { getIdentityTextColorClass } from '@/lib/colors'
 import {
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
   getCurrencyLabel,
 } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
-import { truncateText } from '@/lib/utils'
+import { cn, truncateText } from '@/lib/utils'
 
 import { getCodexUsage } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
@@ -755,6 +756,7 @@ export function useChannelsColumns(
                     <ProviderBadge
                       iconKey={`${iconName}.Color`}
                       label={typeName}
+                      colorText={false}
                     />
                   </TooltipTrigger>
                   <TooltipContent side='top'>{typeName}</TooltipContent>
@@ -952,6 +954,7 @@ export function useChannelsColumns(
                   variant='neutral'
                   size='sm'
                   title={model}
+                  className={cn('font-mono', getIdentityTextColorClass(model))}
                 >
                   {model}
                 </StatusBadge>
@@ -1019,7 +1022,12 @@ export function useChannelsColumns(
           }
 
           return (
-            <StatusBadge variant='neutral' size='sm' title={tag}>
+            <StatusBadge
+              variant='neutral'
+              size='sm'
+              title={tag}
+              className={getIdentityTextColorClass(tag)}
+            >
               {tag}
             </StatusBadge>
           )

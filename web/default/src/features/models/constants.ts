@@ -46,28 +46,32 @@ export function getNameRuleConfig(t: TFunction): Record<
   {
     label: string
     variant: StatusBadgeProps['variant']
+    className?: string
     description: string
   }
 > {
   return {
     0: {
       label: t('Exact'),
-      variant: 'neutral',
+      variant: 'success',
       description: t('Match model name exactly'),
     },
     1: {
       label: t('Prefix'),
       variant: 'neutral',
+      className: 'text-identity-blue',
       description: t('Match models starting with this name'),
     },
     2: {
       label: t('Contains'),
       variant: 'neutral',
+      className: 'text-identity-orange',
       description: t('Match models containing this name'),
     },
     3: {
       label: t('Suffix'),
       variant: 'neutral',
+      className: 'text-identity-purple',
       description: t('Match models ending with this name'),
     },
   }
@@ -153,12 +157,25 @@ export function getDeploymentStatusConfig(t: TFunction): Record<
 // Quota Type
 // ============================================================================
 
-export function getQuotaTypeConfig(
-  t: TFunction
-): Record<number, { label: string; variant: StatusBadgeProps['variant'] }> {
+export function getQuotaTypeConfig(t: TFunction): Record<
+  number,
+  {
+    label: string
+    variant: StatusBadgeProps['variant']
+    className?: string
+  }
+> {
   return {
-    0: { label: t('Usage-based'), variant: 'neutral' },
-    1: { label: t('Per-call'), variant: 'neutral' },
+    0: {
+      label: t('Usage-based'),
+      variant: 'neutral',
+      className: 'text-identity-violet',
+    },
+    1: {
+      label: t('Per-call'),
+      variant: 'neutral',
+      className: 'text-identity-teal',
+    },
   }
 }
 

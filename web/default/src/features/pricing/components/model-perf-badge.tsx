@@ -67,9 +67,25 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
   const statusRates =
     recentRates.length > 0 ? recentRates.slice(-3) : [success_rate]
   const statusBars = [
-    ...Array(Math.max(0, 3 - statusRates.length)).fill(null),
-    ...statusRates,
-  ].slice(-3)
+    {
+      id: 'oldest',
+      rate: statusRates.at(-3) ?? null,
+      heightClassName: 'h-2',
+      emptyClassName: 'bg-muted-foreground/10',
+    },
+    {
+      id: 'middle',
+      rate: statusRates.at(-2) ?? null,
+      heightClassName: 'h-2.5',
+      emptyClassName: 'bg-muted-foreground/15',
+    },
+    {
+      id: 'latest',
+      rate: statusRates.at(-1) ?? null,
+      heightClassName: 'h-3',
+      emptyClassName: 'bg-muted-foreground/15',
+    },
+  ]
 
   return (
     <div
@@ -79,7 +95,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
       )}
     >
       <div title={t('Average latency')} className='min-w-0'>
-        <div className='text-muted-foreground/55 text-xs leading-4'>
+        <div className='text-muted-foreground/55 text-[10px] leading-4'>
           {t('Latency short')}
         </div>
         <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
@@ -87,7 +103,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         </div>
       </div>
       <div title={t('Throughput')} className='min-w-0'>
-        <div className='text-muted-foreground/55 truncate text-xs leading-4'>
+        <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
           {t('Throughput short')}
         </div>
         <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
@@ -98,23 +114,19 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         title={`${t('Success rate')}: ${success_rate.toFixed(1)}%`}
         className='min-w-0'
       >
-        <div className='text-muted-foreground/55 truncate text-xs leading-4'>
+        <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
           {t('Status short')}
         </div>
         <div className='flex h-4 items-center justify-end gap-0.5'>
-          {statusBars.map((rate, index) => (
+          {statusBars.map((bar) => (
             <span
-              key={`${index}-${rate ?? 'empty'}`}
+              key={bar.id}
               className={cn(
                 'w-1 rounded-full',
-                index === 0 && 'h-2',
-                index === 1 && 'h-2.5',
-                index === 2 && 'h-3',
-                rate == null
-                  ? index === 0
-                    ? 'bg-muted-foreground/10'
-                    : 'bg-muted-foreground/15'
-                  : getSuccessRateDotClass(rate)
+                bar.heightClassName,
+                bar.rate == null
+                  ? bar.emptyClassName
+                  : getSuccessRateDotClass(bar.rate)
               )}
             />
           ))}
