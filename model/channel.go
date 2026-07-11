@@ -183,8 +183,13 @@ func (options ChannelSortOptions) Apply(query *gorm.DB) *gorm.DB {
 			Desc:   true,
 		})
 	}
+	// priority 大量并列（默认 0），补 id 次级键使顺序确定——否则并列行顺序由引擎
+	// 物理行序决定，与下游镜像（Roma）的页面顺序对不上。
 	return query.Order(clause.OrderByColumn{
 		Column: clause.Column{Name: "priority"},
+		Desc:   true,
+	}).Order(clause.OrderByColumn{
+		Column: clause.Column{Name: "id"},
 		Desc:   true,
 	})
 }
@@ -924,7 +929,7 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 		baseURLCol = `"base_url"`
 	}
 
-	order := "priority desc"
+	order := "priority desc, id desc"
 	if idSort {
 		order = "id desc"
 	}
@@ -1099,7 +1104,7 @@ func CountAllTags() (int64, error) {
 // Get channels of specified type with pagination
 func GetChannelsByType(startIdx int, num int, idSort bool, channelType int) ([]*Channel, error) {
 	var channels []*Channel
-	order := "priority desc"
+	order := "priority desc, id desc"
 	if idSort {
 		order = "id desc"
 	}
