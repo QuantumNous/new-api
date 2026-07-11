@@ -27,13 +27,18 @@ import (
 // non-streaming, and pass-through is not active. It is shared by the normal
 // relay path (TextHelper) and the channel test path (testChannel) so that
 // stream-only upstreams behave identically in both.
+//
+// ForceStreamBuffer is reassigned unconditionally (not just set to true) so
+// that a RelayInfo reused across retries onto a channel that does not force
+// streaming does not keep a stale buffering flag from a previous attempt.
 func ApplyForceStream(info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
-	if info.ChannelSetting.ForceStream &&
+	active := info.ChannelSetting.ForceStream &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
-		!lo.FromPtrOr(request.Stream, false) {
+		!lo.FromPtrOr(request.Stream, false)
+	info.ForceStreamBuffer = active
+	if active {
 		request.Stream = common.GetPointer(true)
-		info.ForceStreamBuffer = true
 	}
 }
 

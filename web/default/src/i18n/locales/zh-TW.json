@@ -1502,7 +1502,7 @@
     "Each tier supports 0~2 conditions (over len, p, c); the last tier is the catch-all without conditions. Use len (full input length, including cache hits) for tier conditions to avoid mis-routing when cache hits reduce p.": "每個檔位支援 0~2 個條件（針對 len、p、c），最後一檔為兜底檔無需條件。建議條件使用 len（完整輸入長度，含緩存命中），避免緩存命中降低 p 導致檔位誤判。",
     "Each tier supports up to 2 conditions; the last tier is the catch-all without conditions. Use full input length for tier conditions to avoid mis-routing when cache hits reduce billable input tokens.": "每個檔位最多支援 2 個條件；最後一個檔位是不帶條件的兜底檔。建議使用完整輸入長度作為檔位條件，避免緩存命中減少收費輸入 token 後誤判檔位。",
     "Each tier supports up to 2 conditions. The last tier without conditions is the fallback.": "每個階梯最多支援 2 個條件。最後一個無條件階梯作為兜底。",
-    "Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.": "Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.",
+    "Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.": "用戶透過您的推薦連結註冊後，您即可獲得獎勵。可隨時將累計獎勵轉入餘額。",
     "Edit": "編輯",
     "Edit {{title}}": "編輯{{title}}",
     "Edit all channels with tag:": "編輯所有帶有標籤的渠道：",
