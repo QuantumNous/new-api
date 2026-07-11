@@ -153,12 +153,12 @@ export function useDrawingLogsColumns(
       }
 
       return (
-        <div className='flex w-max flex-col gap-0.5'>
+        <div className='flex min-w-0 flex-col items-start gap-0.5'>
           <CopyableStatusBadge
             value={mjId}
             variant='neutral'
             size='sm'
-            className='font-mono'
+            className='max-w-full min-w-0 shrink overflow-hidden font-mono [&>[data-slot=status-badge-label]]:min-w-0 [&>[data-slot=status-badge-label]]:max-w-full [&>[data-slot=status-badge-label]]:shrink [&>[data-slot=status-badge-label]]:overflow-hidden [&>[data-slot=status-badge-label]]:text-ellipsis'
           >
             {mjId}
           </CopyableStatusBadge>
