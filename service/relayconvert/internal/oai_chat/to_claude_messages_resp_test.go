@@ -92,7 +92,7 @@ func TestBuildClaudeUsageFromOpenAICacheWriteUsage(t *testing.T) {
 
 	require.NotNil(t, usage)
 	// Claude semantics reports input_tokens excluding cache read/write; the
-	// remainder 3619-2921-3616 clamps to 0.
+	// overlapping unadjusted prefixes drive the remainder negative, clamp to 0.
 	assert.Equal(t, 0, usage.InputTokens)
 	assert.Equal(t, 2921, usage.CacheReadInputTokens)
 	assert.Equal(t, 3616, usage.CacheCreationInputTokens)

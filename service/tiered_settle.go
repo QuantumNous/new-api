@@ -67,6 +67,8 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 		}
 	}
 
+	// OpenAI cache-write usage reports unadjusted prefix counts, so cr + cc can
+	// exceed the prompt and drive the remainder negative. Clamp at zero.
 	if p < 0 {
 		p = 0
 	}

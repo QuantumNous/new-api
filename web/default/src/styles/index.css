@@ -89,48 +89,43 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
-/* Vercel Geist-style skeleton shimmer */
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--skeleton-base) 0%,
-    var(--skeleton-base) 33%,
-    var(--skeleton-highlight) 50%,
-    var(--skeleton-base) 67%,
-    var(--skeleton-base) 100%
-  );
-  background-size: 300% 100%;
-  animation: skeleton-shimmer 1.8s ease-in-out infinite;
-}
-
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: -100% 50%;
-  }
-}
-
-/* Override auto-skeleton-react inline styles with Vercel shimmer */
+/* Skeleton scan shimmer: a highlight band sweeps left-to-right on a GPU
+ * compositor-friendly transform, so it stays silky even with many skeleton
+ * cells on screen (unlike background-position, which repaints every frame). */
+.skeleton-shimmer,
 .auto-skeleton-fade [class^='skeleton-'] {
+  position: relative;
+  overflow: hidden;
+  background: var(--skeleton-base) !important;
+  animation: none !important;
+}
+
+.skeleton-shimmer::after,
+.auto-skeleton-fade [class^='skeleton-']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: linear-gradient(
     90deg,
-    var(--skeleton-base) 0%,
-    var(--skeleton-base) 33%,
+    transparent 0%,
     var(--skeleton-highlight) 50%,
-    var(--skeleton-base) 67%,
-    var(--skeleton-base) 100%
-  ) !important;
-  background-size: 300% 100% !important;
-  animation: skeleton-shimmer 1.8s ease-in-out infinite !important;
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: skeleton-scan 1.6s linear infinite;
+}
+
+@keyframes skeleton-scan {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-shimmer,
-  .auto-skeleton-fade [class^='skeleton-'] {
+  .skeleton-shimmer::after,
+  .auto-skeleton-fade [class^='skeleton-']::after {
     animation: none !important;
-    background: var(--skeleton-base) !important;
+    content: none;
   }
 }
 

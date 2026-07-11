@@ -158,7 +158,7 @@ export function useDrawingLogsColumns(
             value={mjId}
             variant='neutral'
             size='sm'
-            className='max-w-full min-w-0 shrink overflow-hidden font-mono [&>[data-slot=status-badge-label]]:min-w-0 [&>[data-slot=status-badge-label]]:max-w-full [&>[data-slot=status-badge-label]]:shrink [&>[data-slot=status-badge-label]]:overflow-hidden [&>[data-slot=status-badge-label]]:text-ellipsis'
+            className='max-w-full min-w-0 shrink overflow-hidden font-mono [&>[data-slot=status-badge-label]]:max-w-full [&>[data-slot=status-badge-label]]:min-w-0 [&>[data-slot=status-badge-label]]:shrink [&>[data-slot=status-badge-label]]:overflow-hidden [&>[data-slot=status-badge-label]]:text-ellipsis'
           >
             {mjId}
           </CopyableStatusBadge>

@@ -294,9 +294,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 			}
 		}
 
-		// OpenAI cache-write usage can report cached_tokens + cache_write_tokens
-		// exceeding prompt_tokens; the uncached remainder must clamp at zero so
-		// billing never subtracts more than the reported input.
+		// OpenAI cache-write usage reports unadjusted prefix counts, so
+		// cached_tokens + cache_write_tokens can exceed prompt_tokens and the
+		// remainder can go negative. Clamp at zero so overlap never turns into
+		// a negative base charge.
 		if baseTokens.IsNegative() {
 			baseTokens = decimal.Zero
 		}
