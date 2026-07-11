@@ -14,6 +14,60 @@ import (
 	"github.com/samber/lo"
 )
 
+// isDeepSeekModel returns true for DeepSeek models.
+func isDeepSeekModel(modelID string) bool {
+	return strings.HasPrefix(modelID, "deepseek-")
+}
+
+// hasThinkingBlocksInHistory checks if any assistant message has thinking blocks.
+func hasThinkingBlocksInHistory(messages []dto.ClaudeMessage) bool {
+	for _, msg := range messages {
+		if msg.Role != "assistant" {
+			continue
+		}
+		if msg.IsStringContent() {
+			continue
+		}
+		blocks, err := msg.ParseContent()
+		if err != nil {
+			continue
+		}
+		for _, block := range blocks {
+			if block.Type == "thinking" {
+				return true
+			}
+			if block.Type == "tool_use" && block.Thinking != nil && *block.Thinking != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasAssistantMessages returns true when the conversation contains assistant messages.
+func hasAssistantMessages(messages []dto.ClaudeMessage) bool {
+	for _, msg := range messages {
+		if msg.Role == "assistant" {
+			return true
+		}
+	}
+	return false
+}
+
+// budgetTokensToEffort maps Anthropic budget_tokens to OpenAI reasoning_effort.
+func budgetTokensToEffort(budget int) string {
+	switch {
+	case budget <= 2048:
+		return "low"
+	case budget <= 8192:
+		return "medium"
+	case budget <= 32768:
+		return "high"
+	default:
+		return "max"
+	}
+}
+
 func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
 	openAIRequest := dto.GeneralOpenAIRequest{
 		Model:       claudeRequest.Model,
@@ -58,6 +112,25 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			openAIRequest.Reasoning = reasoningJSON
 		}
 	} else {
+		// Map Anthropic budget_tokens to OpenAI reasoning_effort (4 tiers)
+		if claudeRequest.Thinking != nil && (claudeRequest.Thinking.Type == "enabled" || claudeRequest.Thinking.Type == "adaptive") {
+			budget := claudeRequest.Thinking.GetBudgetTokens()
+			effort := budgetTokensToEffort(budget)
+			// "max" is invalid for non-DeepSeek OpenAI-compatible models; cap to "high"
+			if effort == "max" && !isDeepSeekModel(info.OriginModelName) {
+				effort = "high"
+			}
+			openAIRequest.ReasoningEffort = effort
+		}
+
+		// DeepSeek safety guard: if history has assistant messages without thinking blocks,
+		// disable thinking mode to prevent 400 errors (reasoning_content must be passed back)
+		if isDeepSeekModel(info.OriginModelName) {
+			if hasAssistantMessages(claudeRequest.Messages) && !hasThinkingBlocksInHistory(claudeRequest.Messages) {
+				openAIRequest.ReasoningEffort = ""
+			}
+		}
+
 		thinkingSuffix := "-thinking"
 		if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
 			!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
@@ -130,6 +203,9 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			}
 		}
 	}
+	isDeepSeek := isDeepSeekModel(info.OriginModelName)
+	historyHasThinking := isDeepSeek && hasThinkingBlocksInHistory(claudeRequest.Messages)
+
 	for _, claudeMessage := range claudeRequest.Messages {
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
@@ -198,6 +274,13 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 				}
 			}
 
+			// DeepSeek reasoning_content placeholder: required when history has thinking blocks
+			if openAIMessage.Role == "assistant" && (openAIMessage.ReasoningContent == nil || *openAIMessage.ReasoningContent == "") {
+				if historyHasThinking {
+					openAIMessage.ReasoningContent = lo.ToPtr(" ")
+				}
+			}
+
 			if len(toolCalls) > 0 {
 				openAIMessage.SetToolCalls(toolCalls)
 			}
@@ -233,7 +316,8 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		oaiUsage.ClaudeCacheCreation1hTokens,
 	)
 	usage := &dto.ClaudeUsage{
-		InputTokens:              oaiUsage.PromptTokens,
+			// Subtract cache tokens from input_tokens per Anthropic spec (OpenAI prompt_tokens includes them)
+			InputTokens: max(0, oaiUsage.PromptTokens-oaiUsage.PromptTokensDetails.CachedCreationTokens-oaiUsage.PromptTokensDetails.CachedTokens),
 		OutputTokens:             oaiUsage.CompletionTokens,
 		CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
 		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
