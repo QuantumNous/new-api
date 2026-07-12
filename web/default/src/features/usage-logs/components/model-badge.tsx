@@ -126,6 +126,7 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
 function ModelBadgeContent(
   props: ModelBadgeProps & {
     staticOnly: boolean
+    mapped?: boolean
   }
 ) {
   const provider = resolveModelProvider(props.modelName)
@@ -144,6 +145,16 @@ function ModelBadgeContent(
     <span key='model' className='whitespace-nowrap'>
       {props.modelName}
     </span>,
+    // Mapped models carry the route marker inside the pill (trailing icon
+    // slot) so the indicator reads as part of the badge, not a stray glyph.
+    props.mapped ? (
+      <Route
+        key='mapped'
+        data-icon='inline-end'
+        className='opacity-70'
+        aria-hidden='true'
+      />
+    ) : null,
   ]
 
   if (props.staticOnly) {
@@ -190,33 +201,30 @@ export function ModelBadge(props: ModelBadgeProps) {
   return (
     <Popover>
       <PopoverTrigger
-        render={
-          <button type='button' className='inline-flex items-center gap-1' />
-        }
+        render={<button type='button' className='inline-flex items-center' />}
       >
-        <ModelBadgeContent {...props} staticOnly />
-        <Route className='text-muted-foreground size-3 shrink-0' />
+        <ModelBadgeContent {...props} staticOnly mapped />
       </PopoverTrigger>
-      <PopoverContent className='w-72'>
+      <PopoverContent className='w-fit max-w-80'>
         <div className='space-y-2'>
-          <div className='flex items-start justify-between gap-3'>
-            <span className='text-muted-foreground text-xs'>
+          <div className='flex items-center justify-between gap-3'>
+            <span className='text-muted-foreground shrink-0 text-xs'>
               {t('Request Model:')}
             </span>
             <ModelBadgeContent
               modelName={props.modelName}
-              staticOnly
-              className='max-w-[11rem]'
+              staticOnly={false}
+              className='max-w-56'
             />
           </div>
-          <div className='flex items-start justify-between gap-3'>
-            <span className='text-muted-foreground text-xs'>
+          <div className='flex items-center justify-between gap-3'>
+            <span className='text-muted-foreground shrink-0 text-xs'>
               {t('Actual Model:')}
             </span>
             <ModelBadgeContent
               modelName={props.actualModel}
-              staticOnly
-              className='max-w-[11rem]'
+              staticOnly={false}
+              className='max-w-56'
             />
           </div>
         </div>

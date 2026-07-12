@@ -25,11 +25,6 @@ import { GroupBadge } from '@/components/group-badge'
 import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -347,6 +342,17 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           const channelChain = hasRetryChain
             ? useChannel.join(' → ')
             : undefined
+          // Inline variant is compact (no spaces) so three hops fit the
+          // 160px cell; longer chains collapse the middle, keeping the
+          // first hops and the final channel. Full chain stays in the
+          // tooltip below.
+          let channelChainInline: string | undefined
+          if (hasRetryChain) {
+            channelChainInline =
+              useChannel.length > 3
+                ? `${useChannel[0]}→${useChannel[1]}→…→${useChannel.at(-1)}`
+                : useChannel.join('→')
+          }
           const channelDisplay = log.channel_name
             ? `${log.channel_name} #${log.channel}`
             : `#${log.channel}`
@@ -366,7 +372,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     <div className='flex max-w-[160px] flex-col gap-0.5' />
                   }
                 >
-                  <div className='relative inline-flex w-fit items-center gap-1'>
+                  <div className='relative inline-flex w-fit max-w-full items-center gap-1'>
                     <CopyableStatusBadge
                       value={String(log.channel)}
                       variant='neutral'
@@ -389,35 +395,15 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       </StatusBadge>
                     )}
                     {hasRetryChain && (
-                      <Popover>
-                        <PopoverTrigger
-                          render={
-                            <button
-                              type='button'
-                              className='text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none'
-                              aria-label={t('Retry Chain')}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          }
-                        >
-                          <GitBranch
-                            className='text-warning size-3.5'
-                            aria-hidden='true'
-                          />
-                        </PopoverTrigger>
-                        <PopoverContent
-                          side='top'
-                          align='start'
-                          className='w-64 text-xs'
-                        >
-                          <div className='flex flex-col gap-1'>
-                            <p className='font-medium'>{t('Retry Chain')}</p>
-                            <p className='text-muted-foreground font-mono break-all'>
-                              {channelChain}
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                      <span className='text-subtle-foreground inline-flex min-w-0 items-center gap-0.5 text-xs'>
+                        <GitBranch
+                          className='size-3 shrink-0'
+                          aria-hidden='true'
+                        />
+                        <span className='truncate font-mono tabular-nums'>
+                          {channelChainInline}
+                        </span>
+                      </span>
                     )}
                     {affinity && (
                       <button
@@ -568,10 +554,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       let group = log.group
       if (!group) group = other?.group || ''
 
-      const groupRatioText = getGroupRatioText(
-        other,
-        group ? groupRatios[group] : undefined
-      )
+      // The ratio reveals the group's pricing, so it hides together with
+      // the group name when sensitive info is masked.
+      const groupRatioText = sensitiveVisible
+        ? getGroupRatioText(other, group ? groupRatios[group] : undefined)
+        : null
       const tokenBadgeClassName =
         'max-w-full min-w-0 overflow-hidden [&>[data-slot=status-badge-label]]:max-w-full [&>[data-slot=status-badge-label]]:min-w-0 [&>[data-slot=status-badge-label]]:overflow-hidden [&>[data-slot=status-badge-label]]:text-ellipsis'
 
