@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import i18next from 'i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { useStatus } from '@/hooks/use-status'
 
 /**

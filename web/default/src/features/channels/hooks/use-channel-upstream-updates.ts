@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { api, type ApiRequestConfig } from '@/lib/api'
 import { normalizeModelList } from '../lib/upstream-update-utils'
 

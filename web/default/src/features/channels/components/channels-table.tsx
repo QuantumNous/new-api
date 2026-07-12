@@ -128,6 +128,7 @@ export function ChannelsTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
+    persistKey: 'channels-filters',
     pagination: {
       defaultPage: 1,
       defaultPageSize: isMobile ? 10 : DEFAULT_PAGE_SIZE,

@@ -20,7 +20,7 @@ import { useState, useMemo } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,

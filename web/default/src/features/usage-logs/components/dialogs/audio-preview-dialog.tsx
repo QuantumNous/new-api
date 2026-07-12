@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useRef, useEffect } from 'react'
 import { ExternalLink, Copy, Music } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

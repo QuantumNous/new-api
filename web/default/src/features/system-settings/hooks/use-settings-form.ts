@@ -24,7 +24,7 @@ import {
   type FieldNamesMarkedBoolean,
 } from 'react-hook-form'
 import i18next from 'i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 
 type SettingsFormOptions<T extends FieldValues> = UseFormProps<T> & {
   onSubmit: (data: T, changedFields: Record<string, unknown>) => Promise<void>

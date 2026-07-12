@@ -117,6 +117,40 @@ export function CommonLogsFilterBar<TData>(
     searchParams.type,
   ])
 
+  // Restore saved filters from localStorage on mount if URL has no active params
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('usage-logs-filters')
+      if (!saved) return
+
+      const parsed = JSON.parse(saved) as Record<string, unknown>
+
+      const hasActiveUrlParams =
+        (Array.isArray(searchParams.type) && searchParams.type.length > 0) ||
+        !!searchParams.model ||
+        !!searchParams.group ||
+        !!searchParams.token ||
+        !!searchParams.username ||
+        !!searchParams.channel ||
+        !!searchParams.requestId ||
+        !!searchParams.upstreamRequestId ||
+        searchParams.startTime != null ||
+        searchParams.endTime != null
+
+      if (!hasActiveUrlParams) {
+        navigate({
+          to: '/usage-logs/$section',
+          params: { section: 'common' },
+          search: parsed,
+          replace: true,
+        })
+      }
+    } catch {
+      // silently ignored
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleChange = useCallback(
     (field: keyof CommonLogFilters, value: Date | string | undefined) => {
       setFilters((prev) => ({ ...prev, [field]: value }))
@@ -126,15 +160,21 @@ export function CommonLogsFilterBar<TData>(
 
   const handleApply = useCallback(() => {
     const filterParams = buildSearchParams(filters, 'common')
+    const searchObj = {
+      ...filterParams,
+      type: [logType],
+      page: 1,
+    }
     navigate({
       to: '/usage-logs/$section',
       params: { section: 'common' },
-      search: {
-        ...filterParams,
-        type: [logType],
-        page: 1,
-      },
+      search: searchObj,
     })
+    try {
+      localStorage.setItem('usage-logs-filters', JSON.stringify(searchObj))
+    } catch {
+      // silently ignored
+    }
     queryClient.invalidateQueries({ queryKey: ['logs'] })
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
   }, [filters, logType, navigate, queryClient])

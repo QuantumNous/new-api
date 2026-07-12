@@ -23,7 +23,7 @@ import {
 } from '@/i18n/languages'
 import { Languages, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import {
   Select,

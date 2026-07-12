@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { IconDiscord } from '@/assets/brand-icons'
 import {
   handleGitHubOAuth,

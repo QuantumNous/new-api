@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { copyToClipboard as copyToClipboardUtil } from '@/lib/copy-to-clipboard'
 
 type UseCopyToClipboardOptions = {

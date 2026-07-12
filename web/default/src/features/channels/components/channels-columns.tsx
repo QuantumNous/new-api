@@ -29,7 +29,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { getCurrencyLabel } from '@/lib/currency'
 import {
   formatTimestampToDate,

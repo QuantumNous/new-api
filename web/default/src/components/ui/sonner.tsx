@@ -26,7 +26,7 @@ import {
   Loading03Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Toaster as Sonner, type ToasterProps } from 'sonner'
+import { Toaster as Sonner, type ToasterProps } from '@/lib/sonner'
 import { useTheme } from '@/context/theme-provider'
 
 const Toaster = (props: ToasterProps) => {

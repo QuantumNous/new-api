@@ -30,7 +30,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiDiscord } from 'react-icons/si'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {

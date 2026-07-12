@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { Code2, Copy, Eye, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

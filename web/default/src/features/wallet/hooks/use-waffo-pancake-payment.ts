@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useCallback } from 'react'
 import i18next from 'i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { requestWaffoPancakePayment, isApiSuccess } from '../api'
 
 function getCheckoutUrl(data: unknown): string | null {

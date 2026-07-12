@@ -34,7 +34,7 @@ import {
 import { useDebounce, useMediaQuery } from '@/hooks'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { formatQuota } from '@/lib/format'
 import { cn, getPageNumbers } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
@@ -232,6 +232,7 @@ export function ApiKeysTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
+    persistKey: 'keys-filters',
     pagination: { defaultPage: 1, defaultPageSize: 20 },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [

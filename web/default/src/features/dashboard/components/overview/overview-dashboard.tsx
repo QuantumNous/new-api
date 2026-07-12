@@ -45,7 +45,7 @@ import {
 } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { formatQuota } from '@/lib/format'
 import { getUserModels } from '@/lib/api'

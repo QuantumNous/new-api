@@ -25,7 +25,7 @@ import {
   MoreHorizontal as DotsHorizontalIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,

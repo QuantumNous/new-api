@@ -26,7 +26,7 @@ import {
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   AlertDialog,
@@ -69,6 +69,7 @@ export function DeploymentsTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
+    persistKey: 'deployments-filters',
     pagination: {
       pageKey: 'dPage',
       pageSizeKey: 'dPageSize',

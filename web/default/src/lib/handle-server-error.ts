@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { AxiosError } from 'axios'
 import i18next from 'i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 
 export function handleServerError(error: unknown) {
   // eslint-disable-next-line no-console

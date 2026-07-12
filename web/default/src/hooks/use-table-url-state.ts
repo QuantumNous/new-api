@@ -36,6 +36,7 @@ export type NavigateFn = (opts: {
 type UseTableUrlStateParams = {
   search: SearchRecord
   navigate: NavigateFn
+  persistKey?: string
   pagination?: {
     pageKey?: string
     pageSizeKey?: string
@@ -89,18 +90,83 @@ export function useTableUrlState(
   const {
     search,
     navigate,
+    persistKey,
     pagination: paginationCfg,
     globalFilter: globalFilterCfg,
     columnFilters: columnFiltersCfg = [],
   } = params
+
+  const globalFilterKey = globalFilterCfg?.key ?? ('filter' as string)
+  const globalFilterEnabled = globalFilterCfg?.enabled ?? true
+
+  useEffect(() => {
+    if (!persistKey) return
+
+    const hasUserFilters =
+      columnFiltersCfg.some((cfg) => {
+        const val = (search as Record<string, unknown>)[cfg.searchKey]
+        if (cfg.type === 'array') {
+          return Array.isArray(val) && val.length > 0
+        }
+        return typeof val === 'string' && val.trim() !== ''
+      }) ||
+      (globalFilterEnabled &&
+        typeof (search as Record<string, unknown>)[globalFilterKey] ===
+          'string' &&
+        ((search as Record<string, unknown>)[globalFilterKey] as string).trim() !==
+          '')
+
+    if (!hasUserFilters) return
+
+    try {
+      localStorage.setItem(persistKey, JSON.stringify(search))
+    } catch {
+      // localStorage full or unavailable — silently ignored
+    }
+  }, [persistKey, search, columnFiltersCfg, globalFilterEnabled, globalFilterKey])
+
+  useEffect(() => {
+    if (!persistKey) return
+    try {
+      const saved = localStorage.getItem(persistKey)
+      if (!saved) return
+
+      const parsed = JSON.parse(saved) as Record<string, unknown>
+
+      const hasActiveUrlParams =
+        columnFiltersCfg.some((cfg) => {
+          const val = (search as Record<string, unknown>)[cfg.searchKey]
+          if (cfg.type === 'array') {
+            return Array.isArray(val) && val.length > 0
+          }
+          return typeof val === 'string' && val.trim() !== ''
+        }) ||
+        (globalFilterEnabled &&
+          typeof (search as Record<string, unknown>)[globalFilterKey] ===
+            'string' &&
+          ((search as Record<string, unknown>)[globalFilterKey] as string).trim() !==
+            '')
+
+      if (!hasActiveUrlParams) {
+        navigate({
+          replace: true,
+          search: (prev) => ({
+            ...(prev as Record<string, unknown>),
+            ...parsed,
+          }),
+        })
+      }
+    } catch {
+      // Corrupted or unparseable data — silently ignored
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const pageKey = paginationCfg?.pageKey ?? ('page' as string)
   const pageSizeKey = paginationCfg?.pageSizeKey ?? ('pageSize' as string)
   const defaultPage = paginationCfg?.defaultPage ?? 1
   const defaultPageSize = paginationCfg?.defaultPageSize ?? 20
 
-  const globalFilterKey = globalFilterCfg?.key ?? ('filter' as string)
-  const globalFilterEnabled = globalFilterCfg?.enabled ?? true
   const trimGlobal = globalFilterCfg?.trim ?? true
 
   // Build initial column filters from the current search params

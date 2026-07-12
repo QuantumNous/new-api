@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { MESSAGE_ACTION_LABELS } from '../constants'
 
 /**

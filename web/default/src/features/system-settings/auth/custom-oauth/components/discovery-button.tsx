@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { UseFormReturn } from 'react-hook-form'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/sonner'
 import { Button } from '@/components/ui/button'
 import { useDiscoverEndpoints } from '../hooks/use-custom-oauth-mutations'
 import type { CustomOAuthFormValues } from '../types'

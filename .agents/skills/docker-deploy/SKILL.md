@@ -2,9 +2,9 @@
 name: docker-deploy
 description: >-
   Build Docker image for the current Git branch, push to the private registry
-  (registry.local:5000), and deploy / update the remote container on the
-  `new-api-deploy` host via SSH. Covers building, pushing, testing the pull, and
-  rolling-update with zero data loss.
+  (registry.local:5000), and deploy / update the remote service via Docker
+  Compose on the `new-api-deploy` host. Covers building, pushing, testing the
+  pull, and rolling-update with zero data loss.
 ---
 
 # Docker Build & Remote Deploy Workflow
@@ -12,15 +12,17 @@ description: >-
 ## Overview
 
 This project uses a multi-stage Dockerfile to build a Go backend + React
-frontend image. The standard workflow is:
+frontend image. Deployment is managed with Docker Compose on the remote host.
+
+The standard workflow is:
 
 1. Build image locally from current branch
 2. Push to `registry.local:5000/ai/new-api`
-3. SSH to `new-api-deploy` host, test pulling the new image
-4. Recreate the container with the exact same runtime config
+3. SSH to `new-api-deploy` host, update the image tag in `compose.yaml`
+4. Pull the new image and recreate the container via `docker compose up -d`
 
-All data lives in a host bind-mount (`/home/ubuntu/pigsty/data:/data`), so
-stopping / removing / recreating the container is safe.
+All data lives in a host bind-mount (`./data:/data` relative to the Compose
+project directory), so stopping / removing / recreating the container is safe.
 
 ## Prerequisites
 
@@ -63,11 +65,14 @@ ssh new-api-deploy "sudo tee /etc/docker/daemon.json <<< '{\"insecure-registries
 | Registry | `registry.local:5000` |
 | Image name | `ai/new-api` |
 | Tag format | Current Git branch with `/` → `-` |
-| Container name | `new-api-latest` |
+| Container name | `new-api-app-1` (Compose auto-generated) |
+| Compose file | `/home/ubuntu/new-api/compose.yaml` |
+| Compose project | `new-api` |
+| Service name | `app` |
 | Host port | `3000` → container `3000` |
-| Data volume | `/home/ubuntu/pigsty/data:/data` |
+| Data volume | `./data:/data` (relative, resolves to `/home/ubuntu/new-api/data:/data`) |
 | Restart policy | `always` |
-| Environment | `TZ=Asia/Shanghai`, `GLOBAL_API_RATE_LIMIT_ENABLE=false` |
+| Environment | `TZ=Asia/Shanghai`, `GLOBAL_WEB_RATE_LIMIT_ENABLE=false`, `GLOBAL_API_RATE_LIMIT_ENABLE=false` |
 | Working dir | `/data` |
 
 ## Workflow
@@ -93,59 +98,55 @@ docker push registry.local:5000/ai/new-api:$BRANCH
 If the push fails with `server gave HTTP response to HTTPS client`, confirm
 Step 1 prerequisites.
 
-### Step 3: Test pull on remote host
+### Step 3: Update compose.yaml on remote host
+
+SSH to the remote host and update the image tag in `compose.yaml`:
 
 ```bash
-ssh new-api-deploy "docker pull registry.local:5000/ai/new-api:$BRANCH"
+ssh new-api-deploy "sed -i 's|image: registry.local:5000/ai/new-api:.*|image: registry.local:5000/ai/new-api:$BRANCH|' /home/ubuntu/new-api/compose.yaml"
 ```
 
-Expected: `Status: Downloaded newer image` (or `Image is up to date` if
-layers were already cached).
-
-### Step 4: Inspect current container config (optional but recommended)
-
-Before replacing, capture the running config:
+Verify the change:
 
 ```bash
-ssh new-api-deploy "docker inspect new-api-latest --format '{{json .Config}}' | python3 -m json.tool"
-ssh new-api-deploy "docker inspect new-api-latest --format '{{json .HostConfig}}' | python3 -m json.tool"
+ssh new-api-deploy "grep 'image:' /home/ubuntu/new-api/compose.yaml"
 ```
 
-Key fields to preserve: `Env`, `Binds`, `PortBindings`, `RestartPolicy`.
+Expected output:
+```
+    image: registry.local:5000/ai/new-api:feature-design-frontend
+```
 
-### Step 5: Rolling update (stop → remove → recreate)
-
-Run this as a single SSH command so the session stays open for all steps:
+### Step 4: Pull and recreate via Docker Compose
 
 ```bash
 ssh new-api-deploy "
-docker stop new-api-latest
-docker rm new-api-latest
-docker run -d \
-  --name new-api-latest \
-  --restart always \
-  -p 3000:3000 \
-  -e TZ=Asia/Shanghai \
-  -e GLOBAL_API_RATE_LIMIT_ENABLE=false \
-  -v /home/ubuntu/pigsty/data:/data \
-  --workdir /data \
-  registry.local:5000/ai/new-api:$BRANCH
+cd /home/ubuntu/new-api
+docker compose pull app
+docker compose up -d app
 "
 ```
 
-### Step 6: Verify deployment
+- `docker compose pull app` downloads the latest image for the `app` service
+- `docker compose up -d app` recreates the container if the image changed (no
+  `down` needed — Compose detects the image change and recreates automatically)
+
+### Step 5: Verify deployment
 
 ```bash
-ssh new-api-deploy "docker ps --filter 'name=new-api-latest' --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
-ssh new-api-deploy "docker logs --tail 20 new-api-latest"
+ssh new-api-deploy "
+cd /home/ubuntu/new-api
+docker compose ps
+docker logs --tail 20 new-api-app-1
+"
 ```
 
-Expected log lines:
+Expected logs:
 
 ```
-[SYS] ... | system is already initialized at: ...
-[SYS] ... | New API  started
-AI Gateway ready in ... ms
+  AI Gateway  ready in ... ms
+
+  ➜  Network: http://172.18.0.2:3000/
 ```
 
 At this point the service is live and API requests can resume.
@@ -167,26 +168,38 @@ docker build -t "$IMAGE" .
 echo "=== 2. Push ==="
 docker push "$IMAGE"
 
-echo "=== 3. Remote pull test ==="
-ssh new-api-deploy "docker pull $IMAGE"
+echo "=== 3. Update compose.yaml on remote ==="
+ssh new-api-deploy "sed -i 's|image: registry.local:5000/ai/new-api:.*|image: $IMAGE|' /home/ubuntu/new-api/compose.yaml"
 
-echo "=== 4. Rolling update ==="
+echo "=== 4. Remote pull + compose up ==="
 ssh new-api-deploy "
-docker stop new-api-latest
-docker rm new-api-latest
-docker run -d \
-  --name new-api-latest \
-  --restart always \
-  -p 3000:3000 \
-  -e TZ=Asia/Shanghai \
-  -e GLOBAL_API_RATE_LIMIT_ENABLE=false \
-  -v /home/ubuntu/pigsty/data:/data \
-  --workdir /data \
-  $IMAGE
+cd /home/ubuntu/new-api
+docker compose pull app
+docker compose up -d app
 "
 
 echo "=== 5. Verify ==="
-ssh new-api-deploy "docker ps --filter 'name=new-api-latest' --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'"
+ssh new-api-deploy "cd /home/ubuntu/new-api && docker compose ps && docker logs --tail 10 new-api-app-1"
+```
+
+## Compose Configuration
+
+The canonical `compose.yaml` on the remote host:
+
+```yaml
+services:
+  app:
+    image: registry.local:5000/ai/new-api:feature-design-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - TZ=Asia/Shanghai
+      - GLOBAL_WEB_RATE_LIMIT_ENABLE=false
+      - GLOBAL_API_RATE_LIMIT_ENABLE=false
+    volumes:
+      - ./data:/data
+    working_dir: /data
 ```
 
 ## Troubleshooting
@@ -201,25 +214,32 @@ ssh new-api-deploy "docker ps --filter 'name=new-api-latest' --format 'table {{.
 Check for data / migration issues:
 
 ```bash
-ssh new-api-deploy "docker logs --tail 50 new-api-latest"
+ssh new-api-deploy "docker logs --tail 50 new-api-app-1"
 ```
 
-The SQLite database lives in `/home/ubuntu/pigsty/data` on the host, so
+The SQLite database lives in `/home/ubuntu/new-api/data` on the host, so
 migrations are applied against the same file on every start.
 
 ### Image tag mismatch
 
 The tag is derived from the Git branch name. If the branch contains `/`, it
-is replaced with `-`. Ensure you use the exact same tag string on both the
-build host and the remote host.
+is replaced with `-`. Ensure you use the exact same tag string when updating
+`compose.yaml`.
+
+### Compose warning about `version` field
+
+The `version: '3.8'` field in `compose.yaml` is obsolete in modern Docker
+Compose but harmless. It can be safely removed.
 
 ## Key Rules
 
-1. **Never remove the bind-mount** `/home/ubuntu/pigsty/data:/data` — that
-   is where SQLite and all persistent state live.
-2. **Preserve all environment variables** from the previous container.
-3. **Test the pull before recreating** the container.
-4. **Use `docker stop` + `docker rm` + `docker run`** rather than
-   `docker restart` so the new image is actually used.
-5. **Restart policy must be `always`** so the service comes back after
+1. **Always update the image tag in `compose.yaml`** before running
+   `docker compose up -d`, otherwise Compose won't know the image changed.
+2. **Never remove the bind-mount** `./data:/data` — that is where SQLite and
+   all persistent state live.
+3. **Use `docker compose pull app` before `docker compose up -d app`** to
+   ensure the latest image is available.
+4. **Restart policy must be `always`** so the service comes back after
    host reboot.
+5. **Container is managed by Compose** — do not use `docker stop/rm/run`
+   directly; always use `docker compose up -d`.

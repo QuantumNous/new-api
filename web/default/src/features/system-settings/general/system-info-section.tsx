@@ -53,7 +53,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const _systemInfoSchema = z.object({
   theme: z.object({
-    frontend: z.enum(['default', 'classic', 'enterprise']),
+      frontend: z.enum(['default', 'classic']),
   }),
   SystemName: z.string().min(1),
   ServerAddress: z.string().optional(),
@@ -84,10 +84,10 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
 
   const normalizedDefaults: SystemInfoFormValues = {
     theme: {
-      frontend: ['default', 'classic', 'enterprise'].includes(
+      frontend: ['default', 'classic'].includes(
         defaultValues.theme?.frontend
       )
-        ? (defaultValues.theme?.frontend as 'default' | 'classic' | 'enterprise')
+        ? (defaultValues.theme?.frontend as 'default' | 'classic')
         : 'default',
     },
     SystemName: normalizeValue(defaultValues.SystemName),
@@ -104,7 +104,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
 
   const systemInfoSchemaWithI18n = z.object({
     theme: z.object({
-      frontend: z.enum(['default', 'classic', 'enterprise']),
+    frontend: z.enum(['default', 'classic']),
     }),
     SystemName: z.string().min(1, {
       error: () => t('System name is required'),
@@ -174,10 +174,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                           value: 'classic',
                           label: t('Classic (Legacy Frontend)'),
                         },
-                        {
-                          value: 'enterprise',
-                          label: t('Enterprise Style'),
-                        },
                       ]}
                       onValueChange={field.onChange}
                       value={field.value}
@@ -194,9 +190,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                           </SelectItem>
                           <SelectItem value='classic'>
                             {t('Classic (Legacy Frontend)')}
-                          </SelectItem>
-                          <SelectItem value='enterprise'>
-                            {t('Enterprise Style')}
                           </SelectItem>
                         </SelectGroup>
                       </SelectContent>

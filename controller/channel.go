@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1057,6 +1058,7 @@ func FetchModels(c *gin.Context) {
 
 	client := &http.Client{}
 	url := relaycommon.GetFullRequestURL(baseURL, "/v1/models", req.Type)
+	slog.Info("fetch_models request", "url", url, "channel_type", req.Type)
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {

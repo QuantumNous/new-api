@@ -20,6 +20,7 @@ import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
+import { ROLE } from '@/lib/roles'
 import type { User } from '@/features/users/types'
 import { saveUserId } from '../lib/storage'
 
@@ -63,6 +64,7 @@ export function useAuthRedirect() {
     }
 
     // Fetch and set user data
+    let userRole: number = ROLE.USER
     try {
       const self = await getSelf()
       if (self?.success && self.data) {
@@ -79,6 +81,8 @@ export function useAuthRedirect() {
         if (savedLang && savedLang !== i18n.language) {
           i18n.changeLanguage(savedLang)
         }
+
+        userRole = user.role ?? ROLE.USER
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -86,7 +90,8 @@ export function useAuthRedirect() {
     }
 
     // Navigate to target page
-    const targetPath = redirectTo || '/dashboard'
+    const isAdmin = userRole >= ROLE.OPERATOR
+    const targetPath = redirectTo || (isAdmin ? '/dashboard' : '/dashboard/models')
     navigate({ to: targetPath, replace: true })
   }
 
