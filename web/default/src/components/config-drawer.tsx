@@ -61,6 +61,7 @@ import {
   type ThemePreset,
   type ThemeRadius,
   type ThemeScale,
+  type ThemeTextSize,
 } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
 
@@ -122,6 +123,7 @@ export function ConfigDrawer({
           <FontConfig />
           <RadiusConfig />
           <ScaleConfig />
+          <TextSizeConfig />
           <BadgeSizeConfig />
           {showLayoutControls && (
             <>
@@ -436,7 +438,49 @@ function FontConfig() {
           </Item>
         ))}
       </Radio>
+      <FontLicenseNote />
     </div>
+  )
+}
+
+/**
+ * One-line licensing attribution for the bundled webfonts. All three faces
+ * ship under the SIL Open Font License 1.1, which permits commercial use;
+ * each name links to its official source and the license text.
+ */
+function FontLicenseNote() {
+  const { t } = useTranslation()
+  const fontSources: { name: string; href: string }[] = [
+    { name: 'Public Sans', href: 'https://github.com/uswds/public-sans' },
+    { name: 'Lora', href: 'https://fonts.google.com/specimen/Lora' },
+    { name: 'JetBrains Mono', href: 'https://www.jetbrains.com/lp/mono/' },
+  ]
+  return (
+    <p className='text-subtle-foreground mt-2 text-xs leading-relaxed'>
+      {fontSources.map((font, index) => (
+        <span key={font.name}>
+          {index > 0 && ' · '}
+          <a
+            href={font.href}
+            target='_blank'
+            rel='noreferrer'
+            className='hover:text-foreground hover:underline'
+          >
+            {font.name}
+          </a>
+        </span>
+      ))}
+      {' — '}
+      <a
+        href='https://openfontlicense.org'
+        target='_blank'
+        rel='noreferrer'
+        className='hover:text-foreground hover:underline'
+      >
+        SIL OFL 1.1
+      </a>
+      {`, ${t('free for commercial use')}`}
+    </p>
   )
 }
 
@@ -582,6 +626,75 @@ function ScaleConfig() {
                 aria-hidden='true'
               />
               <ScalePreview rows={option.rows} rowGap={option.rowGap} />
+            </div>
+            <div className='mt-1.5 truncate text-center text-xs'>
+              {option.label}
+            </div>
+          </Item>
+        ))}
+      </Radio>
+    </div>
+  )
+}
+
+function TextSizeConfig() {
+  const { t } = useTranslation()
+  const { defaults, customization, setTextSize } = useThemeCustomization()
+  // Preview font sizes mirror each tier's `--text-base` so the tiles show
+  // the actual relative difference between tiers.
+  const textSizeOptions: {
+    value: ThemeTextSize
+    label: string
+    previewSize: string
+  }[] = [
+    { value: 'sm', label: t('Small'), previewSize: '0.88rem' },
+    { value: 'default', label: t('Default'), previewSize: '1rem' },
+    { value: 'lg', label: t('Large'), previewSize: '1.075rem' },
+    { value: 'xl', label: t('Extra Large'), previewSize: '1.125rem' },
+    { value: '2xl', label: t('Super Large'), previewSize: '1.21rem' },
+  ]
+  return (
+    <div>
+      <SectionTitle
+        title={t('Text size')}
+        showReset={customization.textSize !== defaults.textSize}
+        onReset={() => setTextSize(defaults.textSize)}
+      />
+      <Radio
+        value={customization.textSize}
+        onValueChange={(v) => setTextSize(v as ThemeTextSize)}
+        className='grid w-full grid-cols-5 gap-2'
+        aria-label={t('Select text size')}
+      >
+        {textSizeOptions.map((option) => (
+          <Item
+            key={option.value}
+            value={option.value}
+            className='group flex flex-col items-stretch outline-none'
+            aria-label={option.label}
+          >
+            <div
+              className={cn(
+                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-focus-visible:ring-2',
+                'group-hover:ring-primary/60'
+              )}
+            >
+              <CircleCheck
+                className={cn(
+                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'group-data-unchecked:hidden'
+                )}
+                aria-hidden='true'
+              />
+              <span
+                aria-hidden='true'
+                className='text-foreground absolute inset-0 flex items-center justify-center leading-none font-medium'
+                style={{ fontSize: option.previewSize }}
+              >
+                Aa
+              </span>
             </div>
             <div className='mt-1.5 truncate text-center text-xs'>
               {option.label}

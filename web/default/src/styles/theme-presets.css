@@ -728,6 +728,50 @@ For commercial licensing, please contact support@quantumnous.com
   --spacing: 0.3rem;
 }
 
+/* ── Text size ────────────────────────────────────────────────────────── */
+/* Dedicated type-ramp axis (`data-theme-text` on <body>). Unlike the density
+ * scale above — which moves text and spacing together — this only overrides
+ * the `--text-*` ramp, so it composes with any density/preset choice. It is
+ * placed AFTER the preset and density blocks on purpose: an explicit text
+ * size wins over the ramps those ship (e.g. simple-large, scale sm/lg/xl).
+ * `default` removes the attribute and defers to the preset/density ramp. */
+[data-theme-text='sm'] {
+  --text-xs: 0.7rem;
+  --text-sm: 0.78rem;
+  --text-base: 0.88rem;
+  --text-lg: 1rem;
+  --text-xl: 1.13rem;
+  --text-2xl: 1.38rem;
+  --text-3xl: 1.7rem;
+}
+[data-theme-text='lg'] {
+  --text-xs: 0.84rem;
+  --text-sm: 0.95rem;
+  --text-base: 1.075rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.35rem;
+  --text-2xl: 1.65rem;
+  --text-3xl: 2rem;
+}
+[data-theme-text='xl'] {
+  --text-xs: 0.9rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.45rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.15rem;
+}
+[data-theme-text='2xl'] {
+  --text-xs: 0.96rem;
+  --text-sm: 1.08rem;
+  --text-base: 1.21rem;
+  --text-lg: 1.35rem;
+  --text-xl: 1.55rem;
+  --text-2xl: 1.9rem;
+  --text-3xl: 2.3rem;
+}
+
 /* ── Badge size ───────────────────────────────────────────────────────── */
 /* Independent axis for how "chubby" badges/pills read (`data-theme-badge`
  * on <body>, driven by ThemeCustomizationProvider). The redesign moved
@@ -747,7 +791,8 @@ For commercial licensing, please contact support@quantumnous.com
   border-radius: calc(infinity * 1px);
 }
 [data-theme-badge='lg'] [data-slot='badge'],
-[data-theme-badge='lg'] [data-slot='status-badge']:not([data-appearance='plain']) {
+[data-theme-badge='lg']
+  [data-slot='status-badge']:not([data-appearance='plain']) {
   height: calc(var(--spacing) * 6);
   gap: calc(var(--spacing) * 1.5);
   padding-inline: calc(var(--spacing) * 2);
@@ -758,7 +803,8 @@ For commercial licensing, please contact support@quantumnous.com
   border-radius: calc(infinity * 1px);
 }
 [data-theme-badge='xl'] [data-slot='badge'],
-[data-theme-badge='xl'] [data-slot='status-badge']:not([data-appearance='plain']) {
+[data-theme-badge='xl']
+  [data-slot='status-badge']:not([data-appearance='plain']) {
   height: calc(var(--spacing) * 7);
   gap: calc(var(--spacing) * 1.5);
   padding-inline: calc(var(--spacing) * 2.5);
