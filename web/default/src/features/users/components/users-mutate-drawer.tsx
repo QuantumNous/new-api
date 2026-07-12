@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
@@ -90,6 +90,7 @@ export function UsersMutateDrawer({
   const isUpdate = !!currentRow
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSubmittingRef = useRef(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
 
   // Fetch groups
@@ -128,6 +129,9 @@ export function UsersMutateDrawer({
   const currentQuotaRaw = form.watch('quota_dollars') || 0
 
   const onSubmit = async (data: UserFormValues) => {
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
+
     if (!isUpdate) {
       const passwordLength = data.password?.length || 0
       if (passwordLength < 8 || passwordLength > 20) {
@@ -135,6 +139,7 @@ export function UsersMutateDrawer({
           type: 'manual',
           message: t('Password must be between 8 and 20 characters'),
         })
+        isSubmittingRef.current = false
         return
       }
     }
@@ -165,6 +170,7 @@ export function UsersMutateDrawer({
     } catch (_error) {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
+      isSubmittingRef.current = false
       setIsSubmitting(false)
     }
   }
@@ -205,7 +211,13 @@ export function UsersMutateDrawer({
           <Form {...form}>
             <form
               id='user-form'
-              onSubmit={form.handleSubmit(onSubmit)}
+              onSubmit={(e) => {
+              if (isSubmittingRef.current) {
+                e.preventDefault()
+                return
+              }
+              form.handleSubmit(onSubmit)(e)
+            }}
               className={sideDrawerFormClassName()}
             >
               {/* Basic Information */}

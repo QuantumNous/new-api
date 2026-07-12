@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
@@ -97,6 +97,7 @@ export function ApiKeysMutateDrawer({
   const { triggerRefresh } = useApiKeys()
   const { status } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSubmittingRef = useRef(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
@@ -164,6 +165,8 @@ export function ApiKeysMutateDrawer({
   }, [groups, form])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
     setIsSubmitting(true)
     try {
       const basePayload = transformFormDataToPayload(data)
@@ -214,6 +217,7 @@ export function ApiKeysMutateDrawer({
     } catch (_error) {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
+      isSubmittingRef.current = false
       setIsSubmitting(false)
     }
   }
@@ -272,7 +276,13 @@ export function ApiKeysMutateDrawer({
         <Form {...form}>
           <form
             id='api-key-form'
-            onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+            onSubmit={(e) => {
+              if (isSubmittingRef.current) {
+                e.preventDefault()
+                return
+              }
+              form.handleSubmit(onSubmit, onInvalid)(e)
+            }}
             className={sideDrawerFormClassName('gap-5')}
           >
             <SideDrawerSection>
@@ -584,7 +594,13 @@ export function ApiKeysMutateDrawer({
           </SheetClose>
           <Button
             type='button'
-            onClick={form.handleSubmit(onSubmit, onInvalid)}
+            onClick={(e) => {
+              if (isSubmittingRef.current) {
+                e.preventDefault()
+                return
+              }
+              form.handleSubmit(onSubmit, onInvalid)(e)
+            }}
             disabled={isSubmitting}
             className='w-full sm:w-auto'
           >

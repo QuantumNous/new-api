@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -337,6 +337,8 @@ export function CreateDeploymentDrawer({
     },
   })
 
+  const isSubmittingRef = useRef(false)
+
   // Reset form when opening
   useEffect(() => {
     if (!open) return
@@ -393,9 +395,18 @@ export function CreateDeploymentDrawer({
         <Form {...form}>
           <form
             id='deployment-form'
-            onSubmit={form.handleSubmit((values) =>
-              createMutation.mutate(values)
-            )}
+            onSubmit={async (e) => {
+              e.preventDefault()
+              if (isSubmittingRef.current) return
+              isSubmittingRef.current = true
+              await form.handleSubmit(async (values) => {
+                try {
+                  await createMutation.mutateAsync(values)
+                } finally {
+                  isSubmittingRef.current = false
+                }
+              })(e)
+            }}
             className={sideDrawerFormClassName()}
           >
             {/* Basic Configuration */}

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -125,6 +125,7 @@ export function ModelMutateDrawer({
   const queryClient = useQueryClient()
   const isEditing = Boolean(currentRow?.id)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSubmittingRef = useRef(false)
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
   const [pricingSubMode, setPricingSubMode] = useState<PricingSubMode>('ratio')
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -394,6 +395,8 @@ export function ModelMutateDrawer({
 
   const onSubmit = useCallback(
     async (values: ExtendedModelFormValues): Promise<void> => {
+      if (isSubmittingRef.current) return
+      isSubmittingRef.current = true
       setIsSubmitting(true)
       try {
         const submitData = {
@@ -610,6 +613,7 @@ export function ModelMutateDrawer({
       } catch (error: unknown) {
         toast.error((error as Error)?.message || 'Operation failed')
       } finally {
+        isSubmittingRef.current = false
         setIsSubmitting(false)
       }
     },
@@ -652,9 +656,15 @@ export function ModelMutateDrawer({
         <Form {...form}>
           <form
             id='model-form'
-            onSubmit={form.handleSubmit(
-              onSubmit as Parameters<typeof form.handleSubmit>[0]
-            )}
+            onSubmit={(e) => {
+              if (isSubmittingRef.current) {
+                e.preventDefault()
+                return
+              }
+              form.handleSubmit(
+                onSubmit as Parameters<typeof form.handleSubmit>[0]
+              )(e)
+            }}
             className={sideDrawerFormClassName()}
           >
             {/* Basic Information */}

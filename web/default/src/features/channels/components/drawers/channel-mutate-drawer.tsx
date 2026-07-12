@@ -912,16 +912,21 @@ export function ChannelMutateDrawer({
   })
 
   const isSubmitting = channelMutation.isPending
+  const isSubmittingRef = useRef(false)
 
   // Submit handler
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
+      if (isSubmittingRef.current) return
+      isSubmittingRef.current = true
+
       // Validate key is required when creating
       if (!isEditing && !data.key?.trim()) {
         form.setError('key', {
           type: 'manual',
           message: ERROR_MESSAGES.REQUIRED_KEY,
         })
+        isSubmittingRef.current = false
         return
       }
 
@@ -936,6 +941,7 @@ export function ChannelMutateDrawer({
               entries: invalidEntries.join(', '),
             })
           )
+          isSubmittingRef.current = false
           return
         }
 
@@ -945,7 +951,10 @@ export function ChannelMutateDrawer({
         )
         if (riskyRedirects.length > 0) {
           const confirmed = await confirmStatusCodeRisk(riskyRedirects)
-          if (!confirmed) return
+          if (!confirmed) {
+            isSubmittingRef.current = false
+            return
+          }
         }
       }
 
@@ -958,6 +967,7 @@ export function ChannelMutateDrawer({
         const validation = validateModelMappingJson(data.model_mapping!)
         if (!validation.valid) {
           toast.error(t(validation.error || 'Invalid model mapping'))
+          isSubmittingRef.current = false
           return
         }
       }
@@ -984,6 +994,7 @@ export function ChannelMutateDrawer({
         if (shouldPromptMissing) {
           const confirmAction = await confirmMissingModelMappings(missingModels)
           if (confirmAction === 'cancel') {
+            isSubmittingRef.current = false
             return
           }
           if (confirmAction === 'add') {
@@ -996,7 +1007,11 @@ export function ChannelMutateDrawer({
         }
       }
 
-      await channelMutation.mutateAsync(data)
+      try {
+        await channelMutation.mutateAsync(data)
+      } finally {
+        isSubmittingRef.current = false
+      }
     },
     [
       isEditing,
@@ -1070,7 +1085,13 @@ export function ChannelMutateDrawer({
           <Form {...form}>
             <form
               id='channel-form'
-              onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+              onSubmit={(e) => {
+              if (isSubmittingRef.current) {
+                e.preventDefault()
+                return
+              }
+              form.handleSubmit(onSubmit, onInvalid)(e)
+            }}
               className={sideDrawerFormClassName('gap-5')}
             >
               {isChannelDetailLoading ? (
