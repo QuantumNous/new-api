@@ -35,6 +35,8 @@ import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
+import InviteRebate from './pages/InviteRebate';
+import InviteRebateAdmin from './pages/InviteRebate/Admin';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
@@ -277,7 +279,23 @@ function App() {
             </PrivateRoute>
           }
         />
+                <Route
+          path='/console/invite-rebate'
+          element={
+            <PrivateRoute>
+              <InviteRebate />
+            </PrivateRoute>
+          }
+        />
         <Route
+          path='/console/invite-rebate/admin'
+          element={
+            <AdminRoute>
+              <InviteRebateAdmin />
+            </AdminRoute>
+          }
+        />
+<Route
           path='/console/log'
           element={
             <PrivateRoute>

@@ -37,6 +37,8 @@ import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-p
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
+import { Route as AuthenticatedInviteRebateIndexRouteImport } from './routes/_authenticated/invite-rebate/index'
+import { Route as AuthenticatedInviteRebateAdminRouteImport } from './routes/_authenticated/invite-rebate/admin'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
@@ -208,6 +210,18 @@ const AuthenticatedWalletIndexRoute =
   AuthenticatedWalletIndexRouteImport.update({
     id: '/wallet/',
     path: '/wallet/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInviteRebateIndexRoute =
+  AuthenticatedInviteRebateIndexRouteImport.update({
+    id: '/invite-rebate/',
+    path: '/invite-rebate/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInviteRebateAdminRoute =
+  AuthenticatedInviteRebateAdminRouteImport.update({
+    id: '/invite-rebate/admin',
+    path: '/invite-rebate/admin',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
@@ -443,6 +457,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/invite-rebate/': typeof AuthenticatedInviteRebateIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -502,6 +517,8 @@ export interface FileRoutesByTo {
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
+  '/invite-rebate': typeof AuthenticatedInviteRebateIndexRoute
+  '/invite-rebate/admin': typeof AuthenticatedInviteRebateAdminRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -565,6 +582,8 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/_authenticated/invite-rebate/': typeof AuthenticatedInviteRebateIndexRoute
+  '/_authenticated/invite-rebate/admin': typeof AuthenticatedInviteRebateAdminRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -984,6 +1003,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWalletIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/invite-rebate/': {
+      id: '/_authenticated/invite-rebate/'
+      path: '/invite-rebate'
+      fullPath: '/invite-rebate/'
+      preLoaderRoute: typeof AuthenticatedInviteRebateIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRouteImport
+    }
+    '/_authenticated/invite-rebate/admin': {
+      id: '/_authenticated/invite-rebate/admin'
+      path: '/invite-rebate/admin'
+      fullPath: '/invite-rebate/admin'
+      preLoaderRoute: typeof AuthenticatedInviteRebateAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRouteImport
+    }
     '/_authenticated/users/': {
       id: '/_authenticated/users/'
       path: '/users'
@@ -1314,6 +1347,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
+  AuthenticatedInviteRebateIndexRoute: typeof AuthenticatedInviteRebateIndexRoute
+  AuthenticatedInviteRebateAdminRoute: typeof AuthenticatedInviteRebateAdminRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1338,6 +1373,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
+  AuthenticatedInviteRebateIndexRoute: AuthenticatedInviteRebateIndexRoute,
+  AuthenticatedInviteRebateAdminRoute: AuthenticatedInviteRebateAdminRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
