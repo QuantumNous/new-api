@@ -212,11 +212,19 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 	}
 
 	if granted {
-		// Log only on first successful grant (webhook retries must not spam)
-		RecordLog(invitee.InviterId, LogTypeSystem, fmt.Sprintf(
-			"邀请充值返佣 %s（被邀请用户 #%d，订单 %s，基数 %s，比例 %d bp）",
-			logger.LogQuota(rebate), inviteeId, topUp.TradeNo, logger.LogQuota(topupQuota), ratioBp,
-		))
+		// Log only on first successful grant (webhook retries must not spam).
+		// RecordLog may touch cache/redis; never let logging fail the grant path.
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					common.SysError(fmt.Sprintf("invite rebate RecordLog panic: %v", rec))
+				}
+			}()
+			RecordLog(invitee.InviterId, LogTypeSystem, fmt.Sprintf(
+				"邀请充值返佣 %s（被邀请用户 #%d，订单 %s，基数 %s，比例 %d bp）",
+				logger.LogQuota(rebate), inviteeId, topUp.TradeNo, logger.LogQuota(topupQuota), ratioBp,
+			))
+		}()
 	}
 	return nil
 }
