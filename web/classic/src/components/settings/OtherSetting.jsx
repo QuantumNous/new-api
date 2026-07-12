@@ -54,6 +54,10 @@ const OtherSetting = () => {
     Footer: '',
     About: '',
     HomePageContent: '',
+    'SEO.Description': '',
+    'SEO.Keywords': '',
+    'SEO.SiteURL': '',
+    'SEO.OGImage': '',
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -85,6 +89,10 @@ const OtherSetting = () => {
     SystemName: false,
     Logo: false,
     HomePageContent: false,
+    'SEO.Description': false,
+    'SEO.Keywords': false,
+    'SEO.SiteURL': false,
+    'SEO.OGImage': false,
     About: false,
     Footer: false,
     CheckUpdate: false,
@@ -459,6 +467,54 @@ const OtherSetting = () => {
                 loading={loadingInput['SystemName']}
               >
                 {t('设置系统名称')}
+              </Button>
+              <Form.TextArea
+                label={t('SEO 描述')}
+                placeholder={t('用于搜索引擎与社交分享的页面描述')}
+                field={'SEO.Description'}
+                onChange={handleInputChange}
+                autosize={{ minRows: 2, maxRows: 4 }}
+              />
+              <Button
+                onClick={() => submitOption('SEO.Description')}
+                loading={loadingInput['SEO.Description']}
+              >
+                {t('设置 SEO 描述')}
+              </Button>
+              <Form.Input
+                label={t('SEO 关键词')}
+                field={'SEO.Keywords'}
+                onChange={handleInputChange}
+              />
+              <Button
+                onClick={() => submitOption('SEO.Keywords')}
+                loading={loadingInput['SEO.Keywords']}
+              >
+                {t('设置 SEO 关键词')}
+              </Button>
+              <Form.Input
+                label={t('SEO 站点 URL')}
+                placeholder={'https://example.com'}
+                field={'SEO.SiteURL'}
+                onChange={handleInputChange}
+              />
+              <Button
+                onClick={() => submitOption('SEO.SiteURL')}
+                loading={loadingInput['SEO.SiteURL']}
+              >
+                {t('设置 SEO 站点 URL')}
+              </Button>
+              <Form.Input
+                label={t('SEO 分享图 URL')}
+                placeholder={'/logo.png'}
+                field={'SEO.OGImage'}
+                onChange={handleInputChange}
+              />
+              <Button
+                onClick={() => submitOption('SEO.OGImage')}
+                loading={loadingInput['SEO.OGImage']}
+              >
+                {t('设置 SEO 分享图')}
               </Button>
               <Form.Input
                 label={t('Logo 图片地址')}

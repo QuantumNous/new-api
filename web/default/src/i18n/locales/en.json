@@ -5239,6 +5239,12 @@
     "By rebate": "By rebate",
     "By invitees": "By invitees",
     "Rank": "Rank",
-    "Failed to load leaderboard": "Failed to load leaderboard"
+    "Failed to load leaderboard": "Failed to load leaderboard",
+    "SEO Description": "SEO Description",
+    "SEO Keywords": "SEO Keywords",
+    "SEO Site URL": "SEO Site URL",
+    "SEO OG Image URL": "SEO OG Image URL",
+    "Used for meta description and social previews": "Used for meta description and social previews",
+    "Canonical base URL for Open Graph and sitemap": "Canonical base URL for Open Graph and sitemap"
   }
 }

@@ -36,6 +36,7 @@ import {
   showError,
   setStatusData,
 } from '../../helpers';
+import { applyClassicSeo } from '../../helpers/seo';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
@@ -109,6 +110,13 @@ const PageLayout = () => {
     let systemName = getSystemName();
     if (systemName) {
       document.title = systemName;
+      try {
+        const raw = localStorage.getItem('status');
+        const status = raw ? JSON.parse(raw) : { system_name: systemName };
+        applyClassicSeo({ ...status, system_name: systemName });
+      } catch (e) {
+        applyClassicSeo({ system_name: systemName });
+      }
     }
     let logo = getLogo();
     if (logo) {

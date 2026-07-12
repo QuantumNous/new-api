@@ -107,6 +107,11 @@ export type SystemTaskListResponse = {
 }
 
 export type SiteSettings = {
+  'SEO.Description'?: string
+  'SEO.Keywords'?: string
+  'SEO.SiteURL'?: string
+  'SEO.OGImage'?: string
+  'SEO.RobotsIndex'?: boolean | string
   'theme.frontend': string
   Notice: string
   SystemName: string

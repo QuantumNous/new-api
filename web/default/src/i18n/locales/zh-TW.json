@@ -5239,6 +5239,12 @@
     "By rebate": "按返傭",
     "By invitees": "按人數",
     "Rank": "名次",
-    "Failed to load leaderboard": "排行榜載入失敗"
+    "Failed to load leaderboard": "排行榜載入失敗",
+    "SEO Description": "SEO 描述",
+    "SEO Keywords": "SEO 關鍵詞",
+    "SEO Site URL": "SEO 站點 URL",
+    "SEO OG Image URL": "SEO 分享圖 URL",
+    "Used for meta description and social previews": "用於頁面描述與社交分享預覽",
+    "Canonical base URL for Open Graph and sitemap": "用於 canonical、Open Graph 與 sitemap 的站點根位址"
   }
 }

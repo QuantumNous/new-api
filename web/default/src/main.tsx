@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
+import { applySeoFromStatus } from '@/lib/seo'
   QueryCache,
   QueryClient,
   QueryClientProvider,
@@ -135,6 +136,7 @@ const rootElement = document.getElementById('root')!
         const s = JSON.parse(saved)
         if (s?.system_name) apply(s.system_name)
         if (s?.logo) applyFaviconToDom(s.logo)
+        applySeoFromStatus(s)
       }
     } catch {
       /* empty */
@@ -151,6 +153,7 @@ const rootElement = document.getElementById('root')!
           }
         }
         if (s?.logo) applyFaviconToDom(s.logo as string)
+        applySeoFromStatus(s as Record<string, unknown>)
       })
       .catch(() => {
         /* empty */

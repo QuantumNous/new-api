@@ -45,6 +45,11 @@ const SITE_SECTIONS = [
           About: settings.About,
           HomePageContent: settings.HomePageContent,
           ServerAddress: settings.ServerAddress,
+          'SEO.Description': settings['SEO.Description'],
+          'SEO.Keywords': settings['SEO.Keywords'],
+          'SEO.SiteURL': settings['SEO.SiteURL'],
+          'SEO.OGImage': settings['SEO.OGImage'],
+          'SEO.RobotsIndex': settings['SEO.RobotsIndex'],
           legal: {
             user_agreement: settings['legal.user_agreement'],
             privacy_policy: settings['legal.privacy_policy'],

@@ -63,6 +63,11 @@ const _systemInfoSchema = z.object({
   Footer: z.string().optional(),
   About: z.string().optional(),
   HomePageContent: z.string().optional(),
+  'SEO.Description': z.string().optional(),
+  'SEO.Keywords': z.string().optional(),
+  'SEO.SiteURL': z.string().optional(),
+  'SEO.OGImage': z.string().optional(),
+  'SEO.RobotsIndex': z.boolean().optional(),
   legal: z.object({
     user_agreement: z.string().optional(),
     privacy_policy: z.string().optional(),
@@ -95,6 +100,13 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
     HomePageContent: normalizeValue(defaultValues.HomePageContent),
+    'SEO.Description': normalizeValue((defaultValues as any)['SEO.Description']),
+    'SEO.Keywords': normalizeValue((defaultValues as any)['SEO.Keywords']),
+    'SEO.SiteURL': normalizeValue((defaultValues as any)['SEO.SiteURL']),
+    'SEO.OGImage': normalizeValue((defaultValues as any)['SEO.OGImage']),
+    'SEO.RobotsIndex':
+      (defaultValues as any)['SEO.RobotsIndex'] === true ||
+      (defaultValues as any)['SEO.RobotsIndex'] === 'true',
     legal: {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
@@ -113,6 +125,11 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
+    'SEO.Description': z.string().optional(),
+    'SEO.Keywords': z.string().optional(),
+    'SEO.SiteURL': z.string().optional(),
+    'SEO.OGImage': z.string().optional(),
+    'SEO.RobotsIndex': z.boolean().optional(),
     legal: z.object({
       user_agreement: z.string().optional(),
       privacy_policy: z.string().optional(),
@@ -181,7 +198,105 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       <SettingsSection title={t('System Information')}>
         <Form {...form}>
           <SettingsForm onSubmit={handleSubmit}>
-            <SettingsPageFormActions
+            
+          <SettingsFormGridItem className='sm:col-span-2'>
+            <FormField
+              control={form.control}
+              name={'SEO.Description' as any}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('SEO Description')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Used for meta description and social previews')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </SettingsFormGridItem>
+
+          <SettingsFormGridItem>
+            <FormField
+              control={form.control}
+              name={'SEO.Keywords' as any}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('SEO Keywords')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </SettingsFormGridItem>
+
+          <SettingsFormGridItem>
+            <FormField
+              control={form.control}
+              name={'SEO.SiteURL' as any}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('SEO Site URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='https://example.com'
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Canonical base URL for Open Graph and sitemap')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </SettingsFormGridItem>
+
+          <SettingsFormGridItem>
+            <FormField
+              control={form.control}
+              name={'SEO.OGImage' as any}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('SEO OG Image URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='/logo.png'
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </SettingsFormGridItem>
+
+        <SettingsPageFormActions
               onSave={handleSubmit}
               onReset={handleReset}
               isSaving={isSubmitting || updateOption.isPending}
