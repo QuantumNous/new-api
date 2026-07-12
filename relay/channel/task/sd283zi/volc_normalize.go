@@ -69,14 +69,20 @@ func detectAndNormalizeVolcOfficial(c *gin.Context, req *relaycommon.TaskSubmitR
 		len(n.AudioURLs),
 	))
 
-	// Fill TaskSubmitReq so existing convertCreatePayload paths pick them up.
-	if strings.TrimSpace(req.Prompt) == "" && n.Prompt != "" {
-		req.Prompt = n.Prompt
+	// content[] is authoritative for volcano format — always replace flat image fields
+	// so a leftover top-level image/images does not drop the rest of the references.
+	if n.Prompt != "" {
+		if strings.TrimSpace(req.Prompt) == "" {
+			req.Prompt = n.Prompt
+		}
 	}
-	if len(req.Images) == 0 && strings.TrimSpace(req.Image) == "" && strings.TrimSpace(req.InputReference) == "" {
+	if len(n.ImageURLs) > 0 {
+		req.Images = make([]string, 0, len(n.ImageURLs))
 		for _, entry := range n.ImageURLs {
 			req.Images = append(req.Images, entry.URL)
 		}
+		req.Image = req.Images[0]
+		req.InputReference = ""
 	}
 	if req.GenerateAudio == nil {
 		v := n.GenerateAudio
@@ -104,15 +110,15 @@ func parseVolcOfficialContent(raw []byte, req *relaycommon.TaskSubmitReq) *volcN
 				textParts = append(textParts, text)
 			}
 		case "image_url":
-			if u := strings.TrimSpace(item.Get("image_url.url").String()); u != "" {
+			if u := extractVolcMediaURL(item, "image_url"); u != "" {
 				n.ImageURLs = append(n.ImageURLs, toImageURLEntry(u))
 			}
 		case "video_url":
-			if u := strings.TrimSpace(item.Get("video_url.url").String()); u != "" {
+			if u := extractVolcMediaURL(item, "video_url"); u != "" {
 				n.VideoURLs = append(n.VideoURLs, u)
 			}
 		case "audio_url":
-			if u := strings.TrimSpace(item.Get("audio_url.url").String()); u != "" {
+			if u := extractVolcMediaURL(item, "audio_url"); u != "" {
 				n.AudioURLs = append(n.AudioURLs, u)
 			}
 		}
@@ -120,6 +126,9 @@ func parseVolcOfficialContent(raw []byte, req *relaycommon.TaskSubmitReq) *volcN
 	if len(textParts) > 0 {
 		n.Prompt = strings.Join(textParts, "\n")
 	}
+
+	// Ensure unique file_name values — some upstreams dedupe by file_name.
+	dedupeImageFileNames(n.ImageURLs)
 
 	// Top-level generate_audio / watermark overrides defaults when present.
 	if ga := gjson.GetBytes(raw, "generate_audio"); ga.Exists() {
@@ -136,6 +145,50 @@ func parseVolcOfficialContent(raw []byte, req *relaycommon.TaskSubmitReq) *volcN
 	return n
 }
 
+// extractVolcMediaURL reads a media URL from a content item.
+// Supports object {"url":"..."}, plain string, and top-level "url".
+func extractVolcMediaURL(item gjson.Result, field string) string {
+	node := item.Get(field)
+	if node.Exists() {
+		if node.Type == gjson.String {
+			if u := strings.TrimSpace(node.String()); u != "" {
+				return u
+			}
+		}
+		if u := strings.TrimSpace(node.Get("url").String()); u != "" {
+			return u
+		}
+	}
+	if u := strings.TrimSpace(item.Get("url").String()); u != "" {
+		return u
+	}
+	return ""
+}
+
+func dedupeImageFileNames(entries []imageURLEntry) {
+	seen := make(map[string]int, len(entries))
+	for i := range entries {
+		base := entries[i].FileName
+		if base == "" {
+			base = "image.jpg"
+			entries[i].FileName = base
+		}
+		n := seen[base]
+		seen[base] = n + 1
+		if n == 0 {
+			continue
+		}
+		// second.jpg → second_2.jpg
+		ext := ""
+		name := base
+		if dot := strings.LastIndex(base, "."); dot > 0 {
+			name = base[:dot]
+			ext = base[dot:]
+		}
+		entries[i].FileName = fmt.Sprintf("%s_%d%s", name, n+1, ext)
+	}
+}
+
 // applyVolcNormalized merges normalized VolcEngine fields into the upstream payload.
 // Only called when detectAndNormalizeVolcOfficial returned a non-nil result.
 func applyVolcNormalized(payload map[string]interface{}, n *volcNormalized) {
@@ -145,18 +198,19 @@ func applyVolcNormalized(payload map[string]interface{}, n *volcNormalized) {
 	if cur, _ := payload["prompt"].(string); strings.TrimSpace(cur) == "" && n.Prompt != "" {
 		payload["prompt"] = n.Prompt
 	}
-	if _, ok := payload["image_urls"]; !ok && len(n.ImageURLs) > 0 {
+	// Always prefer content[] images when volcano format was detected.
+	if len(n.ImageURLs) > 0 {
 		payload["image_urls"] = n.ImageURLs
 	}
-	if _, ok := payload["reference_video_urls"]; !ok || isEmptySlice(payload["reference_video_urls"]) {
-		if len(n.VideoURLs) > 0 {
-			payload["reference_video_urls"] = n.VideoURLs
-		}
+	if len(n.VideoURLs) > 0 {
+		payload["reference_video_urls"] = n.VideoURLs
+	} else if _, ok := payload["reference_video_urls"]; !ok || isEmptySlice(payload["reference_video_urls"]) {
+		payload["reference_video_urls"] = []any{}
 	}
-	if _, ok := payload["audio_urls"]; !ok || isEmptySlice(payload["audio_urls"]) {
-		if len(n.AudioURLs) > 0 {
-			payload["audio_urls"] = n.AudioURLs
-		}
+	if len(n.AudioURLs) > 0 {
+		payload["audio_urls"] = n.AudioURLs
+	} else if _, ok := payload["audio_urls"]; !ok || isEmptySlice(payload["audio_urls"]) {
+		payload["audio_urls"] = []any{}
 	}
 	payload["generate_audio"] = n.GenerateAudio
 	payload["watermark"] = n.Watermark

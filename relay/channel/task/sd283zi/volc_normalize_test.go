@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func TestIsVolcOfficialContent(t *testing.T) {
@@ -189,6 +190,122 @@ func TestDetectAndNormalizeVolcOfficial(t *testing.T) {
 	}
 	if req.Watermark == nil || *req.Watermark {
 		t.Fatalf("req.Watermark = %v", req.Watermark)
+	}
+}
+
+func TestDetectAndNormalizeVolcOfficialReplacesPartialImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := `{
+		"model":"mingiz-sd2",
+		"image":"https://example.com/only-first.jpg",
+		"content":[
+			{"type":"text","text":"双参考图"},
+			{"type":"image_url","image_url":{"url":"https://example.com/a.jpg"},"role":"reference_image"},
+			{"type":"image_url","image_url":{"url":"https://example.com/b.jpg"},"role":"reference_image"}
+		]
+	}`
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", bytes.NewBufferString(body))
+	bs, err := common.CreateBodyStorage([]byte(body))
+	if err != nil {
+		t.Fatalf("CreateBodyStorage: %v", err)
+	}
+	c.Set(common.KeyBodyStorage, bs)
+
+	// Simulate prior flat parse keeping only the singular image field.
+	req := &relaycommon.TaskSubmitReq{
+		Model:  "mingiz-sd2",
+		Image:  "https://example.com/only-first.jpg",
+		Images: []string{"https://example.com/only-first.jpg"},
+	}
+	n := detectAndNormalizeVolcOfficial(c, req)
+	if n == nil {
+		t.Fatal("expected normalization")
+	}
+	if len(n.ImageURLs) != 2 {
+		t.Fatalf("volcNorm images = %d, want 2", len(n.ImageURLs))
+	}
+	if len(req.Images) != 2 {
+		t.Fatalf("req.Images = %#v, want 2 from content[]", req.Images)
+	}
+	if req.Images[0] != "https://example.com/a.jpg" || req.Images[1] != "https://example.com/b.jpg" {
+		t.Fatalf("req.Images = %#v", req.Images)
+	}
+}
+
+func TestConvertCreatePayloadVolcOfficialTwoImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := `{
+		"model":"mingiz-sd2",
+		"image":"https://cdn.example.com/same/path/image.jpg?id=1",
+		"content":[
+			{"type":"text","text":"两张参考图"},
+			{"type":"image_url","image_url":{"url":"https://cdn.example.com/same/path/image.jpg?id=1"},"role":"reference_image"},
+			{"type":"image_url","image_url":"https://cdn.example.com/same/path/image.jpg?id=2","role":"reference_image"}
+		],
+		"ratio":"16:9",
+		"resolution":"720p",
+		"duration":8
+	}`
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	bs, err := common.CreateBodyStorage([]byte(body))
+	if err != nil {
+		t.Fatalf("CreateBodyStorage: %v", err)
+	}
+	c.Set(common.KeyBodyStorage, bs)
+
+	req := &relaycommon.TaskSubmitReq{
+		Model:      "mingiz-sd2",
+		Image:      "https://cdn.example.com/same/path/image.jpg?id=1",
+		Images:     []string{"https://cdn.example.com/same/path/image.jpg?id=1"},
+		Ratio:      "16:9",
+		Resolution: "720p",
+		Duration:   8,
+	}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "mingiz-sd2",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "mingiz-sd2",
+		},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+	}
+	a := &TaskAdaptor{}
+	payload, err := a.convertCreatePayload(c, req, info)
+	if err != nil {
+		t.Fatalf("convertCreatePayload: %v", err)
+	}
+	imgs, ok := payload["image_urls"].([]imageURLEntry)
+	if !ok || len(imgs) != 2 {
+		t.Fatalf("image_urls = %#v, want 2 entries", payload["image_urls"])
+	}
+	if imgs[0].URL != "https://cdn.example.com/same/path/image.jpg?id=1" {
+		t.Fatalf("image[0] = %s", imgs[0].URL)
+	}
+	if imgs[1].URL != "https://cdn.example.com/same/path/image.jpg?id=2" {
+		t.Fatalf("image[1] = %s", imgs[1].URL)
+	}
+	if imgs[0].FileName == imgs[1].FileName {
+		t.Fatalf("file_name should be unique, both = %q", imgs[0].FileName)
+	}
+}
+
+func TestExtractVolcMediaURLVariants(t *testing.T) {
+	raw := []byte(`[
+		{"type":"image_url","image_url":{"url":"https://a.example/1.jpg"}},
+		{"type":"image_url","image_url":"https://a.example/2.jpg"},
+		{"type":"image_url","url":"https://a.example/3.jpg"}
+	]`)
+	arr := gjson.ParseBytes(raw).Array()
+	if got := extractVolcMediaURL(arr[0], "image_url"); got != "https://a.example/1.jpg" {
+		t.Fatalf("object form = %q", got)
+	}
+	if got := extractVolcMediaURL(arr[1], "image_url"); got != "https://a.example/2.jpg" {
+		t.Fatalf("string form = %q", got)
+	}
+	if got := extractVolcMediaURL(arr[2], "image_url"); got != "https://a.example/3.jpg" {
+		t.Fatalf("top-level url = %q", got)
 	}
 }
 
