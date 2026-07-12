@@ -12,10 +12,10 @@ func TestNormalizeImageGenerationsRequestPathApimart(t *testing.T) {
 	model := "gpt-image-2"
 	mode := relayconstant.RelayModeImagesGenerations
 
-	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model)
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations", got)
 
-	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations", got)
 }
 
@@ -24,10 +24,10 @@ func TestNormalizeImageGenerationsRequestPathApib(t *testing.T) {
 	model := "gemini-3.1-flash-image-preview"
 	mode := relayconstant.RelayModeImagesGenerations
 
-	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model)
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations", got)
 
-	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations", got)
 }
 
@@ -36,10 +36,10 @@ func TestNormalizeImageGenerationsRequestPathOtherUpstream(t *testing.T) {
 	model := "gpt-image-2"
 	mode := relayconstant.RelayModeImagesGenerations
 
-	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model)
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations/async", got)
 
-	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations/async", got)
 }
 
@@ -48,10 +48,10 @@ func TestNormalizeImageGenerationsRequestPathPacky(t *testing.T) {
 	model := "gpt-image-2"
 	mode := relayconstant.RelayModeImagesGenerations
 
-	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model)
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations", got)
 
-	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations", got)
 }
 
@@ -60,9 +60,19 @@ func TestNormalizeImageGenerationsRequestPathSubrouter(t *testing.T) {
 	model := "gpt-image-2"
 	mode := relayconstant.RelayModeImagesGenerations
 
-	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model)
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations", got)
 
-	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model, "")
 	require.Equal(t, "/v1/images/generations", got)
+}
+
+func TestNormalizeImageGenerationsRequestPathExplicitMode(t *testing.T) {
+	mode := relayconstant.RelayModeImagesGenerations
+
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations/async", "https://unknown.example", mode, "future-image-model", "generations")
+	require.Equal(t, "/v1/images/generations", got)
+
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations", "https://api.apib.ai", mode, "future-image-model", "generations_async")
+	require.Equal(t, "/v1/images/generations/async", got)
 }

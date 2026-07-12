@@ -42,6 +42,7 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastRemovedModels  []string      `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string      `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
 	GptImage2Tier                         string        `json:"gpt_image2_tier,omitempty"`                            // "standard" | "packy" | "official" for gpt-image-2 routing
+	ImageGenerationSubmitPath             string        `json:"image_generation_submit_path,omitempty"`               // "auto" | "generations" | "generations_async"
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

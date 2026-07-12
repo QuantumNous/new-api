@@ -3396,6 +3396,48 @@ export function ChannelMutateDrawer({
                             <>
                               <FormField
                                 control={form.control}
+                                name='image_generation_submit_path'
+                                render={({ field }) => (
+                                  <FormItem className='grid gap-2 px-4 py-3 md:grid-cols-[1fr_240px] md:items-center'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel className='text-sm'>
+                                        {t('Image generation upstream path')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Select the endpoint used to submit image generation tasks to this upstream'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <Select
+                                      value={field.value || 'auto'}
+                                      onValueChange={field.onChange}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent alignItemWithTrigger={false}>
+                                        <SelectGroup>
+                                          <SelectItem value='auto'>
+                                            {t('Auto (legacy compatibility)')}
+                                          </SelectItem>
+                                          <SelectItem value='generations'>
+                                            /v1/images/generations
+                                          </SelectItem>
+                                          <SelectItem value='generations_async'>
+                                            /v1/images/generations/async
+                                          </SelectItem>
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
                                 name='disable_store'
                                 render={({ field }) => (
                                   <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>

@@ -74,6 +74,9 @@ export const channelFormSchema = z.object({
   allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
   allow_speed: z.boolean().optional(), // Anthropic: speed mode control
   claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+  image_generation_submit_path: z
+    .enum(['auto', 'generations', 'generations_async'])
+    .optional(),
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -148,6 +151,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
+  image_generation_submit_path: 'auto',
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -224,6 +228,10 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let imageGenerationSubmitPath:
+    | 'auto'
+    | 'generations'
+    | 'generations_async' = 'auto'
 
   if (channel.settings) {
     try {
@@ -248,6 +256,8 @@ export function transformChannelToFormDefaults(
       )
         ? parsed.upstream_model_update_ignored_models.join(',')
         : ''
+      imageGenerationSubmitPath =
+        parsed.image_generation_submit_path || 'auto'
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -297,6 +307,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    image_generation_submit_path: imageGenerationSubmitPath,
     recharge_rate: channel.recharge_rate ?? undefined,
     apimaster_price_ratio: channel.apimaster_price_ratio ?? undefined,
     model_price_ratios: channel.model_price_ratios ?? '',
@@ -382,6 +393,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.allow_include_obfuscation =
       formData.allow_include_obfuscation === true
     settingsObj.allow_inference_geo = formData.allow_inference_geo === true
+    if (
+      formData.image_generation_submit_path &&
+      formData.image_generation_submit_path !== 'auto'
+    ) {
+      settingsObj.image_generation_submit_path =
+        formData.image_generation_submit_path
+    } else {
+      delete settingsObj.image_generation_submit_path
+    }
   } else {
     if ('disable_store' in settingsObj) delete settingsObj.disable_store
     if ('allow_safety_identifier' in settingsObj)
@@ -390,6 +410,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       delete settingsObj.allow_include_obfuscation
     if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
       delete settingsObj.allow_inference_geo
+    delete settingsObj.image_generation_submit_path
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed

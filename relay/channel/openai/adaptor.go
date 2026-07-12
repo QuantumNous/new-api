@@ -173,6 +173,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			info.ChannelBaseUrl,
 			info.RelayMode,
 			info.OriginModelName,
+			info.ChannelOtherSettings.ImageGenerationSubmitPath,
 		)
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestPath, info.ChannelType), nil
 	}
@@ -181,8 +182,20 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 // normalizeImageGenerationsRequestPath maps client async/sync paths to upstream capabilities.
 // Some OpenAI-compatible image hubs serve gpt-image-2 from POST /v1/images/generations
 // and do not implement /async.
-func normalizeImageGenerationsRequestPath(requestPath, channelBaseURL string, relayMode int, modelName string) string {
-	if relayMode != relayconstant.RelayModeImagesGenerations || !common.UsesAsyncImageTaskUpstream(modelName) {
+func normalizeImageGenerationsRequestPath(requestPath, channelBaseURL string, relayMode int, modelName, submitPathMode string) string {
+	if relayMode != relayconstant.RelayModeImagesGenerations {
+		return requestPath
+	}
+	switch strings.ToLower(strings.TrimSpace(submitPathMode)) {
+	case "generations":
+		return strings.TrimSuffix(requestPath, "/async")
+	case "generations_async":
+		if strings.HasSuffix(requestPath, "/images/generations") {
+			return requestPath + "/async"
+		}
+		return requestPath
+	}
+	if !common.UsesAsyncImageTaskUpstream(modelName) {
 		return requestPath
 	}
 	isSyncImageUpstream := isSyncGptImage2ImageBase(channelBaseURL)
