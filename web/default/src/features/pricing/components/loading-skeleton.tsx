@@ -81,8 +81,9 @@ function CardContentSkeleton() {
 function FilterBarSkeleton() {
   return (
     <div className='space-y-3'>
-      <div className='flex items-center gap-3'>
-        <div className='flex flex-1 flex-wrap items-center gap-2'>
+      {/* Mirrors PricingToolbar: stacked on mobile, single row from lg. */}
+      <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+        <div className='flex flex-wrap items-center gap-2'>
           {[80, 90, 75, 85, 70].map((width) => (
             <Skeleton
               key={`chip-${width}`}
@@ -91,7 +92,7 @@ function FilterBarSkeleton() {
             />
           ))}
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex flex-wrap items-center gap-2'>
           <Skeleton className='h-8 w-24 rounded-lg' />
           <Skeleton className='h-8 w-20 rounded-lg' />
           <Skeleton className='h-8 w-24' />

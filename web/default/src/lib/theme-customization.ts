@@ -27,7 +27,7 @@ export const THEME_PRESETS = [
   {
     value: 'default',
     name: 'Default',
-    swatches: ['oklch(0.13 0 0)', 'oklch(0.95 0 0)'],
+    swatches: ['oklch(0.692 0.141 243.716)', 'oklch(0.7 0.12 280)'],
   },
   {
     // Inspired by Anthropic's official brand language: warm cream canvas
@@ -82,6 +82,21 @@ export const THEME_PRESETS = [
 export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
 export type ThemeRadius = 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
 export type ThemeScale = 'default' | 'sm' | 'lg' | 'xl'
+
+/**
+ * Text size axis. Overrides only the `--text-*` type ramp, independently of
+ * the density scale (which adjusts spacing and text together). `default`
+ * follows the active preset/density ramp; explicit tiers win over both.
+ */
+export type ThemeTextSize = 'default' | 'sm' | 'lg' | 'xl' | '2xl'
+
+/**
+ * Badge size axis. Controls how "chubby" badges/pills (Badge, StatusBadge)
+ * read, independently of the global density scale. `default` is the compact
+ * redesign look; `lg` restores the pre-redesign pill (larger text, full-pill
+ * corners) and is the site default; `xl` is one step larger for readability.
+ */
+export type ThemeBadgeSize = 'default' | 'lg' | 'xl'
 export type ContentLayout = 'full' | 'centered'
 
 /**
@@ -111,6 +126,8 @@ export type ThemeCustomization = {
   font: ThemeFont
   radius: ThemeRadius
   scale: ThemeScale
+  textSize: ThemeTextSize
+  badgeSize: ThemeBadgeSize
   contentLayout: ContentLayout
 }
 
@@ -119,6 +136,8 @@ export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
   font: 'default',
   radius: 'default',
   scale: 'default',
+  textSize: 'default',
+  badgeSize: 'lg',
   contentLayout: 'full',
 }
 
@@ -149,6 +168,20 @@ export const THEME_SCALE_VALUES: ReadonlySet<ThemeScale> = new Set([
   'xl',
 ])
 
+export const THEME_TEXT_SIZE_VALUES: ReadonlySet<ThemeTextSize> = new Set([
+  'default',
+  'sm',
+  'lg',
+  'xl',
+  '2xl',
+])
+
+export const THEME_BADGE_SIZE_VALUES: ReadonlySet<ThemeBadgeSize> = new Set([
+  'default',
+  'lg',
+  'xl',
+])
+
 export const CONTENT_LAYOUT_VALUES: ReadonlySet<ContentLayout> = new Set([
   'full',
   'centered',
@@ -159,6 +192,8 @@ export const THEME_COOKIE_KEYS = {
   font: 'theme_font',
   radius: 'theme_radius',
   scale: 'theme_scale',
+  textSize: 'theme_text_size',
+  badgeSize: 'theme_badge_size',
   contentLayout: 'theme_content_layout',
 } as const
 

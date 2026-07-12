@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Radio as RadioPrimitive } from '@base-ui/react/radio'
 import { RadioGroup as Radio } from '@base-ui/react/radio-group'
 import { CircleCheck, Palette, RotateCcw } from 'lucide-react'
-import { type SVGProps } from 'react'
+import type { SVGProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconDir } from '@/assets/custom/icon-dir'
@@ -56,10 +56,12 @@ import { useTheme } from '@/context/theme-provider'
 import {
   type ContentLayout,
   THEME_PRESETS,
+  type ThemeBadgeSize,
   type ThemeFont,
   type ThemePreset,
   type ThemeRadius,
   type ThemeScale,
+  type ThemeTextSize,
 } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
 
@@ -121,6 +123,8 @@ export function ConfigDrawer({
           <FontConfig />
           <RadiusConfig />
           <ScaleConfig />
+          <TextSizeConfig />
+          <BadgeSizeConfig />
           {showLayoutControls && (
             <>
               <SidebarConfig />
@@ -323,10 +327,12 @@ function PresetConfig() {
                 aria-hidden='true'
                 className='absolute inset-0 rounded-md'
                 style={
+                  // The default preset is the full-color theme; two swatch
+                  // stops cannot convey that, so it previews as a rainbow.
                   preset.value === 'default'
                     ? {
                         background:
-                          'linear-gradient(135deg, var(--background) 0%, var(--muted) 50%, var(--foreground) 100%)',
+                          'linear-gradient(135deg, oklch(0.68 0.2 25) 0%, oklch(0.8 0.17 85) 25%, oklch(0.72 0.18 155) 50%, oklch(0.66 0.19 245) 75%, oklch(0.68 0.2 315) 100%)',
                       }
                     : {
                         background: `linear-gradient(135deg, ${preset.swatches[0]} 0%, ${preset.swatches[1] ?? preset.swatches[0]} 100%)`,
@@ -432,7 +438,49 @@ function FontConfig() {
           </Item>
         ))}
       </Radio>
+      <FontLicenseNote />
     </div>
+  )
+}
+
+/**
+ * One-line licensing attribution for the bundled webfonts. All three faces
+ * ship under the SIL Open Font License 1.1, which permits commercial use;
+ * each name links to its official source and the license text.
+ */
+function FontLicenseNote() {
+  const { t } = useTranslation()
+  const fontSources: { name: string; href: string }[] = [
+    { name: 'Public Sans', href: 'https://github.com/uswds/public-sans' },
+    { name: 'Lora', href: 'https://fonts.google.com/specimen/Lora' },
+    { name: 'JetBrains Mono', href: 'https://www.jetbrains.com/lp/mono/' },
+  ]
+  return (
+    <p className='text-subtle-foreground mt-2 text-xs leading-relaxed'>
+      {fontSources.map((font, index) => (
+        <span key={font.name}>
+          {index > 0 && ' · '}
+          <a
+            href={font.href}
+            target='_blank'
+            rel='noreferrer'
+            className='hover:text-foreground hover:underline'
+          >
+            {font.name}
+          </a>
+        </span>
+      ))}
+      {' — '}
+      <a
+        href='https://openfontlicense.org'
+        target='_blank'
+        rel='noreferrer'
+        className='hover:text-foreground hover:underline'
+      >
+        SIL OFL 1.1
+      </a>
+      {`, ${t('free for commercial use')}`}
+    </p>
   )
 }
 
@@ -515,13 +563,15 @@ function ScalePreview(props: { rows: number; rowGap: string }) {
       className='absolute inset-2.5 flex flex-col justify-center'
       style={{ gap: props.rowGap }}
     >
-      {Array.from({ length: props.rows }).map((_, i) => (
-        <span
-          key={i}
-          className='bg-foreground/60 block h-[2px] rounded-full'
-          style={{ width: `${85 - i * 10}%` }}
-        />
-      ))}
+      {Array.from({ length: props.rows }, (_, i) => `${85 - i * 10}%`).map(
+        (width) => (
+          <span
+            key={width}
+            className='bg-foreground/60 block h-[2px] rounded-full'
+            style={{ width }}
+          />
+        )
+      )}
     </div>
   )
 }
@@ -576,6 +626,158 @@ function ScaleConfig() {
                 aria-hidden='true'
               />
               <ScalePreview rows={option.rows} rowGap={option.rowGap} />
+            </div>
+            <div className='mt-1.5 truncate text-center text-xs'>
+              {option.label}
+            </div>
+          </Item>
+        ))}
+      </Radio>
+    </div>
+  )
+}
+
+function TextSizeConfig() {
+  const { t } = useTranslation()
+  const { defaults, customization, setTextSize } = useThemeCustomization()
+  // Preview font sizes mirror each tier's `--text-base` so the tiles show
+  // the actual relative difference between tiers.
+  const textSizeOptions: {
+    value: ThemeTextSize
+    label: string
+    previewSize: string
+  }[] = [
+    { value: 'sm', label: t('Small'), previewSize: '0.88rem' },
+    { value: 'default', label: t('Default'), previewSize: '1rem' },
+    { value: 'lg', label: t('Large'), previewSize: '1.075rem' },
+    { value: 'xl', label: t('Extra Large'), previewSize: '1.125rem' },
+    { value: '2xl', label: t('Super Large'), previewSize: '1.21rem' },
+  ]
+  return (
+    <div>
+      <SectionTitle
+        title={t('Text size')}
+        showReset={customization.textSize !== defaults.textSize}
+        onReset={() => setTextSize(defaults.textSize)}
+      />
+      <Radio
+        value={customization.textSize}
+        onValueChange={(v) => setTextSize(v as ThemeTextSize)}
+        className='grid w-full grid-cols-5 gap-2'
+        aria-label={t('Select text size')}
+      >
+        {textSizeOptions.map((option) => (
+          <Item
+            key={option.value}
+            value={option.value}
+            className='group flex flex-col items-stretch outline-none'
+            aria-label={option.label}
+          >
+            <div
+              className={cn(
+                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-focus-visible:ring-2',
+                'group-hover:ring-primary/60'
+              )}
+            >
+              <CircleCheck
+                className={cn(
+                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'group-data-unchecked:hidden'
+                )}
+                aria-hidden='true'
+              />
+              <span
+                aria-hidden='true'
+                className='text-foreground absolute inset-0 flex items-center justify-center leading-none font-medium'
+                style={{ fontSize: option.previewSize }}
+              >
+                Aa
+              </span>
+            </div>
+            <div className='mt-1.5 truncate text-center text-xs'>
+              {option.label}
+            </div>
+          </Item>
+        ))}
+      </Radio>
+    </div>
+  )
+}
+
+/**
+ * Mock pill rendered inside the badge-size preview tiles. Each option shows
+ * the pill at the proportions that size will actually produce.
+ */
+function BadgeSizePreview(props: { height: string; fontSize: string }) {
+  return (
+    <div
+      aria-hidden='true'
+      className='absolute inset-0 flex items-center justify-center'
+    >
+      <span
+        className='border-foreground/50 text-foreground/70 inline-flex items-center rounded-full border px-2 leading-none font-medium'
+        style={{ height: props.height, fontSize: props.fontSize }}
+      >
+        Abc
+      </span>
+    </div>
+  )
+}
+
+function BadgeSizeConfig() {
+  const { t } = useTranslation()
+  const { defaults, customization, setBadgeSize } = useThemeCustomization()
+  const badgeSizeOptions: {
+    value: ThemeBadgeSize
+    label: string
+    height: string
+    fontSize: string
+  }[] = [
+    { value: 'default', label: t('Compact'), height: '20px', fontSize: '11px' },
+    { value: 'lg', label: t('Comfortable'), height: '24px', fontSize: '12px' },
+    { value: 'xl', label: t('Super Large'), height: '28px', fontSize: '13px' },
+  ]
+  return (
+    <div>
+      <SectionTitle
+        title={t('Badge size')}
+        showReset={customization.badgeSize !== defaults.badgeSize}
+        onReset={() => setBadgeSize(defaults.badgeSize)}
+      />
+      <Radio
+        value={customization.badgeSize}
+        onValueChange={(v) => setBadgeSize(v as ThemeBadgeSize)}
+        className='grid w-full grid-cols-3 gap-3'
+        aria-label={t('Select badge size')}
+      >
+        {badgeSizeOptions.map((option) => (
+          <Item
+            key={option.value}
+            value={option.value}
+            className='group flex flex-col items-stretch outline-none'
+            aria-label={option.label}
+          >
+            <div
+              className={cn(
+                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-focus-visible:ring-2',
+                'group-hover:ring-primary/60'
+              )}
+            >
+              <CircleCheck
+                className={cn(
+                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'group-data-unchecked:hidden'
+                )}
+                aria-hidden='true'
+              />
+              <BadgeSizePreview
+                height={option.height}
+                fontSize={option.fontSize}
+              />
             </div>
             <div className='mt-1.5 truncate text-center text-xs'>
               {option.label}

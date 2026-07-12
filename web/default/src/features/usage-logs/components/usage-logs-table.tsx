@@ -25,6 +25,10 @@ import { toast } from 'sonner'
 import {
   DataTablePage,
   DataTableRow,
+  ERROR_ROW_DESKTOP,
+  INFO_ROW_DESKTOP,
+  WARNING_ROW_DESKTOP,
+  WARNING_ROW_MOBILE,
   useDataTable,
 } from '@/components/data-table'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
@@ -46,14 +50,12 @@ import { useLogsViewScope } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
-const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]: 'bg-destructive/5',
-  [LOG_TYPE_ENUM.REFUND]: 'bg-info/5',
+// Same structural treatment as disabled rows in the keys/channels/users
+// tables (tinted row + 4px accent stripe), only the hue differs.
+const logTypeRowClass: Record<number, string> = {
+  [LOG_TYPE_ENUM.ERROR]: ERROR_ROW_DESKTOP,
+  [LOG_TYPE_ENUM.REFUND]: INFO_ROW_DESKTOP,
 }
-
-// Warning tint for logs where a quota conversion saturated (admin-only marker).
-// Takes precedence over the per-type tint since it flags a billing anomaly.
-const quotaSaturationRowTint = 'bg-warning/10'
 
 function getColumnVisibilityStorageKey(
   logCategory: LogCategory,
@@ -206,7 +208,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
               ((row.original as Record<string, unknown>).other as string) ?? ''
             )
             return other?.admin_info?.quota_saturation
-              ? quotaSaturationRowTint
+              ? WARNING_ROW_MOBILE
               : undefined
           }}
         />
@@ -222,14 +224,16 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         const logType = (row.original as Record<string, unknown>).type as
           | number
           | undefined
-        let tintClass =
-          isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
+        let statusClass =
+          isCommon && logType != null ? (logTypeRowClass[logType] ?? '') : ''
         if (isCommon && isAdmin) {
           const other = parseLogOther(
             ((row.original as Record<string, unknown>).other as string) ?? ''
           )
+          // Quota saturation is an admin-only billing anomaly marker; it
+          // takes precedence over the per-type row treatment.
           if (other?.admin_info?.quota_saturation) {
-            tintClass = quotaSaturationRowTint
+            statusClass = WARNING_ROW_DESKTOP
           }
         }
 
@@ -237,7 +241,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           <DataTableRow
             key={row.id}
             row={row}
-            className={cn('transition-colors', tintClass)}
+            className={cn('transition-colors', statusClass)}
             getColumnClassName={(columnId) =>
               helpers.getCellClassName(columnId, isCommon ? 'py-2' : 'py-3.5')
             }

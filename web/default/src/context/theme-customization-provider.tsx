@@ -31,16 +31,20 @@ import {
   type ContentLayout,
   DEFAULT_THEME_CUSTOMIZATION,
   resolveThemeFont,
+  THEME_BADGE_SIZE_VALUES,
   THEME_COOKIE_KEYS,
   THEME_FONT_VALUES,
   THEME_PRESET_VALUES,
   THEME_RADIUS_VALUES,
   THEME_SCALE_VALUES,
+  THEME_TEXT_SIZE_VALUES,
+  type ThemeBadgeSize,
   type ThemeCustomization,
   type ThemeFont,
   type ThemePreset,
   type ThemeRadius,
   type ThemeScale,
+  type ThemeTextSize,
 } from '@/lib/theme-customization'
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
@@ -72,6 +76,8 @@ type ThemeCustomizationContextType = {
   setFont: (font: ThemeFont) => void
   setRadius: (radius: ThemeRadius) => void
   setScale: (scale: ThemeScale) => void
+  setTextSize: (textSize: ThemeTextSize) => void
+  setBadgeSize: (badgeSize: ThemeBadgeSize) => void
   setContentLayout: (contentLayout: ContentLayout) => void
   resetCustomization: () => void
 }
@@ -87,6 +93,8 @@ const FALLBACK_CONTEXT: ThemeCustomizationContextType = {
   setFont: () => {},
   setRadius: () => {},
   setScale: () => {},
+  setTextSize: () => {},
+  setBadgeSize: () => {},
   setContentLayout: () => {},
   resetCustomization: () => {},
 }
@@ -123,6 +131,20 @@ export function ThemeCustomizationProvider(props: {
       THEME_COOKIE_KEYS.scale,
       THEME_SCALE_VALUES,
       DEFAULT_THEME_CUSTOMIZATION.scale
+    )
+  )
+  const [textSize, _setTextSize] = useState<ThemeTextSize>(() =>
+    readCookie<ThemeTextSize>(
+      THEME_COOKIE_KEYS.textSize,
+      THEME_TEXT_SIZE_VALUES,
+      DEFAULT_THEME_CUSTOMIZATION.textSize
+    )
+  )
+  const [badgeSize, _setBadgeSize] = useState<ThemeBadgeSize>(() =>
+    readCookie<ThemeBadgeSize>(
+      THEME_COOKIE_KEYS.badgeSize,
+      THEME_BADGE_SIZE_VALUES,
+      DEFAULT_THEME_CUSTOMIZATION.badgeSize
     )
   )
   const [contentLayout, _setContentLayout] = useState<ContentLayout>(() =>
@@ -169,6 +191,24 @@ export function ThemeCustomizationProvider(props: {
   }, [scale])
 
   useLayoutEffect(() => {
+    applyAttribute(
+      'data-theme-text',
+      textSize === DEFAULT_THEME_CUSTOMIZATION.textSize ? null : textSize
+    )
+  }, [textSize])
+
+  // Unlike the other axes, the *site default* for badge size is `lg`, which
+  // is a styled value — so the attribute is keyed on the literal unstyled
+  // `default` tier rather than DEFAULT_THEME_CUSTOMIZATION (removing the
+  // attribute for `lg` would silently drop its CSS).
+  useLayoutEffect(() => {
+    applyAttribute(
+      'data-theme-badge',
+      badgeSize === 'default' ? null : badgeSize
+    )
+  }, [badgeSize])
+
+  useLayoutEffect(() => {
     applyAttribute('data-theme-content-layout', contentLayout)
   }, [contentLayout])
 
@@ -208,6 +248,24 @@ export function ThemeCustomizationProvider(props: {
     }
   }, [])
 
+  const setTextSize = useCallback((value: ThemeTextSize) => {
+    _setTextSize(value)
+    if (value === DEFAULT_THEME_CUSTOMIZATION.textSize) {
+      removeCookie(THEME_COOKIE_KEYS.textSize)
+    } else {
+      setCookie(THEME_COOKIE_KEYS.textSize, value, COOKIE_MAX_AGE)
+    }
+  }, [])
+
+  const setBadgeSize = useCallback((value: ThemeBadgeSize) => {
+    _setBadgeSize(value)
+    if (value === DEFAULT_THEME_CUSTOMIZATION.badgeSize) {
+      removeCookie(THEME_COOKIE_KEYS.badgeSize)
+    } else {
+      setCookie(THEME_COOKIE_KEYS.badgeSize, value, COOKIE_MAX_AGE)
+    }
+  }, [])
+
   const setContentLayout = useCallback((value: ContentLayout) => {
     _setContentLayout(value)
     if (value === DEFAULT_THEME_CUSTOMIZATION.contentLayout) {
@@ -222,17 +280,37 @@ export function ThemeCustomizationProvider(props: {
     setFont(DEFAULT_THEME_CUSTOMIZATION.font)
     setRadius(DEFAULT_THEME_CUSTOMIZATION.radius)
     setScale(DEFAULT_THEME_CUSTOMIZATION.scale)
+    setTextSize(DEFAULT_THEME_CUSTOMIZATION.textSize)
+    setBadgeSize(DEFAULT_THEME_CUSTOMIZATION.badgeSize)
     setContentLayout(DEFAULT_THEME_CUSTOMIZATION.contentLayout)
-  }, [setPreset, setFont, setRadius, setScale, setContentLayout])
+  }, [
+    setPreset,
+    setFont,
+    setRadius,
+    setScale,
+    setTextSize,
+    setBadgeSize,
+    setContentLayout,
+  ])
 
   const value = useMemo<ThemeCustomizationContextType>(
     () => ({
       defaults: DEFAULT_THEME_CUSTOMIZATION,
-      customization: { preset, font, radius, scale, contentLayout },
+      customization: {
+        preset,
+        font,
+        radius,
+        scale,
+        textSize,
+        badgeSize,
+        contentLayout,
+      },
       setPreset,
       setFont,
       setRadius,
       setScale,
+      setTextSize,
+      setBadgeSize,
       setContentLayout,
       resetCustomization,
     }),
@@ -241,11 +319,15 @@ export function ThemeCustomizationProvider(props: {
       font,
       radius,
       scale,
+      textSize,
+      badgeSize,
       contentLayout,
       setPreset,
       setFont,
       setRadius,
       setScale,
+      setTextSize,
+      setBadgeSize,
       setContentLayout,
       resetCustomization,
     ]

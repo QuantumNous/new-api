@@ -342,6 +342,12 @@ For commercial licensing, please contact support@quantumnous.com
   --skeleton-base: oklch(0.9 0 0);
   --skeleton-highlight: oklch(0.97 0 0);
 
+  /* Identity tints (group names, channel ids, model badges…) are decorative,
+   * so this monochrome preset collapses them to the foreground by mixing 0%
+   * of the palette hue. Status colors above stay colored on purpose: they
+   * carry meaning (error/success), which accessibility asks us to keep. */
+  --identity-color-mix: 0%;
+
   --radius: 0.5rem;
   --text-xs: 0.9rem;
   --text-sm: 1rem;
@@ -720,6 +726,88 @@ For commercial licensing, please contact support@quantumnous.com
   --text-2xl: 1.75rem;
   --text-3xl: 2.15rem;
   --spacing: 0.3rem;
+}
+
+/* ── Text size ────────────────────────────────────────────────────────── */
+/* Dedicated type-ramp axis (`data-theme-text` on <body>). Unlike the density
+ * scale above — which moves text and spacing together — this only overrides
+ * the `--text-*` ramp, so it composes with any density/preset choice. It is
+ * placed AFTER the preset and density blocks on purpose: an explicit text
+ * size wins over the ramps those ship (e.g. simple-large, scale sm/lg/xl).
+ * `default` removes the attribute and defers to the preset/density ramp. */
+[data-theme-text='sm'] {
+  --text-xs: 0.7rem;
+  --text-sm: 0.78rem;
+  --text-base: 0.88rem;
+  --text-lg: 1rem;
+  --text-xl: 1.13rem;
+  --text-2xl: 1.38rem;
+  --text-3xl: 1.7rem;
+}
+[data-theme-text='lg'] {
+  --text-xs: 0.84rem;
+  --text-sm: 0.95rem;
+  --text-base: 1.075rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.35rem;
+  --text-2xl: 1.65rem;
+  --text-3xl: 2rem;
+}
+[data-theme-text='xl'] {
+  --text-xs: 0.9rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.45rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.15rem;
+}
+[data-theme-text='2xl'] {
+  --text-xs: 0.96rem;
+  --text-sm: 1.08rem;
+  --text-base: 1.21rem;
+  --text-lg: 1.35rem;
+  --text-xl: 1.55rem;
+  --text-2xl: 1.9rem;
+  --text-3xl: 2.3rem;
+}
+
+/* ── Badge size ───────────────────────────────────────────────────────── */
+/* Independent axis for how "chubby" badges/pills read (`data-theme-badge`
+ * on <body>, driven by ThemeCustomizationProvider). The redesign moved
+ * badges from 14px text + full-pill corners to 12px text + subtle rounding;
+ * `lg` promotes every badge to the md tier (h-6 / text-sm) with pill
+ * corners, `xl` goes one step larger for readability. Default keeps the
+ * compact redesign look.
+ *
+ * These rules are intentionally unlayered so they win over the Tailwind
+ * utility classes baked into the badge variants (unlayered author CSS
+ * outranks `@layer utilities`). Text-only status badges
+ * (`data-appearance='plain'`) only pick up the type ramp: forcing a fixed
+ * height or padding on them would add phantom box space around bare text. */
+[data-theme-badge='lg'] [data-slot='badge'],
+[data-theme-badge='lg'] [data-slot='status-badge'] {
+  font-size: var(--text-sm);
+  border-radius: calc(infinity * 1px);
+}
+[data-theme-badge='lg'] [data-slot='badge'],
+[data-theme-badge='lg']
+  [data-slot='status-badge']:not([data-appearance='plain']) {
+  height: calc(var(--spacing) * 6);
+  gap: calc(var(--spacing) * 1.5);
+  padding-inline: calc(var(--spacing) * 2);
+}
+[data-theme-badge='xl'] [data-slot='badge'],
+[data-theme-badge='xl'] [data-slot='status-badge'] {
+  font-size: var(--text-base);
+  border-radius: calc(infinity * 1px);
+}
+[data-theme-badge='xl'] [data-slot='badge'],
+[data-theme-badge='xl']
+  [data-slot='status-badge']:not([data-appearance='plain']) {
+  height: calc(var(--spacing) * 7);
+  gap: calc(var(--spacing) * 1.5);
+  padding-inline: calc(var(--spacing) * 2.5);
 }
 
 /* ── Content layout ───────────────────────────────────────────────────── */

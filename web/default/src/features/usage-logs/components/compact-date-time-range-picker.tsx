@@ -18,15 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { CalendarDays } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import type { DateRange } from 'react-day-picker'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/design-system/button'
 import { Input } from '@/components/design-system/input'
+import { Calendar } from '@/components/ui/calendar'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { getCalendarLocale } from '@/lib/calendar-locale'
 import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 
@@ -37,14 +41,107 @@ interface CompactDateTimeRangePickerProps {
   className?: string
 }
 
-function toInputValue(date?: Date): string {
-  return date ? dayjs(date).format('YYYY-MM-DDTHH:mm') : ''
+// Labels are translated at render time; keep them registered in
+// src/i18n/static-keys.ts so the i18n sync tooling can see them.
+const RANGE_PRESETS: Array<{
+  label: string
+  getRange: () => { start: Date; end: Date }
+}> = [
+  {
+    label: 'Today',
+    getRange: () => {
+      const now = dayjs()
+      return {
+        start: now.startOf('day').toDate(),
+        end: now.endOf('day').toDate(),
+      }
+    },
+  },
+  {
+    label: '7 Days',
+    getRange: () => {
+      const now = dayjs()
+      return {
+        start: now.subtract(6, 'day').startOf('day').toDate(),
+        end: now.endOf('day').toDate(),
+      }
+    },
+  },
+  {
+    label: 'This week',
+    getRange: () => {
+      const now = dayjs()
+      return {
+        start: now.startOf('week').toDate(),
+        end: now.endOf('week').toDate(),
+      }
+    },
+  },
+  {
+    label: 'Last week',
+    getRange: () => {
+      const lastWeek = dayjs().subtract(1, 'week')
+      return {
+        start: lastWeek.startOf('week').toDate(),
+        end: lastWeek.endOf('week').toDate(),
+      }
+    },
+  },
+  {
+    label: '30 Days',
+    getRange: () => {
+      const now = dayjs()
+      return {
+        start: now.subtract(29, 'day').startOf('day').toDate(),
+        end: now.endOf('day').toDate(),
+      }
+    },
+  },
+  {
+    label: 'This month',
+    getRange: () => {
+      const now = dayjs()
+      return {
+        start: now.startOf('month').toDate(),
+        end: now.endOf('month').toDate(),
+      }
+    },
+  },
+  {
+    label: 'Last month',
+    getRange: () => {
+      const lastMonth = dayjs().subtract(1, 'month')
+      return {
+        start: lastMonth.startOf('month').toDate(),
+        end: lastMonth.endOf('month').toDate(),
+      }
+    },
+  },
+]
+
+// Matches the shadcn "date and time picker" pattern (Calendar + time input):
+// the native picker indicator is hidden so only the themed field shows.
+const timeInputClassName =
+  'appearance-none tabular-nums [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none'
+
+function toTimeValue(date: Date | undefined, fallback: string): string {
+  return date ? dayjs(date).format('HH:mm') : fallback
 }
 
-function fromInputValue(value: string): Date | undefined {
-  if (!value) return undefined
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : date
+function combineDateTime(date: Date, time: string): Date {
+  const [hours = 0, minutes = 0] = time.split(':').map(Number)
+  const combined = new Date(date)
+  combined.setHours(hours, minutes, 0, 0)
+  return combined
+}
+
+// Time inputs are minute-precision, so an end of "23:59" must cover the whole
+// minute (23:59:59.999) — same as the endOf('day') the presets produce.
+// Otherwise reopening a preset range and confirming would silently trim it.
+function combineEndDateTime(date: Date, time: string): Date {
+  const combined = combineDateTime(date, time)
+  combined.setSeconds(59, 999)
+  return combined
 }
 
 export function CompactDateTimeRangePicker({
@@ -53,17 +150,18 @@ export function CompactDateTimeRangePicker({
   onChange,
   className,
 }: CompactDateTimeRangePickerProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const isMobile = useIsMobile()
+  const calendarLocale = getCalendarLocale(i18n.language)
   const [open, setOpen] = useState(false)
-  const [draftStart, setDraftStart] = useState(toInputValue(start))
-  const [draftEnd, setDraftEnd] = useState(toInputValue(end))
+  const [draftRange, setDraftRange] = useState<DateRange | undefined>()
+  const [startTime, setStartTime] = useState('00:00')
+  const [endTime, setEndTime] = useState('23:59')
 
   const label = useMemo(() => {
     if (!start && !end) return t('Date Range')
-    // The popover's <input type="datetime-local"> only supports minute
-    // precision, so seconds are always 00 (manual pick) or 59 (preset
-    // end-of-day). Hide them in the trigger label to keep the button
-    // width compact while still showing the meaningful timestamp.
+    // Times are minute-precision (the time inputs cannot express seconds),
+    // so hide seconds in the trigger label to keep the button compact.
     const startText = start ? dayjs(start).format('YYYY-MM-DD HH:mm') : '-'
     const endText = end ? dayjs(end).format('YYYY-MM-DD HH:mm') : '-'
     return `${startText} ~ ${endText}`
@@ -71,47 +169,42 @@ export function CompactDateTimeRangePicker({
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
-      setDraftStart(toInputValue(start))
-      setDraftEnd(toInputValue(end))
+      setDraftRange(start || end ? { from: start, to: end } : undefined)
+      setStartTime(toTimeValue(start, '00:00'))
+      setEndTime(toTimeValue(end, '23:59'))
     }
     setOpen(nextOpen)
   }
 
+  const handleCalendarSelect = (
+    range: DateRange | undefined,
+    selectedDay: Date
+  ) => {
+    // Once a full range exists, the next click starts a fresh range instead
+    // of react-day-picker's default edge adjustment, which feels erratic.
+    if (draftRange?.from && draftRange?.to) {
+      setDraftRange({ from: selectedDay, to: undefined })
+      return
+    }
+    setDraftRange(range)
+  }
+
   const applyDraft = () => {
+    const from = draftRange?.from
+    // Selecting a single day leaves `to` empty; treat it as a one-day range.
+    const to = draftRange?.to ?? draftRange?.from
     onChange({
-      start: fromInputValue(draftStart),
-      end: fromInputValue(draftEnd),
+      start: from ? combineDateTime(from, startTime) : undefined,
+      end: to ? combineEndDateTime(to, endTime) : undefined,
     })
     setOpen(false)
   }
 
-  const applyPreset = (kind: 'today' | '7d' | 'week' | '30d' | 'month') => {
-    const now = dayjs()
-    const presets = {
-      today: {
-        start: now.startOf('day').toDate(),
-        end: now.endOf('day').toDate(),
-      },
-      '7d': {
-        start: now.subtract(6, 'day').startOf('day').toDate(),
-        end: now.endOf('day').toDate(),
-      },
-      week: {
-        start: now.startOf('week').toDate(),
-        end: now.endOf('week').toDate(),
-      },
-      '30d': {
-        start: now.subtract(29, 'day').startOf('day').toDate(),
-        end: now.endOf('day').toDate(),
-      },
-      month: {
-        start: now.startOf('month').toDate(),
-        end: now.endOf('month').toDate(),
-      },
-    }
-    const range = presets[kind]
-    setDraftStart(toInputValue(range.start))
-    setDraftEnd(toInputValue(range.end))
+  const applyPreset = (getRange: () => { start: Date; end: Date }) => {
+    const range = getRange()
+    setDraftRange({ from: range.start, to: range.end })
+    setStartTime(toTimeValue(range.start, '00:00'))
+    setEndTime(toTimeValue(range.end, '23:59'))
     onChange(range)
     setOpen(false)
   }
@@ -136,82 +229,63 @@ export function CompactDateTimeRangePicker({
       </PopoverTrigger>
       <PopoverContent
         align='start'
-        className='w-[min(520px,calc(100vw-2rem))] p-3'
+        className='w-auto max-w-[calc(100vw-2rem)] p-0'
       >
-        <div className='space-y-3'>
-          <div className='grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-end'>
-            <div className='space-y-1.5'>
-              <div className='text-muted-foreground text-xs'>
-                {t('Start Time')}
-              </div>
-              <Input
-                type='datetime-local'
-                value={draftStart}
-                onChange={(e) => setDraftStart(e.target.value)}
-                className='text-sm leading-5 tabular-nums'
-              />
-            </div>
-            <span className='text-muted-foreground hidden pb-2 text-xs sm:block'>
-              ~
-            </span>
-            <div className='space-y-1.5'>
-              <div className='text-muted-foreground text-xs'>
-                {t('End Time')}
-              </div>
-              <Input
-                type='datetime-local'
-                value={draftEnd}
-                onChange={(e) => setDraftEnd(e.target.value)}
-                className='text-sm leading-5 tabular-nums'
-              />
-            </div>
+        <div className='flex max-sm:max-h-[75vh] max-sm:flex-col max-sm:overflow-y-auto'>
+          {/* One-click presets: side rail on desktop, grid on mobile. */}
+          <div className='grid shrink-0 grid-cols-2 gap-1 border-b p-2 sm:flex sm:flex-col sm:border-r sm:border-b-0'>
+            {RANGE_PRESETS.map((preset) => (
+              <Button
+                key={preset.label}
+                type='button'
+                variant='ghost'
+                className='justify-start font-normal'
+                onClick={() => applyPreset(preset.getRange)}
+              >
+                {t(preset.label)}
+              </Button>
+            ))}
           </div>
 
-          <div className='flex flex-wrap gap-1.5'>
-            <Button
-              type='button'
-              variant='secondary'
-              className='flex-1'
-              onClick={() => applyPreset('today')}
-            >
-              {t('Today')}
-            </Button>
-            <Button
-              type='button'
-              variant='secondary'
-              className='flex-1'
-              onClick={() => applyPreset('7d')}
-            >
-              {t('7 Days')}
-            </Button>
-            <Button
-              type='button'
-              variant='secondary'
-              className='flex-1'
-              onClick={() => applyPreset('week')}
-            >
-              {t('This week')}
-            </Button>
-            <Button
-              type='button'
-              variant='secondary'
-              className='flex-1'
-              onClick={() => applyPreset('30d')}
-            >
-              {t('30 Days')}
-            </Button>
-            <Button
-              type='button'
-              variant='secondary'
-              className='flex-1'
-              onClick={() => applyPreset('month')}
-            >
-              {t('This month')}
-            </Button>
-          </div>
+          <div className='p-3'>
+            <Calendar
+              mode='range'
+              numberOfMonths={isMobile ? 1 : 2}
+              // Outside days would render range days twice across the two
+              // months (e.g. Jul 31 again in August's first row).
+              showOutsideDays={false}
+              selected={draftRange}
+              onSelect={handleCalendarSelect}
+              defaultMonth={draftRange?.from}
+              locale={calendarLocale}
+            />
 
-          <div className='flex justify-end'>
-            <Button onClick={applyDraft}>{t('Confirm')}</Button>
+            <div className='mt-3 flex items-end gap-2 border-t pt-3'>
+              <div className='min-w-0 flex-1 space-y-1.5'>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Start Time')}
+                </div>
+                <Input
+                  type='time'
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className={timeInputClassName}
+                />
+              </div>
+              <span className='text-muted-foreground pb-2 text-xs'>~</span>
+              <div className='min-w-0 flex-1 space-y-1.5'>
+                <div className='text-muted-foreground text-xs'>
+                  {t('End Time')}
+                </div>
+                <Input
+                  type='time'
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className={timeInputClassName}
+                />
+              </div>
+              <Button onClick={applyDraft}>{t('Confirm')}</Button>
+            </div>
           </div>
         </div>
       </PopoverContent>

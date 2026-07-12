@@ -21,13 +21,9 @@ import { GitBranch, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { GroupBadge } from '@/components/group-badge'
 import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import {
   Tooltip,
   TooltipContent,
@@ -298,8 +294,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const config = getLogTypeConfig(log.type)
 
         return (
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            <span className='text-xs tabular-nums'>
+          // In mobile cards this cell sits in a label-left/value-right row
+          // (data-table-card-value); align both lines to the right edge there.
+          <div className='flex min-w-0 flex-col gap-0.5 in-data-[slot=data-table-card-value]:items-end'>
+            <span className='text-xs tabular-nums in-data-[slot=data-table-card-value]:text-sm'>
               {formatTimestampToDate(timestamp)}
             </span>
             <StatusBadge variant={config.variant} size='sm'>
@@ -346,6 +344,17 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           const channelChain = hasRetryChain
             ? useChannel.join(' → ')
             : undefined
+          // Inline variant is compact (no spaces) so three hops fit the
+          // 160px cell; longer chains collapse the middle, keeping the
+          // first hops and the final channel. Full chain stays in the
+          // tooltip below.
+          let channelChainInline: string | undefined
+          if (hasRetryChain) {
+            channelChainInline =
+              useChannel.length > 3
+                ? `${useChannel[0]}→${useChannel[1]}→…→${useChannel.at(-1)}`
+                : useChannel.join('→')
+          }
           const channelDisplay = log.channel_name
             ? `${log.channel_name} #${log.channel}`
             : `#${log.channel}`
@@ -362,10 +371,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <div className='flex max-w-[160px] flex-col gap-0.5' />
+                    <div className='flex max-w-[160px] flex-col gap-0.5 in-data-[slot=data-table-card-value]:max-w-full in-data-[slot=data-table-card-value]:items-end' />
                   }
                 >
-                  <div className='relative inline-flex w-fit items-center gap-1'>
+                  <div className='relative inline-flex w-fit max-w-full items-center gap-1'>
                     <CopyableStatusBadge
                       value={String(log.channel)}
                       variant='neutral'
@@ -388,35 +397,15 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       </StatusBadge>
                     )}
                     {hasRetryChain && (
-                      <Popover>
-                        <PopoverTrigger
-                          render={
-                            <button
-                              type='button'
-                              className='text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none'
-                              aria-label={t('Retry Chain')}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          }
-                        >
-                          <GitBranch
-                            className='text-warning size-3.5'
-                            aria-hidden='true'
-                          />
-                        </PopoverTrigger>
-                        <PopoverContent
-                          side='top'
-                          align='start'
-                          className='w-64 text-xs'
-                        >
-                          <div className='flex flex-col gap-1'>
-                            <p className='font-medium'>{t('Retry Chain')}</p>
-                            <p className='text-muted-foreground font-mono break-all'>
-                              {channelChain}
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                      <span className='text-subtle-foreground inline-flex min-w-0 items-center gap-0.5 text-xs'>
+                        <GitBranch
+                          className='size-3 shrink-0'
+                          aria-hidden='true'
+                        />
+                        <span className='truncate font-mono tabular-nums'>
+                          {channelChainInline}
+                        </span>
+                      </span>
                     )}
                     {affinity && (
                       <button
@@ -529,7 +518,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
+                      <span className='text-muted-foreground max-w-[100px] truncate text-xs hover:underline in-data-[slot=data-table-card-value]:max-w-full in-data-[slot=data-table-card-value]:text-sm' />
                     }
                   >
                     {sensitiveVisible ? log.username : '••••'}
@@ -567,31 +556,34 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       let group = log.group
       if (!group) group = other?.group || ''
 
-      const metaParts: string[] = []
-      const groupRatioText = getGroupRatioText(
-        other,
-        group ? groupRatios[group] : undefined
-      )
-      if (group) {
-        metaParts.push(sensitiveVisible ? group : '••••')
-      }
-      if (groupRatioText) metaParts.push(groupRatioText)
+      // The ratio reveals the group's pricing, so it hides together with
+      // the group name when sensitive info is masked.
+      const groupRatioText = sensitiveVisible
+        ? getGroupRatioText(other, group ? groupRatios[group] : undefined)
+        : null
+      const tokenBadgeClassName =
+        'max-w-full min-w-0 overflow-hidden [&>[data-slot=status-badge-label]]:max-w-full [&>[data-slot=status-badge-label]]:min-w-0 [&>[data-slot=status-badge-label]]:overflow-hidden [&>[data-slot=status-badge-label]]:text-ellipsis'
 
       return (
-        <div className='flex w-max flex-col gap-0.5'>
+        <div className='flex max-w-[200px] flex-col gap-0.5'>
           <TooltipProvider delay={300}>
             <Tooltip>
-              <TooltipTrigger render={<div className='shrink-0' />}>
+              <TooltipTrigger render={<div className='max-w-full' />}>
                 {sensitiveVisible ? (
                   <CopyableStatusBadge
                     value={tokenName}
                     variant='neutral'
                     size='sm'
+                    className={tokenBadgeClassName}
                   >
                     {displayName}
                   </CopyableStatusBadge>
                 ) : (
-                  <StatusBadge variant='neutral' size='sm'>
+                  <StatusBadge
+                    variant='neutral'
+                    size='sm'
+                    className={tokenBadgeClassName}
+                  >
                     {displayName}
                   </StatusBadge>
                 )}
@@ -603,12 +595,21 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               )}
             </Tooltip>
           </TooltipProvider>
-          {metaParts.length > 0 && (
-            <span
-              className='text-subtle-foreground max-w-[150px] truncate text-xs'
-              title={sensitiveVisible ? metaParts.join(' · ') : undefined}
-            >
-              {metaParts.join(' · ')}
+          {(group || groupRatioText) && (
+            <span className='flex max-w-full min-w-0 items-baseline gap-1 text-xs leading-none'>
+              {group && (
+                <GroupBadge
+                  group={group}
+                  label={sensitiveVisible ? undefined : '••••'}
+                  size='sm'
+                  className='min-w-0 truncate'
+                />
+              )}
+              {groupRatioText && (
+                <span className='text-subtle-foreground shrink-0 tabular-nums'>
+                  {groupRatioText}
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -680,6 +681,31 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       },
     },
     {
+      accessorKey: 'use_time',
+      header: t('Timing'),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isTimingLogType(log.type)) return null
+
+        const useTime = row.getValue('use_time') as number
+        const other = parseLogOther(log.other)
+
+        return (
+          <TimingMetricsCell
+            useTimeSec={useTime}
+            completionTokens={log.completion_tokens}
+            frtMs={other?.frt}
+            isStream={log.is_stream}
+          />
+        )
+      },
+      meta: {
+        cardRole: 'primary',
+        cardOrder: 55,
+        contentMode: 'full',
+      },
+    },
+    {
       accessorKey: 'prompt_tokens',
       header: 'Tokens',
       cell: ({ row }) => {
@@ -704,7 +730,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <div className='flex flex-col gap-0.5'>
-            <span className='text-xs font-medium tabular-nums'>
+            <span className='text-xs font-medium tabular-nums in-data-[slot=data-table-card-value]:text-sm'>
               {promptTokens.toLocaleString()} /{' '}
               {completionTokens.toLocaleString()}
             </span>
@@ -777,32 +803,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     },
 
     {
-      accessorKey: 'use_time',
-      header: t('Timing'),
-      cell: ({ row }) => {
-        const log = row.original
-        if (!isTimingLogType(log.type)) return null
-
-        const useTime = row.getValue('use_time') as number
-        const other = parseLogOther(log.other)
-
-        return (
-          <TimingMetricsCell
-            useTimeSec={useTime}
-            completionTokens={log.completion_tokens}
-            frtMs={other?.frt}
-            isStream={log.is_stream}
-          />
-        )
-      },
-      meta: {
-        cardRole: 'primary',
-        cardOrder: 55,
-        contentMode: 'full',
-      },
-    },
-
-    {
       accessorKey: 'content',
       header: t('Details'),
       cell: function DetailsCell({ row }) {
@@ -853,13 +853,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           <>
             <button
               type='button'
-              className='group flex max-w-[200px] flex-col gap-0.5 text-left text-sm'
+              className='group flex max-w-[200px] flex-col gap-0.5 text-left text-xs in-data-[slot=data-table-card-value]:max-w-full in-data-[slot=data-table-card-value]:text-sm'
               onClick={() => setDialogOpen(true)}
               title={t('Click to view full details')}
             >
               {detailsContent}
               {ip && (
-                <span className='text-subtle-foreground max-w-full truncate tabular-nums'>
+                <span className='text-subtle-foreground max-w-full truncate text-xs tabular-nums'>
                   {ip}
                 </span>
               )}
