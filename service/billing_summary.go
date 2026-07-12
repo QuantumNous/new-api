@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -18,15 +19,23 @@ const (
 	// so late-arriving/updated accounting rows still get folded in. Idempotent
 	// via the OnConflict upsert in model.UpsertBillingHourlySummaries.
 	billingSummaryLookback = 26 * time.Hour
+	// Beijing uses UTC+8 and does not observe DST. The billing page and usage
+	// logs both treat this as the canonical day boundary.
+	billingDayTZOffsetSeconds = 8 * 3600
 )
 
 var billingSummaryOnce sync.Once
+var billingSummaryNow = time.Now
 
 func billingHourExpr(col string) string {
 	if common.UsingMySQL {
 		return fmt.Sprintf("(%s DIV 3600) * 3600", col)
 	}
 	return fmt.Sprintf("(%s / 3600) * 3600", col)
+}
+
+func billingDayStart(unixSeconds int64) int64 {
+	return ((unixSeconds + billingDayTZOffsetSeconds) / 86400 * 86400) - billingDayTZOffsetSeconds
 }
 
 // StartBillingSummaryTask starts the hourly job that rolls Log accounting
@@ -55,7 +64,7 @@ func runBillingSummaryOnce() {
 	// mid-hour boundary re-aggregates the straddled bucket from only part of
 	// its rows and clobbers the previously complete value (found 2026-07-10:
 	// every bucket lost its pre-boundary slice ~26h after its hour).
-	since := time.Now().Add(-billingSummaryLookback).Unix() / 3600 * 3600
+	since := billingSummaryNow().Add(-billingSummaryLookback).Unix() / 3600 * 3600
 	hourExpr := billingHourExpr("created_at")
 
 	var rows []model.BillingHourlySummary
@@ -73,7 +82,7 @@ func runBillingSummaryOnce() {
 		logger.LogWarn(ctx, fmt.Sprintf("billing-summary: aggregate failed: %v", err))
 		return
 	}
-	now := time.Now().Unix()
+	now := billingSummaryNow().Unix()
 	for i := range rows {
 		rows[i].UpdatedAt = now
 	}
@@ -91,5 +100,86 @@ func GetBillingDaily(startTimestamp, endTimestamp int64, modelName string, chann
 	if tokenName != "" || username != "" || email != "" {
 		return model.GetBillingDailyFromRawLogs(startTimestamp, endTimestamp, modelName, channel, tokenName, username, email)
 	}
-	return model.GetBillingDailyFromSummary(startTimestamp, endTimestamp, modelName, channel)
+	return getBillingDailyHybrid(startTimestamp, endTimestamp, modelName, channel)
+}
+
+type billingDailyRangePlan struct {
+	summaryStart int64
+	summaryEnd   int64
+	useSummary   bool
+	rawStart     int64
+	rawEnd       int64
+	useRaw       bool
+}
+
+func planBillingDailyHybridRange(startTimestamp, endTimestamp, nowUnix int64) billingDailyRangePlan {
+	todayStart := billingDayStart(nowUnix)
+	plan := billingDailyRangePlan{}
+
+	if endTimestamp != 0 && endTimestamp < todayStart {
+		plan.summaryStart = startTimestamp
+		plan.summaryEnd = endTimestamp
+		plan.useSummary = true
+		return plan
+	}
+
+	if startTimestamp >= todayStart {
+		plan.rawStart = startTimestamp
+		plan.rawEnd = endTimestamp
+		plan.useRaw = true
+		return plan
+	}
+
+	if startTimestamp == 0 || startTimestamp < todayStart {
+		summaryEnd := endTimestamp
+		if summaryEnd == 0 || summaryEnd >= todayStart {
+			summaryEnd = todayStart - 1
+		}
+		if startTimestamp == 0 || startTimestamp <= summaryEnd {
+			plan.summaryStart = startTimestamp
+			plan.summaryEnd = summaryEnd
+			plan.useSummary = true
+		}
+	}
+
+	if endTimestamp == 0 || endTimestamp >= todayStart {
+		rawStart := startTimestamp
+		if rawStart < todayStart {
+			rawStart = todayStart
+		}
+		plan.rawStart = rawStart
+		plan.rawEnd = endTimestamp
+		plan.useRaw = true
+	}
+
+	return plan
+}
+
+// getBillingDailyHybrid keeps historical days on the hourly summary table for
+// performance, but routes the current Beijing day directly through raw logs so
+// the "OK / Requests" percentage stays on the same freshness window.
+func getBillingDailyHybrid(startTimestamp, endTimestamp int64, modelName string, channel int) ([]model.BillingDailyRow, error) {
+	plan := planBillingDailyHybridRange(startTimestamp, endTimestamp, billingSummaryNow().Unix())
+	rows := make([]model.BillingDailyRow, 0, 8)
+
+	if plan.useSummary {
+		summaryRows, err := model.GetBillingDailyFromSummary(plan.summaryStart, plan.summaryEnd, modelName, channel)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, summaryRows...)
+	}
+
+	if plan.useRaw {
+		rawRows, err := model.GetBillingDailyFromRawLogs(plan.rawStart, plan.rawEnd, modelName, channel, "", "", "")
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, rawRows...)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].Day > rows[j].Day
+	})
+	return rows, nil
 }
