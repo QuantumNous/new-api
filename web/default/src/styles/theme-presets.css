@@ -342,6 +342,12 @@ For commercial licensing, please contact support@quantumnous.com
   --skeleton-base: oklch(0.9 0 0);
   --skeleton-highlight: oklch(0.97 0 0);
 
+  /* Identity tints (group names, channel ids, model badges…) are decorative,
+   * so this monochrome preset collapses them to the foreground by mixing 0%
+   * of the palette hue. Status colors above stay colored on purpose: they
+   * carry meaning (error/success), which accessibility asks us to keep. */
+  --identity-color-mix: 0%;
+
   --radius: 0.5rem;
   --text-xs: 0.9rem;
   --text-sm: 1rem;

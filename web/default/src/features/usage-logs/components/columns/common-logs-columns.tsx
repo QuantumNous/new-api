@@ -21,6 +21,7 @@ import { GitBranch, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { GroupBadge } from '@/components/group-badge'
 import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -567,31 +568,33 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       let group = log.group
       if (!group) group = other?.group || ''
 
-      const metaParts: string[] = []
       const groupRatioText = getGroupRatioText(
         other,
         group ? groupRatios[group] : undefined
       )
-      if (group) {
-        metaParts.push(sensitiveVisible ? group : '••••')
-      }
-      if (groupRatioText) metaParts.push(groupRatioText)
+      const tokenBadgeClassName =
+        'max-w-full min-w-0 overflow-hidden [&>[data-slot=status-badge-label]]:max-w-full [&>[data-slot=status-badge-label]]:min-w-0 [&>[data-slot=status-badge-label]]:overflow-hidden [&>[data-slot=status-badge-label]]:text-ellipsis'
 
       return (
-        <div className='flex w-max flex-col gap-0.5'>
+        <div className='flex max-w-[200px] flex-col gap-0.5'>
           <TooltipProvider delay={300}>
             <Tooltip>
-              <TooltipTrigger render={<div className='shrink-0' />}>
+              <TooltipTrigger render={<div className='max-w-full' />}>
                 {sensitiveVisible ? (
                   <CopyableStatusBadge
                     value={tokenName}
                     variant='neutral'
                     size='sm'
+                    className={tokenBadgeClassName}
                   >
                     {displayName}
                   </CopyableStatusBadge>
                 ) : (
-                  <StatusBadge variant='neutral' size='sm'>
+                  <StatusBadge
+                    variant='neutral'
+                    size='sm'
+                    className={tokenBadgeClassName}
+                  >
                     {displayName}
                   </StatusBadge>
                 )}
@@ -603,12 +606,21 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               )}
             </Tooltip>
           </TooltipProvider>
-          {metaParts.length > 0 && (
-            <span
-              className='text-subtle-foreground max-w-[150px] truncate text-xs'
-              title={sensitiveVisible ? metaParts.join(' · ') : undefined}
-            >
-              {metaParts.join(' · ')}
+          {(group || groupRatioText) && (
+            <span className='flex max-w-full min-w-0 items-baseline gap-1 text-xs leading-none'>
+              {group && (
+                <GroupBadge
+                  group={group}
+                  label={sensitiveVisible ? undefined : '••••'}
+                  size='sm'
+                  className='min-w-0 truncate'
+                />
+              )}
+              {groupRatioText && (
+                <span className='text-subtle-foreground shrink-0 tabular-nums'>
+                  {groupRatioText}
+                </span>
+              )}
             </span>
           )}
         </div>
