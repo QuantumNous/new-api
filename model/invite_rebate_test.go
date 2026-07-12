@@ -153,3 +153,48 @@ func TestGrantInviteTopupRebate_UserIdMismatch(t *testing.T) {
 	require.NoError(t, DB.Model(&InviteRebate{}).Count(&n).Error)
 	assert.Equal(t, int64(0), n)
 }
+
+
+func TestBackfillMissingInviteTopupRebates(t *testing.T) {
+	setupInviteRebateTest(t)
+	inviter := createIRUser(t, "ir_inviter_bf", 0, 0)
+	invitee := createIRUser(t, "ir_invitee_bf", inviter.Id, 0)
+	// success topup without rebate row (simulate epay grant miss)
+	topUp := &TopUp{
+		UserId:          invitee.Id,
+		Amount:          10,
+		Money:           10,
+		TradeNo:         "IR-BF-1",
+		PaymentProvider: PaymentProviderEpay,
+		Status:          common.TopUpStatusSuccess,
+	}
+	require.NoError(t, DB.Create(topUp).Error)
+
+	scanned, granted, err := BackfillMissingInviteTopupRebates(50)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, scanned, 1)
+	assert.Equal(t, 1, granted)
+
+	// second run idempotent
+	_, granted2, err := BackfillMissingInviteTopupRebates(50)
+	require.NoError(t, err)
+	assert.Equal(t, 0, granted2)
+
+	var inv User
+	require.NoError(t, DB.First(&inv, inviter.Id).Error)
+	// Amount 10 * QuotaPerUnit * 1% 
+	expect := CalculateInviteTopupRebate(int(float64(10)*common.QuotaPerUnit), 100)
+	assert.Equal(t, expect, inv.AffQuota)
+}
+
+func TestTransferAffQuota_DisabledUser(t *testing.T) {
+	setupInviteRebateTest(t)
+	u := createIRUser(t, "ir_transfer_dis", 0, 0)
+	require.NoError(t, DB.Model(u).Updates(map[string]interface{}{
+		"status":    common.UserStatusDisabled,
+		"aff_quota": int(common.QuotaPerUnit) * 2,
+	}).Error)
+	require.NoError(t, DB.First(u, u.Id).Error)
+	err := u.TransferAffQuotaToQuota(int(common.QuotaPerUnit))
+	require.Error(t, err)
+}

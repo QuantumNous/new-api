@@ -333,3 +333,110 @@ func GetInviteRebateAdminSummary(inviterId int) (topupQuotaSum int64, rebateQuot
 	rebateQuotaSum = s.RebateQuotaSum
 	return
 }
+
+
+// creditedQuotaForTopUp estimates the quota actually added for a successful top-up,
+// matching the formulas used by each recharge path.
+func creditedQuotaForTopUp(topUp *TopUp) int {
+	if topUp == nil {
+		return 0
+	}
+	switch topUp.PaymentProvider {
+	case PaymentProviderStripe:
+		// Stripe stores Money as USD amount after group ratio; credit = Money * QuotaPerUnit
+		v := topUp.Money * common.QuotaPerUnit
+		if v <= 0 {
+			return 0
+		}
+		if v > float64(maxInviteTopupRebateQuota) {
+			return maxInviteTopupRebateQuota
+		}
+		return int(v)
+	case PaymentProviderCreem:
+		// Creem credits Amount directly as quota units
+		if topUp.Amount <= 0 {
+			return 0
+		}
+		if topUp.Amount > int64(maxInviteTopupRebateQuota) {
+			return maxInviteTopupRebateQuota
+		}
+		return int(topUp.Amount)
+	default:
+		// epay / waffo / waffo_pancake / admin-complete non-stripe: Amount * QuotaPerUnit
+		v := float64(topUp.Amount) * common.QuotaPerUnit
+		if v <= 0 {
+			return 0
+		}
+		if v > float64(maxInviteTopupRebateQuota) {
+			return maxInviteTopupRebateQuota
+		}
+		return int(v)
+	}
+}
+
+// BackfillMissingInviteTopupRebates scans successful top-ups without a rebate
+// ledger row and attempts GrantInviteTopupRebate. Safe to re-run (unique topup_id).
+// Returns processed top-up count and newly granted count.
+func BackfillMissingInviteTopupRebates(limit int) (scanned int, granted int, err error) {
+	if !common.InviteTopupRebateEnabled {
+		return 0, 0, nil
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	// Find success topups that have no invite_rebates row yet.
+	// LEFT JOIN keeps this efficient and avoids loading huge result sets.
+	type row struct {
+		Id              int
+		UserId          int
+		Amount          int64
+		Money           float64
+		TradeNo         string
+		PaymentProvider string
+	}
+	var rows []row
+	err = DB.Table("top_ups").
+		Select("top_ups.id, top_ups.user_id, top_ups.amount, top_ups.money, top_ups.trade_no, top_ups.payment_provider").
+		Joins("LEFT JOIN invite_rebates ON invite_rebates.topup_id = top_ups.id").
+		Where("top_ups.status = ? AND invite_rebates.id IS NULL", common.TopUpStatusSuccess).
+		Order("top_ups.id asc").
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return 0, 0, err
+	}
+
+	for _, r := range rows {
+		scanned++
+		topUp := &TopUp{
+			Id:              r.Id,
+			UserId:          r.UserId,
+			Amount:          r.Amount,
+			Money:           r.Money,
+			TradeNo:         r.TradeNo,
+			PaymentProvider: r.PaymentProvider,
+			Status:          common.TopUpStatusSuccess,
+		}
+		quota := creditedQuotaForTopUp(topUp)
+		if quota <= 0 {
+			continue
+		}
+		// Count existing rebate for this topup before grant to detect new grants.
+		var before int64
+		_ = DB.Model(&InviteRebate{}).Where("topup_id = ?", topUp.Id).Count(&before).Error
+		if gerr := GrantInviteTopupRebate(nil, topUp.UserId, quota, topUp); gerr != nil {
+			common.SysError(fmt.Sprintf("invite rebate backfill failed topup_id=%d user_id=%d err=%q", topUp.Id, topUp.UserId, gerr.Error()))
+			continue
+		}
+		var after int64
+		_ = DB.Model(&InviteRebate{}).Where("topup_id = ?", topUp.Id).Count(&after).Error
+		if after > before {
+			granted++
+		}
+	}
+	return scanned, granted, nil
+}

@@ -465,6 +465,10 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 		return err
 	}
 
+	if user.Status != common.UserStatusEnabled {
+		return errors.New("账户已被禁用，无法转移邀请额度！")
+	}
+
 	// 再次检查用户的AffQuota是否足够
 	if user.AffQuota < quota {
 		return errors.New("邀请额度不足！")

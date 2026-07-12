@@ -436,6 +436,10 @@ func TransferAffQuota(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if user.Status != common.UserStatusEnabled {
+		common.ApiErrorMsg(c, "账户已被禁用，无法转移邀请额度！")
+		return
+	}
 	tran := TransferAffQuotaRequest{}
 	if err := c.ShouldBindJSON(&tran); err != nil {
 		common.ApiError(c, err)
