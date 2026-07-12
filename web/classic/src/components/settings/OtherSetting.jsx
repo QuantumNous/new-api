@@ -54,6 +54,8 @@ const OtherSetting = () => {
     Footer: '',
     About: '',
     HomePageContent: '',
+    'SEO.Title': '',
+    'SEO.TitleSuffix': '',
     'SEO.Description': '',
     'SEO.Keywords': '',
     'SEO.SiteURL': '',
@@ -89,6 +91,8 @@ const OtherSetting = () => {
     SystemName: false,
     Logo: false,
     HomePageContent: false,
+    'SEO.Title': false,
+    'SEO.TitleSuffix': false,
     'SEO.Description': false,
     'SEO.Keywords': false,
     'SEO.SiteURL': false,
@@ -467,6 +471,30 @@ const OtherSetting = () => {
                 loading={loadingInput['SystemName']}
               >
                 {t('设置系统名称')}
+              </Button>
+              <Form.Input
+                label={t('SEO 完整标题')}
+                placeholder={t('留空则使用：系统名称 - 标题后缀')}
+                field={'SEO.Title'}
+                onChange={handleInputChange}
+              />
+              <Button
+                onClick={() => submitOption('SEO.Title')}
+                loading={loadingInput['SEO.Title']}
+              >
+                {t('设置 SEO 完整标题')}
+              </Button>
+              <Form.Input
+                label={t('SEO 标题后缀（长尾词）')}
+                placeholder={t('例如：AI大模型API网关|OpenAI兼容|统一分发平台')}
+                field={'SEO.TitleSuffix'}
+                onChange={handleInputChange}
+              />
+              <Button
+                onClick={() => submitOption('SEO.TitleSuffix')}
+                loading={loadingInput['SEO.TitleSuffix']}
+              >
+                {t('设置 SEO 标题后缀')}
               </Button>
               <Form.TextArea
                 label={t('SEO 描述')}

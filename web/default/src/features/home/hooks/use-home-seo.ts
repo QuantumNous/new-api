@@ -51,6 +51,8 @@ export function useHomeSeo() {
 
       applySeoFromStatus(status || undefined, {
         title: name,
+        fullTitle: String(status?.seo_title || ''),
+        titleSuffix: String(status?.seo_title_suffix || ''),
         path: '/',
         lang: i18n.language,
         siteUrl: origin,

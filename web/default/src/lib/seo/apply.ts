@@ -1,4 +1,8 @@
-import { defaultSeoDescription, defaultSeoKeywords } from './defaults'
+import {
+  buildDocumentTitle,
+  defaultSeoDescription,
+  defaultSeoKeywords,
+} from './defaults'
 import {
   removeJsonLd,
   upsertJsonLd,
@@ -33,7 +37,12 @@ export function applyDocumentSeo(input: SeoInput): void {
     document.documentElement.lang ||
     (typeof navigator !== 'undefined' ? navigator.language : 'zh-CN')
 
-  const title = (input.title || '').trim()
+  const title = buildDocumentTitle({
+    fullTitle: input.fullTitle,
+    title: input.title,
+    titleSuffix: input.titleSuffix,
+    lang,
+  })
   const description =
     (input.description || '').trim() || defaultSeoDescription(lang)
   const keywords = (input.keywords || '').trim() || defaultSeoKeywords(lang)
@@ -89,6 +98,8 @@ export function applySeoFromStatus(
   const s = (status || {}) as StatusSeoFields
   applyDocumentSeo({
     title: s.system_name,
+    fullTitle: s.seo_title,
+    titleSuffix: s.seo_title_suffix,
     description: s.seo_description,
     keywords: s.seo_keywords,
     siteUrl: s.seo_site_url || s.server_address,

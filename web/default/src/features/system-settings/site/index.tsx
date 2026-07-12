@@ -33,6 +33,8 @@ const defaultSiteSettings: SiteSettings = {
   About: '',
   HomePageContent: '',
   ServerAddress: '',
+  'SEO.Title': '',
+  'SEO.TitleSuffix': '',
   'SEO.Description': '',
   'SEO.Keywords': '',
   'SEO.SiteURL': '',

@@ -63,6 +63,8 @@ const _systemInfoSchema = z.object({
   Footer: z.string().optional(),
   About: z.string().optional(),
   HomePageContent: z.string().optional(),
+  'SEO.Title': z.string().optional(),
+  'SEO.TitleSuffix': z.string().optional(),
   'SEO.Description': z.string().optional(),
   'SEO.Keywords': z.string().optional(),
   'SEO.SiteURL': z.string().optional(),
@@ -100,6 +102,8 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
     HomePageContent: normalizeValue(defaultValues.HomePageContent),
+    'SEO.Title': normalizeValue((defaultValues as any)['SEO.Title']),
+    'SEO.TitleSuffix': normalizeValue((defaultValues as any)['SEO.TitleSuffix']),
     'SEO.Description': normalizeValue((defaultValues as any)['SEO.Description']),
     'SEO.Keywords': normalizeValue((defaultValues as any)['SEO.Keywords']),
     'SEO.SiteURL': normalizeValue((defaultValues as any)['SEO.SiteURL']),
@@ -125,7 +129,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
-    'SEO.Description': z.string().optional(),
+    'SEO.Title': z.string().optional(),
+  'SEO.TitleSuffix': z.string().optional(),
+  'SEO.Description': z.string().optional(),
     'SEO.Keywords': z.string().optional(),
     'SEO.SiteURL': z.string().optional(),
     'SEO.OGImage': z.string().optional(),
@@ -199,6 +205,58 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
         <Form {...form}>
           <SettingsForm onSubmit={handleSubmit}>
             
+          <SettingsFormGridItem className='sm:col-span-2'>
+            <FormField
+              control={form.control}
+              name={'SEO.Title' as any}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('SEO Title (full)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('Leave empty to use System Name + suffix')}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </SettingsFormGridItem>
+
+          <SettingsFormGridItem className='sm:col-span-2'>
+            <FormField
+              control={form.control}
+              name={'SEO.TitleSuffix' as any}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('SEO Title Suffix')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('e.g. AI大模型API网关|OpenAI兼容|统一分发平台')}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Appended after system name when full title is empty: {Name} - {Suffix}')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </SettingsFormGridItem>
+
           <SettingsFormGridItem className='sm:col-span-2'>
             <FormField
               control={form.control}

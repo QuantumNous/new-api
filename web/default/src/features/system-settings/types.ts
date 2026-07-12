@@ -107,6 +107,8 @@ export type SystemTaskListResponse = {
 }
 
 export type SiteSettings = {
+  'SEO.Title'?: string
+  'SEO.TitleSuffix'?: string
   'SEO.Description'?: string
   'SEO.Keywords'?: string
   'SEO.SiteURL'?: string

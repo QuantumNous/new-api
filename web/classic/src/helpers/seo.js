@@ -3,7 +3,12 @@
  */
 export function applyClassicSeo(status = {}) {
   if (typeof document === 'undefined') return;
-  const title = status.system_name || document.title || 'New API';
+  const brand = status.system_name || 'New API';
+  const fullTitle = (status.seo_title || '').trim();
+  const suffix =
+    (status.seo_title_suffix || '').trim() ||
+    'AI大模型API网关|OpenAI/Claude/Gemini兼容|统一接口管理与分发平台';
+  const title = fullTitle || (suffix ? `${brand} - ${suffix}` : brand);
   document.title = title;
 
   const setName = (name, content) => {

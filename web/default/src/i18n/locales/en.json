@@ -5245,6 +5245,12 @@
     "SEO Site URL": "SEO Site URL",
     "SEO OG Image URL": "SEO OG Image URL",
     "Used for meta description and social previews": "Used for meta description and social previews",
-    "Canonical base URL for Open Graph and sitemap": "Canonical base URL for Open Graph and sitemap"
+    "Canonical base URL for Open Graph and sitemap": "Canonical base URL for Open Graph and sitemap",
+    "SEO Title (full)": "SEO Title (full)",
+    "SEO Title Suffix": "SEO Title Suffix",
+    "Leave empty to use System Name + suffix": "Leave empty to use System Name + suffix",
+    "Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.": "Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.",
+    "e.g. AI大模型API网关|OpenAI兼容|统一分发平台": "e.g. AI大模型API网关|OpenAI兼容|统一分发平台",
+    "Appended after system name when full title is empty: {Name} - {Suffix}": "Appended after system name when full title is empty: {Name} - {Suffix}"
   }
 }

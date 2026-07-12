@@ -45,6 +45,8 @@ const SITE_SECTIONS = [
           About: settings.About,
           HomePageContent: settings.HomePageContent,
           ServerAddress: settings.ServerAddress,
+          'SEO.Title': settings['SEO.Title'],
+          'SEO.TitleSuffix': settings['SEO.TitleSuffix'],
           'SEO.Description': settings['SEO.Description'],
           'SEO.Keywords': settings['SEO.Keywords'],
           'SEO.SiteURL': settings['SEO.SiteURL'],

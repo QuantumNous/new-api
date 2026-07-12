@@ -1,5 +1,9 @@
 export type SeoInput = {
   title?: string
+  /** When title is a short brand name, append this long-tail suffix: "Name - suffix" */
+  titleSuffix?: string
+  /** Full document title override (wins over title + titleSuffix) */
+  fullTitle?: string
   description?: string
   keywords?: string
   siteUrl?: string
@@ -14,6 +18,8 @@ export type StatusSeoFields = {
   system_name?: string
   logo?: string
   server_address?: string
+  seo_title?: string
+  seo_title_suffix?: string
   seo_description?: string
   seo_keywords?: string
   seo_site_url?: string

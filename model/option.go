@@ -71,6 +71,8 @@ func InitOptionMap() {
 	common.OptionMap["HomePageContent"] = ""
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
+	common.OptionMap["SEO.Title"] = common.SEOTitle
+	common.OptionMap["SEO.TitleSuffix"] = common.SEOTitleSuffix
 	common.OptionMap["SEO.Description"] = common.SEODescription
 	common.OptionMap["SEO.Keywords"] = common.SEOKeywords
 	common.OptionMap["SEO.SiteURL"] = common.SEOSiteURL
@@ -494,6 +496,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.Footer = value
 	case "SystemName":
 		common.SystemName = value
+	case "SEO.Title":
+		common.SEOTitle = value
+	case "SEO.TitleSuffix":
+		common.SEOTitleSuffix = value
 	case "SEO.Description":
 		common.SEODescription = value
 	case "SEO.Keywords":

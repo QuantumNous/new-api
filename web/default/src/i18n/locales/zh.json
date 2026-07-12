@@ -5245,6 +5245,12 @@
     "SEO Site URL": "SEO 站点 URL",
     "SEO OG Image URL": "SEO 分享图 URL",
     "Used for meta description and social previews": "用于页面描述与社交分享预览",
-    "Canonical base URL for Open Graph and sitemap": "用于 canonical、Open Graph 与 sitemap 的站点根地址"
+    "Canonical base URL for Open Graph and sitemap": "用于 canonical、Open Graph 与 sitemap 的站点根地址",
+    "SEO Title (full)": "SEO 完整标题",
+    "SEO Title Suffix": "SEO 标题后缀（长尾词）",
+    "Leave empty to use System Name + suffix": "留空则使用：系统名称 - 标题后缀",
+    "Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.": "完整浏览器标题，可写长尾关键词；填写后优先生效，不再拼接后缀。",
+    "e.g. AI大模型API网关|OpenAI兼容|统一分发平台": "例如：AI大模型API网关|OpenAI兼容|统一分发平台",
+    "Appended after system name when full title is empty: {Name} - {Suffix}": "完整标题为空时拼接为：系统名称 - 后缀"
   }
 }
