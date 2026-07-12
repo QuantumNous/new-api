@@ -4066,7 +4066,9 @@ export function ChannelMutateDrawer({
                                 )}
                               />
 
-                              {[1, 3, 8].includes(currentType) && (
+                              {[1, 3, 8, CHANNEL_TYPE_ADVANCED_CUSTOM].includes(
+                                currentType
+                              ) && (
                                 <FormField
                                   control={form.control}
                                   name='force_stream'
