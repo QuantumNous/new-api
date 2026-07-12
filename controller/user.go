@@ -238,6 +238,10 @@ func Register(c *gin.Context) {
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
+	if affCode == "" {
+		// fallback: allow ?aff= for links/API clients (UI sends aff_code in body)
+		affCode = strings.TrimSpace(c.Query("aff"))
+	}
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
 		Username:    user.Username,
