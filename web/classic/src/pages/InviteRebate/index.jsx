@@ -12,19 +12,22 @@ export default function InviteRebate() {
   const [summary, setSummary] = useState(null);
   const [logs, setLogs] = useState([]);
   const [invitees, setInvitees] = useState([]);
+  const [board, setBoard] = useState([]);
   const [transferQuota, setTransferQuota] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, l, i] = await Promise.all([
+      const [s, l, i, b] = await Promise.all([
         API.get('/api/user/invite_rebate/summary'),
         API.get('/api/user/invite_rebate/logs', { params: { p: 1, page_size: 50 } }),
         API.get('/api/user/invite_rebate/invitees', { params: { p: 1, page_size: 50 } }),
+        API.get('/api/user/invite_rebate/leaderboard', { params: { by: 'rebate', limit: 20 } }),
       ]);
       if (s.data?.success) setSummary(s.data.data);
       if (l.data?.success) setLogs(l.data.data?.items || []);
       if (i.data?.success) setInvitees(i.data.data?.items || []);
+      if (b.data?.success) setBoard(b.data.data?.items || []);
     } catch (e) {
       showError(t('加载失败'));
     } finally {
@@ -96,6 +99,23 @@ export default function InviteRebate() {
             dataIndex: 'created_at',
             render: (v) => (v ? new Date(v * 1000).toLocaleString() : '-'),
           },
+        ]}
+      />
+      <Typography.Title heading={5}>{t('邀请排行榜')}</Typography.Title>
+      <Table
+        className='mb-4'
+        dataSource={board}
+        rowKey='user_id'
+        pagination={false}
+        columns={[
+          { title: t('名次'), dataIndex: 'rank' },
+          {
+            title: t('用户'),
+            render: (_, r) =>
+              `${r.display_name || r.username || '#' + r.user_id}${r.is_me ? ' (我)' : ''}`,
+          },
+          { title: t('邀请人数'), dataIndex: 'invitee_count' },
+          { title: t('返佣合计'), dataIndex: 'rebate_quota_sum' },
         ]}
       />
       <Typography.Title heading={5}>{t('被邀请人')}</Typography.Title>

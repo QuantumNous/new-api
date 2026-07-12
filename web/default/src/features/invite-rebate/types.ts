@@ -30,6 +30,23 @@ export type InviteeRebateStat = {
   rebate_count: number
 }
 
+export type InviteRebateLeaderboardEntry = {
+  rank: number
+  user_id: number
+  username: string
+  display_name: string
+  invitee_count: number
+  rebate_quota_sum: number
+  topup_quota_sum: number
+  is_me: boolean
+}
+
+export type InviteRebateLeaderboard = {
+  by: 'rebate' | 'invitees'
+  items: InviteRebateLeaderboardEntry[]
+  my_rank: number
+}
+
 export type PageResult<T> = {
   page: number
   page_size: number

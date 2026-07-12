@@ -5,6 +5,7 @@ import type {
   AdminInviteRebateSummary,
   ApiResponse,
   InviteeRebateStat,
+  InviteRebateLeaderboard,
   InviteRebateLog,
   InviteRebateSummary,
   PageResult,
@@ -39,6 +40,16 @@ export async function fetchInviteRebateInvitees(
   return res.data
 }
 
+export async function fetchInviteRebateLeaderboard(
+  by: 'rebate' | 'invitees' = 'rebate',
+  limit = 20
+): Promise<ApiResponse<InviteRebateLeaderboard>> {
+  const res = await api.get('/api/user/invite_rebate/leaderboard', {
+    params: { by, limit },
+  })
+  return res.data
+}
+
 export async function fetchAdminInviteRebates(params: {
   p?: number
   page_size?: number
@@ -58,7 +69,16 @@ export async function fetchAdminInviteRebateSummary(
   return res.data
 }
 
-export async function triggerInviteRebateBackfill(limit = 100): Promise<ApiResponse<any>> {
-  const res = await api.post(`/api/system-task/invite-rebate-backfill?limit=${limit}`)
+export async function triggerInviteRebateBackfill(
+  limit = 100
+): Promise<ApiResponse<unknown>> {
+  const res = await api.post(
+    `/api/system-task/invite-rebate-backfill?limit=${limit}`
+  )
+  return res.data
+}
+
+export async function fetchAffiliateCode(): Promise<ApiResponse<string>> {
+  const res = await api.get('/api/user/aff')
   return res.data
 }

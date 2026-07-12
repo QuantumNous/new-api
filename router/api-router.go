@@ -109,6 +109,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/invite_rebate/summary", controller.GetSelfInviteRebateSummary)
 				selfRoute.GET("/invite_rebate/logs", controller.GetSelfInviteRebateLogs)
 				selfRoute.GET("/invite_rebate/invitees", controller.GetSelfInviteRebateInvitees)
+				selfRoute.GET("/invite_rebate/leaderboard", controller.GetInviteRebateLeaderboard)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
 				// 2FA routes

@@ -448,3 +448,137 @@ func BackfillMissingInviteTopupRebates(limit int) (scanned int, granted int, err
 	}
 	return scanned, granted, nil
 }
+
+
+// InviteRebateLeaderboardEntry is a public-safe leaderboard row.
+// Username/DisplayName are masked; no emails or raw aff codes.
+type InviteRebateLeaderboardEntry struct {
+	Rank           int    `json:"rank"`
+	UserId         int    `json:"user_id"`
+	Username       string `json:"username"`
+	DisplayName    string `json:"display_name"`
+	InviteeCount   int64  `json:"invitee_count"`
+	RebateQuotaSum int64  `json:"rebate_quota_sum"`
+	TopupQuotaSum  int64  `json:"topup_quota_sum"`
+	IsMe           bool   `json:"is_me"`
+}
+
+// ListInviteRebateLeaderboard returns top inviters by rebate sum or invitee count.
+// by: "rebate" (default) or "invitees". limit capped to 100.
+func ListInviteRebateLeaderboard(by string, limit int, viewerId int) (items []InviteRebateLeaderboardEntry, myRank int, err error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	order := "rebate_quota_sum DESC, invitee_count DESC, user_id ASC"
+	if by == "invitees" {
+		order = "invitee_count DESC, rebate_quota_sum DESC, user_id ASC"
+	}
+
+	// Aggregate from users (invitee_count) left join rebate sums.
+	// Only users who invited at least one person OR earned rebate appear.
+	type row struct {
+		UserId         int
+		Username       string
+		DisplayName    string
+		InviteeCount   int64
+		RebateQuotaSum int64
+		TopupQuotaSum  int64
+	}
+	var rows []row
+	// Use subquery for invitee counts + rebate aggregates.
+	sql := `
+SELECT u.id AS user_id,
+       u.username AS username,
+       u.display_name AS display_name,
+       COALESCE(ic.cnt, 0) AS invitee_count,
+       COALESCE(rs.rebate_quota_sum, 0) AS rebate_quota_sum,
+       COALESCE(rs.topup_quota_sum, 0) AS topup_quota_sum
+FROM users u
+LEFT JOIN (
+  SELECT inviter_id, COUNT(*) AS cnt FROM users WHERE inviter_id > 0 AND deleted_at IS NULL GROUP BY inviter_id
+) ic ON ic.inviter_id = u.id
+LEFT JOIN (
+  SELECT inviter_id,
+         COALESCE(SUM(rebate_quota),0) AS rebate_quota_sum,
+         COALESCE(SUM(topup_quota),0) AS topup_quota_sum
+  FROM invite_rebates
+  GROUP BY inviter_id
+) rs ON rs.inviter_id = u.id
+WHERE u.deleted_at IS NULL
+  AND u.status = ?
+  AND (COALESCE(ic.cnt,0) > 0 OR COALESCE(rs.rebate_quota_sum,0) > 0)
+ORDER BY ` + order + `
+LIMIT ?`
+	err = DB.Raw(sql, common.UserStatusEnabled, limit).Scan(&rows).Error
+	if err != nil {
+		return
+	}
+	items = make([]InviteRebateLeaderboardEntry, 0, len(rows))
+	for i, r := range rows {
+		entry := InviteRebateLeaderboardEntry{
+			Rank:           i + 1,
+			UserId:         r.UserId,
+			Username:       maskInviteeLabel(r.Username),
+			DisplayName:    maskInviteeLabel(r.DisplayName),
+			InviteeCount:   r.InviteeCount,
+			RebateQuotaSum: r.RebateQuotaSum,
+			TopupQuotaSum:  r.TopupQuotaSum,
+			IsMe:           viewerId > 0 && r.UserId == viewerId,
+		}
+		if entry.IsMe {
+			myRank = entry.Rank
+		}
+		items = append(items, entry)
+	}
+
+	// If viewer not in top list, compute their rank separately (optional nicety).
+	if viewerId > 0 && myRank == 0 {
+		type meRow struct {
+			InviteeCount   int64
+			RebateQuotaSum int64
+		}
+		var me meRow
+		_ = DB.Raw(`
+SELECT COALESCE((SELECT COUNT(*) FROM users WHERE inviter_id = ? AND deleted_at IS NULL),0) AS invitee_count,
+       COALESCE((SELECT SUM(rebate_quota) FROM invite_rebates WHERE inviter_id = ?),0) AS rebate_quota_sum
+`, viewerId, viewerId).Scan(&me).Error
+		if me.InviteeCount > 0 || me.RebateQuotaSum > 0 {
+			// Count how many rank strictly above me
+			var better int64
+			if by == "invitees" {
+				_ = DB.Raw(`
+SELECT COUNT(*) FROM (
+  SELECT u.id,
+         COALESCE(ic.cnt,0) AS invitee_count,
+         COALESCE(rs.rebate_quota_sum,0) AS rebate_quota_sum
+  FROM users u
+  LEFT JOIN (SELECT inviter_id, COUNT(*) AS cnt FROM users WHERE inviter_id > 0 AND deleted_at IS NULL GROUP BY inviter_id) ic ON ic.inviter_id = u.id
+  LEFT JOIN (SELECT inviter_id, COALESCE(SUM(rebate_quota),0) AS rebate_quota_sum FROM invite_rebates GROUP BY inviter_id) rs ON rs.inviter_id = u.id
+  WHERE u.deleted_at IS NULL AND u.status = ?
+    AND (COALESCE(ic.cnt,0) > 0 OR COALESCE(rs.rebate_quota_sum,0) > 0)
+) t
+WHERE t.invitee_count > ? OR (t.invitee_count = ? AND t.rebate_quota_sum > ?) OR (t.invitee_count = ? AND t.rebate_quota_sum = ? AND t.id < ?)
+`, common.UserStatusEnabled, me.InviteeCount, me.InviteeCount, me.RebateQuotaSum, me.InviteeCount, me.RebateQuotaSum, viewerId).Scan(&better).Error
+			} else {
+				_ = DB.Raw(`
+SELECT COUNT(*) FROM (
+  SELECT u.id,
+         COALESCE(ic.cnt,0) AS invitee_count,
+         COALESCE(rs.rebate_quota_sum,0) AS rebate_quota_sum
+  FROM users u
+  LEFT JOIN (SELECT inviter_id, COUNT(*) AS cnt FROM users WHERE inviter_id > 0 AND deleted_at IS NULL GROUP BY inviter_id) ic ON ic.inviter_id = u.id
+  LEFT JOIN (SELECT inviter_id, COALESCE(SUM(rebate_quota),0) AS rebate_quota_sum FROM invite_rebates GROUP BY inviter_id) rs ON rs.inviter_id = u.id
+  WHERE u.deleted_at IS NULL AND u.status = ?
+    AND (COALESCE(ic.cnt,0) > 0 OR COALESCE(rs.rebate_quota_sum,0) > 0)
+) t
+WHERE t.rebate_quota_sum > ? OR (t.rebate_quota_sum = ? AND t.invitee_count > ?) OR (t.rebate_quota_sum = ? AND t.invitee_count = ? AND t.id < ?)
+`, common.UserStatusEnabled, me.RebateQuotaSum, me.RebateQuotaSum, me.InviteeCount, me.RebateQuotaSum, me.InviteeCount, viewerId).Scan(&better).Error
+			}
+			myRank = int(better) + 1
+		}
+	}
+	return
+}

@@ -88,3 +88,23 @@ func GetAdminInviteRebateSummary(c *gin.Context) {
 		"ratio_bp":         common.InviteTopupRebateRatioBp,
 	})
 }
+
+
+func GetInviteRebateLeaderboard(c *gin.Context) {
+	userId := c.GetInt("id")
+	by := c.DefaultQuery("by", "rebate")
+	if by != "invitees" {
+		by = "rebate"
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	items, myRank, err := model.ListInviteRebateLeaderboard(by, limit, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"by":      by,
+		"items":   items,
+		"my_rank": myRank,
+	})
+}
