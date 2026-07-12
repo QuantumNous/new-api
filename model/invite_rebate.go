@@ -85,6 +85,16 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 		return nil
 	}
 
+	var inviter User
+	if err := db.Select("id").First(&inviter, invitee.InviterId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.SysError(fmt.Sprintf("invite topup rebate skipped: inviter %d not found for invitee %d topup %d", invitee.InviterId, inviteeId, topUp.Id))
+			return nil
+		}
+		return err
+	}
+
+	granted := false
 	run := func(tx *gorm.DB) error {
 		row := &InviteRebate{
 			InviterId:   invitee.InviterId,
@@ -99,6 +109,7 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 		}
 		if err := tx.Create(row).Error; err != nil {
 			if isDuplicateKeyError(err) {
+				// already granted for this topup
 				return nil
 			}
 			return err
@@ -109,6 +120,7 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 		}).Error; err != nil {
 			return err
 		}
+		granted = true
 		return nil
 	}
 
@@ -122,11 +134,13 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 		return err
 	}
 
-	// Log outside caller concerns; ignore log failures
-	RecordLog(invitee.InviterId, LogTypeSystem, fmt.Sprintf(
-		"邀请充值返佣 %s（被邀请用户 #%d，订单 %s，基数 %s，比例 %d bp）",
-		logger.LogQuota(rebate), inviteeId, topUp.TradeNo, logger.LogQuota(topupQuota), ratioBp,
-	))
+	if granted {
+		// Log only on first successful grant (webhook retries must not spam)
+		RecordLog(invitee.InviterId, LogTypeSystem, fmt.Sprintf(
+			"邀请充值返佣 %s（被邀请用户 #%d，订单 %s，基数 %s，比例 %d bp）",
+			logger.LogQuota(rebate), inviteeId, topUp.TradeNo, logger.LogQuota(topupQuota), ratioBp,
+		))
+	}
 	return nil
 }
 

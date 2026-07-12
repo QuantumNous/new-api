@@ -102,3 +102,16 @@ func TestGrantInviteTopupRebate_SuccessAndIdempotent(t *testing.T) {
 	assert.Equal(t, 5000, got.AffQuota)
 	assert.Equal(t, 5000, got.AffHistoryQuota)
 }
+
+
+func TestGrantInviteTopupRebate_MissingInviter(t *testing.T) {
+	setupInviteRebateTest(t)
+	// invitee points at non-existent inviter
+	invitee := createIRUser(t, "ir_invitee_ghost", 999999, 0)
+	topUp := &TopUp{UserId: invitee.Id, Amount: 10, TradeNo: "IR-GHOST-1", Status: common.TopUpStatusSuccess}
+	require.NoError(t, DB.Create(topUp).Error)
+	require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
+	var n int64
+	require.NoError(t, DB.Model(&InviteRebate{}).Count(&n).Error)
+	assert.Equal(t, int64(0), n)
+}

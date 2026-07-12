@@ -40,6 +40,7 @@ export function InviteRebatePage() {
   const [logs, setLogs] = useState<InviteRebateLog[]>([])
   const [invitees, setInvitees] = useState<InviteeRebateStat[]>([])
   const [transferOpen, setTransferOpen] = useState(false)
+  const [transferring, setTransferring] = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -65,14 +66,19 @@ export function InviteRebatePage() {
   }, [reload])
 
   const onTransfer = async (quota: number) => {
-    const res = await transferAffiliateQuota({ quota })
-    if (res.success) {
-      toast.success(res.message || t('Transfer successful'))
-      await reload()
-      return true
+    try {
+      setTransferring(true)
+      const res = await transferAffiliateQuota({ quota })
+      if (res.success) {
+        toast.success(res.message || t('Transfer successful'))
+        await reload()
+        return true
+      }
+      toast.error(res.message || t('Transfer failed'))
+      return false
+    } finally {
+      setTransferring(false)
     }
-    toast.error(res.message || t('Transfer failed'))
-    return false
   }
 
   if (loading && !summary) {
@@ -107,9 +113,12 @@ export function InviteRebatePage() {
           </div>
         </div>
         <div className='flex gap-2'>
-          <Button variant='outline' asChild>
-            <Link to='/wallet'>{t('Wallet')}</Link>
-          </Button>
+          <Link
+            to='/wallet'
+            className='border-input bg-background hover:bg-accent inline-flex h-9 items-center rounded-md border px-3 text-sm'
+          >
+            {t('Wallet')}
+          </Link>
           <Button
             onClick={() => setTransferOpen(true)}
             disabled={!summary || summary.aff_quota <= 0}
@@ -226,7 +235,7 @@ export function InviteRebatePage() {
         onOpenChange={setTransferOpen}
         onConfirm={onTransfer}
         availableQuota={summary?.aff_quota ?? 0}
-        transferring={false}
+        transferring={transferring}
       />
     </div>
   )

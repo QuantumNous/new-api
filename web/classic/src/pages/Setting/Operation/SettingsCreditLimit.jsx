@@ -85,7 +85,17 @@ export default function SettingsCreditLimit(props) {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        let value = props.options[key];
+        if (key === 'InviteTopupRebateEnabled') {
+          value = value === true || value === 'true';
+        }
+        if (
+          key === 'quota_setting.enable_free_model_pre_consume' &&
+          typeof value === 'string'
+        ) {
+          value = value === 'true';
+        }
+        currentInputs[key] = value;
       }
     }
     setInputs(currentInputs);

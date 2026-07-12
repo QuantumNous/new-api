@@ -145,7 +145,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
-      const configVisible = isModuleVisible('personal', item.itemKey);
+      const moduleKey =
+        item.itemKey === 'invite_rebate' ? 'topup' : item.itemKey;
+      const configVisible = isModuleVisible('personal', moduleKey);
       return configVisible;
     });
 
@@ -206,7 +208,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
-      const configVisible = isModuleVisible('admin', item.itemKey);
+      const moduleKey =
+        item.itemKey === 'invite_rebate_admin' ? 'user' : item.itemKey;
+      const configVisible = isModuleVisible('admin', moduleKey);
       return configVisible;
     });
 
