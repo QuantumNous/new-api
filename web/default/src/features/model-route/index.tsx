@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { SectionPageLayout } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -175,6 +176,16 @@ function includesIgnoreCase(haystack: string | undefined, needle: string) {
   return (haystack || '').toLowerCase().includes(needle.toLowerCase())
 }
 
+function metricsRowKey(row: Pick<ModelRouteMetrics, 'channel_id' | 'effective_model'>) {
+  return `${row.channel_id}:${row.effective_model}`
+}
+
+type MetricsAction =
+  | 'trip_open'
+  | 'force_probe'
+  | 'manual_disable'
+  | 'restore_auto'
+
 function PolicyPriorityCell({
   row,
   disabled,
@@ -201,6 +212,11 @@ export function ModelRouteAdmin() {
   const [tab, setTab] = useState<'policies' | 'metrics'>('policies')
   const [modelKeyword, setModelKeyword] = useState('')
   const [channelFilter, setChannelFilter] = useState('')
+  const [selectedMetricKeys, setSelectedMetricKeys] = useState<Set<string>>(
+    () => new Set()
+  )
+  const [batchBusy, setBatchBusy] = useState(false)
+  const [batchActionKey, setBatchActionKey] = useState(0)
 
   // Always load full lists; filter client-side for substring match (e.g. "4.5" → grok-4.5).
   const policyQuery = useQuery({
@@ -330,7 +346,86 @@ export function ModelRouteAdmin() {
     return filtered
   }, [metricsQuery.data, channelKeyword, modelKw])
 
+  const selectedMetrics = useMemo(
+    () => metrics.filter((row) => selectedMetricKeys.has(metricsRowKey(row))),
+    [metrics, selectedMetricKeys]
+  )
+
+  const allVisibleSelected =
+    metrics.length > 0 && selectedMetrics.length === metrics.length
+  const someVisibleSelected =
+    selectedMetrics.length > 0 && selectedMetrics.length < metrics.length
+
+  const toggleMetricSelected = (key: string, checked: boolean) => {
+    setSelectedMetricKeys((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    setSelectedMetricKeys((prev) => {
+      const next = new Set(prev)
+      for (const row of metrics) {
+        const key = metricsRowKey(row)
+        if (checked) next.add(key)
+        else next.delete(key)
+      }
+      return next
+    })
+  }
+
+  const clearMetricSelection = () => setSelectedMetricKeys(new Set())
+
+  const runOnSelectedMetrics = async (
+    label: string,
+    confirmText: string | null,
+    runner: (row: ModelRouteMetrics) => Promise<{ success: boolean; message?: string }>
+  ) => {
+    if (selectedMetrics.length === 0 || batchBusy) return
+    if (confirmText && !window.confirm(confirmText)) return
+
+    setBatchBusy(true)
+    let ok = 0
+    let failed = 0
+    try {
+      for (const row of selectedMetrics) {
+        try {
+          const res = await runner(row)
+          if (res.success) ok += 1
+          else failed += 1
+        } catch {
+          failed += 1
+        }
+      }
+      if (failed === 0) {
+        toast.success(
+          t('{{action}} applied to {{count}} metrics', {
+            action: label,
+            count: ok,
+          })
+        )
+        clearMetricSelection()
+      } else {
+        toast.error(
+          t('{{action}}: {{ok}} succeeded, {{failed}} failed', {
+            action: label,
+            ok,
+            failed,
+          })
+        )
+      }
+      void qc.invalidateQueries({ queryKey: ['model-route-metrics'] })
+    } finally {
+      setBatchBusy(false)
+      setBatchActionKey((v) => v + 1)
+    }
+  }
+
   const isRefreshing = policyQuery.isFetching || metricsQuery.isFetching
+  const rowActionDisabled = batchBusy
 
   return (
     <SectionPageLayout>
@@ -489,10 +584,128 @@ export function ModelRouteAdmin() {
           </TabsContent>
 
           <TabsContent value='metrics' className='mt-4 space-y-3'>
+            {selectedMetrics.length > 0 && (
+              <div className='bg-muted/30 flex flex-wrap items-center gap-2 rounded-md border px-3 py-2'>
+                <span className='text-muted-foreground text-xs'>
+                  {t('{{count}} selected', { count: selectedMetrics.length })}
+                </span>
+                <Select
+                  key={batchActionKey}
+                  disabled={batchBusy}
+                  onValueChange={(action) => {
+                    if (
+                      !action ||
+                      ![
+                        'trip_open',
+                        'force_probe',
+                        'manual_disable',
+                        'restore_auto',
+                      ].includes(action)
+                    ) {
+                      return
+                    }
+                    const typed = action as MetricsAction
+                    const labelMap: Record<MetricsAction, string> = {
+                      force_probe: t('Force probe'),
+                      trip_open: t('Trip open'),
+                      manual_disable: t('Manual disable'),
+                      restore_auto: t('Restore auto'),
+                    }
+                    void runOnSelectedMetrics(labelMap[typed], null, (row) =>
+                      modelRouteMetricsAction({
+                        channel_id: row.channel_id,
+                        effective_model: row.effective_model,
+                        action: typed,
+                      })
+                    )
+                  }}
+                >
+                  <SelectTrigger className='h-8 w-40'>
+                    <SelectValue placeholder={t('Batch action')} />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      <SelectItem value='force_probe'>
+                        {t('Force probe')}
+                      </SelectItem>
+                      <SelectItem value='trip_open'>{t('Trip open')}</SelectItem>
+                      <SelectItem value='manual_disable'>
+                        {t('Manual disable')}
+                      </SelectItem>
+                      <SelectItem value='restore_auto'>
+                        {t('Restore auto')}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  className='h-8'
+                  disabled={batchBusy}
+                  onClick={() =>
+                    void runOnSelectedMetrics(
+                      t('Reset runtime'),
+                      null,
+                      (row) =>
+                        resetRuntimeLearning({
+                          channel_id: row.channel_id,
+                          effective_model: row.effective_model,
+                        })
+                    )
+                  }
+                >
+                  {t('Reset runtime')}
+                </Button>
+                <Button
+                  size='sm'
+                  variant='destructive'
+                  className='h-8'
+                  disabled={batchBusy}
+                  onClick={() =>
+                    void runOnSelectedMetrics(
+                      t('Reset all'),
+                      t(
+                        'Reset ALL learning for {{count}} selected metrics? This cannot be undone.',
+                        { count: selectedMetrics.length }
+                      ),
+                      (row) =>
+                        resetAllLearning({
+                          channel_id: row.channel_id,
+                          effective_model: row.effective_model,
+                          confirm: true,
+                        })
+                    )
+                  }
+                >
+                  {t('Reset all')}
+                </Button>
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  className='h-8'
+                  disabled={batchBusy}
+                  onClick={clearMetricSelection}
+                >
+                  {t('Clear selection')}
+                </Button>
+              </div>
+            )}
             <div className='overflow-x-auto rounded-md border'>
               <table className='w-full min-w-[980px] text-sm'>
                 <thead className='bg-muted/40 text-left'>
                   <tr>
+                    <th className='text-muted-foreground w-10 p-2.5 font-medium'>
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        indeterminate={someVisibleSelected}
+                        onCheckedChange={(value) =>
+                          toggleSelectAllVisible(value === true)
+                        }
+                        disabled={metrics.length === 0 || batchBusy}
+                        aria-label={t('Select all')}
+                      />
+                    </th>
                     <th className='text-muted-foreground p-2.5 font-medium'>
                       {t('Channel')}
                     </th>
@@ -526,138 +739,154 @@ export function ModelRouteAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {metrics.map((row: ModelRouteMetrics) => (
-                    <tr
-                      key={`${row.channel_id}:${row.effective_model}`}
-                      className='hover:bg-muted/30 border-t transition-colors'
-                    >
-                      <td className='p-2.5'>
-                        <ChannelNameLink
-                          channelId={row.channel_id}
-                          channelName={row.channel_name}
-                          baseUrl={row.base_url}
-                        />
-                      </td>
-                      <td className='p-2.5 font-mono text-xs'>
-                        {row.effective_model}
-                      </td>
-                      <td className='p-2.5'>
-                        <Badge variant='outline' className='font-normal'>
-                          {localizeRouteState(t, row.route_state)}
-                        </Badge>
-                      </td>
-                      <td className='p-2.5'>
-                        {localizeRouteRole(t, row.role)}
-                      </td>
-                      <td className='p-2.5 tabular-nums'>
-                        {fmtNum(row.experience_score)}
-                      </td>
-                      <td className='p-2.5 tabular-nums'>
-                        {fmtNum(row.production_success_ema)}
-                      </td>
-                      <td className='p-2.5 tabular-nums'>
-                        {fmtNum(row.production_ttft_ema_ms, 1)}
-                      </td>
-                      <td className='p-2.5'>
-                        {row.is_stale ? (
-                          <Badge variant='destructive'>{t('Stale')}</Badge>
-                        ) : (
-                          '—'
+                  {metrics.map((row: ModelRouteMetrics) => {
+                    const key = metricsRowKey(row)
+                    const selected = selectedMetricKeys.has(key)
+                    return (
+                      <tr
+                        key={key}
+                        className={cn(
+                          'hover:bg-muted/30 border-t transition-colors',
+                          selected && 'bg-muted/20'
                         )}
-                      </td>
-                      <td className='text-muted-foreground p-2.5 text-xs'>
-                        {fmtTs(row.last_success_at)}
-                      </td>
-                      <td className='p-2.5'>
-                        <div className='flex flex-wrap items-center gap-1.5'>
-                          <Select
-                            onValueChange={(action) => {
-                              if (
-                                !action ||
-                                ![
-                                  'trip_open',
-                                  'force_probe',
-                                  'manual_disable',
-                                  'restore_auto',
-                                ].includes(action)
-                              ) {
-                                return
-                              }
-                              actionMut.mutate({
-                                channel_id: row.channel_id,
-                                effective_model: row.effective_model,
-                                action: action as
-                                  | 'trip_open'
-                                  | 'force_probe'
-                                  | 'manual_disable'
-                                  | 'restore_auto',
-                              })
-                            }}
-                          >
-                            <SelectTrigger className='h-8 w-36'>
-                              <SelectValue placeholder={t('Action')} />
-                            </SelectTrigger>
-                            <SelectContent alignItemWithTrigger={false}>
-                              <SelectGroup>
-                                <SelectItem value='force_probe'>
-                                  {t('Force probe')}
-                                </SelectItem>
-                                <SelectItem value='trip_open'>
-                                  {t('Trip open')}
-                                </SelectItem>
-                                <SelectItem value='manual_disable'>
-                                  {t('Manual disable')}
-                                </SelectItem>
-                                <SelectItem value='restore_auto'>
-                                  {t('Restore auto')}
-                                </SelectItem>
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            className='h-8'
-                            onClick={() =>
-                              resetRuntimeMut.mutate({
-                                channel_id: row.channel_id,
-                                effective_model: row.effective_model,
-                              })
+                      >
+                        <td className='p-2.5'>
+                          <Checkbox
+                            checked={selected}
+                            onCheckedChange={(value) =>
+                              toggleMetricSelected(key, value === true)
                             }
-                          >
-                            {t('Reset runtime')}
-                          </Button>
-                          <Button
-                            size='sm'
-                            variant='destructive'
-                            className='h-8'
-                            onClick={() => {
-                              if (
-                                !window.confirm(
-                                  t(
-                                    'Reset ALL learning for this metrics key? This cannot be undone.'
-                                  )
-                                )
-                              ) {
-                                return
+                            disabled={batchBusy}
+                            aria-label={t('Select row')}
+                          />
+                        </td>
+                        <td className='p-2.5'>
+                          <ChannelNameLink
+                            channelId={row.channel_id}
+                            channelName={row.channel_name}
+                            baseUrl={row.base_url}
+                          />
+                        </td>
+                        <td className='p-2.5 font-mono text-xs'>
+                          {row.effective_model}
+                        </td>
+                        <td className='p-2.5'>
+                          <Badge variant='outline' className='font-normal'>
+                            {localizeRouteState(t, row.route_state)}
+                          </Badge>
+                        </td>
+                        <td className='p-2.5'>
+                          {localizeRouteRole(t, row.role)}
+                        </td>
+                        <td className='p-2.5 tabular-nums'>
+                          {fmtNum(row.experience_score)}
+                        </td>
+                        <td className='p-2.5 tabular-nums'>
+                          {fmtNum(row.production_success_ema)}
+                        </td>
+                        <td className='p-2.5 tabular-nums'>
+                          {fmtNum(row.production_ttft_ema_ms, 1)}
+                        </td>
+                        <td className='p-2.5'>
+                          {row.is_stale ? (
+                            <Badge variant='destructive'>{t('Stale')}</Badge>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className='text-muted-foreground p-2.5 text-xs'>
+                          {fmtTs(row.last_success_at)}
+                        </td>
+                        <td className='p-2.5'>
+                          <div className='flex flex-wrap items-center gap-1.5'>
+                            <Select
+                              disabled={rowActionDisabled}
+                              onValueChange={(action) => {
+                                if (
+                                  !action ||
+                                  ![
+                                    'trip_open',
+                                    'force_probe',
+                                    'manual_disable',
+                                    'restore_auto',
+                                  ].includes(action)
+                                ) {
+                                  return
+                                }
+                                actionMut.mutate({
+                                  channel_id: row.channel_id,
+                                  effective_model: row.effective_model,
+                                  action: action as MetricsAction,
+                                })
+                              }}
+                            >
+                              <SelectTrigger className='h-8 w-36'>
+                                <SelectValue placeholder={t('Action')} />
+                              </SelectTrigger>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  <SelectItem value='force_probe'>
+                                    {t('Force probe')}
+                                  </SelectItem>
+                                  <SelectItem value='trip_open'>
+                                    {t('Trip open')}
+                                  </SelectItem>
+                                  <SelectItem value='manual_disable'>
+                                    {t('Manual disable')}
+                                  </SelectItem>
+                                  <SelectItem value='restore_auto'>
+                                    {t('Restore auto')}
+                                  </SelectItem>
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='h-8'
+                              disabled={rowActionDisabled}
+                              onClick={() =>
+                                resetRuntimeMut.mutate({
+                                  channel_id: row.channel_id,
+                                  effective_model: row.effective_model,
+                                })
                               }
-                              resetAllMut.mutate({
-                                channel_id: row.channel_id,
-                                effective_model: row.effective_model,
-                                confirm: true,
-                              })
-                            }}
-                          >
-                            {t('Reset all')}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            >
+                              {t('Reset runtime')}
+                            </Button>
+                            <Button
+                              size='sm'
+                              variant='destructive'
+                              className='h-8'
+                              disabled={rowActionDisabled}
+                              onClick={() => {
+                                if (
+                                  !window.confirm(
+                                    t(
+                                      'Reset ALL learning for this metrics key? This cannot be undone.'
+                                    )
+                                  )
+                                ) {
+                                  return
+                                }
+                                resetAllMut.mutate({
+                                  channel_id: row.channel_id,
+                                  effective_model: row.effective_model,
+                                  confirm: true,
+                                })
+                              }}
+                            >
+                              {t('Reset all')}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                   {!metricsQuery.isLoading && metrics.length === 0 && (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={11}
                         className='text-muted-foreground p-6 text-center'
                       >
                         {t('No metrics')}
