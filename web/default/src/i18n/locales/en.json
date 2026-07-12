@@ -5159,6 +5159,17 @@
     "NONE": "NONE",
     "BOOTSTRAP": "BOOTSTRAP",
     "PRIMARY": "PRIMARY",
-    "OVERFLOW": "OVERFLOW"
+    "OVERFLOW": "OVERFLOW",
+    "{{count}} selected": "{{count}} selected",
+    "Batch action": "Batch action",
+    "{{action}} applied to {{count}} metrics": "{{action}} applied to {{count}} metrics",
+    "{{action}}: {{ok}} succeeded, {{failed}} failed": "{{action}}: {{ok}} succeeded, {{failed}} failed",
+    "Apply \"{{action}}\" to {{count}} selected metrics?": "Apply \"{{action}}\" to {{count}} selected metrics?",
+    "Reset ALL learning for {{count}} selected metrics? This cannot be undone.": "Reset ALL learning for {{count}} selected metrics? This cannot be undone.",
+    "Confirm force probe for {{count}} selected metrics?": "Confirm force probe for {{count}} selected metrics?",
+    "Confirm trip open for {{count}} selected metrics?": "Confirm trip open for {{count}} selected metrics?",
+    "Confirm manual disable for {{count}} selected metrics?": "Confirm manual disable for {{count}} selected metrics?",
+    "Confirm restore auto for {{count}} selected metrics?": "Confirm restore auto for {{count}} selected metrics?",
+    "Confirm reset runtime for {{count}} selected metrics?": "Confirm reset runtime for {{count}} selected metrics?"
   }
 }

@@ -5163,6 +5163,17 @@
     "Channel name or ID": "渠道名称或 ID",
     "Search model...": "搜索模型…",
     "{{count}} policies": "{{count}} 条策略",
-    "{{count}} metrics": "{{count}} 条指标"
+    "{{count}} metrics": "{{count}} 条指标",
+    "{{count}} selected": "已选 {{count}} 条",
+    "Batch action": "批量操作",
+    "{{action}} applied to {{count}} metrics": "已对 {{count}} 条指标执行「{{action}}」",
+    "{{action}}: {{ok}} succeeded, {{failed}} failed": "「{{action}}」完成：成功 {{ok}} 条，失败 {{failed}} 条",
+    "Apply \"{{action}}\" to {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行「{{action}}」？",
+    "Reset ALL learning for {{count}} selected metrics? This cannot be undone.": "确认完整重置已选 {{count}} 条指标的全部学习数据？此操作不可撤销。",
+    "Confirm force probe for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行强制探测？",
+    "Confirm trip open for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行立即熔断？",
+    "Confirm manual disable for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行人工禁用？",
+    "Confirm restore auto for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行恢复自动管理？",
+    "Confirm reset runtime for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行重置短期指标？"
   }
 }

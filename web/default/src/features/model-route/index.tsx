@@ -381,11 +381,11 @@ export function ModelRouteAdmin() {
 
   const runOnSelectedMetrics = async (
     label: string,
-    confirmText: string | null,
+    confirmText: string,
     runner: (row: ModelRouteMetrics) => Promise<{ success: boolean; message?: string }>
   ) => {
     if (selectedMetrics.length === 0 || batchBusy) return
-    if (confirmText && !window.confirm(confirmText)) return
+    if (!window.confirm(confirmText)) return
 
     setBatchBusy(true)
     let ok = 0
@@ -611,12 +611,33 @@ export function ModelRouteAdmin() {
                       manual_disable: t('Manual disable'),
                       restore_auto: t('Restore auto'),
                     }
-                    void runOnSelectedMetrics(labelMap[typed], null, (row) =>
-                      modelRouteMetricsAction({
-                        channel_id: row.channel_id,
-                        effective_model: row.effective_model,
-                        action: typed,
-                      })
+                    const confirmMap: Record<MetricsAction, string> = {
+                      force_probe: t(
+                        'Confirm force probe for {{count}} selected metrics?',
+                        { count: selectedMetrics.length }
+                      ),
+                      trip_open: t(
+                        'Confirm trip open for {{count}} selected metrics?',
+                        { count: selectedMetrics.length }
+                      ),
+                      manual_disable: t(
+                        'Confirm manual disable for {{count}} selected metrics?',
+                        { count: selectedMetrics.length }
+                      ),
+                      restore_auto: t(
+                        'Confirm restore auto for {{count}} selected metrics?',
+                        { count: selectedMetrics.length }
+                      ),
+                    }
+                    void runOnSelectedMetrics(
+                      labelMap[typed],
+                      confirmMap[typed],
+                      (row) =>
+                        modelRouteMetricsAction({
+                          channel_id: row.channel_id,
+                          effective_model: row.effective_model,
+                          action: typed,
+                        })
                     )
                   }}
                 >
@@ -646,7 +667,10 @@ export function ModelRouteAdmin() {
                   onClick={() =>
                     void runOnSelectedMetrics(
                       t('Reset runtime'),
-                      null,
+                      t(
+                        'Confirm reset runtime for {{count}} selected metrics?',
+                        { count: selectedMetrics.length }
+                      ),
                       (row) =>
                         resetRuntimeLearning({
                           channel_id: row.channel_id,
