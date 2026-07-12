@@ -176,6 +176,16 @@ function includesIgnoreCase(haystack: string | undefined, needle: string) {
   return (haystack || '').toLowerCase().includes(needle.toLowerCase())
 }
 
+function matchesModelSearch(
+  value: string | undefined,
+  keyword: string,
+  exact: boolean
+) {
+  if (!keyword) return true
+  if (exact) return (value || '') === keyword
+  return includesIgnoreCase(value, keyword)
+}
+
 function metricsRowKey(row: Pick<ModelRouteMetrics, 'channel_id' | 'effective_model'>) {
   return `${row.channel_id}:${row.effective_model}`
 }
@@ -211,6 +221,7 @@ export function ModelRouteAdmin() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<'policies' | 'metrics'>('policies')
   const [modelKeyword, setModelKeyword] = useState('')
+  const [exactModelMatch, setExactModelMatch] = useState(false)
   const [channelFilter, setChannelFilter] = useState('')
   const [selectedMetricKeys, setSelectedMetricKeys] = useState<Set<string>>(
     () => new Set()
@@ -307,7 +318,7 @@ export function ModelRouteAdmin() {
         const nameMatch = includesIgnoreCase(row.channel_name, channelKeyword)
         if (!idMatch && !nameMatch) return false
       }
-      if (modelKw && !includesIgnoreCase(row.requested_model, modelKw)) {
+      if (!matchesModelSearch(row.requested_model, modelKw, exactModelMatch)) {
         return false
       }
       return true
@@ -322,7 +333,7 @@ export function ModelRouteAdmin() {
       return a.requested_model.localeCompare(b.requested_model)
     })
     return filtered
-  }, [policyQuery.data, channelKeyword, modelKw])
+  }, [policyQuery.data, channelKeyword, modelKw, exactModelMatch])
 
   const metrics = useMemo(() => {
     const rows = [...(metricsQuery.data?.data ?? [])]
@@ -332,7 +343,7 @@ export function ModelRouteAdmin() {
         const nameMatch = includesIgnoreCase(row.channel_name, channelKeyword)
         if (!idMatch && !nameMatch) return false
       }
-      if (modelKw && !includesIgnoreCase(row.effective_model, modelKw)) {
+      if (!matchesModelSearch(row.effective_model, modelKw, exactModelMatch)) {
         return false
       }
       return true
@@ -344,7 +355,7 @@ export function ModelRouteAdmin() {
       return a.effective_model.localeCompare(b.effective_model)
     })
     return filtered
-  }, [metricsQuery.data, channelKeyword, modelKw])
+  }, [metricsQuery.data, channelKeyword, modelKw, exactModelMatch])
 
   const selectedMetrics = useMemo(
     () => metrics.filter((row) => selectedMetricKeys.has(metricsRowKey(row))),
@@ -450,6 +461,14 @@ export function ModelRouteAdmin() {
               onChange={(e) => setModelKeyword(e.target.value)}
             />
           </div>
+          <label className='text-muted-foreground flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs select-none'>
+            <Checkbox
+              checked={exactModelMatch}
+              onCheckedChange={(value) => setExactModelMatch(value === true)}
+              aria-label={t('Exact match')}
+            />
+            <span>{t('Exact match')}</span>
+          </label>
           <Button
             variant='outline'
             size='sm'
