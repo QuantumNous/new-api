@@ -19,6 +19,18 @@ func TestNormalizeImageGenerationsRequestPathApimart(t *testing.T) {
 	require.Equal(t, "/v1/images/generations", got)
 }
 
+func TestNormalizeImageGenerationsRequestPathApib(t *testing.T) {
+	base := "https://api.apib.ai"
+	model := "gemini-3.1-flash-image-preview"
+	mode := relayconstant.RelayModeImagesGenerations
+
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model)
+	require.Equal(t, "/v1/images/generations", got)
+
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
+	require.Equal(t, "/v1/images/generations", got)
+}
+
 func TestNormalizeImageGenerationsRequestPathOtherUpstream(t *testing.T) {
 	base := "https://api.romaapi.com"
 	model := "gpt-image-2"

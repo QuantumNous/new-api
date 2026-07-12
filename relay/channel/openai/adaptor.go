@@ -590,6 +590,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 func isSyncGptImage2ImageBase(baseURL string) bool {
 	baseLower := strings.ToLower(strings.TrimSpace(baseURL))
 	return strings.Contains(baseLower, "apimart.ai") ||
+		strings.Contains(baseLower, "api.apib.ai") ||
 		strings.Contains(baseLower, "packyapi.com") ||
 		strings.Contains(baseLower, "subrouter.ai")
 }
