@@ -5238,6 +5238,7 @@
     "Invite friends and climb the board": "邀請好友，衝上榜單",
     "By rebate": "按返傭",
     "By invitees": "按人數",
-    "Rank": "名次"
+    "Rank": "名次",
+    "Failed to load leaderboard": "排行榜載入失敗"
   }
 }

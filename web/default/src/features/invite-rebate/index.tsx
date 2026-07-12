@@ -95,6 +95,7 @@ export function InviteRebatePage() {
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [tab, setTab] = useState('overview')
+  const [leaderboardError, setLeaderboardError] = useState(false)
 
   const affiliateLink = useMemo(() => {
     if (typeof window === 'undefined' || !affCode) return ''
@@ -129,10 +130,10 @@ export function InviteRebatePage() {
       if (b?.success && b.data) {
         setBoard(b.data.items || [])
         setMyRank(b.data.my_rank || 0)
-      } else {
-        // Keep previous board empty on failure; do not block page
-        setBoard([])
-        setMyRank(0)
+        setLeaderboardError(false)
+      } else if (settled[3].status === 'rejected' || (b && !b.success)) {
+        // Keep previous board data if any; only flag error for empty UI retry
+        setLeaderboardError(true)
       }
       if (a?.success && a.data) setAffCode(a.data)
     } catch (e) {
@@ -289,7 +290,7 @@ export function InviteRebatePage() {
                   <TabsTrigger value='invitees'>{t('My invitees')}</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value='overview' className='mt-3 space-y-3'>
+                <TabsContent value='overview' keepMounted className='mt-3 space-y-3'>
                   <div className='grid gap-3 lg:grid-cols-2'>
                     <Card>
                       <CardHeader className='pb-2'>
@@ -326,9 +327,20 @@ export function InviteRebatePage() {
                       </CardHeader>
                       <CardContent className='space-y-2'>
                         {board.slice(0, 5).length === 0 ? (
-                          <p className='text-muted-foreground text-sm'>
-                            {t('No leaderboard data yet')}
-                          </p>
+                          <div className='text-muted-foreground space-y-2 text-sm'>
+                            <p>
+                              {leaderboardError
+                                ? t('Failed to load leaderboard')
+                                : t('No leaderboard data yet')}
+                            </p>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              onClick={() => void reload()}
+                            >
+                              {t('Retry')}
+                            </Button>
+                          </div>
                         ) : (
                           board.slice(0, 5).map((row) => (
                             <div
@@ -374,7 +386,7 @@ export function InviteRebatePage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value='leaderboard' className='mt-3'>
+                <TabsContent value='leaderboard' keepMounted className='mt-3'>
                   <Card>
                     <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-2'>
                       <div>
@@ -428,11 +440,21 @@ export function InviteRebatePage() {
                         <TableBody>
                           {board.length === 0 ? (
                             <TableRow>
-                              <TableCell
-                                colSpan={5}
-                                className='text-muted-foreground'
-                              >
-                                {t('No leaderboard data yet')}
+                              <TableCell colSpan={5}>
+                                <div className='text-muted-foreground flex flex-col items-start gap-2 py-6'>
+                                  <span>
+                                    {leaderboardError
+                                      ? t('Failed to load leaderboard')
+                                      : t('No leaderboard data yet')}
+                                  </span>
+                                  <Button
+                                    size='sm'
+                                    variant='outline'
+                                    onClick={() => void reload()}
+                                  >
+                                    {t('Retry')}
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ) : (
@@ -475,7 +497,7 @@ export function InviteRebatePage() {
                   </Card>
                 </TabsContent>
 
-                <TabsContent value='logs' className='mt-3'>
+                <TabsContent value='logs' keepMounted className='mt-3'>
                   <Card>
                     <CardHeader>
                       <CardTitle className='text-base'>
@@ -536,7 +558,7 @@ export function InviteRebatePage() {
                   </Card>
                 </TabsContent>
 
-                <TabsContent value='invitees' className='mt-3'>
+                <TabsContent value='invitees' keepMounted className='mt-3'>
                   <Card>
                     <CardHeader>
                       <CardTitle className='text-base'>
