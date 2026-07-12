@@ -92,16 +92,19 @@ func ListModelRoutePolicies(c *gin.Context) {
 	for i := range rows {
 		ids = append(ids, rows[i].ChannelID)
 	}
-	names := channelNameMap(ids)
+	channels := channelDisplayMap(ids)
 	type policyView struct {
 		model.ChannelModelPolicy
 		ChannelName string `json:"channel_name"`
+		BaseURL     string `json:"base_url"`
 	}
 	out := make([]policyView, 0, len(rows))
 	for i := range rows {
+		info := channels[rows[i].ChannelID]
 		out = append(out, policyView{
 			ChannelModelPolicy: rows[i],
-			ChannelName:        names[rows[i].ChannelID],
+			ChannelName:        info.Name,
+			BaseURL:            info.BaseURL,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": out})
@@ -145,26 +148,29 @@ func ListModelRouteMetrics(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	// attach runtime role + channel name
+	// attach runtime role + channel display
 	ids := make([]int64, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ChannelID)
 	}
-	names := channelNameMap(ids)
+	channels := channelDisplayMap(ids)
 	type rowView struct {
 		model.ChannelModelMetrics
 		Role        string `json:"role"`
 		IsStale     bool   `json:"is_stale"`
 		ChannelName string `json:"channel_name"`
+		BaseURL     string `json:"base_url"`
 	}
 	out := make([]rowView, 0, len(rows))
 	for i := range rows {
 		mk := model.MetricsKey{ChannelID: rows[i].ChannelID, EffectiveModel: rows[i].EffectiveModel}
+		info := channels[rows[i].ChannelID]
 		out = append(out, rowView{
 			ChannelModelMetrics: rows[i],
 			Role:                string(modelroute.GlobalRoles.Get(mk)),
 			IsStale:             modelroute.IsRouteStale(&rows[i], false),
-			ChannelName:         names[rows[i].ChannelID],
+			ChannelName:         info.Name,
+			BaseURL:             info.BaseURL,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": out})
@@ -213,9 +219,14 @@ func ModelRouteMetricsAction(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
-// channelNameMap returns id -> channel name for display (best-effort, empty if missing).
-func channelNameMap(ids []int64) map[int64]string {
-	out := make(map[int64]string, len(ids))
+type channelDisplayInfo struct {
+	Name    string
+	BaseURL string
+}
+
+// channelDisplayMap returns id -> channel name/base_url for admin display (best-effort).
+func channelDisplayMap(ids []int64) map[int64]channelDisplayInfo {
+	out := make(map[int64]channelDisplayInfo, len(ids))
 	if len(ids) == 0 {
 		return out
 	}
@@ -242,7 +253,10 @@ func channelNameMap(ids []int64) map[int64]string {
 		if ch == nil {
 			continue
 		}
-		out[int64(ch.Id)] = ch.Name
+		out[int64(ch.Id)] = channelDisplayInfo{
+			Name:    ch.Name,
+			BaseURL: ch.GetBaseURL(),
+		}
 	}
 	return out
 }

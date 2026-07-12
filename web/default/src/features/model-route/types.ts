@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 export type ModelRoutePolicy = {
   channel_id: number
   channel_name?: string
+  base_url?: string
   requested_model: string
   manual_priority: number
   enabled: boolean
@@ -30,6 +31,7 @@ export type ModelRoutePolicy = {
 export type ModelRouteMetrics = {
   channel_id: number
   channel_name?: string
+  base_url?: string
   effective_model: string
   route_state: string
   role?: string

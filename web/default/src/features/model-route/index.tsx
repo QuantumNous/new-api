@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { RefreshCw, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,23 +70,46 @@ function formatChannelLabel(channelId: number, channelName?: string) {
   return `#${channelId}`
 }
 
+function normalizeExternalUrl(raw?: string) {
+  const value = (raw || '').trim()
+  if (!value) return ''
+  if (/^https?:\/\//i.test(value)) return value
+  if (/^\/\//.test(value)) return `https:${value}`
+  // bare host / path-like base_url from channel config
+  if (/^[a-z0-9.-]+\.[a-z]{2,}([/:].*)?$/i.test(value)) {
+    return `https://${value}`
+  }
+  return ''
+}
+
 function ChannelNameLink({
   channelId,
   channelName,
+  baseUrl,
 }: {
   channelId: number
   channelName?: string
+  baseUrl?: string
 }) {
+  const label = formatChannelLabel(channelId, channelName)
+  const href = normalizeExternalUrl(baseUrl)
   return (
     <div className='flex min-w-0 flex-col gap-0.5'>
-      <Link
-        to='/channels'
-        search={{ filter: String(channelId) }}
-        className='decoration-foreground/30 hover:decoration-foreground truncate font-medium underline decoration-1 underline-offset-4 transition-colors'
-        title={formatChannelLabel(channelId, channelName)}
-      >
-        {formatChannelLabel(channelId, channelName)}
-      </Link>
+      {href ? (
+        <a
+          href={href}
+          target='_blank'
+          rel='noopener noreferrer'
+          className='decoration-foreground/30 hover:decoration-foreground truncate font-medium underline decoration-1 underline-offset-4 transition-colors'
+          title={href}
+        >
+          {label}
+        </a>
+      ) : (
+        <span className='truncate font-medium' title={label}>
+          {label}
+        </span>
+      )}
       <span className='text-muted-foreground text-xs'>ID: {channelId}</span>
     </div>
   )
@@ -412,6 +434,7 @@ export function ModelRouteAdmin() {
                         <ChannelNameLink
                           channelId={row.channel_id}
                           channelName={row.channel_name}
+                          baseUrl={row.base_url}
                         />
                       </td>
                       <td className='p-2.5 font-mono text-xs'>
@@ -512,6 +535,7 @@ export function ModelRouteAdmin() {
                         <ChannelNameLink
                           channelId={row.channel_id}
                           channelName={row.channel_name}
+                          baseUrl={row.base_url}
                         />
                       </td>
                       <td className='p-2.5 font-mono text-xs'>
