@@ -36,6 +36,8 @@ const routerMap = {
   token: '/console/token',
   redemption: '/console/redemption',
   topup: '/console/topup',
+  invite_rebate: '/console/invite-rebate',
+  invite_rebate_admin: '/console/invite-rebate/admin',
   user: '/console/user',
   subscription: '/console/subscription',
   log: '/console/log',
@@ -130,6 +132,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/topup',
       },
       {
+        text: t('邀请充值返佣'),
+        itemKey: 'invite_rebate',
+        to: '/invite-rebate',
+      },
+      {
         text: t('个人设置'),
         itemKey: 'personal',
         to: '/personal',
@@ -181,6 +188,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('用户管理'),
         itemKey: 'user',
         to: '/user',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('邀请返佣审计'),
+        itemKey: 'invite_rebate_admin',
+        to: '/invite-rebate/admin',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
