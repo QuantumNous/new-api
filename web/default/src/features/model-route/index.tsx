@@ -228,6 +228,7 @@ export function ModelRouteAdmin() {
   )
   const [batchBusy, setBatchBusy] = useState(false)
   const [batchActionKey, setBatchActionKey] = useState(0)
+  const [rowActionKey, setRowActionKey] = useState(0)
   const [priorityBusy, setPriorityBusy] = useState(false)
 
   // Always load full lists; filter client-side for substring match (e.g. "4.5" → grok-4.5).
@@ -339,6 +340,7 @@ export function ModelRouteAdmin() {
         return
       }
       toast.success(t('Action applied'))
+      setRowActionKey((v) => v + 1)
       void qc.invalidateQueries({ queryKey: ['model-route-metrics'] })
     },
     onError: (err: Error) => toast.error(err.message),
@@ -501,6 +503,26 @@ export function ModelRouteAdmin() {
   const isRefreshing = policyQuery.isFetching || metricsQuery.isFetching
   const rowActionDisabled = batchBusy
 
+  const handleRefresh = async () => {
+    if (isRefreshing) return
+    try {
+      const results = await Promise.all([
+        policyQuery.refetch({ cancelRefetch: false }),
+        metricsQuery.refetch({ cancelRefetch: false }),
+      ])
+      const failed = results.some((r) => r.isError || r.error)
+      if (failed) {
+        toast.error(t('Refresh failed'))
+        return
+      }
+      setRowActionKey((v) => v + 1)
+      setBatchActionKey((v) => v + 1)
+      toast.success(t('Refreshed'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('Refresh failed'))
+    }
+  }
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Model Route')}</SectionPageLayout.Title>
@@ -538,8 +560,7 @@ export function ModelRouteAdmin() {
             className='h-8'
             disabled={isRefreshing}
             onClick={() => {
-              void policyQuery.refetch()
-              void metricsQuery.refetch()
+              void handleRefresh()
             }}
           >
             <RefreshCw
@@ -901,6 +922,7 @@ export function ModelRouteAdmin() {
                         <td className='p-2.5'>
                           <div className='flex flex-wrap items-center gap-1.5'>
                             <Select
+                              key={`${key}:${rowActionKey}`}
                               disabled={rowActionDisabled}
                               onValueChange={(action) => {
                                 if (
