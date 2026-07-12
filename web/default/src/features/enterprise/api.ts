@@ -16,7 +16,19 @@ import type {
   EnterpriseMembership,
   EnterpriseTag,
   JoinRequest,
+  PaginatedData,
 } from "./types";
+
+export type MemberFilters = {
+  keyword?: string;
+  tag_ids?: number[];
+  invitation_ids?: number[];
+  reviewed_by?: number[];
+  joined_from?: number;
+  joined_to?: number;
+  page?: number;
+  page_size?: number;
+};
 
 async function getData<T>(path: string, params?: Record<string, unknown>) {
   const response = await api.get<ApiResponse<T>>(path, { params });
@@ -39,25 +51,64 @@ export const enterpriseApi = {
       name,
       admin_user_id: adminUserId,
     }),
-  listMembers: (params?: Record<string, unknown>) =>
-    getData<EnterpriseMember[]>("/api/enterprise/me/members", params),
+  listMembers: (filters: MemberFilters = {}) => {
+    const params: Record<string, string | number> = {};
+    if (filters.keyword) {
+      params.keyword = filters.keyword;
+    }
+    if (filters.tag_ids?.length) {
+      params.tag_ids = filters.tag_ids.join(",");
+    }
+    if (filters.invitation_ids?.length) {
+      params.invitation_ids = filters.invitation_ids.join(",");
+    }
+    if (filters.reviewed_by?.length) {
+      params.reviewed_by = filters.reviewed_by.join(",");
+    }
+    if (filters.joined_from) {
+      params.joined_from = filters.joined_from;
+    }
+    if (filters.joined_to) {
+      params.joined_to = filters.joined_to;
+    }
+    if (filters.page) {
+      params.p = filters.page;
+    }
+    if (filters.page_size) {
+      params.page_size = filters.page_size;
+    }
+    return getData<PaginatedData<EnterpriseMember>>(
+      "/api/enterprise/me/members",
+      Object.keys(params).length ? params : undefined,
+    );
+  },
   removeMember: (userId: number) =>
     postData(`/api/enterprise/me/members/${userId}/remove`),
+  updateMember: (userId: number, nickname: string) =>
+    api
+      .put<ApiResponse<unknown>>(`/api/enterprise/me/members/${userId}`, {
+        nickname,
+      })
+      .then((response) => response.data),
   listTags: () => getData<EnterpriseTag[]>("/api/enterprise/me/tags"),
   createTag: (name: string) =>
     postData<EnterpriseTag>("/api/enterprise/me/tags", { name }),
   deleteTag: (id: number) => api.delete(`/api/enterprise/me/tags/${id}`),
   assignTags: (userId: number, tagIds: number[]) =>
     postData(`/api/enterprise/me/members/${userId}/tags`, { tag_ids: tagIds }),
-  listInvitations: (status?: "active" | "all") =>
-    getData<EnterpriseInvitation[]>(
+  listInvitations: (status?: "active" | "all", keyword?: string) => {
+    const params: Record<string, string> = {};
+    if (status) params.status = status;
+    if (keyword) params.keyword = keyword;
+    return getData<EnterpriseInvitation[]>(
       "/api/enterprise/me/invitations",
-      status ? { status } : undefined,
-    ),
+      Object.keys(params).length ? params : undefined,
+    );
+  },
   createInvitation: (
     maxUses: number,
     expiredAt: number,
-    name: string | undefined,
+    name: string,
     approveMode: number,
   ) =>
     postData<EnterpriseInvitation>("/api/enterprise/me/invitations", {

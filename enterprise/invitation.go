@@ -34,11 +34,27 @@ func createInvitation(c *gin.Context) {
 		return
 	}
 	name := strings.TrimSpace(request.Name)
+	if name == "" {
+		failureI18n(c, http.StatusBadRequest, i18n.MsgEnterpriseInvitationNameRequired)
+		return
+	}
 	if len([]rune(name)) > 128 {
 		failureI18n(c, http.StatusBadRequest, i18n.MsgEnterpriseInvitationNameTooLong)
 		return
 	}
-	invitation := Invitation{EnterpriseId: enterpriseID(c), Name: name, Status: InvitationStatusEnabled, ApproveMode: approveMode, MaxUses: request.MaxUses, ExpiredAt: request.ExpiredAt, CreatedBy: c.GetInt("id"), CreatedTime: now()}
+	eid := enterpriseID(c)
+	// Pre-check name uniqueness so we return a specific error instead of
+	// colliding on the code-retry loop (which would mask the name conflict).
+	var existing int64
+	if err := model.DB.Model(&Invitation{}).Where("enterprise_id = ? AND name = ?", eid, name).Count(&existing).Error; err != nil {
+		failureI18n(c, http.StatusInternalServerError, i18n.MsgEnterpriseInvitationCreateFailed)
+		return
+	}
+	if existing > 0 {
+		failureI18n(c, http.StatusBadRequest, i18n.MsgEnterpriseInvitationNameExists)
+		return
+	}
+	invitation := Invitation{EnterpriseId: eid, Name: name, Status: InvitationStatusEnabled, ApproveMode: approveMode, MaxUses: request.MaxUses, ExpiredAt: request.ExpiredAt, CreatedBy: c.GetInt("id"), CreatedTime: now()}
 	for attempts := 0; attempts < 4; attempts++ {
 		code, err := invitationCode()
 		if err != nil {
@@ -49,10 +65,11 @@ func createInvitation(c *gin.Context) {
 		if err := model.DB.Create(&invitation).Error; err == nil {
 			success(c, invitation)
 			return
-		} else if err != nil && !isDuplicateError(err) {
+		} else if !isDuplicateError(err) {
 			failureI18n(c, http.StatusInternalServerError, i18n.MsgEnterpriseInvitationCreateFailed)
 			return
 		}
+		// Duplicate on Create can only be a code collision now (name pre-checked); retry.
 	}
 	failureI18n(c, http.StatusInternalServerError, i18n.MsgEnterpriseInvitationCreateFailed)
 }
@@ -62,6 +79,9 @@ func listInvitations(c *gin.Context) {
 	query := model.DB.Where("enterprise_id = ?", enterpriseID(c))
 	if c.Query("status") != "all" {
 		query = query.Where("status = ?", InvitationStatusEnabled)
+	}
+	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
+		query = query.Where("name LIKE ? OR code LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
 	}
 	if err := query.Order("id DESC").Find(&invitations).Error; err != nil {
 		failureI18n(c, http.StatusInternalServerError, i18n.MsgEnterpriseInvitationListFailed)

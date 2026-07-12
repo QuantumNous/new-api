@@ -37,6 +37,7 @@ export type EnterpriseMember = {
   user_id: number;
   username: string;
   display_name: string;
+  nickname: string;
   remark: string;
   quota: number;
   role: number;
@@ -77,4 +78,11 @@ export type ApiResponse<T> = {
   success: boolean;
   data: T;
   message?: string;
+};
+
+export type PaginatedData<T> = {
+  page: number;
+  page_size: number;
+  total: number;
+  items: T[];
 };

@@ -37,6 +37,7 @@ func RegisterRoutes(api *gin.RouterGroup) {
 	{
 		managerRoutes.GET("/members", listMembers)
 		managerRoutes.GET("/members/:uid", getMember)
+		managerRoutes.PUT("/members/:uid", updateMember)
 		managerRoutes.POST("/members/:uid/remove", removeMember)
 		managerRoutes.POST("/members/:uid/tags", assignTags)
 		managerRoutes.DELETE("/members/:uid/tags/:tid", removeTag)

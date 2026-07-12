@@ -13,6 +13,7 @@ type enterpriseMemberResponse struct {
 	UserId         int    `json:"user_id"`
 	Username       string `json:"username"`
 	DisplayName    string `json:"display_name"`
+	Nickname       string `json:"nickname"`
 	Remark         string `json:"remark"`
 	Quota          int    `json:"quota"`
 	Role           int    `json:"role"`
@@ -40,7 +41,7 @@ type memberRecord struct {
 func (record memberRecord) response(tags []Tag) enterpriseMemberResponse {
 	return enterpriseMemberResponse{
 		Id: record.Id, UserId: record.UserId, Username: record.Username,
-		DisplayName: record.DisplayName, Remark: record.Remark, Quota: record.Quota, Role: record.Role,
+		DisplayName: record.DisplayName, Nickname: record.Nickname, Remark: record.Remark, Quota: record.Quota, Role: record.Role,
 		JoinedAt: record.JoinedAt, InvitationId: record.InvitationId, InvitationName: record.InvitationName,
 		InvitationCode: record.InvitationCode, ReviewedBy: record.ReviewedBy, ReviewedName: record.ReviewedName,
 		ReviewedAt: record.ReviewedAt, Tags: tags,
@@ -97,6 +98,10 @@ type createTagRequest struct {
 
 type assignTagsRequest struct {
 	TagIds []int `json:"tag_ids"`
+}
+
+type updateMemberRequest struct {
+	Nickname *string `json:"nickname"`
 }
 
 type distributeQuotaRequest struct {

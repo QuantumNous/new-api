@@ -42,25 +42,26 @@ type Enterprise struct {
 func (Enterprise) TableName() string { return "enterprises" }
 
 type Member struct {
-	Id           int   `json:"id"`
-	EnterpriseId int   `json:"enterprise_id" gorm:"uniqueIndex:idx_enterprise_member;index;not null"`
-	UserId       int   `json:"user_id" gorm:"uniqueIndex:idx_enterprise_member;index;not null"`
-	Role         int   `json:"role" gorm:"not null"`
-	Status       int   `json:"status" gorm:"index;not null"`
-	JoinedAt     int64 `json:"joined_at" gorm:"not null"`
-	RemovedAt    int64 `json:"removed_at" gorm:"not null"`
-	InvitationId int   `json:"invitation_id" gorm:"index"`
-	ReviewedBy   int   `json:"reviewed_by" gorm:"index"`
-	ReviewedAt   int64 `json:"reviewed_at"`
+	Id           int    `json:"id"`
+	EnterpriseId int    `json:"enterprise_id" gorm:"uniqueIndex:idx_enterprise_member;index;not null"`
+	UserId       int    `json:"user_id" gorm:"uniqueIndex:idx_enterprise_member;index;not null"`
+	Role         int    `json:"role" gorm:"not null"`
+	Status       int    `json:"status" gorm:"index;not null"`
+	JoinedAt     int64  `json:"joined_at" gorm:"not null"`
+	RemovedAt    int64  `json:"removed_at" gorm:"not null"`
+	InvitationId int    `json:"invitation_id" gorm:"index"`
+	ReviewedBy   int    `json:"reviewed_by" gorm:"index"`
+	ReviewedAt   int64  `json:"reviewed_at"`
+	Nickname     string `json:"nickname" gorm:"size:32"`
 }
 
 func (Member) TableName() string { return "enterprise_members" }
 
 type Invitation struct {
 	Id           int    `json:"id"`
-	EnterpriseId int    `json:"enterprise_id" gorm:"index;not null"`
+	EnterpriseId int    `json:"enterprise_id" gorm:"index;not null;uniqueIndex:uniq_enterprise_invitation_name"`
 	Code         string `json:"code" gorm:"size:32;uniqueIndex;not null"`
-	Name         string `json:"name" gorm:"size:128"`
+	Name         string `json:"name" gorm:"size:128;not null;uniqueIndex:uniq_enterprise_invitation_name"`
 	Status       int    `json:"status" gorm:"index;not null"`
 	ApproveMode  int    `json:"approve_mode"`
 	MaxUses      int    `json:"max_uses" gorm:"not null"`

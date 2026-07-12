@@ -13,7 +13,17 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/design-system/button";
 import { Input } from "@/components/design-system/input";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/design-system/pagination";
 import { SectionPageLayout } from "@/components/layout";
+import { MultiSelect } from "@/components/multi-select";
+import { CompactDateTimeRangePicker } from "@/features/usage-logs/components/compact-date-time-range-picker";
 import dayjs from "@/lib/dayjs";
 import { formatQuota, parseQuotaFromDollars } from "@/lib/format";
 import { ROLE } from "@/lib/roles";
@@ -253,14 +263,46 @@ function EnterpriseAdminPanel() {
   );
   const [tagMember, setTagMember] = useState<EnterpriseMember | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [nicknameMember, setNicknameMember] =
+    useState<EnterpriseMember | null>(null);
+  const [nicknameValue, setNicknameValue] = useState("");
+  const [memberKeyword, setMemberKeyword] = useState("");
   const [filterTagIds, setFilterTagIds] = useState<number[]>([]);
+  const [filterInvitationIds, setFilterInvitationIds] = useState<number[]>([]);
+  const [filterReviewerIds, setFilterReviewerIds] = useState<number[]>([]);
+  const [joinedFrom, setJoinedFrom] = useState<Date | undefined>(undefined);
+  const [joinedTo, setJoinedTo] = useState<Date | undefined>(undefined);
+  const [memberPage, setMemberPage] = useState(1);
+  const [memberPageSize, setMemberPageSize] = useState(10);
   const [showRevoked, setShowRevoked] = useState(false);
   const membersQuery = useQuery({
-    queryKey: [...ENTERPRISE_QUERY_KEY, "members", filterTagIds],
+    queryKey: [
+      ...ENTERPRISE_QUERY_KEY,
+      "members",
+      memberKeyword,
+      filterTagIds,
+      filterInvitationIds,
+      filterReviewerIds,
+      joinedFrom,
+      joinedTo,
+      memberPage,
+      memberPageSize,
+    ],
     queryFn: () =>
-      enterpriseApi.listMembers(
-        filterTagIds.length ? { tag_ids: filterTagIds.join(",") } : undefined,
-      ),
+      enterpriseApi.listMembers({
+        keyword: memberKeyword.trim() || undefined,
+        tag_ids: filterTagIds.length ? filterTagIds : undefined,
+        invitation_ids: filterInvitationIds.length
+          ? filterInvitationIds
+          : undefined,
+        reviewed_by: filterReviewerIds.length ? filterReviewerIds : undefined,
+        joined_from: joinedFrom
+          ? Math.floor(joinedFrom.getTime() / 1000)
+          : undefined,
+        joined_to: joinedTo ? Math.floor(joinedTo.getTime() / 1000) : undefined,
+        page: memberPage,
+        page_size: memberPageSize,
+      }),
   });
   const tagsQuery = useQuery({
     queryKey: [...ENTERPRISE_QUERY_KEY, "tags"],
@@ -318,7 +360,7 @@ function EnterpriseAdminPanel() {
       enterpriseApi.createInvitation(
         maxUses.trim() === "" ? -1 : Number(maxUses),
         0,
-        inviteName.trim() || undefined,
+        inviteName.trim(),
         approveMode,
       ),
     onSuccess: async (response) => {
@@ -353,6 +395,20 @@ function EnterpriseAdminPanel() {
         setTagMember(null);
         setSelectedTagIds([]);
         toast.success(t("Member tags updated"));
+        await refresh();
+      }
+    },
+  });
+  const updateNicknameMutation = useMutation({
+    mutationFn: () =>
+      nicknameMember
+        ? enterpriseApi.updateMember(nicknameMember.user_id, nicknameValue)
+        : Promise.resolve(null),
+    onSuccess: async (response) => {
+      if (!response || response.success) {
+        setNicknameMember(null);
+        setNicknameValue("");
+        toast.success(t("Member nickname updated"));
         await refresh();
       }
     },
@@ -396,6 +452,7 @@ function EnterpriseAdminPanel() {
   };
   const submitInvitation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!inviteName.trim()) return;
     if (
       maxUses.trim() === "" ||
       Number(maxUses) === -1 ||
@@ -414,14 +471,51 @@ function EnterpriseAdminPanel() {
         ? current.filter((id) => id !== tagId)
         : [...current, tagId],
     );
-  const toggleFilterTag = (tagId: number) =>
-    setFilterTagIds((current) =>
-      current.includes(tagId)
-        ? current.filter((id) => id !== tagId)
-        : [...current, tagId],
-    );
   const formatTime = (ts: number) =>
     ts > 0 ? dayjs(ts * 1000).format("YYYY-MM-DD HH:mm") : "-";
+
+  // Build dropdown options for filters
+  const tagOptions = (tagsQuery.data?.data ?? []).map((tag) => ({
+    label: tag.name,
+    value: String(tag.id),
+  }));
+  const invitationOptions = (invitationsQuery.data?.data ?? []).map((inv) => ({
+    label: inv.name,
+    value: String(inv.id),
+  }));
+  // Reviewers are extracted from all members across pages — but since we only
+  // have the current page, we derive reviewers from the members we've loaded.
+  // For a complete list, we use the current page's unique reviewers.
+  const reviewerMap = new Map<number, string>();
+  for (const m of membersQuery.data?.data?.items ?? []) {
+    if (m.reviewed_by > 0) {
+      reviewerMap.set(m.reviewed_by, m.reviewed_name || `#${m.reviewed_by}`);
+    }
+  }
+  const reviewerOptions = [...reviewerMap.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([id, name]) => ({ label: name, value: String(id) }));
+
+  const totalMembers = membersQuery.data?.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalMembers / memberPageSize));
+  const pageMembers = membersQuery.data?.data?.items ?? [];
+  const selectableMembers = pageMembers.filter((m) => !isSelf(m));
+  const allOnPageSelected =
+    selectableMembers.length > 0 &&
+    selectableMembers.every((m) => selectedMembers.includes(m.user_id));
+  const toggleSelectAll = () => {
+    if (allOnPageSelected) {
+      const pageIds = new Set(selectableMembers.map((m) => m.user_id));
+      setSelectedMembers((current) => current.filter((id) => !pageIds.has(id)));
+    } else {
+      setSelectedMembers((current) => [
+        ...current,
+        ...selectableMembers
+          .filter((m) => !current.includes(m.user_id))
+          .map((m) => m.user_id),
+      ]);
+    }
+  };
 
   return (
     <div className="grid gap-4">
@@ -449,37 +543,76 @@ function EnterpriseAdminPanel() {
             </Button>
           </form>
         </div>
-        {(tagsQuery.data?.data ?? []).length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-muted-foreground text-xs">
-              {t("Filter by tag")}:
-            </span>
-            {(tagsQuery.data?.data ?? []).map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                onClick={() => toggleFilterTag(tag.id)}
-                className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${filterTagIds.includes(tag.id) ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}
-              >
-                {tag.name}
-              </button>
-            ))}
-            {filterTagIds.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setFilterTagIds([])}
-                className="text-muted-foreground text-xs underline"
-              >
-                {t("Clear")}
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
+          <Input
+            value={memberKeyword}
+            onChange={(event) => {
+              setMemberKeyword(event.target.value);
+              setMemberPage(1);
+            }}
+            placeholder={t("Search users")}
+            aria-label={t("Search users")}
+            className="w-[160px] shrink-0"
+          />
+          {tagOptions.length > 0 && (
+            <MultiSelect
+              options={tagOptions}
+              selected={filterTagIds.map(String)}
+              onChange={(vals) => {
+                setFilterTagIds(vals.map(Number));
+                setMemberPage(1);
+              }}
+              placeholder={t("Filter by tag")}
+              className="w-[160px] shrink-0"
+            />
+          )}
+          {invitationOptions.length > 0 && (
+            <MultiSelect
+              options={invitationOptions}
+              selected={filterInvitationIds.map(String)}
+              onChange={(vals) => {
+                setFilterInvitationIds(vals.map(Number));
+                setMemberPage(1);
+              }}
+              placeholder={t("Filter by invitation")}
+              className="w-[160px] shrink-0"
+            />
+          )}
+          {reviewerOptions.length > 0 && (
+            <MultiSelect
+              options={reviewerOptions}
+              selected={filterReviewerIds.map(String)}
+              onChange={(vals) => {
+                setFilterReviewerIds(vals.map(Number));
+                setMemberPage(1);
+              }}
+              placeholder={t("Filter by reviewer")}
+              className="w-[160px] shrink-0"
+            />
+          )}
+          <CompactDateTimeRangePicker
+            start={joinedFrom}
+            end={joinedTo}
+            onChange={({ start, end }) => {
+              setJoinedFrom(start);
+              setJoinedTo(end);
+              setMemberPage(1);
+            }}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-muted-foreground border-b">
               <tr>
-                <th className="py-2 font-medium">{t("Select")}</th>
+                <th className="py-2 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={allOnPageSelected}
+                    onChange={toggleSelectAll}
+                    disabled={selectableMembers.length === 0}
+                    aria-label={t("Select all on page")}
+                  />
+                </th>
                 <th className="py-2 font-medium">{t("User")}</th>
                 <th className="py-2 font-medium">{t("Quota")}</th>
                 <th className="py-2 font-medium">{t("Tags")}</th>
@@ -490,7 +623,7 @@ function EnterpriseAdminPanel() {
               </tr>
             </thead>
             <tbody>
-              {membersQuery.data?.data.map((member) => (
+              {(membersQuery.data?.data?.items ?? []).map((member) => (
                 <tr className="border-b last:border-0" key={member.id}>
                   <td className="py-2">
                     {isSelf(member) ? (
@@ -508,6 +641,11 @@ function EnterpriseAdminPanel() {
                   </td>
                   <td className="py-2">
                     {member.display_name || member.username}
+                    {member.nickname && (
+                      <span className="text-muted-foreground ml-1 text-xs">
+                        ({member.nickname})
+                      </span>
+                    )}
                     {isSelf(member) && (
                       <span className="text-muted-foreground ml-1 text-xs">
                         ({t("Admin")})
@@ -542,6 +680,16 @@ function EnterpriseAdminPanel() {
                     <Button
                       size="xs"
                       variant="outline"
+                      onClick={() => {
+                        setNicknameMember(member);
+                        setNicknameValue(member.nickname || "");
+                      }}
+                    >
+                      {t("Set nickname")}
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="outline"
                       onClick={() => openTagEditor(member)}
                     >
                       {t("Set tags")}
@@ -561,6 +709,126 @@ function EnterpriseAdminPanel() {
             </tbody>
           </table>
         </div>
+        {totalMembers > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-muted-foreground text-xs">
+              {t("Total")}: {totalMembers}
+            </span>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => setMemberPage((p) => Math.max(1, p - 1))}
+                    className={
+                      memberPage <= 1
+                        ? "pointer-events-none opacity-50"
+                        : undefined
+                    }
+                  />
+                </PaginationItem>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(
+                    (p) =>
+                      p === 1 ||
+                      p === totalPages ||
+                      Math.abs(p - memberPage) <= 1,
+                  )
+                  .map((p, idx, arr) => (
+                    <PaginationItem key={p}>
+                      {idx > 0 && arr[idx - 1] !== p - 1 ? (
+                        <span className="text-muted-foreground px-1">…</span>
+                      ) : null}
+                      <PaginationLink
+                        isActive={p === memberPage}
+                        onClick={() => setMemberPage(p)}
+                      >
+                        {p}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() =>
+                      setMemberPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    className={
+                      memberPage >= totalPages
+                        ? "pointer-events-none opacity-50"
+                        : undefined
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+            <select
+              className="border-border bg-background rounded-md border px-2 py-1 text-xs"
+              value={memberPageSize}
+              onChange={(event) => {
+                setMemberPageSize(Number(event.target.value));
+                setMemberPage(1);
+              }}
+            >
+              {[10, 20, 50].map((size) => (
+                <option key={size} value={size}>
+                  {size} / {t("page")}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {nicknameMember && (
+          <form
+            className="border-border grid gap-3 border-t pt-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (
+                Array.from(nicknameValue.trim()).length > 32
+              ) {
+                return;
+              }
+              updateNicknameMutation.mutate();
+            }}
+          >
+            <div className="text-sm font-medium">
+              {t("Set nickname for {{name}}", {
+                name:
+                  nicknameMember.display_name || nicknameMember.username,
+              })}
+            </div>
+            <Input
+              value={nicknameValue}
+              onChange={(event) => setNicknameValue(event.target.value)}
+              maxLength={32}
+              placeholder={t("Nickname (optional)")}
+              aria-label={t("Nickname (optional)")}
+              className="max-w-xs"
+            />
+            <div className="text-muted-foreground text-xs">
+              {t("Max 32 characters")}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                disabled={
+                  updateNicknameMutation.isPending ||
+                  Array.from(nicknameValue.trim()).length > 32
+                }
+              >
+                {t("Save nickname")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setNicknameMember(null);
+                  setNicknameValue("");
+                }}
+              >
+                {t("Cancel")}
+              </Button>
+            </div>
+          </form>
+        )}
         {tagMember && (
           <form
             className="border-border grid gap-3 border-t pt-4"
@@ -604,7 +872,60 @@ function EnterpriseAdminPanel() {
           </form>
         )}
       </EnterprisePanel>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <EnterprisePanel>
+        <h2 className="text-base font-semibold">{t("Join requests")}</h2>
+        <div className="grid gap-2">
+          {(requestsQuery.data?.data ?? []).length === 0 && (
+            <span className="text-muted-foreground text-sm">
+              {t("No pending requests")}
+            </span>
+          )}
+          {requestsQuery.data?.data.map((request) => (
+            <div
+              className="border-border flex flex-wrap items-center justify-between gap-2 border-b py-2 last:border-0"
+              key={request.id}
+            >
+              <div className="text-sm">
+                <div>
+                  {request.display_name || request.username}{" "}
+                  <span className="text-muted-foreground">
+                    @{request.username}
+                  </span>
+                </div>
+                <div className="text-muted-foreground">
+                  {t("User ID")}:{" "}
+                  <span className="tabular-nums">{request.user_id}</span>
+                </div>
+                {request.remark && (
+                  <div className="text-muted-foreground">
+                    {t("Remark")}: {request.remark}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="xs"
+                  onClick={() =>
+                    reviewMutation.mutate({ id: request.id, approve: true })
+                  }
+                >
+                  {t("Approve")}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() =>
+                    reviewMutation.mutate({ id: request.id, approve: false })
+                  }
+                >
+                  {t("Reject")}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </EnterprisePanel>
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         <EnterprisePanel>
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-base font-semibold">{t("Invitation codes")}</h2>
@@ -617,13 +938,17 @@ function EnterpriseAdminPanel() {
               {t("Show revoked")}
             </label>
           </div>
-          <form className="flex flex-wrap gap-2" onSubmit={submitInvitation}>
+          <form
+            className="flex flex-nowrap items-center gap-2 overflow-x-auto"
+            onSubmit={submitInvitation}
+          >
             <Input
               value={inviteName}
               onChange={(event) => setInviteName(event.target.value)}
-              placeholder={t("Invitation name (optional)")}
+              placeholder={t("Invitation name")}
               aria-label={t("Invitation name")}
-              className="min-w-40"
+              className="w-[160px] shrink-0"
+              required
             />
             <Input
               value={maxUses}
@@ -631,6 +956,7 @@ function EnterpriseAdminPanel() {
               inputMode="numeric"
               placeholder={t("Maximum uses (blank = unlimited)")}
               aria-label={t("Maximum uses")}
+              className="w-[180px] shrink-0"
             />
             <div
               className="flex items-center gap-1"
@@ -652,7 +978,12 @@ function EnterpriseAdminPanel() {
                 {t("Manual approval")}
               </button>
             </div>
-            <Button type="submit" disabled={createInvitationMutation.isPending}>
+            <Button
+              type="submit"
+              disabled={
+                createInvitationMutation.isPending || !inviteName.trim()
+              }
+            >
               {t("Create invitation")}
             </Button>
           </form>
@@ -767,54 +1098,6 @@ function EnterpriseAdminPanel() {
           </div>
         </EnterprisePanel>
       </div>
-      <EnterprisePanel>
-        <h2 className="text-base font-semibold">{t("Join requests")}</h2>
-        <div className="grid gap-2">
-          {requestsQuery.data?.data.map((request) => (
-            <div
-              className="border-border flex flex-wrap items-center justify-between gap-2 border-b py-2 last:border-0"
-              key={request.id}
-            >
-              <div className="text-sm">
-                <div>
-                  {request.display_name || request.username}{" "}
-                  <span className="text-muted-foreground">
-                    @{request.username}
-                  </span>
-                </div>
-                <div className="text-muted-foreground">
-                  {t("User ID")}:{" "}
-                  <span className="tabular-nums">{request.user_id}</span>
-                </div>
-                {request.remark && (
-                  <div className="text-muted-foreground">
-                    {t("Remark")}: {request.remark}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="xs"
-                  onClick={() =>
-                    reviewMutation.mutate({ id: request.id, approve: true })
-                  }
-                >
-                  {t("Approve")}
-                </Button>
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={() =>
-                    reviewMutation.mutate({ id: request.id, approve: false })
-                  }
-                >
-                  {t("Reject")}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </EnterprisePanel>
     </div>
   );
 }
