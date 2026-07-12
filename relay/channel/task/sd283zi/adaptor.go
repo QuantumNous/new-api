@@ -294,6 +294,7 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 	}
 	normalizeCreatePayload(payload)
 	applyVolcNormalized(payload, volcNorm)
+	normalize83ziResolution(payload, volcNorm != nil)
 	return payload, nil
 }
 

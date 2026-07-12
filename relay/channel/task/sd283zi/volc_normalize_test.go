@@ -209,6 +209,35 @@ func TestDetectAndNormalizeVolcOfficialSkipMingiz(t *testing.T) {
 	}
 }
 
+func TestCoerce83ziResolution(t *testing.T) {
+	tests := []struct {
+		in       string
+		fromVolc bool
+		want     string
+	}{
+		{"720p", false, "720p"},
+		{"1080p", false, "1080p"},
+		{"480p", false, "720p"},
+		{"", false, ""},
+		{"", true, "720p"},
+		{"2k", true, "720p"},
+	}
+	for _, tt := range tests {
+		got := coerce83ziResolution(tt.in, tt.fromVolc)
+		if got != tt.want {
+			t.Fatalf("coerce83ziResolution(%q, %v) = %q, want %q", tt.in, tt.fromVolc, got, tt.want)
+		}
+	}
+}
+
+func TestNormalize83ziResolutionCoerces480p(t *testing.T) {
+	payload := map[string]interface{}{"resolution": "480p"}
+	normalize83ziResolution(payload, true)
+	if payload["resolution"] != "720p" {
+		t.Fatalf("resolution = %v, want 720p", payload["resolution"])
+	}
+}
+
 func TestConvertCreatePayloadVolcOfficial(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := `{
@@ -220,7 +249,7 @@ func TestConvertCreatePayloadVolcOfficial(t *testing.T) {
 			{"type":"audio_url","audio_url":{"url":"https://example.com/bg.mp3"}}
 		],
 		"ratio":"16:9",
-		"resolution":"720p",
+		"resolution":"480p",
 		"duration":10
 	}`
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -235,7 +264,7 @@ func TestConvertCreatePayloadVolcOfficial(t *testing.T) {
 	req := &relaycommon.TaskSubmitReq{
 		Model:      "mingiz-sd2",
 		Ratio:      "16:9",
-		Resolution: "720p",
+		Resolution: "480p",
 		Duration:   10,
 	}
 	info := &relaycommon.RelayInfo{
@@ -258,6 +287,9 @@ func TestConvertCreatePayloadVolcOfficial(t *testing.T) {
 	}
 	if payload["ratio"] != "16:9" {
 		t.Fatalf("ratio = %v", payload["ratio"])
+	}
+	if payload["resolution"] != "720p" {
+		t.Fatalf("resolution = %v, want 720p (coerced from 480p)", payload["resolution"])
 	}
 	if payload["generate_audio"] != true {
 		t.Fatalf("generate_audio = %v", payload["generate_audio"])

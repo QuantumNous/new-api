@@ -172,3 +172,38 @@ func isEmptySlice(v interface{}) bool {
 		return false
 	}
 }
+
+// normalize83ziResolution coerces resolution to values accepted by 83zi / 星河
+// multi-image API (720p or 1080p only). Volc official clients often send 480p.
+// When fromVolc is true and resolution is missing, default to 720p.
+func normalize83ziResolution(payload map[string]interface{}, fromVolc bool) {
+	raw, _ := payload["resolution"].(string)
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	normalized := coerce83ziResolution(raw, fromVolc)
+	if normalized == "" {
+		delete(payload, "resolution")
+		return
+	}
+	if raw != "" && raw != normalized {
+		common.SysLog(fmt.Sprintf(
+			"[83zi] resolution %q not supported by upstream (720p/1080p only), coerced to %q",
+			raw, normalized,
+		))
+	}
+	payload["resolution"] = normalized
+}
+
+func coerce83ziResolution(res string, fromVolc bool) string {
+	switch res {
+	case "720p", "1080p":
+		return res
+	case "":
+		if fromVolc {
+			return "720p"
+		}
+		return ""
+	default:
+		// 480p / 480P / other volcano values → 720p
+		return "720p"
+	}
+}

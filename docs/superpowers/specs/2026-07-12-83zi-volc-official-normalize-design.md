@@ -62,8 +62,11 @@
 | 顶层 `duration` | `duration` |
 | 顶层 `generate_audio` | `generate_audio`；缺省 `true` |
 | 顶层 `watermark` | `watermark`；缺省 `false` |
+| 顶层 `resolution` | 仅保留 `720p` / `1080p`；`480p` 等强制改为 `720p`；火山格式缺省时补 `720p` |
 
 模型名不改，仍走 `resolveUpstreamModel`。
+
+> 上游「9图 API」清晰度只支持 720p/1080p；火山客户端常传 480p，转换时自动纠正。
 
 ## 日志
 
