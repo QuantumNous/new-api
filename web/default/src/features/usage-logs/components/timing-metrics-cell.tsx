@@ -74,7 +74,10 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
   return (
     <div
       className={cn(
-        'flex min-w-0 flex-col justify-center gap-0.5 text-xs leading-tight',
+        // Mobile cards render this cell in a label-left/value-right row
+        // (data-table-card-value): lines hug the right edge and use the
+        // card's standard value size instead of the dense table size.
+        'flex min-w-0 flex-col justify-center gap-0.5 text-xs leading-tight in-data-[slot=data-table-card-value]:items-end in-data-[slot=data-table-card-value]:text-sm',
         props.className
       )}
     >
@@ -124,7 +127,7 @@ export function StreamTpsCell(props: StreamTpsCellProps) {
   return (
     <div
       className={cn(
-        'flex shrink-0 flex-col items-start justify-center gap-0.5 text-xs leading-tight',
+        'flex shrink-0 flex-col items-start justify-center gap-0.5 text-xs leading-tight in-data-[slot=data-table-card-value]:items-end',
         props.className
       )}
     >

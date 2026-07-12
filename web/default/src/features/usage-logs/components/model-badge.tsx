@@ -164,7 +164,10 @@ function ModelBadgeContent(
         appearance='soft'
         size='sm'
         className={cn(
-          'h-5! max-w-none shrink-0 whitespace-nowrap! [&_[data-slot=status-badge-label]]:whitespace-nowrap!',
+          // Height comes from the badge size tier (and the optional
+          // `data-theme-badge` axis); pinning it here with `h-5!` would
+          // block the user-facing badge size setting.
+          'max-w-none shrink-0 whitespace-nowrap! [&_[data-slot=status-badge-label]]:whitespace-nowrap!',
           colorClassName,
           props.className
         )}
@@ -181,7 +184,7 @@ function ModelBadgeContent(
       appearance='soft'
       size='sm'
       className={cn(
-        'h-5! max-w-none shrink-0 whitespace-nowrap! [&_[data-slot=status-badge-label]]:whitespace-nowrap!',
+        'max-w-none shrink-0 whitespace-nowrap! [&_[data-slot=status-badge-label]]:whitespace-nowrap!',
         colorClassName,
         props.className
       )}

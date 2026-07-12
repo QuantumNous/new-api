@@ -81,12 +81,15 @@ export function CommonLogsStats() {
     placeholderData: (previousData) => previousData,
   })
 
+  // Mirrors the loaded stat badges below: same wrapping row, and pill widths
+  // matching the typical rendered size of "Usage ¥…", "RPM n", "TPM n" so the
+  // row stays on one line on phones (~304px incl. gaps) without layout shift.
   if (isLoading) {
     return (
-      <div className='flex items-center gap-2'>
-        <Skeleton className='h-7 w-[150px] rounded-md' />
-        <Skeleton className='h-7 w-[100px] rounded-md' />
-        <Skeleton className='h-7 w-[120px] rounded-md' />
+      <div className='flex flex-wrap items-center gap-2'>
+        <Skeleton className='h-6 w-28 rounded-full' />
+        <Skeleton className='h-6 w-20 rounded-full' />
+        <Skeleton className='h-6 w-24 rounded-full' />
       </div>
     )
   }

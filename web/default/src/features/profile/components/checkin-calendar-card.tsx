@@ -228,11 +228,13 @@ export function CheckinCalendarCard({
       <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         <div className='p-4 sm:p-5'>
           <div className='flex items-start justify-between gap-4'>
-            <div className='space-y-2'>
-              <Skeleton className='h-5 w-32' />
-              <Skeleton className='h-4 w-56' />
+            {/* min-w-0 + max-w-full let the fixed-width lines clamp to the
+                card on narrow screens instead of overflowing. */}
+            <div className='min-w-0 space-y-2'>
+              <Skeleton className='h-5 w-32 max-w-full' />
+              <Skeleton className='h-4 w-56 max-w-full' />
             </div>
-            <Skeleton className='h-8 w-28 rounded-md' />
+            <Skeleton className='h-8 w-28 shrink-0 rounded-md' />
           </div>
         </div>
       </Card>

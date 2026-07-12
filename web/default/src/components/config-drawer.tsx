@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Radio as RadioPrimitive } from '@base-ui/react/radio'
 import { RadioGroup as Radio } from '@base-ui/react/radio-group'
 import { CircleCheck, Palette, RotateCcw } from 'lucide-react'
-import { type SVGProps } from 'react'
+import type { SVGProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconDir } from '@/assets/custom/icon-dir'
@@ -56,6 +56,7 @@ import { useTheme } from '@/context/theme-provider'
 import {
   type ContentLayout,
   THEME_PRESETS,
+  type ThemeBadgeSize,
   type ThemeFont,
   type ThemePreset,
   type ThemeRadius,
@@ -121,6 +122,7 @@ export function ConfigDrawer({
           <FontConfig />
           <RadiusConfig />
           <ScaleConfig />
+          <BadgeSizeConfig />
           {showLayoutControls && (
             <>
               <SidebarConfig />
@@ -517,13 +519,15 @@ function ScalePreview(props: { rows: number; rowGap: string }) {
       className='absolute inset-2.5 flex flex-col justify-center'
       style={{ gap: props.rowGap }}
     >
-      {Array.from({ length: props.rows }).map((_, i) => (
-        <span
-          key={i}
-          className='bg-foreground/60 block h-[2px] rounded-full'
-          style={{ width: `${85 - i * 10}%` }}
-        />
-      ))}
+      {Array.from({ length: props.rows }, (_, i) => `${85 - i * 10}%`).map(
+        (width) => (
+          <span
+            key={width}
+            className='bg-foreground/60 block h-[2px] rounded-full'
+            style={{ width }}
+          />
+        )
+      )}
     </div>
   )
 }
@@ -578,6 +582,89 @@ function ScaleConfig() {
                 aria-hidden='true'
               />
               <ScalePreview rows={option.rows} rowGap={option.rowGap} />
+            </div>
+            <div className='mt-1.5 truncate text-center text-xs'>
+              {option.label}
+            </div>
+          </Item>
+        ))}
+      </Radio>
+    </div>
+  )
+}
+
+/**
+ * Mock pill rendered inside the badge-size preview tiles. Each option shows
+ * the pill at the proportions that size will actually produce.
+ */
+function BadgeSizePreview(props: { height: string; fontSize: string }) {
+  return (
+    <div
+      aria-hidden='true'
+      className='absolute inset-0 flex items-center justify-center'
+    >
+      <span
+        className='border-foreground/50 text-foreground/70 inline-flex items-center rounded-full border px-2 leading-none font-medium'
+        style={{ height: props.height, fontSize: props.fontSize }}
+      >
+        Abc
+      </span>
+    </div>
+  )
+}
+
+function BadgeSizeConfig() {
+  const { t } = useTranslation()
+  const { defaults, customization, setBadgeSize } = useThemeCustomization()
+  const badgeSizeOptions: {
+    value: ThemeBadgeSize
+    label: string
+    height: string
+    fontSize: string
+  }[] = [
+    { value: 'default', label: t('Compact'), height: '20px', fontSize: '11px' },
+    { value: 'lg', label: t('Comfortable'), height: '24px', fontSize: '12px' },
+    { value: 'xl', label: t('Super Large'), height: '28px', fontSize: '13px' },
+  ]
+  return (
+    <div>
+      <SectionTitle
+        title={t('Badge size')}
+        showReset={customization.badgeSize !== defaults.badgeSize}
+        onReset={() => setBadgeSize(defaults.badgeSize)}
+      />
+      <Radio
+        value={customization.badgeSize}
+        onValueChange={(v) => setBadgeSize(v as ThemeBadgeSize)}
+        className='grid w-full grid-cols-3 gap-3'
+        aria-label={t('Select badge size')}
+      >
+        {badgeSizeOptions.map((option) => (
+          <Item
+            key={option.value}
+            value={option.value}
+            className='group flex flex-col items-stretch outline-none'
+            aria-label={option.label}
+          >
+            <div
+              className={cn(
+                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-focus-visible:ring-2',
+                'group-hover:ring-primary/60'
+              )}
+            >
+              <CircleCheck
+                className={cn(
+                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'group-data-unchecked:hidden'
+                )}
+                aria-hidden='true'
+              />
+              <BadgeSizePreview
+                height={option.height}
+                fontSize={option.fontSize}
+              />
             </div>
             <div className='mt-1.5 truncate text-center text-xs'>
               {option.label}

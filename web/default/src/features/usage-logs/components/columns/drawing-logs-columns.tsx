@@ -94,8 +94,10 @@ export function useDrawingLogsColumns(
         const submitTime = row.getValue('submit_time') as number
 
         return (
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            <span className='text-xs tabular-nums'>
+          // In mobile cards this cell sits in a label-left/value-right row
+          // (data-table-card-value); align both lines to the right edge there.
+          <div className='flex min-w-0 flex-col gap-0.5 in-data-[slot=data-table-card-value]:items-end'>
+            <span className='text-xs tabular-nums in-data-[slot=data-table-card-value]:text-sm'>
               {formatTimestampToDate(submitTime, 'milliseconds')}
             </span>
             <StatusBadge

@@ -82,6 +82,14 @@ export const THEME_PRESETS = [
 export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
 export type ThemeRadius = 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
 export type ThemeScale = 'default' | 'sm' | 'lg' | 'xl'
+
+/**
+ * Badge size axis. Controls how "chubby" badges/pills (Badge, StatusBadge)
+ * read, independently of the global density scale. `default` is the compact
+ * redesign look; `lg` restores the pre-redesign pill (larger text, full-pill
+ * corners) and is the site default; `xl` is one step larger for readability.
+ */
+export type ThemeBadgeSize = 'default' | 'lg' | 'xl'
 export type ContentLayout = 'full' | 'centered'
 
 /**
@@ -111,6 +119,7 @@ export type ThemeCustomization = {
   font: ThemeFont
   radius: ThemeRadius
   scale: ThemeScale
+  badgeSize: ThemeBadgeSize
   contentLayout: ContentLayout
 }
 
@@ -119,6 +128,7 @@ export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
   font: 'default',
   radius: 'default',
   scale: 'default',
+  badgeSize: 'lg',
   contentLayout: 'full',
 }
 
@@ -149,6 +159,12 @@ export const THEME_SCALE_VALUES: ReadonlySet<ThemeScale> = new Set([
   'xl',
 ])
 
+export const THEME_BADGE_SIZE_VALUES: ReadonlySet<ThemeBadgeSize> = new Set([
+  'default',
+  'lg',
+  'xl',
+])
+
 export const CONTENT_LAYOUT_VALUES: ReadonlySet<ContentLayout> = new Set([
   'full',
   'centered',
@@ -159,6 +175,7 @@ export const THEME_COOKIE_KEYS = {
   font: 'theme_font',
   radius: 'theme_radius',
   scale: 'theme_scale',
+  badgeSize: 'theme_badge_size',
   contentLayout: 'theme_content_layout',
 } as const
 

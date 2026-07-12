@@ -294,8 +294,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const config = getLogTypeConfig(log.type)
 
         return (
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            <span className='text-xs tabular-nums'>
+          // In mobile cards this cell sits in a label-left/value-right row
+          // (data-table-card-value); align both lines to the right edge there.
+          <div className='flex min-w-0 flex-col gap-0.5 in-data-[slot=data-table-card-value]:items-end'>
+            <span className='text-xs tabular-nums in-data-[slot=data-table-card-value]:text-sm'>
               {formatTimestampToDate(timestamp)}
             </span>
             <StatusBadge variant={config.variant} size='sm'>
@@ -369,7 +371,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <div className='flex max-w-[160px] flex-col gap-0.5' />
+                    <div className='flex max-w-[160px] flex-col gap-0.5 in-data-[slot=data-table-card-value]:max-w-full in-data-[slot=data-table-card-value]:items-end' />
                   }
                 >
                   <div className='relative inline-flex w-fit max-w-full items-center gap-1'>
@@ -516,7 +518,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
+                      <span className='text-muted-foreground max-w-[100px] truncate text-xs hover:underline in-data-[slot=data-table-card-value]:max-w-full in-data-[slot=data-table-card-value]:text-sm' />
                     }
                   >
                     {sensitiveVisible ? log.username : '••••'}
@@ -728,7 +730,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <div className='flex flex-col gap-0.5'>
-            <span className='text-xs font-medium tabular-nums'>
+            <span className='text-xs font-medium tabular-nums in-data-[slot=data-table-card-value]:text-sm'>
               {promptTokens.toLocaleString()} /{' '}
               {completionTokens.toLocaleString()}
             </span>
@@ -851,13 +853,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           <>
             <button
               type='button'
-              className='group flex max-w-[200px] flex-col gap-0.5 text-left text-sm'
+              className='group flex max-w-[200px] flex-col gap-0.5 text-left text-xs in-data-[slot=data-table-card-value]:max-w-full in-data-[slot=data-table-card-value]:text-sm'
               onClick={() => setDialogOpen(true)}
               title={t('Click to view full details')}
             >
               {detailsContent}
               {ip && (
-                <span className='text-subtle-foreground max-w-full truncate tabular-nums'>
+                <span className='text-subtle-foreground max-w-full truncate text-xs tabular-nums'>
                   {ip}
                 </span>
               )}

@@ -728,6 +728,42 @@ For commercial licensing, please contact support@quantumnous.com
   --spacing: 0.3rem;
 }
 
+/* ── Badge size ───────────────────────────────────────────────────────── */
+/* Independent axis for how "chubby" badges/pills read (`data-theme-badge`
+ * on <body>, driven by ThemeCustomizationProvider). The redesign moved
+ * badges from 14px text + full-pill corners to 12px text + subtle rounding;
+ * `lg` promotes every badge to the md tier (h-6 / text-sm) with pill
+ * corners, `xl` goes one step larger for readability. Default keeps the
+ * compact redesign look.
+ *
+ * These rules are intentionally unlayered so they win over the Tailwind
+ * utility classes baked into the badge variants (unlayered author CSS
+ * outranks `@layer utilities`). Text-only status badges
+ * (`data-appearance='plain'`) only pick up the type ramp: forcing a fixed
+ * height or padding on them would add phantom box space around bare text. */
+[data-theme-badge='lg'] [data-slot='badge'],
+[data-theme-badge='lg'] [data-slot='status-badge'] {
+  font-size: var(--text-sm);
+  border-radius: calc(infinity * 1px);
+}
+[data-theme-badge='lg'] [data-slot='badge'],
+[data-theme-badge='lg'] [data-slot='status-badge']:not([data-appearance='plain']) {
+  height: calc(var(--spacing) * 6);
+  gap: calc(var(--spacing) * 1.5);
+  padding-inline: calc(var(--spacing) * 2);
+}
+[data-theme-badge='xl'] [data-slot='badge'],
+[data-theme-badge='xl'] [data-slot='status-badge'] {
+  font-size: var(--text-base);
+  border-radius: calc(infinity * 1px);
+}
+[data-theme-badge='xl'] [data-slot='badge'],
+[data-theme-badge='xl'] [data-slot='status-badge']:not([data-appearance='plain']) {
+  height: calc(var(--spacing) * 7);
+  gap: calc(var(--spacing) * 1.5);
+  padding-inline: calc(var(--spacing) * 2.5);
+}
+
 /* ── Content layout ───────────────────────────────────────────────────── */
 /* `centered` clamps inset content to a comfortable reading width on large screens.
  * Targets every direct child of <SidebarInset> so router outlet wrappers and

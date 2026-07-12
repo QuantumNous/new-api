@@ -42,10 +42,12 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
       <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         <CardContent className='p-4 sm:p-5'>
           <div className='flex items-center gap-3 sm:gap-4'>
-            <Skeleton className='size-12 rounded-xl sm:size-14' />
-            <div className='space-y-2'>
-              <Skeleton className='h-6 w-48' />
-              <Skeleton className='h-4 w-64' />
+            <Skeleton className='size-12 shrink-0 rounded-xl sm:size-14' />
+            {/* min-w-0 + max-w-full let the fixed-width lines clamp to the
+                card on narrow screens instead of overflowing. */}
+            <div className='min-w-0 space-y-2'>
+              <Skeleton className='h-6 w-48 max-w-full' />
+              <Skeleton className='h-4 w-64 max-w-full' />
             </div>
           </div>
         </CardContent>
@@ -53,8 +55,8 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
           <div className='divide-border/60 grid grid-cols-3 divide-x'>
             {['balance', 'usage', 'requests'].map((key) => (
               <div key={key} className='px-4 py-3 sm:px-5 sm:py-4'>
-                <Skeleton className='h-4 w-24' />
-                <Skeleton className='mt-2 h-7 w-28' />
+                <Skeleton className='h-4 w-24 max-w-full' />
+                <Skeleton className='mt-2 h-7 w-28 max-w-full' />
               </div>
             ))}
           </div>
