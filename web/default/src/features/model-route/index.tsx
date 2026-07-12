@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { RefreshCw, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,6 +69,28 @@ function formatChannelLabel(channelId: number, channelName?: string) {
   const name = (channelName || '').trim()
   if (name) return `${name} (#${channelId})`
   return `#${channelId}`
+}
+
+function ChannelNameLink({
+  channelId,
+  channelName,
+}: {
+  channelId: number
+  channelName?: string
+}) {
+  return (
+    <div className='flex min-w-0 flex-col gap-0.5'>
+      <Link
+        to='/channels'
+        search={{ filter: String(channelId) }}
+        className='decoration-foreground/30 hover:decoration-foreground truncate font-medium underline decoration-1 underline-offset-4 transition-colors'
+        title={formatChannelLabel(channelId, channelName)}
+      >
+        {formatChannelLabel(channelId, channelName)}
+      </Link>
+      <span className='text-muted-foreground text-xs'>ID: {channelId}</span>
+    </div>
+  )
 }
 
 function localizePolicySource(t: (key: string) => string, source?: string) {
@@ -386,14 +409,10 @@ export function ModelRouteAdmin() {
                       className='hover:bg-muted/30 border-t transition-colors'
                     >
                       <td className='p-2.5'>
-                        <div className='flex min-w-0 flex-col gap-0.5'>
-                          <span className='truncate font-medium'>
-                            {formatChannelLabel(row.channel_id, row.channel_name)}
-                          </span>
-                          <span className='text-muted-foreground text-xs'>
-                            ID: {row.channel_id}
-                          </span>
-                        </div>
+                        <ChannelNameLink
+                          channelId={row.channel_id}
+                          channelName={row.channel_name}
+                        />
                       </td>
                       <td className='p-2.5 font-mono text-xs'>
                         {row.requested_model}
@@ -490,14 +509,10 @@ export function ModelRouteAdmin() {
                       className='hover:bg-muted/30 border-t transition-colors'
                     >
                       <td className='p-2.5'>
-                        <div className='flex min-w-0 flex-col gap-0.5'>
-                          <span className='truncate font-medium'>
-                            {formatChannelLabel(row.channel_id, row.channel_name)}
-                          </span>
-                          <span className='text-muted-foreground text-xs'>
-                            ID: {row.channel_id}
-                          </span>
-                        </div>
+                        <ChannelNameLink
+                          channelId={row.channel_id}
+                          channelName={row.channel_name}
+                        />
                       </td>
                       <td className='p-2.5 font-mono text-xs'>
                         {row.effective_model}
