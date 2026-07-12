@@ -82,17 +82,18 @@ export function applyDocumentSeo(input: SeoInput): void {
 
 /** Map /api/status payload into SeoInput and apply. */
 export function applySeoFromStatus(
-  status: StatusSeoFields | null | undefined,
+  status: StatusSeoFields | Record<string, unknown> | null | undefined,
   extra?: Partial<SeoInput>
 ): void {
   if (!status && !extra) return
+  const s = (status || {}) as StatusSeoFields
   applyDocumentSeo({
-    title: status?.system_name,
-    description: status?.seo_description,
-    keywords: status?.seo_keywords,
-    siteUrl: status?.seo_site_url || status?.server_address,
-    ogImage: status?.seo_og_image || status?.logo || '/logo.png',
-    robotsIndex: status?.seo_robots_index !== false,
+    title: s.system_name,
+    description: s.seo_description,
+    keywords: s.seo_keywords,
+    siteUrl: s.seo_site_url || s.server_address,
+    ogImage: s.seo_og_image || s.logo || '/logo.png',
+    robotsIndex: s.seo_robots_index !== false,
     path:
       typeof window !== 'undefined' ? window.location.pathname || '/' : '/',
     ...extra,
