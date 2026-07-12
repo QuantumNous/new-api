@@ -22,6 +22,7 @@ import { Users, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
@@ -230,7 +231,9 @@ export function UserCharts(props: UserChartsProps) {
               className='overflow-hidden rounded-lg border'
             >
               <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
-                <Users className='text-muted-foreground/60 size-4' />
+                <IconBadge tone='info' size='sm'>
+                  <Users />
+                </IconBadge>
                 <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
               </div>
 

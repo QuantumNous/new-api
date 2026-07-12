@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -288,18 +289,26 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return a.ConvertImageRequest(c, info, imgReq)
 	}
 	if a.RequestMode == RequestModeClaude {
-		claudeReq, err := claude.RequestOpenAI2ClaudeMessage(c, *request)
+		result, err := service.ConvertRequest(c, info, types.RelayFormatClaude, request)
 		if err != nil {
 			return nil, err
+		}
+		claudeReq, ok := result.Value.(*dto.ClaudeRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
 		}
 		vertexClaudeReq := copyRequest(claudeReq, anthropicVersion)
 		c.Set("request_model", claudeReq.Model)
 		info.UpstreamModelName = claudeReq.Model
 		return vertexClaudeReq, nil
 	} else if a.RequestMode == RequestModeGemini {
-		geminiRequest, err := gemini.CovertOpenAI2Gemini(c, *request, info)
+		result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, request)
 		if err != nil {
 			return nil, err
+		}
+		geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
 		}
 		c.Set("request_model", request.Model)
 		return geminiRequest, nil

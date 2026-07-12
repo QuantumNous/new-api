@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatQuota } from '@/lib/format'
@@ -65,9 +66,9 @@ export function AffiliateRewardsCard({
     <Card data-card-hover='false' className='bg-muted/20 py-0'>
       <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border'>
-            <Share2 className='text-muted-foreground size-4' />
-          </div>
+          <IconBadge tone='chart-3'>
+            <Share2 />
+          </IconBadge>
           <div className='min-w-0'>
             <h3 className='truncate text-sm font-semibold'>
               {t('Referral Program')}
