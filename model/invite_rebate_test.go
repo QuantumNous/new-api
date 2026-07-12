@@ -1,0 +1,104 @@
+package model
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func setupInviteRebateTest(t *testing.T) {
+	t.Helper()
+	require.NotNil(t, DB, "package TestMain must initialize DB")
+	require.NoError(t, DB.AutoMigrate(&User{}, &TopUp{}, &InviteRebate{}))
+	require.NoError(t, DB.Where("1 = 1").Delete(&InviteRebate{}).Error)
+	require.NoError(t, DB.Where("username LIKE ?", "ir_%").Delete(&User{}).Error)
+	require.NoError(t, DB.Where("trade_no LIKE ?", "IR-%").Delete(&TopUp{}).Error)
+
+	oldEnabled := common.InviteTopupRebateEnabled
+	oldRatio := common.InviteTopupRebateRatioBp
+	common.InviteTopupRebateEnabled = true
+	common.InviteTopupRebateRatioBp = 100
+	t.Cleanup(func() {
+		common.InviteTopupRebateEnabled = oldEnabled
+		common.InviteTopupRebateRatioBp = oldRatio
+	})
+}
+
+func createIRUser(t *testing.T, username string, inviterId int, affQuota int) *User {
+	t.Helper()
+	// aff_code is unique; empty string collides across users in SQLite
+	sum := 0
+	for _, c := range username {
+		sum = sum*31 + int(c)
+	}
+	u := &User{
+		Username:        username,
+		Status:          common.UserStatusEnabled,
+		InviterId:       inviterId,
+		AffQuota:        affQuota,
+		AffHistoryQuota: affQuota,
+		AffCode:         fmt.Sprintf("x%07d", sum&0x7ffffff),
+	}
+	require.NoError(t, DB.Create(u).Error)
+	return u
+}
+
+func TestCalculateInviteTopupRebate(t *testing.T) {
+	assert.Equal(t, 0, CalculateInviteTopupRebate(0, 100))
+	assert.Equal(t, 0, CalculateInviteTopupRebate(50, 100)) // 50*100/10000 = 0
+	assert.Equal(t, 5, CalculateInviteTopupRebate(500, 100))
+	// 500000 * 100 / 10000 = 5000 (1%)
+	assert.Equal(t, 5000, CalculateInviteTopupRebate(500000, 100))
+	assert.Equal(t, 0, CalculateInviteTopupRebate(500000, 0))
+	assert.Equal(t, 0, CalculateInviteTopupRebate(-1, 100))
+}
+
+func TestGrantInviteTopupRebate_DisabledNoOp(t *testing.T) {
+	setupInviteRebateTest(t)
+	common.InviteTopupRebateEnabled = false
+
+	inviter := createIRUser(t, "ir_inviter_off", 0, 0)
+	invitee := createIRUser(t, "ir_invitee_off", inviter.Id, 0)
+	topUp := &TopUp{UserId: invitee.Id, Amount: 10, Money: 10, TradeNo: "IR-OFF-1", Status: common.TopUpStatusSuccess}
+	require.NoError(t, DB.Create(topUp).Error)
+
+	require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
+	var n int64
+	require.NoError(t, DB.Model(&InviteRebate{}).Count(&n).Error)
+	assert.Equal(t, int64(0), n)
+}
+
+func TestGrantInviteTopupRebate_NoInviter(t *testing.T) {
+	setupInviteRebateTest(t)
+	invitee := createIRUser(t, "ir_invitee_none", 0, 0)
+	topUp := &TopUp{UserId: invitee.Id, Amount: 10, TradeNo: "IR-NONE-1", Status: common.TopUpStatusSuccess}
+	require.NoError(t, DB.Create(topUp).Error)
+	require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
+	var n int64
+	require.NoError(t, DB.Model(&InviteRebate{}).Count(&n).Error)
+	assert.Equal(t, int64(0), n)
+}
+
+func TestGrantInviteTopupRebate_SuccessAndIdempotent(t *testing.T) {
+	setupInviteRebateTest(t)
+	inviter := createIRUser(t, "ir_inviter_ok", 0, 0)
+	invitee := createIRUser(t, "ir_invitee_ok", inviter.Id, 0)
+	topUp := &TopUp{UserId: invitee.Id, Amount: 10, TradeNo: "IR-OK-1", Status: common.TopUpStatusSuccess}
+	require.NoError(t, DB.Create(topUp).Error)
+
+	// 500000 * 1% = 5000
+	require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
+	require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp)) // retry
+
+	var n int64
+	require.NoError(t, DB.Model(&InviteRebate{}).Where("topup_id = ?", topUp.Id).Count(&n).Error)
+	assert.Equal(t, int64(1), n)
+
+	var got User
+	require.NoError(t, DB.First(&got, inviter.Id).Error)
+	assert.Equal(t, 5000, got.AffQuota)
+	assert.Equal(t, 5000, got.AffHistoryQuota)
+}

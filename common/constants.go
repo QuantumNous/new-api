@@ -148,6 +148,9 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+// Invite top-up rebate (invitee top-up → inviter aff_quota). Default off for safe merges.
+var InviteTopupRebateEnabled = false
+var InviteTopupRebateRatioBp = 100 // 100 basis points = 1.00%
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
