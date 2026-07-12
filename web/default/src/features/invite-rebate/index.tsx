@@ -104,21 +104,37 @@ export function InviteRebatePage() {
   const reload = useCallback(async () => {
     setLoading(true)
     try {
-      const [s, l, i, b, a] = await Promise.all([
+      const settled = await Promise.allSettled([
         fetchInviteRebateSummary(),
         fetchInviteRebateLogs(1, 30),
         fetchInviteRebateInvitees(1, 30),
         fetchInviteRebateLeaderboard(boardBy, 20),
         fetchAffiliateCode(),
       ])
-      if (s.success && s.data) setSummary(s.data)
-      if (l.success && l.data) setLogs(l.data.items || [])
-      if (i.success && i.data) setInvitees(i.data.items || [])
-      if (b.success && b.data) {
+      const val = <T,>(i: number): T | undefined => {
+        const r = settled[i]
+        return r.status === 'fulfilled' ? (r.value as T) : undefined
+      }
+      const s = val<Awaited<ReturnType<typeof fetchInviteRebateSummary>>>(0)
+      const l = val<Awaited<ReturnType<typeof fetchInviteRebateLogs>>>(1)
+      const i = val<Awaited<ReturnType<typeof fetchInviteRebateInvitees>>>(2)
+      const b = val<Awaited<ReturnType<typeof fetchInviteRebateLeaderboard>>>(3)
+      const a = val<Awaited<ReturnType<typeof fetchAffiliateCode>>>(4)
+
+      if (s?.success && s.data) setSummary(s.data)
+      else if (!s) toast.error(t('Failed to load invite rebate data'))
+
+      if (l?.success && l.data) setLogs(l.data.items || [])
+      if (i?.success && i.data) setInvitees(i.data.items || [])
+      if (b?.success && b.data) {
         setBoard(b.data.items || [])
         setMyRank(b.data.my_rank || 0)
+      } else {
+        // Keep previous board empty on failure; do not block page
+        setBoard([])
+        setMyRank(0)
       }
-      if (a.success && a.data) setAffCode(a.data)
+      if (a?.success && a.data) setAffCode(a.data)
     } catch (e) {
       console.error(e)
       toast.error(t('Failed to load invite rebate data'))

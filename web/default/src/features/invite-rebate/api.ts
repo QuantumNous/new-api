@@ -46,7 +46,10 @@ export async function fetchInviteRebateLeaderboard(
 ): Promise<ApiResponse<InviteRebateLeaderboard>> {
   const res = await api.get('/api/user/invite_rebate/leaderboard', {
     params: { by, limit },
-  })
+    // Don't toast/global-fail the whole page if leaderboard is unavailable
+    skipErrorHandler: true,
+    skipBusinessError: true,
+  } as Record<string, unknown>)
   return res.data
 }
 
