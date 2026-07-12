@@ -518,15 +518,20 @@ LIMIT ?`
 	}
 	items = make([]InviteRebateLeaderboardEntry, 0, len(rows))
 	for i, r := range rows {
+		isMe := viewerId > 0 && r.UserId == viewerId
 		entry := InviteRebateLeaderboardEntry{
-			Rank:           i + 1,
-			UserId:         r.UserId,
+			Rank: i + 1,
+			// Privacy: only reveal raw user_id for the viewer themselves.
+			UserId:         0,
 			Username:       maskInviteeLabel(r.Username),
 			DisplayName:    maskInviteeLabel(r.DisplayName),
 			InviteeCount:   r.InviteeCount,
 			RebateQuotaSum: r.RebateQuotaSum,
 			TopupQuotaSum:  r.TopupQuotaSum,
-			IsMe:           viewerId > 0 && r.UserId == viewerId,
+			IsMe:           isMe,
+		}
+		if isMe {
+			entry.UserId = r.UserId
 		}
 		if entry.IsMe {
 			myRank = entry.Rank
