@@ -258,6 +258,9 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 		return nil, fmt.Errorf("upstream model is empty; use sd2fast, sd2, or mingiz-sd2")
 	}
 
+	// VolcEngine official content[] → 83zi / mingiz-sd2 fields (all 83zi models).
+	volcNorm := detectAndNormalizeVolcOfficial(c, req)
+
 	payload := map[string]interface{}{
 		"model":  modelName,
 		"prompt": strings.TrimSpace(req.Prompt),
@@ -290,6 +293,7 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 		payload["prompt"] = strings.TrimSpace(req.Prompt)
 	}
 	normalizeCreatePayload(payload)
+	applyVolcNormalized(payload, volcNorm)
 	return payload, nil
 }
 
