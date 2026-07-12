@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -109,6 +110,43 @@ func TestGrantInviteTopupRebate_MissingInviter(t *testing.T) {
 	// invitee points at non-existent inviter
 	invitee := createIRUser(t, "ir_invitee_ghost", 999999, 0)
 	topUp := &TopUp{UserId: invitee.Id, Amount: 10, TradeNo: "IR-GHOST-1", Status: common.TopUpStatusSuccess}
+	require.NoError(t, DB.Create(topUp).Error)
+	require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
+	var n int64
+	require.NoError(t, DB.Model(&InviteRebate{}).Count(&n).Error)
+	assert.Equal(t, int64(0), n)
+}
+
+
+func TestCalculateInviteTopupRebate_OverflowSafe(t *testing.T) {
+	// Overflow guard: product exceeds int64 → 0
+	assert.Equal(t, 0, CalculateInviteTopupRebate(math.MaxInt, 10000))
+	// Cap path: large but non-overflowing topup at 100% is hard-capped
+	v := CalculateInviteTopupRebate(maxInviteTopupRebateQuota*2, 10000)
+	assert.Equal(t, maxInviteTopupRebateQuota, v)
+	// Normal path still works
+	assert.Equal(t, 5000, CalculateInviteTopupRebate(500000, 100))
+}
+
+func TestGrantInviteTopupRebate_DisabledInviter(t *testing.T) {
+	setupInviteRebateTest(t)
+	inviter := createIRUser(t, "ir_inviter_dis", 0, 0)
+	require.NoError(t, DB.Model(inviter).Update("status", common.UserStatusDisabled).Error)
+	invitee := createIRUser(t, "ir_invitee_dis", inviter.Id, 0)
+	topUp := &TopUp{UserId: invitee.Id, Amount: 10, TradeNo: "IR-DIS-1", Status: common.TopUpStatusSuccess}
+	require.NoError(t, DB.Create(topUp).Error)
+	require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
+	var n int64
+	require.NoError(t, DB.Model(&InviteRebate{}).Count(&n).Error)
+	assert.Equal(t, int64(0), n)
+}
+
+func TestGrantInviteTopupRebate_UserIdMismatch(t *testing.T) {
+	setupInviteRebateTest(t)
+	inviter := createIRUser(t, "ir_inviter_mm", 0, 0)
+	invitee := createIRUser(t, "ir_invitee_mm", inviter.Id, 0)
+	other := createIRUser(t, "ir_other_mm", 0, 0)
+	topUp := &TopUp{UserId: other.Id, Amount: 10, TradeNo: "IR-MM-1", Status: common.TopUpStatusSuccess}
 	require.NoError(t, DB.Create(topUp).Error)
 	require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
 	var n int64

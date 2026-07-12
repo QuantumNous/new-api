@@ -443,6 +443,10 @@ func inviteUser(inviterId int) (err error) {
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
+	// Reject non-positive amounts before min-unit check (negative would increase AffQuota).
+	if quota <= 0 {
+		return errors.New("转移额度必须为正数！")
+	}
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {
 		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(int(common.QuotaPerUnit)))

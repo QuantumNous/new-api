@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -11,6 +12,10 @@ import (
 )
 
 const InviteRebateStatusGranted = "granted"
+
+// maxInviteTopupRebateQuota hard-caps a single rebate grant to limit blast radius
+// if ratio/topup values are misconfigured. 1e12 quota units is far above normal top-ups.
+const maxInviteTopupRebateQuota = 1_000_000_000_000
 
 type InviteRebate struct {
 	Id          int    `json:"id" gorm:"primaryKey;autoIncrement"`
@@ -36,22 +41,59 @@ type InviteeRebateStat struct {
 	RebateCount    int64  `json:"rebate_count"`
 }
 
+// maskInviteeLabel reduces username/display leakage on inviter dashboards.
+// Keeps first rune and length-based stars (e.g. "alice" → "a***").
+func maskInviteeLabel(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) == 1 {
+		return "*"
+	}
+	if len(r) == 2 {
+		return string(r[0]) + "*"
+	}
+	return string(r[0]) + strings.Repeat("*", min(len(r)-1, 6))
+}
+
 func CalculateInviteTopupRebate(topupQuota int, ratioBp int) int {
 	if topupQuota <= 0 || ratioBp <= 0 {
 		return 0
 	}
-	return topupQuota * ratioBp / 10000
+	// Overflow-safe: int64 multiply before divide.
+	tq := int64(topupQuota)
+	rb := int64(ratioBp)
+	if rb > 0 && tq > math.MaxInt64/rb {
+		return 0
+	}
+	v := tq * rb / 10000
+	if v <= 0 {
+		return 0
+	}
+	if v > maxInviteTopupRebateQuota {
+		return maxInviteTopupRebateQuota
+	}
+	if v > int64(math.MaxInt) {
+		return math.MaxInt
+	}
+	return int(v)
 }
 
 func isDuplicateKeyError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "duplicate") ||
 		strings.Contains(msg, "unique constraint") ||
 		strings.Contains(msg, "unique_violation") ||
-		strings.Contains(msg, "constraint failed")
+		strings.Contains(msg, "constraint failed") ||
+		strings.Contains(msg, "unique index")
 }
 
 // GrantInviteTopupRebate credits inviter aff_quota for one successful top-up.
@@ -63,35 +105,61 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 	if topupQuota <= 0 || topUp == nil || topUp.Id == 0 {
 		return nil
 	}
+	// Refuse mismatched caller context (defense-in-depth against bad hooks).
+	if topUp.UserId != 0 && topUp.UserId != inviteeId {
+		common.SysError(fmt.Sprintf(
+			"invite topup rebate skipped: topup user_id=%d != invitee_id=%d topup_id=%d",
+			topUp.UserId, inviteeId, topUp.Id,
+		))
+		return nil
+	}
 	db := tx
 	if db == nil {
 		db = DB
 	}
 
+	// Snapshot ratio under no lock; per-grant snapshot is stored on the ledger row.
 	ratioBp := common.InviteTopupRebateRatioBp
+	if ratioBp < 0 {
+		ratioBp = 0
+	}
+	if ratioBp > 10000 {
+		ratioBp = 10000
+	}
 	rebate := CalculateInviteTopupRebate(topupQuota, ratioBp)
 	if rebate <= 0 {
 		return nil
 	}
 
 	var invitee User
-	if err := db.Select("id", "inviter_id").First(&invitee, inviteeId).Error; err != nil {
+	if err := db.Select("id", "inviter_id", "status").First(&invitee, inviteeId).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
 		return err
+	}
+	if invitee.Status != common.UserStatusEnabled {
+		return nil
 	}
 	if invitee.InviterId <= 0 || invitee.InviterId == inviteeId {
 		return nil
 	}
 
 	var inviter User
-	if err := db.Select("id").First(&inviter, invitee.InviterId).Error; err != nil {
+	if err := db.Select("id", "status").First(&inviter, invitee.InviterId).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			common.SysError(fmt.Sprintf("invite topup rebate skipped: inviter %d not found for invitee %d topup %d", invitee.InviterId, inviteeId, topUp.Id))
 			return nil
 		}
 		return err
+	}
+	// Do not credit disabled/banned inviters (prevents parking rewards on disabled accounts).
+	if inviter.Status != common.UserStatusEnabled {
+		common.SysError(fmt.Sprintf(
+			"invite topup rebate skipped: inviter %d status=%d invitee=%d topup=%d",
+			inviter.Id, inviter.Status, inviteeId, topUp.Id,
+		))
+		return nil
 	}
 
 	granted := false
@@ -114,11 +182,20 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 			}
 			return err
 		}
-		if err := tx.Model(&User{}).Where("id = ?", invitee.InviterId).Updates(map[string]interface{}{
-			"aff_quota":   gorm.Expr("aff_quota + ?", rebate),
-			"aff_history": gorm.Expr("aff_history + ?", rebate),
-		}).Error; err != nil {
-			return err
+		// Only credit enabled inviter (re-check status under same tx when possible).
+		res := tx.Model(&User{}).
+			Where("id = ? AND status = ?", invitee.InviterId, common.UserStatusEnabled).
+			Updates(map[string]interface{}{
+				"aff_quota":   gorm.Expr("aff_quota + ?", rebate),
+				"aff_history": gorm.Expr("aff_history + ?", rebate),
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			// Inviter became disabled between read and update: remove ledger row to avoid orphan grants.
+			_ = tx.Delete(&InviteRebate{}, "id = ?", row.Id).Error
+			return nil
 		}
 		granted = true
 		return nil
@@ -189,7 +266,11 @@ func ListInviteesWithRebateStats(inviterId int, pageInfo *common.PageInfo) (item
 	}
 	items = make([]InviteeRebateStat, 0, len(users))
 	for _, u := range users {
-		stat := InviteeRebateStat{InviteeId: u.Id, Username: u.Username, DisplayName: u.DisplayName}
+		stat := InviteeRebateStat{
+			InviteeId:   u.Id,
+			Username:    maskInviteeLabel(u.Username),
+			DisplayName: maskInviteeLabel(u.DisplayName),
+		}
 		type sumRow struct {
 			TopupQuotaSum  int64
 			RebateQuotaSum int64
