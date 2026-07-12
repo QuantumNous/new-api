@@ -5171,6 +5171,7 @@
     "Confirm manual disable for {{count}} selected metrics?": "Confirm manual disable for {{count}} selected metrics?",
     "Confirm restore auto for {{count}} selected metrics?": "Confirm restore auto for {{count}} selected metrics?",
     "Confirm reset runtime for {{count}} selected metrics?": "Confirm reset runtime for {{count}} selected metrics?",
-    "Exact match": "Exact match"
+    "Exact match": "Exact match",
+    "Priority swapped with {{channel}}": "Priority swapped with {{channel}}"
   }
 }

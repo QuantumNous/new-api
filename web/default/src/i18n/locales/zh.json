@@ -5175,6 +5175,7 @@
     "Confirm manual disable for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行人工禁用？",
     "Confirm restore auto for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行恢复自动管理？",
     "Confirm reset runtime for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行重置短期指标？",
-    "Exact match": "精确匹配"
+    "Exact match": "精确匹配",
+    "Priority swapped with {{channel}}": "已与 {{channel}} 交换优先级"
   }
 }

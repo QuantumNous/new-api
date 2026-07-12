@@ -228,6 +228,7 @@ export function ModelRouteAdmin() {
   )
   const [batchBusy, setBatchBusy] = useState(false)
   const [batchActionKey, setBatchActionKey] = useState(0)
+  const [priorityBusy, setPriorityBusy] = useState(false)
 
   // Always load full lists; filter client-side for substring match (e.g. "4.5" → grok-4.5).
   const policyQuery = useQuery({
@@ -255,18 +256,80 @@ export function ModelRouteAdmin() {
     onError: (err: Error) => toast.error(err.message),
   })
 
-  const priorityMut = useMutation({
-    mutationFn: updateModelRoutePolicyPriority,
-    onSuccess: (res) => {
-      if (!res.success) {
-        toast.error(res.message || t('Update failed'))
-        return
+  const handlePriorityChange = async (
+    row: ModelRoutePolicy,
+    value: number
+  ) => {
+    const oldValue = row.manual_priority ?? 0
+    if (value === oldValue || priorityBusy) return
+
+    // Uniqueness scope: same requested_model only.
+    const all = policyQuery.data?.data ?? []
+    const conflict = all.find(
+      (p) =>
+        p.requested_model === row.requested_model &&
+        p.channel_id !== row.channel_id &&
+        (p.manual_priority ?? 0) === value
+    )
+
+    setPriorityBusy(true)
+    try {
+      if (conflict) {
+        // Free the target priority first, then assign; rollback on second failure.
+        const resConflict = await updateModelRoutePolicyPriority({
+          channel_id: conflict.channel_id,
+          requested_model: conflict.requested_model,
+          manual_priority: oldValue,
+        })
+        if (!resConflict.success) {
+          toast.error(resConflict.message || t('Update failed'))
+          return
+        }
+        const resCurrent = await updateModelRoutePolicyPriority({
+          channel_id: row.channel_id,
+          requested_model: row.requested_model,
+          manual_priority: value,
+        })
+        if (!resCurrent.success) {
+          try {
+            await updateModelRoutePolicyPriority({
+              channel_id: conflict.channel_id,
+              requested_model: conflict.requested_model,
+              manual_priority: value,
+            })
+          } catch {
+            // best-effort rollback
+          }
+          toast.error(resCurrent.message || t('Update failed'))
+          return
+        }
+        toast.success(
+          t('Priority swapped with {{channel}}', {
+            channel: formatChannelLabel(
+              conflict.channel_id,
+              conflict.channel_name
+            ),
+          })
+        )
+      } else {
+        const res = await updateModelRoutePolicyPriority({
+          channel_id: row.channel_id,
+          requested_model: row.requested_model,
+          manual_priority: value,
+        })
+        if (!res.success) {
+          toast.error(res.message || t('Update failed'))
+          return
+        }
+        toast.success(t('Priority updated'))
       }
-      toast.success(t('Priority updated'))
       void qc.invalidateQueries({ queryKey: ['model-route-policies'] })
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('Update failed'))
+    } finally {
+      setPriorityBusy(false)
+    }
+  }
 
   const actionMut = useMutation({
     mutationFn: modelRouteMetricsAction,
@@ -557,14 +620,9 @@ export function ModelRouteAdmin() {
                       <td className='p-2.5'>
                         <PolicyPriorityCell
                           row={row}
-                          disabled={priorityMut.isPending}
+                          disabled={priorityBusy}
                           onChange={(value) => {
-                            if (value === row.manual_priority) return
-                            priorityMut.mutate({
-                              channel_id: row.channel_id,
-                              requested_model: row.requested_model,
-                              manual_priority: value,
-                            })
+                            void handlePriorityChange(row, value)
                           }}
                         />
                       </td>
