@@ -139,7 +139,42 @@ func exportCatalogOptions() map[string]string {
 	return out
 }
 
+// catalogExportDefaultAllowedIPs 是 catalog-export 的默认来源 IP 白名单：
+// Roma 生产网关 + Roma 测试机。可用 CATALOG_EXPORT_ALLOWED_IPS 覆盖
+// （逗号分隔；设为 "*" 关闭 IP 限制）。
+const catalogExportDefaultAllowedIPs = "81.70.201.229,43.157.212.20"
+
+// catalogExportClientIP 取真实来源 IP：优先 X-Real-IP（本机 nginx 每次请求用
+// $remote_addr 覆写，客户端伪造不了；XFF 是追加式、最左侧可伪造，不能用），
+// 无该头（如本机直连 :3001 调试）时退回 gin ClientIP。
+func catalogExportClientIP(c *gin.Context) string {
+	if ip := strings.TrimSpace(c.GetHeader("X-Real-IP")); ip != "" {
+		return ip
+	}
+	return c.ClientIP()
+}
+
+// catalogExportIPAllowed 校验来源 IP 是否在白名单内（IP 门在 secret 门之前，双重防线）。
+func catalogExportIPAllowed(c *gin.Context) bool {
+	allowed := strings.TrimSpace(common.GetEnvOrDefaultString("CATALOG_EXPORT_ALLOWED_IPS", catalogExportDefaultAllowedIPs))
+	if allowed == "*" {
+		return true
+	}
+	clientIP := catalogExportClientIP(c)
+	for _, ip := range strings.Split(allowed, ",") {
+		if strings.TrimSpace(ip) == clientIP && clientIP != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func CatalogExport(c *gin.Context) {
+	if !catalogExportIPAllowed(c) {
+		common.SysLog("catalog export denied: ip not in allowlist: " + catalogExportClientIP(c))
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "ip not allowed"})
+		return
+	}
 	secret := strings.TrimSpace(common.GetEnvOrDefaultString("CATALOG_EXPORT_SECRET", ""))
 	if secret == "" {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "catalog export is not enabled"})
