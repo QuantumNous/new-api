@@ -189,6 +189,13 @@ var RelayIdleConnTimeout int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 
+// RelayDisableHTTP2 forces upstream relay clients to use HTTP/1.1 instead of
+// HTTP/2. Go multiplexes all requests to one host onto a small pool of shared
+// HTTP/2 connections; under heavy concurrent streaming to the same upstream,
+// those shared connections head-of-line-block latency-sensitive requests. When
+// true, each in-flight request gets its own pooled HTTP/1.1 connection.
+var RelayDisableHTTP2 bool
+
 var GeminiSafetySetting string
 
 // https://docs.cohere.com/docs/safety-modes Type; NONE/CONTEXTUAL/STRICT
