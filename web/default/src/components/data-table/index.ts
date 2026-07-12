@@ -80,8 +80,31 @@ export {
 } from './hooks/use-data-table-view-mode'
 export { useDebouncedColumnFilter } from './hooks/use-debounced-column-filter'
 
-export const DISABLED_ROW_DESKTOP =
-  '[--data-table-card-bg:var(--table-disabled)] hover:[--data-table-card-bg:var(--table-disabled-hover)] data-[state=selected]:![--data-table-card-bg:var(--table-disabled)] data-[state=selected]:hover:![--data-table-card-bg:var(--table-disabled-hover)] [background-color:var(--table-disabled)] hover:[background-color:var(--table-disabled-hover)] [&>td:first-child]:[border-left-color:var(--table-disabled-border)] [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1'
+// Shared "status row" treatment: tinted background with a hover step and a
+// 4px accent stripe on the first cell (desktop), tinted background only
+// (mobile cards). The palette classes below just bind the three CSS
+// variables, so every status row is structurally identical — only the hue
+// changes (disabled = gray, error = red, info = blue, warning = amber).
+const STATUS_ROW_DESKTOP =
+  '[background-color:var(--status-row-bg)] hover:[background-color:var(--status-row-bg-hover)] [--data-table-card-bg:var(--status-row-bg)] hover:[--data-table-card-bg:var(--status-row-bg-hover)] data-[state=selected]:![--data-table-card-bg:var(--status-row-bg)] data-[state=selected]:hover:![--data-table-card-bg:var(--status-row-bg-hover)] [&>td:first-child]:[border-left-color:var(--status-row-border)] [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1'
 
-export const DISABLED_ROW_MOBILE =
-  '[--data-table-card-bg:var(--table-disabled)] data-[state=selected]:![--data-table-card-bg:var(--table-disabled)] [background-color:var(--table-disabled)]'
+const STATUS_ROW_MOBILE =
+  '[background-color:var(--status-row-bg)] [--data-table-card-bg:var(--status-row-bg)] data-[state=selected]:![--data-table-card-bg:var(--status-row-bg)]'
+
+const DISABLED_PALETTE =
+  '[--status-row-bg:var(--table-disabled)] [--status-row-bg-hover:var(--table-disabled-hover)] [--status-row-border:var(--table-disabled-border)]'
+const ERROR_PALETTE =
+  '[--status-row-bg:var(--table-error)] [--status-row-bg-hover:var(--table-error-hover)] [--status-row-border:var(--table-error-border)]'
+const INFO_PALETTE =
+  '[--status-row-bg:var(--table-info)] [--status-row-bg-hover:var(--table-info-hover)] [--status-row-border:var(--table-info-border)]'
+const WARNING_PALETTE =
+  '[--status-row-bg:var(--table-warning)] [--status-row-bg-hover:var(--table-warning-hover)] [--status-row-border:var(--table-warning-border)]'
+
+export const DISABLED_ROW_DESKTOP = `${STATUS_ROW_DESKTOP} ${DISABLED_PALETTE}`
+export const DISABLED_ROW_MOBILE = `${STATUS_ROW_MOBILE} ${DISABLED_PALETTE}`
+export const ERROR_ROW_DESKTOP = `${STATUS_ROW_DESKTOP} ${ERROR_PALETTE}`
+export const ERROR_ROW_MOBILE = `${STATUS_ROW_MOBILE} ${ERROR_PALETTE}`
+export const INFO_ROW_DESKTOP = `${STATUS_ROW_DESKTOP} ${INFO_PALETTE}`
+export const INFO_ROW_MOBILE = `${STATUS_ROW_MOBILE} ${INFO_PALETTE}`
+export const WARNING_ROW_DESKTOP = `${STATUS_ROW_DESKTOP} ${WARNING_PALETTE}`
+export const WARNING_ROW_MOBILE = `${STATUS_ROW_MOBILE} ${WARNING_PALETTE}`

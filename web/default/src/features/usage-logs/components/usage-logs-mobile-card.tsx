@@ -27,15 +27,19 @@ import { useTranslation } from 'react-i18next'
 import {
   DataTableCardField,
   DataTableCardRow,
+  ERROR_ROW_MOBILE,
+  INFO_ROW_MOBILE,
   MobileCardList,
 } from '@/components/data-table'
 import { cn } from '@/lib/utils'
 
 import { LOG_TYPE_ENUM } from '../constants'
 
-const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]: 'bg-destructive/5 border-destructive/20',
-  [LOG_TYPE_ENUM.REFUND]: 'bg-info/5 border-info/20',
+// Same treatment as disabled cards in the keys/channels/users mobile lists
+// (tinted card background), only the hue differs.
+const logTypeRowClass: Record<number, string> = {
+  [LOG_TYPE_ENUM.ERROR]: ERROR_ROW_MOBILE,
+  [LOG_TYPE_ENUM.REFUND]: INFO_ROW_MOBILE,
 }
 
 interface UsageLogsMobileListProps<TData> {
@@ -182,12 +186,9 @@ export function UsageLogsMobileList<TData>({
         const logType = (row.original as Record<string, unknown>).type as
           | number
           | undefined
-        const tintClass = logType != null ? (logTypeRowTint[logType] ?? '') : ''
-        return cn(
-          'border-l-2 border-l-transparent transition-colors',
-          tintClass,
-          getRowClassName?.(row)
-        )
+        const statusClass =
+          logType != null ? (logTypeRowClass[logType] ?? '') : ''
+        return cn('transition-colors', statusClass, getRowClassName?.(row))
       }}
     />
   )

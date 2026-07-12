@@ -544,6 +544,15 @@ export const STATIC_I18N_KEYS = [
   'The model that was requested',
   'The upstream channel that served the requests',
 
+  // Usage logs date range presets
+  'Today',
+  '7 Days',
+  'This week',
+  'Last week',
+  '30 Days',
+  'This month',
+  'Last month',
+
   // Misc
   'Cancel',
   'Status',

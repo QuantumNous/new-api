@@ -294,6 +294,35 @@ For commercial licensing, please contact support@quantumnous.com
     var(--foreground) 24%,
     var(--table-row)
   );
+  /* Semantic status-row palettes (error/info/warning). Same structure as the
+   * disabled palette above so every "special row" treatment looks identical,
+   * only the hue differs. Borders mix a much higher share so the accent
+   * stripe stays recognizable at 4px. */
+  --table-error: color-mix(in oklch, var(--destructive) 5%, var(--table-row));
+  --table-error-hover: color-mix(
+    in oklch,
+    var(--destructive) 8%,
+    var(--table-row)
+  );
+  --table-error-border: color-mix(
+    in oklch,
+    var(--destructive) 60%,
+    var(--table-row)
+  );
+  --table-info: color-mix(in oklch, var(--info) 5%, var(--table-row));
+  --table-info-hover: color-mix(in oklch, var(--info) 8%, var(--table-row));
+  --table-info-border: color-mix(in oklch, var(--info) 60%, var(--table-row));
+  --table-warning: color-mix(in oklch, var(--warning) 10%, var(--table-row));
+  --table-warning-hover: color-mix(
+    in oklch,
+    var(--warning) 13%,
+    var(--table-row)
+  );
+  --table-warning-border: color-mix(
+    in oklch,
+    var(--warning) 65%,
+    var(--table-row)
+  );
 }
 
 .dark {
@@ -365,5 +394,32 @@ For commercial licensing, please contact support@quantumnous.com
     in oklch,
     var(--foreground) 34%,
     var(--background)
+  );
+  /* Dark-mode status-row palettes; higher mixes than light mode because dark
+   * surfaces swallow subtle tints (mirrors the disabled palette above). */
+  --table-error: color-mix(in oklch, var(--destructive) 10%, var(--table-row));
+  --table-error-hover: color-mix(
+    in oklch,
+    var(--destructive) 13%,
+    var(--table-row)
+  );
+  --table-error-border: color-mix(
+    in oklch,
+    var(--destructive) 65%,
+    var(--table-row)
+  );
+  --table-info: color-mix(in oklch, var(--info) 10%, var(--table-row));
+  --table-info-hover: color-mix(in oklch, var(--info) 13%, var(--table-row));
+  --table-info-border: color-mix(in oklch, var(--info) 65%, var(--table-row));
+  --table-warning: color-mix(in oklch, var(--warning) 14%, var(--table-row));
+  --table-warning-hover: color-mix(
+    in oklch,
+    var(--warning) 17%,
+    var(--table-row)
+  );
+  --table-warning-border: color-mix(
+    in oklch,
+    var(--warning) 70%,
+    var(--table-row)
   );
 }
