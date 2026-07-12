@@ -24,9 +24,8 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -36,6 +35,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
 import { createVendor, updateVendor } from '../../api'

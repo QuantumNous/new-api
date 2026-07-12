@@ -25,11 +25,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -38,6 +37,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { login, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
@@ -292,8 +292,7 @@ export function UserAuthForm({
             variant='outline'
             disabled={passkeyButtonDisabled}
             onClick={handlePasskeyLogin}
-            size='xl'
-            className='w-full justify-center rounded-lg'
+            className='h-11 w-full justify-center gap-2 rounded-lg'
           >
             {isPasskeyLoading ? (
               <Loader2 className='h-4 w-4 animate-spin' />
@@ -376,8 +375,7 @@ export function UserAuthForm({
             {/* Submit Button */}
             <Button
               type='submit'
-              size='xl'
-              className='mt-2 w-full justify-center'
+              className='mt-2 w-full justify-center gap-2'
               disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
             >
               {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
@@ -414,7 +412,7 @@ export function UserAuthForm({
           description={t(
             'Scan the QR code to follow the official account and reply with “验证码” to receive your verification code.'
           )}
-          contentClassName='sm:max-w-sm'
+          contentClassName='max-w-sm'
           headerClassName='text-left'
           contentHeight='auto'
           bodyClassName='space-y-4'

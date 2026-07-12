@@ -22,7 +22,7 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from '@/components/design-system/input-group'
+} from '@/components/ui/input-group'
 import { cn } from '@/lib/utils'
 
 import {

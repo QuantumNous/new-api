@@ -24,7 +24,9 @@ import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StaticDataTable } from '@/components/data-table'
-import { Button } from '@/components/design-system/button'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -32,9 +34,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/design-system/select'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import {
   ADMIN_PERMISSION_ACTIONS,
@@ -88,7 +88,7 @@ export function MultiKeyManageDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [enabledCount, setEnabledCount] = useState(0)
@@ -131,7 +131,7 @@ export function MultiKeyManageDialog({
         setKeys(response.data.keys || [])
         setTotal(response.data.total || 0)
         setCurrentPage(response.data.page || 1)
-        setPageSize(response.data.page_size || 20)
+        setPageSize(response.data.page_size || 10)
         setTotalPages(response.data.total_pages || 0)
         setEnabledCount(response.data.enabled_count || 0)
         setManualDisabledCount(response.data.manual_disabled_count || 0)
@@ -218,7 +218,14 @@ export function MultiKeyManageDialog({
 
   const renderStatusBadge = (status: number) => {
     const config = getMultiKeyStatusConfig(status)
-    return <StatusBadge variant={config.variant}>{t(config.label)}</StatusBadge>
+    return (
+      <StatusBadge
+        label={t(config.label)}
+        variant={config.variant}
+        showDot
+        copyable={false}
+      />
+    )
   }
 
   const formatKeyTimestamp = (timestamp?: number) => {
@@ -236,20 +243,28 @@ export function MultiKeyManageDialog({
         title={
           <>
             {t('Multi-Key Management')}
-            <StatusBadge variant='neutral'>{currentRow.name}</StatusBadge>
+            <StatusBadge
+              label={currentRow.name}
+              variant='neutral'
+              copyable={false}
+            />
             {currentRow.channel_info?.multi_key_mode && (
-              <StatusBadge variant='neutral'>
-                {currentRow.channel_info.multi_key_mode === 'random'
-                  ? t('Random')
-                  : t('Polling')}
-              </StatusBadge>
+              <StatusBadge
+                label={
+                  currentRow.channel_info.multi_key_mode === 'random'
+                    ? t('Random')
+                    : t('Polling')
+                }
+                variant='neutral'
+                copyable={false}
+              />
             )}
           </>
         }
         description={t(
           'Manage multi-key status and configuration for this channel'
         )}
-        contentClassName='flex max-h-[90vh] flex-col sm:max-w-5xl'
+        contentClassName='flex max-h-[90vh] max-w-5xl flex-col'
         titleClassName='flex items-center gap-2'
         contentHeight='min(72vh, 720px)'
         bodyClassName='space-y-4'
@@ -279,10 +294,12 @@ export function MultiKeyManageDialog({
           {/* Toolbar */}
           <div className='flex shrink-0 items-center justify-between'>
             <Select
-              items={MULTI_KEY_FILTER_OPTIONS.map((option) => ({
-                value: option.value,
-                label: t(option.label),
-              }))}
+              items={[
+                ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.label),
+                })),
+              ]}
               value={statusFilter === null ? 'all' : statusFilter.toString()}
               onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
             >
@@ -303,6 +320,7 @@ export function MultiKeyManageDialog({
             <div className='flex items-center gap-2'>
               <Button
                 variant='outline'
+                size='sm'
                 onClick={() => loadKeyStatus()}
                 disabled={isLoading}
               >
@@ -312,6 +330,7 @@ export function MultiKeyManageDialog({
               {manualDisabledCount + autoDisabledCount > 0 && (
                 <Button
                   variant='default'
+                  size='sm'
                   onClick={() => setConfirmAction({ type: 'enable-all' })}
                 >
                   <Power className='mr-2 h-4 w-4' />
@@ -322,6 +341,7 @@ export function MultiKeyManageDialog({
               {enabledCount > 0 && (
                 <Button
                   variant='destructive'
+                  size='sm'
                   onClick={() => setConfirmAction({ type: 'disable-all' })}
                 >
                   <PowerOff className='mr-2 h-4 w-4' />
@@ -332,6 +352,7 @@ export function MultiKeyManageDialog({
               {autoDisabledCount > 0 && (
                 <Button
                   variant='destructive'
+                  size='sm'
                   onClick={() => {
                     if (!canEditSensitive) return
                     setConfirmAction({ type: 'delete-disabled' })
@@ -357,17 +378,15 @@ export function MultiKeyManageDialog({
 
           {/* Table */}
           <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
-            {isLoading && (
+            {isLoading ? (
               <div className='flex items-center justify-center py-12'>
                 <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
               </div>
-            )}
-            {!isLoading && keys.length === 0 && (
+            ) : keys.length === 0 ? (
               <div className='text-muted-foreground py-12 text-center'>
                 {t('No keys found')}
               </div>
-            )}
-            {!isLoading && keys.length > 0 && (
+            ) : (
               <StaticDataTable
                 className='rounded-none border-0'
                 tableClassName='min-w-[800px]'
@@ -431,6 +450,7 @@ export function MultiKeyManageDialog({
               <div className='flex gap-2'>
                 <Button
                   variant='outline'
+                  size='sm'
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1 || isLoading}
                 >
@@ -438,6 +458,7 @@ export function MultiKeyManageDialog({
                 </Button>
                 <Button
                   variant='outline'
+                  size='sm'
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage >= totalPages || isLoading}
                 >

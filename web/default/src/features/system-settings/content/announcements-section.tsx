@@ -27,6 +27,8 @@ import * as z from 'zod'
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import { DateTimePicker } from '@/components/datetime-picker'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,19 +38,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/design-system/alert-dialog'
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/select'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
@@ -59,6 +50,15 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import dayjs from '@/lib/dayjs'
 
@@ -100,32 +100,32 @@ const typeOptions = [
   {
     value: 'default',
     label: 'Default',
-    color: 'bg-neutral',
+    color: 'bg-gray-500',
     badgeVariant: 'neutral' as const,
   },
   {
     value: 'ongoing',
     label: 'Ongoing',
-    color: 'bg-info',
+    color: 'bg-blue-500',
     badgeVariant: 'info' as const,
   },
   {
     value: 'success',
     label: 'Success',
-    color: 'bg-success',
+    color: 'bg-green-500',
     badgeVariant: 'success' as const,
   },
   {
     value: 'warning',
     label: 'Warning',
-    color: 'bg-warning',
+    color: 'bg-orange-500',
     badgeVariant: 'warning' as const,
   },
   {
     value: 'error',
     label: 'Error',
-    color: 'bg-destructive',
-    badgeVariant: 'destructive' as const,
+    color: 'bg-red-500',
+    badgeVariant: 'danger' as const,
   },
 ]
 
@@ -314,12 +314,13 @@ export function AnnouncementsSection({
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button onClick={handleAdd}>
+            <Button onClick={handleAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
               {t('Add Announcement')}
             </Button>
             <Button
               onClick={handleBatchDelete}
+              size='sm'
               variant='destructive'
               disabled={selectedIds.length === 0}
             >
@@ -329,6 +330,7 @@ export function AnnouncementsSection({
             </Button>
             <Button
               onClick={handleSaveAll}
+              size='sm'
               variant='secondary'
               disabled={!hasChanges || updateOption.isPending}
             >
@@ -397,16 +399,19 @@ export function AnnouncementsSection({
             {
               id: 'type',
               header: t('Type'),
-              cell: (announcement) => {
-                const typeOption = typeOptions.find(
-                  (option) => option.value === announcement.type
-                )
-                return (
-                  <StatusBadge variant={typeOption?.badgeVariant ?? 'neutral'}>
-                    {typeOption?.label}
-                  </StatusBadge>
-                )
-              },
+              cell: (announcement) => (
+                <StatusBadge
+                  label={
+                    typeOptions.find((opt) => opt.value === announcement.type)
+                      ?.label
+                  }
+                  variant={
+                    typeOptions.find((opt) => opt.value === announcement.type)
+                      ?.badgeVariant ?? 'neutral'
+                  }
+                  copyable={false}
+                />
+              ),
             },
             {
               id: 'extra',
@@ -440,7 +445,7 @@ export function AnnouncementsSection({
         description={t(
           'Create or update system announcements for the dashboard'
         )}
-        contentClassName='sm:max-w-2xl'
+        contentClassName='max-w-2xl'
         contentHeight='auto'
         bodyClassName='space-y-4'
         footer={

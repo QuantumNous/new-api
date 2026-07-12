@@ -26,6 +26,7 @@ import * as z from 'zod'
 
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Dialog } from '@/components/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,10 +36,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/design-system/alert-dialog'
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
-import { Dialog } from '@/components/dialog'
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
@@ -49,6 +48,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
 import { SettingsSwitchField } from '../components/settings-form-layout'
@@ -233,12 +233,13 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button onClick={handleAdd}>
+            <Button onClick={handleAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
               {t('Add FAQ')}
             </Button>
             <Button
               onClick={handleBatchDelete}
+              size='sm'
               variant='destructive'
               disabled={selectedIds.length === 0}
             >
@@ -248,6 +249,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             </Button>
             <Button
               onClick={handleSaveAll}
+              size='sm'
               variant='secondary'
               disabled={!hasChanges || updateOption.isPending}
             >
@@ -322,7 +324,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
         onOpenChange={setShowDialog}
         title={editingFaq ? t('Edit FAQ') : t('Add FAQ')}
         description={t('Create or update frequently asked questions for users')}
-        contentClassName='sm:max-w-2xl'
+        contentClassName='max-w-2xl'
         contentHeight='auto'
         bodyClassName='space-y-4'
         footer={

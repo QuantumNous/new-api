@@ -20,7 +20,7 @@ import { Monitor, Sun, MoonStar } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 import { useTheme } from '@/context/theme-provider'
 import { cn } from '@/lib/utils'
 
@@ -44,13 +44,13 @@ export function ThemeQuickSwitcher() {
         >
           <Button
             variant='ghost'
-            size='icon-sm'
+            size='icon'
             role='radio'
             aria-label={t('System')}
             aria-checked={theme === 'system'}
             onClick={() => setTheme('system')}
             className={cn(
-              'relative',
+              'relative size-7',
               theme === 'system' && 'text-accent-foreground'
             )}
           >
@@ -71,13 +71,13 @@ export function ThemeQuickSwitcher() {
           </Button>
           <Button
             variant='ghost'
-            size='icon-sm'
+            size='icon'
             role='radio'
             aria-label={t('Light')}
             aria-checked={theme === 'light'}
             onClick={() => setTheme('light')}
             className={cn(
-              'relative',
+              'relative size-7',
               theme === 'light' && 'text-accent-foreground'
             )}
           >
@@ -98,13 +98,13 @@ export function ThemeQuickSwitcher() {
           </Button>
           <Button
             variant='ghost'
-            size='icon-sm'
+            size='icon'
             role='radio'
             aria-label={t('Dark')}
             aria-checked={theme === 'dark'}
             onClick={() => setTheme('dark')}
             className={cn(
-              'relative',
+              'relative size-7',
               theme === 'dark' && 'text-accent-foreground'
             )}
           >

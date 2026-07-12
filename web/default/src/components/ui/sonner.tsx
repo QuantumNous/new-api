@@ -30,7 +30,7 @@ import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
 import { useTheme } from '@/context/theme-provider'
 
-const Toaster = ({ ...props }: ToasterProps) => {
+const Toaster = (props: ToasterProps) => {
   const { resolvedTheme } = useTheme()
 
   return (
@@ -80,36 +80,27 @@ const Toaster = ({ ...props }: ToasterProps) => {
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
           '--success-bg':
-            'color-mix(in oklch, var(--success) 10%, var(--popover))',
-          '--success-text':
-            'color-mix(in oklch, var(--success) 55%, var(--foreground))',
+            'color-mix(in oklch, var(--success) 16%, var(--popover))',
           '--success-border':
-            'color-mix(in oklch, var(--success) 32%, var(--border))',
-          '--info-bg': 'color-mix(in oklch, var(--info) 10%, var(--popover))',
-          '--info-text':
-            'color-mix(in oklch, var(--info) 55%, var(--foreground))',
+            'color-mix(in oklch, var(--success) 35%, var(--border))',
+          '--success-text': 'var(--success)',
+          '--info-bg': 'color-mix(in oklch, var(--info) 16%, var(--popover))',
           '--info-border':
-            'color-mix(in oklch, var(--info) 32%, var(--border))',
+            'color-mix(in oklch, var(--info) 35%, var(--border))',
+          '--info-text': 'var(--info)',
           '--warning-bg':
-            'color-mix(in oklch, var(--warning) 10%, var(--popover))',
-          '--warning-text':
-            'color-mix(in oklch, var(--warning) 55%, var(--foreground))',
+            'color-mix(in oklch, var(--warning) 18%, var(--popover))',
           '--warning-border':
-            'color-mix(in oklch, var(--warning) 32%, var(--border))',
+            'color-mix(in oklch, var(--warning) 38%, var(--border))',
+          '--warning-text': 'var(--warning)',
           '--error-bg':
-            'color-mix(in oklch, var(--destructive) 10%, var(--popover))',
-          '--error-text':
-            'color-mix(in oklch, var(--destructive) 55%, var(--foreground))',
+            'color-mix(in oklch, var(--destructive) 16%, var(--popover))',
           '--error-border':
-            'color-mix(in oklch, var(--destructive) 32%, var(--border))',
+            'color-mix(in oklch, var(--destructive) 35%, var(--border))',
+          '--error-text': 'var(--destructive)',
           '--border-radius': 'var(--radius)',
         } as React.CSSProperties
       }
-      toastOptions={{
-        classNames: {
-          toast: 'cn-toast',
-        },
-      }}
       {...props}
     />
   )

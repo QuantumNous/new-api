@@ -23,6 +23,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { StatusBadge } from '@/components/status-badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,11 +35,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/design-system/alert-dialog'
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
-import { StatusBadge } from '@/components/status-badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -47,6 +46,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
@@ -535,11 +535,11 @@ export function PerformanceSection(props: Props) {
       <div className='space-y-4'>
         <div className='flex items-center gap-2'>
           <h4 className='font-medium'>{t('Performance Monitor')}</h4>
-          <Button variant='outline' onClick={fetchStats}>
+          <Button variant='outline' size='sm' onClick={fetchStats}>
             {t('Refresh Stats')}
           </Button>
           <AlertDialog>
-            <AlertDialogTrigger render={<Button variant='outline' />}>
+            <AlertDialogTrigger render={<Button variant='outline' size='sm' />}>
               {t('Clean up inactive cache')}
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -564,10 +564,10 @@ export function PerformanceSection(props: Props) {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          <Button variant='outline' onClick={resetStats}>
+          <Button variant='outline' size='sm' onClick={resetStats}>
             {t('Reset Stats')}
           </Button>
-          <Button variant='outline' onClick={forceGC}>
+          <Button variant='outline' size='sm' onClick={forceGC}>
             {t('Run GC')}
           </Button>
         </div>
@@ -593,7 +593,7 @@ export function PerformanceSection(props: Props) {
                     {stats.cache_stats?.active_disk_files ?? 0}
                   </span>
                 </div>
-                <StatusBadge variant='neutral'>
+                <StatusBadge variant='neutral' copyable={false}>
                   {t('Disk Hits')}: {stats.cache_stats?.disk_cache_hits ?? 0}
                 </StatusBadge>
               </div>
@@ -613,7 +613,7 @@ export function PerformanceSection(props: Props) {
                     {stats.cache_stats?.active_memory_buffers ?? 0}
                   </span>
                 </div>
-                <StatusBadge variant='neutral'>
+                <StatusBadge variant='neutral' copyable={false}>
                   {t('Memory Hits')}:{' '}
                   {stats.cache_stats?.memory_cache_hits ?? 0}
                 </StatusBadge>

@@ -36,8 +36,16 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
+import { Dialog } from '@/components/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -45,15 +53,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/design-system/select'
-import { Dialog } from '@/components/dialog'
-import { Badge } from '@/components/ui/badge'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { ScrollArea } from '@/components/ui/scroll-area'
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -576,11 +576,17 @@ const getOperationSummary = (
 }
 
 const getModeTagTailwind = (mode: string): string => {
-  // Only destructive-ish operations get a color voice; the rest stay neutral —
-  // the mode label itself carries the identity.
+  if (mode.includes('header'))
+    return 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/20'
+  if (mode.includes('replace') || mode.includes('trim'))
+    return 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/20'
+  if (mode.includes('copy') || mode.includes('move'))
+    return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/20'
   if (mode.includes('error') || mode.includes('prune'))
-    return 'bg-destructive/10 text-destructive border-destructive/20'
-  return 'bg-muted text-muted-foreground border-border/60'
+    return 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/20'
+  if (mode.includes('sync'))
+    return 'bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/20'
+  return 'bg-muted text-muted-foreground'
 }
 
 const getModePathLabel = (mode: string): string => {
@@ -964,6 +970,7 @@ const validateOperations = (
       if (headers.length === 0)
         return t('Rule {{line}} pass_headers format is invalid', { line })
     }
+
   }
   return ''
 }
@@ -1748,6 +1755,7 @@ export function ParamOverrideEditorDialog(
           <Button
             type='button'
             variant={editMode === 'visual' ? 'default' : 'outline'}
+            size='sm'
             onClick={switchToVisualMode}
           >
             {t('Visual')}
@@ -1755,6 +1763,7 @@ export function ParamOverrideEditorDialog(
           <Button
             type='button'
             variant={editMode === 'json' ? 'default' : 'outline'}
+            size='sm'
             onClick={switchToJsonMode}
           >
             {t('JSON Text')}
@@ -1777,7 +1786,7 @@ export function ParamOverrideEditorDialog(
               setTemplatePresetKey(v || 'operations_default')
             }
           >
-            <SelectTrigger className='w-[220px]'>
+            <SelectTrigger className='h-8 w-[220px]'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
@@ -1793,6 +1802,7 @@ export function ParamOverrideEditorDialog(
           <Button
             type='button'
             variant='outline'
+            size='sm'
             onClick={() => fillTemplate('fill')}
           >
             {t('Fill Template')}
@@ -1800,11 +1810,17 @@ export function ParamOverrideEditorDialog(
           <Button
             type='button'
             variant='ghost'
+            size='sm'
             onClick={() => fillTemplate('append')}
           >
             {t('Append Template')}
           </Button>
-          <Button type='button' variant='ghost' onClick={resetEditorState}>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            onClick={resetEditorState}
+          >
             {t('Reset')}
           </Button>
         </div>
@@ -1844,7 +1860,7 @@ export function ParamOverrideEditorDialog(
                   <Button
                     type='button'
                     variant='ghost'
-                    size='icon-sm'
+                    size='sm'
                     onClick={addOperation}
                   >
                     <Plus className='h-4 w-4' />
@@ -1857,7 +1873,7 @@ export function ParamOverrideEditorDialog(
                       <span
                         key={`mode_stat_${mode}`}
                         className={cn(
-                          'inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-medium',
+                          'inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium',
                           getModeTagTailwind(mode)
                         )}
                       >
@@ -1874,7 +1890,7 @@ export function ParamOverrideEditorDialog(
                       value={operationSearch}
                       onChange={(e) => setOperationSearch(e.target.value)}
                       placeholder={t('Search rules...')}
-                      className='pl-8 text-xs'
+                      className='h-8 pl-8 text-xs'
                     />
                   </div>
                 </div>
@@ -1943,21 +1959,24 @@ export function ParamOverrideEditorDialog(
                                   <span className='text-xs font-semibold'>
                                     #{index + 1}
                                   </span>
-                                  <Badge variant='outline' className='text-xs'>
+                                  <Badge
+                                    variant='outline'
+                                    className='text-[10px]'
+                                  >
                                     {operation.conditions.length}
                                   </Badge>
                                 </div>
-                                <p className='text-muted-foreground mt-0.5 line-clamp-1 text-xs'>
+                                <p className='text-muted-foreground mt-0.5 line-clamp-1 text-[11px]'>
                                   {getOperationSummary(operation, index)}
                                 </p>
                                 {operation.description.trim() && (
-                                  <p className='text-muted-foreground mt-0.5 line-clamp-2 text-xs'>
+                                  <p className='text-muted-foreground mt-0.5 line-clamp-2 text-[10px]'>
                                     {operation.description}
                                   </p>
                                 )}
                                 <span
                                   className={cn(
-                                    'mt-1 inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-medium',
+                                    'mt-1 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium',
                                     getModeTagTailwind(operation.mode || 'set')
                                   )}
                                 >
@@ -2026,7 +2045,12 @@ export function ParamOverrideEditorDialog(
           /* JSON mode */
           <div className='p-4'>
             <div className='mb-2 flex items-center gap-2'>
-              <Button type='button' variant='outline' onClick={formatJson}>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={formatJson}
+              >
                 {t('Format')}
               </Button>
               <span className='text-muted-foreground text-xs'>
@@ -2130,6 +2154,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
             <Button
               type='button'
               variant='ghost'
+              size='sm'
               onClick={() => ruleEditorProps.duplicateOperation(operation.id)}
             >
               <Copy className='mr-1 h-3.5 w-3.5' />
@@ -2138,6 +2163,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
             <Button
               type='button'
               variant='ghost'
+              size='sm'
               className='text-destructive hover:text-destructive'
               onClick={() => ruleEditorProps.removeOperation(operation.id)}
             >
@@ -2166,7 +2192,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                 })
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className='h-9'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -2193,7 +2219,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   })
                 }
                 placeholder={getModePathPlaceholder(mode)}
-                className=''
+                className='h-9'
               />
             </div>
           )}
@@ -2212,7 +2238,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
             <label className='text-xs font-medium'>
               {t('Rule Description (optional)')}
             </label>
-            <span className='text-muted-foreground text-xs'>
+            <span className='text-muted-foreground text-[10px]'>
               {operation.description.length}/180
             </span>
           </div>
@@ -2227,7 +2253,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
               'e.g. Clean tool parameters to avoid upstream validation errors'
             )}
             maxLength={180}
-            className=''
+            className='h-9'
           />
         </div>
 
@@ -2258,7 +2284,8 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   <Button
                     type='button'
                     variant='ghost'
-                    className='text-muted-foreground h-auto px-1.5 py-0.5 text-xs sm:h-auto'
+                    size='sm'
+                    className='text-muted-foreground h-auto px-1.5 py-0.5 text-xs'
                     onClick={() => {
                       try {
                         const parsed = JSON.parse(operation.value_text)
@@ -2328,7 +2355,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                     })
                   }
                   placeholder={getModeFromPlaceholder(mode)}
-                  className=''
+                  className='h-9'
                 />
               </div>
             )}
@@ -2345,7 +2372,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                     })
                   }
                   placeholder={getModeToPlaceholder(mode)}
-                  className=''
+                  className='h-9'
                 />
               </div>
             )}
@@ -2370,7 +2397,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   })
                 }
               >
-                <SelectTrigger className='w-[120px]'>
+                <SelectTrigger className='h-7 w-[120px] text-xs'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -2387,6 +2414,8 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   <Button
                     type='button'
                     variant='ghost'
+                    size='sm'
+                    className='h-7 text-xs'
                     onClick={ruleEditorProps.expandAllConditions}
                   >
                     <ChevronDown className='mr-1 h-3 w-3' />
@@ -2395,6 +2424,8 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   <Button
                     type='button'
                     variant='ghost'
+                    size='sm'
+                    className='h-7 text-xs'
                     onClick={ruleEditorProps.collapseAllConditions}
                   >
                     <ChevronUp className='mr-1 h-3 w-3' />
@@ -2405,6 +2436,8 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
               <Button
                 type='button'
                 variant='outline'
+                size='sm'
+                className='h-7 text-xs'
                 onClick={() => ruleEditorProps.addCondition(operation.id)}
               >
                 <Plus className='mr-1 h-3 w-3' />
@@ -2476,7 +2509,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
       <div className='rounded-md border'>
         <CollapsibleTrigger className='hover:bg-muted/50 flex w-full items-center justify-between px-3 py-2'>
           <div className='flex items-center gap-2'>
-            <Badge variant='outline' className='text-xs'>
+            <Badge variant='outline' className='text-[10px]'>
               C{conditionEditorProps.conditionIndex + 1}
             </Badge>
             <span className='text-muted-foreground text-xs'>
@@ -2498,7 +2531,8 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
               <Button
                 type='button'
                 variant='ghost'
-                className='text-destructive hover:text-destructive'
+                size='sm'
+                className='text-destructive hover:text-destructive h-7 text-xs'
                 onClick={() =>
                   conditionEditorProps.removeCondition(
                     conditionEditorProps.operationId,
@@ -2512,7 +2546,9 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
             </div>
             <div className='grid gap-2 sm:grid-cols-3'>
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>{t('Field Path')}</label>
+                <label className='text-[10px] font-medium'>
+                  {t('Field Path')}
+                </label>
                 <Input
                   value={condition.path}
                   onChange={(e) =>
@@ -2523,11 +2559,13 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                     )
                   }
                   placeholder='model'
-                  className='text-xs'
+                  className='h-8 text-xs'
                 />
               </div>
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>{t('Match Mode')}</label>
+                <label className='text-[10px] font-medium'>
+                  {t('Match Mode')}
+                </label>
                 <Select
                   items={[
                     ...CONDITION_MODE_OPTIONS.map((o) => ({
@@ -2545,7 +2583,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                     )
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className='h-8 text-xs'>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
@@ -2560,7 +2598,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                 </Select>
               </div>
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>
+                <label className='text-[10px] font-medium'>
                   {t('Match Value')}
                 </label>
                 <Input
@@ -2573,7 +2611,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                     )
                   }
                   placeholder='gpt'
-                  className='text-xs'
+                  className='h-8 text-xs'
                 />
               </div>
             </div>
@@ -2640,6 +2678,8 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
           <Button
             type='button'
             variant={draft.simpleMode ? 'default' : 'outline'}
+            size='sm'
+            className='h-7 text-xs'
             onClick={() =>
               returnErrorEditorProps.updateDraft(
                 returnErrorEditorProps.operationId,
@@ -2652,6 +2692,8 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
           <Button
             type='button'
             variant={draft.simpleMode ? 'outline' : 'default'}
+            size='sm'
+            className='h-7 text-xs'
             onClick={() =>
               returnErrorEditorProps.updateDraft(
                 returnErrorEditorProps.operationId,
@@ -2702,7 +2744,7 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                   )
                 }
                 placeholder='400'
-                className='text-xs'
+                className='h-8 text-xs'
               />
             </div>
             <div className='space-y-1'>
@@ -2718,7 +2760,7 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                   )
                 }
                 placeholder='forced_bad_request'
-                className='text-xs'
+                className='h-8 text-xs'
               />
             </div>
             <div className='space-y-1'>
@@ -2734,7 +2776,7 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                   )
                 }
                 placeholder='invalid_request_error'
-                className='text-xs'
+                className='h-8 text-xs'
               />
             </div>
           </div>
@@ -2745,6 +2787,8 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
             <Button
               type='button'
               variant={draft.skipRetry ? 'default' : 'outline'}
+              size='sm'
+              className='h-7 text-xs'
               onClick={() =>
                 returnErrorEditorProps.updateDraft(
                   returnErrorEditorProps.operationId,
@@ -2757,6 +2801,8 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
             <Button
               type='button'
               variant={draft.skipRetry ? 'outline' : 'default'}
+              size='sm'
+              className='h-7 text-xs'
               onClick={() =>
                 returnErrorEditorProps.updateDraft(
                   returnErrorEditorProps.operationId,
@@ -2792,6 +2838,8 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                 key={preset.code}
                 type='button'
                 variant='outline'
+                size='sm'
+                className='h-6 text-[10px]'
                 onClick={() =>
                   returnErrorEditorProps.updateDraft(
                     returnErrorEditorProps.operationId,
@@ -2848,6 +2896,8 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
           <Button
             type='button'
             variant={draft.simpleMode ? 'default' : 'outline'}
+            size='sm'
+            className='h-7 text-xs'
             onClick={() =>
               pruneObjectsEditorProps.updateDraft(
                 pruneObjectsEditorProps.operationId,
@@ -2860,6 +2910,8 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
           <Button
             type='button'
             variant={draft.simpleMode ? 'outline' : 'default'}
+            size='sm'
+            className='h-7 text-xs'
             onClick={() =>
               pruneObjectsEditorProps.updateDraft(
                 pruneObjectsEditorProps.operationId,
@@ -2883,7 +2935,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
             )
           }
           placeholder='redacted_thinking'
-          className='text-xs'
+          className='h-8 text-xs'
         />
       </div>
 
@@ -2909,7 +2961,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                   )
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className='h-8 text-xs'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -2930,6 +2982,8 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                 <Button
                   type='button'
                   variant={draft.recursive ? 'default' : 'outline'}
+                  size='sm'
+                  className='h-8 text-xs'
                   onClick={() =>
                     pruneObjectsEditorProps.updateDraft(
                       pruneObjectsEditorProps.operationId,
@@ -2942,6 +2996,8 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                 <Button
                   type='button'
                   variant={draft.recursive ? 'outline' : 'default'}
+                  size='sm'
+                  className='h-8 text-xs'
                   onClick={() =>
                     pruneObjectsEditorProps.updateDraft(
                       pruneObjectsEditorProps.operationId,
@@ -2963,6 +3019,8 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
               <Button
                 type='button'
                 variant='outline'
+                size='sm'
+                className='h-7 text-xs'
                 onClick={() =>
                   pruneObjectsEditorProps.addRule(
                     pruneObjectsEditorProps.operationId
@@ -2987,13 +3045,14 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                     className='bg-background rounded-md border p-2'
                   >
                     <div className='mb-1 flex items-center justify-between'>
-                      <Badge variant='outline' className='text-xs'>
+                      <Badge variant='outline' className='text-[10px]'>
                         R{ruleIndex + 1}
                       </Badge>
                       <Button
                         type='button'
                         variant='ghost'
-                        className='text-destructive hover:text-destructive'
+                        size='sm'
+                        className='text-destructive hover:text-destructive h-6 text-[10px]'
                         onClick={() =>
                           pruneObjectsEditorProps.removeRule(
                             pruneObjectsEditorProps.operationId,
@@ -3007,7 +3066,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                     </div>
                     <div className='grid gap-2 sm:grid-cols-3'>
                       <div className='space-y-0.5'>
-                        <label className='text-xs font-medium'>
+                        <label className='text-[10px] font-medium'>
                           {t('Field Path')}
                         </label>
                         <Input
@@ -3020,11 +3079,11 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                             )
                           }
                           placeholder='type'
-                          className='text-xs'
+                          className='h-7 text-xs'
                         />
                       </div>
                       <div className='space-y-0.5'>
-                        <label className='text-xs font-medium'>
+                        <label className='text-[10px] font-medium'>
                           {t('Match Mode')}
                         </label>
                         <Select
@@ -3044,7 +3103,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                             )
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className='h-7 text-xs'>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent alignItemWithTrigger={false}>
@@ -3059,7 +3118,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                         </Select>
                       </div>
                       <div className='space-y-0.5'>
-                        <label className='text-xs font-medium'>
+                        <label className='text-[10px] font-medium'>
                           {t('Match Value (optional)')}
                         </label>
                         <Input
@@ -3072,12 +3131,12 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                             )
                           }
                           placeholder='redacted_thinking'
-                          className='text-xs'
+                          className='h-7 text-xs'
                         />
                       </div>
                     </div>
                     <div className='mt-1.5 flex flex-wrap gap-3'>
-                      <label className='flex items-center gap-1.5 text-xs'>
+                      <label className='flex items-center gap-1.5 text-[10px]'>
                         <Switch
                           checked={rule.invert}
                           onCheckedChange={(checked) =>
@@ -3090,7 +3149,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                         />
                         {t('Invert match')}
                       </label>
-                      <label className='flex items-center gap-1.5 text-xs'>
+                      <label className='flex items-center gap-1.5 text-[10px]'>
                         <Switch
                           checked={rule.pass_missing_key}
                           onCheckedChange={(checked) =>
@@ -3136,7 +3195,9 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
       <label className='text-xs font-medium'>{t('Sync Endpoints')}</label>
       <div className='grid gap-3 sm:grid-cols-2'>
         <div className='space-y-1.5'>
-          <label className='text-xs font-medium'>{t('Source Endpoint')}</label>
+          <label className='text-[10px] font-medium'>
+            {t('Source Endpoint')}
+          </label>
           <div className='flex gap-2'>
             <Select
               items={[
@@ -3159,7 +3220,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
                 )
               }
             >
-              <SelectTrigger className='w-[110px]'>
+              <SelectTrigger className='h-8 w-[110px] text-xs'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -3186,12 +3247,14 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
                 )
               }
               placeholder='session_id'
-              className='text-xs'
+              className='h-8 text-xs'
             />
           </div>
         </div>
         <div className='space-y-1.5'>
-          <label className='text-xs font-medium'>{t('Target Endpoint')}</label>
+          <label className='text-[10px] font-medium'>
+            {t('Target Endpoint')}
+          </label>
           <div className='flex gap-2'>
             <Select
               items={[
@@ -3214,7 +3277,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
                 )
               }
             >
-              <SelectTrigger className='w-[110px]'>
+              <SelectTrigger className='h-8 w-[110px] text-xs'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -3241,7 +3304,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
                 )
               }
               placeholder='prompt_cache_key'
-              className='text-xs'
+              className='h-8 text-xs'
             />
           </div>
         </div>
@@ -3263,6 +3326,8 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
             key={preset.label}
             type='button'
             variant='outline'
+            size='sm'
+            className='h-6 text-[10px]'
             onClick={() =>
               syncFieldsEditorProps.updateOperation(
                 syncFieldsEditorProps.operationId,

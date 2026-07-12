@@ -24,11 +24,7 @@ import {
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/design-system/table'
+import { TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
 import { DataTableColumnHeader } from './column-header'
@@ -249,10 +245,7 @@ function shouldRenderColumnResizer<TData>(
     table.options.enableColumnResizing === true &&
     !header.isPlaceholder &&
     header.column.getCanResize() &&
-    !isContentSizedColumn(
-      header.column.id,
-      header.column.columnDef.meta?.contentSized
-    )
+    !isContentSizedColumn(header.column.id)
   )
 }
 
@@ -260,13 +253,7 @@ function getHeaderSizeStyle<TData>(
   header: Header<TData, unknown>,
   applyHeaderSize: boolean | undefined
 ) {
-  if (
-    !applyHeaderSize ||
-    isContentSizedColumn(
-      header.column.id,
-      header.column.columnDef.meta?.contentSized
-    )
-  ) {
+  if (!applyHeaderSize || isContentSizedColumn(header.column.id)) {
     return undefined
   }
 

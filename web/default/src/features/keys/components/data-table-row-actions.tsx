@@ -33,7 +33,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -203,7 +203,7 @@ export function DataTableRowActions<TData>({
               className={
                 isEnabled
                   ? 'text-destructive hover:text-destructive'
-                  : 'text-success hover:text-success'
+                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
               }
             />
           }

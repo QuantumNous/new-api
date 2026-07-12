@@ -23,10 +23,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
 import { StatusBadge } from '@/components/status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -36,6 +35,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -249,6 +249,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                   <Button
                     type='button'
                     variant='outline'
+                    size='sm'
                     onClick={() =>
                       formatJsonField('global.thinking_model_blacklist')
                     }
@@ -268,7 +269,11 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
               <h3 className='text-base font-semibold'>
                 {t('ChatCompletions -> Responses Compatibility')}
               </h3>
-              <StatusBadge variant='neutral'>{t('Preview')}</StatusBadge>
+              <StatusBadge
+                label={t('Preview')}
+                variant='neutral'
+                copyable={false}
+              />
             </div>
 
             <Alert>
@@ -301,6 +306,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     <Button
                       type='button'
                       variant='outline'
+                      size='sm'
                       onClick={() =>
                         form.setValue(
                           'global.chat_completions_to_responses_policy',
@@ -314,6 +320,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     <Button
                       type='button'
                       variant='outline'
+                      size='sm'
                       onClick={() =>
                         form.setValue(
                           'global.chat_completions_to_responses_policy',
@@ -327,6 +334,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     <Button
                       type='button'
                       variant='outline'
+                      size='sm'
                       onClick={() =>
                         formatJsonField(
                           'global.chat_completions_to_responses_policy'

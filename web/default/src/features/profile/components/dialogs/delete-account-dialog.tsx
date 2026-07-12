@@ -22,10 +22,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
@@ -79,7 +79,7 @@ export function DeleteAccountDialog({
       } else {
         toast.error(response.message || t('Failed to delete account'))
       }
-    } catch {
+    } catch (_error) {
       toast.error(t('Failed to delete account'))
     } finally {
       setLoading(false)

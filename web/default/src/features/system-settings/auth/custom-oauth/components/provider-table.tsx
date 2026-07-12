@@ -24,8 +24,8 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { BadgeCell } from '@/components/data-table/core/badge-cell'
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
-import { Button } from '@/components/design-system/button'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 
 import { useDeleteProvider } from '../hooks/use-custom-oauth-mutations'
 import type { CustomOAuthProvider } from '../types'
@@ -55,7 +55,7 @@ export function ProviderTable(props: ProviderTableProps) {
         <p className='text-muted-foreground text-sm'>
           {t('Manage custom OAuth providers for user authentication')}
         </p>
-        <Button onClick={props.onCreate}>
+        <Button size='sm' onClick={props.onCreate}>
           <Plus className='mr-1.5 h-4 w-4' />
           {t('Add Provider')}
         </Button>
@@ -88,7 +88,11 @@ export function ProviderTable(props: ProviderTableProps) {
             header: t('Slug'),
             cell: (provider) => (
               <BadgeCell>
-                <StatusBadge variant='neutral'>{provider.slug}</StatusBadge>
+                <StatusBadge
+                  label={provider.slug}
+                  variant='neutral'
+                  copyable={false}
+                />
               </BadgeCell>
             ),
           },
@@ -97,9 +101,11 @@ export function ProviderTable(props: ProviderTableProps) {
             header: t('Status'),
             cell: (provider) => (
               <BadgeCell>
-                <StatusBadge variant={provider.enabled ? 'success' : 'neutral'}>
-                  {provider.enabled ? t('Enabled') : t('Disabled')}
-                </StatusBadge>
+                <StatusBadge
+                  label={provider.enabled ? t('Enabled') : t('Disabled')}
+                  variant={provider.enabled ? 'success' : 'neutral'}
+                  copyable={false}
+                />
               </BadgeCell>
             ),
           },

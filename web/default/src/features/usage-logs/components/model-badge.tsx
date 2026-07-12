@@ -19,13 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { getIdentityColorClass } from '@/lib/colors'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
@@ -123,60 +122,34 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
   return null
 }
 
-function ModelBadgeContent(
-  props: ModelBadgeProps & {
-    staticOnly: boolean
-  }
-) {
+function ModelBadgeContent(props: ModelBadgeProps) {
   const provider = resolveModelProvider(props.modelName)
-  const colorClassName = getIdentityColorClass(props.modelName)
-  const content = [
-    provider ? (
-      <span
-        key='provider'
-        data-icon='inline-start'
-        className='flex items-center justify-center'
-        aria-label={provider.label}
-      >
-        {getLobeIcon(provider.icon, 12)}
-      </span>
-    ) : null,
-    <span key='model' className='whitespace-nowrap'>
-      {props.modelName}
-    </span>,
-  ]
-
-  if (props.staticOnly) {
-    return (
-      <StatusBadge
-        variant='neutral'
-        appearance='soft'
-        size='sm'
-        className={cn(
-          'h-5! max-w-none shrink-0 whitespace-nowrap! [&_[data-slot=status-badge-label]]:whitespace-nowrap!',
-          colorClassName,
-          props.className
-        )}
-      >
-        {content}
-      </StatusBadge>
-    )
-  }
 
   return (
-    <CopyableStatusBadge
-      value={props.modelName}
-      variant='neutral'
-      appearance='soft'
+    <StatusBadge
+      copyText={props.modelName}
       size='sm'
+      showDot={!provider}
+      autoColor={provider ? undefined : props.modelName}
       className={cn(
-        'h-5! max-w-none shrink-0 whitespace-nowrap! [&_[data-slot=status-badge-label]]:whitespace-nowrap!',
-        colorClassName,
+        'border-border/60 bg-muted/30 h-6 max-w-none gap-1.5 rounded-md border px-2 [font-family:var(--font-body)]',
+        provider && 'text-foreground',
         props.className
       )}
     >
-      {content}
-    </CopyableStatusBadge>
+      <span className='flex max-w-none items-center gap-1.5'>
+        {provider && (
+          <span
+            className='flex h-[18px] w-[18px] shrink-0 items-center justify-center'
+            title={provider.label}
+            aria-label={provider.label}
+          >
+            {getLobeIcon(provider.icon, 18)}
+          </span>
+        )}
+        <span className='whitespace-nowrap'>{props.modelName}</span>
+      </span>
+    </StatusBadge>
   )
 }
 
@@ -184,7 +157,7 @@ export function ModelBadge(props: ModelBadgeProps) {
   const { t } = useTranslation()
 
   if (!props.actualModel) {
-    return <ModelBadgeContent {...props} staticOnly={false} />
+    return <ModelBadgeContent {...props} />
   }
 
   return (
@@ -194,7 +167,7 @@ export function ModelBadge(props: ModelBadgeProps) {
           <button type='button' className='inline-flex items-center gap-1' />
         }
       >
-        <ModelBadgeContent {...props} staticOnly />
+        <ModelBadgeContent {...props} />
         <Route className='text-muted-foreground size-3 shrink-0' />
       </PopoverTrigger>
       <PopoverContent className='w-72'>
@@ -203,21 +176,17 @@ export function ModelBadge(props: ModelBadgeProps) {
             <span className='text-muted-foreground text-xs'>
               {t('Request Model:')}
             </span>
-            <ModelBadgeContent
-              modelName={props.modelName}
-              staticOnly
-              className='max-w-[11rem]'
-            />
+            <span className='truncate font-mono text-xs font-medium'>
+              {props.modelName}
+            </span>
           </div>
           <div className='flex items-start justify-between gap-3'>
             <span className='text-muted-foreground text-xs'>
               {t('Actual Model:')}
             </span>
-            <ModelBadgeContent
-              modelName={props.actualModel}
-              staticOnly
-              className='max-w-[11rem]'
-            />
+            <span className='truncate font-mono text-xs font-medium'>
+              {props.actualModel}
+            </span>
           </div>
         </div>
       </PopoverContent>

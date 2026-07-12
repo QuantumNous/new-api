@@ -27,7 +27,7 @@ export function BadgeCell({ className, ...props }: BadgeCellProps) {
     <div
       data-slot='badge-cell'
       className={cn(
-        'flex max-w-full min-w-0 items-center gap-1 overflow-visible',
+        '-ml-1.5 flex max-w-full min-w-0 items-center gap-1 overflow-hidden [&_[data-slot=status-badge]]:max-w-full [&_[data-slot=status-badge]]:min-w-0',
         className
       )}
       {...props}

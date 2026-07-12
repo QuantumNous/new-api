@@ -50,7 +50,7 @@ export function TruncatedCell({
     return (
       <div
         className={cn(
-          'block max-w-full min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]',
+          'block max-w-full min-w-0 truncate',
           cellClassName,
           className
         )}
@@ -64,8 +64,7 @@ export function TruncatedCell({
     <Tooltip>
       <TooltipTrigger
         render={
-          <span
-            tabIndex={0}
+          <div
             className={cn(
               'block max-w-full min-w-0 truncate',
               cellClassName,
@@ -74,9 +73,7 @@ export function TruncatedCell({
           />
         }
       >
-        <span className={cn('block truncate', contentClassName)}>
-          {children}
-        </span>
+        <div className={cn('truncate', contentClassName)}>{children}</div>
       </TooltipTrigger>
       <TooltipContent
         side={side}

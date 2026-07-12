@@ -20,7 +20,6 @@ import { ShieldCheck } from 'lucide-react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Input } from '@/components/design-system/input'
 import { PasswordInput } from '@/components/password-input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -30,6 +29,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 
 import type { SetupFormValues } from '../types'
 
@@ -42,9 +42,9 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
   const { t } = useTranslation()
   if (rootInitialized) {
     return (
-      <Alert className='border-info/25 bg-info/8'>
+      <Alert className='border-sky-200 bg-sky-50 dark:border-sky-900/60 dark:bg-sky-950/40'>
         <AlertDescription className='flex items-start gap-2'>
-          <ShieldCheck className='text-info mt-0.5 size-4' />
+          <ShieldCheck className='mt-0.5 size-4 text-sky-500' />
           {t(
             'The administrator account is already initialized. You can keep your existing credentials and continue to the next step.'
           )}

@@ -29,10 +29,10 @@ import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardAction,
@@ -328,8 +328,8 @@ const PLAN_TYPE_BADGE: Record<
 > = {
   enterprise: { label: 'Enterprise', variant: 'success' },
   team: { label: 'Team', variant: 'info' },
-  pro: { label: 'Pro', variant: 'neutral' },
-  plus: { label: 'Plus', variant: 'neutral' },
+  pro: { label: 'Pro', variant: 'blue' },
+  plus: { label: 'Plus', variant: 'purple' },
   free: { label: 'Free', variant: 'warning' },
 }
 
@@ -372,7 +372,7 @@ function windowLabel(windowData?: CodexRateLimitWindow | null) {
   const percent = clampPercent(windowData?.used_percent)
   let variant: StatusBadgeProps['variant'] = 'info'
   if (percent >= 95) {
-    variant = 'destructive'
+    variant = 'danger'
   } else if (percent >= 80) {
     variant = 'warning'
   }
@@ -384,12 +384,16 @@ function getUsageStatusBadge(
   t: (key: string) => string
 ) {
   if (!rateLimit || Object.keys(rateLimit).length === 0) {
-    return <StatusBadge variant='neutral'>{t('Pending')}</StatusBadge>
+    return (
+      <StatusBadge label={t('Pending')} variant='neutral' copyable={false} />
+    )
   }
   if (rateLimit.allowed && !rateLimit.limit_reached) {
-    return <StatusBadge variant='success'>{t('Available')}</StatusBadge>
+    return (
+      <StatusBadge label={t('Available')} variant='success' copyable={false} />
+    )
   }
-  return <StatusBadge variant='destructive'>{t('Limited')}</StatusBadge>
+  return <StatusBadge label={t('Limited')} variant='danger' copyable={false} />
 }
 
 function formatLabelValue(label: string, value: string) {
@@ -400,11 +404,27 @@ const percentTextClassName: Record<
   NonNullable<StatusBadgeProps['variant']>,
   string
 > = {
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-destructive',
+  info: 'text-info',
   neutral: 'text-muted-foreground',
-  info: 'text-status-info',
-  success: 'text-status-success',
-  warning: 'text-status-warning',
-  destructive: 'text-status-destructive',
+  purple: 'text-chart-4',
+  amber: 'text-warning',
+  blue: 'text-chart-1',
+  cyan: 'text-chart-2',
+  green: 'text-success',
+  grey: 'text-muted-foreground',
+  indigo: 'text-chart-1',
+  'light-blue': 'text-info',
+  'light-green': 'text-emerald-500 dark:text-emerald-300',
+  lime: 'text-chart-3',
+  orange: 'text-warning',
+  pink: 'text-chart-5',
+  red: 'text-destructive',
+  teal: 'text-chart-2',
+  violet: 'text-chart-4',
+  yellow: 'text-warning',
 }
 
 type RateLimitWindowProps = {
@@ -444,7 +464,7 @@ function RateLimitWindow(props: RateLimitWindowProps) {
             >
               {hasData ? `${percent}%` : '-'}
             </div>
-            <div className='text-muted-foreground mt-1 text-xs'>
+            <div className='text-muted-foreground mt-1 text-[11px]'>
               {t('Used')}
             </div>
           </div>
@@ -462,7 +482,7 @@ function RateLimitWindow(props: RateLimitWindowProps) {
         )}
         <div className='mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2'>
           <div className='min-w-0'>
-            <div className='text-muted-foreground text-xs'>
+            <div className='text-muted-foreground text-[11px]'>
               {t('Reset at:')}
             </div>
             <div className='break-all tabular-nums'>
@@ -470,7 +490,7 @@ function RateLimitWindow(props: RateLimitWindowProps) {
             </div>
           </div>
           <div className='min-w-0 sm:text-right'>
-            <div className='text-muted-foreground text-xs'>
+            <div className='text-muted-foreground text-[11px]'>
               {t('Resets in:')}
             </div>
             <div className='tabular-nums'>
@@ -545,7 +565,9 @@ function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
       </SectionHeading>
       {props.meteredFeature ? (
         <div className='bg-background ring-border/60 inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2 py-1 text-xs ring-1'>
-          <span className='text-muted-foreground text-xs'>metered_feature</span>
+          <span className='text-muted-foreground text-[11px]'>
+            metered_feature
+          </span>
           <span className='min-w-0 font-mono break-all'>
             {props.meteredFeature}
           </span>
@@ -578,7 +600,7 @@ function InfoField(props: {
         props.className
       )}
     >
-      <div className='text-muted-foreground text-xs font-medium'>
+      <div className='text-muted-foreground text-[11px] font-medium'>
         {props.label}
       </div>
       <div className='mt-1 flex min-w-0 items-start justify-between gap-2'>
@@ -613,7 +635,7 @@ function ResetCreditTimeField(props: {
 }) {
   return (
     <div className='min-w-0'>
-      <div className='text-muted-foreground text-xs font-medium'>
+      <div className='text-muted-foreground text-[11px] font-medium'>
         {props.label}
       </div>
       <div
@@ -645,9 +667,11 @@ function ResetCreditItem(props: { credit: CodexResetCredit; index: number }) {
             <div className='min-w-0 text-sm font-medium break-words'>
               {title}
             </div>
-            <StatusBadge variant={statusBadge.variant}>
-              {t(statusBadge.label)}
-            </StatusBadge>
+            <StatusBadge
+              label={t(statusBadge.label)}
+              variant={statusBadge.variant}
+              copyable={false}
+            />
           </div>
           {props.credit.description ? (
             <div className='text-muted-foreground mt-1 text-xs leading-5'>
@@ -655,13 +679,13 @@ function ResetCreditItem(props: { credit: CodexResetCredit; index: number }) {
             </div>
           ) : null}
           {props.credit.id ? (
-            <div className='text-muted-foreground mt-1 font-mono text-xs break-all'>
+            <div className='text-muted-foreground mt-1 font-mono text-[11px] break-all'>
               {props.credit.id}
             </div>
           ) : null}
         </div>
         <div className='shrink-0 text-right'>
-          <div className='text-muted-foreground text-xs font-medium'>
+          <div className='text-muted-foreground text-[11px] font-medium'>
             {t('Expires in')}
           </div>
           <div
@@ -796,6 +820,7 @@ function ResetCreditsPanel(props: {
         <Button
           type='button'
           variant='outline'
+          size='sm'
           onClick={props.onRefresh}
           disabled={props.isLoading}
         >
@@ -816,6 +841,7 @@ function ResetCreditsPanel(props: {
         <Button
           type='button'
           variant={canReset ? 'destructive' : 'outline'}
+          size='sm'
           onClick={props.onRequestReset}
           disabled={!canReset || props.isLoading || props.isResetting}
           className='shrink-0'
@@ -1057,7 +1083,7 @@ export function CodexUsageDialog({
     >
       <div className='flex flex-col gap-4'>
         {errorMessage && (
-          <div className='border-destructive/25 bg-destructive/8 text-status-destructive rounded-lg border px-4 py-3 text-sm'>
+          <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400'>
             {errorMessage}
           </div>
         )}
@@ -1072,6 +1098,7 @@ export function CodexUsageDialog({
                 <Button
                   type='button'
                   variant='outline'
+                  size='sm'
                   onClick={onRefresh}
                   disabled={Boolean(isRefreshing)}
                 >
@@ -1083,25 +1110,35 @@ export function CodexUsageDialog({
           </CardHeader>
           <CardContent className='p-4 pt-0'>
             <div className='flex flex-wrap items-center gap-2'>
-              <StatusBadge variant={accountBadge.variant}>
-                {accountBadge.label}
-              </StatusBadge>
+              <StatusBadge
+                label={accountBadge.label}
+                variant={accountBadge.variant}
+                copyable={false}
+              />
               {getUsageStatusBadge(rateLimit, t)}
-              <StatusBadge variant='neutral'>
-                {`HTTP ${response?.upstream_status ?? '-'}`}
-              </StatusBadge>
-              <StatusBadge variant='neutral'>
-                {formatLabelValue(t('Reset count:'), resetCreditsText)}
-              </StatusBadge>
+              <StatusBadge
+                label={`HTTP ${response?.upstream_status ?? '-'}`}
+                variant='neutral'
+                copyable={false}
+              />
+              <StatusBadge
+                label={formatLabelValue(t('Reset count:'), resetCreditsText)}
+                variant={Number(resetCredits) > 0 ? 'blue' : 'neutral'}
+                copyable={false}
+              />
               {payload?.credits?.overage_limit_reached ? (
-                <StatusBadge variant='destructive'>
-                  {t('Overage limited')}
-                </StatusBadge>
+                <StatusBadge
+                  label={t('Overage limited')}
+                  variant='danger'
+                  copyable={false}
+                />
               ) : null}
               {payload?.spend_control?.reached ? (
-                <StatusBadge variant='destructive'>
-                  {t('Spend limited')}
-                </StatusBadge>
+                <StatusBadge
+                  label={t('Spend limited')}
+                  variant='danger'
+                  copyable={false}
+                />
               ) : null}
             </div>
             <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
@@ -1140,9 +1177,11 @@ export function CodexUsageDialog({
                 <div className='text-sm font-semibold'>
                   {t('Reset Credits')}
                 </div>
-                <StatusBadge variant='neutral'>
-                  {`${t('Available')} ${resetCreditsText}`}
-                </StatusBadge>
+                <StatusBadge
+                  label={`${t('Available')} ${resetCreditsText}`}
+                  variant={Number(resetCredits) > 0 ? 'blue' : 'neutral'}
+                  copyable={false}
+                />
               </div>
               <div className='text-muted-foreground mt-1 text-xs leading-5'>
                 {t('View issued reset credits, grant dates, and expiration.')}
@@ -1242,6 +1281,7 @@ export function CodexUsageDialog({
                 <Button
                   type='button'
                   variant='outline'
+                  size='sm'
                   onClick={() => copyToClipboard(rawJsonText)}
                   disabled={!rawJsonText}
                 >

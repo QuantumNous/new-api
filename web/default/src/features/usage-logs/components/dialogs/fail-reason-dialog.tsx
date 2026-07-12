@@ -19,8 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { Copy, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -55,21 +55,21 @@ export function FailReasonDialog({
             <Label className='text-sm font-semibold'>
               {t('Error Message')}
             </Label>
-            <div className='border-destructive/25 bg-destructive/8 relative rounded-md border p-3'>
+            <div className='bg-muted/50 relative rounded-md border border-red-200 p-3'>
               <Button
                 variant='ghost'
-                size='icon'
-                className='absolute top-2 right-2'
+                size='sm'
+                className='absolute top-2 right-2 h-8 w-8 p-0'
                 onClick={() => copyToClipboard(failReason)}
                 title={t('Copy to clipboard')}
               >
                 {copiedText === failReason ? (
-                  <Check className='text-success size-4' />
+                  <Check className='size-4 text-green-600' />
                 ) : (
                   <Copy className='size-4' />
                 )}
               </Button>
-              <p className='text-status-destructive overflow-wrap-anywhere pr-10 text-sm leading-relaxed break-all whitespace-pre-wrap'>
+              <p className='overflow-wrap-anywhere pr-10 text-sm leading-relaxed break-all whitespace-pre-wrap text-red-600'>
                 {failReason || '-'}
               </p>
             </div>

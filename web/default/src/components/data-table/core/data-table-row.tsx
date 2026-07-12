@@ -16,18 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { flexRender, type Row } from '@tanstack/react-table'
+import {
+  flexRender,
+  type Cell,
+  type Row,
+  type Table as TanstackTable,
+} from '@tanstack/react-table'
 import * as React from 'react'
 
-import { TableCell, TableRow } from '@/components/design-system/table'
+import { TableCell, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
+import { TruncatedCell } from './truncated-cell'
 import type { DataTableColumnClassName } from './types'
 
 type DataTableRowProps<TData> = {
   row: Row<TData>
   className?: string
   getColumnClassName?: DataTableColumnClassName
+  cellRenderColumns?: TanstackTable<TData>['options']['columns']
 } & Omit<React.ComponentProps<typeof TableRow>, 'children'>
 
 type DataTableRowInnerProps<TData> = DataTableRowProps<TData> & {
@@ -39,8 +46,13 @@ function DataTableRowInner<TData>({
   isSelected,
   className,
   getColumnClassName,
+  cellRenderColumns,
   ...rowProps
 }: DataTableRowInnerProps<TData>) {
+  // Destructured only to keep it out of `rowProps` (it is not a valid DOM attr)
+  // and to feed the memo comparator below; it is intentionally unused here.
+  void cellRenderColumns
+
   return (
     <TableRow
       data-state={isSelected ? 'selected' : undefined}
@@ -48,25 +60,19 @@ function DataTableRowInner<TData>({
       {...rowProps}
     >
       {row.getVisibleCells().map((cell) => {
-        const contentMode = cell.column.columnDef.meta?.contentMode ?? 'wrap'
+        const renderedCell = renderCellContent(cell)
 
         return (
           <TableCell
             key={cell.id}
             data-column-id={cell.column.id}
-            data-content-mode={contentMode}
             className={cn(
               'max-w-full min-w-0',
-              contentMode === 'full' &&
-                'max-w-none overflow-visible [&_.truncate]:overflow-visible [&_.truncate]:text-clip',
-              contentMode === 'wrap' &&
-                'whitespace-normal break-words [overflow-wrap:anywhere] [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
-              contentMode === 'summary' &&
-                'whitespace-normal break-words [overflow-wrap:anywhere]',
+              renderedCell.isPrimitive && 'overflow-hidden',
               getColumnClassName?.(cell.column.id, 'cell')
             )}
           >
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            {renderedCell.content}
           </TableCell>
         )
       })}
@@ -74,6 +80,50 @@ function DataTableRowInner<TData>({
   )
 }
 
+const MemoizedDataTableRow = React.memo(DataTableRowInner, (prev, next) => {
+  // Do not read row.getIsSelected() inside the comparator: TanStack row objects
+  // keep a stable reference while their selection state mutates, so reading it
+  // here compares identical live values and misses selection changes. Selection
+  // is lifted to the `isSelected` prop, captured per render in DataTableRow.
+  //
+  // Column cell renderers (and getColumnClassName) can close over external
+  // state while the row stays stable, so column definitions and the class
+  // resolver are part of the render identity and must be compared too.
+  return (
+    prev.row === next.row &&
+    prev.className === next.className &&
+    prev.isSelected === next.isSelected &&
+    prev.getColumnClassName === next.getColumnClassName &&
+    prev.cellRenderColumns === next.cellRenderColumns
+  )
+}) as typeof DataTableRowInner
+
 export function DataTableRow<TData>(props: DataTableRowProps<TData>) {
-  return <DataTableRowInner {...props} isSelected={props.row.getIsSelected()} />
+  return (
+    <MemoizedDataTableRow {...props} isSelected={props.row.getIsSelected()} />
+  )
+}
+
+function renderCellContent<TData>(cell: Cell<TData, unknown>) {
+  const content = flexRender(cell.column.columnDef.cell, cell.getContext())
+  const textContent = getPrimitiveTextContent(content)
+
+  if (!textContent) {
+    return { content, isPrimitive: false }
+  }
+
+  return {
+    content: (
+      <TruncatedCell tooltipContent={textContent}>{content}</TruncatedCell>
+    ),
+    isPrimitive: true,
+  }
+}
+
+function getPrimitiveTextContent(content: React.ReactNode): string | null {
+  if (typeof content === 'string' || typeof content === 'number') {
+    return String(content)
+  }
+
+  return null
 }

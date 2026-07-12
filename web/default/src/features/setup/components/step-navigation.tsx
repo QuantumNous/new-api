@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { CheckCircle2, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 
 interface StepNavigationProps {
   currentStep: number

@@ -21,9 +21,9 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import { useAccessToken } from '../../hooks'
@@ -102,6 +102,7 @@ export function AccessTokenDialog({
             <CopyButton
               value={token}
               variant='outline'
+              className='size-9'
               iconClassName='size-4'
               tooltip={t('Copy token')}
               aria-label={t('Copy token')}

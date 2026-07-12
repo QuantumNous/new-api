@@ -19,17 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Primary UI face. `@fontsource-variable/public-sans` registers the family
-   * as 'Public Sans Variable' (NOT 'Public Sans'), so that name must lead the
-   * stack or the webfont silently never applies. Public Sans carries no CJK
-   * glyphs, so explicit CJK UI fonts (PingFang / YaHei UI / Noto Sans CJK)
-   * sit BEFORE the western system fallbacks — otherwise Windows browsers pick
-   * a legacy serif-ish CJK default and Latin/CJK baselines drift apart. */
-  --font-sans:
-    'Public Sans Variable', 'Public Sans', -apple-system, BlinkMacSystemFont,
-    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei',
-    'Noto Sans SC', 'Noto Sans CJK SC', 'Segoe UI', 'Helvetica Neue', Arial,
-    sans-serif;
+  --font-sans: 'Public Sans', sans-serif;
   /* Editorial serif token — the body face used by the `serif` font axis
    * and by presets that opt in (currently Anthropic). Lora carries only
    * Latin glyphs, so the stack walks through CJK serifs (Noto / Source Han
@@ -43,6 +33,12 @@ For commercial licensing, please contact support@quantumnous.com
     'Songti SC', 'STSong', 'STSongti-SC-Regular', 'PingFang SC', 'SimSun',
     'NSimSun', '宋体', 'FangSong', '仿宋', 'KaiTi', '楷体', Georgia,
     'Times New Roman', Cambria, 'Liberation Serif', serif;
+  --font-inter:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-manrope:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -56,8 +52,6 @@ For commercial licensing, please contact support@quantumnous.com
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-subtle-foreground: var(--subtle-foreground);
-  --color-faint-foreground: var(--faint-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -70,120 +64,6 @@ For commercial licensing, please contact support@quantumnous.com
   --color-info-foreground: var(--info-foreground);
   --color-neutral: var(--neutral);
   --color-neutral-foreground: var(--neutral-foreground);
-  /* Readable foregrounds for low-emphasis status surfaces. Mixing each
-   * semantic hue toward the current foreground preserves its meaning while
-   * keeping compact badge text legible across light, dark, and preset themes. */
-  --color-status-destructive: color-mix(
-    in oklch,
-    var(--destructive) var(--status-color-mix),
-    var(--foreground)
-  );
-  --color-status-success: color-mix(
-    in oklch,
-    var(--success) var(--status-color-mix),
-    var(--foreground)
-  );
-  --color-status-warning: color-mix(
-    in oklch,
-    var(--warning) var(--status-color-mix),
-    var(--foreground)
-  );
-  --color-status-info: color-mix(
-    in oklch,
-    var(--info) var(--status-color-mix),
-    var(--foreground)
-  );
-  /* Metric identity accent; intentionally distinct from status semantics. */
-  --color-metric-rpm: color-mix(
-    in oklch,
-    oklch(0.68 calc(0.2 * var(--identity-chroma-scale)) 350)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  /* Stable entity hues used by deterministic string-to-color identity tints.
-   * Mixing toward the achromatic foreground dilutes chroma along with
-   * lightness, so each hue pre-scales its chroma by the per-mode
-   * `--identity-chroma-scale` (see :root / .dark). */
-  --color-identity-amber: color-mix(
-    in oklch,
-    oklch(0.72 calc(0.17 * var(--identity-chroma-scale)) 75)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-blue: color-mix(
-    in oklch,
-    oklch(0.62 calc(0.18 * var(--identity-chroma-scale)) 250)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-cyan: color-mix(
-    in oklch,
-    oklch(0.7 calc(0.14 * var(--identity-chroma-scale)) 205)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-green: color-mix(
-    in oklch,
-    oklch(0.64 calc(0.16 * var(--identity-chroma-scale)) 145)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-grey: var(--muted-foreground);
-  --color-identity-indigo: color-mix(
-    in oklch,
-    oklch(0.6 calc(0.2 * var(--identity-chroma-scale)) 275)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-light-blue: color-mix(
-    in oklch,
-    oklch(0.74 calc(0.12 * var(--identity-chroma-scale)) 225)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-lime: color-mix(
-    in oklch,
-    oklch(0.75 calc(0.17 * var(--identity-chroma-scale)) 125)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-orange: color-mix(
-    in oklch,
-    oklch(0.7 calc(0.19 * var(--identity-chroma-scale)) 50)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-pink: var(--color-metric-rpm);
-  --color-identity-purple: color-mix(
-    in oklch,
-    oklch(0.62 calc(0.2 * var(--identity-chroma-scale)) 305)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-red: color-mix(
-    in oklch,
-    oklch(0.64 calc(0.21 * var(--identity-chroma-scale)) 25)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-teal: color-mix(
-    in oklch,
-    oklch(0.66 calc(0.14 * var(--identity-chroma-scale)) 175)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-violet: color-mix(
-    in oklch,
-    oklch(0.65 calc(0.2 * var(--identity-chroma-scale)) 325)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
-  --color-identity-yellow: color-mix(
-    in oklch,
-    oklch(0.78 calc(0.16 * var(--identity-chroma-scale)) 95)
-      var(--identity-color-mix),
-    var(--foreground)
-  );
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -192,6 +72,9 @@ For commercial licensing, please contact support@quantumnous.com
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-overview-accent-1: var(--overview-accent-1);
+  --color-overview-accent-2: var(--overview-accent-2);
+  --color-overview-accent-3: var(--overview-accent-3);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -211,11 +94,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 :root {
-  /* Single radius source. 0.625rem (10px) is the shadcn default for admin
-   * density; larger values ripple through the derived scale above and make
-   * data-dense tables/cards read "bubbly". User can still pick rounder axes
-   * via data-theme-radius. */
-  --radius: 0.625rem;
+  --radius: 1rem;
   --app-header-height: 3rem;
   /* Static build-channel fallback consumed when JS hasn't booted yet. */
   --app-rev: '2k6e8r7p';
@@ -224,24 +103,19 @@ For commercial licensing, please contact support@quantumnous.com
    * in theme-presets.css. Default mirrors `--font-sans` so behavior is
    * identical when no font preference is set. */
   --font-body: var(--font-sans);
-  /* Light mode uses a quiet neutral canvas with white content surfaces.
-   * Keeping the layers distinct prevents dense admin pages from collapsing
-   * into one flat white plane while preserving the macaron accents. */
-  --background: oklch(0.985 0 0);
+  --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.13 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.692 0.141 243.716);
+  --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.95 0 0);
-  --secondary-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.955 0 0);
+  --secondary-foreground: oklch(0.42 0.16 250);
+  --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.49 0 0);
-  --subtle-foreground: var(--muted-foreground);
-  --faint-foreground: var(--muted-foreground);
-  --accent: oklch(0.935 0 0);
+  --accent: color-mix(in oklch, var(--primary) 12%, var(--background));
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
@@ -253,53 +127,50 @@ For commercial licensing, please contact support@quantumnous.com
   --info-foreground: oklch(0.985 0 0);
   --neutral: oklch(0.708 0 0);
   --neutral-foreground: oklch(0.145 0 0);
-  --border: oklch(0.895 0 0);
-  --input: oklch(0.875 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.96 0 0);
+  --border: oklch(0.93 0 0);
+  --input: oklch(0.93 0 0);
+  --ring: oklch(0.708 0.16 249.003);
+  --chart-1: oklch(0.72 0.18 250);
+  --chart-2: oklch(0.65 0.15 200);
+  --chart-3: oklch(0.7 0.12 280);
+  --chart-4: oklch(0.68 0.19 325);
+  --chart-5: oklch(0.68 0.16 155);
+  --overview-accent-1: oklch(0.72 0.18 250);
+  --overview-accent-2: oklch(0.65 0.15 200);
+  --overview-accent-3: oklch(0.7 0.12 280);
+  --sidebar: color-mix(in oklch, var(--foreground) 0.5%, var(--background));
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.13 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.9 0 0);
-  --sidebar-accent-foreground: oklch(0.145 0 0);
-  --sidebar-border: oklch(0.895 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --skeleton-base: oklch(0.955 0 0);
+  --sidebar-primary: oklch(0.64 0.197 253.892);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: color-mix(in oklch, var(--primary) 12%, var(--background));
+  --sidebar-accent-foreground: oklch(0.579 0.196 255.909);
+  --sidebar-border: oklch(0.93 0 0);
+  --sidebar-ring: oklch(0.58 0.2 250);
+  --skeleton-base: oklch(0.97 0 0);
   --skeleton-highlight: oklch(0.985 0 0);
-  --status-color-mix: 65%;
-  --identity-color-mix: 60%;
-  /* Cancels the chroma diluted by the 60% mix toward the near-black
-   * foreground (1 / 0.6), so light mode keeps the darkened lightness for
-   * contrast but stays vivid instead of fading into pastel. */
-  --identity-chroma-scale: 1.6667;
-  --identity-surface-mix: 13%;
-  --identity-border-mix: 28%;
-  --table-row: var(--card);
-  --table-header: color-mix(in oklch, var(--foreground) 3%, var(--table-row));
+  --table-row: var(--background);
+  --table-header: color-mix(
+    in oklch,
+    var(--foreground) 1.5%,
+    var(--background)
+  );
   --table-header-hover: color-mix(
     in oklch,
-    var(--foreground) 5%,
-    var(--table-row)
+    var(--foreground) 3%,
+    var(--background)
   );
-  --table-disabled: color-mix(
-    in oklch,
-    var(--foreground) 5.5%,
-    var(--table-row)
-  );
+  /* Disabled rows: kept subtle so they read as "quiet", not as a colored
+     alert state. */
+  --table-disabled: color-mix(in oklch, var(--foreground) 3%, var(--background));
   --table-disabled-hover: color-mix(
     in oklch,
-    var(--foreground) 7%,
-    var(--table-row)
+    var(--foreground) 4.5%,
+    var(--background)
   );
   --table-disabled-border: color-mix(
     in oklch,
-    var(--foreground) 24%,
-    var(--table-row)
+    var(--foreground) 16%,
+    var(--background)
   );
 }
 
@@ -311,23 +182,13 @@ For commercial licensing, please contact support@quantumnous.com
   --card-foreground: oklch(0.965 0 0);
   --popover: oklch(0.305 0 0);
   --popover-foreground: oklch(0.965 0 0);
-  --primary: oklch(0.965 0 0);
-  --primary-foreground: oklch(0.155 0 0);
+  --primary: oklch(0.54 0.142 248.516);
+  --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.335 0 0);
-  --secondary-foreground: oklch(0.965 0 0);
+  --secondary-foreground: oklch(0.9 0.05 250);
   --muted: oklch(0.305 0 0);
   --muted-foreground: oklch(0.78 0 0);
-  --subtle-foreground: color-mix(
-    in oklch,
-    var(--muted-foreground) 60%,
-    transparent
-  );
-  --faint-foreground: color-mix(
-    in oklch,
-    var(--muted-foreground) 40%,
-    transparent
-  );
-  --accent: oklch(0.365 0 0);
+  --accent: color-mix(in oklch, var(--primary) 20%, var(--background));
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
@@ -335,34 +196,28 @@ For commercial licensing, please contact support@quantumnous.com
   --success-foreground: oklch(0.145 0 0);
   --warning: oklch(0.769 0.188 70.08);
   --warning-foreground: oklch(0.145 0 0);
-  --info: oklch(0.68 0.17 237.323);
+  --info: oklch(0.613 0.14 239.919);
   --info-foreground: oklch(0.145 0 0);
   --neutral: oklch(0.76 0 0);
   --neutral-foreground: oklch(0.155 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 17%);
-  --ring: oklch(0.68 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --ring: oklch(0.554 0.148 250.726);
+  --chart-1: oklch(0.76 0.14 250);
+  --chart-2: oklch(0.76 0.13 200);
+  --chart-3: oklch(0.76 0.13 285);
+  --chart-4: oklch(0.75 0.16 325);
+  --chart-5: oklch(0.76 0.14 155);
   --sidebar: oklch(0.225 0 0);
   --sidebar-foreground: oklch(0.95 0 0);
-  --sidebar-primary: oklch(0.965 0 0);
-  --sidebar-primary-foreground: oklch(0.155 0 0);
-  --sidebar-accent: oklch(0.355 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.588 0.123 246.488);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: color-mix(in oklch, var(--primary) 20%, var(--background));
+  --sidebar-accent-foreground: oklch(0.9 0.05 250);
   --sidebar-border: oklch(1 0 0 / 11%);
-  --sidebar-ring: oklch(0.68 0 0);
+  --sidebar-ring: oklch(0.7 0.17 250);
   --skeleton-base: oklch(0.335 0 0);
   --skeleton-highlight: oklch(0.44 0 0);
-  --status-color-mix: 55%;
-  --identity-color-mix: 55%;
-  /* Dark mode keeps the soft macaron pastels unchanged. */
-  --identity-chroma-scale: 1;
-  --identity-surface-mix: 10%;
-  --identity-border-mix: 20%;
   --table-row: var(--background);
   --table-header: color-mix(in oklch, var(--foreground) 6%, var(--background));
   --table-header-hover: color-mix(
@@ -370,19 +225,15 @@ For commercial licensing, please contact support@quantumnous.com
     var(--foreground) 9%,
     var(--background)
   );
-  --table-disabled: color-mix(
-    in oklch,
-    var(--foreground) 10%,
-    var(--background)
-  );
+  --table-disabled: color-mix(in oklch, var(--foreground) 7%, var(--background));
   --table-disabled-hover: color-mix(
     in oklch,
-    var(--foreground) 13%,
+    var(--foreground) 9.5%,
     var(--background)
   );
   --table-disabled-border: color-mix(
     in oklch,
-    var(--foreground) 34%,
+    var(--foreground) 24%,
     var(--background)
   );
 }

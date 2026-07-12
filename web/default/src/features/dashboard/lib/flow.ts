@@ -947,6 +947,28 @@ function buildNodeFilterOptions(
   )
 }
 
+export function buildFlowFilterOptions(
+  rows: FlowQuotaDataItem[],
+  metric: FlowMetric = 'quota',
+  palette?: readonly string[],
+  role: FlowRole = DEFAULT_FLOW_ROLE,
+  visibleStages?: FlowNodeKind[],
+  selectedNodes?: readonly FlowNodeFilter[]
+): FlowFilterOptions {
+  return {
+    users: buildUserFilterOptions(rows, metric, palette),
+    nodes: buildNodeFilterOptions(
+      rows,
+      metric,
+      role,
+      visibleStages,
+      palette,
+      EMPTY_FLOW_PATH_CONTEXT,
+      selectedNodes
+    ),
+  }
+}
+
 export function buildDashboardFlowData(
   rows: FlowQuotaDataItem[],
   metric: FlowMetric = 'quota',

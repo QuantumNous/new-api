@@ -20,9 +20,12 @@ import { Zap, ExternalLink, Gauge } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
-import { Button } from '@/components/design-system/button'
-import { StatusBadge, type StatusVariant } from '@/components/status-badge'
-import { openExternalSpeedTest } from '@/features/dashboard/lib/api-info'
+import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
+import {
+  getLatencyColorClass,
+  openExternalSpeedTest,
+} from '@/features/dashboard/lib/api-info'
 import type { ApiInfoItem, PingStatus } from '@/features/dashboard/types'
 import { getBgColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
@@ -37,12 +40,6 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
   const { t } = useTranslation()
   const item = props.item
   const status = props.status
-  let latencyVariant: StatusVariant = 'success'
-  if (status.latency !== null && status.latency >= 500) {
-    latencyVariant = 'destructive'
-  } else if (status.latency !== null && status.latency >= 200) {
-    latencyVariant = 'warning'
-  }
 
   return (
     <div className='group hover:bg-muted/40 flex items-center justify-between gap-2 px-3 py-2.5 transition-colors sm:gap-3 sm:px-5 sm:py-3'>
@@ -72,25 +69,36 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
       <div className='flex shrink-0 items-center gap-2'>
         <div className='flex items-center'>
           {status.testing && (
-            <StatusBadge variant='warning'>{t('Testing...')}</StatusBadge>
+            <StatusBadge
+              label={t('Testing...')}
+              variant='warning'
+              className='animate-pulse'
+              copyable={false}
+            />
           )}
           {status.latency !== null && !status.testing && (
-            <StatusBadge variant={latencyVariant}>
-              {status.latency}
-              {t('ms')}
-            </StatusBadge>
+            <StatusBadge
+              variant='success'
+              label={`${status.latency}${t('ms')}`}
+              className={cn(
+                'font-mono font-medium',
+                getLatencyColorClass(status.latency)
+              )}
+              copyable={false}
+            />
           )}
           {status.error && (
-            <StatusBadge variant='neutral'>{t('N/A')}</StatusBadge>
+            <StatusBadge label={t('N/A')} variant='neutral' copyable={false} />
           )}
         </div>
 
         <div className='flex items-center gap-0.5'>
           <Button
             variant='ghost'
-            size='icon-sm'
+            size='sm'
             onClick={() => props.onTest(item.url)}
             disabled={status.testing}
+            className='size-7 p-0'
             title={t('Test Latency')}
           >
             <Zap
@@ -100,9 +108,9 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
 
           <Button
             variant='ghost'
-            size='icon-sm'
+            size='sm'
             onClick={() => openExternalSpeedTest(item.url)}
-            className='hidden sm:inline-flex'
+            className='hidden size-7 p-0 sm:inline-flex'
             title={t('External Speed Test')}
           >
             <Gauge className='size-3.5' />
@@ -111,7 +119,8 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
           <CopyButton
             value={item.url}
             variant='ghost'
-            size='icon-sm'
+            size='sm'
+            className='size-7 p-0'
             iconClassName='size-3.5'
             tooltip={t('Copy URL')}
             aria-label={t('Copy URL')}
@@ -119,8 +128,8 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
 
           <Button
             variant='ghost'
-            size='icon-sm'
-            className='hidden sm:inline-flex'
+            size='sm'
+            className='hidden size-7 p-0 sm:inline-flex'
             title={t('Open in New Tab')}
             render={<a href={item.url} target='_blank' rel='noreferrer' />}
           >

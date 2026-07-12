@@ -22,17 +22,17 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { StaticDataTable } from '@/components/data-table'
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
@@ -66,9 +66,12 @@ function RuleBadgeList(props: { items: string[] }) {
       max={2}
       getKey={(item) => item}
       renderItem={(item) => (
-        <StatusBadge variant='neutral' size='sm'>
-          {item}
-        </StatusBadge>
+        <StatusBadge
+          label={item}
+          variant='neutral'
+          size='sm'
+          copyable={false}
+        />
       )}
     />
   )
@@ -459,18 +462,22 @@ export function ChannelAffinitySection(props: Props) {
         <SettingsPageActionsPortal>
           <Button
             variant={editMode === 'visual' ? 'default' : 'outline'}
+            size='sm'
             onClick={editMode === 'json' ? switchToVisualMode : undefined}
           >
             {t('Visual')}
           </Button>
           <Button
             variant={editMode === 'json' ? 'default' : 'outline'}
+            size='sm'
             onClick={editMode === 'visual' ? switchToJsonMode : undefined}
           >
             JSON
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant='outline' />}>
+            <DropdownMenuTrigger
+              render={<Button variant='outline' size='sm' />}
+            >
               <Plus className='mr-1 h-3 w-3' />
               {t('Add Rule')}
             </DropdownMenuTrigger>
@@ -504,15 +511,16 @@ export function ChannelAffinitySection(props: Props) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant='outline' onClick={handleFillTemplates}>
+          <Button variant='outline' size='sm' onClick={handleFillTemplates}>
             <FileText className='mr-1 h-3 w-3' />
             {t('Fill Templates')}
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button size='sm' onClick={handleSave} disabled={saving}>
             {saving ? t('Saving...') : t('Save')}
           </Button>
           <Button
             variant='outline'
+            size='sm'
             onClick={refreshCache}
             disabled={cacheLoading}
           >
@@ -523,6 +531,7 @@ export function ChannelAffinitySection(props: Props) {
           </Button>
           <Button
             variant='destructive'
+            size='sm'
             onClick={() => setClearAllDialogOpen(true)}
           >
             {t('Clear All Cache')}
@@ -578,12 +587,12 @@ export function ChannelAffinitySection(props: Props) {
                 header: t('Retry'),
                 cell: (rule) => (
                   <StatusBadge
-                    variant={
-                      rule.skip_retry_on_failure ? 'destructive' : 'neutral'
+                    label={
+                      rule.skip_retry_on_failure ? t('No Retry') : t('Retry')
                     }
-                  >
-                    {rule.skip_retry_on_failure ? t('No Retry') : t('Retry')}
-                  </StatusBadge>
+                    variant={rule.skip_retry_on_failure ? 'danger' : 'neutral'}
+                    copyable={false}
+                  />
                 ),
               },
               {
@@ -617,7 +626,8 @@ export function ChannelAffinitySection(props: Props) {
                     {rule.include_rule_name && (
                       <Button
                         variant='ghost'
-                        size='icon-sm'
+                        size='icon'
+                        className='h-7 w-7'
                         onClick={() => setClearRuleName(rule.name)}
                         title={t('Clear cache for this rule')}
                       >
@@ -626,7 +636,8 @@ export function ChannelAffinitySection(props: Props) {
                     )}
                     <Button
                       variant='ghost'
-                      size='icon-sm'
+                      size='icon'
+                      className='h-7 w-7'
                       onClick={() => {
                         setEditingRule(rule)
                         setRuleTemplateKey(null)
@@ -637,7 +648,8 @@ export function ChannelAffinitySection(props: Props) {
                     </Button>
                     <Button
                       variant='ghost'
-                      size='icon-sm'
+                      size='icon'
+                      className='h-7 w-7'
                       onClick={() => handleDeleteRule(idx)}
                     >
                       <Trash2 className='h-3 w-3' />

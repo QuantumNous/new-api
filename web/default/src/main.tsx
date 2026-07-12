@@ -28,7 +28,6 @@ import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { toast } from 'sonner'
 
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
 import { applyFaviconToDom } from '@/lib/dom-utils'
@@ -38,6 +37,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { DirectionProvider } from './context/direction-provider'
+import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
 import './i18n/config'
 // Generated Routes
@@ -116,11 +116,7 @@ declare module '@tanstack/react-router' {
 }
 
 // Render the app
-const rootElement = document.querySelector<HTMLDivElement>('#root')
-if (!rootElement) {
-  throw new Error('Root element not found')
-}
-
+const rootElement = document.getElementById('root')!
 // Set document.title and favicon from cached status, then refresh from network
 ;(function initSystemBranding() {
   try {
@@ -169,11 +165,11 @@ if (!rootElement.innerHTML) {
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <DirectionProvider>
-            <TooltipProvider>
+          <FontProvider>
+            <DirectionProvider>
               <RouterProvider router={router} />
-            </TooltipProvider>
-          </DirectionProvider>
+            </DirectionProvider>
+          </FontProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </StrictMode>

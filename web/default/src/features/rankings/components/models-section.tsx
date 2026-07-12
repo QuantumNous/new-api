@@ -177,10 +177,10 @@ export function ModelsSection(props: ModelsSectionProps) {
           </p>
         </div>
         <div className='shrink-0 text-right'>
-          <div className='text-foreground text-2xl font-semibold tabular-nums'>
+          <div className='text-foreground font-mono text-2xl font-semibold tabular-nums'>
             {formatTokens(totalTokens)}
           </div>
-          <div className='text-muted-foreground/80 text-xs font-medium tracking-widest uppercase'>
+          <div className='text-muted-foreground/80 text-[10px] font-medium tracking-widest uppercase'>
             {t('tokens')}
           </div>
         </div>
@@ -210,7 +210,7 @@ export function ModelsSection(props: ModelsSectionProps) {
       <div className='border-t'>
         <header className='px-5 pt-4 pb-2'>
           <h3 className='text-foreground inline-flex items-center gap-2 text-sm font-semibold'>
-            <Trophy className='text-warning size-3.5' />
+            <Trophy className='size-3.5 text-amber-500' />
             {t('LLM Leaderboard')}
           </h3>
           <p className='text-muted-foreground/80 mt-0.5 text-xs'>

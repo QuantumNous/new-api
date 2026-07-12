@@ -376,7 +376,7 @@ export async function manageMultiKeys(
 export async function getMultiKeyStatus(
   channelId: number,
   page = 1,
-  pageSize = 20,
+  pageSize = 50,
   status?: number
 ): Promise<MultiKeyStatusResponse> {
   return manageMultiKeys({

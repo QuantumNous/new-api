@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { MoreHorizontal } from 'lucide-react'
 import * as React from 'react'
 
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,7 +42,7 @@ export function DataTableRowActionMenu(props: DataTableRowActionMenuProps) {
         render={
           <Button
             variant='ghost'
-            size='icon-sm'
+            size='icon'
             className='data-popup-open:bg-muted'
             aria-label={props.ariaLabel}
           />

@@ -32,5 +32,12 @@ export function NavigationProgress() {
     }
   }, [state.status])
 
-  return <LoadingBar color='var(--primary)' ref={ref} shadow height={2} />
+  return (
+    <LoadingBar
+      color='var(--muted-foreground)'
+      ref={ref}
+      shadow={true}
+      height={2}
+    />
+  )
 }

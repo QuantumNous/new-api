@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { CopyButton } from '@/components/copy-button'
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
@@ -49,7 +49,7 @@ export function MaskedValueDisplay(props: MaskedValueDisplayProps) {
             <Button
               variant='ghost'
               size='sm'
-              className='max-w-full min-w-0 justify-start truncate px-0 font-mono hover:bg-transparent aria-expanded:bg-transparent'
+              className='h-7 max-w-full min-w-0 justify-start truncate px-0 font-mono hover:bg-transparent aria-expanded:bg-transparent'
             />
           }
         >
@@ -72,7 +72,7 @@ export function MaskedValueDisplay(props: MaskedValueDisplayProps) {
       </Popover>
       <CopyButton
         value={props.fullValue}
-        size='icon-sm'
+        className='size-7'
         iconClassName='size-3.5'
         tooltip={props.copyTooltip}
         aria-label={props.copyAriaLabel}

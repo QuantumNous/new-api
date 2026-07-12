@@ -32,8 +32,17 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -41,17 +50,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/design-system/select'
-import { Tabs, TabsList, TabsTrigger } from '@/components/design-system/tabs'
-import { StatusBadge } from '@/components/status-badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { Field, FieldLabel } from '@/components/ui/field'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
   BILLING_EXTRA_VARS,
@@ -332,9 +332,8 @@ function formatTokenHint(n: number | string | null | undefined): string {
 
 function formatNumberDraft(value: number | string): string {
   if (value === '') return ''
-  if (typeof value === 'number') {
+  if (typeof value === 'number')
     return Number.isFinite(value) ? String(value) : '0'
-  }
   return value
 }
 
@@ -437,16 +436,18 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
   return (
     <div className='flex items-center gap-2'>
       <Select
-        items={CONDITION_INPUT_OPTIONS.map((option) => ({
-          value: option.value,
-          label: t(option.labelKey),
-        }))}
+        items={[
+          ...CONDITION_INPUT_OPTIONS.map((option) => ({
+            value: option.value,
+            label: t(option.labelKey),
+          })),
+        ]}
         value={condition.var}
         onValueChange={(value) =>
           onChange({ ...condition, var: value as TierConditionInput['var'] })
         }
       >
-        <SelectTrigger className='w-32'>
+        <SelectTrigger className='w-32' size='sm'>
           <SelectValue>
             {currentInputOption
               ? t(currentInputOption.labelKey)
@@ -470,7 +471,7 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
           onChange({ ...condition, op: value as TierConditionInput['op'] })
         }
       >
-        <SelectTrigger className='w-20'>
+        <SelectTrigger className='w-20' size='sm'>
           <SelectValue />
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
@@ -618,11 +619,11 @@ function VisualTierCard({
     <div className='space-y-3 rounded-lg border p-3'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <div className='flex items-center gap-2'>
-          <StatusBadge appearance='outline'>
+          <Badge variant='outline'>
             {t('Tier')} {index + 1} / {total}
-          </StatusBadge>
+          </Badge>
           {tier.conditions.length === 0 && (
-            <StatusBadge variant='info'>{t('Fallback tier')}</StatusBadge>
+            <Badge variant='secondary'>{t('Fallback tier')}</Badge>
           )}
           <Input
             value={tier.label}
@@ -630,7 +631,7 @@ function VisualTierCard({
               onChange({ ...tier, label: event.target.value })
             }
             placeholder={t('Tier name')}
-            className='w-36'
+            className='h-7 w-36'
           />
         </div>
         <Button
@@ -650,8 +651,10 @@ function VisualTierCard({
           <Label className='text-xs font-medium'>{t('Tier conditions')}</Label>
           <Button
             variant='ghost'
+            size='sm'
             onClick={onAddCondition}
             disabled={tier.conditions.length >= 2}
+            className='h-7 px-2 text-xs'
           >
             <Plus className='mr-1 h-3 w-3' />
             {t('Add condition')}
@@ -664,7 +667,7 @@ function VisualTierCard({
         ) : (
           tier.conditions.map((condition, conditionIndex) => (
             <ConditionRow
-              key={`${condition.var}-${condition.op}-${condition.value}`}
+              key={conditionIndex}
               condition={condition}
               onChange={(next) => handleConditionChange(conditionIndex, next)}
               onRemove={() => handleConditionRemove(conditionIndex)}
@@ -676,7 +679,9 @@ function VisualTierCard({
       <div className='space-y-2'>
         <div className='flex items-center justify-between gap-3'>
           <Label className='text-sm font-semibold'>{t('Token prices')}</Label>
-          <StatusBadge>{PRICE_SUFFIX}</StatusBadge>
+          <span className='bg-muted text-muted-foreground rounded-md px-2 py-1 text-xs'>
+            {PRICE_SUFFIX}
+          </span>
         </div>
 
         <div className='space-y-3'>
@@ -705,7 +710,7 @@ function VisualTierCard({
                   value !== null && handleCacheModeChange(value as CacheMode)
                 }
               >
-                <TabsList className=''>
+                <TabsList className='h-8'>
                   <TabsTrigger
                     value={CACHE_MODE_GENERIC}
                     className='px-2 text-xs'
@@ -738,6 +743,8 @@ function VisualTierCard({
         <Button
           type='button'
           variant='ghost'
+          size='sm'
+          className='h-7 px-2 text-xs'
           onClick={() => setMediaOpen((prev) => !prev)}
         >
           <ChevronDown
@@ -842,12 +849,7 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
       </p>
       {config.tiers.map((tier, index) => (
         <VisualTierCard
-          key={`${tier.label}-${tier.conditions
-            .map(
-              (condition) =>
-                `${condition.var}-${condition.op}-${condition.value}`
-            )
-            .join('-')}`}
+          key={index}
           tier={tier}
           index={index}
           total={config.tiers.length}
@@ -858,7 +860,8 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
       ))}
       <Button
         variant='outline'
-        className='w-36 justify-center'
+        size='sm'
+        className='h-9 w-36 justify-center'
         onClick={handleAddTier}
       >
         <Plus className='mr-2 h-4 w-4' />
@@ -964,12 +967,12 @@ function RuleConditionRow({
         return timeFunc
     }
   }
-  let sourceLabel = t('Time')
-  if (condition.source === SOURCE_PARAM) {
-    sourceLabel = t('Body param')
-  } else if (condition.source === SOURCE_HEADER) {
-    sourceLabel = t('Header')
-  }
+  const sourceLabel =
+    condition.source === SOURCE_PARAM
+      ? t('Body param')
+      : condition.source === SOURCE_HEADER
+        ? t('Header')
+        : t('Time')
 
   const handleSourceChange = (source: string) => {
     if (source === SOURCE_TIME) {
@@ -989,16 +992,18 @@ function RuleConditionRow({
   const renderTimeCondition = (timeCond: TimeCondition) => (
     <>
       <Select
-        items={TIME_FUNCS.map((fn) => ({
-          value: fn,
-          label: getTimeFuncLabel(fn),
-        }))}
+        items={[
+          ...TIME_FUNCS.map((fn) => ({
+            value: fn,
+            label: getTimeFuncLabel(fn),
+          })),
+        ]}
         value={timeCond.timeFunc}
         onValueChange={(value) =>
           onChange({ ...timeCond, timeFunc: value as TimeFunc })
         }
       >
-        <SelectTrigger className='w-32'>
+        <SelectTrigger className='w-32' size='sm'>
           <SelectValue>{getTimeFuncLabel(timeCond.timeFunc)}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
@@ -1012,16 +1017,18 @@ function RuleConditionRow({
         </SelectContent>
       </Select>
       <Select
-        items={COMMON_TIMEZONES.map((tz) => ({
-          value: tz.value,
-          label: tz.label,
-        }))}
+        items={[
+          ...COMMON_TIMEZONES.map((tz) => ({
+            value: tz.value,
+            label: tz.label,
+          })),
+        ]}
         value={timeCond.timezone}
         onValueChange={(value) =>
           value !== null && onChange({ ...timeCond, timezone: value })
         }
       >
-        <SelectTrigger className='w-56'>
+        <SelectTrigger className='w-56' size='sm'>
           <SelectValue>
             {COMMON_TIMEZONES.find((tz) => tz.value === timeCond.timezone)
               ?.label ?? timeCond.timezone}
@@ -1038,14 +1045,16 @@ function RuleConditionRow({
         </SelectContent>
       </Select>
       <Select
-        items={matchOptions.map((option) => ({
-          value: option.value,
-          label: getMatchLabel(option.value),
-        }))}
+        items={[
+          ...matchOptions.map((option) => ({
+            value: option.value,
+            label: getMatchLabel(option.value),
+          })),
+        ]}
         value={timeCond.mode}
         onValueChange={(v) => v !== null && handleModeChange(v)}
       >
-        <SelectTrigger className='w-32'>
+        <SelectTrigger className='w-32' size='sm'>
           <SelectValue>{getMatchLabel(timeCond.mode)}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
@@ -1102,14 +1111,16 @@ function RuleConditionRow({
         className='w-44'
       />
       <Select
-        items={matchOptions.map((option) => ({
-          value: option.value,
-          label: getMatchLabel(option.value),
-        }))}
+        items={[
+          ...matchOptions.map((option) => ({
+            value: option.value,
+            label: getMatchLabel(option.value),
+          })),
+        ]}
         value={phCond.mode}
         onValueChange={(v) => v !== null && handleModeChange(v)}
       >
-        <SelectTrigger className='w-32'>
+        <SelectTrigger className='w-32' size='sm'>
           <SelectValue>{getMatchLabel(phCond.mode)}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
@@ -1146,7 +1157,7 @@ function RuleConditionRow({
         value={condition.source}
         onValueChange={(v) => v !== null && handleSourceChange(v)}
       >
-        <SelectTrigger className='w-28'>
+        <SelectTrigger className='w-28' size='sm'>
           <SelectValue>{sourceLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
@@ -1214,9 +1225,9 @@ function RuleGroupCard({
   return (
     <div className='bg-muted/30 space-y-3 rounded-md border p-3'>
       <div className='flex items-center justify-between gap-2'>
-        <StatusBadge appearance='outline'>
+        <Badge variant='outline'>
           {t('Rule group')} #{index + 1}
-        </StatusBadge>
+        </Badge>
         <Button
           variant='ghost'
           size='icon'
@@ -1230,7 +1241,7 @@ function RuleGroupCard({
       <div className='space-y-2'>
         {group.conditions.map((condition, conditionIndex) => (
           <RuleConditionRow
-            key={JSON.stringify(condition)}
+            key={conditionIndex}
             condition={condition}
             onChange={(next) => handleConditionChange(conditionIndex, next)}
             onRemove={() =>
@@ -1244,11 +1255,19 @@ function RuleGroupCard({
           />
         ))}
         <div className='flex flex-wrap gap-2'>
-          <Button variant='ghost' onClick={() => handleAddCondition(false)}>
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={() => handleAddCondition(false)}
+          >
             <Plus className='mr-1 h-3 w-3' />
             {t('Add param/header')}
           </Button>
-          <Button variant='ghost' onClick={() => handleAddCondition(true)}>
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={() => handleAddCondition(true)}
+          >
             <Plus className='mr-1 h-3 w-3' />
             {t('Add time condition')}
           </Button>
@@ -1294,7 +1313,12 @@ function PresetSection({ applyPreset }: PresetSectionProps) {
       <div className='flex items-center gap-2'>
         <span className='text-sm font-medium'>{t('Preset templates')}</span>
         {hasMore && (
-          <Button variant='ghost' onClick={() => setExpanded((prev) => !prev)}>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='h-6 px-2 text-xs'
+            onClick={() => setExpanded((prev) => !prev)}
+          >
             {expanded ? t('Collapse') : t('More templates...')}
           </Button>
         )}
@@ -1305,13 +1329,15 @@ function PresetSection({ applyPreset }: PresetSectionProps) {
             key={presetGroup.group}
             className='flex flex-wrap items-center gap-2'
           >
-            <StatusBadge className='min-w-[60px] justify-center'>
+            <Badge variant='secondary' className='min-w-[60px] justify-center'>
               {t(presetGroup.group)}
-            </StatusBadge>
+            </Badge>
             {presetGroup.presets.map((preset) => (
               <Button
                 key={preset.key}
                 variant='outline'
+                size='sm'
+                className='h-7 text-xs'
                 onClick={() => applyPreset(preset)}
               >
                 {preset.label}
@@ -1432,9 +1458,9 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
               {t('Estimated quota cost')}: {result.cost.toLocaleString()}
             </span>
             {result.matchedTier && (
-              <StatusBadge variant='info' appearance='outline'>
+              <Badge variant='outline' className='text-xs'>
                 {t('Hit tier')}: {result.matchedTier}
-              </StatusBadge>
+              </Badge>
             )}
           </div>
         )}
@@ -1536,7 +1562,7 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
 
   const prompt = useMemo(() => {
     if (modelName) {
-      return `${LLM_PROMPT_TEMPLATE}\n\nCurrent model: ${modelName}`
+      return LLM_PROMPT_TEMPLATE + `\n\nCurrent model: ${modelName}`
     }
     return LLM_PROMPT_TEMPLATE
   }, [modelName])
@@ -1552,7 +1578,11 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger render={<Button variant='ghost' />}>
+      <CollapsibleTrigger
+        render={
+          <Button variant='ghost' size='sm' className='h-7 px-2 text-xs' />
+        }
+      >
         <Copy className='mr-1.5 h-3 w-3' />
         {t('LLM prompt helper')}
       </CollapsibleTrigger>
@@ -1566,6 +1596,7 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
             </p>
             <Button
               variant='outline'
+              size='sm'
               className='ml-3 shrink-0'
               onClick={handleCopy}
             >
@@ -1751,7 +1782,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
             value={editorMode}
             onValueChange={(value) => handleModeChange(value as EditorMode)}
           >
-            <SelectTrigger className='w-full sm:w-56'>
+            <SelectTrigger className='w-full sm:w-56' size='sm'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
@@ -1806,7 +1837,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
               <>
                 {requestRuleGroups.map((group, groupIndex) => (
                   <RuleGroupCard
-                    key={JSON.stringify(group)}
+                    key={groupIndex}
                     group={group}
                     index={groupIndex}
                     onChange={(next) => {
@@ -1823,7 +1854,8 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
                 ))}
                 <Button
                   variant='outline'
-                  className='w-36 justify-center'
+                  size='sm'
+                  className='h-9 w-36 justify-center'
                   onClick={() =>
                     handleRuleGroupsChange([
                       ...requestRuleGroups,

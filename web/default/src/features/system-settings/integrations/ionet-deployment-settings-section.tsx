@@ -24,9 +24,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -36,6 +35,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { testDeploymentConnectionWithKey } from '@/features/models/api'
 
@@ -234,7 +234,7 @@ export function IoNetDeploymentSettingsSection({
 
               {testState.ok === true ? (
                 <Alert variant='default' className='flex items-center gap-2'>
-                  <CheckCircle2 className='text-success size-4' />
+                  <CheckCircle2 className='size-4 text-green-600' />
                   <div>
                     <AlertTitle>{t('Connection successful')}</AlertTitle>
                     <AlertDescription>

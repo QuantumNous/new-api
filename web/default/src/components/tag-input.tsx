@@ -20,8 +20,8 @@ import { X } from 'lucide-react'
 import { useState, useRef, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface TagInputProps {

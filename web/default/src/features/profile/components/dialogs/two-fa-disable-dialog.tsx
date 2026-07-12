@@ -21,11 +21,11 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
 import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { disable2FA } from '@/lib/api'
 
@@ -74,7 +74,7 @@ export function TwoFADisableDialog({
       } else {
         toast.error(response.message || t('Failed to disable 2FA'))
       }
-    } catch {
+    } catch (_error) {
       toast.error(t('Failed to disable 2FA'))
     } finally {
       setLoading(false)

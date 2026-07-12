@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
 import type { FlowQuotaDataItem } from '../types'
-import { buildDashboardFlowData, buildFlowSankeySpec } from './flow'
+import {
+  buildDashboardFlowData,
+  buildFlowFilterOptions,
+  buildFlowSankeySpec,
+} from './flow'
 
 const rows: FlowQuotaDataItem[] = [
   {
@@ -272,9 +276,7 @@ describe('dashboard flow data', () => {
   })
 
   test('builds user filter options with stable values', () => {
-    const options = buildDashboardFlowData(rows, 'quota', {
-      role: 'admin',
-    }).filterOptions
+    const options = buildFlowFilterOptions(rows, 'quota')
 
     assert.deepEqual(
       options.users.map((user) => [user.value, user.label, user.valueLabel]),

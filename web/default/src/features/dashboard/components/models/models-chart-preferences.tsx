@@ -20,7 +20,9 @@ import { Save, Settings2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
+import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -28,9 +30,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/design-system/select'
-import { Dialog } from '@/components/dialog'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/select'
 import {
   CONSUMPTION_DISTRIBUTION_CHART_OPTIONS,
   MODEL_ANALYTICS_CHART_OPTIONS,
@@ -71,7 +71,7 @@ export function ModelsChartPreferences(props: ModelsChartPreferencesProps) {
       open={open}
       onOpenChange={handleOpenChange}
       trigger={
-        <Button variant='outline'>
+        <Button variant='outline' size='sm'>
           <Settings2 className='mr-2 h-4 w-4' />
           {t('Preferences')}
         </Button>

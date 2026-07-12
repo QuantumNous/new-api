@@ -23,12 +23,6 @@ import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/design-system/tabs'
-import {
   Form,
   FormControl,
   FormDescription,
@@ -37,6 +31,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
 import { SettingsForm } from '../components/settings-form-layout'

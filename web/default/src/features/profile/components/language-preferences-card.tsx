@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2 } from 'lucide-react'
+import { Languages, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -28,8 +28,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/design-system/select'
-import { Card, CardContent } from '@/components/ui/card'
+} from '@/components/ui/select'
+import { TitledCard } from '@/components/ui/titled-card'
 import {
   INTERFACE_LANGUAGE_OPTIONS,
   normalizeInterfaceLanguage,
@@ -103,17 +103,23 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   }
 
   return (
-    <Card data-card-hover='false' className='py-0'>
-      <CardContent className='flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5'>
-        <div className='min-w-0 space-y-0.5'>
-          <p className='text-sm font-medium'>{t('Interface Language')}</p>
+    <TitledCard
+      title={t('Language Preferences')}
+      description={t('Set the language used across the interface')}
+      icon={<Languages className='h-4 w-4' />}
+      iconTone='chart-4'
+      disableHoverEffect
+    >
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
+        <div className='space-y-1'>
+          <div className='text-sm font-medium'>{t('Interface Language')}</div>
           <p className='text-muted-foreground line-clamp-2 text-xs sm:text-sm'>
             {t(
               'Language preferences sync across your signed-in devices and affect API error messages.'
             )}
           </p>
         </div>
-        <div className='flex shrink-0 items-center gap-2'>
+        <div className='flex items-center gap-2 sm:min-w-48'>
           <Select
             items={INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
               value: language.code,
@@ -123,7 +129,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
             onValueChange={handleLanguageChange}
             disabled={saving}
           >
-            <SelectTrigger className='w-full sm:w-44'>
+            <SelectTrigger className='w-full sm:w-48'>
               <SelectValue placeholder={t('Select language')} />
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
@@ -140,7 +146,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
             <Loader2 className='text-muted-foreground size-4 animate-spin' />
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </TitledCard>
   )
 }

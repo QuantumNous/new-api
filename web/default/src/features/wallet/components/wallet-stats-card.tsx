@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Card } from '@/components/ui/card'
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatQuota } from '@/lib/format'
 
@@ -31,51 +32,71 @@ interface WalletStatsCardProps {
 
 export function WalletStatsCard(props: WalletStatsCardProps) {
   const { t } = useTranslation()
-
   if (props.loading) {
     return (
-      <Card data-card-hover='false' className='gap-0 py-0'>
-        <div className='divide-border/60 grid grid-cols-3 divide-x'>
-          {['balance', 'usage', 'requests'].map((key) => (
-            <div key={key} className='px-4 py-3 sm:px-5 sm:py-4'>
-              <Skeleton className='h-4 w-24' />
-              <Skeleton className='mt-2 h-7 w-28' />
-            </div>
-          ))}
-        </div>
-      </Card>
+      <div className='grid grid-cols-3 divide-x rounded-lg border'>
+        {['balance', 'usage', 'requests'].map((key) => (
+          <div key={key} className='min-w-0 px-2.5 py-2.5 sm:px-5 sm:py-4'>
+            <Skeleton className='h-3.5 w-full' />
+            <Skeleton className='mt-2 h-6 w-full sm:h-7' />
+            <Skeleton className='mt-1.5 hidden h-3.5 w-24 md:block' />
+          </div>
+        ))}
+      </div>
     )
   }
 
-  const stats = [
+  const stats: {
+    label: string
+    value: string
+    description: string
+    icon: typeof WalletCards
+    tone: IconBadgeTone
+  }[] = [
     {
       label: t('Current Balance'),
       value: formatQuota(props.user?.quota ?? 0),
+      description: t('Remaining quota'),
+      icon: WalletCards,
+      tone: 'success',
     },
     {
       label: t('Total Usage'),
       value: formatQuota(props.user?.used_quota ?? 0),
+      description: t('Total consumed quota'),
+      icon: BarChart3,
+      tone: 'info',
     },
     {
       label: t('API Requests'),
       value: (props.user?.request_count ?? 0).toLocaleString(),
+      description: t('Total requests made'),
+      icon: Activity,
+      tone: 'chart-4',
     },
   ]
 
   return (
-    <Card data-card-hover='false' className='gap-0 py-0'>
-      <div className='divide-border/60 grid grid-cols-3 divide-x'>
-        {stats.map((item) => (
-          <div key={item.label} className='min-w-0 px-4 py-3 sm:px-5 sm:py-4'>
-            <div className='text-muted-foreground truncate text-sm'>
+    <div className='grid grid-cols-3 divide-x rounded-lg border'>
+      {stats.map((item) => (
+        <div key={item.label} className='min-w-0 px-2.5 py-2.5 sm:px-5 sm:py-4'>
+          <div className='flex items-center gap-1.5 sm:gap-2.5'>
+            <IconBadge tone={item.tone} size='stat'>
+              <item.icon />
+            </IconBadge>
+            <div className='text-muted-foreground truncate text-[11px] font-medium tracking-wider uppercase sm:text-xs'>
               {item.label}
             </div>
-            <div className='text-foreground mt-1 truncate text-lg font-semibold tracking-tight tabular-nums sm:text-2xl'>
-              {item.value}
-            </div>
           </div>
-        ))}
-      </div>
-    </Card>
+
+          <div className='text-foreground mt-1.5 font-mono text-sm font-bold tracking-tight break-all tabular-nums sm:mt-2.5 sm:text-2xl'>
+            {item.value}
+          </div>
+          <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
+            {item.description}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

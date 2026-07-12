@@ -20,8 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
  * Status mappers for different log types
  * Centralized mapper instances for consistent usage across components
  */
-import { CHANNEL_TYPES } from '@/features/channels/constants'
-
 import {
   MJ_TASK_TYPE_MAPPINGS,
   MJ_STATUS_MAPPINGS,
@@ -71,20 +69,3 @@ export const taskStatusMapper = createStatusMapper(TASK_STATUS_MAPPINGS)
  * Task platform mapper
  */
 export const taskPlatformMapper = createStatusMapper(TASK_PLATFORM_MAPPINGS)
-
-/**
- * Resolve a task platform value to a human-readable name.
- *
- * Video tasks store the platform as a numeric channel type (e.g. "54"), which
- * maps to a channel name like "DoubaoVideo". Suno-style tasks store a slug
- * (e.g. "suno"). Falls back to the raw value when nothing matches.
- */
-export function getTaskPlatformName(platform: string): string {
-  if (!platform) return ''
-  const num = Number(platform)
-  if (Number.isInteger(num) && num > 0) {
-    const name = CHANNEL_TYPES[num as keyof typeof CHANNEL_TYPES]
-    if (name) return name
-  }
-  return platform
-}

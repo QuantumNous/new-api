@@ -23,7 +23,7 @@ import { type ComponentProps, createContext, useContext } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getUsage } from 'tokenlens'
 
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 import {
   HoverCard,
   HoverCardContent,

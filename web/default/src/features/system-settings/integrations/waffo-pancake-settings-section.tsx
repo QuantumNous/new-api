@@ -21,16 +21,16 @@ import type { SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/design-system/select'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 import { removeTrailingSlash } from './utils'
@@ -384,19 +384,19 @@ export function WaffoPancakeSettingsSection({
         </p>
       </div>
       <div className='grid min-w-0 gap-x-5 gap-y-4 lg:grid-cols-2'>
-        {/* Webhook configuration notice. */}
-        <div className='border-info/25 bg-info/8 rounded-md border p-4 text-sm lg:col-span-2'>
+        {/* Blue box — webhook configuration only. */}
+        <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 lg:col-span-2 dark:bg-blue-950 dark:text-blue-100'>
           <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
           <ul className='list-inside list-disc space-y-1'>
             <li>
               {t('Webhook URL (Test):')}{' '}
-              <code className='bg-info/10 rounded px-1 py-0.5 text-xs'>
+              <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
                 {'<ServerAddress>/api/waffo-pancake/webhook/test'}
               </code>
             </li>
             <li>
               {t('Webhook URL (Production):')}{' '}
-              <code className='bg-info/10 rounded px-1 py-0.5 text-xs'>
+              <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
                 {'<ServerAddress>/api/waffo-pancake/webhook/prod'}
               </code>
             </li>
@@ -474,7 +474,7 @@ export function WaffoPancakeSettingsSection({
               for. Subscriptions reuse the same Store but get their own
               per-plan product, configured in the Subscriptions admin.
             */}
-          <div className='border-info/25 bg-info/8 rounded-md border p-3 text-xs'>
+          <div className='rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100'>
             <p className='mb-1 font-medium'>
               {t('Why only one store + product?')}
             </p>
@@ -532,7 +532,7 @@ export function WaffoPancakeSettingsSection({
             <>
               <div className='relative flex items-center py-1'>
                 <div className='flex-1 border-t' />
-                <span className='text-muted-foreground px-3 text-xs font-medium tracking-[0.2em] uppercase'>
+                <span className='text-muted-foreground px-3 text-[10px] font-medium tracking-[0.2em] uppercase'>
                   {t('or pick existing')}
                 </span>
                 <div className='flex-1 border-t' />

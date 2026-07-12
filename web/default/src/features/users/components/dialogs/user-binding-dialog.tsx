@@ -33,9 +33,9 @@ import { SiGithub, SiDiscord } from 'react-icons/si'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -349,6 +349,7 @@ export function UserBindingDialog(props: Props) {
                       <Button
                         variant='ghost'
                         size='sm'
+                        className='h-7 gap-1.5 px-2 text-xs'
                         onClick={() => setShowBoundOnly((v) => !v)}
                       />
                     }
@@ -397,9 +398,12 @@ export function UserBindingDialog(props: Props) {
                               {binding.label}
                             </span>
                             {!binding.isEnabled && (
-                              <StatusBadge variant='neutral'>
-                                {t('Disabled')}
-                              </StatusBadge>
+                              <StatusBadge
+                                variant='neutral'
+                                label={t('Disabled')}
+                                copyable={false}
+                                size='sm'
+                              />
                             )}
                           </div>
                           <p className='text-muted-foreground max-w-[140px] truncate text-xs'>
@@ -410,8 +414,8 @@ export function UserBindingDialog(props: Props) {
                       {binding.isBound && (
                         <Button
                           variant='ghost'
-                          size='icon-sm'
-                          className='text-destructive hover:text-destructive shrink-0'
+                          size='sm'
+                          className='text-destructive hover:text-destructive h-7 w-7 shrink-0 p-0'
                           onClick={() => setUnbindTarget(binding)}
                         >
                           <Unlink className='h-3.5 w-3.5' />

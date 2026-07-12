@@ -49,17 +49,16 @@ export function usePayment() {
       try {
         setCalculating(true)
 
-        let response
-        if (isStripePayment(paymentType)) {
-          response = await calculateStripeAmount({ amount: topupAmount })
-        } else if (isWaffoPancakePayment(paymentType)) {
-          response = await calculateWaffoPancakeAmount({ amount: topupAmount })
-        } else {
-          response = await calculateAmount({ amount: topupAmount })
-        }
+        const isStripe = isStripePayment(paymentType)
+        const isPancake = isWaffoPancakePayment(paymentType)
+        const response = isStripe
+          ? await calculateStripeAmount({ amount: topupAmount })
+          : isPancake
+            ? await calculateWaffoPancakeAmount({ amount: topupAmount })
+            : await calculateAmount({ amount: topupAmount })
 
         if (isApiSuccess(response) && response.data) {
-          const calculatedAmount = Number.parseFloat(response.data)
+          const calculatedAmount = parseFloat(response.data)
           setAmount(calculatedAmount)
           return calculatedAmount
         }
@@ -67,7 +66,7 @@ export function usePayment() {
         // Don't show error for calculation, just set to 0
         setAmount(0)
         return 0
-      } catch {
+      } catch (_error) {
         setAmount(0)
         return 0
       } finally {
@@ -119,7 +118,7 @@ export function usePayment() {
         }
 
         return false
-      } catch {
+      } catch (_error) {
         toast.error(i18next.t('Payment request failed'))
         return false
       } finally {

@@ -68,7 +68,7 @@ export function MessageMetadata(props: MessageMetadataProps) {
   return (
     <div
       className={cn(
-        'text-muted-foreground mt-1 flex min-h-4 items-center gap-1.5 text-xs leading-none',
+        'text-muted-foreground mt-1 flex min-h-4 items-center gap-1.5 text-[11px] leading-none',
         props.alignment === 'right' && 'justify-end'
       )}
     >

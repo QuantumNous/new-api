@@ -18,24 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { CSSProperties } from 'react'
 
-export type UserAvatarStyle = Pick<CSSProperties, 'backgroundImage' | 'color'>
-
-/*
- * Curated duotone gradients (avatar.vercel.sh style). A raw hash-to-hue
- * mapping lands on murky olive/mustard tones for many names; a hand-picked
- * palette keeps every user identity vivid and readable (white initial) in
- * both light and dark themes.
- */
-const AVATAR_GRADIENTS: ReadonlyArray<readonly [string, string]> = [
-  ['#4f46e5', '#7c3aed'], // indigo -> violet
-  ['#2563eb', '#0891b2'], // blue -> cyan
-  ['#7c3aed', '#db2777'], // violet -> pink
-  ['#e11d48', '#ea580c'], // rose -> orange
-  ['#059669', '#0d9488'], // emerald -> teal
-  ['#0284c7', '#4f46e5'], // sky -> indigo
-  ['#db2777', '#e11d48'], // pink -> rose
-  ['#0d9488', '#0284c7'], // teal -> sky
-]
+export type UserAvatarStyle = Pick<CSSProperties, 'backgroundColor' | 'color'>
 
 function hashString(value: string): number {
   let hash = 0
@@ -46,11 +29,13 @@ function hashString(value: string): number {
 }
 
 export function getUserAvatarStyle(name: string): UserAvatarStyle {
-  const [from, to] =
-    AVATAR_GRADIENTS[hashString(name) % AVATAR_GRADIENTS.length]
+  const hash = hashString(name)
+  const hue = hash % 360
+  const saturation = 54 + (hash % 8)
+  const lightness = 52 + ((hash >> 4) % 8)
 
   return {
-    backgroundImage: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`,
+    backgroundColor: `hsl(${hue} ${saturation}% ${lightness}%)`,
     color: 'white',
   }
 }

@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/design-system/dialog'
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
 type DialogProps = React.ComponentProps<typeof DialogRoot> & {
@@ -71,8 +71,6 @@ export function Dialog({
       {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent
         className={cn(
-          // Default width is sm:max-w-2xl. Override with `sm:max-w-*` in
-          // contentClassName (bare `max-w-*` will not replace the sm: default).
           'flex max-h-[calc(100vh-2rem)] w-full flex-col gap-4 overflow-hidden p-4 sm:max-w-2xl sm:p-6',
           contentClassName,
           dialogContentMotionClassName

@@ -18,7 +18,7 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "menuColor": "default",
+  "menuColor": "inverted",
   "menuAccent": "subtle",
   "registries": {
     "@ai-elements": "https://registry.ai-sdk.dev/{name}.json"

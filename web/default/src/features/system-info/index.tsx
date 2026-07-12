@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
-import { StatusBadge } from '@/components/status-badge'
+import { Badge } from '@/components/ui/badge'
 
 import { SystemInstancesPanel } from './components/system-instances-panel'
 import { SystemTasksPanel } from './components/system-tasks-panel'
@@ -32,9 +32,9 @@ export function SystemInfo() {
       <SectionPageLayout.Title>
         <span className='inline-flex min-w-0 items-center gap-2'>
           <span className='truncate'>{t('System Info')}</span>
-          <StatusBadge appearance='outline' className='shrink-0'>
+          <Badge variant='outline' className='shrink-0'>
             Root
-          </StatusBadge>
+          </Badge>
         </span>
       </SectionPageLayout.Title>
       <SectionPageLayout.Content>

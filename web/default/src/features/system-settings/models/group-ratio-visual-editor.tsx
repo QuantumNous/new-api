@@ -29,23 +29,13 @@ import { useTranslation } from 'react-i18next'
 
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/select'
-import { Dialog } from '@/components/dialog'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -59,7 +49,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Dialog } from '@/components/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -205,8 +205,8 @@ function sourceGroupPricingSignature(
 function UnknownGroupBadge() {
   const { t } = useTranslation()
   return (
-    <StatusBadge variant='destructive'>
-      <AlertTriangle data-icon='inline-start' />
+    <StatusBadge variant='danger' copyable={false}>
+      <AlertTriangle className='mr-1 h-3 w-3' />
       {t('Not in pricing table')}
     </StatusBadge>
   )
@@ -370,6 +370,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                     <div className='ml-auto flex gap-1'>
                       <Button
                         variant='ghost'
+                        size='sm'
                         disabled={index === 0}
                         onClick={() => handleAutoGroupMove(index, 'up')}
                       >
@@ -377,6 +378,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                       </Button>
                       <Button
                         variant='ghost'
+                        size='sm'
                         disabled={index === autoGroupsList.length - 1}
                         onClick={() => handleAutoGroupMove(index, 'down')}
                       >
@@ -384,6 +386,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                       </Button>
                       <Button
                         variant='ghost'
+                        size='sm'
                         onClick={() => handleAutoGroupDelete(index)}
                       >
                         <Trash2 className='h-4 w-4' />
@@ -527,7 +530,7 @@ function GroupPricingTable({
               )}
             </CardDescription>
           </div>
-          <Button onClick={addRow} className='sm:self-start'>
+          <Button onClick={addRow} size='sm' className='sm:self-start'>
             <Plus className='mr-2 h-4 w-4' />
             {t('Add group')}
           </Button>
@@ -632,6 +635,7 @@ function GroupPricingTable({
                   <div className='flex justify-end gap-1'>
                     <Button
                       variant='ghost'
+                      size='sm'
                       onClick={() => onShowDetail(row.name.trim())}
                       disabled={!row.name.trim()}
                       aria-label={t('Details')}
@@ -640,6 +644,7 @@ function GroupPricingTable({
                     </Button>
                     <Button
                       variant='ghost'
+                      size='sm'
                       onClick={() => removeRow(row._id)}
                       aria-label={t('Delete')}
                     >
@@ -802,6 +807,7 @@ function GroupOverrideRules({
               setUserGroupInput(null)
               setUserGroupDialogOpen(true)
             }}
+            size='sm'
           >
             <Plus className='mr-2 h-4 w-4' />
             {t('Add user group')}
@@ -813,7 +819,9 @@ function GroupOverrideRules({
                   <div className='rounded-lg border'>
                     <div className='flex items-center justify-between p-4'>
                       <div className='flex items-center gap-2'>
-                        <CollapsibleTrigger render={<Button variant='ghost' />}>
+                        <CollapsibleTrigger
+                          render={<Button variant='ghost' size='sm' />}
+                        >
                           <ChevronDown className='h-4 w-4' />
                         </CollapsibleTrigger>
                         <span className='font-semibold'>
@@ -834,6 +842,7 @@ function GroupOverrideRules({
                       <div className='flex gap-2'>
                         <Button
                           variant='ghost'
+                          size='sm'
                           onClick={() =>
                             handleOverrideAdd(userGroupData.userGroup)
                           }
@@ -842,6 +851,7 @@ function GroupOverrideRules({
                         </Button>
                         <Button
                           variant='ghost'
+                          size='sm'
                           onClick={() =>
                             handleUserGroupDelete(userGroupData.userGroup)
                           }
@@ -1090,13 +1100,10 @@ function GroupOverrideDialog({
           <p className='text-muted-foreground text-xs'>
             {baseRatio !== undefined
               ? t('(instead of {{ratio}})', { ratio: baseRatio })
-              : t(
-                  'Multiplier applied when {{userGroup}} uses {{targetGroup}}',
-                  {
-                    userGroup: userGroup || t('this user group'),
-                    targetGroup: targetGroup || t('this token group'),
-                  }
-                )}
+              : t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', {
+                  userGroup: userGroup || t('this user group'),
+                  targetGroup: targetGroup || t('this token group'),
+                })}
           </p>
         </div>
       </div>
@@ -1335,7 +1342,8 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
                             })}
                       </span>
                       <StatusBadge
-                        variant={rule.visible ? 'info' : 'destructive'}
+                        variant={rule.visible ? 'info' : 'danger'}
+                        copyable={false}
                       >
                         {rule.visible ? t('Visible') : t('Hidden')}
                       </StatusBadge>

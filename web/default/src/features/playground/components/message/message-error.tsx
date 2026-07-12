@@ -20,8 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -63,13 +63,14 @@ export function MessageError({
 
     return (
       <Alert variant='default' className={className}>
-        <AlertTriangle className='text-warning' />
+        <AlertTriangle className='text-orange-500' />
         <AlertTitle>{t('Model Price Not Configured')}</AlertTitle>
         <AlertDescription className='space-y-2'>
           <p>{content}</p>
           {errorState.showSettingsLink && (
             <Button
               variant='outline'
+              size='sm'
               onClick={() => window.open(MODEL_PRICING_SETTINGS_PATH, '_blank')}
             >
               <Settings className='mr-1 h-3.5 w-3.5' />

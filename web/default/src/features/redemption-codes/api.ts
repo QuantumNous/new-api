@@ -35,7 +35,7 @@ import type {
 export async function getRedemptions(
   params: GetRedemptionsParams = {}
 ): Promise<GetRedemptionsResponse> {
-  const { p = 1, page_size = 20 } = params
+  const { p = 1, page_size = 10 } = params
   const res = await api.get(`/api/redemption/?p=${p}&page_size=${page_size}`)
   return res.data
 }
@@ -44,7 +44,7 @@ export async function getRedemptions(
 export async function searchRedemptions(
   params: SearchRedemptionsParams
 ): Promise<GetRedemptionsResponse> {
-  const { keyword = '', status = '', p = 1, page_size = 20 } = params
+  const { keyword = '', status = '', p = 1, page_size = 10 } = params
   const queryParams = new URLSearchParams()
   queryParams.set('keyword', keyword)
   if (status) queryParams.set('status', status)

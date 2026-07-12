@@ -20,7 +20,16 @@ import { Outlet, useRouterState } from '@tanstack/react-router'
 import { motion, useReducedMotion, type Variants } from 'motion/react'
 import type { ReactNode } from 'react'
 
-import { MOTION_TRANSITION, MOTION_VARIANTS } from '@/lib/motion'
+import {
+  CARD_ITEM_VARIANTS,
+  CARD_STAGGER_VARIANTS,
+  MOTION_TRANSITION,
+  MOTION_VARIANTS,
+  STAGGER_ITEM_VARIANTS,
+  STAGGER_VARIANTS,
+  TABLE_ROW_VARIANTS,
+  TABLE_STAGGER_VARIANTS,
+} from '@/lib/motion'
 
 interface PageTransitionProps {
   children: ReactNode
@@ -83,13 +92,23 @@ interface StaggerContainerProps {
   variants?: Variants
 }
 
-/* Entrance choreography is retired on admin surfaces: content appears
- * immediately so tables and dashboards read as instant. The components stay
- * as plain wrappers so call sites keep working; decorative motion remains
- * available to the landing page via its dedicated landing-* utilities. */
-
 export function StaggerContainer(props: StaggerContainerProps) {
-  return <div className={props.className}>{props.children}</div>
+  const shouldReduce = useReducedMotion()
+
+  if (shouldReduce) {
+    return <div className={props.className}>{props.children}</div>
+  }
+
+  return (
+    <motion.div
+      variants={props.variants ?? STAGGER_VARIANTS}
+      initial='initial'
+      animate='animate'
+      className={props.className}
+    >
+      {props.children}
+    </motion.div>
+  )
 }
 
 interface StaggerItemProps {
@@ -99,23 +118,68 @@ interface StaggerItemProps {
 }
 
 export function StaggerItem(props: StaggerItemProps) {
-  return <div className={props.className}>{props.children}</div>
+  return (
+    <motion.div
+      variants={props.variants ?? STAGGER_ITEM_VARIANTS}
+      className={props.className}
+    >
+      {props.children}
+    </motion.div>
+  )
 }
 
 export function TableStaggerContainer(props: StaggerContainerProps) {
-  return <tbody className={props.className}>{props.children}</tbody>
+  const shouldReduce = useReducedMotion()
+
+  if (shouldReduce) {
+    return <>{props.children}</>
+  }
+
+  return (
+    <motion.tbody
+      variants={TABLE_STAGGER_VARIANTS}
+      initial='initial'
+      animate='animate'
+      className={props.className}
+    >
+      {props.children}
+    </motion.tbody>
+  )
 }
 
 export function TableStaggerRow(props: StaggerItemProps) {
-  return <tr className={props.className}>{props.children}</tr>
+  return (
+    <motion.tr variants={TABLE_ROW_VARIANTS} className={props.className}>
+      {props.children}
+    </motion.tr>
+  )
 }
 
 export function CardStaggerContainer(props: StaggerContainerProps) {
-  return <div className={props.className}>{props.children}</div>
+  const shouldReduce = useReducedMotion()
+
+  if (shouldReduce) {
+    return <div className={props.className}>{props.children}</div>
+  }
+
+  return (
+    <motion.div
+      variants={CARD_STAGGER_VARIANTS}
+      initial='initial'
+      animate='animate'
+      className={props.className}
+    >
+      {props.children}
+    </motion.div>
+  )
 }
 
 export function CardStaggerItem(props: StaggerItemProps) {
-  return <div className={props.className}>{props.children}</div>
+  return (
+    <motion.div variants={CARD_ITEM_VARIANTS} className={props.className}>
+      {props.children}
+    </motion.div>
+  )
 }
 
 interface FadeInProps {

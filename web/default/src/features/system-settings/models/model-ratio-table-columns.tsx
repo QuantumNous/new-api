@@ -42,12 +42,14 @@ const filterBySelectedValues = (
 type BuildModelRatioColumnsOptions = {
   onDelete: (name: string) => void
   onEdit: (model: ModelRow) => void
+  deleteDisabled?: boolean
   t: (key: string) => string
 }
 
 export function buildModelRatioColumns({
   onDelete,
   onEdit,
+  deleteDisabled,
   t,
 }: BuildModelRatioColumnsOptions): ColumnDef<ModelRow>[] {
   return [
@@ -83,14 +85,20 @@ export function buildModelRatioColumns({
         <div className='flex min-w-0 items-center gap-2 font-medium'>
           <span className='min-w-0 truncate'>{row.getValue('name')}</span>
           {row.original.billingMode === 'tiered_expr' && (
-            <StatusBadge variant='info' className='shrink-0'>
-              {t('Tiered')}
-            </StatusBadge>
+            <StatusBadge
+              label={t('Tiered')}
+              variant='info'
+              copyable={false}
+              className='shrink-0'
+            />
           )}
           {row.original.hasConflict && (
-            <StatusBadge variant='destructive' className='shrink-0'>
-              {t('Conflict')}
-            </StatusBadge>
+            <StatusBadge
+              label={t('Conflict')}
+              variant='danger'
+              copyable={false}
+              className='shrink-0'
+            />
           )}
         </div>
       ),
@@ -102,9 +110,13 @@ export function buildModelRatioColumns({
         <DataTableColumnHeader column={column} title={t('Mode')} />
       ),
       cell: ({ row }) => (
-        <StatusBadge variant={getModeVariant(row.original.billingMode)}>
-          {t(getModeLabel(row.original.billingMode))}
-        </StatusBadge>
+        <StatusBadge
+          label={t(getModeLabel(row.original.billingMode))}
+          variant={getModeVariant(row.original.billingMode)}
+          copyable={false}
+          showDot={false}
+          className='-ml-1.5 px-0'
+        />
       ),
       filterFn: (row, id, value) =>
         filterBySelectedValues(row.getValue(id), value),
@@ -141,6 +153,7 @@ export function buildModelRatioColumns({
           menuLabel={t('Open menu')}
           onEdit={() => onEdit(row.original)}
           onDelete={() => onDelete(row.original.name)}
+          deleteDisabled={deleteDisabled}
         />
       ),
       enableHiding: false,

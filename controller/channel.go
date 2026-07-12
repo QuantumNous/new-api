@@ -1488,7 +1488,7 @@ func ManageMultiKeys(c *gin.Context) {
 			page = 1
 		}
 		if pageSize <= 0 {
-			pageSize = common.ItemsPerPage
+			pageSize = 50 // Default page size
 		}
 
 		// Statistics for all keys (unchanged by filtering)

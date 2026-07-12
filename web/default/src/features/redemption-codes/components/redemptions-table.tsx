@@ -28,6 +28,7 @@ import {
   DataTablePage,
   useDataTable,
 } from '@/components/data-table'
+import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 
 import { getRedemptions, searchRedemptions } from '../api'
@@ -40,6 +41,7 @@ import { isRedemptionExpired } from '../lib'
 import type { Redemption } from '../types'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useRedemptionsColumns } from './redemptions-columns'
+import { RedemptionsMobileList } from './redemptions-mobile-list'
 import { useRedemptions } from './redemptions-provider'
 
 const route = getRouteApi('/_authenticated/redemption-codes/')
@@ -55,6 +57,7 @@ export function RedemptionsTable() {
   const { t } = useTranslation()
   const columns = useRedemptionsColumns()
   const { refreshTrigger } = useRedemptions()
+  const isMobile = useMediaQuery('(max-width: 640px)')
 
   const {
     globalFilter,
@@ -67,11 +70,7 @@ export function RedemptionsTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
-    pagination: {
-      defaultPage: 1,
-      defaultPageSize: 20,
-      pageSizeStorageKey: 'redemption-codes:page-size:v1',
-    },
+    pagination: { defaultPage: 1, defaultPageSize: isMobile ? 10 : 20 },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [{ columnId: 'status', searchKey: 'status', type: 'array' }],
   })
@@ -162,7 +161,6 @@ export function RedemptionsTable() {
     <DataTablePage
       table={table}
       columns={columns}
-      tableLabel={t('Redemption Codes')}
       isLoading={isLoading}
       isFetching={isFetching}
       emptyTitle={t('No Redemption Codes Found')}
@@ -182,6 +180,7 @@ export function RedemptionsTable() {
           },
         ],
       }}
+      mobile={<RedemptionsMobileList table={table} isLoading={isLoading} />}
       getRowClassName={(row, { isMobile }) => {
         if (!isDisabledRedemptionRow(row.original)) return undefined
         return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP

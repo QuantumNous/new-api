@@ -221,12 +221,13 @@ type CompletionsStreamResponse struct {
 }
 
 type Usage struct {
-	PromptTokens         int    `json:"prompt_tokens"`
-	CompletionTokens     int    `json:"completion_tokens"`
-	TotalTokens          int    `json:"total_tokens"`
-	PromptCacheHitTokens int    `json:"prompt_cache_hit_tokens,omitempty"`
-	UsageSemantic        string `json:"usage_semantic,omitempty"`
-	UsageSource          string `json:"usage_source,omitempty"`
+	PromptTokens         int           `json:"prompt_tokens"`
+	CompletionTokens     int           `json:"completion_tokens"`
+	TotalTokens          int           `json:"total_tokens"`
+	PromptCacheHitTokens int           `json:"prompt_cache_hit_tokens,omitempty"`
+	UsageSemantic        string        `json:"usage_semantic,omitempty"`
+	UsageSource          string        `json:"usage_source,omitempty"`
+	BillingUsage         *BillingUsage `json:"billing_usage,omitempty"`
 
 	PromptTokensDetails    InputTokenDetails  `json:"prompt_tokens_details"`
 	CompletionTokenDetails OutputTokenDetails `json:"completion_tokens_details"`
@@ -255,9 +256,31 @@ type OpenAIVideoResponse struct {
 type InputTokenDetails struct {
 	CachedTokens         int `json:"cached_tokens"`
 	CachedCreationTokens int `json:"cached_creation_tokens,omitempty"`
-	TextTokens           int `json:"text_tokens"`
-	AudioTokens          int `json:"audio_tokens"`
-	ImageTokens          int `json:"image_tokens"`
+	// CacheWriteTokens is OpenAI's native cache-write count, reported as
+	// prompt_tokens_details.cache_write_tokens (Chat Completions) or
+	// input_tokens_details.cache_write_tokens (Responses). It is billed at the
+	// cache-creation price.
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
+	TextTokens       int `json:"text_tokens"`
+	AudioTokens      int `json:"audio_tokens"`
+	ImageTokens      int `json:"image_tokens"`
+}
+
+// CacheCreationTokensTotal returns the cache-write token count regardless of
+// which field the upstream reported it in: Claude-derived conversions populate
+// CachedCreationTokens while OpenAI reports cache_write_tokens natively. Both
+// are billed at the cache-creation price; when both are present the larger
+// value wins so the same tokens are never double-counted. Negative upstream
+// values are clamped to zero so they can never lower a charge.
+func (d InputTokenDetails) CacheCreationTokensTotal() int {
+	total := d.CachedCreationTokens
+	if d.CacheWriteTokens > total {
+		total = d.CacheWriteTokens
+	}
+	if total < 0 {
+		return 0
+	}
+	return total
 }
 
 type OutputTokenDetails struct {

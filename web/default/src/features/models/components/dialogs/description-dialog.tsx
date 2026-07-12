@@ -41,7 +41,7 @@ export function DescriptionDialog({
       onOpenChange={onOpenChange}
       title={modelName}
       description={t('Model Description')}
-      contentClassName='sm:max-w-2xl'
+      contentClassName='max-w-2xl'
       contentHeight='auto'
       bodyClassName='space-y-4'
     >

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ColumnDef } from '@tanstack/react-table'
+import { type ColumnDef } from '@tanstack/react-table'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -39,12 +39,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.id,
         id: 'id',
         header: t('ID'),
-        meta: {
-          cardRole: 'secondary',
-          cardOrder: 10,
-          cardSpan: 2,
-          contentMode: 'full',
-        },
+        meta: { mobileHidden: true },
         cell: ({ row }) => <TableId value={row.original.plan.id} />,
         size: 60,
       },
@@ -52,18 +47,14 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.title,
         id: 'title',
         header: t('Plan'),
-        meta: {
-          cardRole: 'title',
-          cardSpan: 2,
-          contentMode: 'wrap',
-        },
+        meta: { mobileTitle: true },
         cell: ({ row }) => {
           const plan = row.original.plan
           return (
             <div className='max-w-full min-w-0'>
-              <div className='font-medium'>{plan.title}</div>
+              <div className='truncate font-medium'>{plan.title}</div>
               {plan.subtitle && (
-                <div className='text-muted-foreground text-xs'>
+                <div className='text-muted-foreground truncate text-xs'>
                   {plan.subtitle}
                 </div>
               )}
@@ -76,13 +67,8 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.price_amount,
         id: 'price',
         header: t('Price'),
-        meta: {
-          cardRole: 'primary',
-          cardOrder: 10,
-          contentMode: 'full',
-        },
         cell: ({ row }) => (
-          <span className='text-success font-semibold'>
+          <span className='font-semibold text-emerald-600'>
             ${Number(row.original.plan.price_amount || 0).toFixed(2)}
           </span>
         ),
@@ -91,11 +77,6 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         id: 'duration',
         header: t('Validity'),
-        meta: {
-          cardRole: 'primary',
-          cardOrder: 20,
-          contentMode: 'wrap',
-        },
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
             {formatDuration(row.original.plan, t)}
@@ -106,11 +87,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         id: 'reset',
         header: t('Quota Reset'),
-        meta: {
-          cardRole: 'secondary',
-          cardOrder: 20,
-          contentMode: 'wrap',
-        },
+        meta: { mobileHidden: true },
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
             {formatResetPeriod(row.original.plan, t)}
@@ -122,11 +99,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.sort_order,
         id: 'sort_order',
         header: t('Priority'),
-        meta: {
-          cardRole: 'secondary',
-          cardOrder: 30,
-          contentMode: 'full',
-        },
+        meta: { mobileHidden: true },
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
             {row.original.plan.sort_order}
@@ -138,36 +111,49 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.enabled,
         id: 'enabled',
         header: t('Status'),
-        meta: { cardRole: 'badge', contentMode: 'full' },
+        meta: { mobileBadge: true },
         cell: ({ row }) =>
           row.original.plan.enabled ? (
-            <StatusBadge variant='success'>{t('Enable')}</StatusBadge>
+            <StatusBadge
+              label={t('Enable')}
+              variant='success'
+              copyable={false}
+              className='-ml-1.5'
+            />
           ) : (
-            <StatusBadge variant='neutral'>{t('Disable')}</StatusBadge>
+            <StatusBadge
+              label={t('Disable')}
+              variant='neutral'
+              copyable={false}
+              className='-ml-1.5'
+            />
           ),
         size: 80,
       },
       {
         id: 'payment',
         header: t('Payment Channel'),
-        meta: {
-          cardRole: 'secondary',
-          cardOrder: 40,
-          cardSpan: 2,
-          contentMode: 'wrap',
-        },
+        meta: { mobileHidden: true },
         cell: ({ row }) => {
           const plan = row.original.plan
           return (
             <BadgeCell>
               {plan.stripe_price_id && (
-                <StatusBadge variant='neutral'>Stripe</StatusBadge>
+                <StatusBadge
+                  label='Stripe'
+                  variant='neutral'
+                  copyable={false}
+                />
               )}
               {plan.creem_product_id && (
-                <StatusBadge variant='neutral'>Creem</StatusBadge>
+                <StatusBadge label='Creem' variant='neutral' copyable={false} />
               )}
               {plan.waffo_pancake_product_id && (
-                <StatusBadge variant='neutral'>Waffo Pancake</StatusBadge>
+                <StatusBadge
+                  label='Waffo Pancake'
+                  variant='neutral'
+                  copyable={false}
+                />
               )}
             </BadgeCell>
           )
@@ -177,11 +163,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         id: 'total_amount',
         header: t('Plan Quota'),
-        meta: {
-          cardRole: 'secondary',
-          cardOrder: 50,
-          contentMode: 'full',
-        },
+        meta: { mobileHidden: true },
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
           return (
@@ -195,12 +177,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         id: 'upgrade_group',
         header: t('Upgrade Group'),
-        meta: {
-          cardRole: 'secondary',
-          cardOrder: 60,
-          cardSpan: 2,
-          contentMode: 'wrap',
-        },
+        meta: { mobileHidden: true },
         cell: ({ row }) => {
           const group = row.original.plan.upgrade_group
           if (!group) {

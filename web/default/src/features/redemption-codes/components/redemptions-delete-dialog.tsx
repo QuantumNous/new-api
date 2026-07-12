@@ -29,7 +29,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/design-system/alert-dialog'
+} from '@/components/ui/alert-dialog'
 
 import { deleteRedemption } from '../api'
 import { SUCCESS_MESSAGES } from '../constants'

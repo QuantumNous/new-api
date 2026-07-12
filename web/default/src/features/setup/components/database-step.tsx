@@ -98,18 +98,18 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
           </p>
         </div>
         <StatusBadge
+          label={meta?.label ?? t('Unknown')}
           variant={meta?.variant ?? 'info'}
           className='cursor-default'
-        >
-          <Database data-icon='inline-start' />
-          {meta?.label ?? t('Unknown')}
-        </StatusBadge>
+          copyable={false}
+          icon={Database}
+        />
       </div>
 
       {status?.database_type === 'sqlite' && (
-        <Alert className='border-warning/30 bg-warning/8'>
+        <Alert className='border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/40'>
           <AlertTitle className='flex items-center gap-2'>
-            <HardDrive className='text-warning size-4' />
+            <HardDrive className='size-4 text-amber-500' />
             {t('Persist your data file')}
           </AlertTitle>
           <AlertDescription>
@@ -119,7 +119,7 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
               )}
             </p>
             {isElectron && electronDataDir && (
-              <p className='bg-warning/10 text-status-warning mt-3 rounded-md px-3 py-2 font-mono text-xs'>
+              <p className='mt-3 rounded-md bg-amber-100/70 px-3 py-2 font-mono text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200'>
                 {t('Data directory:')} {electronDataDir}
               </p>
             )}
@@ -135,9 +135,9 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
       )}
 
       {status?.database_type === 'mysql' && (
-        <Alert className='border-success/25 bg-success/8'>
+        <Alert className='border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/40'>
           <AlertTitle className='flex items-center gap-2'>
-            <Server className='text-success size-4' />
+            <Server className='size-4 text-emerald-500' />
             {t('MySQL detected')}
           </AlertTitle>
           <AlertDescription>
@@ -149,9 +149,9 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
       )}
 
       {status?.database_type === 'postgres' && (
-        <Alert className='border-info/25 bg-info/8'>
+        <Alert className='border-sky-200 bg-sky-50 dark:border-sky-900/60 dark:bg-sky-950/40'>
           <AlertTitle className='flex items-center gap-2'>
-            <Server className='text-info size-4' />
+            <Server className='size-4 text-sky-500' />
             {t('PostgreSQL detected')}
           </AlertTitle>
           <AlertDescription>

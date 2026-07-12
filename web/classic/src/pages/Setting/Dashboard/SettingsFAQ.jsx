@@ -56,7 +56,7 @@ const SettingsFAQ = ({ options, refresh }) => {
     answer: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
   // 面板启用状态

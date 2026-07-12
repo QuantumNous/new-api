@@ -22,9 +22,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -188,7 +188,11 @@ export function SyncWizardDialog({
                     <div className='flex items-center gap-2'>
                       <span className='font-medium'>{option.label}</span>
                       {option.value === 'official' && (
-                        <StatusBadge variant='neutral'>Default</StatusBadge>
+                        <StatusBadge
+                          label='Default'
+                          variant='neutral'
+                          copyable={false}
+                        />
                       )}
                     </div>
                     <p className='text-muted-foreground text-sm'>

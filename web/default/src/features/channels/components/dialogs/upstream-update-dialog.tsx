@@ -21,18 +21,13 @@ import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/design-system/tabs'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface UpstreamUpdateDialogProps {
   open: boolean
@@ -102,8 +97,8 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
   const handleConfirm = () => {
     const hasAdd = props.addModels.length > 0
     const hasRemove = props.removeModels.length > 0
-    const selectedAddArr = [...selectedAdd]
-    const selectedRemoveArr = [...selectedRemove]
+    const selectedAddArr = Array.from(selectedAdd)
+    const selectedRemoveArr = Array.from(selectedRemove)
     const anyAdd = selectedAddArr.length > 0
     const anyRemove = selectedRemoveArr.length > 0
 
@@ -157,13 +152,13 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
           <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='add' className='gap-1'>
               {t('Add Models')}
-              <StatusBadge variant='neutral' className='ml-1'>
+              <StatusBadge variant='neutral' className='ml-1' copyable={false}>
                 {selectedAdd.size}/{props.addModels.length}
               </StatusBadge>
             </TabsTrigger>
             <TabsTrigger value='remove' className='gap-1'>
               {t('Remove Models')}
-              <StatusBadge variant='neutral' className='ml-1'>
+              <StatusBadge variant='neutral' className='ml-1' copyable={false}>
                 {selectedRemove.size}/{props.removeModels.length}
               </StatusBadge>
             </TabsTrigger>
@@ -287,8 +282,8 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
         handleConfirm={() => {
           setPartialConfirmOpen(false)
           props.onConfirm({
-            addModels: [...selectedAdd],
-            removeModels: [...selectedRemove],
+            addModels: Array.from(selectedAdd),
+            removeModels: Array.from(selectedRemove),
           })
         }}
       />

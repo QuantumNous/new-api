@@ -20,9 +20,9 @@ import { Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import { safeJsonParseWithValidation } from '../utils/json-parser'
@@ -106,16 +106,28 @@ export function AmountOptionsVisualEditor({
         ) : (
           <div className='flex flex-wrap gap-2'>
             {amounts.map((amount) => (
-              <Badge
+              <StatusBadge
                 key={amount}
-                variant='secondary'
-                render={<button type='button' />}
-                onClick={() => handleRemove(amount)}
-                aria-label={t('Remove ${{amount}}', { amount })}
+                variant='neutral'
+                className='text-base'
+                copyable={false}
               >
-                ${amount}
-                <X data-icon='inline-end' aria-hidden='true' />
-              </Badge>
+                <span className='font-mono'>${amount}</span>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon-sm'
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleRemove(amount)
+                  }}
+                  className='hover:bg-muted-foreground/20 size-auto p-0.5'
+                  aria-label={t('Remove ${{amount}}', { amount })}
+                >
+                  <X className='h-3.5 w-3.5' />
+                </Button>
+              </StatusBadge>
             ))}
           </div>
         )}

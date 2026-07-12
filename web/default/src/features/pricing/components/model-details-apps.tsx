@@ -48,14 +48,16 @@ function RankBadge(props: { rank: number }) {
   const isPodium = rank <= 3
   const palette =
     rank === 1
-      ? 'bg-warning/15 text-warning'
-      : rank <= 3
-        ? 'bg-muted text-foreground'
-        : 'bg-muted text-muted-foreground'
+      ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+      : rank === 2
+        ? 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300'
+        : rank === 3
+          ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
+          : 'bg-muted text-muted-foreground'
   return (
     <span
       className={cn(
-        'inline-flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-bold tabular-nums',
+        'inline-flex size-7 shrink-0 items-center justify-center rounded-md font-mono text-xs font-bold tabular-nums',
         palette
       )}
     >
@@ -69,16 +71,16 @@ function GrowthChip(props: { value: number }) {
   const isUp = value > 0
   const isDown = value < 0
   const palette = isUp
-    ? 'bg-success/10 text-success'
+    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
     : isDown
-      ? 'bg-destructive/10 text-destructive'
+      ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
       : 'bg-muted text-muted-foreground'
   const Icon = isUp ? ArrowUpRight : isDown ? ArrowDownRight : null
   const formatted = `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums',
+        'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums',
         palette
       )}
     >
@@ -123,35 +125,35 @@ export function ModelDetailsApps(props: { model: PricingModel }) {
     <div className='flex flex-col gap-4'>
       <div className='grid grid-cols-1 gap-2 sm:grid-cols-3'>
         <div className='bg-muted/20 rounded-lg border p-3'>
-          <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+          <div className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'>
             {t('Tracked apps')}
           </div>
-          <div className='text-foreground mt-1 text-lg font-semibold tabular-nums'>
+          <div className='text-foreground mt-1 font-mono text-lg font-semibold tabular-nums'>
             {apps.length}
           </div>
-          <p className='text-muted-foreground/70 text-xs'>
+          <p className='text-muted-foreground/70 text-[11px]'>
             {t('Top integrations using this model')}
           </p>
         </div>
         <div className='bg-muted/20 rounded-lg border p-3'>
-          <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+          <div className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'>
             {t('Monthly tokens')}
           </div>
-          <div className='text-foreground mt-1 text-lg font-semibold tabular-nums'>
+          <div className='text-foreground mt-1 font-mono text-lg font-semibold tabular-nums'>
             {COMPACT_NUMBER.format(totalMonthlyTokens)}
           </div>
-          <p className='text-muted-foreground/70 text-xs'>
+          <p className='text-muted-foreground/70 text-[11px]'>
             {t('Aggregated across the apps below')}
           </p>
         </div>
         <div className='bg-muted/20 rounded-lg border p-3'>
-          <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+          <div className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'>
             {t('#1 by usage')}
           </div>
           <div className='text-foreground mt-1 truncate text-base font-semibold'>
             {top.name}
           </div>
-          <p className='text-muted-foreground/70 truncate text-xs'>
+          <p className='text-muted-foreground/70 truncate text-[11px]'>
             {top.category} · {formatTokenVolume(top.monthly_tokens)}{' '}
             {t('tokens / mo')}
           </p>
@@ -223,7 +225,7 @@ export function ModelDetailsApps(props: { model: PricingModel }) {
         ]}
       />
 
-      <p className='text-muted-foreground/60 text-xs leading-relaxed'>
+      <p className='text-muted-foreground/60 text-[11px] leading-relaxed'>
         {t(
           'App rankings shown here are simulated for preview purposes and will be replaced with live usage data once the backend integration is complete.'
         )}

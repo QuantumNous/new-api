@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import type { TFunction } from 'i18next'
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BadgeListCell } from '@/components/data-table'
+import {
+  BadgeCell,
+  BadgeListCell,
+  DataTableColumnHeader,
+} from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -38,8 +40,12 @@ import {
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
-import type { PriceType, PricingModel, TokenUnit } from '../types'
-import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
+import type { PricingModel, TokenUnit } from '../types'
+import { ModelBillingModeBadge } from './model-billing-mode-badge'
+
+// ----------------------------------------------------------------------------
+// Pricing Table Columns
+// ----------------------------------------------------------------------------
 
 export interface PricingColumnsOptions {
   tokenUnit?: TokenUnit
@@ -47,303 +53,360 @@ export interface PricingColumnsOptions {
   usdExchangeRate?: number
   showRechargePrice?: boolean
   selectedGroup?: string
-  perfMap?: Map<string, ModelPerfBadgeData>
-}
-
-type PriceColumnType = Extract<PriceType, 'input' | 'cache' | 'output'>
-
-const DYNAMIC_FIELD_BY_PRICE_TYPE: Record<PriceColumnType, string> = {
-  input: 'inputPrice',
-  cache: 'cacheReadPrice',
-  output: 'outputPrice',
-}
-
-function renderEmptyCell(align: 'left' | 'right' = 'left'): ReactNode {
-  const dash = (
-    <span className='text-muted-foreground/50 text-sm tabular-nums'>—</span>
-  )
-  if (align === 'right') {
-    return <div className='text-right'>{dash}</div>
-  }
-  return dash
-}
-
-function renderEmptyPrice(): ReactNode {
-  return renderEmptyCell('right')
-}
-
-function renderPriceCell(
-  props: {
-    model: PricingModel
-    priceType: PriceColumnType
-    options: Required<
-      Omit<PricingColumnsOptions, 'selectedGroup' | 'perfMap'>
-    > & {
-      selectedGroup?: string
-    }
-  },
-  t: TFunction
-): ReactNode {
-  const tokenUnitLabel = props.options.tokenUnit === 'K' ? '1K' : '1M'
-  const dynamicSummary = getDynamicPricingSummary(props.model, {
-    tokenUnit: props.options.tokenUnit,
-    showRechargePrice: props.options.showRechargePrice,
-    priceRate: props.options.priceRate,
-    usdExchangeRate: props.options.usdExchangeRate,
-    groupRatioMultiplier: getDynamicDisplayGroupRatio(
-      props.model,
-      props.options.selectedGroup
-    ),
-  })
-
-  if (dynamicSummary?.isSpecialExpression) {
-    if (props.priceType !== 'input') return renderEmptyPrice()
-    return (
-      <div className='max-w-36'>
-        <p className='text-warning text-xs font-medium'>
-          {t('Special billing expression')}
-        </p>
-        <p className='text-muted-foreground mt-0.5 text-xs'>
-          {t('View details')}
-        </p>
-      </div>
-    )
-  }
-
-  if (dynamicSummary) {
-    const entry = dynamicSummary.entries.find(
-      (item) => item.field === DYNAMIC_FIELD_BY_PRICE_TYPE[props.priceType]
-    )
-    if (!entry) return renderEmptyPrice()
-
-    return (
-      <div className='text-right'>
-        <p className='text-sm font-medium tabular-nums'>
-          {stripTrailingZeros(entry.formatted)}
-        </p>
-        <p className='text-muted-foreground mt-0.5 text-xs'>
-          / {tokenUnitLabel} {t('tokens')}
-          {dynamicSummary.tierCount > 1 &&
-            ` · ${t('{{count}} tiers', {
-              count: dynamicSummary.tierCount,
-            })}`}
-        </p>
-      </div>
-    )
-  }
-
-  if (!isTokenBasedModel(props.model)) {
-    if (props.priceType !== 'input') return renderEmptyPrice()
-    return (
-      <div className='text-right'>
-        <p className='text-sm font-medium tabular-nums'>
-          {stripTrailingZeros(
-            formatRequestPrice(
-              props.model,
-              props.options.showRechargePrice,
-              props.options.priceRate,
-              props.options.usdExchangeRate,
-              props.options.selectedGroup
-            )
-          )}
-        </p>
-        <p className='text-muted-foreground mt-0.5 text-xs'>/ {t('request')}</p>
-      </div>
-    )
-  }
-
-  if (props.priceType === 'cache' && props.model.cache_ratio == null) {
-    return renderEmptyPrice()
-  }
-
-  return (
-    <div className='text-right'>
-      <p className='text-sm font-medium tabular-nums'>
-        {stripTrailingZeros(
-          formatPrice(
-            props.model,
-            props.priceType,
-            props.options.tokenUnit,
-            props.options.showRechargePrice,
-            props.options.priceRate,
-            props.options.usdExchangeRate,
-            props.options.selectedGroup
-          )
-        )}
-      </p>
-      <p className='text-muted-foreground mt-0.5 text-xs'>
-        / {tokenUnitLabel} {t('tokens')}
-      </p>
-    </div>
-  )
 }
 
 export function usePricingColumns(
   options: PricingColumnsOptions = {}
 ): ColumnDef<PricingModel>[] {
   const { t } = useTranslation()
-  const priceOptions = {
-    tokenUnit: options.tokenUnit ?? DEFAULT_TOKEN_UNIT,
-    priceRate: options.priceRate ?? 1,
-    usdExchangeRate: options.usdExchangeRate ?? 1,
-    showRechargePrice: options.showRechargePrice ?? false,
-    selectedGroup: options.selectedGroup,
-  }
+  const {
+    tokenUnit = DEFAULT_TOKEN_UNIT,
+    priceRate = 1,
+    usdExchangeRate = 1,
+    showRechargePrice = false,
+    selectedGroup,
+  } = options
+
+  const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
   return [
+    // Model column
     {
       accessorKey: 'model_name',
-      header: t('Model'),
+      meta: { label: t('Model') },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Model')} />
+      ),
       cell: ({ row }) => {
         const model = row.original
         const modelIconKey = model.icon || model.vendor_icon
-        const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
+        const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 14) : null
 
         return (
-          <div className='flex min-w-0 items-start gap-3 py-1'>
-            <div className='bg-muted flex size-8 shrink-0 items-center justify-center rounded-md'>
-              {modelIcon || (
-                <span className='text-muted-foreground text-xs font-medium'>
-                  {model.model_name?.charAt(0).toUpperCase() || '?'}
-                </span>
-              )}
+          <div className='flex max-w-full min-w-0 items-center gap-2'>
+            {modelIcon}
+            <span className='truncate font-mono text-sm font-medium'>
+              {model.model_name}
+            </span>
+          </div>
+        )
+      },
+      minSize: 200,
+    },
+
+    // Type column
+    {
+      accessorKey: 'quota_type',
+      header: t('Type'),
+      cell: ({ row }) => (
+        <ModelBillingModeBadge model={row.original} className='-ml-1.5' />
+      ),
+      size: 110,
+      enableSorting: false,
+    },
+
+    // Price column
+    {
+      accessorKey: 'price',
+      meta: { label: t('Price') },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Price')} />
+      ),
+      cell: ({ row }) => {
+        const model = row.original
+        const dynamicSummary = getDynamicPricingSummary(model, {
+          tokenUnit,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate,
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(
+            model,
+            selectedGroup
+          ),
+        })
+
+        if (dynamicSummary) {
+          if (dynamicSummary.isSpecialExpression) {
+            return (
+              <div className='max-w-full min-w-0'>
+                <div className='text-xs font-medium text-amber-700 dark:text-amber-300'>
+                  {t('Special billing expression')}
+                </div>
+                <div className='text-muted-foreground text-[11px]'>
+                  {t('Unable to parse structured pricing')}
+                </div>
+                <code className='text-muted-foreground/70 mt-1 line-clamp-2 block font-mono text-[10px] leading-relaxed break-all'>
+                  {dynamicSummary.rawExpression}
+                </code>
+              </div>
+            )
+          }
+
+          const primaryEntries = dynamicSummary.primaryEntries.slice(0, 2)
+          if (primaryEntries.length === 0) {
+            return (
+              <span className='text-muted-foreground text-xs'>
+                {t('Dynamic Pricing')}
+              </span>
+            )
+          }
+
+          return (
+            <div className='max-w-full min-w-0'>
+              <span className='font-mono text-sm tabular-nums'>
+                {primaryEntries.map((entry, index) => (
+                  <span key={entry.key}>
+                    {index > 0 && (
+                      <span className='text-muted-foreground/40 mx-1'>/</span>
+                    )}
+                    {stripTrailingZeros(entry.formatted)}
+                  </span>
+                ))}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {tokenUnitLabel} tokens
+                {dynamicSummary.tierCount > 1 &&
+                  ` · ${t('{{count}} tiers', {
+                    count: dynamicSummary.tierCount,
+                  })}`}
+              </div>
             </div>
-            <div className='min-w-0'>
-              <p className='truncate font-mono text-sm font-medium'>
-                {model.model_name}
-              </p>
-              <p className='text-muted-foreground mt-0.5 line-clamp-1 text-xs'>
-                {model.vendor_name ||
-                  model.description ||
-                  (isTokenBasedModel(model)
-                    ? t('Token-based')
-                    : t('Per Request'))}
-              </p>
+          )
+        }
+
+        const isTokenBased = isTokenBasedModel(model)
+
+        if (isTokenBased) {
+          const inputPrice = stripTrailingZeros(
+            formatPrice(
+              model,
+              'input',
+              tokenUnit,
+              showRechargePrice,
+              priceRate,
+              usdExchangeRate,
+              selectedGroup
+            )
+          )
+          const outputPrice = stripTrailingZeros(
+            formatPrice(
+              model,
+              'output',
+              tokenUnit,
+              showRechargePrice,
+              priceRate,
+              usdExchangeRate,
+              selectedGroup
+            )
+          )
+
+          return (
+            <div className='max-w-full min-w-0'>
+              <span className='font-mono text-sm tabular-nums'>
+                {inputPrice}
+                <span className='text-muted-foreground/40 mx-1'>/</span>
+                {outputPrice}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {tokenUnitLabel} tokens
+              </div>
+            </div>
+          )
+        }
+
+        const price = stripTrailingZeros(
+          formatRequestPrice(
+            model,
+            showRechargePrice,
+            priceRate,
+            usdExchangeRate,
+            selectedGroup
+          )
+        )
+
+        return (
+          <div className='max-w-full min-w-0'>
+            <span className='font-mono text-sm tabular-nums'>{price}</span>
+            <div className='text-muted-foreground/50 text-[10px]'>
+              / {t('request')}
             </div>
           </div>
         )
       },
-      minSize: 260,
+      size: 180,
       enableSorting: false,
     },
-    {
-      id: 'input_price',
-      header: () => <div className='text-right'>{t('Input')}</div>,
-      cell: ({ row }) =>
-        renderPriceCell(
-          {
-            model: row.original,
-            priceType: 'input',
-            options: priceOptions,
-          },
-          t
-        ),
-      size: 130,
-      enableSorting: false,
-    },
+
+    // Cached price column (Vercel AI Gateway style)
     {
       id: 'cached_price',
-      header: () => <div className='text-right'>{t('Cached input')}</div>,
-      cell: ({ row }) =>
-        renderPriceCell(
-          {
-            model: row.original,
-            priceType: 'cache',
-            options: priceOptions,
-          },
-          t
-        ),
-      size: 130,
-      enableSorting: false,
-    },
-    {
-      id: 'output_price',
-      header: () => <div className='text-right'>{t('Output')}</div>,
-      cell: ({ row }) =>
-        renderPriceCell(
-          {
-            model: row.original,
-            priceType: 'output',
-            options: priceOptions,
-          },
-          t
-        ),
-      size: 130,
-      enableSorting: false,
-    },
-    {
-      id: 'health',
-      header: t('Health'),
+      header: t('Cached'),
       cell: ({ row }) => {
-        const perf = options.perfMap?.get(row.original.model_name || '')
-        if (!perf) {
-          return renderEmptyCell()
+        const model = row.original
+        const dynamicSummary = getDynamicPricingSummary(model, {
+          tokenUnit,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate,
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(
+            model,
+            selectedGroup
+          ),
+        })
+
+        if (dynamicSummary) {
+          if (dynamicSummary.isSpecialExpression) {
+            return (
+              <span className='text-muted-foreground/50 text-xs'>
+                {t('Special billing expression')}
+              </span>
+            )
+          }
+
+          const cacheEntry = dynamicSummary.entries.find(
+            (entry) => entry.field === 'cacheReadPrice'
+          )
+          if (!cacheEntry) {
+            return <span className='text-muted-foreground/30 text-xs'>—</span>
+          }
+
+          return (
+            <div className='max-w-full min-w-0'>
+              <span className='font-mono text-sm tabular-nums'>
+                {stripTrailingZeros(cacheEntry.formatted)}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {tokenUnitLabel}
+              </div>
+            </div>
+          )
         }
-        return <ModelPerfBadge perf={perf} className='grid' />
+
+        const isTokenBased = isTokenBasedModel(model)
+
+        if (!isTokenBased || model.cache_ratio == null) {
+          return <span className='text-muted-foreground/30 text-xs'>—</span>
+        }
+
+        const cachedPrice = stripTrailingZeros(
+          formatPrice(
+            model,
+            'cache',
+            tokenUnit,
+            showRechargePrice,
+            priceRate,
+            usdExchangeRate,
+            selectedGroup
+          )
+        )
+
+        return (
+          <div className='max-w-full min-w-0'>
+            <span className='font-mono text-sm tabular-nums'>
+              {cachedPrice}
+            </span>
+            <div className='text-muted-foreground/50 text-[10px]'>
+              / {tokenUnitLabel}
+            </div>
+          </div>
+        )
       },
-      size: 160,
+      size: 110,
       enableSorting: false,
     },
+
+    // Vendor column
+    {
+      accessorKey: 'vendor_name',
+      header: t('Vendor'),
+      cell: ({ row }) => {
+        const model = row.original
+        if (!model.vendor_name) {
+          return <span className='text-muted-foreground/50 text-xs'>—</span>
+        }
+        const vendorIcon = model.vendor_icon
+          ? getLobeIcon(model.vendor_icon, 12)
+          : null
+        return (
+          <BadgeCell className='gap-1.5'>
+            {vendorIcon}
+            <StatusBadge
+              label={model.vendor_name}
+              autoColor={model.vendor_name}
+              size='sm'
+              copyable={false}
+            />
+          </BadgeCell>
+        )
+      },
+      size: 130,
+      enableSorting: false,
+    },
+
+    // Tags column
     {
       accessorKey: 'tags',
       header: t('Tags'),
       cell: ({ row }) => {
         const tags = parseTags(row.original.tags)
-        if (tags.length === 0) {
-          return renderEmptyCell()
-        }
         return (
           <BadgeListCell
             items={tags.map((tag) => (
-              <StatusBadge key={tag} variant='neutral' size='md'>
-                {tag}
-              </StatusBadge>
+              <StatusBadge
+                key={tag}
+                label={tag}
+                autoColor={tag}
+                size='sm'
+                copyable={false}
+              />
             ))}
           />
         )
       },
-      size: 160,
+      size: 140,
       enableSorting: false,
     },
+
+    // Endpoints column
     {
       accessorKey: 'supported_endpoint_types',
       header: t('Endpoints'),
       cell: ({ row }) => {
         const endpoints = row.original.supported_endpoint_types || []
-        if (endpoints.length === 0) {
-          return renderEmptyCell()
-        }
         return (
           <BadgeListCell
-            items={endpoints.map((endpoint) => (
-              <StatusBadge key={endpoint} variant='neutral' size='md'>
-                {endpoint}
-              </StatusBadge>
+            items={endpoints.map((ep) => (
+              <StatusBadge
+                key={ep}
+                label={ep}
+                autoColor={ep}
+                size='sm'
+                copyable={false}
+              />
             ))}
           />
         )
       },
-      size: 150,
+      size: 130,
       enableSorting: false,
     },
+
+    // Enable Groups column
     {
       accessorKey: 'enable_groups',
       header: t('Groups'),
       cell: ({ row }) => {
         const groups = row.original.enable_groups || []
-        if (groups.length === 0) {
-          return renderEmptyCell()
-        }
         return (
           <BadgeListCell
             items={groups.map((group) => (
-              <GroupBadge key={group} group={group} size='md' />
+              <GroupBadge key={group} group={group} size='sm' />
             ))}
-            tooltipClassName='max-w-72 p-2'
+            tooltipClassName='max-w-[280px] p-2'
           />
         )
       },
-      size: 140,
+      size: 130,
       enableSorting: false,
     },
   ]

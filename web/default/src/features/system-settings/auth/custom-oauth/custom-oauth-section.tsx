@@ -92,7 +92,8 @@ export function CustomOAuthSection(props: CustomOAuthSectionProps) {
               </code>
               <CopyButton
                 value={callbackFormat}
-                size='icon-sm'
+                size='icon'
+                className='size-7'
                 tooltip={t('Copy callback URL')}
                 aria-label={t('Copy callback URL')}
               />

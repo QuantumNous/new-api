@@ -20,7 +20,8 @@ import { Filter, X } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
@@ -29,8 +30,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from '@/components/design-system/command'
-import { Badge } from '@/components/ui/badge'
+} from '@/components/ui/command'
 import {
   Popover,
   PopoverContent,
@@ -108,6 +108,7 @@ export function FlowNodeFilterControl(props: FlowNodeFilterControlProps) {
               <Button
                 type='button'
                 variant='outline'
+                size='sm'
                 aria-label={t('Filter by node')}
               />
             }
@@ -115,7 +116,9 @@ export function FlowNodeFilterControl(props: FlowNodeFilterControlProps) {
             <Filter data-icon='inline-start' aria-hidden='true' />
             {selectedCount > 0 ? t('Selected nodes') : t('All nodes')}
             {selectedCount > 0 && (
-              <Badge variant='secondary'>{selectedCount}</Badge>
+              <Badge variant='secondary' className='rounded-sm px-1'>
+                {selectedCount}
+              </Badge>
             )}
           </PopoverTrigger>
           <PopoverContent
@@ -198,14 +201,14 @@ export function FlowNodeFilterControl(props: FlowNodeFilterControlProps) {
           <Badge
             key={flowNodeFilterKey(option)}
             variant='secondary'
-            className='max-w-[14rem] pr-1'
+            className='max-w-[14rem] rounded-sm pr-1'
           >
             <span className='truncate'>
               {t(props.stageLabels[option.kind])}: {option.label}
             </span>
             <button
               type='button'
-              className='hover:bg-muted-foreground/15 focus-visible:ring-ring flex size-4 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-2'
+              className='hover:bg-muted-foreground/15 flex size-4 shrink-0 items-center justify-center rounded-sm'
               aria-label={t('Remove node filter')}
               onClick={() =>
                 props.onRemoveNode({ kind: option.kind, id: option.id })

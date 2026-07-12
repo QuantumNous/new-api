@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import type { ComponentProps } from 'react'
 
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 

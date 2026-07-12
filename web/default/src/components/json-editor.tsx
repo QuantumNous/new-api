@@ -20,8 +20,8 @@ import { Code, Table, Plus, Trash2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
@@ -192,6 +192,7 @@ export function JsonEditor({
           <Button
             type='button'
             variant='outline'
+            size='sm'
             onClick={toggleMode}
             disabled={disabled}
           >
@@ -211,7 +212,8 @@ export function JsonEditor({
             <Button
               type='button'
               variant='link'
-              className='h-auto p-0 sm:h-auto'
+              size='sm'
+              className='h-auto p-0'
               onClick={handleFillTemplate}
               disabled={disabled}
             >
@@ -258,6 +260,7 @@ export function JsonEditor({
                     aria-label='Delete row'
                     onClick={() => handleDeleteRow(row.id)}
                     disabled={disabled}
+                    className='h-10 w-10'
                   >
                     <Trash2 className='h-4 w-4' aria-hidden='true' />
                   </Button>
@@ -272,6 +275,7 @@ export function JsonEditor({
           <Button
             type='button'
             variant='outline'
+            size='sm'
             onClick={handleAddRow}
             disabled={disabled}
             className='w-full'

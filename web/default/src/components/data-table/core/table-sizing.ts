@@ -26,10 +26,7 @@ export function getTableSizeStyle<TData>(
 ): React.CSSProperties {
   const width = table
     .getVisibleLeafColumns()
-    .filter(
-      (column) =>
-        !isContentSizedColumn(column.id, column.columnDef.meta?.contentSized)
-    )
+    .filter((column) => !isContentSizedColumn(column.id))
     .reduce((total, column) => total + column.getSize(), 0)
 
   return {

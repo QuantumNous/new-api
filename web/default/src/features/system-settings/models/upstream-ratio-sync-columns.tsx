@@ -83,7 +83,7 @@ export function useUpstreamRatioSyncColumns(
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger>
-                      <AlertTriangle className='text-warning h-3.5 w-3.5 shrink-0' />
+                      <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-amber-500' />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
@@ -119,30 +119,32 @@ export function useUpstreamRatioSyncColumns(
                 return (
                   <div key={ratioType} className={syncFieldRowClassName}>
                     <StatusBadge
-                      variant='neutral'
+                      label={getSyncFieldLabel(ratioType, t)}
+                      autoColor={ratioType}
                       size='sm'
+                      copyable={false}
                       className={syncFieldLabelClassName}
-                    >
-                      {getSyncFieldLabel(ratioType, t)}
-                    </StatusBadge>
+                    />
                     {current === null || current === undefined ? (
-                      <StatusBadge variant='neutral' size='sm'>
-                        {t('Not Set')}
-                      </StatusBadge>
+                      <StatusBadge
+                        label={t('Not Set')}
+                        variant='neutral'
+                        size='sm'
+                        copyable={false}
+                      />
                     ) : (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger
                             render={
                               <StatusBadge
+                                label={String(current)}
                                 variant='info'
                                 size='sm'
-                                className='max-w-[160px]'
+                                className='max-w-[160px] truncate font-mono'
                               />
                             }
-                          >
-                            {String(current)}
-                          </TooltipTrigger>
+                          />
                           <TooltipContent>
                             <p className='max-w-xs text-xs break-all'>
                               {String(current)}
@@ -197,7 +199,7 @@ export function useUpstreamRatioSyncColumns(
                   {displayName}
                 </span>
                 {selectableCount > 0 && (
-                  <span className='bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-xs leading-none font-normal tabular-nums'>
+                  <span className='bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[11px] leading-none font-normal tabular-nums'>
                     {selectedCount}/{selectableCount}
                   </span>
                 )}
@@ -228,12 +230,12 @@ export function useUpstreamRatioSyncColumns(
                 return (
                   <div key={ratioType} className={syncFieldRowClassName}>
                     <StatusBadge
-                      variant='neutral'
+                      label={getSyncFieldLabel(ratioType, t)}
+                      autoColor={ratioType}
                       size='sm'
+                      copyable={false}
                       className={syncFieldLabelClassName}
-                    >
-                      {getSyncFieldLabel(ratioType, t)}
-                    </StatusBadge>
+                    />
                     <div className='min-w-0 flex-1'>
                       {renderUpstreamValue({
                         upstreamVal,
@@ -299,25 +301,29 @@ function renderUpstreamValue(args: RenderUpstreamValueArgs) {
 
   if (!isAvailable) {
     return (
-      <StatusBadge variant='neutral' size='sm'>
-        —
-      </StatusBadge>
+      <StatusBadge label='—' variant='neutral' size='sm' copyable={false} />
     )
   }
 
   if (upstreamVal === null || upstreamVal === undefined) {
     return (
-      <StatusBadge variant='neutral' size='sm'>
-        {t('Not Set')}
-      </StatusBadge>
+      <StatusBadge
+        label={t('Not Set')}
+        variant='neutral'
+        size='sm'
+        copyable={false}
+      />
     )
   }
 
   if (upstreamVal === 'same') {
     return (
-      <StatusBadge variant='info' size='sm'>
-        {t('Same as Local')}
-      </StatusBadge>
+      <StatusBadge
+        label={t('Same as Local')}
+        variant='info'
+        size='sm'
+        copyable={false}
+      />
     )
   }
 
@@ -355,7 +361,7 @@ function renderUpstreamValue(args: RenderUpstreamValueArgs) {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger>
-              <AlertTriangle className='text-warning h-3.5 w-3.5 shrink-0' />
+              <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-amber-500' />
             </TooltipTrigger>
             <TooltipContent>
               <p>{t('This data may be unreliable, use with caution')}</p>

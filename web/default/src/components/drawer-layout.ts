@@ -18,21 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createElement, type ReactNode } from 'react'
 
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { cn } from '@/lib/utils'
 
 export const sideDrawerContentClassName = (className?: string) =>
   cn(
-    // Width: pass `sm:max-w-*` (or `sm:max-w-none`) in className. SheetContent
-    // defaults to 75% width on mobile and `sm:max-w-sm` for left/right.
-    // Match its side variants so product drawers occupy the full mobile viewport.
-    'bg-background text-foreground flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 shadow-none data-[side=left]:w-full data-[side=right]:w-full',
+    'bg-background text-foreground flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 shadow-none',
     className
   )
 
 export const sideDrawerHeaderClassName = (className?: string) =>
   cn(
-    // pr-12 reserves space for SheetContent's absolute close button
-    'border-border/70 bg-background/95 border-b px-4 py-3 pr-12 text-start backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6 sm:py-4 sm:pr-14',
+    'border-border/70 bg-background/95 border-b px-4 py-3 text-start backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6 sm:py-4',
     className
   )
 
@@ -75,6 +72,7 @@ export function SideDrawerSectionHeader(props: {
   title: ReactNode
   description?: ReactNode
   icon?: ReactNode
+  iconTone?: IconBadgeTone
   className?: string
 }) {
   return createElement(
@@ -82,11 +80,8 @@ export function SideDrawerSectionHeader(props: {
     { className: cn('flex items-start gap-3', props.className) },
     props.icon
       ? createElement(
-          'span',
-          {
-            className:
-              'bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md',
-          },
+          IconBadge,
+          { tone: props.iconTone, size: 'md' },
           props.icon
         )
       : null,

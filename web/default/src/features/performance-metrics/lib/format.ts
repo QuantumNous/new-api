@@ -61,18 +61,18 @@ export function getSuccessRateLevel(rate: number): SuccessRateLevel {
 }
 
 const SUCCESS_RATE_TEXT_CLASS: Record<SuccessRateLevel, string> = {
-  excellent: 'text-success',
-  good: 'text-success/80',
-  warning: 'text-warning',
-  critical: 'text-destructive',
+  excellent: 'text-emerald-600 dark:text-emerald-400',
+  good: 'text-emerald-500 dark:text-emerald-300',
+  warning: 'text-amber-600 dark:text-amber-400',
+  critical: 'text-red-600 dark:text-red-400',
   unknown: 'text-muted-foreground',
 }
 
 const SUCCESS_RATE_DOT_CLASS: Record<SuccessRateLevel, string> = {
-  excellent: 'bg-success',
-  good: 'bg-success/80',
-  warning: 'bg-warning',
-  critical: 'bg-destructive',
+  excellent: 'bg-emerald-500',
+  good: 'bg-emerald-400',
+  warning: 'bg-amber-500',
+  critical: 'bg-red-500',
   unknown: 'bg-muted-foreground',
 }
 

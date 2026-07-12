@@ -56,7 +56,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
     slug: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [panelEnabled, setPanelEnabled] = useState(true);
 

@@ -125,58 +125,10 @@
 - 以 Tailwind 工具类为主，动态类名用 `cn()` 合并；非动态场景避免内联样式。
 - 响应式采用移动优先与 Tailwind 断点（`sm:`、`md:`、`lg:` 等）；主题与暗色用 CSS 变量与 `dark:`，自定义样式集中在 `src/styles/`，组件内尽量少写自定义 CSS。
 
-#### 3.10.1 设计系统纪律（强约束）
-
-以下规则为硬约束，代码评审与 AI 改动一律遵循；违反即为缺陷。
-
-**颜色**
-
-- 后台界面（除 `features/home/` 营销页外）**禁止硬编码 Tailwind 调色板类**（如 `text-emerald-600`、`bg-amber-50`、`border-rose-200`），一律使用语义令牌：`success` / `warning` / `destructive` / `info` / `neutral`、`primary` / `muted` / `accent` / `border` / `ring`。暗色适配由令牌完成，禁止 `dark:text-emerald-400` 之类逐处覆写。
-- 状态色仅表达状态（成功/警告/错误/信息），不得用于装饰或分类；分类信息（模型名、分组名、渠道名等）一律中性呈现，身份靠文本与图标传达。`StatusBadge` 的 `autoColor` 已废弃为 neutral，禁止恢复字符串哈希取色。
-- 需要浅底状态胶囊时使用 `status-badge.tsx` 的 `tintedBadgeClassMap`，不要再手写 `bg-xxx-50 text-xxx-700 dark:...` 组合。
-- 图表用 `--chart-1..5`；用户头像身份色走 `getAvatarColorClass`。这两处是仅有的多色场景。
-- 禁止用 `!important`（`!text-*` 等）压制文字颜色/字号；若需要覆盖，说明层级设计有误，先修组件。
-
-**排版**
-
-- 字体族只有两轨：正文 `--font-sans`（含 CJK 回退，勿删栈中中文字体）与 `--font-serif`（serif 主题轴）。`font-mono` 仅用于密钥、ID、代码、原始 JSON；**数字对齐一律 `tabular-nums`，不得再加 `font-mono`**。
-- 字号只用 `text-xs/sm/base/lg/xl/2xl`，**禁止任意值字号**（`text-[10px]`、`text-[11px]` 等；营销页除外）。
-- 字重只用 `font-medium`（强调/表头）与 `font-semibold`（标题/关键数值）；后台正文与标题**禁用 `font-bold`**。
-- 标题三档契约：页题 `text-lg font-semibold tracking-tight`；卡片/区块题 `text-base font-semibold`；面板/小节题 `text-sm font-medium`。禁止响应式跳字号的标题（如 `text-base sm:text-lg`）。
-- 表头不使用 `uppercase + tracking-wider`。
-
-**控件尺寸（移动优先响应式）**
-
-- `src/components/ui/` 是 shadcn CLI 管理的原始源码层：允许通过 `bunx --bun shadcn@latest add <component> --dry-run/--diff` 审查并合并上游更新，但**禁止**在这里加入产品级响应式策略、业务语义或一次性样式。不得用 `--overwrite` 覆盖本地代码，除非用户明确批准。
-- `src/components/design-system/` 是产品设计系统适配层，只包装确实承载稳定跨站策略的控件（尺寸、产品级 variant、复合控件内部的策略传递）；不要为了“统一入口”代理所有 shadcn 组件。业务代码对受管控件必须从该目录导入，`.oxlintrc.json` 的 `no-restricted-imports` 会阻止绕过边界。
-- 控件标准高度是响应式的：**手机（<640px）28px，桌面（`sm:` 起）32px**。断点由 `design-system` 适配层统一注入（`Button`/`Toggle` default 与 icon 档、`Input`、`InputGroup`、`SelectTrigger` default 档、`TabsList`、`Combobox`、`CommandInput`、分页、表头 `h-9 sm:h-10`），业务代码**不写**断点类即可获得正确尺寸。
-- 独立场景（工具栏、表单、对话框、卡片/列表行操作、页脚）一律用默认档，**禁止** `size='sm'`，也**禁止**用 `className` 写 `h-7`/`h-8`/`h-9`/`size-8` 等钉死尺寸——钉死的类会在某一断点上与内置的 `sm:h-8`/`sm:size-8` 打架（twMerge 不会跨断点去重）。
-- 密集场景（表格单元格内、行内编辑器一行多控件、紧凑抽屉行）统一 `size='sm'`（28px 恒定）；微型场景用 `xs`（24px 恒定）。`sm`/`xs`/`icon-sm`/`icon-xs` 是**固定档**，不随断点缩放；需要"固定自定义尺寸"的特例（如覆盖层小按钮）应以固定档为基底再覆写，绝不以 default/icon 为基底。
-- 图标按钮用 `icon`（28→32px 响应式）/`icon-sm`（28px 恒定）/`icon-xs`（24px 恒定）并带 `aria-label`；禁止 `size-*`、`h-* w-*`、`p-0` 组合模拟。头部全局操作（侧栏开关/主题/语言/通知/头像）统一 `icon`。
-- CTA 档 `xl`（40→44px 响应式）：auth 页主按钮（登录/注册/OTP/重置/OAuth/Passkey）与营销页 hero 按钮统一 `size='xl'`，禁止再写 `h-11`。
-- 确需自定义高度时必须**成对覆盖两个断点**：内容自适应写 `h-auto sm:h-auto`，特大输入写 `h-9 sm:h-10` 这类成对值；`min-h-*` 不与内置高度冲突可单独使用。flex-wrap 的 `TabsList` 用 `group-data-horizontal/tabs:h-auto sm:group-data-horizontal/tabs:h-auto`。
-- 手机端的“视觉紧凑”不得牺牲可操作性：所有指针目标至少满足 WCAG 2.2 AA 的 24×24 CSS px；相邻 28px 控件必须保留足够间距，主要提交/认证/高频操作优先使用 40px 的 `xl` 档。不要在手机端新增小于 `xs` 的交互目标。
-- 仅有例外：日历格（`--cell-size`）、OTP 输入格、营销页装饰元素。新增例外须在评审说明。
-
-**圆角与阴影**
-
-- 圆角单源 `--radius`（默认 0.625rem），组件用派生档 `rounded-md/lg/xl`；禁止在业务代码里写死圆角像素或混用 `rounded-2xl`/`rounded-4xl` 表达同类容器。
-- 卡片边界「描边或投影二选一」：默认 `border`（或 Card 自带 ring），禁止再叠 `shadow-*`；`shadow` 只保留给浮层（popover/dropdown/dialog）。
-
-**动效**
-
-- 后台界面禁止入场动画：无 stagger、无 translate/scale/blur 入场、无按钮按压缩放。页面切换只允许纯透明度 fade（见 `lib/motion.ts` 的 `pageEnter`）。`page-transition.tsx` 的 Stagger 系列组件已固化为纯容器，禁止恢复动画。
-- 允许的动效上限：颜色/透明度过渡 ≤150ms、骨架屏 shimmer、`Collapsible/Accordion` 展开、加载 spinner。装饰性动效只允许出现在 `features/home/`（landing）。
-
-**徽章与图标**
-
-- 文本徽章统一 `StatusBadge`（五种语义 voice）；模型/分组/渠道等实体徽章统一中性底（`border-border/60 bg-muted/30`）。不要新造第三种徽章样式。
-- 业务代码图标一律 `lucide-react`；`components/ui/` 由 shadcn 生成器维护（Hugeicons），不要手改基础组件图标库；AI 品牌图标用 `@lobehub/icons`（经 `getLobeIcon`）。
-
 ### 3.11 文件组织
 
 - **功能模块**：置于 `src/features/<feature>/`，内含 `components/`、`lib/`、`hooks/`，以及按需的 `api.ts`、`types.ts`、`constants.ts`、入口组件等。
-- **通用**：通用组件放 `src/components/`，其中 `components/ui/` 仅存 shadcn 原始源码、`components/design-system/` 存产品策略适配器；通用工具与类型放 `src/lib/`。组件文件 PascalCase，工具/类型文件 kebab-case 或 `types.ts`，类型使用 PascalCase 命名并 `export type`。
+- **通用**：通用组件放 `src/components/`，通用工具与类型放 `src/lib/`；组件文件 PascalCase，工具/类型文件 kebab-case 或 `types.ts`，类型使用 PascalCase 命名并 `export type`。
 
 ### 3.12 可访问性
 
@@ -226,7 +178,3 @@
 - **2026-01-29**：重组文档结构，合并重复内容，明确主次与交叉引用。
 - **2026-01-31**：在 3.2 中补充「类型检查」要求：改动 TS/TSX 后须执行 typecheck 并修复至无错。
 - **2026-06-21**：在 3.2 中补充「Lint 检查」要求：完成代码改动前须修复所涉及文件的所有 lint error。
-- **2026-07-11**：新增 3.10.1「设计系统纪律」：语义色硬约束（去彩虹徽章/硬编码调色板）、排版契约（字号/字重/标题三档/mono 边界）、圆角单源、后台零入场动效、徽章与图标单轨。
-- **2026-07-11**：3.10.1 新增「控件尺寸」：控件默认 32px（`h-8`）单一标准；独立场景禁用 `size='sm'` 与 `className` 高度硬改；密集行内统一 `sm`、微型 `xs`；图标按钮走 `icon/icon-sm/icon-xs` 档位。
-- **2026-07-11**：控件尺寸升级为移动优先响应式：设计系统统一手机 28px / 桌面 32px（default、icon 档随断点缩放，`sm`/`xs`/`icon-sm`/`icon-xs` 恒定）；新增 CTA 档 `xl`（40→44px），auth 与 hero 主按钮统一迁入；调用点禁止钉死 `h-*`/`size-*`，自定义高度必须成对覆盖两个断点（如 `h-auto sm:h-auto`）。
-- **2026-07-11**：将响应式尺寸策略从 shadcn 原始源码迁至 `components/design-system/` 适配层；业务受管控件统一改从适配层导入，并由 lint 禁止绕过；`components/ui/` 恢复为可用 CLI `--diff` 维护的上游源码边界。

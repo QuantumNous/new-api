@@ -34,8 +34,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Button } from '@/components/design-system/button'
-import { Toggle } from '@/components/design-system/toggle'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +44,8 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
   TooltipContent,
@@ -106,37 +107,44 @@ export function ChannelsPrimaryButtons() {
   return (
     <>
       <div className='flex items-center gap-2'>
-        {/* Desktop: view toggles */}
-        <div className='hidden items-center gap-1.5 sm:flex'>
-          <Toggle
-            variant='outline'
-            pressed={batchMode}
-            onPressedChange={handleBatchModeToggle}
-            aria-label={t('Batch Operations')}
+        {/* Desktop: Toggle switches visible */}
+        <div className='hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex'>
+          <ListChecks className='text-muted-foreground h-4 w-4' />
+          <Label
+            htmlFor='channel-batch-mode'
+            className='cursor-pointer text-sm'
           >
-            <ListChecks />
             {t('Batch Operations')}
-          </Toggle>
+          </Label>
+          <Switch
+            id='channel-batch-mode'
+            checked={batchMode}
+            onCheckedChange={handleBatchModeToggle}
+          />
+        </div>
 
-          <Toggle
-            variant='outline'
-            pressed={enableTagMode}
-            onPressedChange={handleTagModeToggle}
-            aria-label={t('Tag Mode')}
-          >
-            <Tags />
+        <div className='hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex'>
+          <Tags className='text-muted-foreground h-4 w-4' />
+          <Label htmlFor='tag-mode' className='cursor-pointer text-sm'>
             {t('Tag Mode')}
-          </Toggle>
+          </Label>
+          <Switch
+            id='tag-mode'
+            checked={enableTagMode}
+            onCheckedChange={handleTagModeToggle}
+          />
+        </div>
 
-          <Toggle
-            variant='outline'
-            pressed={idSort}
-            onPressedChange={handleIdSortToggle}
-            aria-label={t('Sort by ID')}
-          >
-            <SortAsc />
+        <div className='hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex'>
+          <SortAsc className='text-muted-foreground h-4 w-4' />
+          <Label htmlFor='id-sort' className='cursor-pointer text-sm'>
             {t('Sort by ID')}
-          </Toggle>
+          </Label>
+          <Switch
+            id='id-sort'
+            checked={idSort}
+            onCheckedChange={handleIdSortToggle}
+          />
         </div>
 
         {/* Create Channel */}
@@ -148,6 +156,7 @@ export function ChannelsPrimaryButtons() {
                 setCurrentRow(null)
                 setOpen('create-channel')
               }}
+              size='sm'
               disabled={!canEditSensitive}
             >
               <Plus className='h-4 w-4' />
@@ -164,7 +173,7 @@ export function ChannelsPrimaryButtons() {
 
         {/* More Actions */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant='outline' />}>
+          <DropdownMenuTrigger render={<Button variant='outline' size='sm' />}>
             <MoreHorizontal className='h-4 w-4' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-56'>

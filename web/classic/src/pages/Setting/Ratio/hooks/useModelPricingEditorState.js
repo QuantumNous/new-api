@@ -23,7 +23,7 @@ import {
   splitBillingExprAndRequestRules,
 } from '../components/requestRuleExpr';
 
-export const PAGE_SIZE = 20;
+export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { StatusVariant } from '@/components/status-badge'
+import type { StatusBadgeProps } from '@/components/status-badge'
 import { formatTimestampToDate } from '@/lib/format'
 
 import type { TopupStatus } from '../types'
@@ -26,7 +26,7 @@ import type { TopupStatus } from '../types'
 // ============================================================================
 
 interface StatusConfig {
-  variant: StatusVariant
+  variant: StatusBadgeProps['variant']
   label: string
 }
 
@@ -43,7 +43,7 @@ export const STATUS_CONFIG: Record<TopupStatus, StatusConfig> = {
     label: 'Pending',
   },
   expired: {
-    variant: 'destructive',
+    variant: 'danger',
     label: 'Expired',
   },
 }

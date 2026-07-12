@@ -24,8 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
-import { Button } from '@/components/design-system/button'
-import { Input } from '@/components/design-system/input'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -35,6 +34,7 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import {
   InputOTP,
   InputOTPGroup,
@@ -204,7 +204,6 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
 
         <Button
           type='submit'
-          size='xl'
           className='mt-2 w-full'
           disabled={!isFormValid || isLoading}
         >
@@ -216,7 +215,8 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
           <Button
             type='button'
             variant='link'
-            className='text-primary h-auto p-0 sm:h-auto'
+            size='sm'
+            className='text-primary h-auto p-0'
             onClick={handleToggleMode}
           >
             {useBackupCode ? t('Use authenticator code') : t('Use backup code')}
@@ -225,7 +225,8 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
           <Button
             type='button'
             variant='link'
-            className='text-primary h-auto p-0 sm:h-auto'
+            size='sm'
+            className='text-primary h-auto p-0'
             onClick={handleBackToLogin}
           >
             {t('Back to login')}

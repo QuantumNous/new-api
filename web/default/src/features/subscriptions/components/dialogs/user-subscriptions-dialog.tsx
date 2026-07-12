@@ -22,19 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import {
-  DataTableRowActionMenu,
-  StaticDataTable,
-} from '@/components/data-table'
-import { Button } from '@/components/design-system/button'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/select'
+import { DataTableRowActionMenu, StaticDataTable } from '@/components/data-table'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,
@@ -42,11 +30,20 @@ import {
 } from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -84,12 +81,30 @@ function SubscriptionStatusBadge(props: {
   const isExpired = (props.sub.end_time || 0) > 0 && props.sub.end_time < now
   const isActive = props.sub.status === 'active' && !isExpired
   if (isActive) {
-    return <StatusBadge variant='success'>{props.t('Active')}</StatusBadge>
+    return (
+      <StatusBadge
+        label={props.t('Active')}
+        variant='success'
+        copyable={false}
+      />
+    )
   }
   if (props.sub.status === 'cancelled') {
-    return <StatusBadge variant='neutral'>{props.t('Invalidated')}</StatusBadge>
+    return (
+      <StatusBadge
+        label={props.t('Invalidated')}
+        variant='neutral'
+        copyable={false}
+      />
+    )
   }
-  return <StatusBadge variant='neutral'>{props.t('Expired')}</StatusBadge>
+  return (
+    <StatusBadge
+      label={props.t('Expired')}
+      variant='neutral'
+      copyable={false}
+    />
+  )
 }
 
 export function UserSubscriptionsDialog(props: Props) {

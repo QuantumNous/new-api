@@ -20,14 +20,14 @@ import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 
-import { convertDetectedLanguage, toIntlLocale } from './languages'
+import { convertDetectedLanguage } from './languages'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
 import ja from './locales/ja.json'
 import ru from './locales/ru.json'
 import vi from './locales/vi.json'
-import zhTW from './locales/zh-TW.json'
 import zhCN from './locales/zh.json'
+import zhTW from './locales/zh-TW.json'
 
 export const resources = {
   en,
@@ -36,7 +36,7 @@ export const resources = {
   ru,
   ja,
   vi,
-  zhTW,
+  zhTW
 } as const
 
 i18n
@@ -60,18 +60,5 @@ i18n
       convertDetectedLanguage,
     },
   })
-
-// Keep <html lang> in sync with the active UI language. Han unification means
-// zh-CN / zh-TW / ja share code points but need different glyphs; without a
-// correct lang attribute browsers guess (index.html ships lang="en") and CJK
-// text renders with the wrong regional font.
-function syncDocumentLanguage(language?: string) {
-  if (typeof document === 'undefined') return
-  const locale = toIntlLocale(language ?? i18n.resolvedLanguage)
-  if (locale) document.documentElement.lang = locale
-}
-
-i18n.on('languageChanged', syncDocumentLanguage)
-syncDocumentLanguage(i18n.resolvedLanguage)
 
 export default i18n

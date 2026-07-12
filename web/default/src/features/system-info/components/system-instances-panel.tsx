@@ -29,17 +29,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Button } from '@/components/design-system/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/design-system/table'
 import { ErrorState } from '@/components/error-state'
-import { StatusBadge, type StatusVariant } from '@/components/status-badge'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
@@ -49,6 +41,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   Tooltip,
   TooltipContent,
@@ -73,14 +73,15 @@ const INSTANCE_SKELETON_KEYS = [
   'system-instance-skeleton-3',
 ]
 
-const STATUS_VARIANT: Record<SystemInstanceStatus, StatusVariant> = {
-  online: 'success',
-  stale: 'warning',
+const STATUS_CLASS_NAME: Record<SystemInstanceStatus, string> = {
+  online:
+    'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  stale: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
 }
 
 const STATUS_DOT_CLASS_NAME: Record<SystemInstanceStatus, string> = {
-  online: 'bg-success',
-  stale: 'bg-warning',
+  online: 'bg-emerald-500',
+  stale: 'bg-amber-500',
 }
 
 function roleLabel(instance: SystemInstance) {
@@ -135,9 +136,9 @@ function formatBytes(bytes?: number): string {
 
 function ringColorClass(percent: number | null) {
   if (percent === null) return 'text-muted-foreground/40'
-  if (percent >= 90) return 'text-destructive'
-  if (percent >= 70) return 'text-warning'
-  return 'text-success'
+  if (percent >= 90) return 'text-red-500'
+  if (percent >= 70) return 'text-amber-500'
+  return 'text-emerald-500'
 }
 
 type RingProgressProps = {
@@ -204,7 +205,9 @@ function ResourceCell(props: ResourceCellProps) {
   const content = (
     <div className='flex items-center gap-2'>
       <RingProgress percent={percent} />
-      <span className='text-xs tabular-nums'>{formatPercent(props.value)}</span>
+      <span className='font-mono text-[11px] tabular-nums'>
+        {formatPercent(props.value)}
+      </span>
     </div>
   )
 
@@ -296,19 +299,18 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                         {shouldConfigure && (
                           <Popover>
                             <PopoverTrigger
-                              render={
-                                <StatusBadge
-                                  render={<button type='button' />}
-                                  variant='warning'
-                                  appearance='outline'
-                                  aria-label={t('Configure NODE_NAME')}
-                                />
-                              }
+                              className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
+                              aria-label={t('Configure NODE_NAME')}
                             >
-                              <AlertTriangle
-                                data-icon='inline-start'
-                                aria-hidden='true'
-                              />
+                              <Badge
+                                variant='outline'
+                                className='border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300'
+                              >
+                                <AlertTriangle
+                                  className='size-3'
+                                  aria-hidden='true'
+                                />
+                              </Badge>
                             </PopoverTrigger>
                             <PopoverContent align='start' className='w-80'>
                               <PopoverHeader>
@@ -326,7 +328,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                                   <div className='mb-1 font-medium'>
                                     {t('Example')}
                                   </div>
-                                  <code className='bg-muted block rounded-md px-2 py-1.5 font-mono text-xs break-all'>
+                                  <code className='bg-muted block rounded-md px-2 py-1.5 font-mono text-[11px] break-all'>
                                     NODE_NAME=new-api-master-1
                                   </code>
                                 </div>
@@ -340,30 +342,38 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                           </Popover>
                         )}
                       </div>
-                      <div className='text-muted-foreground truncate font-mono text-xs'>
+                      <div className='text-muted-foreground truncate font-mono text-[11px]'>
                         {instance.info?.host?.hostname || '-'}
                       </div>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell className='py-2.5 align-middle'>
-                  <StatusBadge variant={STATUS_VARIANT[instance.status]}>
+                  <Badge
+                    variant='secondary'
+                    className={cn(
+                      'gap-1.5',
+                      STATUS_CLASS_NAME[instance.status]
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'size-1.5 rounded-full',
+                        STATUS_DOT_CLASS_NAME[instance.status]
+                      )}
+                      aria-hidden='true'
+                    />
                     {t(instance.status)}
-                  </StatusBadge>
+                  </Badge>
                 </TableCell>
                 <TableCell className='py-2.5 align-middle'>
                   <TooltipProvider delay={100}>
                     <Tooltip>
                       <TooltipTrigger
-                        render={
-                          <StatusBadge
-                            render={<button type='button' />}
-                            appearance='outline'
-                            aria-label={t('Node role')}
-                          />
-                        }
+                        className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
+                        aria-label={t('Node role')}
                       >
-                        {roleLabel(instance)}
+                        <Badge variant='outline'>{roleLabel(instance)}</Badge>
                       </TooltipTrigger>
                       <TooltipContent>
                         {t(roleDescriptionKey(instance))}
@@ -503,6 +513,7 @@ export function SystemInstancesPanel() {
   const staleInstances = instances.filter(
     (instance) => instance.status === 'stale'
   )
+  const hasStaleInstances = staleInstances.length > 0
   const loading = instancesQuery.isLoading
   const refreshing = instancesQuery.isFetching && !instancesQuery.isLoading
 
@@ -640,34 +651,36 @@ export function SystemInstancesPanel() {
                 seconds: INSTANCE_POLL_INTERVAL_MS / 1000,
               })}
             </span>
-            <Button
-              type='button'
-              variant='destructive'
-              onClick={() => setDeleteAllConfirmOpen(true)}
-              disabled={
-                staleInstances.length === 0 ||
-                isMutatingInstance ||
-                deleteStaleInstancesMutation.isPending
-              }
-            >
-              {deleteStaleInstancesMutation.isPending ? (
-                <Loader2
-                  data-icon='inline-start'
-                  className='size-3.5 animate-spin'
-                  aria-hidden='true'
-                />
-              ) : (
-                <Trash2
-                  data-icon='inline-start'
-                  className='size-3.5'
-                  aria-hidden='true'
-                />
-              )}
-              {t('Delete all stale')}
-            </Button>
+            {hasStaleInstances ? (
+              <Button
+                type='button'
+                variant='destructive'
+                size='sm'
+                onClick={() => setDeleteAllConfirmOpen(true)}
+                disabled={
+                  isMutatingInstance || deleteStaleInstancesMutation.isPending
+                }
+              >
+                {deleteStaleInstancesMutation.isPending ? (
+                  <Loader2
+                    data-icon='inline-start'
+                    className='size-3.5 animate-spin'
+                    aria-hidden='true'
+                  />
+                ) : (
+                  <Trash2
+                    data-icon='inline-start'
+                    className='size-3.5'
+                    aria-hidden='true'
+                  />
+                )}
+                {t('Delete all stale')}
+              </Button>
+            ) : null}
             <Button
               type='button'
               variant='outline'
+              size='sm'
               onClick={() => void instancesQuery.refetch()}
               disabled={instancesQuery.isFetching}
               aria-label={t('Refresh')}

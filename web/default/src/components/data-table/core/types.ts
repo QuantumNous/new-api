@@ -42,7 +42,6 @@ export type DataTableViewProps<TData> = {
   rows?: Row<TData>[]
   emptyTitle?: string
   emptyDescription?: string
-  scrollLabel?: string
   emptyIcon?: React.ReactNode
   emptyAction?: React.ReactNode
   emptyContent?: React.ReactNode

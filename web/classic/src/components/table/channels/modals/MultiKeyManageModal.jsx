@@ -58,7 +58,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
@@ -99,7 +99,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         setKeyStatusList(data.keys || []);
         setTotal(data.total || 0);
         setCurrentPage(data.page || 1);
-        setPageSize(data.page_size || 20);
+        setPageSize(data.page_size || 10);
         setTotalPages(data.total_pages || 0);
 
         // Update statistics (these are always the overall statistics)

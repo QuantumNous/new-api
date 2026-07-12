@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import type { ComponentProps } from 'react'
 
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -48,13 +48,13 @@ export const Action = ({
   label,
   className,
   variant = 'ghost',
-  size = 'icon',
+  size = 'sm',
   ...props
 }: ActionProps) => {
   const button = (
     <Button
       className={cn(
-        'text-muted-foreground hover:text-foreground relative',
+        'text-muted-foreground hover:text-foreground relative size-9 p-1.5',
         className
       )}
       size={size}

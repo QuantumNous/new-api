@@ -46,7 +46,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { BundledLanguage } from 'shiki'
 
-import { Button } from '@/components/design-system/button'
+import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -413,7 +413,7 @@ export const CodeBlockFrame = ({
     {showToolbar && (
       <div className='bg-muted/35 border-border/70 flex min-h-10 items-center gap-2 border-b px-2 py-1.5'>
         <div className='min-w-0 flex-1'>
-          <div className='text-muted-foreground truncate font-mono text-xs font-medium tracking-wide uppercase'>
+          <div className='text-muted-foreground truncate font-mono text-[11px] font-medium tracking-wide uppercase'>
             {title}
           </div>
         </div>
@@ -507,8 +507,9 @@ export const CodeBlock = ({
                   render={
                     <Button
                       aria-label={isCodeCollapsed ? t('Expand') : t('Collapse')}
+                      className='size-8'
                       onClick={() => setIsCollapsed((value) => !value)}
-                      size='icon'
+                      size='icon-sm'
                       type='button'
                       variant='ghost'
                     >
@@ -531,8 +532,9 @@ export const CodeBlock = ({
                 render={
                   <Button
                     aria-label={t('Download')}
+                    className='size-8'
                     onClick={downloadCode}
-                    size='icon'
+                    size='icon-sm'
                     type='button'
                     variant='ghost'
                   >
@@ -639,9 +641,9 @@ export const CodeBlockCopyButton = ({
   const button = (
     <Button
       aria-label={isCopied ? t('Copied!') : t('Copy code')}
-      className={cn('shrink-0', className)}
+      className={cn('size-8 shrink-0', className)}
       onClick={copyToClipboard}
-      size='icon'
+      size='icon-sm'
       type='button'
       variant='ghost'
       {...props}

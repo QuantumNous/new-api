@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { TableRow, TableCell } from '@/components/design-system/table'
 import {
   Empty,
   EmptyDescription,
@@ -27,6 +26,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { TableRow, TableCell } from '@/components/ui/table'
 
 interface TableEmptyProps {
   /**

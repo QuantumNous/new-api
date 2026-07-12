@@ -1,13 +1,56 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
+import type { FlowUserFilterOption } from '../types'
 import {
   compactFlowSelectionLabel,
   flowDisplayState,
   requireSuccessfulFlowRows,
+  visibleFlowUsers,
 } from './flow-selection'
 
+const users: FlowUserFilterOption[] = [
+  {
+    value: 'user:1',
+    label: 'dry',
+    valueLabel: '100',
+    valueRaw: 100,
+    color: '#1664ff',
+  },
+  {
+    value: 'user:2',
+    label: 'jrc',
+    valueLabel: '70',
+    valueRaw: 70,
+    color: '#1ac6ff',
+  },
+]
+
 describe('dashboard flow selection helpers', () => {
+  test('limits user chips to currently visible users', () => {
+    assert.deepEqual(
+      visibleFlowUsers(users, []).map((user) => user.value),
+      ['user:1', 'user:2']
+    )
+    assert.deepEqual(
+      visibleFlowUsers(users, ['user:2']).map((user) => user.value),
+      ['user:2']
+    )
+  })
+
+  test('filters visible users without mutating the source options', () => {
+    const visible = visibleFlowUsers(users, ['user:1'])
+
+    assert.deepEqual(
+      visible.map((user) => user.value),
+      ['user:1']
+    )
+    assert.deepEqual(
+      users.map((user) => user.value),
+      ['user:1', 'user:2']
+    )
+  })
+
   test('formats compact selected counts for flow multiselect summaries', () => {
     assert.equal(compactFlowSelectionLabel(0), '*')
     assert.equal(compactFlowSelectionLabel(1), '1')
