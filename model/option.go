@@ -135,6 +135,7 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["InviteTopupRebateEnabled"] = strconv.FormatBool(common.InviteTopupRebateEnabled)
 	common.OptionMap["InviteTopupRebateRatioBp"] = strconv.Itoa(common.InviteTopupRebateRatioBp)
+	common.OptionMap["InviteTopupRebateBackfillMinutes"] = strconv.Itoa(common.InviteTopupRebateBackfillMinutes)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -520,6 +521,16 @@ func updateOptionMap(key string, value string) (err error) {
 				v = 10000
 			}
 			common.InviteTopupRebateRatioBp = v
+		}
+	case "InviteTopupRebateBackfillMinutes":
+		if v, err := strconv.Atoi(value); err == nil {
+			if v < 1 {
+				v = 1
+			}
+			if v > 1440 {
+				v = 1440
+			}
+			common.InviteTopupRebateBackfillMinutes = v
 		}
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)

@@ -38,6 +38,7 @@ export default function SettingsCreditLimit(props) {
     QuotaForInvitee: '',
     InviteTopupRebateEnabled: false,
     InviteTopupRebateRatioBp: '100',
+    InviteTopupRebateBackfillMinutes: '5',
     'quota_setting.enable_free_model_pre_consume': true,
   });
   const refForm = useRef();
@@ -239,6 +240,17 @@ export default function SettingsCreditLimit(props) {
                   setInputs({
                     ...inputs,
                     InviteTopupRebateRatioBp: String(value),
+                  })
+                }
+              />
+              <Form.Input
+                field={'InviteTopupRebateBackfillMinutes'}
+                label={t('邀请返佣补偿扫描间隔(分钟)')}
+                placeholder={'5'}
+                onChange={(value) =>
+                  setInputs({
+                    ...inputs,
+                    InviteTopupRebateBackfillMinutes: String(value),
                   })
                 }
               />

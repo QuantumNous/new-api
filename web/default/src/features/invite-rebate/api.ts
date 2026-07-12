@@ -57,3 +57,8 @@ export async function fetchAdminInviteRebateSummary(
   })
   return res.data
 }
+
+export async function triggerInviteRebateBackfill(limit = 100): Promise<ApiResponse<any>> {
+  const res = await api.post(`/api/system-task/invite-rebate-backfill?limit=${limit}`)
+  return res.data
+}

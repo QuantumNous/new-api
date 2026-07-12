@@ -31,6 +31,7 @@ const defaultBillingSettings: BillingSettings = {
   QuotaForInvitee: 0,
   InviteTopupRebateEnabled: false,
   InviteTopupRebateRatioBp: 100,
+  InviteTopupRebateBackfillMinutes: 5,
   TopUpLink: '',
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,

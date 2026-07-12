@@ -21,6 +21,7 @@ import { formatQuota } from '@/lib/format'
 import {
   fetchAdminInviteRebateSummary,
   fetchAdminInviteRebates,
+  triggerInviteRebateBackfill,
   fetchInviteRebateInvitees,
   fetchInviteRebateLogs,
   fetchInviteRebateSummary,
@@ -244,6 +245,7 @@ export function InviteRebatePage() {
 export function InviteRebateAdminPage() {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
+  const [backfilling, setBackfilling] = useState(false)
   const [inviterId, setInviterId] = useState('')
   const [inviteeId, setInviteeId] = useState('')
   const [summary, setSummary] = useState<AdminInviteRebateSummary | null>(null)
@@ -301,6 +303,28 @@ export function InviteRebateAdminPage() {
           />
         </label>
         <Button onClick={() => void reload()}>{t('Filter')}</Button>
+        <Button
+          variant='outline'
+          disabled={backfilling}
+          onClick={async () => {
+            try {
+              setBackfilling(true)
+              const res = await triggerInviteRebateBackfill(100)
+              if (res.success) {
+                toast.success(t('Backfill queued'))
+                await reload()
+              } else {
+                toast.error(res.message || t('Backfill failed'))
+              }
+            } catch (e) {
+              toast.error(t('Backfill failed'))
+            } finally {
+              setBackfilling(false)
+            }
+          }}
+        >
+          {t('Run rebate backfill')}
+        </Button>
       </div>
       <div className='grid gap-3 sm:grid-cols-3'>
         {[

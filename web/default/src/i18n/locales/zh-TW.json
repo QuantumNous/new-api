@@ -5207,6 +5207,11 @@
     "Invite Top-up Rebate": "邀請充值返傭",
     "Credit inviter when invitees complete top-ups": "被邀請人充值成功後，按比例給邀請人返傭",
     "Invite Top-up Rebate Ratio (bp)": "充值返傭比例（基點）",
-    "Basis points: 100 = 1% of credited quota": "基點：100 = 到帳額度的 1%"
+    "Basis points: 100 = 1% of credited quota": "基點：100 = 到帳額度的 1%",
+    "Invite Rebate Backfill Interval (minutes)": "邀請返傭補償掃描間隔（分鐘）",
+    "How often to scan for missing rebates (1-1440 minutes)": "掃描漏發返傭的週期（1–1440 分鐘）",
+    "Run rebate backfill": "立即掃描漏發返傭",
+    "Backfill queued": "補償任務已排隊",
+    "Backfill failed": "補償任務建立失敗"
   }
 }

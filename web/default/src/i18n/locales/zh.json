@@ -5207,6 +5207,11 @@
     "Invite Top-up Rebate": "邀请充值返佣",
     "Credit inviter when invitees complete top-ups": "被邀请人充值成功后，按比例给邀请人返佣",
     "Invite Top-up Rebate Ratio (bp)": "充值返佣比例（基点）",
-    "Basis points: 100 = 1% of credited quota": "基点：100 = 到账额度的 1%"
+    "Basis points: 100 = 1% of credited quota": "基点：100 = 到账额度的 1%",
+    "Invite Rebate Backfill Interval (minutes)": "邀请返佣补偿扫描间隔（分钟）",
+    "How often to scan for missing rebates (1-1440 minutes)": "扫描漏发返佣的周期（1–1440 分钟）",
+    "Run rebate backfill": "立即扫描漏发返佣",
+    "Backfill queued": "补偿任务已排队",
+    "Backfill failed": "补偿任务创建失败"
   }
 }

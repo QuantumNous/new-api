@@ -5207,6 +5207,11 @@
     "Invite Top-up Rebate": "Invite Top-up Rebate",
     "Credit inviter when invitees complete top-ups": "Credit inviter when invitees complete top-ups",
     "Invite Top-up Rebate Ratio (bp)": "Invite Top-up Rebate Ratio (bp)",
-    "Basis points: 100 = 1% of credited quota": "Basis points: 100 = 1% of credited quota"
+    "Basis points: 100 = 1% of credited quota": "Basis points: 100 = 1% of credited quota",
+    "Invite Rebate Backfill Interval (minutes)": "Invite Rebate Backfill Interval (minutes)",
+    "How often to scan for missing rebates (1-1440 minutes)": "How often to scan for missing rebates (1-1440 minutes)",
+    "Run rebate backfill": "Run rebate backfill",
+    "Backfill queued": "Backfill queued",
+    "Backfill failed": "Backfill failed"
   }
 }

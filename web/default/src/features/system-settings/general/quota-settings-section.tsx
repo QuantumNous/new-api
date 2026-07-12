@@ -57,6 +57,7 @@ const quotaSchema = z.object({
   QuotaForInvitee: z.coerce.number().min(0),
   InviteTopupRebateEnabled: z.boolean(),
   InviteTopupRebateRatioBp: z.coerce.number().min(0).max(10000),
+  InviteTopupRebateBackfillMinutes: z.coerce.number().min(1).max(1440),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -303,6 +304,30 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('Basis points: 100 = 1% of credited quota')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='InviteTopupRebateBackfillMinutes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Invite Rebate Backfill Interval (minutes)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('How often to scan for missing rebates (1-1440 minutes)')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
