@@ -36,7 +36,11 @@ type TopKItem struct {
 	Rank  int     `json:"rank,omitempty"`
 }
 
-func includeDetectHistoryStatus(status string) bool {
+func includeAdminDetectHistoryStatus(status string) bool {
+	return true
+}
+
+func includePublicDetectHistoryStatus(status string) bool {
 	return status != "notcomplete"
 }
 
@@ -238,7 +242,7 @@ func getModelDataItems(ctx context.Context, modelName string) ([]ModelDataItem, 
 	}
 	byChannel := map[int]*histories{}
 	for _, l := range logs {
-		if !includeDetectHistoryStatus(l.Status) {
+		if !includeAdminDetectHistoryStatus(l.Status) {
 			continue
 		}
 		h, ok := byChannel[l.ChannelId]
@@ -819,7 +823,7 @@ func GetPublicMarketplace(c *gin.Context) {
 	}
 	byChannel := map[int]*histories{}
 	for _, l := range logs {
-		if !includeDetectHistoryStatus(l.Status) {
+		if !includePublicDetectHistoryStatus(l.Status) {
 			continue
 		}
 		h, ok := byChannel[l.ChannelId]
