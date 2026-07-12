@@ -1,10 +1,13 @@
 package doubao
 
 import (
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/gin-gonic/gin"
 )
 
 func TestParseCreateTaskID(t *testing.T) {
@@ -145,5 +148,68 @@ func TestParseTaskResultGatewayWrapper(t *testing.T) {
 	}
 	if ti.Url != "https://example.com/v.mp4" {
 		t.Fatalf("got url %q", ti.Url)
+	}
+}
+
+func TestEstimateBillingPerCallSkipsSeconds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/video/generations", nil)
+	c.Set("task_request", relaycommon.TaskSubmitReq{Duration: 5})
+
+	a := &TaskAdaptor{}
+	info := &relaycommon.RelayInfo{OriginModelName: "doubao-seedance-2.0"}
+	if ratios := a.EstimateBilling(c, info); ratios != nil {
+		t.Fatalf("non per_second should not return ratios without video_input, got %#v", ratios)
+	}
+}
+
+func TestEstimateBillingPerSecondUsesDuration(t *testing.T) {
+	if err := config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"doubao-seedance-2.0":"per_second"}`,
+	}); err != nil {
+		t.Fatalf("load billing mode: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = config.GlobalConfig.LoadFromDB(map[string]string{
+			"billing_setting.billing_mode": `{}`,
+		})
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/video/generations", nil)
+	c.Set("task_request", relaycommon.TaskSubmitReq{Duration: 5})
+
+	a := &TaskAdaptor{}
+	info := &relaycommon.RelayInfo{OriginModelName: "doubao-seedance-2.0"}
+	ratios := a.EstimateBilling(c, info)
+	if ratios == nil || ratios["seconds"] != 5 {
+		t.Fatalf("per-second billing should return seconds=5, got %#v", ratios)
+	}
+}
+
+func TestEstimateBillingPerSecondDefaultTen(t *testing.T) {
+	if err := config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"doubao-seedance-2.0":"per_second"}`,
+	}); err != nil {
+		t.Fatalf("load billing mode: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = config.GlobalConfig.LoadFromDB(map[string]string{
+			"billing_setting.billing_mode": `{}`,
+		})
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/video/generations", nil)
+	c.Set("task_request", relaycommon.TaskSubmitReq{})
+
+	a := &TaskAdaptor{}
+	info := &relaycommon.RelayInfo{OriginModelName: "doubao-seedance-2.0"}
+	ratios := a.EstimateBilling(c, info)
+	if ratios == nil || ratios["seconds"] != 10 {
+		t.Fatalf("per-second billing should default seconds=10, got %#v", ratios)
 	}
 }

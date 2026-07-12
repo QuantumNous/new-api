@@ -133,19 +133,63 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 检测请求是否包含视频参考输入，返回视频折扣 OtherRatio。
+// EstimateBilling returns OtherRatios for per-second duration and optional video-input discount.
+// When billing_mode=per_second, multiplies by requested duration (default 10s if omitted).
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
-	if !hasVideoInput(&req) {
+	ratios := map[string]float64{}
+	if billing_setting.IsPerSecondModel(info.OriginModelName) {
+		sec := durationFromRequest(&req)
+		if sec <= 0 {
+			sec = 10
+		}
+		ratios["seconds"] = float64(sec)
+	}
+	if hasVideoInput(&req) {
+		if ratio, ok := billing_setting.GetVideoInputRatio(info.OriginModelName); ok {
+			ratios["video_input"] = ratio
+		}
+	}
+	if len(ratios) == 0 {
 		return nil
 	}
-	if ratio, ok := billing_setting.GetVideoInputRatio(info.OriginModelName); ok {
-		return map[string]float64{"video_input": ratio}
+	return ratios
+}
+
+func durationFromRequest(req *relaycommon.TaskSubmitReq) int {
+	if req == nil {
+		return 0
 	}
-	return nil
+	if req.Duration > 0 {
+		return req.Duration
+	}
+	if sec, err := strconv.Atoi(strings.TrimSpace(req.Seconds)); err == nil && sec > 0 {
+		return sec
+	}
+	if req.Metadata != nil {
+		for _, key := range []string{"duration", "seconds"} {
+			if v, ok := req.Metadata[key]; ok {
+				switch n := v.(type) {
+				case float64:
+					if n > 0 {
+						return int(n)
+					}
+				case int:
+					if n > 0 {
+						return n
+					}
+				case string:
+					if sec, err := strconv.Atoi(strings.TrimSpace(n)); err == nil && sec > 0 {
+						return sec
+					}
+				}
+			}
+		}
+	}
+	return 0
 }
 
 // hasVideoInput 检查官方 content 数组或 metadata.content 是否包含 video_url 条目。
