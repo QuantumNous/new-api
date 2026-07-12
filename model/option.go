@@ -71,6 +71,11 @@ func InitOptionMap() {
 	common.OptionMap["HomePageContent"] = ""
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
+	common.OptionMap["SEO.Description"] = common.SEODescription
+	common.OptionMap["SEO.Keywords"] = common.SEOKeywords
+	common.OptionMap["SEO.SiteURL"] = common.SEOSiteURL
+	common.OptionMap["SEO.OGImage"] = common.SEOOGImage
+	common.OptionMap["SEO.RobotsIndex"] = strconv.FormatBool(common.SEORobotsIndex)
 	common.OptionMap["Logo"] = common.Logo
 	common.OptionMap["ServerAddress"] = ""
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
@@ -489,6 +494,16 @@ func updateOptionMap(key string, value string) (err error) {
 		common.Footer = value
 	case "SystemName":
 		common.SystemName = value
+	case "SEO.Description":
+		common.SEODescription = value
+	case "SEO.Keywords":
+		common.SEOKeywords = value
+	case "SEO.SiteURL":
+		common.SEOSiteURL = value
+	case "SEO.OGImage":
+		common.SEOOGImage = value
+	case "SEO.RobotsIndex":
+		common.SEORobotsIndex = value == "true"
 	case "Logo":
 		common.Logo = value
 	case "WeChatServerAddress":
