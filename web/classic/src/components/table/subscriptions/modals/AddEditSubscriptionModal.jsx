@@ -95,7 +95,7 @@ const AddEditSubscriptionModal = ({
     max_purchase_per_user: 0,
     total_amount: 0,
     upgrade_group: '',
-    quota_usable_groups: '',
+    quota_usable_groups: [],
     stripe_price_id: '',
     creem_product_id: '',
   });
@@ -122,7 +122,10 @@ const AddEditSubscriptionModal = ({
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
-      quota_usable_groups: p.quota_usable_groups || '',
+      quota_usable_groups: (p.quota_usable_groups || '')
+        .split(',')
+        .map((g) => g.trim())
+        .filter(Boolean),
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
     };
@@ -166,7 +169,7 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
-          quota_usable_groups: values.quota_usable_groups || '',
+          quota_usable_groups: (values.quota_usable_groups || []).join(','),
         },
       };
       if (editingPlan?.plan?.id) {
@@ -346,14 +349,24 @@ const AddEditSubscriptionModal = ({
                     </Col>
 
                     <Col span={12}>
-                      <Form.Input
+                      <Form.Select
                         field='quota_usable_groups'
                         label={t('额度可用分组')}
-                        placeholder={t('逗号分隔的分组名，留空表示不限制')}
+                        multiple
+                        showClear
+                        loading={groupLoading}
+                        placeholder={t('留空表示不限制')}
                         extraText={t(
-                          '订阅额度仅可用于这些分组，其他分组的请求将从钱包余额扣费。',
+                          '订阅额度仅可用于这些分组；其他分组的请求将回退到钱包余额（计费偏好为仅订阅时则直接拒绝）。',
                         )}
-                      />
+                        style={{ width: '100%' }}
+                      >
+                        {(groupOptions || []).map((g) => (
+                          <Select.Option key={g} value={g}>
+                            {g}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
                     </Col>
 
                     <Col span={12}>
