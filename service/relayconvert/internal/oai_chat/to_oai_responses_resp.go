@@ -201,22 +201,24 @@ func chatArgumentsRawMessage(arguments string) []byte {
 	return raw
 }
 
-func chatCreatedAt(created any) int {
+func chatCreatedAt(created any) dto.UnixTimestamp {
 	switch v := created.(type) {
-	case int:
+	case dto.UnixTimestamp:
 		return v
+	case int:
+		return dto.UnixTimestamp(v)
 	case int64:
-		return int(v)
+		return dto.UnixTimestamp(v)
 	case float64:
-		return int(v)
+		return dto.UnixTimestamp(v)
 	case float32:
-		return int(v)
+		return dto.UnixTimestamp(v)
 	case string:
 		if parsed := common.String2Int(v); parsed != 0 {
-			return parsed
+			return dto.UnixTimestamp(parsed)
 		}
 	}
-	return int(time.Now().Unix())
+	return dto.UnixTimestamp(time.Now().Unix())
 }
 
 func responsesStreamEvent(eventType string, payload dto.ResponsesStreamResponse) ChatToResponsesStreamEvent {

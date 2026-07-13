@@ -2,7 +2,10 @@ package dto
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"strconv"
+	"strings"
 )
 
 type StringValue string
@@ -74,4 +77,72 @@ func (b *BoolValue) UnmarshalJSON(data []byte) error {
 }
 func (b BoolValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(bool(b))
+}
+
+// UnixTimestamp stores epoch seconds and accepts integer, float, and numeric string JSON values.
+// Fractional values are truncated toward zero.
+type UnixTimestamp int64
+
+func (u *UnixTimestamp) UnmarshalJSON(data []byte) error {
+	value, err := parseUnixTimestampJSON(data)
+	if err != nil {
+		return err
+	}
+	*u = UnixTimestamp(value)
+	return nil
+}
+
+func (u UnixTimestamp) MarshalJSON() ([]byte, error) {
+	return json.Marshal(int64(u))
+}
+
+func parseUnixTimestampJSON(data []byte) (int64, error) {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return 0, fmt.Errorf("empty timestamp")
+	}
+	if trimmed == "null" {
+		return 0, nil
+	}
+
+	var number json.Number
+	if err := json.Unmarshal(data, &number); err == nil {
+		if parsed, parseErr := number.Int64(); parseErr == nil {
+			return parsed, nil
+		}
+		parsed, parseErr := strconv.ParseFloat(number.String(), 64)
+		if parseErr != nil {
+			return 0, parseErr
+		}
+		if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+			return 0, fmt.Errorf("invalid timestamp number: %s", number.String())
+		}
+		if parsed > math.MaxInt64 || parsed < math.MinInt64 {
+			return 0, fmt.Errorf("timestamp out of int64 range: %s", number.String())
+		}
+		return int64(math.Trunc(parsed)), nil
+	}
+
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return 0, err
+	}
+	str = strings.TrimSpace(str)
+	if str == "" {
+		return 0, fmt.Errorf("empty timestamp string")
+	}
+	if parsed, err := strconv.ParseInt(str, 10, 64); err == nil {
+		return parsed, nil
+	}
+	parsed, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		return 0, err
+	}
+	if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return 0, fmt.Errorf("invalid timestamp string: %s", str)
+	}
+	if parsed > math.MaxInt64 || parsed < math.MinInt64 {
+		return 0, fmt.Errorf("timestamp out of int64 range: %s", str)
+	}
+	return int64(math.Trunc(parsed)), nil
 }
