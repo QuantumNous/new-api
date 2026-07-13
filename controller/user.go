@@ -627,6 +627,23 @@ func GetUserModels(c *gin.Context) {
 			return
 		}
 
+		if group == "auto" {
+			var models []string
+			for _, autoGroup := range service.GetUserAutoGroup(user.Group) {
+				for _, modelName := range model.GetGroupEnabledModels(autoGroup) {
+					if !common.StringsContains(models, modelName) {
+						models = append(models, modelName)
+					}
+				}
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "",
+				"data":    models,
+			})
+			return
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
