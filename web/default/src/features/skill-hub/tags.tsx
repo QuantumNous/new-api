@@ -145,7 +145,7 @@ export function SkillHubTags() {
                 <span>标签名称</span>
                 <Input
                   value={newName}
-                  maxLength={32}
+                  maxLength={40}
                   placeholder='例如：办公协同'
                   onChange={(event) => setNewName(event.target.value)}
                   onKeyDown={(event) => {

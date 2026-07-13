@@ -39,7 +39,12 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -69,14 +74,31 @@ import {
   updateChatModel,
 } from '../api'
 import { chatModelsQueryKeys } from '../lib'
-import type { ChatModelOption } from '../types'
+import type {
+  ChatModelApiFormat,
+  ChatModelInputType,
+  ChatModelOption,
+  UpsertChatModelPayload,
+} from '../types'
 
 const PAGE_SIZE = 20
+const DEFAULT_API_FORMAT: ChatModelApiFormat = 'openai-completions'
+const CHAT_MODEL_API_FORMATS: ChatModelApiFormat[] = [
+  'openai-completions',
+  'openai-responses',
+  'anthropic-messages',
+]
 
 type ChatModelFormState = {
   id?: number
   model: string
   name: string
+  input: ChatModelInputType[]
+  api: ChatModelApiFormat
+  contextWindow: number
+  contextTokens: number
+  maxTokens: number
+  reasoning: boolean
   enabled: boolean
   is_auto: boolean
   sort: number
@@ -85,9 +107,37 @@ type ChatModelFormState = {
 const emptyForm: ChatModelFormState = {
   model: '',
   name: '',
+  input: ['text'],
+  api: DEFAULT_API_FORMAT,
+  contextWindow: 0,
+  contextTokens: 0,
+  maxTokens: 0,
+  reasoning: false,
   enabled: true,
   is_auto: false,
   sort: 0,
+}
+
+function normalizeInputTypes(
+  input: ChatModelInputType[] | undefined
+): ChatModelInputType[] {
+  const normalized: ChatModelInputType[] = ['text']
+  for (const inputType of ['image', 'video', 'audio'] as const) {
+    if (input?.includes(inputType)) {
+      normalized.push(inputType)
+    }
+  }
+  return normalized
+}
+
+function normalizeApiFormat(
+  api: ChatModelApiFormat | undefined
+): ChatModelApiFormat {
+  return api && CHAT_MODEL_API_FORMATS.includes(api) ? api : DEFAULT_API_FORMAT
+}
+
+function isValidTokenLimit(value: number) {
+  return Number.isSafeInteger(value) && value >= 0
 }
 
 function formatPrice(price: number) {
@@ -154,6 +204,19 @@ export function ChatModelsTable() {
       })),
     [candidates, t]
   )
+  const formCandidateOptions = useMemo(() => {
+    const currentModel = form.model.trim()
+    if (
+      !currentModel ||
+      candidateOptions.some((option) => option.value === currentModel)
+    ) {
+      return candidateOptions
+    }
+
+    // Keep an existing configuration visible even when its pricing candidate
+    // has since been removed or is temporarily unavailable.
+    return [{ value: currentModel, label: currentModel }, ...candidateOptions]
+  }, [candidateOptions, form.model])
   const batchCandidates = useMemo(() => {
     const normalizedKeyword = batchKeyword.trim().toLowerCase()
     return candidates.filter((candidate) => {
@@ -166,6 +229,24 @@ export function ChatModelsTable() {
     () => new Set(selectedBatchModels),
     [selectedBatchModels]
   )
+  const inputTypeOptions = useMemo<
+    Array<{ value: ChatModelInputType; label: string }>
+  >(
+    () => [
+      { value: 'text', label: t('Text') },
+      { value: 'image', label: t('Image') },
+      { value: 'video', label: t('Video') },
+      { value: 'audio', label: t('Audio') },
+    ],
+    [t]
+  )
+  const recommendedContextTokenRange =
+    form.contextWindow > 0 && isValidTokenLimit(form.contextWindow)
+      ? {
+          min: Math.floor(form.contextWindow * 0.75),
+          max: Math.floor(form.contextWindow * 0.8),
+        }
+      : null
 
   const invalidateChatModels = () =>
     queryClient.invalidateQueries({ queryKey: chatModelsQueryKeys.all })
@@ -217,7 +298,7 @@ export function ChatModelsTable() {
       payload,
     }: {
       id: number
-      payload: Partial<ChatModelFormState>
+      payload: UpsertChatModelPayload
     }) => updateChatModel(id, payload),
     onSuccess: (response) => {
       if (!response.success) {
@@ -265,6 +346,12 @@ export function ChatModelsTable() {
       id: item.id,
       model: item.model,
       name: item.name,
+      input: normalizeInputTypes(item.input),
+      api: normalizeApiFormat(item.api),
+      contextWindow: item.contextWindow ?? 0,
+      contextTokens: item.contextTokens ?? 0,
+      maxTokens: item.maxTokens ?? 0,
+      reasoning: item.reasoning ?? false,
       enabled: item.enabled,
       is_auto: item.is_auto,
       sort: item.sort,
@@ -279,9 +366,32 @@ export function ChatModelsTable() {
       return
     }
 
-    const payload = {
+    if (
+      !isValidTokenLimit(form.contextWindow) ||
+      !isValidTokenLimit(form.contextTokens) ||
+      !isValidTokenLimit(form.maxTokens)
+    ) {
+      toast.error(t('Token limits must be non-negative whole numbers'))
+      return
+    }
+    if (form.contextWindow > 0 && form.contextTokens > form.contextWindow) {
+      toast.error(t('Context Tokens cannot exceed Context Window'))
+      return
+    }
+    if (form.contextWindow > 0 && form.maxTokens > form.contextWindow) {
+      toast.error(t('Max Tokens cannot exceed Context Window'))
+      return
+    }
+
+    const payload: UpsertChatModelPayload = {
       model: modelName,
       name: form.name.trim(),
+      input: normalizeInputTypes(form.input),
+      api: normalizeApiFormat(form.api),
+      contextWindow: form.contextWindow,
+      contextTokens: form.contextTokens,
+      maxTokens: form.maxTokens,
+      reasoning: form.reasoning,
       enabled: form.enabled,
       is_auto: form.is_auto,
       sort: Number.isFinite(form.sort) ? form.sort : 0,
@@ -296,9 +406,21 @@ export function ChatModelsTable() {
 
   const handleQuickUpdate = (
     item: ChatModelOption,
-    payload: Partial<ChatModelFormState>
+    payload: UpsertChatModelPayload
   ) => {
     updateMutation.mutate({ id: item.id, payload })
+  }
+
+  const toggleInputType = (inputType: ChatModelInputType, checked: boolean) => {
+    if (inputType === 'text') return
+    setForm((current) => ({
+      ...current,
+      input: normalizeInputTypes(
+        checked
+          ? [...current.input, inputType]
+          : current.input.filter((value) => value !== inputType)
+      ),
+    }))
   }
 
   const toggleBatchModel = (modelName: string, checked: boolean) => {
@@ -539,7 +661,7 @@ export function ChatModelsTable() {
       </div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className='sm:max-w-lg'>
+        <DialogContent className='max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl'>
           <DialogHeader>
             <DialogTitle>
               {form.id ? t('Edit Chat Model') : t('Add Chat Model')}
@@ -547,9 +669,10 @@ export function ChatModelsTable() {
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel>{t('Model')}</FieldLabel>
+              <FieldLabel htmlFor='chat-model-model'>{t('Model')}</FieldLabel>
               <Combobox
-                options={candidateOptions}
+                id='chat-model-model'
+                options={formCandidateOptions}
                 value={form.model}
                 onValueChange={(value) => {
                   const selected = candidates.find(
@@ -569,8 +692,11 @@ export function ChatModelsTable() {
               />
             </Field>
             <Field>
-              <FieldLabel>{t('Display Name')}</FieldLabel>
+              <FieldLabel htmlFor='chat-model-display-name'>
+                {t('Display Name')}
+              </FieldLabel>
               <Input
+                id='chat-model-display-name'
                 value={form.name}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -581,8 +707,150 @@ export function ChatModelsTable() {
               />
             </Field>
             <Field>
-              <FieldLabel>{t('Sort')}</FieldLabel>
+              <FieldLabel htmlFor='chat-model-api-format'>
+                {t('API Format')}
+              </FieldLabel>
+              <Select
+                value={form.api}
+                onValueChange={(value) => {
+                  const api = CHAT_MODEL_API_FORMATS.find(
+                    (candidate) => candidate === value
+                  )
+                  if (!api) return
+                  setForm((current) => ({ ...current, api }))
+                }}
+              >
+                <SelectTrigger id='chat-model-api-format' className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {CHAT_MODEL_API_FORMATS.map((api) => (
+                      <SelectItem key={api} value={api}>
+                        {api}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel id='chat-model-input-label'>{t('Input')}</FieldLabel>
+              <div
+                className='grid w-full gap-2 sm:grid-cols-2'
+                role='group'
+                aria-labelledby='chat-model-input-label'
+              >
+                {inputTypeOptions.map((option) => {
+                  const isRequired = option.value === 'text'
+                  return (
+                    <label
+                      key={option.value}
+                      className='hover:bg-muted/50 flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 py-2'
+                    >
+                      <Checkbox
+                        checked={form.input.includes(option.value)}
+                        disabled={isRequired}
+                        onCheckedChange={(checked) =>
+                          toggleInputType(option.value, checked === true)
+                        }
+                      />
+                      <span className='text-sm'>{option.label}</span>
+                      {isRequired && (
+                        <span className='text-muted-foreground ml-auto text-xs'>
+                          {t('Required')}
+                        </span>
+                      )}
+                    </label>
+                  )
+                })}
+              </div>
+              <FieldDescription>
+                {t('Text input is required. Other input types are optional.')}
+              </FieldDescription>
+            </Field>
+            <div className='grid gap-4 sm:grid-cols-3'>
+              <Field>
+                <FieldLabel htmlFor='chat-model-context-window'>
+                  {t('Context Window')}
+                </FieldLabel>
+                <Input
+                  id='chat-model-context-window'
+                  type='number'
+                  min={0}
+                  step={1}
+                  aria-describedby='chat-model-context-window-help'
+                  value={form.contextWindow}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      contextWindow: Number(event.target.value),
+                    }))
+                  }
+                />
+                <FieldDescription id='chat-model-context-window-help'>
+                  {t("Recommended: use the model's official native value.")}
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='chat-model-context-tokens'>
+                  {t('Context Tokens')}
+                </FieldLabel>
+                <Input
+                  id='chat-model-context-tokens'
+                  type='number'
+                  min={0}
+                  step={1}
+                  aria-describedby='chat-model-context-tokens-help'
+                  value={form.contextTokens}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      contextTokens: Number(event.target.value),
+                    }))
+                  }
+                />
+                <FieldDescription id='chat-model-context-tokens-help'>
+                  {t('Token capacity, not a price.')}{' '}
+                  {recommendedContextTokenRange
+                    ? t(
+                        'Recommended: {{min}}-{{max}} Token (75%-80% of Context Window), or 0 for no extra limit.',
+                        recommendedContextTokenRange
+                      )
+                    : t(
+                        'Recommended: 75%-80% of Context Window, or 0 for no extra limit.'
+                      )}
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='chat-model-max-tokens'>
+                  {t('Max Tokens')}
+                </FieldLabel>
+                <Input
+                  id='chat-model-max-tokens'
+                  type='number'
+                  min={0}
+                  step={1}
+                  aria-describedby='chat-model-max-tokens-help'
+                  value={form.maxTokens}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      maxTokens: Number(event.target.value),
+                    }))
+                  }
+                />
+                <FieldDescription id='chat-model-max-tokens-help'>
+                  {t(
+                    "Recommended: use the model's official maximum output, or 0 when unknown."
+                  )}
+                </FieldDescription>
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor='chat-model-sort'>{t('Sort')}</FieldLabel>
               <Input
+                id='chat-model-sort'
                 type='number'
                 value={form.sort}
                 onChange={(event) =>
@@ -595,21 +863,37 @@ export function ChatModelsTable() {
             </Field>
             <Field orientation='horizontal'>
               <Switch
+                id='chat-model-enabled'
                 checked={form.enabled}
                 onCheckedChange={(checked) =>
                   setForm((current) => ({ ...current, enabled: checked }))
                 }
               />
-              <FieldLabel>{t('Enabled')}</FieldLabel>
+              <FieldLabel htmlFor='chat-model-enabled'>
+                {t('Enabled')}
+              </FieldLabel>
             </Field>
             <Field orientation='horizontal'>
               <Switch
+                id='chat-model-auto'
                 checked={form.is_auto}
                 onCheckedChange={(checked) =>
                   setForm((current) => ({ ...current, is_auto: checked }))
                 }
               />
-              <FieldLabel>{t('Auto')}</FieldLabel>
+              <FieldLabel htmlFor='chat-model-auto'>{t('Auto')}</FieldLabel>
+            </Field>
+            <Field orientation='horizontal'>
+              <Switch
+                id='chat-model-reasoning'
+                checked={form.reasoning}
+                onCheckedChange={(checked) =>
+                  setForm((current) => ({ ...current, reasoning: checked }))
+                }
+              />
+              <FieldLabel htmlFor='chat-model-reasoning'>
+                {t('Reasoning')}
+              </FieldLabel>
             </Field>
           </FieldGroup>
           <DialogFooter>

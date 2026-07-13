@@ -309,6 +309,12 @@ export type ModelTabCategory = 'metadata' | 'deployments' | 'chat'
 /**
  * Chat model option entity from API
  */
+export type ChatModelInputType = 'text' | 'image' | 'video' | 'audio'
+export type ChatModelApiFormat =
+  | 'openai-completions'
+  | 'openai-responses'
+  | 'anthropic-messages'
+
 export interface ChatModelOption {
   id: number
   model: string
@@ -318,6 +324,12 @@ export interface ChatModelOption {
   sort: number
   price: number
   available: boolean
+  input: ChatModelInputType[]
+  api: ChatModelApiFormat
+  contextWindow?: number
+  contextTokens?: number
+  maxTokens?: number
+  reasoning: boolean
   created_time: number
   updated_time: number
 }
@@ -374,6 +386,12 @@ export interface BatchCreateChatModelsResponse {
 export interface UpsertChatModelPayload {
   model?: string
   name?: string
+  input?: ChatModelInputType[]
+  api?: ChatModelApiFormat
+  contextWindow?: number
+  contextTokens?: number
+  maxTokens?: number
+  reasoning?: boolean
   enabled?: boolean
   is_auto?: boolean
   sort?: number

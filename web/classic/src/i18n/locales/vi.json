@@ -4756,6 +4756,22 @@
     "这里配置 classic 操练场的模型分组和独立排序。覆盖分类后，模型是否出现在聊天、图片、视频分组由这里决定；三个分组的排序互不影响。": "Cấu hình nhóm mô hình và thứ tự độc lập cho classic playground tại đây. Sau khi bật ghi đè phân loại, việc mô hình có xuất hiện trong chat, hình ảnh hay video sẽ được quyết định tại đây; thứ tự của ba nhóm không ảnh hưởng lẫn nhau.",
     "覆盖分类后，模型是否出现在某个分组由这里决定；各分组下方的排序互不影响。": "Sau khi bật ghi đè phân loại, việc mô hình có xuất hiện trong một nhóm hay không sẽ được quyết định tại đây; thứ tự bên dưới mỗi nhóm là độc lập.",
     "重排序": "Đánh lại thứ tự",
-    "已按当前顺序重排序": "Đã đánh lại thứ tự theo thứ tự hiện tại"
+    "已按当前顺序重排序": "Đã đánh lại thứ tự theo thứ tự hiện tại",
+    "API 格式": "Định dạng API",
+    "输入类型": "Loại đầu vào",
+    "文本输入为必选，其他类型可多选": "Đầu vào văn bản là bắt buộc; có thể chọn thêm các loại khác",
+    "上下文窗口": "Cửa sổ ngữ cảnh",
+    "上下文预算": "Ngân sách ngữ cảnh",
+    "最大输出 Token": "Số token đầu ra tối đa",
+    "推理模型": "Mô hình suy luận",
+    "Token 限制必须是非负整数": "Giới hạn token phải là số nguyên không âm",
+    "上下文预算不能大于上下文窗口": "Ngân sách ngữ cảnh không được lớn hơn cửa sổ ngữ cảnh",
+    "最大输出 Token 不能大于上下文窗口": "Số token đầu ra tối đa không được lớn hơn cửa sổ ngữ cảnh",
+    "有效上下文上限": "Giới hạn ngữ cảnh hiệu dụng",
+    "建议按模型官方公布的原生上下文窗口填写；0 表示未配置": "Dùng cửa sổ ngữ cảnh gốc do nhà cung cấp mô hình công bố; 0 nghĩa là chưa cấu hình",
+    "这是 Token 容量，不是价格；建议为原生窗口的 75%–80%（{{min}}–{{max}} Token）；0 表示不额外限制": "Đây là dung lượng token, không phải giá. Khuyến nghị 75%–80% cửa sổ gốc ({{min}}–{{max}} token); 0 nghĩa là không giới hạn thêm",
+    "这是 Token 容量，不是价格；建议为原生窗口的 75%–80%；0 表示不额外限制": "Đây là dung lượng token, không phải giá. Khuyến nghị 75%–80% cửa sổ gốc; 0 nghĩa là không giới hạn thêm",
+    "建议按模型官方公布的最大输出填写；0 表示未配置": "Dùng mức đầu ra tối đa do nhà cung cấp mô hình công bố; 0 nghĩa là chưa cấu hình",
+    "0 表示未配置": "0 nghĩa là chưa cấu hình"
   }
 }

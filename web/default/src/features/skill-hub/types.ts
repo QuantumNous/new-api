@@ -22,6 +22,8 @@ export type SkillHubSkill = {
   description?: string
   version: string
   author?: string
+  origin?: string
+  originUrl?: string
   icon?: string
   tags?: string[]
   verified: boolean
@@ -112,6 +114,8 @@ export type SkillHubForm = {
   description: string
   version: string
   author: string
+  origin: string
+  originUrl: string
   icon: string
   tags: string[]
   verified: boolean

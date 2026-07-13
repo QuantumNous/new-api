@@ -26,6 +26,7 @@ import {
 } from 'react'
 import {
   Check,
+  Download,
   FileArchive,
   ImageIcon,
   Plus,
@@ -45,12 +46,15 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SectionPageLayout } from '@/components/layout'
 import {
   createSkillHubSkill,
+  batchDeleteSkillHubSkills,
+  batchExportSkillHubSkills,
   deleteSkillHubSkill,
   discardSkillHubUpload,
   listAdminSkillHubSkillsByTags,
@@ -70,6 +74,8 @@ export function SkillHub() {
   const [tagOptions, setTagOptions] = useState<SkillHubTag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
   const [selectedId, setSelectedId] = useState('')
+  const [checkedIds, setCheckedIds] = useState<string[]>([])
+  const [batchWorking, setBatchWorking] = useState(false)
   const [form, setForm] = useState<SkillHubForm>(() => skillToForm())
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -114,7 +120,11 @@ export function SkillHub() {
       if (!payload.success) {
         throw new Error(payload.message || t('Failed to load Skill Hub'))
       }
-      setSkills(payload.data?.items || [])
+      const items = payload.data?.items || []
+      setSkills(items)
+      setCheckedIds((current) =>
+        current.filter((id) => items.some((item) => item.id === id))
+      )
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t('Failed to load Skill Hub')
@@ -204,6 +214,10 @@ export function SkillHub() {
           'Zip URL must use HTTPS, except localhost or private network hosts during development'
         )
       )
+      return
+    }
+    if (!isAllowedOriginUrl(form.originUrl)) {
+      toast.error(t('Source project URL must use HTTP or HTTPS'))
       return
     }
     setSaving(true)
@@ -313,6 +327,65 @@ export function SkillHub() {
       )
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function batchDelete() {
+    if (
+      !checkedIds.length ||
+      !window.confirm(
+        t('Delete {{count}} selected skills?', { count: checkedIds.length })
+      )
+    )
+      return
+    setBatchWorking(true)
+    try {
+      const payload = await batchDeleteSkillHubSkills(checkedIds)
+      if (!payload.success)
+        throw new Error(
+          payload.message || t('Failed to delete selected skills')
+        )
+      if (checkedIds.includes(selectedId)) createDraft()
+      setCheckedIds([])
+      toast.success(
+        t('{{count}} skills deleted', {
+          count: payload.data?.deleted || checkedIds.length,
+        })
+      )
+      await loadSkills()
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to delete selected skills')
+      )
+    } finally {
+      setBatchWorking(false)
+    }
+  }
+
+  async function batchExport() {
+    if (!checkedIds.length) return
+    setBatchWorking(true)
+    try {
+      const blob = await batchExportSkillHubSkills(checkedIds)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'skill-hub-export.zip'
+      link.click()
+      URL.revokeObjectURL(url)
+      toast.success(
+        t('{{count}} skills exported', { count: checkedIds.length })
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to export selected skills')
+      )
+    } finally {
+      setBatchWorking(false)
     }
   }
 
@@ -479,57 +552,115 @@ export function SkillHub() {
                   })}
                 </div>
               )}
-              <div className='min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 pb-2'>
+              <div className='flex flex-wrap items-center gap-2 border-y py-2'>
+                <label className='flex items-center gap-2 text-sm'>
+                  <Checkbox
+                    checked={
+                      skills.length > 0 && checkedIds.length === skills.length
+                    }
+                    onCheckedChange={(checked) =>
+                      setCheckedIds(
+                        checked ? skills.map((skill) => skill.id) : []
+                      )
+                    }
+                  />
+                  {t('Select all')}
+                </label>
+                <span className='text-muted-foreground text-sm'>
+                  {t('{{count}} selected', { count: checkedIds.length })}
+                </span>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  disabled={!checkedIds.length || batchWorking}
+                  onClick={() => void batchExport()}
+                >
+                  <Download data-icon='inline-start' />
+                  {t('Export selected')}
+                </Button>
+                <Button
+                  size='sm'
+                  variant='destructive'
+                  disabled={!checkedIds.length || batchWorking}
+                  onClick={() => void batchDelete()}
+                >
+                  <Trash2 data-icon='inline-start' />
+                  {t('Delete selected')}
+                </Button>
+              </div>
+              <div className='flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 pb-2'>
                 {skills.map((skill) => {
                   const published = skill.published || skill.status === 1
                   const tags = normalizeSkillTags(skill.tags)
                   return (
-                    <button
+                    <div
                       key={skill.id}
-                      type='button'
                       className={`w-full rounded-lg border p-3 text-left transition-colors ${
                         selectedId === skill.id
                           ? 'border-primary bg-primary/5'
                           : 'hover:bg-muted/50'
                       }`}
-                      onClick={() => selectSkill(skill)}
                     >
-                      <div className='flex items-start justify-between gap-3'>
-                        <div className='min-w-0'>
-                          <div className='truncate font-medium'>
-                            {skill.name}
+                      <div className='mb-2 flex items-center gap-2'>
+                        <Checkbox
+                          aria-label={t('Select {{name}}', {
+                            name: skill.name,
+                          })}
+                          checked={checkedIds.includes(skill.id)}
+                          onCheckedChange={(checked) =>
+                            setCheckedIds((current) =>
+                              checked
+                                ? [...new Set([...current, skill.id])]
+                                : current.filter((id) => id !== skill.id)
+                            )
+                          }
+                        />
+                        <button
+                          type='button'
+                          className='min-w-0 flex-1 text-left'
+                          onClick={() => selectSkill(skill)}
+                        >
+                          <div className='flex items-start justify-between gap-3'>
+                            <div className='min-w-0'>
+                              <div className='truncate font-medium'>
+                                {skill.name}
+                              </div>
+                              <div className='text-muted-foreground truncate text-xs'>
+                                {skill.id} · {skill.version}
+                                {skill.author ? ` · ${skill.author}` : ''}
+                                {skill.origin ? ` · ${skill.origin}` : ''}
+                              </div>
+                            </div>
+                            <div className='flex shrink-0 flex-wrap justify-end gap-1'>
+                              {skill.recommended && (
+                                <Badge variant='secondary'>
+                                  {t('Recommended')}
+                                </Badge>
+                              )}
+                              <Badge
+                                variant={published ? 'default' : 'outline'}
+                              >
+                                {published ? t('Published') : t('Draft')}
+                              </Badge>
+                            </div>
                           </div>
-                          <div className='text-muted-foreground truncate text-xs'>
-                            {skill.id} · {skill.version}
-                            {skill.author ? ` · ${skill.author}` : ''}
+                          <div className='text-foreground/90 mt-2 line-clamp-2 min-h-10 text-sm'>
+                            {skill.description?.trim() ||
+                              t('No description available.')}
                           </div>
-                        </div>
-                        <div className='flex shrink-0 flex-wrap justify-end gap-1'>
-                          {skill.recommended && (
-                            <Badge variant='secondary'>
-                              {t('Recommended')}
-                            </Badge>
-                          )}
-                          <Badge variant={published ? 'default' : 'outline'}>
-                            {published ? t('Published') : t('Draft')}
-                          </Badge>
-                        </div>
+                          <div className='mt-2 flex max-h-7 min-h-7 flex-wrap gap-1 overflow-hidden'>
+                            {tags.slice(0, 4).map((tag) => (
+                              <span
+                                key={tag}
+                                className='bg-muted text-muted-foreground rounded-md px-2 py-0.5 text-xs'
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </button>
                       </div>
-                      <div className='text-foreground/90 mt-2 line-clamp-2 min-h-10 text-sm'>
-                        {skill.description?.trim() ||
-                          t('No description available.')}
-                      </div>
-                      <div className='mt-2 flex max-h-7 min-h-7 flex-wrap gap-1 overflow-hidden'>
-                        {tags.slice(0, 4).map((tag) => (
-                          <span
-                            key={tag}
-                            className='bg-muted text-muted-foreground rounded-md px-2 py-0.5 text-xs'
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </button>
+                    </div>
                   )
                 })}
                 {!skills.length && (
@@ -588,6 +719,27 @@ export function SkillHub() {
                         value={form.author}
                         onChange={(event) =>
                           update('author', event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label={t('Source')}>
+                      <Input
+                        value={form.origin}
+                        maxLength={64}
+                        placeholder='Clawhub'
+                        onChange={(event) =>
+                          update('origin', event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label={t('Source project URL')}>
+                      <Input
+                        type='url'
+                        value={form.originUrl}
+                        maxLength={2048}
+                        placeholder='https://...'
+                        onChange={(event) =>
+                          update('originUrl', event.target.value)
                         }
                       />
                     </Field>
@@ -791,6 +943,21 @@ function isAllowedZipUrl(value: string) {
     if (url.protocol === 'https:') return true
     if (url.protocol !== 'http:') return false
     return isLocalHTTPHost(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+function isAllowedOriginUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  try {
+    const url = new URL(trimmed)
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      !url.username &&
+      !url.password
+    )
   } catch {
     return false
   }

@@ -237,6 +237,8 @@ func SetApiRouter(router *gin.Engine) {
 			adminSkillHubRoute.DELETE("/tags/:name", controller.AdminDeleteSkillHubTag)
 			adminSkillHubRoute.GET("/skills", controller.AdminListSkillHubSkills)
 			adminSkillHubRoute.POST("/skills", controller.AdminCreateSkillHubSkill)
+			adminSkillHubRoute.POST("/skills/batch-delete", controller.AdminBatchDeleteSkillHubSkills)
+			adminSkillHubRoute.POST("/skills/batch-export", controller.AdminBatchExportSkillHubSkills)
 			adminSkillHubRoute.GET("/skills/:id", controller.AdminGetSkillHubSkill)
 			adminSkillHubRoute.PUT("/skills/:id", controller.AdminUpdateSkillHubSkill)
 			adminSkillHubRoute.DELETE("/skills/:id", controller.AdminDeleteSkillHubSkill)

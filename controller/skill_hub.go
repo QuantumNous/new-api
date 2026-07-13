@@ -1,11 +1,16 @@
 package controller
 
 import (
+	"archive/zip"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -20,6 +25,8 @@ type skillHubSkillRequest struct {
 	Description string               `json:"description"`
 	Version     string               `json:"version"`
 	Author      string               `json:"author"`
+	Origin      string               `json:"origin"`
+	OriginURL   string               `json:"originUrl"`
 	Icon        string               `json:"icon"`
 	Tags        []string             `json:"tags"`
 	Verified    bool                 `json:"verified"`
@@ -45,6 +52,26 @@ type skillHubDirectUploadInitRequest struct {
 
 type skillHubDirectUploadCompleteRequest struct {
 	UploadTicket string `json:"uploadTicket"`
+}
+
+type skillHubBatchRequest struct {
+	IDs []string `json:"ids"`
+}
+
+type skillHubExportManifestItem struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Version     string   `json:"version"`
+	Author      string   `json:"author,omitempty"`
+	Origin      string   `json:"origin,omitempty"`
+	OriginURL   string   `json:"originUrl,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Verified    bool     `json:"verified"`
+	Recommended bool     `json:"recommended"`
+	Sort        int      `json:"sort"`
+	Zip         string   `json:"zip"`
+	Icon        string   `json:"icon,omitempty"`
 }
 
 func ListSkillHubSkills(c *gin.Context) {
@@ -272,6 +299,149 @@ func AdminDeleteSkillHubSkill(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
+func AdminBatchDeleteSkillHubSkills(c *gin.Context) {
+	skills, err := bindSkillHubBatch(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.DeleteSkillHubSkills(skills); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	for _, skill := range skills {
+		cleanupSkillHubObjects(skill.SourceRef, skill.Icon)
+	}
+	common.ApiSuccess(c, gin.H{"deleted": len(skills)})
+}
+
+func AdminBatchExportSkillHubSkills(c *gin.Context) {
+	skills, err := bindSkillHubBatch(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	file, err := os.CreateTemp("", "skill-hub-export-*.zip")
+	if err != nil {
+		skillHubExportError(c, err)
+		return
+	}
+	fileName := file.Name()
+	defer func() {
+		_ = file.Close()
+		_ = os.Remove(fileName)
+	}()
+	archive := zip.NewWriter(file)
+	manifest := make([]skillHubExportManifestItem, 0, len(skills))
+	for _, skill := range skills {
+		zipPath := "packages/" + skill.SkillID + ".zip"
+		if err := addSkillHubExportZip(archive, zipPath, skill.SourceRef); err != nil {
+			_ = archive.Close()
+			skillHubExportError(c, fmt.Errorf("failed to export skill %s package: %w", skill.SkillID, err))
+			return
+		}
+		item := skillHubExportManifestItem{
+			ID: skill.SkillID, Name: skill.Name, Description: skill.Description,
+			Version: skill.Version, Author: skill.Author, Origin: skill.Origin, OriginURL: skill.OriginURL,
+			Tags:     model.StringListFromJSON(skill.Tags),
+			Verified: skill.Verified, Recommended: skill.Recommended, Sort: skill.Sort,
+			Zip: "./" + zipPath,
+		}
+		if strings.TrimSpace(skill.Icon) != "" {
+			reader, ext, openErr := service.OpenSkillHubIconObject(skill.Icon)
+			if openErr != nil {
+				_ = archive.Close()
+				skillHubExportError(c, fmt.Errorf("failed to export skill %s icon: %w", skill.SkillID, openErr))
+				return
+			}
+			iconPath := "icons/" + skill.SkillID + ext
+			if err := copySkillHubExportFile(archive, iconPath, reader); err != nil {
+				_ = archive.Close()
+				skillHubExportError(c, fmt.Errorf("failed to export skill %s icon: %w", skill.SkillID, err))
+				return
+			}
+			item.Icon = "./" + iconPath
+		}
+		manifest = append(manifest, item)
+	}
+	data, err := common.Marshal(manifest)
+	if err == nil {
+		var writer io.Writer
+		writer, err = archive.Create("manifest.json")
+		if err == nil {
+			_, err = writer.Write(data)
+		}
+	}
+	if err != nil {
+		_ = archive.Close()
+		skillHubExportError(c, err)
+		return
+	}
+	if err := archive.Close(); err != nil {
+		skillHubExportError(c, err)
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		skillHubExportError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="skill-hub-export.zip"`)
+	http.ServeContent(c.Writer, c.Request, "skill-hub-export.zip", time.Time{}, file)
+}
+
+func skillHubExportError(c *gin.Context, err error) {
+	c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+}
+
+func bindSkillHubBatch(c *gin.Context) ([]*model.SkillHubSkill, error) {
+	var request skillHubBatchRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		return nil, err
+	}
+	if len(request.IDs) == 0 || len(request.IDs) > 200 {
+		return nil, errors.New("select between 1 and 200 skills")
+	}
+	seen := make(map[string]struct{}, len(request.IDs))
+	ids := make([]string, 0, len(request.IDs))
+	for _, rawID := range request.IDs {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			return nil, errors.New("skill id is required")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	skills, err := model.GetSkillHubSkillsBySkillIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+	if len(skills) != len(ids) {
+		return nil, errors.New("one or more skills were not found")
+	}
+	return skills, nil
+}
+
+func addSkillHubExportZip(archive *zip.Writer, name string, objectKey string) error {
+	reader, err := service.OpenSkillHubZipObject(objectKey)
+	if err != nil {
+		return err
+	}
+	return copySkillHubExportFile(archive, name, reader)
+}
+
+func copySkillHubExportFile(archive *zip.Writer, name string, reader io.ReadCloser) error {
+	defer reader.Close()
+	writer, err := archive.Create(name)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(writer, reader)
+	return err
+}
+
 func AdminPublishSkillHubSkill(c *gin.Context) {
 	updateSkillHubPublishStatus(c, model.SkillHubStatusPublished)
 }
@@ -441,6 +611,8 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	skill.Description = strings.TrimSpace(request.Description)
 	skill.Version = strings.TrimSpace(request.Version)
 	skill.Author = strings.TrimSpace(request.Author)
+	skill.Origin = strings.TrimSpace(request.Origin)
+	skill.OriginURL = strings.TrimSpace(request.OriginURL)
 	skill.Icon = strings.TrimSpace(request.Icon)
 	skill.Tags = model.StringListToJSON(request.Tags)
 	skill.Verified = request.Verified

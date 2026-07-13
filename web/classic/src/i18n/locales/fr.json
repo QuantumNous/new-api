@@ -4237,6 +4237,22 @@
     "这里配置 classic 操练场的模型分组和独立排序。覆盖分类后，模型是否出现在聊天、图片、视频分组由这里决定；三个分组的排序互不影响。": "Configurez ici les groupes de modeles et l'ordre independant du playground classic. Apres activation du remplacement des categories, la presence d'un modele dans chat, image ou video est decidee ici ; l'ordre des trois groupes reste independant.",
     "覆盖分类后，模型是否出现在某个分组由这里决定；各分组下方的排序互不影响。": "Apres activation du remplacement des categories, la presence d'un modele dans un groupe est decidee ici ; l'ordre sous chaque groupe est independant.",
     "重排序": "Reordonner",
-    "已按当前顺序重排序": "Reordonnee selon l'ordre actuel"
+    "已按当前顺序重排序": "Reordonnee selon l'ordre actuel",
+    "API 格式": "Format d’API",
+    "输入类型": "Types d’entrée",
+    "文本输入为必选，其他类型可多选": "L’entrée texte est obligatoire ; les autres types peuvent être sélectionnés",
+    "上下文窗口": "Fenêtre de contexte",
+    "上下文预算": "Budget de contexte",
+    "最大输出 Token": "Nombre maximal de tokens de sortie",
+    "推理模型": "Modèle de raisonnement",
+    "Token 限制必须是非负整数": "Les limites de tokens doivent être des entiers positifs ou nuls",
+    "上下文预算不能大于上下文窗口": "Le budget de contexte ne peut pas dépasser la fenêtre de contexte",
+    "最大输出 Token 不能大于上下文窗口": "Le nombre maximal de tokens de sortie ne peut pas dépasser la fenêtre de contexte",
+    "有效上下文上限": "Limite de contexte effective",
+    "建议按模型官方公布的原生上下文窗口填写；0 表示未配置": "Utilisez la fenêtre de contexte native publiée officiellement pour le modèle ; 0 signifie non configuré",
+    "这是 Token 容量，不是价格；建议为原生窗口的 75%–80%（{{min}}–{{max}} Token）；0 表示不额外限制": "Il s'agit d'une capacité en tokens, pas d'un prix. Recommandé : 75 % à 80 % de la fenêtre native ({{min}}–{{max}} tokens) ; 0 signifie aucune limite supplémentaire",
+    "这是 Token 容量，不是价格；建议为原生窗口的 75%–80%；0 表示不额外限制": "Il s'agit d'une capacité en tokens, pas d'un prix. Recommandé : 75 % à 80 % de la fenêtre native ; 0 signifie aucune limite supplémentaire",
+    "建议按模型官方公布的最大输出填写；0 表示未配置": "Utilisez la sortie maximale publiée officiellement pour le modèle ; 0 signifie non configuré",
+    "0 表示未配置": "0 signifie non configuré"
   }
 }

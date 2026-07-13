@@ -11,23 +11,35 @@ import (
 const ChatModelAutoKey = "global"
 
 type ChatModelOption struct {
-	Id          int     `json:"id"`
-	ModelName   string  `json:"model" gorm:"size:255;not null;uniqueIndex"`
-	DisplayName string  `json:"name" gorm:"size:255"`
-	Enabled     bool    `json:"enabled" gorm:"index"`
-	IsAuto      bool    `json:"is_auto" gorm:"index"`
-	AutoKey     *string `json:"-" gorm:"size:32;uniqueIndex"`
-	Sort        int     `json:"sort" gorm:"index"`
-	CreatedTime int64   `json:"created_time" gorm:"bigint"`
-	UpdatedTime int64   `json:"updated_time" gorm:"bigint"`
+	Id            int     `json:"id"`
+	ModelName     string  `json:"model" gorm:"size:255;not null;uniqueIndex"`
+	DisplayName   string  `json:"name" gorm:"size:255"`
+	ApiFormat     string  `json:"api" gorm:"size:32"`
+	InputTypes    string  `json:"-" gorm:"type:text"`
+	ContextWindow int     `json:"contextWindow"`
+	ContextTokens int     `json:"contextTokens"`
+	MaxTokens     int     `json:"maxTokens"`
+	Reasoning     bool    `json:"reasoning"`
+	Enabled       bool    `json:"enabled" gorm:"index"`
+	IsAuto        bool    `json:"is_auto" gorm:"index"`
+	AutoKey       *string `json:"-" gorm:"size:32;uniqueIndex"`
+	Sort          int     `json:"sort" gorm:"index"`
+	CreatedTime   int64   `json:"created_time" gorm:"bigint"`
+	UpdatedTime   int64   `json:"updated_time" gorm:"bigint"`
 }
 
 type ChatModelOptionUpdates struct {
-	ModelName   *string
-	DisplayName *string
-	Enabled     *bool
-	IsAuto      *bool
-	Sort        *int
+	ModelName     *string
+	DisplayName   *string
+	ApiFormat     *string
+	InputTypes    *string
+	ContextWindow *int
+	ContextTokens *int
+	MaxTokens     *int
+	Reasoning     *bool
+	Enabled       *bool
+	IsAuto        *bool
+	Sort          *int
 }
 
 func CreateChatModelOption(option *ChatModelOption) error {
@@ -66,6 +78,24 @@ func UpdateChatModelOption(id int, updates ChatModelOptionUpdates) (*ChatModelOp
 		}
 		if updates.DisplayName != nil {
 			updateFields["display_name"] = *updates.DisplayName
+		}
+		if updates.ApiFormat != nil {
+			updateFields["api_format"] = *updates.ApiFormat
+		}
+		if updates.InputTypes != nil {
+			updateFields["input_types"] = *updates.InputTypes
+		}
+		if updates.ContextWindow != nil {
+			updateFields["context_window"] = *updates.ContextWindow
+		}
+		if updates.ContextTokens != nil {
+			updateFields["context_tokens"] = *updates.ContextTokens
+		}
+		if updates.MaxTokens != nil {
+			updateFields["max_tokens"] = *updates.MaxTokens
+		}
+		if updates.Reasoning != nil {
+			updateFields["reasoning"] = *updates.Reasoning
 		}
 		if updates.Enabled != nil {
 			updateFields["enabled"] = *updates.Enabled

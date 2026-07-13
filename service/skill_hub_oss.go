@@ -303,6 +303,46 @@ func DeleteSkillHubIconObject(objectKey string) error {
 	return bucket.DeleteObject(objectKey)
 }
 
+func OpenSkillHubZipObject(objectKey string) (io.ReadCloser, error) {
+	cfg := loadSkillHubOSSConfig()
+	objectKey, ok := cfg.managedObjectKey(objectKey)
+	if !ok || cfg.isTempObjectKey(objectKey) {
+		return nil, errors.New("skill hub source object is not managed")
+	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	bucket, err := cfg.bucket()
+	if err != nil {
+		return nil, err
+	}
+	return bucket.GetObject(objectKey)
+}
+
+func OpenSkillHubIconObject(iconURL string) (io.ReadCloser, string, error) {
+	cfg := loadSkillHubIconOSSConfig()
+	objectKey, ok := cfg.objectKeyFromPublicURL(iconURL)
+	if !ok || cfg.isTempObjectKey(objectKey) {
+		return nil, "", errors.New("skill hub icon object is not managed")
+	}
+	ext := strings.ToLower(path.Ext(objectKey))
+	if ext == ".jpeg" {
+		ext = ".jpg"
+	}
+	if ext != ".png" && ext != ".jpg" && ext != ".webp" {
+		return nil, "", errors.New("skill hub icon object extension is invalid")
+	}
+	if err := cfg.validate(); err != nil {
+		return nil, "", err
+	}
+	bucket, err := cfg.bucket()
+	if err != nil {
+		return nil, "", err
+	}
+	reader, err := bucket.GetObject(objectKey)
+	return reader, ext, err
+}
+
 func PromoteSkillHubObjects(skill *model.SkillHubSkill) (*SkillHubPromoteResult, error) {
 	result := &SkillHubPromoteResult{}
 	if err := promoteSkillHubZipObject(skill, result); err != nil {

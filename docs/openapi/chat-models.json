@@ -37,12 +37,24 @@
                       {
                         "model": "gpt-4o-mini",
                         "name": "Auto",
-                        "price": 0.15
+                        "price": 0.15,
+                        "api": "openai-responses",
+                        "input": ["text", "image"],
+                        "contextWindow": 128000,
+                        "contextTokens": 96000,
+                        "maxTokens": 16384,
+                        "reasoning": false
                       },
                       {
                         "model": "gpt-4o",
                         "name": "GPT-4o",
-                        "price": 5
+                        "price": 5,
+                        "api": "openai-responses",
+                        "input": ["text", "image"],
+                        "contextWindow": 128000,
+                        "contextTokens": 96000,
+                        "maxTokens": 16384,
+                        "reasoning": false
                       }
                     ]
                   }
@@ -137,7 +149,13 @@
                 "name": "GPT-4o mini",
                 "enabled": true,
                 "is_auto": true,
-                "sort": 10
+                "sort": 10,
+                "api": "openai-responses",
+                "input": ["text", "image"],
+                "contextWindow": 128000,
+                "contextTokens": 96000,
+                "maxTokens": 16384,
+                "reasoning": false
               }
             }
           }
@@ -212,7 +230,13 @@
                 "name": "Fast default model",
                 "enabled": true,
                 "is_auto": true,
-                "sort": 1
+                "sort": 1,
+                "api": "anthropic-messages",
+                "input": ["text", "image"],
+                "contextWindow": 200000,
+                "contextTokens": 160000,
+                "maxTokens": 32000,
+                "reasoning": true
               }
             }
           }
@@ -321,9 +345,41 @@
             "type": "number",
             "format": "double",
             "description": "总估算价格，参考模型广场 token 输入价并套用当前用户可用分组最低倍率"
+          },
+          "api": {
+            "type": "string",
+            "enum": ["openai-completions", "openai-responses", "anthropic-messages"],
+            "description": "OpenClaw 模型 API adapter"
+          },
+          "input": {
+            "type": "array",
+            "description": "模型支持的 OpenClaw 输入类型；text 必须存在，可选 image、video、audio",
+            "items": {
+              "type": "string",
+              "enum": ["text", "image", "video", "audio"]
+            }
+          },
+          "contextWindow": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "模型原生上下文窗口；未配置时不返回"
+          },
+          "contextTokens": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "实际运行时上下文预算；未配置时不返回"
+          },
+          "maxTokens": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "模型最大输出 token 数；未配置时不返回"
+          },
+          "reasoning": {
+            "type": "boolean",
+            "description": "模型是否支持推理能力"
           }
         },
-        "required": ["model", "name", "price"]
+        "required": ["model", "name", "price", "api", "input", "reasoning"]
       },
       "AdminChatModelListResponse": {
         "type": "object",
@@ -401,6 +457,32 @@
           "available": {
             "type": "boolean"
           },
+          "api": {
+            "type": "string",
+            "enum": ["openai-completions", "openai-responses", "anthropic-messages"]
+          },
+          "input": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["text", "image", "video", "audio"]
+            }
+          },
+          "contextWindow": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "contextTokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "maxTokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reasoning": {
+            "type": "boolean"
+          },
           "created_time": {
             "type": "integer",
             "format": "int64"
@@ -419,6 +501,9 @@
           "sort",
           "price",
           "available",
+          "api",
+          "input",
+          "reasoning",
           "created_time",
           "updated_time"
         ]
@@ -478,6 +563,38 @@
           "name": {
             "type": "string"
           },
+          "api": {
+            "type": "string",
+            "default": "openai-completions",
+            "enum": ["openai-completions", "openai-responses", "anthropic-messages"]
+          },
+          "input": {
+            "type": "array",
+            "default": ["text"],
+            "items": {
+              "type": "string",
+              "enum": ["text", "image", "video", "audio"]
+            }
+          },
+          "contextWindow": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0 或省略表示未知"
+          },
+          "contextTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0 或省略表示不设置运行时上下文预算；contextWindow 已配置时不能大于它"
+          },
+          "maxTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0 或省略表示未知；contextWindow 已配置时不能大于它"
+          },
+          "reasoning": {
+            "type": "boolean",
+            "default": false
+          },
           "enabled": {
             "type": "boolean",
             "default": true
@@ -502,6 +619,32 @@
           },
           "name": {
             "type": "string"
+          },
+          "api": {
+            "type": "string",
+            "enum": ["openai-completions", "openai-responses", "anthropic-messages"]
+          },
+          "input": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["text", "image", "video", "audio"]
+            }
+          },
+          "contextWindow": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "contextTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reasoning": {
+            "type": "boolean"
           },
           "enabled": {
             "type": "boolean"

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -45,14 +45,45 @@ import { API, showError, showSuccess } from '../../../helpers';
 const { Text } = Typography;
 
 const PAGE_SIZE = 20;
+const DEFAULT_API_FORMAT = 'openai-completions';
+const CHAT_MODEL_API_FORMATS = [
+  'openai-completions',
+  'openai-responses',
+  'anthropic-messages',
+];
+const CHAT_MODEL_INPUT_TYPES = ['text', 'image', 'video', 'audio'];
 
 const emptyForm = {
   model: '',
   name: '',
+  input: ['text'],
+  api: DEFAULT_API_FORMAT,
+  contextWindow: 0,
+  contextTokens: 0,
+  maxTokens: 0,
+  reasoning: false,
   enabled: true,
   is_auto: false,
   sort: 0,
 };
+
+function normalizeInputTypes(input) {
+  const normalized = ['text'];
+  for (const inputType of CHAT_MODEL_INPUT_TYPES.slice(1)) {
+    if (Array.isArray(input) && input.includes(inputType)) {
+      normalized.push(inputType);
+    }
+  }
+  return normalized;
+}
+
+function normalizeApiFormat(api) {
+  return CHAT_MODEL_API_FORMATS.includes(api) ? api : DEFAULT_API_FORMAT;
+}
+
+function isValidTokenLimit(value) {
+  return Number.isInteger(value) && value >= 0;
+}
 
 function formatPrice(price) {
   const value = Number(price);
@@ -77,6 +108,8 @@ const ChatModelsTable = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [formVersion, setFormVersion] = useState(0);
+  const chatModelFormApiRef = useRef(null);
   const [candidates, setCandidates] = useState([]);
   const [batchVisible, setBatchVisible] = useState(false);
   const [batchKeyword, setBatchKeyword] = useState('');
@@ -151,6 +184,25 @@ const ChatModelsTable = () => {
       })),
     [candidates, t],
   );
+  const modelOptions = useMemo(() => {
+    const editingModel = editing?.model;
+    if (
+      !editingModel ||
+      candidateOptions.some((option) => option.value === editingModel)
+    ) {
+      return candidateOptions;
+    }
+    return [
+      {
+        value: editingModel,
+        label:
+          editing.name && editing.name !== editingModel
+            ? `${editingModel} · ${editing.name}`
+            : editingModel,
+      },
+      ...candidateOptions,
+    ];
+  }, [candidateOptions, editing]);
   const batchCandidates = useMemo(() => {
     const normalizedKeyword = batchKeyword.trim().toLowerCase();
     return candidates.filter((candidate) => {
@@ -165,10 +217,34 @@ const ChatModelsTable = () => {
     () => new Set(selectedBatchModels),
     [selectedBatchModels],
   );
+  const inputTypeOptions = useMemo(
+    () => [
+      { value: 'text', label: t('文本'), disabled: true },
+      { value: 'image', label: t('图片') },
+      { value: 'video', label: t('视频') },
+      { value: 'audio', label: t('音频') },
+    ],
+    [t],
+  );
+  const apiFormatOptions = useMemo(
+    () => CHAT_MODEL_API_FORMATS.map((api) => ({ value: api, label: api })),
+    [],
+  );
+  const recommendedContextTokens = useMemo(() => {
+    const contextWindow = Number(form.contextWindow);
+    if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
+      return null;
+    }
+    return {
+      min: new Intl.NumberFormat().format(Math.floor(contextWindow * 0.75)),
+      max: new Intl.NumberFormat().format(Math.floor(contextWindow * 0.8)),
+    };
+  }, [form.contextWindow]);
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm });
+    setFormVersion((version) => version + 1);
     setModalVisible(true);
     loadCandidates();
   };
@@ -183,12 +259,19 @@ const ChatModelsTable = () => {
   const openEdit = (record) => {
     setEditing(record);
     setForm({
-      model: record.model,
-      name: record.name,
-      enabled: record.enabled,
-      is_auto: record.is_auto,
-      sort: record.sort,
+      model: record.model || '',
+      name: record.name || '',
+      input: normalizeInputTypes(record.input),
+      api: normalizeApiFormat(record.api),
+      contextWindow: record.contextWindow ?? 0,
+      contextTokens: record.contextTokens ?? 0,
+      maxTokens: record.maxTokens ?? 0,
+      reasoning: Boolean(record.reasoning),
+      enabled: Boolean(record.enabled),
+      is_auto: Boolean(record.is_auto),
+      sort: record.sort ?? 0,
     });
+    setFormVersion((version) => version + 1);
     setModalVisible(true);
     loadCandidates();
   };
@@ -206,12 +289,37 @@ const ChatModelsTable = () => {
       showError(t('请选择模型'));
       return;
     }
+    const contextWindow = Number(form.contextWindow);
+    const contextTokens = Number(form.contextTokens);
+    const maxTokens = Number(form.maxTokens);
+    if (
+      !isValidTokenLimit(contextWindow) ||
+      !isValidTokenLimit(contextTokens) ||
+      !isValidTokenLimit(maxTokens)
+    ) {
+      showError(t('Token 限制必须是非负整数'));
+      return;
+    }
+    if (contextWindow > 0 && contextTokens > contextWindow) {
+      showError(t('上下文预算不能大于上下文窗口'));
+      return;
+    }
+    if (contextWindow > 0 && maxTokens > contextWindow) {
+      showError(t('最大输出 Token 不能大于上下文窗口'));
+      return;
+    }
 
     setSaving(true);
     try {
       const payload = {
         model: modelName,
         name: String(form.name || '').trim(),
+        input: normalizeInputTypes(form.input),
+        api: normalizeApiFormat(form.api),
+        contextWindow,
+        contextTokens,
+        maxTokens,
+        reasoning: Boolean(form.reasoning),
         enabled: Boolean(form.enabled),
         is_auto: Boolean(form.is_auto),
         sort: Number.isFinite(Number(form.sort)) ? Number(form.sort) : 0,
@@ -506,50 +614,118 @@ const ChatModelsTable = () => {
         confirmLoading={saving}
         okText={editing ? t('保存') : t('创建')}
         cancelText={t('取消')}
+        width={700}
+        bodyStyle={{ maxHeight: '72vh', overflowY: 'auto' }}
       >
-        <Form labelPosition='left' labelWidth={90}>
+        <Form
+          key={formVersion}
+          initValues={form}
+          getFormApi={(api) => (chatModelFormApiRef.current = api)}
+          labelPosition='left'
+          labelWidth={120}
+        >
           <Form.Select
             field='model'
             label={t('模型')}
-            value={form.model}
-            optionList={candidateOptions}
+            optionList={modelOptions}
             filter
             onChange={(value) => {
               const selected = candidates.find((item) => item.model === value);
+              const shouldSyncName = !form.name || form.name === form.model;
+              const nextName = shouldSyncName
+                ? selected?.name || value || ''
+                : form.name;
               setForm((current) => ({
                 ...current,
                 model: value,
-                name:
-                  !current.name || current.name === current.model
-                    ? selected?.name || value || ''
-                    : current.name,
+                name: nextName,
               }));
+              if (shouldSyncName) {
+                chatModelFormApiRef.current?.setValue('name', nextName);
+              }
             }}
             placeholder={t('请选择模型')}
+            style={{ width: '100%' }}
           />
           <Form.Input
             field='name'
             label={t('展示名称')}
-            value={form.name}
             onChange={(value) => updateForm('name', value)}
+          />
+          <Form.Select
+            field='api'
+            label={t('API 格式')}
+            optionList={apiFormatOptions}
+            onChange={(value) => updateForm('api', normalizeApiFormat(value))}
+            style={{ width: '100%' }}
+          />
+          <Form.Select
+            field='input'
+            label={t('输入类型')}
+            optionList={inputTypeOptions}
+            multiple
+            onChange={(value) => {
+              const normalized = normalizeInputTypes(value);
+              updateForm('input', normalized);
+              chatModelFormApiRef.current?.setValue('input', normalized);
+            }}
+            extraText={t('文本输入为必选，其他类型可多选')}
+            style={{ width: '100%' }}
+          />
+          <Form.InputNumber
+            field='contextWindow'
+            label={t('上下文窗口')}
+            min={0}
+            precision={0}
+            onChange={(value) => updateForm('contextWindow', Number(value))}
+            extraText={t(
+              '建议按模型官方公布的原生上下文窗口填写；0 表示未配置',
+            )}
+          />
+          <Form.InputNumber
+            field='contextTokens'
+            label={t('有效上下文上限')}
+            min={0}
+            precision={0}
+            onChange={(value) => updateForm('contextTokens', Number(value))}
+            extraText={
+              recommendedContextTokens
+                ? t(
+                    '这是 Token 容量，不是价格；建议为原生窗口的 75%–80%（{{min}}–{{max}} Token）；0 表示不额外限制',
+                    recommendedContextTokens,
+                  )
+                : t(
+                    '这是 Token 容量，不是价格；建议为原生窗口的 75%–80%；0 表示不额外限制',
+                  )
+            }
+          />
+          <Form.InputNumber
+            field='maxTokens'
+            label={t('最大输出 Token')}
+            min={0}
+            precision={0}
+            onChange={(value) => updateForm('maxTokens', Number(value))}
+            extraText={t('建议按模型官方公布的最大输出填写；0 表示未配置')}
           />
           <Form.InputNumber
             field='sort'
             label={t('排序')}
-            value={form.sort}
             onChange={(value) => updateForm('sort', value)}
           />
           <Form.Switch
             field='enabled'
             label={t('启用')}
-            checked={form.enabled}
             onChange={(checked) => updateForm('enabled', checked)}
           />
           <Form.Switch
             field='is_auto'
             label='Auto'
-            checked={form.is_auto}
             onChange={(checked) => updateForm('is_auto', checked)}
+          />
+          <Form.Switch
+            field='reasoning'
+            label={t('推理模型')}
+            onChange={(checked) => updateForm('reasoning', checked)}
           />
         </Form>
       </Modal>
