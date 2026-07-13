@@ -70,7 +70,8 @@ const SubscriptionPurchaseModal = ({
   );
   const isAutoRenew = plan?.billing_mode === 'auto_renew';
   const providerButtons = [
-    !isAutoRenew && enableAlipayTopUp
+    enableAlipayTopUp &&
+    (isAutoRenew ? !!plan?.alipay_enabled : true)
       ? {
           key: 'alipay',
           label: t('支付宝'),

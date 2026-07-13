@@ -211,14 +211,24 @@ const SubscriptionPlansCard = ({
   };
 
   const payAlipay = async () => {
+    const isAutoRenew = selectedPlan?.plan?.billing_mode === 'auto_renew';
     setPaying(true);
     try {
-      const res = await API.post('/api/subscription/alipay/pay', {
-        plan_id: selectedPlan.plan.id,
-        payment_method: 'alipay',
-      });
-      if (res.data?.message === 'success') {
-        redirectToPaymentUrl(res.data.data?.pay_url);
+      const res = await API.post(
+        isAutoRenew
+          ? '/api/subscription/alipay/checkout/auto-renew'
+          : '/api/subscription/alipay/pay',
+        isAutoRenew
+          ? { plan_id: selectedPlan.plan.id }
+          : {
+              plan_id: selectedPlan.plan.id,
+              payment_method: 'alipay',
+            },
+      );
+      if (res.data?.message === 'success' || res.data?.success) {
+        redirectToPaymentUrl(
+          res.data.data?.checkout_url || res.data.data?.pay_url,
+        );
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {

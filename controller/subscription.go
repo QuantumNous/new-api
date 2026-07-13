@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
@@ -89,61 +90,94 @@ func CancelSubscriptionRenewal(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if contract.Provider != model.PaymentProviderStripe {
-		common.ApiErrorMsg(c, "only stripe auto-renew subscription can be cancelled now")
-		return
-	}
 	if strings.TrimSpace(contract.ProviderSubscriptionId) == "" {
 		common.ApiErrorMsg(c, "provider subscription id is empty")
 		return
 	}
 
-	var stripeSub *stripe.Subscription
-	if !contract.CancelAtPeriodEnd {
-		stripeSub, err = cancelStripeAutoRenewAtPeriodEnd(contract.ProviderSubscriptionId)
+	// Provider-specific cancel. Alipay agreement.unsign will plug in here later.
+	switch contract.Provider {
+	case model.PaymentProviderStripe:
+		var stripeSub *stripe.Subscription
+		if !contract.CancelAtPeriodEnd {
+			stripeSub, err = cancelStripeAutoRenewAtPeriodEnd(contract.ProviderSubscriptionId)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+
+		cancelAtPeriodEnd := true
+		currentPeriodStart := contract.CurrentPeriodStart
+		currentPeriodEnd := contract.CurrentPeriodEnd
+		providerCustomerID := contract.ProviderCustomerId
+		status := contract.Status
+		providerPayload := contract.ProviderPayload
+		if stripeSub != nil {
+			cancelAtPeriodEnd = stripeSub.CancelAtPeriodEnd
+			currentPeriodStart = stripeSub.CurrentPeriodStart
+			currentPeriodEnd = stripeSub.CurrentPeriodEnd
+			providerCustomerID = stripeSub.Customer.ID
+			if providerCustomerID == "" {
+				providerCustomerID = contract.ProviderCustomerId
+			}
+			if stripeSub.Status != "" {
+				status = string(stripeSub.Status)
+			}
+			providerPayload = common.GetJsonString(stripeSub)
+		}
+
+		err = model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+			UserId:                 contract.UserId,
+			PlanId:                 contract.PlanId,
+			Provider:               contract.Provider,
+			ProviderSubscriptionId: contract.ProviderSubscriptionId,
+			ProviderCustomerId:     providerCustomerID,
+			ProviderPriceId:        contract.ProviderPriceId,
+			Status:                 status,
+			CancelAtPeriodEnd:      cancelAtPeriodEnd,
+			CurrentPeriodStart:     currentPeriodStart,
+			CurrentPeriodEnd:       currentPeriodEnd,
+			LastInvoiceId:          contract.LastInvoiceId,
+			LastPaymentStatus:      contract.LastPaymentStatus,
+			ProviderPayload:        providerPayload,
+		})
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-	}
-
-	cancelAtPeriodEnd := true
-	currentPeriodStart := contract.CurrentPeriodStart
-	currentPeriodEnd := contract.CurrentPeriodEnd
-	providerCustomerID := contract.ProviderCustomerId
-	status := contract.Status
-	providerPayload := contract.ProviderPayload
-	if stripeSub != nil {
-		cancelAtPeriodEnd = stripeSub.CancelAtPeriodEnd
-		currentPeriodStart = stripeSub.CurrentPeriodStart
-		currentPeriodEnd = stripeSub.CurrentPeriodEnd
-		providerCustomerID = stripeSub.Customer.ID
-		if providerCustomerID == "" {
-			providerCustomerID = contract.ProviderCustomerId
+	case model.PaymentProviderAlipay:
+		if !service.IsAlipayCyclePayConfigured() {
+			common.ApiErrorMsg(c, "alipay cycle pay is not configured")
+			return
 		}
-		if stripeSub.Status != "" {
-			status = string(stripeSub.Status)
+		if !contract.CancelAtPeriodEnd {
+			if err := service.UnsignAlipayAgreement(c.Request.Context(), contract.ProviderSubscriptionId, getSubscriptionAlipayNotifyURL()); err != nil {
+				common.ApiError(c, err)
+				return
+			}
 		}
-		providerPayload = common.GetJsonString(stripeSub)
-	}
-
-	err = model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
-		UserId:                 contract.UserId,
-		PlanId:                 contract.PlanId,
-		Provider:               contract.Provider,
-		ProviderSubscriptionId: contract.ProviderSubscriptionId,
-		ProviderCustomerId:     providerCustomerID,
-		ProviderPriceId:        contract.ProviderPriceId,
-		Status:                 status,
-		CancelAtPeriodEnd:      cancelAtPeriodEnd,
-		CurrentPeriodStart:     currentPeriodStart,
-		CurrentPeriodEnd:       currentPeriodEnd,
-		LastInvoiceId:          contract.LastInvoiceId,
-		LastPaymentStatus:      contract.LastPaymentStatus,
-		ProviderPayload:        providerPayload,
-	})
-	if err != nil {
-		common.ApiError(c, err)
+		err = model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+			UserId:                 contract.UserId,
+			PlanId:                 contract.PlanId,
+			Provider:               contract.Provider,
+			ProviderSubscriptionId: contract.ProviderSubscriptionId,
+			ProviderCustomerId:     contract.ProviderCustomerId,
+			ProviderPriceId:        contract.ProviderPriceId,
+			Status:                 contract.Status,
+			CancelAtPeriodEnd:      true,
+			CurrentPeriodStart:     contract.CurrentPeriodStart,
+			CurrentPeriodEnd:       contract.CurrentPeriodEnd,
+			LastInvoiceId:          contract.LastInvoiceId,
+			LastPaymentStatus:      contract.LastPaymentStatus,
+			ProviderPayload:        contract.ProviderPayload,
+		})
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	default:
+		common.ApiErrorMsg(c, "unsupported auto-renew provider")
 		return
 	}
 

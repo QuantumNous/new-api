@@ -239,7 +239,15 @@ func SubscriptionRequestAlipayNotify(c *gin.Context) {
 		return
 	}
 
+	// Auto-renew agreement sign/unsign (no out_trade_no on pure agreement notifies).
+	if handleAlipayAutoRenewAgreementNotify(c, normalized) {
+		return
+	}
+
 	outTradeNo := normalized["out_trade_no"]
+	if handleAlipayAutoRenewTradeNotify(c, normalized, outTradeNo) {
+		return
+	}
 	if handleSubscriptionAlipayNotify(c, normalized, outTradeNo) {
 		return
 	}

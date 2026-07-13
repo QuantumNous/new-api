@@ -392,6 +392,17 @@ func backfillRecurringSubscriptionUniqueKeys() error {
 	})
 }
 
+// Non-ended auto-renew statuses that block starting another contract (any provider).
+var autoRenewBlockingStatuses = []string{"pending_signup", "pending_first_charge", "active", "trialing", "past_due"}
+
+// Current auto-renew statuses returned to the user console (any provider).
+var autoRenewCurrentStatuses = []string{"pending_first_charge", "active", "trialing", "past_due"}
+
+// Pending auto-renew signup rows older than this are expired so the user can retry.
+const autoRenewPendingSignupTTL = 48 * time.Hour
+
+// HasNonEndedAutoRenewContract reports whether the user already has any non-ended
+// auto-renew contract across all payment providers (global mutual exclusion).
 func HasNonEndedAutoRenewContract(userId int) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
@@ -400,10 +411,9 @@ func HasNonEndedAutoRenewContract(userId int) (bool, error) {
 	var count int64
 	err := DB.Model(&BillingSubscription{}).
 		Where(
-			"user_id = ? AND provider = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
+			"user_id = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
 			userId,
-			"stripe",
-			[]string{"pending_signup", "pending_first_charge", "active", "trialing", "past_due"},
+			autoRenewBlockingStatuses,
 			true,
 			now,
 		).
@@ -414,6 +424,8 @@ func HasNonEndedAutoRenewContract(userId int) (bool, error) {
 	return count > 0, nil
 }
 
+// GetCurrentBillingSubscriptionByUserID returns the user's current auto-renew contract
+// from any provider (global single-contract policy).
 func GetCurrentBillingSubscriptionByUserID(userId int) (*BillingSubscription, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
@@ -421,10 +433,9 @@ func GetCurrentBillingSubscriptionByUserID(userId int) (*BillingSubscription, er
 	now := common.GetTimestamp()
 	var sub BillingSubscription
 	err := DB.Where(
-		"user_id = ? AND provider = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
+		"user_id = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
 		userId,
-		"stripe",
-		[]string{"pending_first_charge", "active", "trialing", "past_due"},
+		autoRenewCurrentStatuses,
 		true,
 		now,
 	).Order("current_period_end desc, id desc").First(&sub).Error
@@ -474,19 +485,22 @@ func UpsertBillingSubscriptionByProviderID(input *BillingSubscription) error {
 	})
 }
 
-// Pending stripe checkout sessions are abandoned after this age so the user can retry.
-const stripeAutoRenewPendingSignupTTL = 48 * time.Hour
-
 func CreatePendingStripeAutoRenewSignup(userId int, planId int, signupReference string) (*BillingSubscription, error) {
-	return CreateOrReusePendingStripeAutoRenewSignup(userId, planId, signupReference)
+	return CreateOrReusePendingAutoRenewSignup(PaymentProviderStripe, userId, planId, signupReference)
 }
 
-// CreateOrReusePendingStripeAutoRenewSignup creates a pending signup, or reuses an existing
-// pending_signup for the same plan so double-clicks can open a fresh Checkout session.
-// Stale pending_signup rows older than stripeAutoRenewPendingSignupTTL are expired first.
 func CreateOrReusePendingStripeAutoRenewSignup(userId int, planId int, signupReference string) (*BillingSubscription, error) {
-	if userId <= 0 || planId <= 0 || strings.TrimSpace(signupReference) == "" {
-		return nil, errors.New("invalid pending stripe auto-renew signup")
+	return CreateOrReusePendingAutoRenewSignup(PaymentProviderStripe, userId, planId, signupReference)
+}
+
+// CreateOrReusePendingAutoRenewSignup creates a pending signup for provider, or reuses an
+// existing pending_signup for the same plan so double-clicks can open a fresh provider session.
+// Global mutual exclusion: any non-ended contract on another provider/plan blocks creation.
+// Stale pending_signup rows older than autoRenewPendingSignupTTL are expired first.
+func CreateOrReusePendingAutoRenewSignup(provider string, userId int, planId int, signupReference string) (*BillingSubscription, error) {
+	provider = strings.TrimSpace(provider)
+	if provider == "" || userId <= 0 || planId <= 0 || strings.TrimSpace(signupReference) == "" {
+		return nil, errors.New("invalid pending auto-renew signup")
 	}
 
 	var result *BillingSubscription
@@ -497,10 +511,10 @@ func CreateOrReusePendingStripeAutoRenewSignup(userId int, planId int, signupRef
 		}
 
 		now := common.GetTimestamp()
-		staleBefore := now - int64(stripeAutoRenewPendingSignupTTL.Seconds())
+		staleBefore := now - int64(autoRenewPendingSignupTTL.Seconds())
 		if err := tx.Model(&BillingSubscription{}).
-			Where("user_id = ? AND provider = ? AND status = ? AND created_at > 0 AND created_at < ?",
-				userId, PaymentProviderStripe, "pending_signup", staleBefore).
+			Where("user_id = ? AND status = ? AND created_at > 0 AND created_at < ?",
+				userId, "pending_signup", staleBefore).
 			Updates(map[string]interface{}{
 				"status":     "signup_expired",
 				"updated_at": now,
@@ -510,10 +524,9 @@ func CreateOrReusePendingStripeAutoRenewSignup(userId int, planId int, signupRef
 
 		var existing []BillingSubscription
 		if err := tx.Where(
-			"user_id = ? AND provider = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
+			"user_id = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
 			userId,
-			PaymentProviderStripe,
-			[]string{"pending_signup", "pending_first_charge", "active", "trialing", "past_due"},
+			autoRenewBlockingStatuses,
 			true,
 			now,
 		).Order("id asc").Find(&existing).Error; err != nil {
@@ -524,11 +537,11 @@ func CreateOrReusePendingStripeAutoRenewSignup(userId int, planId int, signupRef
 			contract := existing[i]
 			switch contract.Status {
 			case "pending_signup":
-				if contract.PlanId == planId {
+				// Reuse only when same provider + plan; otherwise free the slot.
+				if contract.Provider == provider && contract.PlanId == planId {
 					result = &contract
 					return nil
 				}
-				// Different plan still pending: free the slot so the user can switch plans.
 				if err := tx.Model(&contract).Updates(map[string]interface{}{
 					"status":     "signup_expired",
 					"updated_at": now,
@@ -543,7 +556,7 @@ func CreateOrReusePendingStripeAutoRenewSignup(userId int, planId int, signupRef
 		contract := &BillingSubscription{
 			UserId:          userId,
 			PlanId:          planId,
-			Provider:        PaymentProviderStripe,
+			Provider:        provider,
 			SignupReference: signupReference,
 			Status:          "pending_signup",
 		}
@@ -570,6 +583,10 @@ func SetBillingSubscriptionCheckoutID(id int, checkoutID string) error {
 }
 
 func MarkPendingStripeAutoRenewSignupFailed(id int) error {
+	return MarkPendingAutoRenewSignupFailed(id)
+}
+
+func MarkPendingAutoRenewSignupFailed(id int) error {
 	if id <= 0 {
 		return errors.New("invalid billing subscription id")
 	}
@@ -580,7 +597,11 @@ func MarkPendingStripeAutoRenewSignupFailed(id int) error {
 }
 
 func MarkPendingStripeAutoRenewSignupExpired(signupReference string, checkoutID string) error {
-	if strings.TrimSpace(signupReference) == "" {
+	return MarkPendingAutoRenewSignupExpired(PaymentProviderStripe, signupReference, checkoutID)
+}
+
+func MarkPendingAutoRenewSignupExpired(provider string, signupReference string, checkoutID string) error {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(signupReference) == "" {
 		return errors.New("signup reference is empty")
 	}
 	updates := map[string]interface{}{
@@ -591,25 +612,31 @@ func MarkPendingStripeAutoRenewSignupExpired(signupReference string, checkoutID 
 		updates["provider_checkout_id"] = checkoutID
 	}
 	return DB.Model(&BillingSubscription{}).
-		Where("provider = ? AND signup_reference = ? AND status = ?", PaymentProviderStripe, signupReference, "pending_signup").
+		Where("provider = ? AND signup_reference = ? AND status = ?", provider, signupReference, "pending_signup").
 		Updates(updates).Error
 }
 
 func CompleteStripeAutoRenewSignup(signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
-	if strings.TrimSpace(signupReference) == "" || strings.TrimSpace(providerSubscriptionID) == "" {
-		return errors.New("invalid stripe auto-renew signup completion")
+	return CompleteAutoRenewSignup(PaymentProviderStripe, signupReference, providerSubscriptionID, providerCustomerID, providerPayload)
+}
+
+// CompleteAutoRenewSignup binds a provider subscription/agreement id onto a pending signup.
+// Only pending_signup / signup_failed advance to pending_first_charge (replay-safe).
+func CompleteAutoRenewSignup(provider string, signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(signupReference) == "" || strings.TrimSpace(providerSubscriptionID) == "" {
+		return errors.New("invalid auto-renew signup completion")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var contract BillingSubscription
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where("provider = ? AND signup_reference = ?", PaymentProviderStripe, signupReference).First(&contract).Error
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where("provider = ? AND signup_reference = ?", provider, signupReference).First(&contract).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("pending stripe auto-renew signup not found")
+			return errors.New("pending auto-renew signup not found")
 		}
 		if err != nil {
 			return err
 		}
 		if contract.ProviderSubscriptionId != "" && contract.ProviderSubscriptionId != providerSubscriptionID {
-			return errors.New("stripe signup is already bound to another subscription")
+			return errors.New("signup is already bound to another provider subscription")
 		}
 		updates := map[string]interface{}{
 			"provider_subscription_id": providerSubscriptionID,
@@ -626,13 +653,16 @@ func CompleteStripeAutoRenewSignup(signupReference string, providerSubscriptionI
 	})
 }
 
-// CompleteStripeAutoRenewSignupAndFulfill binds the Stripe subscription then fulfills any
-// out-of-order invoices. Completion is idempotent; fulfillment is invoice-idempotent.
 func CompleteStripeAutoRenewSignupAndFulfill(signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
-	if err := CompleteStripeAutoRenewSignup(signupReference, providerSubscriptionID, providerCustomerID, providerPayload); err != nil {
+	return CompleteAutoRenewSignupAndFulfill(PaymentProviderStripe, signupReference, providerSubscriptionID, providerCustomerID, providerPayload)
+}
+
+// CompleteAutoRenewSignupAndFulfill binds the provider contract then fulfills any out-of-order charges.
+func CompleteAutoRenewSignupAndFulfill(provider string, signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
+	if err := CompleteAutoRenewSignup(provider, signupReference, providerSubscriptionID, providerCustomerID, providerPayload); err != nil {
 		return err
 	}
-	return FulfillPendingStripeInvoices(providerSubscriptionID)
+	return FulfillPendingInvoices(provider, providerSubscriptionID)
 }
 
 // User subscription instance
@@ -1015,15 +1045,20 @@ func FulfillRecurringInvoice(input *RecurringChargeAttempt) error {
 }
 
 func FulfillPendingStripeInvoices(providerSubscriptionID string) error {
-	if strings.TrimSpace(providerSubscriptionID) == "" {
+	return FulfillPendingInvoices(PaymentProviderStripe, providerSubscriptionID)
+}
+
+// FulfillPendingInvoices applies out-of-order charge attempts that arrived before the contract was bound.
+func FulfillPendingInvoices(provider string, providerSubscriptionID string) error {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(providerSubscriptionID) == "" {
 		return errors.New("provider subscription id is empty")
 	}
-	contract, err := GetBillingSubscriptionByProviderSubscriptionID(PaymentProviderStripe, providerSubscriptionID)
+	contract, err := GetBillingSubscriptionByProviderSubscriptionID(provider, providerSubscriptionID)
 	if err != nil {
 		return err
 	}
 	var attempts []RecurringChargeAttempt
-	if err := DB.Where("provider = ? AND provider_subscription_id = ? AND status = ?", PaymentProviderStripe, providerSubscriptionID, "pending_contract").Order("period_end ASC").Find(&attempts).Error; err != nil {
+	if err := DB.Where("provider = ? AND provider_subscription_id = ? AND status = ?", provider, providerSubscriptionID, "pending_contract").Order("period_end ASC").Find(&attempts).Error; err != nil {
 		return err
 	}
 	for _, attempt := range attempts {
@@ -1045,13 +1080,17 @@ func FulfillPendingStripeInvoices(providerSubscriptionID string) error {
 	return nil
 }
 
-// SyncBillingSubscriptionFromStripe updates local contract metadata from Stripe subscription events.
-// It never reopens a canceled contract and never invents paid entitlements.
 func SyncBillingSubscriptionFromStripe(providerSubscriptionID string, status string, cancelAtPeriodEnd bool, periodStart int64, periodEnd int64, customerID string, providerPayload string) error {
-	if strings.TrimSpace(providerSubscriptionID) == "" {
+	return SyncBillingSubscriptionFromProvider(PaymentProviderStripe, providerSubscriptionID, status, cancelAtPeriodEnd, periodStart, periodEnd, customerID, providerPayload)
+}
+
+// SyncBillingSubscriptionFromProvider updates local contract metadata from provider lifecycle events.
+// It never reopens a canceled contract and never invents paid entitlements.
+func SyncBillingSubscriptionFromProvider(provider string, providerSubscriptionID string, status string, cancelAtPeriodEnd bool, periodStart int64, periodEnd int64, customerID string, providerPayload string) error {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(providerSubscriptionID) == "" {
 		return errors.New("provider subscription id is empty")
 	}
-	contract, err := GetBillingSubscriptionByProviderSubscriptionID(PaymentProviderStripe, providerSubscriptionID)
+	contract, err := GetBillingSubscriptionByProviderSubscriptionID(provider, providerSubscriptionID)
 	if err != nil {
 		return err
 	}
@@ -1062,13 +1101,13 @@ func SyncBillingSubscriptionFromStripe(providerSubscriptionID string, status str
 	mappedStatus := strings.TrimSpace(status)
 	switch mappedStatus {
 	case "active", "trialing", "past_due", "canceled", "unpaid", "incomplete", "incomplete_expired", "paused":
-		// keep Stripe vocabulary for observability
+		// keep provider vocabulary for observability
 	case "":
 		mappedStatus = contract.Status
 	default:
 		mappedStatus = contract.Status
 	}
-	// Do not demote a paid-active contract to incomplete via subscription.updated noise.
+	// Do not demote a paid-active contract to incomplete via noisy provider updates.
 	if (mappedStatus == "incomplete" || mappedStatus == "incomplete_expired") &&
 		(contract.Status == "active" || contract.Status == "trialing" || contract.Status == "past_due" || contract.Status == "pending_first_charge") {
 		mappedStatus = contract.Status
@@ -1135,10 +1174,18 @@ func RecordRecurringInvoiceFailure(input *RecurringChargeAttempt) error {
 }
 
 func RecordPendingStripeInvoice(input *RecurringChargeAttempt) error {
-	if input == nil || strings.TrimSpace(input.ProviderInvoiceId) == "" || strings.TrimSpace(input.ProviderSubscriptionId) == "" {
+	if input == nil {
 		return errors.New("invalid pending stripe invoice")
 	}
 	input.Provider = PaymentProviderStripe
+	return RecordPendingProviderInvoice(input)
+}
+
+// RecordPendingProviderInvoice stores a paid/attempted charge that arrived before the local contract existed.
+func RecordPendingProviderInvoice(input *RecurringChargeAttempt) error {
+	if input == nil || strings.TrimSpace(input.Provider) == "" || strings.TrimSpace(input.ProviderInvoiceId) == "" || strings.TrimSpace(input.ProviderSubscriptionId) == "" {
+		return errors.New("invalid pending provider invoice")
+	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var attempt RecurringChargeAttempt
 		err := tx.Where("provider = ? AND provider_invoice_id = ?", input.Provider, input.ProviderInvoiceId).First(&attempt).Error

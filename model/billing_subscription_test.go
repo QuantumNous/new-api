@@ -197,7 +197,7 @@ func TestCreateOrReusePendingStripeAutoRenewSignup_ExpiresStalePending(t *testin
 		Status:          "pending_signup",
 	}
 	require.NoError(t, DB.Create(stale).Error)
-	staleTs := common.GetTimestamp() - int64((stripeAutoRenewPendingSignupTTL + time.Hour).Seconds())
+	staleTs := common.GetTimestamp() - int64((autoRenewPendingSignupTTL + time.Hour).Seconds())
 	require.NoError(t, DB.Model(stale).UpdateColumns(map[string]interface{}{
 		"created_at": staleTs,
 		"updated_at": staleTs,
@@ -211,6 +211,27 @@ func TestCreateOrReusePendingStripeAutoRenewSignup_ExpiresStalePending(t *testin
 	var expired BillingSubscription
 	require.NoError(t, DB.First(&expired, stale.Id).Error)
 	require.Equal(t, "signup_expired", expired.Status)
+}
+
+func TestCreateOrReusePendingAutoRenewSignup_BlocksAcrossProviders(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&BillingSubscription{}))
+	truncateTables(t)
+	require.NoError(t, DB.Create(&User{Id: 721, Username: "cross-provider-user", Status: common.UserStatusEnabled}).Error)
+
+	subID := "sub_stripe_active"
+	require.NoError(t, DB.Create(&BillingSubscription{
+		UserId:                       721,
+		PlanId:                       1,
+		Provider:                     PaymentProviderStripe,
+		ProviderSubscriptionId:       subID,
+		ProviderSubscriptionUniqueId: &subID,
+		Status:                       "active",
+		CurrentPeriodEnd:             common.GetTimestamp() + 3600,
+	}).Error)
+
+	_, err := CreateOrReusePendingAutoRenewSignup(PaymentProviderAlipay, 721, 2, "signup_alipay_blocked")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "non-ended")
 }
 
 func TestRecurringExternalIDsHaveDatabaseUniqueConstraints(t *testing.T) {
