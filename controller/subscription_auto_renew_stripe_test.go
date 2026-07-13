@@ -390,6 +390,81 @@ func TestHandleRecurringInvoicePaymentFailed_DoesNotDowngradePaidInvoice(t *test
 	require.Equal(t, "paid", attempt.Status)
 }
 
+func TestHandleRecurringInvoicePaymentFailed_RequiresInvoiceID(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.BillingSubscription{UserId: 821, PlanId: 822, Provider: "stripe", ProviderSubscriptionId: "sub_no_invoice_id", Status: "active"}).Error)
+
+	raw, err := common.Marshal(map[string]any{"subscription": "sub_no_invoice_id", "customer": "cus_no_invoice_id", "status": "open"})
+	require.NoError(t, err)
+	err = handleRecurringInvoicePaymentFailed(stripe.Event{Type: stripe.EventTypeInvoicePaymentFailed, Data: &stripe.EventData{Raw: raw}})
+	require.Error(t, err)
+
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_no_invoice_id")
+	require.NoError(t, err)
+	require.Equal(t, "active", contract.Status)
+}
+
+func TestHandleRecurringSubscriptionUpdated_SyncsCancelAtPeriodEnd(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.BillingSubscription{
+		UserId:                 831,
+		PlanId:                 832,
+		Provider:               "stripe",
+		ProviderSubscriptionId: "sub_updated_1",
+		Status:                 "active",
+		CancelAtPeriodEnd:      false,
+		CurrentPeriodStart:     1761955200,
+		CurrentPeriodEnd:       1764547200,
+	}).Error)
+
+	raw, err := common.Marshal(map[string]any{
+		"id":                   "sub_updated_1",
+		"customer":             "cus_updated_1",
+		"status":               "active",
+		"cancel_at_period_end": true,
+		"current_period_start": int64(1761955200),
+		"current_period_end":   int64(1764547200),
+	})
+	require.NoError(t, err)
+	require.NoError(t, handleRecurringSubscriptionUpdated(stripe.Event{
+		Type: stripe.EventTypeCustomerSubscriptionUpdated,
+		Data: &stripe.EventData{Raw: raw},
+	}))
+
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_updated_1")
+	require.NoError(t, err)
+	require.True(t, contract.CancelAtPeriodEnd)
+	require.Equal(t, "active", contract.Status)
+}
+
+func TestHandleRecurringSubscriptionUpdated_DoesNotReopenCanceled(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.BillingSubscription{
+		UserId:                 841,
+		PlanId:                 842,
+		Provider:               "stripe",
+		ProviderSubscriptionId: "sub_updated_canceled",
+		Status:                 "canceled",
+	}).Error)
+
+	raw, err := common.Marshal(map[string]any{
+		"id":                   "sub_updated_canceled",
+		"status":               "active",
+		"cancel_at_period_end": false,
+		"current_period_start": int64(1761955200),
+		"current_period_end":   int64(1764547200),
+	})
+	require.NoError(t, err)
+	require.NoError(t, handleRecurringSubscriptionUpdated(stripe.Event{
+		Type: stripe.EventTypeCustomerSubscriptionUpdated,
+		Data: &stripe.EventData{Raw: raw},
+	}))
+
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_updated_canceled")
+	require.NoError(t, err)
+	require.Equal(t, "canceled", contract.Status)
+}
+
 func TestHandleRecurringSubscriptionDeleted_MarksContractCanceled(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
 

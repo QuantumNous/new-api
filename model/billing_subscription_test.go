@@ -2,6 +2,7 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/require"
@@ -156,8 +157,60 @@ func TestCreatePendingStripeAutoRenewSignup_BlocksSecondAttempt(t *testing.T) {
 	require.Equal(t, "pending_signup", first.Status)
 	require.Equal(t, "signup_ref_1", first.SignupReference)
 
-	_, err = CreatePendingStripeAutoRenewSignup(701, 802, "signup_ref_2")
+	// Same plan: reuse pending signup for checkout retries / double-clicks.
+	reused, err := CreatePendingStripeAutoRenewSignup(701, 801, "signup_ref_reuse")
+	require.NoError(t, err)
+	require.Equal(t, first.Id, reused.Id)
+	require.Equal(t, "signup_ref_1", reused.SignupReference)
+
+	// Different plan while pending: expire the old pending row and allow the new plan.
+	switched, err := CreatePendingStripeAutoRenewSignup(701, 802, "signup_ref_2")
+	require.NoError(t, err)
+	require.Equal(t, 802, switched.PlanId)
+	require.Equal(t, "signup_ref_2", switched.SignupReference)
+
+	var expired BillingSubscription
+	require.NoError(t, DB.First(&expired, first.Id).Error)
+	require.Equal(t, "signup_expired", expired.Status)
+
+	// Active contract still blocks a second non-ended signup.
+	subID := "sub_block_1"
+	require.NoError(t, DB.Model(switched).Updates(map[string]interface{}{
+		"status":                         "active",
+		"provider_subscription_id":       subID,
+		"provider_subscription_unique_id": &subID,
+	}).Error)
+	_, err = CreatePendingStripeAutoRenewSignup(701, 803, "signup_ref_3")
 	require.Error(t, err)
+}
+
+func TestCreateOrReusePendingStripeAutoRenewSignup_ExpiresStalePending(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&BillingSubscription{}))
+	truncateTables(t)
+	require.NoError(t, DB.Create(&User{Id: 711, Username: "stale-pending-user", Status: common.UserStatusEnabled}).Error)
+
+	stale := &BillingSubscription{
+		UserId:          711,
+		PlanId:          901,
+		Provider:        PaymentProviderStripe,
+		SignupReference: "signup_stale",
+		Status:          "pending_signup",
+	}
+	require.NoError(t, DB.Create(stale).Error)
+	staleTs := common.GetTimestamp() - int64((stripeAutoRenewPendingSignupTTL + time.Hour).Seconds())
+	require.NoError(t, DB.Model(stale).UpdateColumns(map[string]interface{}{
+		"created_at": staleTs,
+		"updated_at": staleTs,
+	}).Error)
+
+	fresh, err := CreateOrReusePendingStripeAutoRenewSignup(711, 902, "signup_fresh")
+	require.NoError(t, err)
+	require.Equal(t, "signup_fresh", fresh.SignupReference)
+	require.Equal(t, 902, fresh.PlanId)
+
+	var expired BillingSubscription
+	require.NoError(t, DB.First(&expired, stale.Id).Error)
+	require.Equal(t, "signup_expired", expired.Status)
 }
 
 func TestRecurringExternalIDsHaveDatabaseUniqueConstraints(t *testing.T) {

@@ -155,24 +155,6 @@ func SubscriptionRequestStripeAutoRenew(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
-	hasContract, err := model.HasNonEndedAutoRenewContract(userId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if hasContract {
-		common.ApiErrorMsg(c, "user already has a non-ended auto-renew subscription")
-		return
-	}
-	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
-		common.ApiErrorI18n(c, i18n.MsgPaymentStripeNotConfig)
-		return
-	}
-	if setting.StripeWebhookSecret == "" {
-		common.ApiErrorI18n(c, i18n.MsgPaymentWebhookNotConfig)
-		return
-	}
-
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -183,16 +165,42 @@ func SubscriptionRequestStripeAutoRenew(c *gin.Context) {
 		return
 	}
 
+	// Prefer reusing an existing pending_signup for this plan (double-click / retry).
+	// A new reference is only used when no reusable pending row exists.
+	// Active / past_due / pending_first_charge contracts are rejected here.
 	signupReference := "sub-signup-" + common.Sha1([]byte(fmt.Sprintf("%d-%d-%s", user.Id, plan.Id, randstr.String(12))))
-	contract, err := model.CreatePendingStripeAutoRenewSignup(user.Id, plan.Id, signupReference)
+	contract, err := model.CreateOrReusePendingStripeAutoRenewSignup(user.Id, plan.Id, signupReference)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	reusedPending := contract.SignupReference != signupReference
+	if strings.TrimSpace(contract.SignupReference) != "" {
+		signupReference = contract.SignupReference
+	}
+
+	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
+		if !reusedPending {
+			_ = model.MarkPendingStripeAutoRenewSignupFailed(contract.Id)
+		}
+		common.ApiErrorI18n(c, i18n.MsgPaymentStripeNotConfig)
+		return
+	}
+	if setting.StripeWebhookSecret == "" {
+		if !reusedPending {
+			_ = model.MarkPendingStripeAutoRenewSignupFailed(contract.Id)
+		}
+		common.ApiErrorI18n(c, i18n.MsgPaymentWebhookNotConfig)
 		return
 	}
 
 	checkoutURL, checkoutID, err := genStripeAutoRenewCheckoutURL(user, plan, signupReference)
 	if err != nil {
-		_ = model.MarkPendingStripeAutoRenewSignupFailed(contract.Id)
+		// Fresh pending rows are released on Checkout create failure so the user can retry.
+		// Reused pending rows stay pending_signup and can open another Checkout session.
+		if !reusedPending {
+			_ = model.MarkPendingStripeAutoRenewSignupFailed(contract.Id)
+		}
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe recurring checkout create failed user_id=%d plan_id=%d error=%q", userId, plan.Id, err.Error()))
 		common.ApiErrorI18n(c, i18n.MsgPaymentStartFailed)
 		return
