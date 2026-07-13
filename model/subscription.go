@@ -222,24 +222,26 @@ type SubscriptionOrder struct {
 }
 
 type BillingSubscription struct {
-	Id                     int    `json:"id"`
-	UserId                 int    `json:"user_id" gorm:"index"`
-	PlanId                 int    `json:"plan_id" gorm:"index"`
-	Provider               string `json:"provider" gorm:"type:varchar(32);index"`
-	ProviderSubscriptionId string `json:"provider_subscription_id" gorm:"type:varchar(128);index"`
-	SignupReference        string `json:"signup_reference" gorm:"type:varchar(128);default:'';index"`
-	ProviderCheckoutId     string `json:"provider_checkout_id" gorm:"type:varchar(128);default:'';index"`
-	ProviderCustomerId     string `json:"provider_customer_id" gorm:"type:varchar(128);default:''"`
-	ProviderPriceId        string `json:"provider_price_id" gorm:"type:varchar(128);default:''"`
-	Status                 string `json:"status" gorm:"type:varchar(32);index"`
-	CancelAtPeriodEnd      bool   `json:"cancel_at_period_end" gorm:"default:false"`
-	CurrentPeriodStart     int64  `json:"current_period_start" gorm:"bigint;default:0"`
-	CurrentPeriodEnd       int64  `json:"current_period_end" gorm:"bigint;default:0"`
-	LastInvoiceId          string `json:"last_invoice_id" gorm:"type:varchar(128);default:''"`
-	LastPaymentStatus      string `json:"last_payment_status" gorm:"type:varchar(32);default:''"`
-	ProviderPayload        string `json:"provider_payload" gorm:"type:text"`
-	CreatedAt              int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt              int64  `json:"updated_at" gorm:"bigint"`
+	Id                           int     `json:"id"`
+	UserId                       int     `json:"user_id" gorm:"index"`
+	PlanId                       int     `json:"plan_id" gorm:"index"`
+	Provider                     string  `json:"provider" gorm:"type:varchar(32);index;uniqueIndex:idx_billing_subscription_provider_subscription,priority:1"`
+	ProviderSubscriptionId       string  `json:"provider_subscription_id" gorm:"type:varchar(128);index"`
+	ProviderSubscriptionUniqueId *string `json:"-" gorm:"type:varchar(128);uniqueIndex:idx_billing_subscription_provider_subscription,priority:2"`
+	SignupReference              string  `json:"signup_reference" gorm:"type:varchar(128);default:'';index"`
+	SignupReferenceUniqueId      *string `json:"-" gorm:"type:varchar(128);uniqueIndex:idx_billing_subscription_signup_reference"`
+	ProviderCheckoutId           string  `json:"provider_checkout_id" gorm:"type:varchar(128);default:'';index"`
+	ProviderCustomerId           string  `json:"provider_customer_id" gorm:"type:varchar(128);default:''"`
+	ProviderPriceId              string  `json:"provider_price_id" gorm:"type:varchar(128);default:''"`
+	Status                       string  `json:"status" gorm:"type:varchar(32);index"`
+	CancelAtPeriodEnd            bool    `json:"cancel_at_period_end" gorm:"default:false"`
+	CurrentPeriodStart           int64   `json:"current_period_start" gorm:"bigint;default:0"`
+	CurrentPeriodEnd             int64   `json:"current_period_end" gorm:"bigint;default:0"`
+	LastInvoiceId                string  `json:"last_invoice_id" gorm:"type:varchar(128);default:''"`
+	LastPaymentStatus            string  `json:"last_payment_status" gorm:"type:varchar(32);default:''"`
+	ProviderPayload              string  `json:"provider_payload" gorm:"type:text"`
+	CreatedAt                    int64   `json:"created_at" gorm:"bigint"`
+	UpdatedAt                    int64   `json:"updated_at" gorm:"bigint"`
 }
 
 type RecurringChargeAttempt struct {
@@ -276,6 +278,14 @@ func (a *RecurringChargeAttempt) BeforeUpdate(tx *gorm.DB) error {
 }
 
 func (s *BillingSubscription) BeforeCreate(tx *gorm.DB) error {
+	if s.ProviderSubscriptionId != "" && s.ProviderSubscriptionUniqueId == nil {
+		providerSubscriptionID := s.ProviderSubscriptionId
+		s.ProviderSubscriptionUniqueId = &providerSubscriptionID
+	}
+	if s.SignupReference != "" && s.SignupReferenceUniqueId == nil {
+		signupReference := s.SignupReference
+		s.SignupReferenceUniqueId = &signupReference
+	}
 	now := common.GetTimestamp()
 	s.CreatedAt = now
 	s.UpdatedAt = now
@@ -345,6 +355,43 @@ func GetBillingSubscriptionByProviderSubscriptionID(provider string, providerSub
 	return &sub, nil
 }
 
+func backfillRecurringSubscriptionUniqueKeys() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var contracts []BillingSubscription
+		if err := tx.Where("(provider_subscription_unique_id IS NULL AND provider_subscription_id <> '') OR (signup_reference_unique_id IS NULL AND signup_reference <> '')").Find(&contracts).Error; err != nil {
+			return err
+		}
+		for _, contract := range contracts {
+			updates := map[string]interface{}{}
+			if contract.ProviderSubscriptionId != "" && contract.ProviderSubscriptionUniqueId == nil {
+				providerSubscriptionID := contract.ProviderSubscriptionId
+				updates["provider_subscription_unique_id"] = &providerSubscriptionID
+			}
+			if contract.SignupReference != "" && contract.SignupReferenceUniqueId == nil {
+				signupReference := contract.SignupReference
+				updates["signup_reference_unique_id"] = &signupReference
+			}
+			if len(updates) > 0 {
+				if err := tx.Model(&BillingSubscription{}).Where("id = ?", contract.Id).Updates(updates).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		var subscriptions []UserSubscription
+		if err := tx.Where("provider_invoice_unique_id IS NULL AND provider_invoice_id <> ''").Find(&subscriptions).Error; err != nil {
+			return err
+		}
+		for _, subscription := range subscriptions {
+			providerInvoiceID := subscription.ProviderInvoiceId
+			if err := tx.Model(&UserSubscription{}).Where("id = ?", subscription.Id).Update("provider_invoice_unique_id", &providerInvoiceID).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func HasNonEndedAutoRenewContract(userId int) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
@@ -400,6 +447,9 @@ func UpsertBillingSubscriptionByProviderID(input *BillingSubscription) error {
 		if err != nil {
 			return err
 		}
+		if existing.Status == "canceled" && input.Status != "canceled" {
+			return nil
+		}
 		updateMap := map[string]interface{}{
 			"user_id":              input.UserId,
 			"plan_id":              input.PlanId,
@@ -415,6 +465,10 @@ func UpsertBillingSubscriptionByProviderID(input *BillingSubscription) error {
 			"last_payment_status":  input.LastPaymentStatus,
 			"provider_payload":     input.ProviderPayload,
 			"updated_at":           common.GetTimestamp(),
+		}
+		if input.ProviderSubscriptionId != "" {
+			providerSubscriptionID := input.ProviderSubscriptionId
+			updateMap["provider_subscription_unique_id"] = &providerSubscriptionID
 		}
 		return tx.Model(&existing).Updates(updateMap).Error
 	})
@@ -505,20 +559,28 @@ func CompleteStripeAutoRenewSignup(signupReference string, providerSubscriptionI
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var contract BillingSubscription
-		err := tx.Where("provider = ? AND signup_reference = ?", PaymentProviderStripe, signupReference).First(&contract).Error
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where("provider = ? AND signup_reference = ?", PaymentProviderStripe, signupReference).First(&contract).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("pending stripe auto-renew signup not found")
 		}
 		if err != nil {
 			return err
 		}
-		return tx.Model(&contract).Updates(map[string]interface{}{
+		if contract.ProviderSubscriptionId != "" && contract.ProviderSubscriptionId != providerSubscriptionID {
+			return errors.New("stripe signup is already bound to another subscription")
+		}
+		updates := map[string]interface{}{
 			"provider_subscription_id": providerSubscriptionID,
 			"provider_customer_id":     providerCustomerID,
-			"status":                   "pending_first_charge",
 			"provider_payload":         providerPayload,
 			"updated_at":               common.GetTimestamp(),
-		}).Error
+		}
+		providerSubscriptionIDCopy := providerSubscriptionID
+		updates["provider_subscription_unique_id"] = &providerSubscriptionIDCopy
+		if contract.Status == "pending_signup" || contract.Status == "signup_failed" {
+			updates["status"] = "pending_first_charge"
+		}
+		return tx.Model(&contract).Updates(updates).Error
 	})
 }
 
@@ -528,8 +590,9 @@ type UserSubscription struct {
 	UserId int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
 	PlanId int `json:"plan_id" gorm:"index"`
 
-	BillingSubscriptionId int    `json:"billing_subscription_id" gorm:"index;default:0"`
-	ProviderInvoiceId     string `json:"provider_invoice_id" gorm:"type:varchar(128);default:'';index"`
+	BillingSubscriptionId   int     `json:"billing_subscription_id" gorm:"index;default:0"`
+	ProviderInvoiceId       string  `json:"provider_invoice_id" gorm:"type:varchar(128);default:'';index"`
+	ProviderInvoiceUniqueId *string `json:"-" gorm:"type:varchar(128);uniqueIndex:idx_user_subscription_provider_invoice"`
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
@@ -551,6 +614,10 @@ type UserSubscription struct {
 }
 
 func (s *UserSubscription) BeforeCreate(tx *gorm.DB) error {
+	if s.ProviderInvoiceId != "" && s.ProviderInvoiceUniqueId == nil {
+		providerInvoiceID := s.ProviderInvoiceId
+		s.ProviderInvoiceUniqueId = &providerInvoiceID
+	}
 	now := common.GetTimestamp()
 	s.CreatedAt = now
 	s.UpdatedAt = now
@@ -841,6 +908,9 @@ func FulfillRecurringInvoice(input *RecurringChargeAttempt) error {
 			First(&contract).Error; err != nil {
 			return err
 		}
+		if contract.Status == "canceled" {
+			return nil
+		}
 
 		var attempt RecurringChargeAttempt
 		err := tx.Where("provider = ? AND provider_invoice_id = ?", input.Provider, input.ProviderInvoiceId).First(&attempt).Error
@@ -943,6 +1013,9 @@ func RecordRecurringInvoiceFailure(input *RecurringChargeAttempt) error {
 		}
 		if attempt.BillingSubscriptionId != input.BillingSubscriptionId {
 			return errors.New("provider invoice belongs to another billing subscription")
+		}
+		if attempt.Status == "paid" {
+			return nil
 		}
 		return tx.Model(&attempt).Updates(map[string]interface{}{
 			"status":           "failed",

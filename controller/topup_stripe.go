@@ -372,6 +372,13 @@ func handleRecurringInvoicePaymentFailed(event stripe.Event) error {
 		}); err != nil {
 			return err
 		}
+		var attempt model.RecurringChargeAttempt
+		if err := model.DB.Where("provider = ? AND provider_invoice_id = ?", "stripe", payload.ID).First(&attempt).Error; err != nil {
+			return err
+		}
+		if attempt.Status == "paid" {
+			return nil
+		}
 	}
 
 	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{

@@ -159,3 +159,15 @@ func TestCreatePendingStripeAutoRenewSignup_BlocksSecondAttempt(t *testing.T) {
 	_, err = CreatePendingStripeAutoRenewSignup(701, 802, "signup_ref_2")
 	require.Error(t, err)
 }
+
+func TestRecurringExternalIDsHaveDatabaseUniqueConstraints(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&BillingSubscription{}, &UserSubscription{}))
+	truncateTables(t)
+
+	require.NoError(t, DB.Create(&BillingSubscription{UserId: 901, PlanId: 1, Provider: "stripe", ProviderSubscriptionId: "sub_unique_1", SignupReference: "signup_unique_1", Status: "active"}).Error)
+	require.Error(t, DB.Create(&BillingSubscription{UserId: 902, PlanId: 1, Provider: "stripe", ProviderSubscriptionId: "sub_unique_1", SignupReference: "signup_unique_2", Status: "active"}).Error)
+	require.Error(t, DB.Create(&BillingSubscription{UserId: 903, PlanId: 1, Provider: "stripe", ProviderSubscriptionId: "sub_unique_3", SignupReference: "signup_unique_1", Status: "active"}).Error)
+
+	require.NoError(t, DB.Create(&UserSubscription{UserId: 901, PlanId: 1, ProviderInvoiceId: "in_unique_1"}).Error)
+	require.Error(t, DB.Create(&UserSubscription{UserId: 902, PlanId: 1, ProviderInvoiceId: "in_unique_1"}).Error)
+}

@@ -12,8 +12,10 @@
 
 - Stripe Checkout 的 `checkout.session.completed` 创建或更新本地 `BillingSubscription` 合约。
 - 创建 Stripe Checkout 前会先写入 `BillingSubscription(status=pending_signup)`，以本地签约参考号关联 Checkout metadata；签约回调补齐 Stripe subscription ID。Checkout 创建失败会把该记录标记为 `signup_failed`，允许用户重新发起。
+- `checkout.session.completed` 只会将 `pending_signup` 或 `signup_failed` 推进到 `pending_first_charge`。同一 Checkout 的重放不会降级 `active`、`trialing`、`past_due` 或 `canceled` 合约。
 - `invoice.paid` 为每个支付周期创建一条新的 `UserSubscription`；以 Stripe invoice ID 幂等，配额消费逻辑继续复用现有订阅机制。权益、扣款记录和 `BillingSubscription` 的 `active` 状态、当前周期、最后发票及支付状态在同一事务中同步；因此 `invoice.paid` 早于 Checkout 完成时，补偿履约也会完整更新合约。
 - 每张 Stripe invoice 都对应一条 `RecurringChargeAttempt`。`invoice.paid` 会在同一事务中标记尝试为 `paid` 并创建权益；`invoice.payment_failed` 会记录 `failed` 尝试并将合约标记为 `past_due`。
+- 非空的 Stripe subscription ID、signup reference 和 invoice ID 均通过可空唯一键列受到数据库约束；可空列允许多个 `pending_signup` 记录保留空 subscription ID，并在启动迁移时回填历史记录。
 - `customer.subscription.deleted` 将合约标记为 `canceled`。
 - 用户的取消续费操作调用 Stripe 的 `cancel_at_period_end`，当前周期权益保留至 `current_period_end`。
 - Stripe webhook 接收只要求 `StripeWebhookSecret`，不依赖普通充值使用的 `StripePriceId`；因此仅配置自动续费套餐的实例也能正常履约。

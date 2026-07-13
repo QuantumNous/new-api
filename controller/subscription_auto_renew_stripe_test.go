@@ -285,6 +285,32 @@ func TestHandleRecurringCheckoutSessionCompleted_FulfillsPendingInvoice(t *testi
 	require.Equal(t, "paid", contract.LastPaymentStatus)
 }
 
+func TestHandleRecurringCheckoutSessionCompleted_ReplayDoesNotDowngradeActiveContract(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.User{Id: 725, Username: "replayed-checkout-user", Status: common.UserStatusEnabled}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{Id: 726, Title: "Replayed Checkout Plan", PriceAmount: 19.99, Currency: "USD", DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1, Enabled: true, TotalAmount: 3000, BillingMode: model.SubscriptionBillingModeAutoRenew, StripeRecurringPriceId: "price_replayed_checkout"}).Error)
+	require.NoError(t, func() error {
+		_, err := model.CreatePendingStripeAutoRenewSignup(725, 726, "signup_replayed_checkout")
+		return err
+	}())
+
+	raw, err := common.Marshal(map[string]any{"id": "cs_replayed_checkout", "mode": "subscription", "subscription": "sub_replayed_checkout", "customer": "cus_replayed_checkout", "metadata": map[string]string{"user_id": "725", "plan_id": "726", "signup_reference": "signup_replayed_checkout"}})
+	require.NoError(t, err)
+	event := stripe.Event{Type: stripe.EventTypeCheckoutSessionCompleted, Data: &stripe.EventData{Raw: raw}}
+	require.NoError(t, handleRecurringCheckoutSessionCompleted(event))
+
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_replayed_checkout")
+	require.NoError(t, err)
+	require.NoError(t, model.FulfillRecurringInvoice(&model.RecurringChargeAttempt{BillingSubscriptionId: contract.Id, Provider: "stripe", ProviderInvoiceId: "in_replayed_checkout", PeriodStart: 1761955200, PeriodEnd: 1764547200, PaymentStatus: "paid", ProviderPayload: `{"status":"paid"}`}))
+
+	require.NoError(t, handleRecurringCheckoutSessionCompleted(event))
+	contract, err = model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_replayed_checkout")
+	require.NoError(t, err)
+	require.Equal(t, "active", contract.Status)
+	require.Equal(t, int64(1761955200), contract.CurrentPeriodStart)
+	require.Equal(t, int64(1764547200), contract.CurrentPeriodEnd)
+}
+
 func TestHandleRecurringCheckoutSessionExpired_ReleasesPendingSignup(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
 	require.NoError(t, model.DB.Create(&model.User{Id: 731, Username: "expired-signup-user", Status: common.UserStatusEnabled}).Error)
@@ -343,6 +369,25 @@ func TestHandleRecurringInvoicePaymentFailed_MarksContractPastDue(t *testing.T) 
 	require.NoError(t, model.DB.Where("provider = ? AND provider_invoice_id = ?", "stripe", "in_failed_123").Find(&attempts).Error)
 	require.Len(t, attempts, 1)
 	require.Equal(t, "failed", attempts[0].Status)
+}
+
+func TestHandleRecurringInvoicePaymentFailed_DoesNotDowngradePaidInvoice(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.BillingSubscription{UserId: 811, PlanId: 812, Provider: "stripe", ProviderSubscriptionId: "sub_paid_failure_1", Status: "active"}).Error)
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_paid_failure_1")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.RecurringChargeAttempt{BillingSubscriptionId: contract.Id, Provider: "stripe", ProviderInvoiceId: "in_paid_failure_1", Status: "paid"}).Error)
+
+	raw, err := common.Marshal(map[string]any{"id": "in_paid_failure_1", "subscription": "sub_paid_failure_1", "customer": "cus_paid_failure_1", "status": "open"})
+	require.NoError(t, err)
+	require.NoError(t, handleRecurringInvoicePaymentFailed(stripe.Event{Type: stripe.EventTypeInvoicePaymentFailed, Data: &stripe.EventData{Raw: raw}}))
+
+	contract, err = model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_paid_failure_1")
+	require.NoError(t, err)
+	require.Equal(t, "active", contract.Status)
+	var attempt model.RecurringChargeAttempt
+	require.NoError(t, model.DB.Where("provider = ? AND provider_invoice_id = ?", "stripe", "in_paid_failure_1").First(&attempt).Error)
+	require.Equal(t, "paid", attempt.Status)
 }
 
 func TestHandleRecurringSubscriptionDeleted_MarksContractCanceled(t *testing.T) {
