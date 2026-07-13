@@ -198,111 +198,17 @@ func handleAlipayAutoRenewAgreementNotify(c *gin.Context, normalized map[string]
 	}
 
 	if service.IsAlipayCyclePayConfigured() {
-		if err := chargeAlipayAutoRenewFirstPeriod(c, contract.Id, agreementNo); err != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay auto-renew first charge failed agreement=%s error=%q", agreementNo, err.Error()))
-			// Still ack agreement notify so Alipay does not storm; charge can be retried by ops/scheduler later.
+		// Re-load after Complete so period/provider fields are current.
+		if updated, err := model.GetBillingSubscriptionByProviderSubscriptionID(model.PaymentProviderAlipay, agreementNo); err == nil {
+			if err := service.ChargeAlipayAutoRenewContract(c.Request.Context(), updated, getSubscriptionAlipayNotifyURL()); err != nil {
+				logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay auto-renew first charge failed agreement=%s error=%q", agreementNo, err.Error()))
+				// Still ack agreement notify so Alipay does not storm; due-scan/pending query can retry.
+			}
 		}
 	}
 
 	c.String(http.StatusOK, "success")
 	return true
-}
-
-func chargeAlipayAutoRenewFirstPeriod(c *gin.Context, contractID int, agreementNo string) error {
-	var contract model.BillingSubscription
-	if err := model.DB.First(&contract, contractID).Error; err != nil {
-		return err
-	}
-	// Re-load by agreement in case Complete updated ids
-	if updated, err := model.GetBillingSubscriptionByProviderSubscriptionID(model.PaymentProviderAlipay, agreementNo); err == nil {
-		contract = *updated
-	}
-
-	plan, err := model.GetSubscriptionPlanById(contract.PlanId)
-	if err != nil {
-		return err
-	}
-	payMoney := getSubscriptionAlipayMoney(plan.PriceAmount)
-	if payMoney < 0.01 {
-		return fmt.Errorf("invalid pay amount")
-	}
-	amount := service.FormatAlipayAmount(payMoney)
-	now := time.Now()
-	periodStart := now.Unix()
-	periodEnd, err := calcAlipayPeriodEnd(now, plan)
-	if err != nil {
-		return err
-	}
-
-	outTradeNo := fmt.Sprintf("aliar%d%s", contract.Id, common.Sha1([]byte(fmt.Sprintf("%s-%d-%d", agreementNo, periodStart, periodEnd)))[:16])
-	if len(outTradeNo) > 64 {
-		outTradeNo = outTradeNo[:64]
-	}
-
-	// Idempotent: if already fulfilled for this period key, skip.
-	var existing model.UserSubscription
-	if err := model.DB.Where("billing_subscription_id = ? AND provider_invoice_id = ?", contract.Id, outTradeNo).Limit(1).Find(&existing).Error; err == nil && existing.Id > 0 {
-		return nil
-	}
-
-	rsp, payErr := service.TradePayAlipayWithAgreement(c.Request.Context(), service.AlipayAgreementTradePayRequest{
-		OutTradeNo:  outTradeNo,
-		TotalAmount: amount,
-		Subject:     fmt.Sprintf("Subscription %s", plan.Title),
-		AgreementNo: agreementNo,
-		NotifyURL:   getSubscriptionAlipayNotifyURL(),
-	})
-
-	payload := ""
-	if rsp != nil {
-		payload = common.GetJsonString(rsp)
-	} else if payErr != nil {
-		payload = common.GetJsonString(map[string]string{"error": payErr.Error()})
-	}
-
-	if payErr != nil {
-		_ = model.RecordRecurringInvoiceFailure(&model.RecurringChargeAttempt{
-			BillingSubscriptionId:  contract.Id,
-			Provider:               model.PaymentProviderAlipay,
-			ProviderInvoiceId:      outTradeNo,
-			ProviderSubscriptionId: agreementNo,
-			PeriodStart:            periodStart,
-			PeriodEnd:              periodEnd,
-			Amount:                 int64(payMoney * 100),
-			Currency:               "CNY",
-			FailureReason:          payErr.Error(),
-			ProviderPayload:        payload,
-		})
-		_ = model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
-			UserId:                 contract.UserId,
-			PlanId:                 contract.PlanId,
-			Provider:               contract.Provider,
-			ProviderSubscriptionId: agreementNo,
-			ProviderCustomerId:     contract.ProviderCustomerId,
-			Status:                 "past_due",
-			CancelAtPeriodEnd:      contract.CancelAtPeriodEnd,
-			CurrentPeriodStart:     periodStart,
-			CurrentPeriodEnd:       periodEnd,
-			LastInvoiceId:          outTradeNo,
-			LastPaymentStatus:      "failed",
-			ProviderPayload:        payload,
-		})
-		return payErr
-	}
-
-	return model.FulfillRecurringInvoice(&model.RecurringChargeAttempt{
-		BillingSubscriptionId:  contract.Id,
-		Provider:               model.PaymentProviderAlipay,
-		ProviderInvoiceId:      outTradeNo,
-		ProviderSubscriptionId: agreementNo,
-		PeriodStart:            periodStart,
-		PeriodEnd:              periodEnd,
-		Amount:                 int64(payMoney * 100),
-		Currency:               "CNY",
-		PaymentStatus:          "paid",
-		ProviderCustomerId:     contract.ProviderCustomerId,
-		ProviderPayload:        payload,
-	})
 }
 
 // handleAlipayAutoRenewTradeNotify fulfills a cycle charge when trade notify matches a recurring attempt.
@@ -316,68 +222,18 @@ func handleAlipayAutoRenewTradeNotify(c *gin.Context, normalized map[string]stri
 		return true
 	}
 
-	var attempt model.RecurringChargeAttempt
-	err := model.DB.Where("provider = ? AND provider_invoice_id = ?", model.PaymentProviderAlipay, outTradeNo).First(&attempt).Error
-	if err != nil {
-		return false
-	}
-	if attempt.Status == "paid" {
-		c.String(http.StatusOK, "success")
-		return true
-	}
-
-	periodStart := attempt.PeriodStart
-	periodEnd := attempt.PeriodEnd
-	if periodStart <= 0 || periodEnd <= periodStart {
-		now := time.Now().Unix()
-		periodStart = now
-		periodEnd = now + 30*24*3600
-	}
-
-	if err := model.FulfillRecurringInvoice(&model.RecurringChargeAttempt{
-		BillingSubscriptionId:  attempt.BillingSubscriptionId,
-		Provider:               model.PaymentProviderAlipay,
-		ProviderInvoiceId:      outTradeNo,
-		ProviderSubscriptionId: attempt.ProviderSubscriptionId,
-		PeriodStart:            periodStart,
-		PeriodEnd:              periodEnd,
-		Amount:                 attempt.Amount,
-		Currency:               attempt.Currency,
-		PaymentStatus:          "paid",
-		ProviderPayload:        common.GetJsonString(normalized),
-	}); err != nil {
+	if err := service.FinalizeAlipayAutoRenewChargeFromQuery(
+		c.Request.Context(),
+		outTradeNo,
+		normalized["trade_status"],
+		common.GetJsonString(normalized),
+	); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay auto-renew trade fulfill failed out_trade_no=%s error=%q", outTradeNo, err.Error()))
 		c.String(http.StatusInternalServerError, "fail")
 		return true
 	}
 	c.String(http.StatusOK, "success")
 	return true
-}
-
-func calcAlipayPeriodEnd(start time.Time, plan *model.SubscriptionPlan) (int64, error) {
-	if plan == nil {
-		return 0, fmt.Errorf("plan is nil")
-	}
-	if plan.DurationValue <= 0 && plan.DurationUnit != model.SubscriptionDurationCustom {
-		return 0, fmt.Errorf("duration_value must be > 0")
-	}
-	switch plan.DurationUnit {
-	case model.SubscriptionDurationYear:
-		return start.AddDate(plan.DurationValue, 0, 0).Unix(), nil
-	case model.SubscriptionDurationMonth:
-		return start.AddDate(0, plan.DurationValue, 0).Unix(), nil
-	case model.SubscriptionDurationDay:
-		return start.AddDate(0, 0, plan.DurationValue).Unix(), nil
-	case model.SubscriptionDurationHour:
-		return start.Add(time.Duration(plan.DurationValue) * time.Hour).Unix(), nil
-	case model.SubscriptionDurationCustom:
-		if plan.CustomSeconds <= 0 {
-			return 0, fmt.Errorf("custom_seconds must be > 0")
-		}
-		return start.Add(time.Duration(plan.CustomSeconds) * time.Second).Unix(), nil
-	default:
-		return 0, fmt.Errorf("invalid duration_unit: %s", plan.DurationUnit)
-	}
 }
 
 func firstNonEmpty(values ...string) string {

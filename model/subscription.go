@@ -355,6 +355,46 @@ func GetBillingSubscriptionByProviderSubscriptionID(provider string, providerSub
 	return &sub, nil
 }
 
+// ListDueAlipayAutoRenewContracts returns alipay contracts whose current period has ended
+// and still need a renewal charge (not cancel-at-period-end, not canceled).
+// Intermediate idle contracts (period still open) are intentionally excluded.
+func ListDueAlipayAutoRenewContracts(now int64, limit int) ([]BillingSubscription, error) {
+	if now <= 0 {
+		now = common.GetTimestamp()
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var contracts []BillingSubscription
+	err := DB.Where(
+		"provider = ? AND provider_subscription_id <> '' AND current_period_end > 0 AND current_period_end <= ? AND status IN ? AND cancel_at_period_end = ?",
+		PaymentProviderAlipay,
+		now,
+		[]string{"active", "past_due", "pending_first_charge"},
+		false,
+	).Order("current_period_end asc, id asc").Limit(limit).Find(&contracts).Error
+	return contracts, err
+}
+
+// ListExpiredCancelAtPeriodEndAlipayContracts returns contracts that should stop after the current period.
+func ListExpiredCancelAtPeriodEndAlipayContracts(now int64, limit int) ([]BillingSubscription, error) {
+	if now <= 0 {
+		now = common.GetTimestamp()
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var contracts []BillingSubscription
+	err := DB.Where(
+		"provider = ? AND cancel_at_period_end = ? AND current_period_end > 0 AND current_period_end <= ? AND status IN ?",
+		PaymentProviderAlipay,
+		true,
+		now,
+		[]string{"active", "past_due", "pending_first_charge", "trialing"},
+	).Order("current_period_end asc, id asc").Limit(limit).Find(&contracts).Error
+	return contracts, err
+}
+
 func backfillRecurringSubscriptionUniqueKeys() error {
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var contracts []BillingSubscription

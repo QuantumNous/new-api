@@ -213,6 +213,39 @@ func TestCreateOrReusePendingStripeAutoRenewSignup_ExpiresStalePending(t *testin
 	require.Equal(t, "signup_expired", expired.Status)
 }
 
+func TestListDueAlipayAutoRenewContracts_OnlyPeriodEnded(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&BillingSubscription{}))
+	truncateTables(t)
+	now := common.GetTimestamp()
+
+	require.NoError(t, DB.Create(&BillingSubscription{
+		UserId: 801, PlanId: 1, Provider: PaymentProviderAlipay, ProviderSubscriptionId: "agr_due",
+		Status: "active", CurrentPeriodEnd: now - 10, CancelAtPeriodEnd: false,
+	}).Error)
+	require.NoError(t, DB.Create(&BillingSubscription{
+		UserId: 802, PlanId: 1, Provider: PaymentProviderAlipay, ProviderSubscriptionId: "agr_future",
+		Status: "active", CurrentPeriodEnd: now + 3600, CancelAtPeriodEnd: false,
+	}).Error)
+	require.NoError(t, DB.Create(&BillingSubscription{
+		UserId: 803, PlanId: 1, Provider: PaymentProviderAlipay, ProviderSubscriptionId: "agr_cancel",
+		Status: "active", CurrentPeriodEnd: now - 10, CancelAtPeriodEnd: true,
+	}).Error)
+	require.NoError(t, DB.Create(&BillingSubscription{
+		UserId: 804, PlanId: 1, Provider: PaymentProviderStripe, ProviderSubscriptionId: "sub_x",
+		Status: "active", CurrentPeriodEnd: now - 10, CancelAtPeriodEnd: false,
+	}).Error)
+
+	due, err := ListDueAlipayAutoRenewContracts(now, 20)
+	require.NoError(t, err)
+	require.Len(t, due, 1)
+	require.Equal(t, "agr_due", due[0].ProviderSubscriptionId)
+
+	expired, err := ListExpiredCancelAtPeriodEndAlipayContracts(now, 20)
+	require.NoError(t, err)
+	require.Len(t, expired, 1)
+	require.Equal(t, "agr_cancel", expired[0].ProviderSubscriptionId)
+}
+
 func TestCreateOrReusePendingAutoRenewSignup_BlocksAcrossProviders(t *testing.T) {
 	require.NoError(t, DB.AutoMigrate(&BillingSubscription{}))
 	truncateTables(t)

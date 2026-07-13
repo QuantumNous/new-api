@@ -19,8 +19,9 @@ type AlipayPendingTask struct {
 }
 
 const (
-	AlipayPendingTaskTypeTopUp       = "topup"
-	AlipayPendingTaskTypeSubscription = "subscription"
+	AlipayPendingTaskTypeTopUp         = "topup"
+	AlipayPendingTaskTypeSubscription  = "subscription"
+	AlipayPendingTaskTypeAutoRenewCharge = "auto_renew_charge"
 )
 
 func CreateAlipayTopUpWithPendingTask(topUp *TopUp, nextQueryAt int64) error {

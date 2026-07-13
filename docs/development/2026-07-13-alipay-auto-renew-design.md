@@ -127,7 +127,7 @@ Admin 套餐：`billing_mode=auto_renew` 时可勾选启用支付宝自动续费
 - Stripe 调用点改为传入 `PaymentProviderStripe` 的薄封装
 - 文档明确支付宝后续挂载点
 
-### Phase 1（进行中 / 骨架已合入本分支）— 签约 + 首期 MVP
+### Phase 1（已合入）— 签约 + 首期 MVP
 
 - [x] `POST /api/subscription/alipay/checkout/auto-renew`
 - [x] `service`：`AgreementPageSign` / `AgreementUnsign` / `TradePay`+agreement
@@ -137,13 +137,17 @@ Admin 套餐：`billing_mode=auto_renew` 时可勾选启用支付宝自动续费
 - [x] classic：auto_renew + `plan.alipay_enabled` 显示支付宝入口
 - [x] 系统配置：`AlipayCyclePayEnabled` / product codes / sign_scene
 - [ ] 真实沙箱端到端验收（依赖商户开通周期扣款产品）
-- [ ] 周期调度 worker（Phase 2）
 
-### Phase 2 — 周期调度
+### Phase 2（已合入）— 轻量到期扣款
 
-- 到点扣款 worker
-- 失败重试与 past_due
-- 运营可观测（日志/管理端列表可选）
+设计原则：**中间 idle，只在 period 到期窗口主动扣；扣完短时查单。**
+
+- [x] `StartAlipayAutoRenewChargeTask`（2 分钟 tick，仅 master）
+- [x] `ListDueAlipayAutoRenewContracts`：只取 `current_period_end <= now` 的 alipay 合约
+- [x] `ChargeAlipayAutoRenewContract`：主动 `trade.pay`，幂等 out_trade_no
+- [x] 复用 `AlipayPendingTask`（`trade_type=auto_renew_charge`）短时 `trade.query`（约 2h 窗口）
+- [x] `cancel_at_period_end` 到期 finalize 为 `canceled`
+- [ ] 真实沙箱多周期验收
 
 ### Phase 3
 
