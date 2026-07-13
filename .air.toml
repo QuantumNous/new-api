@@ -1,0 +1,45 @@
+# Air — Go 热加载配置
+# 文档: https://github.com/air-verse/air
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  bin = "./tmp/new-api"
+  cmd = "go build -o ./tmp/new-api ."
+  delay = 10000                    # 变更后等待 500ms 再触发编译
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  exclude_dir = ["assets", "tmp", "vendor", "web", "design", "docs", "logs", ".agents", ".git", ".github"]
+  exclude_file = []
+  exclude_regex = ["_test\\.go$"]
+  exclude_unchanged = true       # 只编译真正变更的文件
+  full_bin = ""
+  include_dir = []
+  kill_delay = "500ms"
+  log = "build-errors.log"
+  poll = false
+  poll_interval = 0
+  post_cmd = []
+  pre_cmd = []
+  rerun = false
+  rerun_delay = 500
+  send_interrupt = true
+  stop_on_error = false
+
+[color]
+  app = "green"
+  build = "yellow"
+  main = "blue"
+  runner = "magenta"
+  watcher = "cyan"
+
+[log]
+  main_only = false
+  time = true
+
+[misc]
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = true
