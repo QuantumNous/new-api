@@ -5178,6 +5178,27 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Add Refusal Fallback Rule": "新增拒绝备用路由规则",
+    "After an upstream refusal, route the same token, model, and group through the configured fallback group for a fixed cooldown. When the cooldown expires, the primary route is probed again.": "上游返回 refusal 后，同一令牌、模型和分组会在固定冷却期内通过备用分组选路；冷却结束后自动探测首选线路。",
+    "At least one model regex is required": "至少需要一个模型正则",
+    "Claude refusal fallback": "Claude 拒绝备用路由",
+    "Cooldown (seconds)": "冷却时间（秒）",
+    "Cooldown must be between 1 second and 30 days": "冷却时间必须在 1 秒到 30 天之间",
+    "Edit Refusal Fallback Rule": "编辑拒绝备用路由规则",
+    "Enable refusal fallback": "启用拒绝备用路由",
+    "Fallback Group": "备用分组",
+    "Fallback requests do not refresh the cooldown. The fallback group affects routing only; billing stays on the original user group.": "备用请求不会续期冷却时间；备用分组只影响选路，计费仍使用用户原分组。",
+    "Model or path regex is invalid": "模型或路径正则格式不正确",
+    "No refusal fallback rules yet": "暂无拒绝备用路由规则",
+    "One regex per line. Rules are evaluated from top to bottom.": "每行一个正则；规则按从上到下的顺序匹配。",
+    "Optional, comma-separated": "可选，使用逗号分隔",
+    "Optional. Leave empty to match every request path.": "可选；留空则匹配所有请求路径。",
+    "Path Regex": "路径正则",
+    "Refusal Fallback": "拒绝备用路由",
+    "Rule name is required": "规则名称不能为空",
+    "Rule name must be unique": "规则名称必须唯一",
+    "Select a fallback group": "请选择备用分组",
+    "Unavailable group": "分组不可用"
   }
 }

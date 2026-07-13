@@ -180,7 +180,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	retryParam := &service.RetryParam{
 		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
+		TokenGroup:  service.ResolveRoutingGroup(c, relayInfo.TokenGroup),
 		ModelName:   relayInfo.OriginModelName,
 		RequestPath: c.Request.URL.Path,
 		Retry:       common.GetPointer(0),
@@ -509,7 +509,7 @@ func RelayTask(c *gin.Context) {
 
 	retryParam := &service.RetryParam{
 		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
+		TokenGroup:  service.ResolveRoutingGroup(c, relayInfo.TokenGroup),
 		ModelName:   relayInfo.OriginModelName,
 		RequestPath: c.Request.URL.Path,
 		Retry:       common.GetPointer(0),

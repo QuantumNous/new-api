@@ -62,6 +62,10 @@ const (
 	// ContextKeyAdminRejectReason stores an admin-only reject/block reason extracted from upstream responses.
 	// It is not returned to end users, but can be persisted into consume/error logs for debugging.
 	ContextKeyAdminRejectReason ContextKey = "admin_reject_reason"
+	// ContextKeyUpstreamRefusal is a provider-neutral signal used by routing policies.
+	ContextKeyUpstreamRefusal ContextKey = "upstream_refusal"
+	// ContextKeyRoutingGroup overrides channel selection without changing the user's billing group.
+	ContextKeyRoutingGroup ContextKey = "routing_group"
 
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"

@@ -29,6 +29,7 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	}
 	if strings.EqualFold(stopReason, "refusal") {
 		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+		common.SetContextKey(c, constant.ContextKeyUpstreamRefusal, true)
 	}
 }
 

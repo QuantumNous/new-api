@@ -3684,6 +3684,23 @@
     "默认折叠侧边栏": "Réduire la barre latérale par défaut",
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
-    "默认补全倍率": "Taux de complétion par défaut"
+    "默认补全倍率": "Taux de complétion par défaut",
+    "备用分组": "Fallback Group",
+    "备用请求不会续期冷却时间；备用分组只影响选路，计费仍使用用户原分组。": "Fallback requests do not refresh the cooldown. The fallback group affects routing only; billing stays on the original user group.",
+    "分组（可选，逗号分隔）": "Groups (optional, comma-separated)",
+    "规则名称必须唯一": "Rule name must be unique",
+    "规则名称不能为空": "Rule name is required",
+    "拒绝备用路由": "Refusal Fallback",
+    "冷却时间（秒）": "Cooldown (seconds)",
+    "冷却时间必须在 1 秒到 30 天之间": "Cooldown must be between 1 second and 30 days",
+    "例如 Claude refusal fallback": "For example: Claude refusal fallback",
+    "路径正则（可选，每行一个）": "Path regex (optional, one per line)",
+    "模型或路径正则格式不正确": "Model or path regex is invalid",
+    "启用拒绝备用路由": "Enable refusal fallback",
+    "请选择备用分组": "Select a fallback group",
+    "分组不可用": "Unavailable group",
+    "上游返回 refusal 后，同一令牌、模型和分组会在固定冷却期内通过备用分组选路；冷却结束后自动探测首选线路。": "After an upstream refusal, route the same token, model, and group through the fallback group for a fixed cooldown. Probe the primary route again when the cooldown expires.",
+    "暂无拒绝备用路由规则": "No refusal fallback rules yet",
+    "至少填写一个模型正则": "At least one model regex is required"
   }
 }
