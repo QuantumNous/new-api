@@ -103,6 +103,24 @@ func TestRefusalFallbackDoesNotLeakAcrossScope(t *testing.T) {
 	require.True(t, ClearCurrentRefusalFallback(retry))
 }
 
+func TestRefusalFallbackSkipsAutoSourceGroupEvenWhenRuleMatchesAllGroups(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	installRefusalFallbackTestSetting(t)
+	setting := operation_setting.GetRefusalFallbackSetting()
+	setting.Rules[0].Groups = nil
+
+	primary := newRefusalFallbackContext(700005, "/v1/messages", `{}`)
+	_, active := GetRefusalFallbackGroup(primary, "claude-sonnet", "auto")
+	require.False(t, active)
+	common.SetContextKey(primary, constant.ContextKeyUpstreamRefusal, true)
+	common.SetContextKey(primary, constant.ContextKeyChannelId, 901)
+	ObserveRefusalFallback(primary)
+
+	retry := newRefusalFallbackContext(700005, "/v1/messages", `{}`)
+	_, active = GetRefusalFallbackGroup(retry, "claude-sonnet", "auto")
+	require.False(t, active)
+}
+
 func TestShouldActivateRefusalFallbackKeepsFixedCooldownWindow(t *testing.T) {
 	base := refusalFallbackMeta{FallbackGroup: "claude-fallback"}
 	require.True(t, shouldActivateRefusalFallback(base, true, 901))

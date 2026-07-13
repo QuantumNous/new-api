@@ -65,6 +65,11 @@ func ValidateRefusalFallbackRules(raw string) error {
 		if fallbackGroup == "auto" {
 			return fmt.Errorf("refusal fallback rule %q cannot use the auto group", name)
 		}
+		for _, group := range rule.Groups {
+			if strings.TrimSpace(group) == "auto" {
+				return fmt.Errorf("refusal fallback rule %q cannot match the auto source group", name)
+			}
+		}
 		if rule.CooldownSeconds <= 0 || rule.CooldownSeconds > MaxRefusalFallbackCooldownSeconds {
 			return fmt.Errorf(
 				"refusal fallback rule %q cooldown must be between 1 and %d seconds",

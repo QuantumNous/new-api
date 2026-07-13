@@ -113,7 +113,7 @@ func buildRefusalFallbackCacheKey(rule operation_setting.RefusalFallbackRule, to
 // context so a refusal observed later in the request can activate it.
 func GetRefusalFallbackGroup(c *gin.Context, modelName, usingGroup string) (string, bool) {
 	setting := operation_setting.GetRefusalFallbackSetting()
-	if c == nil || setting == nil || !setting.Enabled || modelName == "" {
+	if c == nil || setting == nil || !setting.Enabled || modelName == "" || usingGroup == "auto" {
 		return "", false
 	}
 	tokenID := common.GetContextKeyInt(c, constant.ContextKeyTokenId)
@@ -261,7 +261,7 @@ func ObserveRefusalFallback(c *gin.Context) {
 	}
 
 	ttl := time.Duration(meta.CooldownSeconds) * time.Second
-	if err := getRefusalFallbackCache().SetWithTTL(meta.CacheKey, meta.FallbackGroup, ttl); err != nil {
+	if _, err := getRefusalFallbackCache().SetIfAbsentWithTTL(meta.CacheKey, meta.FallbackGroup, ttl); err != nil {
 		common.SysError(fmt.Sprintf("refusal fallback cache set failed: err=%v", err))
 	}
 }

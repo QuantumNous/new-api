@@ -45,6 +45,11 @@ func TestValidateRefusalFallbackRules(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "auto source group",
+			raw:     `[ {"name":"bad","model_regex":["a"],"groups":["auto"],"fallback_group":"backup","cooldown_seconds":60} ]`,
+			wantErr: true,
+		},
+		{
 			name:    "unbounded cooldown",
 			raw:     fmt.Sprintf(`[ {"name":"bad","model_regex":["a"],"fallback_group":"backup","cooldown_seconds":%d} ]`, MaxRefusalFallbackCooldownSeconds+1),
 			wantErr: true,

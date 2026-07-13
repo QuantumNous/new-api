@@ -348,23 +348,36 @@ export function RefusalFallbackSection(props: {
   const handleSave = async () => {
     setSaving(true)
     try {
-      if (enabled !== props.defaultValues['refusal_fallback_setting.enabled']) {
-        const result = await updateOption.mutateAsync({
-          key: 'refusal_fallback_setting.enabled',
-          value: enabled,
-        })
-        if (!result.success) return
-      }
-
       const serialized = serializeRules(rules)
       const original = serializeRules(
         parseRules(props.defaultValues['refusal_fallback_setting.rules'])
       )
-      if (serialized !== original) {
-        await updateOption.mutateAsync({
-          key: 'refusal_fallback_setting.rules',
-          value: serialized,
-        })
+      const rulesChanged = serialized !== original
+      const enabledChanged =
+        enabled !== props.defaultValues['refusal_fallback_setting.enabled']
+      const rulesUpdate = {
+        key: 'refusal_fallback_setting.rules',
+        value: serialized,
+      }
+      const enabledUpdate = {
+        key: 'refusal_fallback_setting.enabled',
+        value: enabled,
+      }
+      const updates = enabled
+        ? [
+            ...(rulesChanged ? [rulesUpdate] : []),
+            ...(enabledChanged ? [enabledUpdate] : []),
+          ]
+        : [
+            ...(enabledChanged ? [enabledUpdate] : []),
+            ...(rulesChanged ? [rulesUpdate] : []),
+          ]
+
+      for (const update of updates) {
+        const result = await updateOption.mutateAsync(update)
+        if (!result.success) {
+          return
+        }
       }
     } finally {
       setSaving(false)

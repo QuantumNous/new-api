@@ -208,10 +208,11 @@ export default function SettingsRefusalFallback(props) {
   const saveSettings = async () => {
     setLoading(true);
     try {
-      const updates = [
-        { key: KEY_ENABLED, value: String(enabled) },
-        { key: KEY_RULES, value: serializeRules(rules) },
-      ];
+      const rulesUpdate = { key: KEY_RULES, value: serializeRules(rules) };
+      const enabledUpdate = { key: KEY_ENABLED, value: String(enabled) };
+      const updates = enabled
+        ? [rulesUpdate, enabledUpdate]
+        : [enabledUpdate, rulesUpdate];
       for (const update of updates) {
         const response = await API.put('/api/option/', update);
         if (!response.data.success) {
