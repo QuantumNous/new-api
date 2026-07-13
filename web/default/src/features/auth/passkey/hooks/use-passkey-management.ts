@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -171,9 +171,9 @@ export function usePasskeyManagement(
     }
   }, [fetchStatus])
 
-  const enabled = useMemo(() => Boolean(status?.enabled), [status])
+  const enabled = Boolean(status?.enabled)
   const systemEnabled = status?.system_enabled ?? null
-  const lastUsed = useMemo(() => status?.last_used_at ?? null, [status])
+  const lastUsed = status?.last_used_at ?? null
 
   return {
     status,

@@ -19,54 +19,69 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
+import type { VerificationMethod, VerificationMethods } from '../types'
 import { selectVerificationMethod } from './select-verification-method'
 
 describe('selectVerificationMethod', () => {
-  test('falls back to 2FA when the preferred Passkey is unavailable', () => {
-    assert.equal(
-      selectVerificationMethod(
-        { has2FA: true, hasPasskey: false, passkeySupported: true },
-        'passkey'
-      ),
-      '2fa'
-    )
-  })
+  const cases: Array<{
+    name: string
+    methods: VerificationMethods
+    preferred?: VerificationMethod
+    expected: VerificationMethod | null
+  }> = [
+    {
+      name: 'falls back to 2FA when the preferred Passkey is unavailable',
+      methods: { has2FA: true, hasPasskey: false, passkeySupported: true },
+      preferred: 'passkey',
+      expected: '2fa',
+    },
+    {
+      name: 'falls back to 2FA when a bound Passkey is unsupported by the device',
+      methods: { has2FA: true, hasPasskey: true, passkeySupported: false },
+      preferred: 'passkey',
+      expected: '2fa',
+    },
+    {
+      name: 'uses an available preferred 2FA method',
+      methods: { has2FA: true, hasPasskey: true, passkeySupported: true },
+      preferred: '2fa',
+      expected: '2fa',
+    },
+    {
+      name: 'uses an available preferred Passkey method',
+      methods: { has2FA: true, hasPasskey: true, passkeySupported: true },
+      preferred: 'passkey',
+      expected: 'passkey',
+    },
+    {
+      name: 'defaults to Passkey when no preference is provided',
+      methods: { has2FA: true, hasPasskey: true, passkeySupported: true },
+      expected: 'passkey',
+    },
+    {
+      name: 'defaults to 2FA when it is the only available method',
+      methods: { has2FA: true, hasPasskey: false, passkeySupported: true },
+      expected: '2fa',
+    },
+    {
+      name: 'falls back to Passkey when preferred 2FA is unavailable',
+      methods: { has2FA: false, hasPasskey: true, passkeySupported: true },
+      preferred: '2fa',
+      expected: 'passkey',
+    },
+    {
+      name: 'returns null when no usable method is available',
+      methods: { has2FA: false, hasPasskey: true, passkeySupported: false },
+      expected: null,
+    },
+  ]
 
-  test('falls back to 2FA when a bound Passkey is unsupported by the device', () => {
-    assert.equal(
-      selectVerificationMethod(
-        { has2FA: true, hasPasskey: true, passkeySupported: false },
-        'passkey'
-      ),
-      '2fa'
-    )
-  })
-
-  test('uses an available preferred method', () => {
-    assert.equal(
-      selectVerificationMethod(
-        { has2FA: true, hasPasskey: true, passkeySupported: true },
-        '2fa'
-      ),
-      '2fa'
-    )
-    assert.equal(
-      selectVerificationMethod(
-        { has2FA: true, hasPasskey: true, passkeySupported: true },
-        'passkey'
-      ),
-      'passkey'
-    )
-  })
-
-  test('returns null when no usable method is available', () => {
-    assert.equal(
-      selectVerificationMethod({
-        has2FA: false,
-        hasPasskey: true,
-        passkeySupported: false,
-      }),
-      null
-    )
-  })
+  for (const testCase of cases) {
+    test(testCase.name, () => {
+      assert.equal(
+        selectVerificationMethod(testCase.methods, testCase.preferred),
+        testCase.expected
+      )
+    })
+  }
 })
