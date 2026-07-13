@@ -400,9 +400,7 @@ func MarkAlipayAutoRenewContractsCanceledAtPeriodEnd(now int64, limit int) (int,
 }
 
 // AlipaySubscriptionNotifyURL returns the notify URL used for cycle-pay callbacks.
+// Always uses the subscription path so top-up AlipayNotifyURL overrides do not steal events.
 func AlipaySubscriptionNotifyURL() string {
-	if strings.TrimSpace(setting.AlipayNotifyURL) != "" {
-		return setting.AlipayNotifyURL
-	}
 	return strings.TrimRight(GetCallbackAddress(), "/") + "/api/subscription/alipay/notify"
 }

@@ -593,7 +593,7 @@ const AddEditSubscriptionModal = ({
                             field='alipay_enabled'
                             label={t('启用支付宝自动续费')}
                             extraText={t(
-                              '需在系统支付设置中开启 AlipayCyclePayEnabled 并配置产品码',
+                              '请先在「支付设置 → Alipay」开启「启用支付宝自动续费（周期扣款）」并保存产品码；异步通知需配置 /api/subscription/alipay/notify',
                             )}
                           />
                         </Col>

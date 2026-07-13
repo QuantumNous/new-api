@@ -62,6 +62,10 @@ export default function SettingsPaymentGatewayAlipay(props) {
     AlipaySellerID: '',
     AlipayMinTopUp: 1,
     AlipayPendingOrderCount: 0,
+    AlipayCyclePayEnabled: false,
+    AlipayCyclePayPersonalProductCode: 'CYCLE_PAY_AUTH_P',
+    AlipayCyclePayProductCode: 'GENERAL_WITHHOLDING',
+    AlipayCyclePaySignScene: 'INDUSTRY|DEFAULT',
   });
   const formApiRef = useRef(null);
 
@@ -79,6 +83,13 @@ export default function SettingsPaymentGatewayAlipay(props) {
         AlipaySellerID: props.options.AlipaySellerID || '',
         AlipayMinTopUp: normalizeMinTopUp(props.options.AlipayMinTopUp),
         AlipayPendingOrderCount: Number(props.options.AlipayPendingOrderCount) || 0,
+        AlipayCyclePayEnabled: toBoolean(props.options.AlipayCyclePayEnabled),
+        AlipayCyclePayPersonalProductCode:
+          props.options.AlipayCyclePayPersonalProductCode || 'CYCLE_PAY_AUTH_P',
+        AlipayCyclePayProductCode:
+          props.options.AlipayCyclePayProductCode || 'GENERAL_WITHHOLDING',
+        AlipayCyclePaySignScene:
+          props.options.AlipayCyclePaySignScene || 'INDUSTRY|DEFAULT',
       };
       setInputs(currentInputs);
       formApiRef.current.setValues(currentInputs);
@@ -140,6 +151,22 @@ export default function SettingsPaymentGatewayAlipay(props) {
         { key: 'AlipayReturnURL', value: inputs.AlipayReturnURL || '' },
         { key: 'AlipaySellerID', value: inputs.AlipaySellerID || '' },
         { key: 'AlipayMinTopUp', value: String(normalizedMinTopUp) },
+        {
+          key: 'AlipayCyclePayEnabled',
+          value: inputs.AlipayCyclePayEnabled ? 'true' : 'false',
+        },
+        {
+          key: 'AlipayCyclePayPersonalProductCode',
+          value: inputs.AlipayCyclePayPersonalProductCode || '',
+        },
+        {
+          key: 'AlipayCyclePayProductCode',
+          value: inputs.AlipayCyclePayProductCode || '',
+        },
+        {
+          key: 'AlipayCyclePaySignScene',
+          value: inputs.AlipayCyclePaySignScene || '',
+        },
       ];
 
       if (inputs.AlipayPrivateKey && inputs.AlipayPrivateKey !== '') {
@@ -181,6 +208,11 @@ export default function SettingsPaymentGatewayAlipay(props) {
       labels: clearOnSaveLabels.join('、'),
     },
   );
+  const serverBase = props.options?.ServerAddress
+    ? removeTrailingSlash(props.options.ServerAddress)
+    : t('网站地址');
+  const defaultTopupNotify = `${serverBase}/api/alipay/notify`;
+  const defaultSubscriptionNotify = `${serverBase}/api/subscription/alipay/notify`;
 
   return (
     <Spin spinning={loading}>
@@ -197,11 +229,14 @@ export default function SettingsPaymentGatewayAlipay(props) {
               <>
                 {t('支付宝支付请配置页面支付（desktop page.pay）与手机网站支付（mobile wap.pay）。')}
                 <br />
-                {t('默认异步通知地址')}：
-                {props.options?.ServerAddress
-                  ? removeTrailingSlash(props.options.ServerAddress)
-                  : t('网站地址')}
-                /api/alipay/notify
+                {t('充值异步通知（开放平台需配置）')}：{defaultTopupNotify}
+                <br />
+                {t('订阅/自动续费异步通知（开放平台需配置）')}：
+                {defaultSubscriptionNotify}
+                <br />
+                {t(
+                  '自动续费签约与周期扣款回调固定走订阅通知地址，不受下方可选覆盖影响。',
+                )}
               </>
             }
             style={{ marginBottom: 12 }}
@@ -289,15 +324,72 @@ export default function SettingsPaymentGatewayAlipay(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
                 field='AlipayNotifyURL'
-                label={t('异步通知地址')}
-                placeholder={t('留空可使用默认 /api/alipay/notify')}
+                label={t('充值异步通知覆盖地址（可选）')}
+                placeholder={t('留空使用默认 /api/alipay/notify')}
+                extraText={t(
+                  '仅影响充值；自动续费固定使用 /api/subscription/alipay/notify',
+                )}
               />
             </Col>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
                 field='AlipayReturnURL'
                 label={t('同步返回地址')}
-                placeholder={t('例如：https://your-domain.com/topup')}
+                placeholder={t('例如：https://your-domain.com/console/topup')}
+              />
+            </Col>
+          </Row>
+          <Banner
+            type='info'
+            icon={<BookOpen size={16} />}
+            description={
+              <>
+                {t(
+                  '自动续费（周期扣款）需商户开通支付宝周期扣款/委托代扣产品。启用后用户可为 auto_renew 套餐签约，系统仅在周期到期时主动扣款。',
+                )}
+                <br />
+                {t(
+                  '个人产品码 / 销售产品码 / 签约场景必须与支付宝签约合同一致，默认值为常见样例，上线前请改成你的商户参数。',
+                )}
+              </>
+            }
+            style={{ marginTop: 20, marginBottom: 12 }}
+          />
+          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
+            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+              <Form.Switch
+                field='AlipayCyclePayEnabled'
+                size='default'
+                checkedText='｜'
+                uncheckedText='〇'
+                label={t('启用支付宝自动续费（周期扣款）')}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+              <Form.Input
+                field='AlipayCyclePayPersonalProductCode'
+                label={t('周期扣款个人产品码')}
+                placeholder='CYCLE_PAY_AUTH_P'
+              />
+            </Col>
+            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+              <Form.Input
+                field='AlipayCyclePayProductCode'
+                label={t('周期扣款销售产品码')}
+                placeholder='GENERAL_WITHHOLDING'
+              />
+            </Col>
+          </Row>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.Input
+                field='AlipayCyclePaySignScene'
+                label={t('周期扣款签约场景')}
+                placeholder='INDUSTRY|DEFAULT'
+                extraText={t('与支付宝签约场景一致，例如 INDUSTRY|DEFAULT')}
               />
             </Col>
           </Row>

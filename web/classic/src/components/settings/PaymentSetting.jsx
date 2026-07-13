@@ -56,6 +56,10 @@ const PaymentSetting = () => {
     AlipayReturnURL: '',
     AlipaySellerID: '',
     AlipayMinTopUp: 1,
+    AlipayCyclePayEnabled: false,
+    AlipayCyclePayPersonalProductCode: 'CYCLE_PAY_AUTH_P',
+    AlipayCyclePayProductCode: 'GENERAL_WITHHOLDING',
+    AlipayCyclePaySignScene: 'INDUSTRY|DEFAULT',
 
     StripeApiSecret: '',
     StripeWebhookSecret: '',

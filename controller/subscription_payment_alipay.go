@@ -85,10 +85,9 @@ func getSubscriptionAlipayReturnURL(requested string) string {
 }
 
 func getSubscriptionAlipayNotifyURL() string {
-	if strings.TrimSpace(setting.AlipayNotifyURL) != "" {
-		return setting.AlipayNotifyURL
-	}
-	return strings.TrimRight(service.GetCallbackAddress(), "/") + "/api/subscription/alipay/notify"
+	// Keep subscription/auto-renew callbacks on a dedicated path so top-up notify
+	// overrides do not mis-route agreement / cycle-pay events.
+	return service.AlipaySubscriptionNotifyURL()
 }
 
 func getSubscriptionAlipayMoney(amount float64) float64 {
