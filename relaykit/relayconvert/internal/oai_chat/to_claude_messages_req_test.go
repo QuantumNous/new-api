@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,9 +58,9 @@ func TestOpenAIChatRequestToClaudeMessagesOmitsAbsentToolRequired(t *testing.T) 
 	require.Len(t, tools, 2)
 
 	// 未声明 required 的工具不应序列化出该键（旧代码会写出 "required": null）。
-	require.NotContains(t, tools[0].InputSchema, "required")
-	require.Contains(t, tools[0].InputSchema, "properties")
+	assert.NotContains(t, tools[0].InputSchema, "required")
+	assert.Contains(t, tools[0].InputSchema, "properties")
 
 	// 声明了 required 的工具应原样保留。
-	require.Equal(t, []any{"server", "uri"}, tools[1].InputSchema["required"])
+	assert.Equal(t, []any{"server", "uri"}, tools[1].InputSchema["required"])
 }
