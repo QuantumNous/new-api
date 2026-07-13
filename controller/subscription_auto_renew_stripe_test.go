@@ -1,11 +1,15 @@
 package controller
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -16,6 +20,33 @@ import (
 	"github.com/stripe/stripe-go/v81"
 	"gorm.io/gorm"
 )
+
+func stripeTestSignature(payload string, secret string) string {
+	timestamp := time.Now().Unix()
+	signedPayload := fmt.Sprintf("%d.%s", timestamp, payload)
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(signedPayload))
+	return fmt.Sprintf("t=%d,v1=%s", timestamp, hex.EncodeToString(mac.Sum(nil)))
+}
+
+func TestStripeWebhookRetriesRecurringHandlerFailure(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	originalWebhookSecret := setting.StripeWebhookSecret
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalWebhookSecret
+	})
+	setting.StripeWebhookSecret = "whsec_recurring_retry"
+
+	payload := `{"id":"evt_recurring_retry","type":"invoice.paid","data":{"object":{"id":"in_missing_contract","subscription":"sub_missing_contract","status":"paid","lines":{"data":[{"period":{"start":1761955200,"end":1764547200}}]}}}}`
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/stripe/webhook", strings.NewReader(payload))
+	c.Request.Header.Set("Stripe-Signature", stripeTestSignature(payload, setting.StripeWebhookSecret))
+
+	StripeWebhook(c)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+}
 
 func TestAdminCreateSubscriptionPlan_RejectsAutoRenewWithoutStripeRecurringPriceID(t *testing.T) {
 	confirmPaymentComplianceForTest(t)

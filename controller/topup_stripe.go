@@ -180,6 +180,8 @@ func StripeWebhook(c *gin.Context) {
 		if event.GetObjectValue("mode") == "subscription" {
 			if err := handleRecurringCheckoutSessionCompleted(event); err != nil {
 				logger.LogError(ctx, fmt.Sprintf("Stripe recurring checkout.session.completed failed error=%q", err.Error()))
+				c.AbortWithStatus(http.StatusInternalServerError)
+				return
 			}
 			break
 		}
@@ -187,14 +189,20 @@ func StripeWebhook(c *gin.Context) {
 	case stripe.EventTypeInvoicePaid:
 		if err := handleRecurringInvoicePaid(event); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Stripe recurring invoice.paid failed error=%q", err.Error()))
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
 		}
 	case stripe.EventTypeInvoicePaymentFailed:
 		if err := handleRecurringInvoicePaymentFailed(event); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Stripe recurring invoice.payment_failed failed error=%q", err.Error()))
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
 		}
 	case stripe.EventTypeCustomerSubscriptionDeleted:
 		if err := handleRecurringSubscriptionDeleted(event); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Stripe recurring customer.subscription.deleted failed error=%q", err.Error()))
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
 		}
 	case stripe.EventTypeCheckoutSessionExpired:
 		sessionExpired(ctx, event)
