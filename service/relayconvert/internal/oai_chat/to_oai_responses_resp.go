@@ -3,6 +3,8 @@ package oaichat
 import (
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -210,11 +212,22 @@ func chatCreatedAt(created any) dto.UnixTimestamp {
 	case int64:
 		return dto.UnixTimestamp(v)
 	case float64:
-		return dto.UnixTimestamp(v)
+		if !math.IsNaN(v) && !math.IsInf(v, 0) && v < float64(math.MaxInt64) && v >= float64(math.MinInt64) {
+			return dto.UnixTimestamp(v)
+		}
 	case float32:
-		return dto.UnixTimestamp(v)
+		f := float64(v)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) && f < float64(math.MaxInt64) && f >= float64(math.MinInt64) {
+			return dto.UnixTimestamp(f)
+		}
 	case string:
-		if parsed := common.String2Int(v); parsed != 0 {
+		s := strings.TrimSpace(v)
+		if parsed, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return dto.UnixTimestamp(parsed)
+		}
+		if parsed, err := strconv.ParseFloat(s, 64); err == nil &&
+			!math.IsNaN(parsed) && !math.IsInf(parsed, 0) &&
+			parsed < float64(math.MaxInt64) && parsed >= float64(math.MinInt64) {
 			return dto.UnixTimestamp(parsed)
 		}
 	}

@@ -117,7 +117,7 @@ func parseUnixTimestampJSON(data []byte) (int64, error) {
 		if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
 			return 0, fmt.Errorf("invalid timestamp number: %s", number.String())
 		}
-		if parsed > math.MaxInt64 || parsed < math.MinInt64 {
+		if parsed >= float64(math.MaxInt64) || parsed < math.MinInt64 {
 			return 0, fmt.Errorf("timestamp out of int64 range: %s", number.String())
 		}
 		return int64(math.Trunc(parsed)), nil
@@ -141,7 +141,7 @@ func parseUnixTimestampJSON(data []byte) (int64, error) {
 	if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
 		return 0, fmt.Errorf("invalid timestamp string: %s", str)
 	}
-	if parsed > math.MaxInt64 || parsed < math.MinInt64 {
+	if parsed >= float64(math.MaxInt64) || parsed < math.MinInt64 {
 		return 0, fmt.Errorf("timestamp out of int64 range: %s", str)
 	}
 	return int64(math.Trunc(parsed)), nil
