@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback } from 'react'
 import { Check, Copy, Loader2 } from 'lucide-react'
+import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
+
+import { BadgeCell } from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -32,8 +33,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { StatusBadge } from '@/components/status-badge'
-import { type ApiKey } from '../types'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
+
+import type { ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
 export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
@@ -63,31 +65,36 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   )
 
   const handleCopy = useCallback(async () => {
-    const realKey = resolvedFullKey
-    if (!realKey) {
-      void resolveRealKey(apiKey.id)
-      toast.info(t('API key is loading, please try again in a moment'))
-      return
-    }
-    if (realKey) {
-      const ok = await copyToClipboard(realKey)
-      if (ok) markKeyCopied(apiKey.id)
-    }
-  }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied, t])
+    const realKey = resolvedFullKey || (await resolveRealKey(apiKey.id))
+    if (!realKey) return
+
+    const ok = await copyToClipboard(realKey)
+    if (ok) markKeyCopied(apiKey.id)
+  }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied])
+
+  let copyIcon = <Copy className='size-3.5' />
+  let copyTooltip = t('Copy API key')
+  if (isLoading) {
+    copyIcon = <Loader2 className='size-3.5 animate-spin' />
+    copyTooltip = t('Loading...')
+  } else if (isCopied) {
+    copyIcon = <Check className='size-3.5 text-green-600' />
+    copyTooltip = t('Copied!')
+  }
 
   return (
-    <div className='flex items-center'>
+    <div className='flex max-w-full min-w-0 items-center'>
       <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
         <PopoverTrigger
           render={
             <Button
               variant='ghost'
               size='sm'
-              className='text-muted-foreground h-7 font-mono text-xs'
+              className='text-muted-foreground h-7 max-w-full min-w-0 justify-start truncate px-0 font-mono text-xs hover:bg-transparent aria-expanded:bg-transparent'
             />
           }
         >
-          {maskedKey}
+          <span className='truncate'>{maskedKey}</span>
         </PopoverTrigger>
         <PopoverContent
           className='w-auto max-w-[min(90vw,28rem)]'
@@ -122,31 +129,13 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
               size='icon'
               className='size-7 shrink-0'
               onClick={handleCopy}
-              onFocus={() => {
-                if (!resolvedFullKey) void resolveRealKey(apiKey.id)
-              }}
-              onPointerEnter={() => {
-                if (!resolvedFullKey) void resolveRealKey(apiKey.id)
-              }}
               disabled={isLoading}
             />
           }
         >
-          {isLoading ? (
-            <Loader2 className='size-3.5 animate-spin' />
-          ) : isCopied ? (
-            <Check className='size-3.5 text-green-600' />
-          ) : (
-            <Copy className='size-3.5' />
-          )}
+          {copyIcon}
         </TooltipTrigger>
-        <TooltipContent>
-          {isLoading
-            ? t('Loading...')
-            : isCopied
-              ? t('Copied!')
-              : t('Copy API key')}
-        </TooltipContent>
+        <TooltipContent>{copyTooltip}</TooltipContent>
       </Tooltip>
     </div>
   )
@@ -157,7 +146,12 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
 
   if (!apiKey.model_limits_enabled || !apiKey.model_limits) {
     return (
-      <StatusBadge label={t('Unlimited')} variant='neutral' copyable={false} />
+      <StatusBadge
+        label={t('Unlimited')}
+        variant='neutral'
+        copyable={false}
+        className='-ml-1.5'
+      />
     )
   }
 
@@ -165,7 +159,7 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger render={<span />}>
+      <TooltipTrigger render={<BadgeCell />}>
         <StatusBadge
           label={t('{{count}} model(s)', { count: models.length })}
           variant='neutral'
@@ -195,6 +189,7 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
         label={t('No restriction')}
         variant='neutral'
         copyable={false}
+        className='-ml-1.5'
       />
     )
   }
@@ -206,7 +201,7 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger render={<span />}>
+      <TooltipTrigger render={<BadgeCell />}>
         <StatusBadge
           label={t('{{count}} IP(s)', { count: ips.length })}
           variant='neutral'

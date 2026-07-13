@@ -16,27 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import {
-  type SortingState,
-  type VisibilityState,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
-import { useDebounce } from '@/hooks'
+import type { Table as TanstackTable } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
+import {
+  DISABLED_ROW_DESKTOP,
+  DISABLED_ROW_MOBILE,
+  DataTablePage,
+  useDebouncedColumnFilter,
+  useDataTable,
+} from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Empty,
   EmptyDescription,
@@ -46,12 +41,10 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DISABLED_ROW_DESKTOP,
-  DISABLED_ROW_MOBILE,
-  DataTablePage,
-} from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { formatQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { getApiKeys, searchApiKeys } from '../api'
 import {
   API_KEY_STATUS,
@@ -59,7 +52,7 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
-import { type ApiKey } from '../types'
+import type { ApiKey } from '../types'
 import { ApiKeyCell } from './api-keys-cells'
 import { useApiKeysColumns } from './api-keys-columns'
 import { useApiKeys } from './api-keys-provider'
@@ -67,6 +60,11 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
+const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility'
+const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
+  { length: 5 },
+  (_, index) => `api-key-mobile-skeleton-${index + 1}`
+)
 
 function isDisabledApiKeyRow(apiKey: ApiKey) {
   return apiKey.status !== API_KEY_STATUS.ENABLED
@@ -75,9 +73,9 @@ function isDisabledApiKeyRow(apiKey: ApiKey) {
 function ApiKeysMobileSkeleton() {
   return (
     <div className='divide-border overflow-hidden rounded-lg border'>
-      {Array.from({ length: 5 }).map((_, index) => (
+      {API_KEYS_MOBILE_SKELETON_IDS.map((id) => (
         <div
-          key={index}
+          key={id}
           className='space-y-2 border-b px-3 py-2.5 last:border-b-0'
         >
           <div className='flex items-center justify-between'>
@@ -99,7 +97,7 @@ function ApiKeysMobileList({
   table,
   isLoading,
 }: {
-  table: ReturnType<typeof useReactTable<ApiKey>>
+  table: TanstackTable<ApiKey>
   isLoading: boolean
 }) {
   const { t } = useTranslation()
@@ -191,10 +189,16 @@ function ApiKeysMobileList({
 export function ApiKeysTable() {
   const { t } = useTranslation()
   const { refreshTrigger } = useApiKeys()
-  const columns = useApiKeysColumns()
-  const [rowSelection, setRowSelection] = useState({})
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [now, setNow] = useState(() => Date.now())
+  const columns = useApiKeysColumns(now)
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now())
+    }, 30_000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const {
     globalFilter,
@@ -215,27 +219,15 @@ export function ApiKeysTable() {
     ],
   })
 
-  const tokenFilterFromUrl =
-    (columnFilters.find((f) => f.id === '_tokenSearch')?.value as string) || ''
-  const [tokenFilterInput, setTokenFilterInput] = useState(tokenFilterFromUrl)
-  const debouncedTokenFilter = useDebounce(tokenFilterInput, 500)
-
-  useEffect(() => {
-    setTokenFilterInput(tokenFilterFromUrl)
-  }, [tokenFilterFromUrl])
-
-  useEffect(() => {
-    if (debouncedTokenFilter !== tokenFilterFromUrl) {
-      onColumnFiltersChange((prev) => {
-        const filtered = prev.filter((f) => f.id !== '_tokenSearch')
-        return debouncedTokenFilter
-          ? [...filtered, { id: '_tokenSearch', value: debouncedTokenFilter }]
-          : filtered
-      })
-    }
-  }, [debouncedTokenFilter, tokenFilterFromUrl, onColumnFiltersChange])
-
-  const tokenFilter = tokenFilterFromUrl
+  const {
+    value: tokenFilter,
+    inputValue: tokenFilterInput,
+    setInputValue: setTokenFilterInput,
+  } = useDebouncedColumnFilter({
+    columnFilters,
+    columnId: '_tokenSearch',
+    onColumnFiltersChange,
+  })
   const shouldSearch = Boolean(globalFilter?.trim() || tokenFilter.trim())
 
   // Fetch data with React Query
@@ -284,39 +276,22 @@ export function ApiKeysTable() {
 
   const apiKeys = data?.items || []
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: apiKeys,
     columns,
-    state: {
-      sorting,
-      columnVisibility,
-      rowSelection,
-      columnFilters,
-      globalFilter,
-      pagination,
-    },
     enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
+    columnFilters,
+    columnVisibilityStorageKey: API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY,
+    globalFilter,
+    pagination,
     globalFilterFn: () => true,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
     manualPagination: true,
-    pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
+    totalCount: data?.total || 0,
+    ensurePageInRange,
   })
-
-  const pageCount = table.getPageCount()
-  useEffect(() => {
-    ensurePageInRange(pageCount)
-  }, [pageCount, ensurePageInRange])
 
   return (
     <DataTablePage
@@ -329,6 +304,7 @@ export function ApiKeysTable() {
         'No API keys available. Create your first API key to get started.'
       )}
       skeletonKeyPrefix='api-keys-skeleton'
+      applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name...'),
         additionalSearch: (

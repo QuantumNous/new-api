@@ -16,12 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
 import { LayoutDashboard } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
-import { api } from '@/lib/api'
+
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -30,7 +29,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { Switch } from '@/components/ui/switch'
+import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
 
 type SidebarModuleConfig = {
   enabled: boolean
@@ -200,12 +202,12 @@ export function SidebarModulesCard() {
   }
 
   return (
-    <Card className='gap-0 overflow-hidden py-0'>
+    <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
       <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
         <div className='flex items-center gap-3'>
-          <div className='bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9'>
-            <LayoutDashboard className='h-4 w-4' />
-          </div>
+          <IconBadge tone='info' size='title'>
+            <LayoutDashboard />
+          </IconBadge>
           <div className='min-w-0'>
             <CardTitle className='text-lg tracking-tight sm:text-xl'>
               {t('Sidebar Personal Settings')}
@@ -240,7 +242,7 @@ export function SidebarModulesCard() {
                 {section.modules.map((mod) => (
                   <div
                     key={mod.key}
-                    className={`flex min-h-16 items-center justify-between rounded-lg border p-3 transition-opacity ${
+                    className={`flex min-h-16 items-center justify-between rounded-lg border p-3 ${
                       sectionEnabled ? '' : 'opacity-50'
                     }`}
                   >

@@ -64,9 +64,9 @@ export async function listWaffoPancakeCatalog(
   merchantID: string,
   privateKey: string
 ): Promise<CatalogResponse> {
-  const res = await api.post<CatalogResponse>(
+  const res = await api.get<CatalogResponse>(
     '/api/option/waffo-pancake/catalog',
-    { merchant_id: merchantID, private_key: privateKey }
+    { params: { merchant_id: merchantID, private_key: privateKey } }
   )
   return res.data
 }

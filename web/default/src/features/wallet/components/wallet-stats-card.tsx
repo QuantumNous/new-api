@@ -18,8 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatQuota } from '@/lib/format'
+
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatQuota } from '@/lib/format'
+
 import type { UserWalletData } from '../types'
 
 interface WalletStatsCardProps {
@@ -31,62 +34,69 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   const { t } = useTranslation()
   if (props.loading) {
     return (
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-3 divide-x'>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className='px-3 py-3 sm:px-5 sm:py-4'>
-              <Skeleton className='h-3.5 w-20' />
-              <Skeleton className='mt-2 h-7 w-28' />
-              <Skeleton className='mt-1.5 h-3.5 w-24' />
-            </div>
-          ))}
-        </div>
+      <div className='grid grid-cols-3 divide-x rounded-lg border'>
+        {['balance', 'usage', 'requests'].map((key) => (
+          <div key={key} className='min-w-0 px-2.5 py-2.5 sm:px-5 sm:py-4'>
+            <Skeleton className='h-3.5 w-full' />
+            <Skeleton className='mt-2 h-6 w-full sm:h-7' />
+            <Skeleton className='mt-1.5 hidden h-3.5 w-24 md:block' />
+          </div>
+        ))}
       </div>
     )
   }
 
-  const stats = [
+  const stats: {
+    label: string
+    value: string
+    description: string
+    icon: typeof WalletCards
+    tone: IconBadgeTone
+  }[] = [
     {
       label: t('Current Balance'),
       value: formatQuota(props.user?.quota ?? 0),
       description: t('Remaining quota'),
       icon: WalletCards,
+      tone: 'success',
     },
     {
       label: t('Total Usage'),
       value: formatQuota(props.user?.used_quota ?? 0),
       description: t('Total consumed quota'),
       icon: BarChart3,
+      tone: 'info',
     },
     {
       label: t('API Requests'),
       value: (props.user?.request_count ?? 0).toLocaleString(),
       description: t('Total requests made'),
       icon: Activity,
+      tone: 'chart-4',
     },
   ]
 
   return (
-    <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid grid-cols-3 divide-x'>
-        {stats.map((item) => (
-          <div key={item.label} className='px-3 py-3 sm:px-5 sm:py-4'>
-            <div className='flex items-center gap-2'>
-              <item.icon className='text-muted-foreground/60 size-3.5 shrink-0' />
-              <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
-                {item.label}
-              </div>
-            </div>
-
-            <div className='text-foreground mt-1.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:mt-2 sm:text-2xl'>
-              {item.value}
-            </div>
-            <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
-              {item.description}
+    <div className='grid grid-cols-3 divide-x rounded-lg border'>
+      {stats.map((item) => (
+        <div key={item.label} className='min-w-0 px-2.5 py-2.5 sm:px-5 sm:py-4'>
+          <div className='flex items-center gap-1.5 sm:gap-2.5'>
+            <IconBadge tone={item.tone} size='stat'>
+              <item.icon />
+            </IconBadge>
+            <div className='text-muted-foreground truncate text-[11px] font-medium tracking-wider uppercase sm:text-xs'>
+              {item.label}
             </div>
           </div>
-        ))}
-      </div>
+
+          <div className='text-foreground mt-1.5 font-mono text-sm font-bold tracking-tight break-all tabular-nums sm:mt-2.5 sm:text-2xl'>
+            {item.value}
+          </div>
+          <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
+            {item.description}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

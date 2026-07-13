@@ -23,6 +23,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
+
 import { Main } from './main'
 import { PageFooterProvider } from './page-footer'
 
@@ -50,6 +51,7 @@ SectionPageLayoutBreadcrumb.displayName = 'SectionPageLayout.Breadcrumb'
 
 export type SectionPageLayoutProps = {
   children: ReactNode
+  fixedContent?: boolean
 }
 
 export function SectionPageLayout(props: SectionPageLayoutProps) {
@@ -95,7 +97,13 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
           </div>
         </div>
 
-        <div className='min-h-0 flex-1 overflow-auto px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'>
+        <div
+          className={
+            props.fixedContent
+              ? 'min-h-0 flex-1 overflow-hidden px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
+              : 'min-h-0 flex-1 overflow-auto px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
+          }
+        >
           {content}
         </div>
 

@@ -17,9 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { useSystemConfigStore } from '@/stores/system-config-store'
-import { getStatus } from '@/lib/api'
+
 import type { SystemStatus } from '@/features/auth/types'
+import { getStatus } from '@/lib/api'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+
 import { mapStatusDataToConfig } from './use-system-config'
 
 // Get initial cache from localStorage

@@ -39,7 +39,7 @@ import {
   Minimax,
   Wenxin,
   Spark,
-  Midjourney,
+  Midjourney as MjProxyIcon,
   Hunyuan,
   Cohere,
   Cloudflare,
@@ -99,13 +99,12 @@ import {
   SiOkta,
   SiOpenid,
   SiReddit,
-  SiSlack,
   SiTelegram,
   SiTwitch,
   SiWechat,
   SiX,
 } from 'react-icons/si';
-import { FaLinkedin } from 'react-icons/fa';
+import { FaLinkedin, FaSlack } from 'react-icons/fa';
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -254,8 +253,8 @@ export const getModelCategories = (() => {
         filter: (model) => model.model_name.toLowerCase().includes('spark'),
       },
       midjourney: {
-        label: 'Midjourney',
-        icon: <Midjourney />,
+        label: 'MjProxy',
+        icon: <MjProxyIcon />,
         filter: (model) => model.model_name.toLowerCase().includes('mj_'),
       },
       tencent: {
@@ -336,9 +335,9 @@ export function getChannelIcon(channelType) {
     case 3: // Azure OpenAI
     case 57: // Codex
       return <OpenAI size={iconSize} />;
-    case 2: // Midjourney Proxy
-    case 5: // Midjourney Proxy Plus
-      return <Midjourney size={iconSize} />;
+    case 2: // MjProxy
+    case 5: // MjProxyPlus
+      return <MjProxyIcon size={iconSize} />;
     case 36: // Suno API
       return <Suno size={iconSize} />;
     case 4: // Ollama
@@ -512,7 +511,7 @@ const oauthProviderIconMap = {
   linkedin: FaLinkedin,
   x: SiX,
   twitter: SiX,
-  slack: SiSlack,
+  slack: FaSlack,
   telegram: SiTelegram,
   wechat: SiWechat,
   keycloak: SiKeycloak,

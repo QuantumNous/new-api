@@ -49,6 +49,14 @@ type JsonValidationOptions = {
   predicateMessage?: string
 }
 
+export type JsonValidationError = {
+  type: 'required' | 'structure' | 'syntax'
+  line?: number
+  column?: number
+  position?: number
+  missingCommaLine?: number
+}
+
 function extractErrorPosition(
   error: unknown,
   jsonString: string
@@ -81,8 +89,15 @@ function extractErrorPosition(
   return {}
 }
 
-function formatErrorMessage(error: unknown, jsonString: string): string {
-  if (!(error instanceof Error)) return 'Invalid JSON'
+function buildSyntaxError(
+  error: unknown,
+  jsonString: string
+): JsonValidationError {
+  if (!(error instanceof Error)) {
+    return {
+      type: 'syntax',
+    } satisfies JsonValidationError
+  }
 
   const position = extractErrorPosition(error, jsonString)
   const message = error.message
@@ -93,10 +108,29 @@ function formatErrorMessage(error: unknown, jsonString: string): string {
     message.includes('Expected property name') ||
     message.includes('Unexpected string')
 
+  const missingCommaLine =
+    isMissingCommaError && position.line && position.line > 1
+      ? position.line - 1
+      : undefined
+
+  return {
+    type: 'syntax',
+    ...position,
+    missingCommaLine,
+  } satisfies JsonValidationError
+}
+
+function formatErrorMessage(error: unknown, jsonString: string): string {
+  if (!(error instanceof Error)) return 'Invalid JSON'
+
+  const position = extractErrorPosition(error, jsonString)
+  const message = error.message
+  const syntaxError = buildSyntaxError(error, jsonString)
+
   if (position.line && position.column) {
     let hint = ''
-    if (isMissingCommaError && position.line > 1) {
-      hint = ` (check line ${position.line - 1} for missing comma)`
+    if (syntaxError.missingCommaLine) {
+      hint = ` (check line ${syntaxError.missingCommaLine} for missing comma)`
     }
     return `Error at line ${position.line}, column ${position.column}: ${message}${hint}`
   }
@@ -119,6 +153,11 @@ export function validateJsonString(
     return {
       valid: allowEmpty,
       message: allowEmpty ? undefined : 'Value is required',
+      error: allowEmpty
+        ? undefined
+        : ({
+            type: 'required',
+          } satisfies JsonValidationError),
     }
   }
 
@@ -128,6 +167,9 @@ export function validateJsonString(
       return {
         valid: false,
         message: predicateMessage || 'JSON structure is invalid',
+        error: {
+          type: 'structure',
+        } satisfies JsonValidationError,
       }
     }
 
@@ -136,6 +178,7 @@ export function validateJsonString(
     return {
       valid: false,
       message: formatErrorMessage(error, trimmed),
+      error: buildSyntaxError(error, trimmed),
     }
   }
 }

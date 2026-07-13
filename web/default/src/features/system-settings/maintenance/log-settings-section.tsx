@@ -16,13 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatTimestampToDate } from '@/lib/format'
+import * as z from 'zod'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +34,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -42,9 +45,28 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { DateTimePicker } from '@/components/datetime-picker'
-import { deleteLogsBefore } from '../api'
+import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
+import { formatTimestampToDate } from '@/lib/format'
+
+import {
+  getCurrentLogCleanupTask,
+  getSystemTask,
+  startLogCleanupTask,
+} from '../api'
 import {
   SettingsControlGroup,
   SettingsForm,
@@ -54,6 +76,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import type { LogCleanupTask } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
@@ -65,7 +88,29 @@ type LogSettingsSectionProps = {
   defaultEnabled: boolean
 }
 
+type ServerLogInfo = {
+  enabled: boolean
+  log_dir: string
+  file_count: number
+  total_size: number
+  oldest_time?: string
+  newest_time?: string
+}
+
 const HOURS_IN_DAY = 24
+
+function formatBytes(bytes: number, decimals = 2): string {
+  if (!bytes || Number.isNaN(bytes)) return '0 Bytes'
+  if (bytes === 0) return '0 Bytes'
+  if (bytes < 0) return `-${formatBytes(-bytes, decimals)}`
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(Math.abs(bytes)) / Math.log(k))
+  if (i < 0 || i >= sizes.length) return `${bytes} Bytes`
+  return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${
+    sizes[i]
+  }`
+}
 
 const getDateHoursAgo = (hours: number) => {
   const date = new Date()
@@ -90,6 +135,10 @@ const quickSelectOptions = [
   },
 ]
 
+function isActiveLogCleanupTask(task: LogCleanupTask | null) {
+  return task?.status === 'pending' || task?.status === 'running'
+}
+
 export function LogSettingsSection({
   defaultEnabled,
 }: LogSettingsSectionProps) {
@@ -105,12 +154,53 @@ export function LogSettingsSection({
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
     getDateDaysAgo(30)
   )
-  const [isCleaning, setIsCleaning] = useState(false)
+  const [isStartingLogCleanup, setIsStartingLogCleanup] = useState(false)
+  const [logCleanupTask, setLogCleanupTask] = useState<LogCleanupTask | null>(
+    null
+  )
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [serverLogInfo, setServerLogInfo] = useState<ServerLogInfo | null>(null)
+  const [serverLogCleanupMode, setServerLogCleanupMode] = useState('by_count')
+  const [serverLogCleanupValue, setServerLogCleanupValue] = useState(10)
+  const [serverLogCleanupLoading, setServerLogCleanupLoading] = useState(false)
+
+  const fetchServerLogInfo = useCallback(async () => {
+    try {
+      const res = await api.get('/api/performance/logs')
+      if (res.data.success) setServerLogInfo(res.data.data)
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   useEffect(() => {
     form.reset({ LogConsumeEnabled: defaultEnabled })
   }, [defaultEnabled, form])
+
+  useEffect(() => {
+    fetchServerLogInfo()
+  }, [fetchServerLogInfo])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function fetchCurrentLogCleanupTask() {
+      try {
+        const res = await getCurrentLogCleanupTask()
+        if (!cancelled && res.success && res.data) {
+          setLogCleanupTask(res.data)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    fetchCurrentLogCleanupTask()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -121,6 +211,50 @@ export function LogSettingsSection({
     if (!purgeDate) return ''
     return formatTimestampToDate(purgeDate.getTime(), 'milliseconds')
   }, [purgeDate])
+
+  const logCleanupActive = isActiveLogCleanupTask(logCleanupTask)
+  const logCleanupState = logCleanupTask?.state
+  const logCleanupProgress = Math.min(
+    100,
+    Math.max(0, logCleanupState?.progress ?? 0)
+  )
+  const logCleanupProcessed = logCleanupState?.processed ?? 0
+  const logCleanupTotal = logCleanupState?.total ?? 0
+  const logCleanupTaskId = logCleanupTask?.task_id
+
+  useEffect(() => {
+    if (!logCleanupTaskId || !logCleanupActive) return
+
+    let cancelled = false
+    const interval = window.setInterval(async () => {
+      try {
+        const res = await getSystemTask(logCleanupTaskId)
+        if (cancelled || !res.success || !res.data) return
+
+        setLogCleanupTask(res.data)
+        if (!isActiveLogCleanupTask(res.data)) {
+          if (res.data.status === 'succeeded') {
+            const count =
+              res.data.result?.deleted_count ?? res.data.state?.processed ?? 0
+            toast.success(
+              count > 0
+                ? t('{{count}} log entries removed.', { count })
+                : t('No log entries matched the selected time.')
+            )
+          } else if (res.data.status === 'failed') {
+            toast.error(res.data.error || t('Failed to clean logs'))
+          }
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, 1000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
     if (values.LogConsumeEnabled === defaultEnabled) return
@@ -145,24 +279,58 @@ export function LogSettingsSection({
       return
     }
 
-    setIsCleaning(true)
+    setIsStartingLogCleanup(true)
     try {
-      const res = await deleteLogsBefore(purgeTimestamp)
+      const res = await startLogCleanupTask(purgeTimestamp)
       if (!res.success) {
         throw new Error(res.message || t('Failed to clean logs'))
       }
-      const count = res.data ?? 0
-      toast.success(
-        count > 0
-          ? t('{{count}} log entries removed.', { count })
-          : t('No log entries matched the selected time.')
-      )
+      if (!res.data) {
+        throw new Error(t('Failed to clean logs'))
+      }
+      setLogCleanupTask(res.data)
+      setShowConfirmDialog(false)
+      toast.success(t('Log cleanup task started.'))
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t('Failed to clean logs')
       toast.error(message)
     } finally {
-      setIsCleaning(false)
+      setIsStartingLogCleanup(false)
+    }
+  }
+
+  const cleanupServerLogFiles = async () => {
+    if (
+      !serverLogCleanupValue ||
+      Number.isNaN(serverLogCleanupValue) ||
+      serverLogCleanupValue < 1
+    ) {
+      toast.error(t('Please enter a valid number'))
+      return
+    }
+
+    setServerLogCleanupLoading(true)
+    try {
+      const res = await api.delete(
+        `/api/performance/logs?mode=${serverLogCleanupMode}&value=${serverLogCleanupValue}`
+      )
+      if (res.data.success) {
+        const { deleted_count, freed_bytes } = res.data.data
+        toast.success(
+          t('Cleaned up {{count}} log files, freed {{size}}', {
+            count: deleted_count,
+            size: formatBytes(freed_bytes),
+          })
+        )
+      } else {
+        toast.error(res.data.message || t('Cleanup failed'))
+      }
+      fetchServerLogInfo()
+    } catch {
+      toast.error(t('Cleanup failed'))
+    } finally {
+      setServerLogCleanupLoading(false)
     }
   }
 
@@ -224,14 +392,195 @@ export function LogSettingsSection({
                 type='button'
                 variant='destructive'
                 onClick={handleRequestCleanLogs}
-                disabled={isCleaning}
+                disabled={isStartingLogCleanup || logCleanupActive}
               >
-                {isCleaning ? t('Cleaning...') : t('Clean logs')}
+                {isStartingLogCleanup || logCleanupActive
+                  ? t('Cleaning...')
+                  : t('Clean logs')}
               </Button>
             </div>
+            {logCleanupTask && (
+              <div className='rounded-md border p-3'>
+                <div className='mb-2 flex items-center justify-between gap-3 text-sm'>
+                  <span className='font-medium'>
+                    {t('Log cleanup progress')}
+                  </span>
+                  <span className='text-muted-foreground tabular-nums'>
+                    {logCleanupProgress}%
+                  </span>
+                </div>
+                <Progress value={logCleanupProgress} />
+                <div className='text-muted-foreground mt-2 text-xs'>
+                  {t('{{processed}} of {{total}} log entries processed.', {
+                    processed: logCleanupProcessed,
+                    total: logCleanupTotal,
+                  })}
+                </div>
+                {logCleanupTask.status === 'failed' && logCleanupTask.error && (
+                  <div className='text-destructive mt-2 text-xs'>
+                    {logCleanupTask.error}
+                  </div>
+                )}
+              </div>
+            )}
           </SettingsControlGroup>
         </SettingsForm>
       </Form>
+
+      <Separator />
+
+      <div className='space-y-4'>
+        <div>
+          <h4 className='font-medium'>{t('Server Log Management')}</h4>
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {t(
+              'Manage server log files. Log files accumulate over time; regular cleanup is recommended to free disk space.'
+            )}
+          </p>
+        </div>
+
+        {serverLogInfo !== null &&
+          (serverLogInfo.enabled ? (
+            <div className='space-y-4'>
+              <div className='rounded-lg border p-4'>
+                <div className='grid grid-cols-2 gap-2 text-sm md:grid-cols-4'>
+                  <div>
+                    <span className='text-muted-foreground'>
+                      {t('Log Directory')}:
+                    </span>{' '}
+                    <span className='font-mono text-xs'>
+                      {serverLogInfo.log_dir}
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>
+                      {t('Log File Count')}:
+                    </span>{' '}
+                    {serverLogInfo.file_count}
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>
+                      {t('Total Log Size')}:
+                    </span>{' '}
+                    {formatBytes(serverLogInfo.total_size)}
+                  </div>
+                  {serverLogInfo.oldest_time && serverLogInfo.newest_time && (
+                    <div>
+                      <span className='text-muted-foreground'>
+                        {t('Date Range')}:
+                      </span>{' '}
+                      {dayjs(serverLogInfo.oldest_time).format('YYYY-MM-DD')} ~{' '}
+                      {dayjs(serverLogInfo.newest_time).format('YYYY-MM-DD')}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className='flex flex-wrap items-end gap-3'>
+                <div className='grid gap-1.5'>
+                  <Label className='text-xs'>{t('Cleanup Mode')}</Label>
+                  <Select
+                    items={[
+                      { value: 'by_count', label: t('Retain last N files') },
+                      { value: 'by_days', label: t('Retain last N days') },
+                    ]}
+                    value={serverLogCleanupMode}
+                    onValueChange={(value) =>
+                      value !== null && setServerLogCleanupMode(value)
+                    }
+                  >
+                    <SelectTrigger className='w-[160px]'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='by_count'>
+                          {t('Retain last N files')}
+                        </SelectItem>
+                        <SelectItem value='by_days'>
+                          {t('Retain last N days')}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='grid gap-1.5'>
+                  <Label className='text-xs'>
+                    {serverLogCleanupMode === 'by_count'
+                      ? t('Files to Retain')
+                      : t('Days to Retain')}
+                  </Label>
+                  <Input
+                    type='number'
+                    min={1}
+                    max={serverLogCleanupMode === 'by_count' ? 1000 : 3650}
+                    value={serverLogCleanupValue}
+                    onChange={(event) =>
+                      setServerLogCleanupValue(Number(event.target.value))
+                    }
+                    className='w-[120px]'
+                  />
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger
+                    render={
+                      <Button
+                        type='button'
+                        variant='destructive'
+                        size='sm'
+                        disabled={serverLogCleanupLoading}
+                      />
+                    }
+                  >
+                    {serverLogCleanupLoading
+                      ? t('Cleaning...')
+                      : t('Clean Up Log Files')}
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {t('Confirm log file cleanup?')}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {serverLogCleanupMode === 'by_count'
+                          ? t(
+                              'Only the last {{value}} log files will be retained; the rest will be deleted.',
+                              {
+                                value: serverLogCleanupValue,
+                              }
+                            )
+                          : t(
+                              'Log files older than {{value}} days will be deleted.',
+                              {
+                                value: serverLogCleanupValue,
+                              }
+                            )}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
+                      <AlertDialogAction
+                        variant='destructive'
+                        onClick={cleanupServerLogFiles}
+                      >
+                        {t('Confirm Cleanup')}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+          ) : (
+            <Alert>
+              <AlertDescription>
+                {t(
+                  'Server logging is not enabled (log directory not configured)'
+                )}
+              </AlertDescription>
+            </Alert>
+          ))}
+      </div>
+
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -249,11 +598,15 @@ export function LogSettingsSection({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isCleaning}>
+            <AlertDialogCancel disabled={isStartingLogCleanup}>
               {t('Cancel')}
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleCleanLogs} disabled={isCleaning}>
-              {isCleaning ? t('Cleaning...') : t('Delete logs')}
+            <AlertDialogAction
+              variant='destructive'
+              onClick={handleCleanLogs}
+              disabled={isStartingLogCleanup}
+            >
+              {isStartingLogCleanup ? t('Cleaning...') : t('Delete logs')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

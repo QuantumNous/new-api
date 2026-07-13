@@ -18,8 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+
 import { SectionPageLayout } from '@/components/layout'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+
 import { SubscriptionsDialogs } from './components/subscriptions-dialogs'
 import { SubscriptionsPrimaryButtons } from './components/subscriptions-primary-buttons'
 import {
@@ -34,7 +36,7 @@ function SubscriptionsContent() {
 
   return (
     <>
-      <SectionPageLayout>
+      <SectionPageLayout fixedContent>
         <SectionPageLayout.Title>
           {t('Subscription Management')}
         </SectionPageLayout.Title>
@@ -52,16 +54,20 @@ function SubscriptionsContent() {
           </div>
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          {!complianceConfirmed ? (
-            <Alert variant='destructive' className='mb-4'>
-              <AlertDescription>
-                {t(
-                  'Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.'
-                )}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <SubscriptionsTable />
+          <div className='flex h-full min-h-0 flex-col gap-4'>
+            {!complianceConfirmed ? (
+              <Alert variant='destructive' className='shrink-0'>
+                <AlertDescription>
+                  {t(
+                    'Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.'
+                  )}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <div className='min-h-0 flex-1'>
+              <SubscriptionsTable />
+            </div>
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

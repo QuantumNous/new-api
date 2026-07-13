@@ -16,11 +16,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import { Add01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+
 import {
   Combobox,
   ComboboxChip,
@@ -34,6 +35,8 @@ import {
   ComboboxValue,
   useComboboxAnchor,
 } from '@/components/ui/combobox'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { cn } from '@/lib/utils'
 
 export type Option = {
   label: string
@@ -64,6 +67,16 @@ interface MultiSelectProps {
    * Hidden values remain searchable/removable from the dropdown.
    */
   maxVisibleChips?: number
+  /**
+   * Replaces individual chips with a compact summary while preserving the
+   * normal dropdown/search behaviour.
+   */
+  renderSelectedSummary?: (values: string[]) => React.ReactNode
+  /**
+   * When true, clicking a chip's label copies its value to the clipboard
+   * instead of being inert. The remove (×) button keeps its own behaviour.
+   */
+  copyChipOnClick?: boolean
 }
 
 const COMMA_REGEX = /[,，\n]/
@@ -109,6 +122,7 @@ export function MultiSelect(props: MultiSelectProps) {
 
   const [inputValue, setInputValue] = React.useState('')
   const [open, setOpen] = React.useState(false)
+  const [expanded, setExpanded] = React.useState(false)
 
   const selectedSet = React.useMemo(
     () => new Set(props.selected),
@@ -131,8 +145,7 @@ export function MultiSelect(props: MultiSelectProps) {
     (selectedSet.has(trimmedInput) ||
       props.options.some(
         (option) =>
-          option.value.toLowerCase() === trimmedInput.toLowerCase() ||
-          option.label.toLowerCase() === trimmedInput.toLowerCase()
+          option.value === trimmedInput || option.label === trimmedInput
       ))
 
   const canCreate =
@@ -195,6 +208,25 @@ export function MultiSelect(props: MultiSelectProps) {
     }
   }
 
+  const handleCopyChip = React.useCallback(
+    async (
+      event: React.MouseEvent<HTMLButtonElement>,
+      value: string,
+      label: string
+    ) => {
+      // Prevent the click from toggling the combobox popup or focusing input.
+      event.preventDefault()
+      event.stopPropagation()
+      const ok = await copyToClipboard(value)
+      if (ok) {
+        toast.success(t('Copied: {{model}}', { model: label }))
+      } else {
+        toast.error(t('Failed to copy'))
+      }
+    },
+    [t]
+  )
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     // Enter without a highlighted option commits the typed value.
     if (event.key === 'Enter' && props.allowCreate && canCreate) {
@@ -231,33 +263,88 @@ export function MultiSelect(props: MultiSelectProps) {
       >
         <ComboboxValue>
           {(values: string[]) => {
-            const visibleValues =
-              typeof props.maxVisibleChips === 'number'
-                ? values.slice(0, props.maxVisibleChips)
-                : values
+            if (props.renderSelectedSummary) {
+              return (
+                <span className='bg-muted text-muted-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center rounded-sm px-1.5 font-mono text-xs font-medium whitespace-nowrap'>
+                  {props.renderSelectedSummary(values)}
+                </span>
+              )
+            }
+
+            const shouldLimit =
+              typeof props.maxVisibleChips === 'number' && !expanded
+            const visibleValues = shouldLimit
+              ? values.slice(0, props.maxVisibleChips)
+              : values
             const hiddenCount = values.length - visibleValues.length
 
             return (
               <>
-                {visibleValues.map((value) => (
-                  <ComboboxChip key={value}>
-                    <span className='max-w-[16rem] truncate'>
-                      {labelMap.get(value) ?? value}
-                    </span>
-                  </ComboboxChip>
-                ))}
+                {visibleValues.map((value) => {
+                  const label = labelMap.get(value) ?? value
+                  return (
+                    <ComboboxChip key={value}>
+                      {props.copyChipOnClick ? (
+                        <button
+                          type='button'
+                          onClick={(event) =>
+                            handleCopyChip(event, value, label)
+                          }
+                          onPointerDown={(event) => event.stopPropagation()}
+                          title={t('Click to copy')}
+                          className='max-w-[16rem] cursor-pointer truncate rounded-sm hover:underline'
+                        >
+                          {label}
+                        </button>
+                      ) : (
+                        <span className='max-w-[16rem] truncate'>{label}</span>
+                      )}
+                    </ComboboxChip>
+                  )
+                })}
                 {hiddenCount > 0 && (
-                  <span className='bg-muted text-muted-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap'>
+                  <button
+                    type='button'
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      setExpanded(true)
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    title={t('Show All')}
+                    className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
+                  >
                     {t('+{{count}} more', { count: hiddenCount })}
-                  </span>
+                  </button>
                 )}
+                {expanded &&
+                  typeof props.maxVisibleChips === 'number' &&
+                  values.length > props.maxVisibleChips && (
+                    <button
+                      type='button'
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setExpanded(false)
+                      }}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      title={t('Collapse')}
+                      className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
+                    >
+                      {t('Collapse')}
+                    </button>
+                  )}
               </>
             )
           }}
         </ComboboxValue>
         <ComboboxChipsInput
           id={props.id}
-          placeholder={props.selected.length === 0 ? placeholder : undefined}
+          placeholder={
+            props.selected.length === 0 && !props.renderSelectedSummary
+              ? placeholder
+              : undefined
+          }
           onKeyDown={handleKeyDown}
           aria-label={placeholder}
         />

@@ -16,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ROLE } from '@/lib/roles'
 /**
  * Hook for checking admin privileges
  */
 import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
 
 /**
  * Check if current user has admin privileges

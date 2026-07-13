@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
+
 import { formatShare, formatTokens } from '../lib/format'
 import type { RankingPeriod, VendorRanking, VendorShareSeries } from '../types'
 import { VendorLink } from './entity-links'
@@ -31,7 +33,6 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
   week: 'Token share by model author across the past few weeks',
   month: 'Token share by model author across the past month',
   year: 'Token share by model author across the past year',
-  all: 'Token share by model author since launch',
 }
 
 /** Stable colour palette for vendors, used in both the share chart and the

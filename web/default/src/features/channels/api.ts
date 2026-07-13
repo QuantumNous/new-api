@@ -16,14 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api, type ApiRequestConfig } from '@/lib/api'
 import { getGroups as getUserGroups } from '@/features/users/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
+
 import type {
   AddChannelRequest,
   BatchDeleteParams,
   BatchSetTagParams,
   Channel,
   ChannelBalanceResponse,
+  ChannelOpsResponse,
   ChannelTestResponse,
   CopyChannelParams,
   CopyChannelResponse,
@@ -46,32 +48,16 @@ const channelActionConfig = (
   skipErrorHandler: true,
 })
 
-export type CodexOAuthStartResponse = {
-  success: boolean
-  message?: string
-  data?: {
-    authorize_url?: string
-  }
-}
-
-export type CodexOAuthCompleteResponse = {
-  success: boolean
-  message?: string
-  data?: {
-    key?: string
-    account_id?: string
-    email?: string
-    expires_at?: string
-    last_refresh?: string
-  }
-}
-
 export type CodexUsageResponse = {
   success: boolean
   message?: string
   upstream_status?: number
   data?: Record<string, unknown>
 }
+
+export type CodexResetCreditsResponse = CodexUsageResponse
+
+export type CodexUsageResetResponse = CodexUsageResponse
 
 export type CodexCredentialRefreshResponse = {
   success: boolean
@@ -120,6 +106,14 @@ export async function getChannel(id: number): Promise<GetChannelResponse> {
 }
 
 /**
+ * Get channel operations summary for administrators
+ */
+export async function getChannelOps(): Promise<ChannelOpsResponse> {
+  const res = await api.get('/api/channel/ops', channelActionConfig())
+  return res.data
+}
+
+/**
  * Create new channel(s)
  * Supports single, batch, and multi-key modes
  */
@@ -140,6 +134,36 @@ export async function updateChannel(
   const res = await api.put(
     '/api/channel/',
     { id, ...data },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/**
+ * Update channel enabled/disabled status.
+ */
+export async function updateChannelStatus(
+  id: number,
+  status: number
+): Promise<{ success: boolean; message?: string; data?: boolean }> {
+  const res = await api.post(
+    `/api/channel/${id}/status`,
+    { status },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/**
+ * Batch update channel enabled/disabled status.
+ */
+export async function batchUpdateChannelStatus(
+  ids: number[],
+  status: number
+): Promise<{ success: boolean; message?: string; data?: number }> {
+  const res = await api.post(
+    '/api/channel/status/batch',
+    { ids, status },
     channelActionConfig()
   )
   return res.data
@@ -286,26 +310,6 @@ export async function getChannelKey(
 // Codex Channel Operations
 // ============================================================================
 
-export async function startCodexOAuth(): Promise<CodexOAuthStartResponse> {
-  const res = await api.post(
-    '/api/channel/codex/oauth/start',
-    {},
-    channelActionConfig()
-  )
-  return res.data
-}
-
-export async function completeCodexOAuth(
-  input: string
-): Promise<CodexOAuthCompleteResponse> {
-  const res = await api.post(
-    '/api/channel/codex/oauth/complete',
-    { input },
-    channelActionConfig()
-  )
-  return res.data
-}
-
 export async function refreshCodexCredential(
   channelId: number
 ): Promise<CodexCredentialRefreshResponse> {
@@ -322,6 +326,27 @@ export async function getCodexUsage(
 ): Promise<CodexUsageResponse> {
   const res = await api.get(
     `/api/channel/${channelId}/codex/usage`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+export async function getCodexResetCredits(
+  channelId: number
+): Promise<CodexResetCreditsResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/codex/usage/reset-credits`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+export async function resetCodexUsage(
+  channelId: number
+): Promise<CodexUsageResetResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/codex/usage/reset`,
+    {},
     channelActionConfig({ disableDuplicate: true })
   )
   return res.data
