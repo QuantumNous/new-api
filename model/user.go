@@ -423,12 +423,8 @@ func HardDeleteUserById(id int) error {
 	if id == 0 {
 		return errors.New("id 为空！")
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := deleteUserOAuthBindingsByUserId(tx, id); err != nil {
-			return err
-		}
-		return tx.Unscoped().Delete(&User{}, "id = ?", id).Error
-	})
+	user := User{Id: id}
+	return user.HardDelete()
 }
 
 func inviteUser(inviterId int) (err error) {
@@ -755,11 +751,43 @@ func (user *User) HardDelete() error {
 		return errors.New("id 为空！")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := deleteUserOAuthBindingsByUserId(tx, user.Id); err != nil {
+		if err := deleteUserAuthenticationData(tx, user.Id); err != nil {
 			return err
 		}
 		return tx.Unscoped().Delete(user).Error
 	})
+}
+
+func deleteUserAuthenticationData(tx *gorm.DB, userId int) error {
+	if common.RedisEnabled {
+		var tokens []Token
+		if err := tx.Unscoped().Select("id", commonKeyCol).Where("user_id = ?", userId).Find(&tokens).Error; err != nil {
+			return err
+		}
+		for _, token := range tokens {
+			if token.Key == "" {
+				continue
+			}
+			if err := cacheDeleteToken(token.Key); err != nil {
+				return err
+			}
+		}
+		if err := invalidateUserCache(userId); err != nil {
+			return err
+		}
+	}
+
+	for _, authenticationData := range []any{
+		&TwoFABackupCode{},
+		&TwoFA{},
+		&PasskeyCredential{},
+		&Token{},
+	} {
+		if err := tx.Unscoped().Where("user_id = ?", userId).Delete(authenticationData).Error; err != nil {
+			return err
+		}
+	}
+	return deleteUserOAuthBindingsByUserId(tx, userId)
 }
 
 // ValidateAndFill check password & user status
