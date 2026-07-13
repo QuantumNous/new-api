@@ -57,3 +57,12 @@ func ContainsPayMethod(method string) bool {
 	}
 	return false
 }
+
+func IsEpaySignedTimestampEnabled(method string) bool {
+	for _, payMethod := range PayMethods {
+		if payMethod["type"] == method && payMethod["epay_signed_timestamp"] == "true" {
+			return true
+		}
+	}
+	return false
+}

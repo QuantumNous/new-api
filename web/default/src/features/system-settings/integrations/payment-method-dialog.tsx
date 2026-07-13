@@ -36,6 +36,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+
+import {
+  isEpayPaymentMethodType,
+  isEpaySignedTimestampEnabled,
+  setEpaySignedTimestamp,
+  type PaymentMethodData,
+} from './payment-method-data'
 
 const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
   z.object({
@@ -43,6 +51,7 @@ const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
     type: z.string().min(1, t('Payment type key is required')),
     icon: z.string().optional(),
     min_topup: z.string().optional(),
+    epay_signed_timestamp: z.boolean(),
   })
 
 type PaymentMethodDialogFormValues = z.infer<
@@ -50,14 +59,6 @@ type PaymentMethodDialogFormValues = z.infer<
 >
 
 const PAYMENT_METHOD_FORM_ID = 'payment-method-form'
-
-export type PaymentMethodData = {
-  name: string
-  type: string
-  icon?: string
-  min_topup?: string
-  color?: string
-}
 
 type PaymentMethodDialogProps = {
   open: boolean
@@ -120,10 +121,12 @@ export function PaymentMethodDialog({
       type: '',
       icon: '',
       min_topup: '',
+      epay_signed_timestamp: false,
     },
   })
 
   const iconValue = form.watch('icon')
+  const paymentType = form.watch('type')
 
   useEffect(() => {
     if (editData) {
@@ -132,6 +135,7 @@ export function PaymentMethodDialog({
         type: editData.type,
         icon: editData.icon ?? getDefaultIconName(editData.type),
         min_topup: editData.min_topup ?? '',
+        epay_signed_timestamp: isEpaySignedTimestampEnabled(editData),
       })
     } else {
       form.reset({
@@ -139,6 +143,7 @@ export function PaymentMethodDialog({
         type: '',
         icon: '',
         min_topup: '',
+        epay_signed_timestamp: false,
       })
     }
   }, [editData, form, open])
@@ -154,7 +159,7 @@ export function PaymentMethodDialog({
     if (values.min_topup && values.min_topup.trim() !== '') {
       data.min_topup = values.min_topup
     }
-    onSave(data)
+    onSave(setEpaySignedTimestamp(data, values.epay_signed_timestamp))
     form.reset()
     onOpenChange(false)
   }
@@ -310,6 +315,32 @@ export function PaymentMethodDialog({
               </FormItem>
             )}
           />
+
+          {isEpayPaymentMethodType(paymentType) && (
+            <FormField
+              control={form.control}
+              name='epay_signed_timestamp'
+              render={({ field }) => (
+                <FormItem className='flex items-center justify-between gap-4'>
+                  <div className='space-y-1'>
+                    <FormLabel>{t('Sign Epay timestamp')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Include a Unix timestamp in the Epay MD5 signature. Enable only when the gateway requires it.'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className='shrink-0'
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          )}
         </form>
       </Form>
     </Dialog>

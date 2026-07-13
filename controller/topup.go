@@ -146,6 +146,12 @@ func GetEpayClient() *epay.Client {
 	return withUrl
 }
 
+func signEpayPurchaseParams(params map[string]string, key string, unixTimestamp int64) map[string]string {
+	params["timestamp"] = strconv.FormatInt(unixTimestamp, 10)
+	params["sign_type"] = "MD5"
+	return epay.GenerateParams(params, key)
+}
+
 func getPayMoney(amount int64, group string) float64 {
 	dAmount := decimal.NewFromInt(amount)
 	// 充值金额以“展示类型”为准：
@@ -238,6 +244,9 @@ func RequestEpay(c *gin.Context) {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 拉起支付失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", id, tradeNo, req.PaymentMethod, req.Amount, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
+	}
+	if operation_setting.IsEpaySignedTimestampEnabled(req.PaymentMethod) {
+		params = signEpayPurchaseParams(params, operation_setting.EpayKey, time.Now().Unix())
 	}
 	amount := req.Amount
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {

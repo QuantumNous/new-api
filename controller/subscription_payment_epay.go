@@ -112,6 +112,9 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "拉起支付失败")
 		return
 	}
+	if operation_setting.IsEpaySignedTimestampEnabled(req.PaymentMethod) {
+		params = signEpayPurchaseParams(params, operation_setting.EpayKey, time.Now().Unix())
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
 }
 
