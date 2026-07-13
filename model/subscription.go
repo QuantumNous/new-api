@@ -479,6 +479,22 @@ func MarkPendingStripeAutoRenewSignupFailed(id int) error {
 	}).Error
 }
 
+func MarkPendingStripeAutoRenewSignupExpired(signupReference string, checkoutID string) error {
+	if strings.TrimSpace(signupReference) == "" {
+		return errors.New("signup reference is empty")
+	}
+	updates := map[string]interface{}{
+		"status":     "signup_expired",
+		"updated_at": common.GetTimestamp(),
+	}
+	if strings.TrimSpace(checkoutID) != "" {
+		updates["provider_checkout_id"] = checkoutID
+	}
+	return DB.Model(&BillingSubscription{}).
+		Where("provider = ? AND signup_reference = ? AND status = ?", PaymentProviderStripe, signupReference, "pending_signup").
+		Updates(updates).Error
+}
+
 func CompleteStripeAutoRenewSignup(signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
 	if strings.TrimSpace(signupReference) == "" || strings.TrimSpace(providerSubscriptionID) == "" {
 		return errors.New("invalid stripe auto-renew signup completion")

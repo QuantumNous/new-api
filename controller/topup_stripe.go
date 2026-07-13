@@ -206,6 +206,14 @@ func StripeWebhook(c *gin.Context) {
 			return
 		}
 	case stripe.EventTypeCheckoutSessionExpired:
+		if event.GetObjectValue("mode") == "subscription" {
+			if err := handleRecurringCheckoutSessionExpired(event); err != nil {
+				logger.LogError(ctx, fmt.Sprintf("Stripe recurring checkout.session.expired failed error=%q", err.Error()))
+				c.AbortWithStatus(http.StatusInternalServerError)
+				return
+			}
+			break
+		}
 		sessionExpired(ctx, event)
 	case stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded:
 		sessionAsyncPaymentSucceeded(ctx, event, callerIp)
@@ -216,6 +224,19 @@ func StripeWebhook(c *gin.Context) {
 	}
 
 	c.Status(http.StatusOK)
+}
+
+func handleRecurringCheckoutSessionExpired(event stripe.Event) error {
+	var payload struct {
+		ID       string `json:"id"`
+		Metadata struct {
+			SignupReference string `json:"signup_reference"`
+		} `json:"metadata"`
+	}
+	if err := common.Unmarshal(event.Data.Raw, &payload); err != nil {
+		return err
+	}
+	return model.MarkPendingStripeAutoRenewSignupExpired(payload.Metadata.SignupReference, payload.ID)
 }
 
 func handleRecurringCheckoutSessionCompleted(event stripe.Event) error {

@@ -37,7 +37,7 @@ func TestStripeWebhookRetriesRecurringHandlerFailure(t *testing.T) {
 	})
 	setting.StripeWebhookSecret = "whsec_recurring_retry"
 
-	payload := `{"id":"evt_recurring_retry","type":"invoice.paid","data":{"object":{"id":"in_missing_contract","subscription":"sub_missing_contract","status":"paid","lines":{"data":[{"period":{"start":1761955200,"end":1764547200}}]}}}}`
+	payload := `{"id":"evt_recurring_retry","type":"invoice.paid","data":{"object":{"id":"in_invalid_period","subscription":"sub_invalid_period","status":"paid","lines":{"data":[]}}}}`
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/stripe/webhook", strings.NewReader(payload))
@@ -275,6 +275,25 @@ func TestHandleRecurringCheckoutSessionCompleted_FulfillsPendingInvoice(t *testi
 	var subscriptions []model.UserSubscription
 	require.NoError(t, model.DB.Where("provider_invoice_id = ?", "in_pending_invoice").Find(&subscriptions).Error)
 	require.Len(t, subscriptions, 1)
+}
+
+func TestHandleRecurringCheckoutSessionExpired_ReleasesPendingSignup(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.User{Id: 731, Username: "expired-signup-user", Status: common.UserStatusEnabled}).Error)
+	contract, err := model.CreatePendingStripeAutoRenewSignup(731, 732, "signup_expired_1")
+	require.NoError(t, err)
+
+	raw, err := common.Marshal(map[string]any{"id": "cs_expired_1", "mode": "subscription", "metadata": map[string]string{"signup_reference": "signup_expired_1"}})
+	require.NoError(t, err)
+	require.NoError(t, handleRecurringCheckoutSessionExpired(stripe.Event{Type: stripe.EventTypeCheckoutSessionExpired, Data: &stripe.EventData{Raw: raw}}))
+
+	var updated model.BillingSubscription
+	require.NoError(t, model.DB.First(&updated, contract.Id).Error)
+	require.Equal(t, "signup_expired", updated.Status)
+
+	blocked, err := model.HasNonEndedAutoRenewContract(731)
+	require.NoError(t, err)
+	require.False(t, blocked)
 }
 
 func TestHandleRecurringInvoicePaymentFailed_MarksContractPastDue(t *testing.T) {
