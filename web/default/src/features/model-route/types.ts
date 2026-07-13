@@ -21,6 +21,7 @@ export type ModelRoutePolicy = {
   channel_name?: string
   base_url?: string
   requested_model: string
+  effective_model?: string
   manual_priority: number
   enabled: boolean
   source: string
@@ -33,6 +34,7 @@ export type ModelRouteMetrics = {
   channel_name?: string
   base_url?: string
   effective_model: string
+  requested_models?: string[]
   route_state: string
   role?: string
   is_stale?: boolean

@@ -5106,6 +5106,7 @@
     "Zoom": "Zoom",
     "Model Route": "Model Route",
     "Requested model": "Requested model",
+    "Requested models": "Requested models",
     "Migrate to model priority": "Migrate to model priority",
     "Migrate to model-level priority? This zeros channel priority/weight and enables model_priority mode.": "Migrate to model-level priority? This zeros channel priority/weight and enables model_priority mode.",
     "Migration failed": "Migration failed",

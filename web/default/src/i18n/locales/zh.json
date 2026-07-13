@@ -5106,6 +5106,7 @@
     "Zoom": "缩放",
     "Model Route": "模型路由",
     "Requested model": "请求模型",
+    "Requested models": "请求模型",
     "Migrate to model priority": "迁移到模型级优先级",
     "Migrate to model-level priority? This zeros channel priority/weight and enables model_priority mode.": "确认迁移到模型级优先级？这将把渠道 priority/weight 归零，并启用 model_priority 模式。",
     "Migration failed": "迁移失败",

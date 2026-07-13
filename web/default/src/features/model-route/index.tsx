@@ -186,6 +186,15 @@ function matchesModelSearch(
   return includesIgnoreCase(value, keyword)
 }
 
+function matchesAnyModelSearch(
+  values: Array<string | undefined>,
+  keyword: string,
+  exact: boolean
+) {
+  if (!keyword) return true
+  return values.some((v) => matchesModelSearch(v, keyword, exact))
+}
+
 function metricsRowKey(row: Pick<ModelRouteMetrics, 'channel_id' | 'effective_model'>) {
   return `${row.channel_id}:${row.effective_model}`
 }
@@ -383,7 +392,13 @@ export function ModelRouteAdmin() {
         const nameMatch = includesIgnoreCase(row.channel_name, channelKeyword)
         if (!idMatch && !nameMatch) return false
       }
-      if (!matchesModelSearch(row.requested_model, modelKw, exactModelMatch)) {
+      if (
+        !matchesAnyModelSearch(
+          [row.requested_model, row.effective_model],
+          modelKw,
+          exactModelMatch
+        )
+      ) {
         return false
       }
       return true
@@ -408,7 +423,11 @@ export function ModelRouteAdmin() {
         const nameMatch = includesIgnoreCase(row.channel_name, channelKeyword)
         if (!idMatch && !nameMatch) return false
       }
-      if (!matchesModelSearch(row.effective_model, modelKw, exactModelMatch)) {
+      const modelValues = [
+        row.effective_model,
+        ...(row.requested_models ?? []),
+      ]
+      if (!matchesAnyModelSearch(modelValues, modelKw, exactModelMatch)) {
         return false
       }
       return true
@@ -602,7 +621,7 @@ export function ModelRouteAdmin() {
 
           <TabsContent value='policies' className='mt-4'>
             <div className='overflow-x-auto rounded-md border'>
-              <table className='w-full min-w-[760px] text-sm'>
+              <table className='w-full min-w-[860px] text-sm'>
                 <thead className='bg-muted/40 text-left'>
                   <tr>
                     <th className='text-muted-foreground p-2.5 font-medium'>
@@ -610,6 +629,9 @@ export function ModelRouteAdmin() {
                     </th>
                     <th className='text-muted-foreground p-2.5 font-medium'>
                       {t('Requested model')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Effective model')}
                     </th>
                     <th className='text-muted-foreground p-2.5 font-medium'>
                       {t('Priority')}
@@ -623,48 +645,66 @@ export function ModelRouteAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {policies.map((row: ModelRoutePolicy) => (
-                    <tr
-                      key={`${row.channel_id}:${row.requested_model}`}
-                      className='hover:bg-muted/30 border-t transition-colors'
-                    >
-                      <td className='p-2.5'>
-                        <ChannelNameLink
-                          channelId={row.channel_id}
-                          channelName={row.channel_name}
-                          baseUrl={row.base_url}
-                        />
-                      </td>
-                      <td className='p-2.5 font-mono text-xs'>
-                        {row.requested_model}
-                      </td>
-                      <td className='p-2.5'>
-                        <PolicyPriorityCell
-                          row={row}
-                          disabled={priorityBusy}
-                          onChange={(value) => {
-                            void handlePriorityChange(row, value)
-                          }}
-                        />
-                      </td>
-                      <td className='p-2.5'>
-                        {row.enabled ? (
-                          <Badge variant='secondary'>{t('Yes')}</Badge>
-                        ) : (
-                          <Badge variant='outline'>{t('No')}</Badge>
-                        )}
-                      </td>
-                      <td className='p-2.5'>
-                        <Badge variant='outline' className='font-normal'>
-                          {localizePolicySource(t, row.source)}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
+                  {policies.map((row: ModelRoutePolicy) => {
+                    const effective =
+                      row.effective_model || row.requested_model
+                    const mapped =
+                      effective !== '' && effective !== row.requested_model
+                    return (
+                      <tr
+                        key={`${row.channel_id}:${row.requested_model}`}
+                        className='hover:bg-muted/30 border-t transition-colors'
+                      >
+                        <td className='p-2.5'>
+                          <ChannelNameLink
+                            channelId={row.channel_id}
+                            channelName={row.channel_name}
+                            baseUrl={row.base_url}
+                          />
+                        </td>
+                        <td className='p-2.5 font-mono text-xs'>
+                          {row.requested_model}
+                        </td>
+                        <td className='p-2.5 font-mono text-xs'>
+                          {mapped ? (
+                            <span title={`${row.requested_model} → ${effective}`}>
+                              <span className='text-muted-foreground'>→ </span>
+                              {effective}
+                            </span>
+                          ) : (
+                            <span className='text-muted-foreground'>
+                              {effective || '—'}
+                            </span>
+                          )}
+                        </td>
+                        <td className='p-2.5'>
+                          <PolicyPriorityCell
+                            row={row}
+                            disabled={priorityBusy}
+                            onChange={(value) => {
+                              void handlePriorityChange(row, value)
+                            }}
+                          />
+                        </td>
+                        <td className='p-2.5'>
+                          {row.enabled ? (
+                            <Badge variant='secondary'>{t('Yes')}</Badge>
+                          ) : (
+                            <Badge variant='outline'>{t('No')}</Badge>
+                          )}
+                        </td>
+                        <td className='p-2.5'>
+                          <Badge variant='outline' className='font-normal'>
+                            {localizePolicySource(t, row.source)}
+                          </Badge>
+                        </td>
+                      </tr>
+                    )
+                  })}
                   {!policyQuery.isLoading && policies.length === 0 && (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={6}
                         className='text-muted-foreground p-6 text-center'
                       >
                         {t('No policies')}
@@ -814,7 +854,7 @@ export function ModelRouteAdmin() {
               </div>
             )}
             <div className='overflow-x-auto rounded-md border'>
-              <table className='w-full min-w-[980px] text-sm'>
+              <table className='w-full min-w-[1080px] text-sm'>
                 <thead className='bg-muted/40 text-left'>
                   <tr>
                     <th className='text-muted-foreground w-10 p-2.5 font-medium'>
@@ -833,6 +873,9 @@ export function ModelRouteAdmin() {
                     </th>
                     <th className='text-muted-foreground p-2.5 font-medium'>
                       {t('Effective model')}
+                    </th>
+                    <th className='text-muted-foreground p-2.5 font-medium'>
+                      {t('Requested models')}
                     </th>
                     <th className='text-muted-foreground p-2.5 font-medium'>
                       {t('State')}
@@ -864,6 +907,7 @@ export function ModelRouteAdmin() {
                   {metrics.map((row: ModelRouteMetrics) => {
                     const key = metricsRowKey(row)
                     const selected = selectedMetricKeys.has(key)
+                    const requestedModels = row.requested_models ?? []
                     return (
                       <tr
                         key={key}
@@ -891,6 +935,23 @@ export function ModelRouteAdmin() {
                         </td>
                         <td className='p-2.5 font-mono text-xs'>
                           {row.effective_model}
+                        </td>
+                        <td className='p-2.5'>
+                          {requestedModels.length > 0 ? (
+                            <div className='flex max-w-[220px] flex-wrap gap-1'>
+                              {requestedModels.map((name) => (
+                                <Badge
+                                  key={name}
+                                  variant='outline'
+                                  className='font-mono text-[10px] font-normal'
+                                >
+                                  {name}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className='text-muted-foreground'>—</span>
+                          )}
                         </td>
                         <td className='p-2.5'>
                           <Badge variant='outline' className='font-normal'>
@@ -1009,7 +1070,7 @@ export function ModelRouteAdmin() {
                   {!metricsQuery.isLoading && metrics.length === 0 && (
                     <tr>
                       <td
-                        colSpan={11}
+                        colSpan={12}
                         className='text-muted-foreground p-6 text-center'
                       >
                         {t('No metrics')}

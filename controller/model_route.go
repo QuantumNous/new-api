@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
@@ -95,8 +96,9 @@ func ListModelRoutePolicies(c *gin.Context) {
 	channels := channelDisplayMap(ids)
 	type policyView struct {
 		model.ChannelModelPolicy
-		ChannelName string `json:"channel_name"`
-		BaseURL     string `json:"base_url"`
+		ChannelName    string `json:"channel_name"`
+		BaseURL        string `json:"base_url"`
+		EffectiveModel string `json:"effective_model"`
 	}
 	out := make([]policyView, 0, len(rows))
 	for i := range rows {
@@ -105,6 +107,7 @@ func ListModelRoutePolicies(c *gin.Context) {
 			ChannelModelPolicy: rows[i],
 			ChannelName:        info.Name,
 			BaseURL:            info.BaseURL,
+			EffectiveModel:     resolvePolicyEffectiveModel(rows[i].RequestedModel, info.ModelMapping),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": out})
@@ -148,29 +151,36 @@ func ListModelRouteMetrics(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	// attach runtime role + channel display
+	// attach runtime role + channel display + reverse requested models
 	ids := make([]int64, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ChannelID)
 	}
 	channels := channelDisplayMap(ids)
+	requestedByMetrics := buildRequestedModelsByMetricsKey(ids, channels)
 	type rowView struct {
 		model.ChannelModelMetrics
-		Role        string `json:"role"`
-		IsStale     bool   `json:"is_stale"`
-		ChannelName string `json:"channel_name"`
-		BaseURL     string `json:"base_url"`
+		Role            string   `json:"role"`
+		IsStale         bool     `json:"is_stale"`
+		ChannelName     string   `json:"channel_name"`
+		BaseURL         string   `json:"base_url"`
+		RequestedModels []string `json:"requested_models"`
 	}
 	out := make([]rowView, 0, len(rows))
 	for i := range rows {
 		mk := model.MetricsKey{ChannelID: rows[i].ChannelID, EffectiveModel: rows[i].EffectiveModel}
 		info := channels[rows[i].ChannelID]
+		requested := requestedByMetrics[metricsViewKey(rows[i].ChannelID, rows[i].EffectiveModel)]
+		if requested == nil {
+			requested = []string{}
+		}
 		out = append(out, rowView{
 			ChannelModelMetrics: rows[i],
 			Role:                string(modelroute.GlobalRoles.Get(mk)),
 			IsStale:             modelroute.IsRouteStale(&rows[i], false),
 			ChannelName:         info.Name,
 			BaseURL:             info.BaseURL,
+			RequestedModels:     requested,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": out})
@@ -220,11 +230,12 @@ func ModelRouteMetricsAction(c *gin.Context) {
 }
 
 type channelDisplayInfo struct {
-	Name    string
-	BaseURL string
+	Name         string
+	BaseURL      string
+	ModelMapping string
 }
 
-// channelDisplayMap returns id -> channel name/base_url for admin display (best-effort).
+// channelDisplayMap returns id -> channel name/base_url/mapping for admin display (best-effort).
 func channelDisplayMap(ids []int64) map[int64]channelDisplayInfo {
 	out := make(map[int64]channelDisplayInfo, len(ids))
 	if len(ids) == 0 {
@@ -254,9 +265,88 @@ func channelDisplayMap(ids []int64) map[int64]channelDisplayInfo {
 			continue
 		}
 		out[int64(ch.Id)] = channelDisplayInfo{
-			Name:    ch.Name,
-			BaseURL: ch.GetBaseURL(),
+			Name:         ch.Name,
+			BaseURL:      ch.GetBaseURL(),
+			ModelMapping: ch.GetModelMapping(),
 		}
+	}
+	return out
+}
+
+// resolvePolicyEffectiveModel applies current channel mapping; falls back to requested on error.
+func resolvePolicyEffectiveModel(requestedModel, modelMappingJSON string) string {
+	effective, _, err := modelroute.ResolveEffectiveModel(requestedModel, modelMappingJSON)
+	if err != nil || effective == "" {
+		return requestedModel
+	}
+	return effective
+}
+
+func metricsViewKey(channelID int64, effectiveModel string) string {
+	return strconv.FormatInt(channelID, 10) + "\x00" + effectiveModel
+}
+
+// buildRequestedModelsByMetricsKey reverse-maps policies to metrics keys via current mapping.
+// key: channelID\x00effective_model → sorted unique requested_model list.
+func buildRequestedModelsByMetricsKey(channelIDs []int64, channels map[int64]channelDisplayInfo) map[string][]string {
+	out := make(map[string][]string)
+	if len(channelIDs) == 0 {
+		return out
+	}
+	need := make(map[int64]struct{}, len(channelIDs))
+	for _, id := range channelIDs {
+		if id > 0 {
+			need[id] = struct{}{}
+		}
+	}
+	if len(need) == 0 {
+		return out
+	}
+
+	// Prefer per-channel loads when filtered to one channel; otherwise one full scan.
+	var policies []model.ChannelModelPolicy
+	if len(need) == 1 {
+		for id := range need {
+			rows, err := model.ListChannelModelPoliciesByChannel(id)
+			if err == nil {
+				policies = rows
+			}
+		}
+	} else {
+		rows, err := model.ListAllChannelModelPolicies()
+		if err == nil {
+			for i := range rows {
+				if _, ok := need[rows[i].ChannelID]; ok {
+					policies = append(policies, rows[i])
+				}
+			}
+		}
+	}
+
+	seen := make(map[string]map[string]struct{}) // metricsKey -> requested set
+	for i := range policies {
+		p := policies[i]
+		if _, ok := need[p.ChannelID]; !ok {
+			continue
+		}
+		info := channels[p.ChannelID]
+		effective := resolvePolicyEffectiveModel(p.RequestedModel, info.ModelMapping)
+		key := metricsViewKey(p.ChannelID, effective)
+		if seen[key] == nil {
+			seen[key] = make(map[string]struct{})
+		}
+		if p.RequestedModel == "" {
+			continue
+		}
+		seen[key][p.RequestedModel] = struct{}{}
+	}
+	for key, set := range seen {
+		list := make([]string, 0, len(set))
+		for req := range set {
+			list = append(list, req)
+		}
+		sort.Strings(list)
+		out[key] = list
 	}
 	return out
 }
