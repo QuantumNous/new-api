@@ -4174,7 +4174,7 @@ export function ChannelMutateDrawer({
                                   </FormControl>
                                   <FormDescription>
                                     {t(
-                                      'Network proxy for this channel (supports socks5 protocol)'
+                                      'Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)'
                                     )}
                                   </FormDescription>
                                   <FormMessage />
