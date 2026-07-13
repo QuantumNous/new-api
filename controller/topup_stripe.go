@@ -184,6 +184,18 @@ func StripeWebhook(c *gin.Context) {
 			break
 		}
 		sessionCompleted(ctx, event, callerIp)
+	case stripe.EventTypeInvoicePaid:
+		if err := handleRecurringInvoicePaid(event); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("Stripe recurring invoice.paid failed error=%q", err.Error()))
+		}
+	case stripe.EventTypeInvoicePaymentFailed:
+		if err := handleRecurringInvoicePaymentFailed(event); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("Stripe recurring invoice.payment_failed failed error=%q", err.Error()))
+		}
+	case stripe.EventTypeCustomerSubscriptionDeleted:
+		if err := handleRecurringSubscriptionDeleted(event); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("Stripe recurring customer.subscription.deleted failed error=%q", err.Error()))
+		}
 	case stripe.EventTypeCheckoutSessionExpired:
 		sessionExpired(ctx, event)
 	case stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded:
@@ -225,6 +237,134 @@ func handleRecurringCheckoutSessionCompleted(event stripe.Event) error {
 		ProviderSubscriptionId: subscriptionID,
 		ProviderCustomerId:     customerID,
 		Status:                 "incomplete",
+		ProviderPayload:        string(event.Data.Raw),
+	})
+}
+
+func handleRecurringInvoicePaid(event stripe.Event) error {
+	var payload struct {
+		ID           string `json:"id"`
+		Subscription string `json:"subscription"`
+		Customer     string `json:"customer"`
+		Status       string `json:"status"`
+		Lines        struct {
+			Data []struct {
+				Period struct {
+					Start int64 `json:"start"`
+					End   int64 `json:"end"`
+				} `json:"period"`
+			} `json:"data"`
+		} `json:"lines"`
+	}
+	if err := common.Unmarshal(event.Data.Raw, &payload); err != nil {
+		return err
+	}
+	if payload.ID == "" || payload.Subscription == "" {
+		return fmt.Errorf("missing recurring invoice identifiers")
+	}
+	if len(payload.Lines.Data) == 0 {
+		return fmt.Errorf("missing recurring invoice period lines")
+	}
+	period := payload.Lines.Data[0].Period
+	if period.Start <= 0 || period.End <= period.Start {
+		return fmt.Errorf("invalid recurring invoice period")
+	}
+
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", payload.Subscription)
+	if err != nil {
+		return err
+	}
+	if err := model.CreateRecurringCycleSubscriptionFromInvoice(contract.Id, payload.ID, period.Start, period.End); err != nil {
+		return err
+	}
+
+	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+		UserId:                 contract.UserId,
+		PlanId:                 contract.PlanId,
+		Provider:               contract.Provider,
+		ProviderSubscriptionId: contract.ProviderSubscriptionId,
+		ProviderCustomerId:     payload.Customer,
+		ProviderPriceId:        contract.ProviderPriceId,
+		Status:                 "active",
+		CancelAtPeriodEnd:      contract.CancelAtPeriodEnd,
+		CurrentPeriodStart:     period.Start,
+		CurrentPeriodEnd:       period.End,
+		LastInvoiceId:          payload.ID,
+		LastPaymentStatus:      payload.Status,
+		ProviderPayload:        string(event.Data.Raw),
+	})
+}
+
+func handleRecurringInvoicePaymentFailed(event stripe.Event) error {
+	var payload struct {
+		ID           string `json:"id"`
+		Subscription string `json:"subscription"`
+		Customer     string `json:"customer"`
+		Status       string `json:"status"`
+	}
+	if err := common.Unmarshal(event.Data.Raw, &payload); err != nil {
+		return err
+	}
+	if payload.Subscription == "" {
+		return fmt.Errorf("missing recurring subscription id")
+	}
+
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", payload.Subscription)
+	if err != nil {
+		return err
+	}
+
+	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+		UserId:                 contract.UserId,
+		PlanId:                 contract.PlanId,
+		Provider:               contract.Provider,
+		ProviderSubscriptionId: contract.ProviderSubscriptionId,
+		ProviderCustomerId:     payload.Customer,
+		ProviderPriceId:        contract.ProviderPriceId,
+		Status:                 "past_due",
+		CancelAtPeriodEnd:      contract.CancelAtPeriodEnd,
+		CurrentPeriodStart:     contract.CurrentPeriodStart,
+		CurrentPeriodEnd:       contract.CurrentPeriodEnd,
+		LastInvoiceId:          payload.ID,
+		LastPaymentStatus:      payload.Status,
+		ProviderPayload:        string(event.Data.Raw),
+	})
+}
+
+func handleRecurringSubscriptionDeleted(event stripe.Event) error {
+	var payload struct {
+		ID                 string `json:"id"`
+		Customer           string `json:"customer"`
+		Status             string `json:"status"`
+		CancelAtPeriodEnd  bool   `json:"cancel_at_period_end"`
+		CurrentPeriodStart int64  `json:"current_period_start"`
+		CurrentPeriodEnd   int64  `json:"current_period_end"`
+	}
+	if err := common.Unmarshal(event.Data.Raw, &payload); err != nil {
+		return err
+	}
+	if payload.ID == "" {
+		return fmt.Errorf("missing recurring subscription id")
+	}
+
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", payload.ID)
+	if err != nil {
+		return err
+	}
+
+	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+		UserId:                 contract.UserId,
+		PlanId:                 contract.PlanId,
+		Provider:               contract.Provider,
+		ProviderSubscriptionId: contract.ProviderSubscriptionId,
+		ProviderCustomerId:     payload.Customer,
+		ProviderPriceId:        contract.ProviderPriceId,
+		Status:                 "canceled",
+		CancelAtPeriodEnd:      payload.CancelAtPeriodEnd,
+		CurrentPeriodStart:     payload.CurrentPeriodStart,
+		CurrentPeriodEnd:       payload.CurrentPeriodEnd,
+		LastInvoiceId:          contract.LastInvoiceId,
+		LastPaymentStatus:      contract.LastPaymentStatus,
 		ProviderPayload:        string(event.Data.Raw),
 	})
 }

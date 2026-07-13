@@ -16,8 +16,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
+	stripeSubscription "github.com/stripe/stripe-go/v81/subscription"
 	"github.com/thanhpk/randstr"
 )
+
+var stripeSubscriptionUpdate = stripeSubscription.Update
 
 type SubscriptionStripePayRequest struct {
 	PlanId int `json:"plan_id"`
@@ -45,6 +48,10 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	}
 	if !plan.Enabled {
 		common.ApiErrorI18n(c, i18n.MsgSubscriptionNotEnabled)
+		return
+	}
+	if err := validateOneTimeSubscriptionPlan(plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	if plan.PriceAmount < 0.01 {
@@ -259,8 +266,8 @@ func genStripeAutoRenewCheckoutURL(user *model.User, plan *model.SubscriptionPla
 				Quantity: stripe.Int64(1),
 			},
 		},
-		SuccessURL: stripe.String(paymentReturnPath("/console/topup")),
-		CancelURL:  stripe.String(paymentReturnPath("/console/topup")),
+		SuccessURL:          stripe.String(paymentReturnPath("/console/topup")),
+		CancelURL:           stripe.String(paymentReturnPath("/console/topup")),
 		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
 	}
 	params.AddMetadata("user_id", strconv.Itoa(user.Id))
@@ -281,4 +288,18 @@ func genStripeAutoRenewCheckoutURL(user *model.User, plan *model.SubscriptionPla
 		return "", err
 	}
 	return result.URL, nil
+}
+
+func cancelStripeAutoRenewAtPeriodEnd(subscriptionID string) (*stripe.Subscription, error) {
+	if strings.TrimSpace(subscriptionID) == "" {
+		return nil, fmt.Errorf("subscription id is empty")
+	}
+	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
+		return nil, fmt.Errorf("invalid stripe api secret")
+	}
+	stripe.Key = setting.StripeApiSecret
+	params := &stripe.SubscriptionParams{
+		CancelAtPeriodEnd: stripe.Bool(true),
+	}
+	return stripeSubscriptionUpdate(subscriptionID, params)
 }

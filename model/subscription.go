@@ -366,18 +366,18 @@ func UpsertBillingSubscriptionByProviderID(input *BillingSubscription) error {
 			return err
 		}
 		updateMap := map[string]interface{}{
-			"user_id":               input.UserId,
-			"plan_id":               input.PlanId,
-			"provider_customer_id":  input.ProviderCustomerId,
-			"provider_price_id":     input.ProviderPriceId,
-			"status":                input.Status,
-			"cancel_at_period_end":  input.CancelAtPeriodEnd,
-			"current_period_start":  input.CurrentPeriodStart,
-			"current_period_end":    input.CurrentPeriodEnd,
-			"last_invoice_id":       input.LastInvoiceId,
-			"last_payment_status":   input.LastPaymentStatus,
-			"provider_payload":      input.ProviderPayload,
-			"updated_at":            common.GetTimestamp(),
+			"user_id":              input.UserId,
+			"plan_id":              input.PlanId,
+			"provider_customer_id": input.ProviderCustomerId,
+			"provider_price_id":    input.ProviderPriceId,
+			"status":               input.Status,
+			"cancel_at_period_end": input.CancelAtPeriodEnd,
+			"current_period_start": input.CurrentPeriodStart,
+			"current_period_end":   input.CurrentPeriodEnd,
+			"last_invoice_id":      input.LastInvoiceId,
+			"last_payment_status":  input.LastPaymentStatus,
+			"provider_payload":     input.ProviderPayload,
+			"updated_at":           common.GetTimestamp(),
 		}
 		return tx.Model(&existing).Updates(updateMap).Error
 	})
@@ -659,6 +659,86 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		return nil, err
 	}
 	return sub, nil
+}
+
+func CreateRecurringCycleSubscriptionFromInvoice(billingSubscriptionID int, providerInvoiceID string, periodStart int64, periodEnd int64) error {
+	if billingSubscriptionID <= 0 {
+		return errors.New("invalid billing subscription id")
+	}
+	if strings.TrimSpace(providerInvoiceID) == "" {
+		return errors.New("provider invoice id is empty")
+	}
+	if periodStart <= 0 || periodEnd <= periodStart {
+		return errors.New("invalid recurring period")
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var contract BillingSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", billingSubscriptionID).
+			First(&contract).Error; err != nil {
+			return err
+		}
+
+		var existing UserSubscription
+		query := tx.Where("billing_subscription_id = ? AND provider_invoice_id = ?",
+			billingSubscriptionID,
+			providerInvoiceID,
+		).Limit(1).Find(&existing)
+		if query.Error != nil {
+			return query.Error
+		}
+		if query.RowsAffected > 0 {
+			return nil
+		}
+
+		plan, err := getSubscriptionPlanByIdTx(tx, contract.PlanId)
+		if err != nil {
+			return err
+		}
+
+		nextReset := calcNextResetTime(time.Unix(periodStart, 0), plan, periodEnd)
+		lastReset := int64(0)
+		if nextReset > 0 {
+			lastReset = periodStart
+		}
+
+		upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
+		prevGroup := ""
+		if upgradeGroup != "" {
+			currentGroup, err := getUserGroupByIdTx(tx, contract.UserId)
+			if err != nil {
+				return err
+			}
+			if currentGroup != upgradeGroup {
+				prevGroup = currentGroup
+				if err := tx.Model(&User{}).Where("id = ?", contract.UserId).
+					Update("group", upgradeGroup).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		sub := &UserSubscription{
+			UserId:                contract.UserId,
+			PlanId:                contract.PlanId,
+			BillingSubscriptionId: contract.Id,
+			ProviderInvoiceId:     providerInvoiceID,
+			AmountTotal:           plan.TotalAmount,
+			AmountUsed:            0,
+			StartTime:             periodStart,
+			EndTime:               periodEnd,
+			Status:                "active",
+			Source:                "auto_renew",
+			LastResetTime:         lastReset,
+			NextResetTime:         nextReset,
+			UpgradeGroup:          upgradeGroup,
+			PrevUserGroup:         prevGroup,
+			CreatedAt:             common.GetTimestamp(),
+			UpdatedAt:             common.GetTimestamp(),
+		}
+		return tx.Create(sub).Error
+	})
 }
 
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.

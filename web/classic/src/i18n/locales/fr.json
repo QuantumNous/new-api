@@ -1,5 +1,14 @@
 {
   "translation": {
+    "自动续费": "Renouvellement automatique",
+    "取消自动续费": "Annuler le renouvellement automatique",
+    "取消后当前订阅将在本周期结束时失效。": "Après annulation, l'abonnement actuel prendra fin à la fin de cette période de facturation.",
+    "确认取消": "Confirmer l'annulation",
+    "已取消自动续费": "Renouvellement automatique annulé",
+    "操作失败": "Échec de l'opération",
+    "将于": "Se termine le",
+    "下次续费": "Prochain renouvellement",
+    "计费方式": "Mode de facturation",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_many": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

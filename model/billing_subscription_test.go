@@ -59,3 +59,36 @@ func TestHasNonEndedAutoRenewContract_ReturnsTrueForCancelAtPeriodEndCurrentCycl
 	require.NoError(t, err)
 	require.True(t, ok)
 }
+
+func TestCreateRecurringCycleSubscriptionFromInvoice_IsIdempotent(t *testing.T) {
+	truncateTables(t)
+
+	plan := &SubscriptionPlan{
+		Title:                  "Recurring Invoice Plan",
+		PriceAmount:            19.99,
+		Currency:               "USD",
+		DurationUnit:           SubscriptionDurationMonth,
+		DurationValue:          1,
+		TotalAmount:            500000,
+		BillingMode:            SubscriptionBillingModeAutoRenew,
+		StripeRecurringPriceId: "price_recurring_invoice",
+		Enabled:                true,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	contract := &BillingSubscription{
+		UserId:                 501,
+		PlanId:                 plan.Id,
+		Provider:               "stripe",
+		ProviderSubscriptionId: "sub_cycle_1",
+		Status:                 "active",
+	}
+	require.NoError(t, DB.Create(contract).Error)
+
+	require.NoError(t, CreateRecurringCycleSubscriptionFromInvoice(contract.Id, "in_123", 1761955200, 1764547200))
+	require.NoError(t, CreateRecurringCycleSubscriptionFromInvoice(contract.Id, "in_123", 1761955200, 1764547200))
+
+	var count int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("provider_invoice_id = ?", "in_123").Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}

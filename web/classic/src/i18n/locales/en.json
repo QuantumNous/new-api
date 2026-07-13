@@ -1,5 +1,14 @@
 {
   "translation": {
+    "自动续费": "Auto renewal",
+    "取消自动续费": "Cancel auto renewal",
+    "取消后当前订阅将在本周期结束时失效。": "After cancellation, the current subscription ends at the end of this billing period.",
+    "确认取消": "Confirm cancellation",
+    "已取消自动续费": "Auto renewal cancelled",
+    "操作失败": "Operation failed",
+    "将于": "Ends on",
+    "下次续费": "Next renewal",
+    "计费方式": "Billing method",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Web search {{count}} time / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Web search {{count}} times / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Image generation call {{symbol}}{{price}} / 1 time * {{ratioType}} {{ratio}}",

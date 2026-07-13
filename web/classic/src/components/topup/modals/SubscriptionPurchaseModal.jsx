@@ -68,8 +68,9 @@ const SubscriptionPurchaseModal = ({
   const displayPrice = convertedPrice.toFixed(
     Number.isInteger(convertedPrice) ? 0 : 2,
   );
+  const isAutoRenew = plan?.billing_mode === 'auto_renew';
   const providerButtons = [
-    enableAlipayTopUp
+    !isAutoRenew && enableAlipayTopUp
       ? {
           key: 'alipay',
           label: t('支付宝'),
@@ -78,7 +79,8 @@ const SubscriptionPurchaseModal = ({
           className: 'is-secondary',
         }
       : null,
-    enableStripeTopUp && !!plan?.stripe_price_id
+    enableStripeTopUp &&
+    !!(isAutoRenew ? plan?.stripe_recurring_price_id : plan?.stripe_price_id)
       ? {
           key: 'stripe',
           label: 'Stripe',
@@ -87,7 +89,7 @@ const SubscriptionPurchaseModal = ({
           className: 'is-secondary',
         }
       : null,
-    enableCreemTopUp && !!plan?.creem_product_id
+    !isAutoRenew && enableCreemTopUp && !!plan?.creem_product_id
       ? {
           key: 'creem',
           label: 'Creem',
@@ -97,7 +99,7 @@ const SubscriptionPurchaseModal = ({
         }
       : null,
   ].filter(Boolean);
-  const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
+  const hasEpay = !isAutoRenew && enableOnlineTopUp && epayMethods.length > 0;
   const hasAnyPayment = providerButtons.length > 0 || hasEpay;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
@@ -136,6 +138,16 @@ const SubscriptionPurchaseModal = ({
                   {plan.title}
                 </Typography.Text>
               </div>
+              {isAutoRenew && (
+                <div className='subscription-purchase-row flex justify-between items-center'>
+                  <Text strong className='subscription-purchase-label'>
+                    {t('计费方式')}:
+                  </Text>
+                  <Text className='subscription-purchase-value'>
+                    {t('自动续费')}
+                  </Text>
+                </div>
+              )}
               <div className='subscription-purchase-row flex justify-between items-center'>
                 <Text strong className='subscription-purchase-label'>
                   {t('有效期')}：

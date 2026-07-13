@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/stripe/stripe-go/v81"
 	"gorm.io/gorm"
 )
 
@@ -62,11 +63,96 @@ func GetSubscriptionSelf(c *gin.Context) {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
 
+	var autoRenewSubscription *model.BillingSubscription
+	autoRenewSubscription, err = model.GetCurrentBillingSubscriptionByUserID(userId)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		common.ApiError(c, err)
+		return
+	}
+
 	common.ApiSuccess(c, gin.H{
-		"billing_preference": pref,
-		"subscriptions":      activeSubscriptions, // all active subscriptions
-		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"billing_preference":      pref,
+		"subscriptions":           activeSubscriptions, // all active subscriptions
+		"all_subscriptions":       allSubscriptions,    // all subscriptions including expired
+		"auto_renew_subscription": autoRenewSubscription,
 	})
+}
+
+func CancelSubscriptionRenewal(c *gin.Context) {
+	userId := c.GetInt("id")
+	contract, err := model.GetCurrentBillingSubscriptionByUserID(userId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "auto-renew subscription not found")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	if contract.Provider != model.PaymentProviderStripe {
+		common.ApiErrorMsg(c, "only stripe auto-renew subscription can be cancelled now")
+		return
+	}
+	if strings.TrimSpace(contract.ProviderSubscriptionId) == "" {
+		common.ApiErrorMsg(c, "provider subscription id is empty")
+		return
+	}
+
+	var stripeSub *stripe.Subscription
+	if !contract.CancelAtPeriodEnd {
+		stripeSub, err = cancelStripeAutoRenewAtPeriodEnd(contract.ProviderSubscriptionId)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+
+	cancelAtPeriodEnd := true
+	currentPeriodStart := contract.CurrentPeriodStart
+	currentPeriodEnd := contract.CurrentPeriodEnd
+	providerCustomerID := contract.ProviderCustomerId
+	status := contract.Status
+	providerPayload := contract.ProviderPayload
+	if stripeSub != nil {
+		cancelAtPeriodEnd = stripeSub.CancelAtPeriodEnd
+		currentPeriodStart = stripeSub.CurrentPeriodStart
+		currentPeriodEnd = stripeSub.CurrentPeriodEnd
+		providerCustomerID = stripeSub.Customer.ID
+		if providerCustomerID == "" {
+			providerCustomerID = contract.ProviderCustomerId
+		}
+		if stripeSub.Status != "" {
+			status = string(stripeSub.Status)
+		}
+		providerPayload = common.GetJsonString(stripeSub)
+	}
+
+	err = model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+		UserId:                 contract.UserId,
+		PlanId:                 contract.PlanId,
+		Provider:               contract.Provider,
+		ProviderSubscriptionId: contract.ProviderSubscriptionId,
+		ProviderCustomerId:     providerCustomerID,
+		ProviderPriceId:        contract.ProviderPriceId,
+		Status:                 status,
+		CancelAtPeriodEnd:      cancelAtPeriodEnd,
+		CurrentPeriodStart:     currentPeriodStart,
+		CurrentPeriodEnd:       currentPeriodEnd,
+		LastInvoiceId:          contract.LastInvoiceId,
+		LastPaymentStatus:      contract.LastPaymentStatus,
+		ProviderPayload:        providerPayload,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	updated, err := model.GetCurrentBillingSubscriptionByUserID(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"auto_renew_subscription": updated})
 }
 
 func UpdateSubscriptionPreference(c *gin.Context) {
@@ -133,6 +219,13 @@ func validateSubscriptionPlanRecurringFields(plan *model.SubscriptionPlan) error
 	}
 	if plan.BillingMode == model.SubscriptionBillingModeOneTime {
 		plan.StripeRecurringPriceId = ""
+	}
+	return nil
+}
+
+func validateOneTimeSubscriptionPlan(plan *model.SubscriptionPlan) error {
+	if plan != nil && plan.BillingMode == model.SubscriptionBillingModeAutoRenew {
+		return errors.New("auto_renew plans must use the Stripe recurring checkout")
 	}
 	return nil
 }

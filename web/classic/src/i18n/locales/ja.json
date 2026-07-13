@@ -1,5 +1,14 @@
 {
   "translation": {
+    "自动续费": "自動更新",
+    "取消自动续费": "自動更新をキャンセル",
+    "取消后当前订阅将在本周期结束时失效。": "キャンセル後、現在のサブスクリプションはこの請求期間の終了時に失効します。",
+    "确认取消": "キャンセルを確認",
+    "已取消自动续费": "自動更新をキャンセルしました",
+    "操作失败": "操作に失敗しました",
+    "将于": "終了日",
+    "下次续费": "次回の更新",
+    "计费方式": "請求方式",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Web検索 {{count}}回 / 1K回 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Web検索 {{count}}回 / 1K回 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + 画像生成APIコール {{symbol}}{{price}} / 1回 * {{ratioType}} {{ratio}}",
