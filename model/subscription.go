@@ -255,8 +255,12 @@ type RecurringChargeAttempt struct {
 	Status                 string `json:"status" gorm:"type:varchar(32);index"`
 	FailureReason          string `json:"failure_reason" gorm:"type:text"`
 	ProviderPayload        string `json:"provider_payload" gorm:"type:text"`
-	CreatedAt              int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt              int64  `json:"updated_at" gorm:"bigint"`
+	// These fields describe the paid invoice while it is being fulfilled.
+	// They intentionally remain part of the provider payload rather than charge-attempt storage.
+	PaymentStatus      string `json:"-" gorm:"-"`
+	ProviderCustomerId string `json:"-" gorm:"-"`
+	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt          int64  `json:"updated_at" gorm:"bigint"`
 }
 
 func (a *RecurringChargeAttempt) BeforeCreate(tx *gorm.DB) error {
@@ -866,6 +870,25 @@ func FulfillRecurringInvoice(input *RecurringChargeAttempt) error {
 			}
 		}
 
+		updates := map[string]interface{}{
+			"status":               "active",
+			"current_period_start": input.PeriodStart,
+			"current_period_end":   input.PeriodEnd,
+			"last_invoice_id":      input.ProviderInvoiceId,
+			"last_payment_status":  input.PaymentStatus,
+			"provider_payload":     input.ProviderPayload,
+			"updated_at":           common.GetTimestamp(),
+		}
+		if input.PaymentStatus == "" {
+			updates["last_payment_status"] = "paid"
+		}
+		if input.ProviderCustomerId != "" {
+			updates["provider_customer_id"] = input.ProviderCustomerId
+		}
+		if err := tx.Model(&contract).Updates(updates).Error; err != nil {
+			return err
+		}
+
 		return createRecurringCycleSubscriptionFromInvoiceTx(tx, &contract, input.ProviderInvoiceId, input.PeriodStart, input.PeriodEnd)
 	})
 }
@@ -879,11 +902,20 @@ func FulfillPendingStripeInvoices(providerSubscriptionID string) error {
 		return err
 	}
 	var attempts []RecurringChargeAttempt
-	if err := DB.Where("provider = ? AND provider_subscription_id = ? AND status = ?", PaymentProviderStripe, providerSubscriptionID, "pending_contract").Find(&attempts).Error; err != nil {
+	if err := DB.Where("provider = ? AND provider_subscription_id = ? AND status = ?", PaymentProviderStripe, providerSubscriptionID, "pending_contract").Order("period_end ASC").Find(&attempts).Error; err != nil {
 		return err
 	}
 	for _, attempt := range attempts {
 		attempt.BillingSubscriptionId = contract.Id
+		var payload struct {
+			Status   string `json:"status"`
+			Customer string `json:"customer"`
+		}
+		if err := common.UnmarshalJsonStr(attempt.ProviderPayload, &payload); err != nil {
+			return err
+		}
+		attempt.PaymentStatus = payload.Status
+		attempt.ProviderCustomerId = payload.Customer
 		if err := FulfillRecurringInvoice(&attempt); err != nil {
 			return err
 		}

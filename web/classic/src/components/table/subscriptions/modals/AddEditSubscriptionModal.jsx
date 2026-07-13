@@ -150,6 +150,13 @@ const AddEditSubscriptionModal = ({
       showError(t('套餐标题不能为空'));
       return;
     }
+    if (
+      values.billing_mode === 'auto_renew' &&
+      !values.stripe_recurring_price_id?.trim()
+    ) {
+      showError(t('自动续费套餐必须填写 Stripe Recurring PriceId'));
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
@@ -168,6 +175,18 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          stripe_price_id:
+            values.billing_mode === 'one_time'
+              ? values.stripe_price_id || ''
+              : '',
+          stripe_recurring_price_id:
+            values.billing_mode === 'auto_renew'
+              ? values.stripe_recurring_price_id || ''
+              : '',
+          creem_product_id:
+            values.billing_mode === 'one_time'
+              ? values.creem_product_id || ''
+              : '',
         },
       };
       if (editingPlan?.plan?.id) {
@@ -291,8 +310,12 @@ const AddEditSubscriptionModal = ({
                   <Row gutter={12}>
                     <Col span={24}>
                       <Form.Select field='billing_mode' label={t('计费方式')}>
-                        <Select.Option value='one_time'>{t('单次支付')}</Select.Option>
-                        <Select.Option value='auto_renew'>{t('自动续费')}</Select.Option>
+                        <Select.Option value='one_time'>
+                          {t('单次支付')}
+                        </Select.Option>
+                        <Select.Option value='auto_renew'>
+                          {t('自动续费')}
+                        </Select.Option>
                       </Form.Select>
                     </Col>
                     <Col span={24}>
@@ -304,15 +327,6 @@ const AddEditSubscriptionModal = ({
                         rules={[
                           { required: true, message: t('请输入套餐标题') },
                         ]}
-                        showClear
-                      />
-                    </Col>
-
-                    <Col span={24}>
-                      <Form.Input
-                        field='stripe_recurring_price_id'
-                        label='Stripe Recurring PriceId'
-                        placeholder='price_...'
                         showClear
                       />
                     </Col>
@@ -544,29 +558,53 @@ const AddEditSubscriptionModal = ({
                         {t('第三方支付配置')}
                       </Text>
                       <div className='subscription-edit-section-copy text-xs'>
-                        {t('Stripe/Creem 商品ID（可选）')}
+                        {values.billing_mode === 'auto_renew'
+                          ? t('Stripe Recurring PriceId（自动续费必填）')
+                          : t('Stripe/Creem 商品ID（可选）')}
                       </div>
                     </div>
                   </div>
 
                   <Row gutter={12}>
-                    <Col span={24}>
-                      <Form.Input
-                        field='stripe_price_id'
-                        label='Stripe PriceId'
-                        placeholder='price_...'
-                        showClear
-                      />
-                    </Col>
+                    {values.billing_mode === 'auto_renew' ? (
+                      <Col span={24}>
+                        <Form.Input
+                          field='stripe_recurring_price_id'
+                          label='Stripe Recurring PriceId'
+                          placeholder='price_...'
+                          required
+                          rules={[
+                            {
+                              required: true,
+                              message: t(
+                                '自动续费套餐必须填写 Stripe Recurring PriceId',
+                              ),
+                            },
+                          ]}
+                          showClear
+                        />
+                      </Col>
+                    ) : (
+                      <>
+                        <Col span={24}>
+                          <Form.Input
+                            field='stripe_price_id'
+                            label='Stripe PriceId'
+                            placeholder='price_...'
+                            showClear
+                          />
+                        </Col>
 
-                    <Col span={24}>
-                      <Form.Input
-                        field='creem_product_id'
-                        label='Creem ProductId'
-                        placeholder='prod_...'
-                        showClear
-                      />
-                    </Col>
+                        <Col span={24}>
+                          <Form.Input
+                            field='creem_product_id'
+                            label='Creem ProductId'
+                            placeholder='prod_...'
+                            showClear
+                          />
+                        </Col>
+                      </>
+                    )}
                   </Row>
                 </Card>
               </div>

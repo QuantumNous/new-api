@@ -239,7 +239,9 @@ const renderResetPeriod = (text, record, t) => {
 };
 
 const renderPaymentConfig = (text, record, t, enableEpay) => {
-  const hasStripe = !!record?.plan?.stripe_price_id;
+  const hasStripe = !!(
+    record?.plan?.stripe_price_id || record?.plan?.stripe_recurring_price_id
+  );
   const hasCreem = !!record?.plan?.creem_product_id;
   const hasEpay = !!enableEpay;
 

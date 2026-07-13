@@ -332,26 +332,14 @@ func handleRecurringInvoicePaid(event stripe.Event) error {
 		PeriodEnd:             period.End,
 		Amount:                payload.AmountPaid,
 		Currency:              payload.Currency,
+		PaymentStatus:         payload.Status,
+		ProviderCustomerId:    payload.Customer,
 		ProviderPayload:       string(event.Data.Raw),
 	}); err != nil {
 		return err
 	}
 
-	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
-		UserId:                 contract.UserId,
-		PlanId:                 contract.PlanId,
-		Provider:               contract.Provider,
-		ProviderSubscriptionId: contract.ProviderSubscriptionId,
-		ProviderCustomerId:     payload.Customer,
-		ProviderPriceId:        contract.ProviderPriceId,
-		Status:                 "active",
-		CancelAtPeriodEnd:      contract.CancelAtPeriodEnd,
-		CurrentPeriodStart:     period.Start,
-		CurrentPeriodEnd:       period.End,
-		LastInvoiceId:          payload.ID,
-		LastPaymentStatus:      payload.Status,
-		ProviderPayload:        string(event.Data.Raw),
-	})
+	return nil
 }
 
 func handleRecurringInvoicePaymentFailed(event stripe.Event) error {

@@ -266,7 +266,7 @@ func TestHandleRecurringCheckoutSessionCompleted_FulfillsPendingInvoice(t *testi
 	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{Id: 722, Title: "Pending Invoice Plan", PriceAmount: 19.99, Currency: "USD", DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1, Enabled: true, TotalAmount: 3000, BillingMode: model.SubscriptionBillingModeAutoRenew, StripeRecurringPriceId: "price_pending_invoice"}).Error)
 	_, err := model.CreatePendingStripeAutoRenewSignup(721, 722, "signup_pending_invoice")
 	require.NoError(t, err)
-	require.NoError(t, model.RecordPendingStripeInvoice(&model.RecurringChargeAttempt{ProviderInvoiceId: "in_pending_invoice", ProviderSubscriptionId: "sub_pending_invoice", PeriodStart: 1761955200, PeriodEnd: 1764547200, ProviderPayload: `{}`}))
+	require.NoError(t, model.RecordPendingStripeInvoice(&model.RecurringChargeAttempt{ProviderInvoiceId: "in_pending_invoice", ProviderSubscriptionId: "sub_pending_invoice", PeriodStart: 1761955200, PeriodEnd: 1764547200, ProviderPayload: `{"status":"paid","customer":"cus_pending_invoice"}`}))
 
 	raw, err := common.Marshal(map[string]any{"id": "cs_pending_invoice", "mode": "subscription", "subscription": "sub_pending_invoice", "customer": "cus_pending_invoice", "metadata": map[string]string{"user_id": "721", "plan_id": "722", "signup_reference": "signup_pending_invoice"}})
 	require.NoError(t, err)
@@ -275,6 +275,14 @@ func TestHandleRecurringCheckoutSessionCompleted_FulfillsPendingInvoice(t *testi
 	var subscriptions []model.UserSubscription
 	require.NoError(t, model.DB.Where("provider_invoice_id = ?", "in_pending_invoice").Find(&subscriptions).Error)
 	require.Len(t, subscriptions, 1)
+
+	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_pending_invoice")
+	require.NoError(t, err)
+	require.Equal(t, "active", contract.Status)
+	require.Equal(t, int64(1761955200), contract.CurrentPeriodStart)
+	require.Equal(t, int64(1764547200), contract.CurrentPeriodEnd)
+	require.Equal(t, "in_pending_invoice", contract.LastInvoiceId)
+	require.Equal(t, "paid", contract.LastPaymentStatus)
 }
 
 func TestHandleRecurringCheckoutSessionExpired_ReleasesPendingSignup(t *testing.T) {

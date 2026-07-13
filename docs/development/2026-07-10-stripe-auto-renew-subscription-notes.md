@@ -12,7 +12,7 @@
 
 - Stripe Checkout 的 `checkout.session.completed` 创建或更新本地 `BillingSubscription` 合约。
 - 创建 Stripe Checkout 前会先写入 `BillingSubscription(status=pending_signup)`，以本地签约参考号关联 Checkout metadata；签约回调补齐 Stripe subscription ID。Checkout 创建失败会把该记录标记为 `signup_failed`，允许用户重新发起。
-- `invoice.paid` 为每个支付周期创建一条新的 `UserSubscription`；以 Stripe invoice ID 幂等，配额消费逻辑继续复用现有订阅机制。
+- `invoice.paid` 为每个支付周期创建一条新的 `UserSubscription`；以 Stripe invoice ID 幂等，配额消费逻辑继续复用现有订阅机制。权益、扣款记录和 `BillingSubscription` 的 `active` 状态、当前周期、最后发票及支付状态在同一事务中同步；因此 `invoice.paid` 早于 Checkout 完成时，补偿履约也会完整更新合约。
 - 每张 Stripe invoice 都对应一条 `RecurringChargeAttempt`。`invoice.paid` 会在同一事务中标记尝试为 `paid` 并创建权益；`invoice.payment_failed` 会记录 `failed` 尝试并将合约标记为 `past_due`。
 - `customer.subscription.deleted` 将合约标记为 `canceled`。
 - 用户的取消续费操作调用 Stripe 的 `cancel_at_period_end`，当前周期权益保留至 `current_period_end`。
