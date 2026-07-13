@@ -228,6 +228,55 @@ func TestHandleRecurringInvoicePaid_CreatesCycleSubscriptionIdempotently(t *test
 	require.Equal(t, int64(1764547200), contract.CurrentPeriodEnd)
 }
 
+func TestHandleRecurringInvoicePaid_PersistsBeforeCheckoutCompletion(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.User{Id: 711, Username: "out-of-order-user", Status: common.UserStatusEnabled}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id:                     712,
+		Title:                  "Out of Order Plan",
+		PriceAmount:            19.99,
+		Currency:               "USD",
+		DurationUnit:           model.SubscriptionDurationMonth,
+		DurationValue:          1,
+		Enabled:                true,
+		TotalAmount:            3000,
+		BillingMode:            model.SubscriptionBillingModeAutoRenew,
+		StripeRecurringPriceId: "price_out_of_order",
+	}).Error)
+
+	raw, err := common.Marshal(map[string]any{
+		"id":           "in_before_checkout",
+		"subscription": "sub_before_checkout",
+		"status":       "paid",
+		"lines":        map[string]any{"data": []map[string]any{{"period": map[string]any{"start": int64(1761955200), "end": int64(1764547200)}}}},
+	})
+	require.NoError(t, err)
+	require.NoError(t, handleRecurringInvoicePaid(stripe.Event{Type: stripe.EventTypeInvoicePaid, Data: &stripe.EventData{Raw: raw}}))
+
+	var attempts []model.RecurringChargeAttempt
+	require.NoError(t, model.DB.Where("provider = ? AND provider_invoice_id = ?", "stripe", "in_before_checkout").Find(&attempts).Error)
+	require.Len(t, attempts, 1)
+	require.Equal(t, "pending_contract", attempts[0].Status)
+	require.Equal(t, "sub_before_checkout", attempts[0].ProviderSubscriptionId)
+}
+
+func TestHandleRecurringCheckoutSessionCompleted_FulfillsPendingInvoice(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.User{Id: 721, Username: "pending-invoice-user", Status: common.UserStatusEnabled}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{Id: 722, Title: "Pending Invoice Plan", PriceAmount: 19.99, Currency: "USD", DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1, Enabled: true, TotalAmount: 3000, BillingMode: model.SubscriptionBillingModeAutoRenew, StripeRecurringPriceId: "price_pending_invoice"}).Error)
+	_, err := model.CreatePendingStripeAutoRenewSignup(721, 722, "signup_pending_invoice")
+	require.NoError(t, err)
+	require.NoError(t, model.RecordPendingStripeInvoice(&model.RecurringChargeAttempt{ProviderInvoiceId: "in_pending_invoice", ProviderSubscriptionId: "sub_pending_invoice", PeriodStart: 1761955200, PeriodEnd: 1764547200, ProviderPayload: `{}`}))
+
+	raw, err := common.Marshal(map[string]any{"id": "cs_pending_invoice", "mode": "subscription", "subscription": "sub_pending_invoice", "customer": "cus_pending_invoice", "metadata": map[string]string{"user_id": "721", "plan_id": "722", "signup_reference": "signup_pending_invoice"}})
+	require.NoError(t, err)
+	require.NoError(t, handleRecurringCheckoutSessionCompleted(stripe.Event{Type: stripe.EventTypeCheckoutSessionCompleted, Data: &stripe.EventData{Raw: raw}}))
+
+	var subscriptions []model.UserSubscription
+	require.NoError(t, model.DB.Where("provider_invoice_id = ?", "in_pending_invoice").Find(&subscriptions).Error)
+	require.Len(t, subscriptions, 1)
+}
+
 func TestHandleRecurringInvoicePaymentFailed_MarksContractPastDue(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
 

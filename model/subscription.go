@@ -243,19 +243,20 @@ type BillingSubscription struct {
 }
 
 type RecurringChargeAttempt struct {
-	Id                    int    `json:"id"`
-	BillingSubscriptionId int    `json:"billing_subscription_id" gorm:"index"`
-	Provider              string `json:"provider" gorm:"type:varchar(32);uniqueIndex:idx_recurring_charge_provider_invoice,priority:1"`
-	ProviderInvoiceId     string `json:"provider_invoice_id" gorm:"type:varchar(128);uniqueIndex:idx_recurring_charge_provider_invoice,priority:2"`
-	PeriodStart           int64  `json:"period_start" gorm:"bigint;default:0"`
-	PeriodEnd             int64  `json:"period_end" gorm:"bigint;default:0"`
-	Amount                int64  `json:"amount" gorm:"bigint;default:0"`
-	Currency              string `json:"currency" gorm:"type:varchar(16);default:''"`
-	Status                string `json:"status" gorm:"type:varchar(32);index"`
-	FailureReason         string `json:"failure_reason" gorm:"type:text"`
-	ProviderPayload       string `json:"provider_payload" gorm:"type:text"`
-	CreatedAt             int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt             int64  `json:"updated_at" gorm:"bigint"`
+	Id                     int    `json:"id"`
+	BillingSubscriptionId  int    `json:"billing_subscription_id" gorm:"index"`
+	Provider               string `json:"provider" gorm:"type:varchar(32);uniqueIndex:idx_recurring_charge_provider_invoice,priority:1"`
+	ProviderInvoiceId      string `json:"provider_invoice_id" gorm:"type:varchar(128);uniqueIndex:idx_recurring_charge_provider_invoice,priority:2"`
+	ProviderSubscriptionId string `json:"provider_subscription_id" gorm:"type:varchar(128);index;default:''"`
+	PeriodStart            int64  `json:"period_start" gorm:"bigint;default:0"`
+	PeriodEnd              int64  `json:"period_end" gorm:"bigint;default:0"`
+	Amount                 int64  `json:"amount" gorm:"bigint;default:0"`
+	Currency               string `json:"currency" gorm:"type:varchar(16);default:''"`
+	Status                 string `json:"status" gorm:"type:varchar(32);index"`
+	FailureReason          string `json:"failure_reason" gorm:"type:text"`
+	ProviderPayload        string `json:"provider_payload" gorm:"type:text"`
+	CreatedAt              int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt              int64  `json:"updated_at" gorm:"bigint"`
 }
 
 func (a *RecurringChargeAttempt) BeforeCreate(tx *gorm.DB) error {
@@ -831,18 +832,19 @@ func FulfillRecurringInvoice(input *RecurringChargeAttempt) error {
 		} else if err != nil {
 			return err
 		} else {
-			if attempt.BillingSubscriptionId != contract.Id {
+			if attempt.BillingSubscriptionId != 0 && attempt.BillingSubscriptionId != contract.Id {
 				return errors.New("provider invoice belongs to another billing subscription")
 			}
 			if err := tx.Model(&attempt).Updates(map[string]interface{}{
-				"status":           "paid",
-				"period_start":     input.PeriodStart,
-				"period_end":       input.PeriodEnd,
-				"amount":           input.Amount,
-				"currency":         input.Currency,
-				"failure_reason":   "",
-				"provider_payload": input.ProviderPayload,
-				"updated_at":       common.GetTimestamp(),
+				"billing_subscription_id": contract.Id,
+				"status":                  "paid",
+				"period_start":            input.PeriodStart,
+				"period_end":              input.PeriodEnd,
+				"amount":                  input.Amount,
+				"currency":                input.Currency,
+				"failure_reason":          "",
+				"provider_payload":        input.ProviderPayload,
+				"updated_at":              common.GetTimestamp(),
 			}).Error; err != nil {
 				return err
 			}
@@ -850,6 +852,27 @@ func FulfillRecurringInvoice(input *RecurringChargeAttempt) error {
 
 		return createRecurringCycleSubscriptionFromInvoiceTx(tx, &contract, input.ProviderInvoiceId, input.PeriodStart, input.PeriodEnd)
 	})
+}
+
+func FulfillPendingStripeInvoices(providerSubscriptionID string) error {
+	if strings.TrimSpace(providerSubscriptionID) == "" {
+		return errors.New("provider subscription id is empty")
+	}
+	contract, err := GetBillingSubscriptionByProviderSubscriptionID(PaymentProviderStripe, providerSubscriptionID)
+	if err != nil {
+		return err
+	}
+	var attempts []RecurringChargeAttempt
+	if err := DB.Where("provider = ? AND provider_subscription_id = ? AND status = ?", PaymentProviderStripe, providerSubscriptionID, "pending_contract").Find(&attempts).Error; err != nil {
+		return err
+	}
+	for _, attempt := range attempts {
+		attempt.BillingSubscriptionId = contract.Id
+		if err := FulfillRecurringInvoice(&attempt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func RecordRecurringInvoiceFailure(input *RecurringChargeAttempt) error {
@@ -878,6 +901,37 @@ func RecordRecurringInvoiceFailure(input *RecurringChargeAttempt) error {
 			"failure_reason":   input.FailureReason,
 			"provider_payload": input.ProviderPayload,
 			"updated_at":       common.GetTimestamp(),
+		}).Error
+	})
+}
+
+func RecordPendingStripeInvoice(input *RecurringChargeAttempt) error {
+	if input == nil || strings.TrimSpace(input.ProviderInvoiceId) == "" || strings.TrimSpace(input.ProviderSubscriptionId) == "" {
+		return errors.New("invalid pending stripe invoice")
+	}
+	input.Provider = PaymentProviderStripe
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var attempt RecurringChargeAttempt
+		err := tx.Where("provider = ? AND provider_invoice_id = ?", input.Provider, input.ProviderInvoiceId).First(&attempt).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			input.Status = "pending_contract"
+			return tx.Create(input).Error
+		}
+		if err != nil {
+			return err
+		}
+		if attempt.Status == "paid" {
+			return nil
+		}
+		return tx.Model(&attempt).Updates(map[string]interface{}{
+			"provider_subscription_id": input.ProviderSubscriptionId,
+			"period_start":             input.PeriodStart,
+			"period_end":               input.PeriodEnd,
+			"amount":                   input.Amount,
+			"currency":                 input.Currency,
+			"status":                   "pending_contract",
+			"provider_payload":         input.ProviderPayload,
+			"updated_at":               common.GetTimestamp(),
 		}).Error
 	})
 }

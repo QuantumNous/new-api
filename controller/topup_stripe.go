@@ -22,6 +22,7 @@ import (
 	"github.com/stripe/stripe-go/v81/checkout/session"
 	"github.com/stripe/stripe-go/v81/webhook"
 	"github.com/thanhpk/randstr"
+	"gorm.io/gorm"
 )
 
 var stripeAdaptor = &StripeAdaptor{}
@@ -239,7 +240,10 @@ func handleRecurringCheckoutSessionCompleted(event stripe.Event) error {
 		return fmt.Errorf("missing recurring checkout metadata")
 	}
 	if payload.Metadata.SignupReference != "" {
-		return model.CompleteStripeAutoRenewSignup(payload.Metadata.SignupReference, subscriptionID, customerID, string(event.Data.Raw))
+		if err := model.CompleteStripeAutoRenewSignup(payload.Metadata.SignupReference, subscriptionID, customerID, string(event.Data.Raw)); err != nil {
+			return err
+		}
+		return model.FulfillPendingStripeInvoices(subscriptionID)
 	}
 
 	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
@@ -286,6 +290,17 @@ func handleRecurringInvoicePaid(event stripe.Event) error {
 
 	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", payload.Subscription)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.RecordPendingStripeInvoice(&model.RecurringChargeAttempt{
+				ProviderInvoiceId:      payload.ID,
+				ProviderSubscriptionId: payload.Subscription,
+				PeriodStart:            period.Start,
+				PeriodEnd:              period.End,
+				Amount:                 payload.AmountPaid,
+				Currency:               payload.Currency,
+				ProviderPayload:        string(event.Data.Raw),
+			})
+		}
 		return err
 	}
 	if err := model.FulfillRecurringInvoice(&model.RecurringChargeAttempt{
