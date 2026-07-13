@@ -97,7 +97,9 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 	ss := relayInfo.StreamStatus
 	snapshot := ss.Snapshot()
 	status := "ok"
-	if !ss.IsNormalEnd() || snapshot.ErrorCount > 0 {
+	if snapshot.EndReason == relaycommon.StreamEndReasonClientGone && snapshot.ErrorCount == 0 {
+		status = "canceled"
+	} else if !ss.IsNormalEnd() || snapshot.ErrorCount > 0 {
 		status = "error"
 	}
 	streamInfo := map[string]interface{}{

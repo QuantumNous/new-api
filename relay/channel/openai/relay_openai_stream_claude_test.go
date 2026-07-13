@@ -48,6 +48,17 @@ func setupOpenAICompatibleClaudeStreamTest(t *testing.T, body string) (*gin.Cont
 	return c, resp, info, recorder
 }
 
+func TestOaiStreamHandlerOpenAICompatibleReturnsErrorOnEmptyStream(t *testing.T) {
+	c, resp, info, _ := setupOpenAICompatibleClaudeStreamTest(t, "")
+	info.RelayFormat = types.RelayFormatOpenAI
+
+	usage, err := OaiStreamHandler(c, info, resp)
+
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.Equal(t, types.ErrorCodeBadResponseBody, err.GetErrorCode())
+}
+
 func TestOaiStreamHandlerClaudeCompatibleReturnsErrorOnEmptyStream(t *testing.T) {
 	c, resp, info, _ := setupOpenAICompatibleClaudeStreamTest(t, "")
 

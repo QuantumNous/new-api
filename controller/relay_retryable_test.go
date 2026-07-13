@@ -70,6 +70,22 @@ func TestIsRetryableChannelError(t *testing.T) {
 	}
 }
 
+func TestShouldRetryStopsOnSemanticContextLimitError(t *testing.T) {
+	c := newTestContext()
+	err := types.NewErrorWithStatusCode(
+		errors.New("Your input exceeds the context window of this model. Please adjust your input and try again."),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadGateway,
+	)
+
+	if shouldRetry(c, err, 2) {
+		t.Fatal("expected context-window errors to stop retrying even when upstream reports 502")
+	}
+	if isRetryableChannelError(c, err) {
+		t.Fatal("expected context-window errors not to trigger transient channel cooldown")
+	}
+}
+
 func TestIsRetryableChannelErrorSkipsSpecificChannel(t *testing.T) {
 	c := newTestContext()
 	c.Set("specific_channel_id", 5)

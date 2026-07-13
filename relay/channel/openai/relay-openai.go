@@ -170,7 +170,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		&containStreamUsage, info, &shouldSendLastResp)
 	if lastResponseErr != nil {
 		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", lastResponseErr.Error(), lastStreamData))
-		if info.RelayFormat != types.RelayFormatOpenAI {
+		if lastStreamData == "" || info.RelayFormat != types.RelayFormatOpenAI {
 			if responseTextBuilder.Len() == 0 && toolCount == 0 {
 				return nil, types.NewOpenAIError(lastResponseErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
 			}

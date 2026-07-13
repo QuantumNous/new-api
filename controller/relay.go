@@ -322,6 +322,16 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	return channel, nil
 }
 
+func isSemanticClientError(openaiErr *types.NewAPIError) bool {
+	if openaiErr == nil {
+		return false
+	}
+	message := strings.ToLower(openaiErr.Error())
+	return strings.Contains(message, "exceeds the context window") ||
+		strings.Contains(message, "context length exceeded") ||
+		strings.Contains(message, "maximum context length")
+}
+
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
 		return false
@@ -332,7 +342,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if types.IsChannelError(openaiErr) {
 		return true
 	}
-	if types.IsSkipRetryError(openaiErr) {
+	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
 		return false
 	}
 	if retryTimes <= 0 {
@@ -390,7 +400,7 @@ func isRetryableChannelError(c *gin.Context, openaiErr *types.NewAPIError) bool 
 	if types.IsChannelError(openaiErr) {
 		return true
 	}
-	if types.IsSkipRetryError(openaiErr) {
+	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {

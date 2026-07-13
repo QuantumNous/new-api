@@ -439,6 +439,17 @@ func TestStreamScannerHandler_PingDisabledByRelayInfo(t *testing.T) {
 
 // ---------- StreamStatus integration ----------
 
+func TestStreamScannerHandler_AcceptsRawDoneLine(t *testing.T) {
+	c, resp, info := setupStreamTest(t, strings.NewReader("[DONE]\n"))
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		t.Fatalf("raw [DONE] must not be dispatched as data: %q", data)
+	})
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.Snapshot().EndReason)
+}
+
 func TestStreamScannerHandler_StreamStatus_DoneReason(t *testing.T) {
 	t.Parallel()
 
@@ -568,6 +579,7 @@ func TestStreamScannerHandler_StreamStatus_ClientGoneBeforeUpstreamData(t *testi
 		close(done)
 	}()
 	time.Sleep(10 * time.Millisecond)
+	start := time.Now()
 	cancel()
 
 	select {
@@ -575,6 +587,7 @@ func TestStreamScannerHandler_StreamStatus_ClientGoneBeforeUpstreamData(t *testi
 	case <-time.After(7 * time.Second):
 		t.Fatal("timed out waiting for client_gone")
 	}
+	assert.Less(t, time.Since(start), time.Second, "client disconnect should promptly stop the upstream scanner")
 
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
@@ -656,7 +669,7 @@ func TestStreamScannerHandler_StreamStatus_ClientGoneAfterUpstreamData(t *testin
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for first data")
 	}
-	time.Sleep(10 * time.Millisecond)
+	start := time.Now()
 	cancel()
 
 	select {
@@ -664,6 +677,7 @@ func TestStreamScannerHandler_StreamStatus_ClientGoneAfterUpstreamData(t *testin
 	case <-time.After(7 * time.Second):
 		t.Fatal("timed out waiting for client_gone after data")
 	}
+	assert.Less(t, time.Since(start), time.Second, "client disconnect should promptly stop the upstream scanner")
 
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)

@@ -598,6 +598,7 @@ func OaiResponsesSSEToChatJSON(c *gin.Context, info *relaycommon.RelayInfo, resp
 		var streamResp dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
 			logger.LogError(c, "failed to unmarshal responses stream event: "+err.Error())
+			sr.Stop(err)
 			return
 		}
 
