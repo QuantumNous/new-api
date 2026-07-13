@@ -1,9 +1,11 @@
 package sd283zi
 
 import (
+	"bytes"
 	"net/http/httptest"
 	"testing"
 
+	commonpkg "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -151,6 +153,13 @@ func TestUpstreamFileFieldName(t *testing.T) {
 		"reference_image":   "files",
 		"reference_images":  "files",
 		"input_reference":   "files",
+		"audios":            "audios",
+		"audio":             "audios",
+		"reference_audio":   "audios",
+		"videos":            "videos",
+		"video":             "videos",
+		"reference_video":   "videos",
+		"reference_videos":  "reference_videos",
 		"custom_field":      "custom_field",
 	}
 	for in, want := range tests {
@@ -217,5 +226,85 @@ func TestEstimateBillingPerSecondUsesDuration(t *testing.T) {
 	ratios := a.EstimateBilling(c, info)
 	if ratios == nil || ratios["seconds"] != 5 {
 		t.Fatalf("per-second billing should return seconds=5, got %#v", ratios)
+	}
+}
+
+func TestNormalizeCreatePayloadMigratesVideoAndAudio(t *testing.T) {
+	payload := map[string]interface{}{
+		"model":                "xinghe-2.0",
+		"prompt":               "x",
+		"reference_video_urls": []string{"https://example.com/v.mp4"},
+		"audio_urls":           []any{"https://example.com/a.mp3"},
+		"aspect_ratio":         "9:16",
+	}
+	normalizeCreatePayload(payload)
+
+	vids, ok := payload["video_urls"].([]string)
+	if !ok || len(vids) != 1 || vids[0] != "https://example.com/v.mp4" {
+		t.Fatalf("video_urls = %#v", payload["video_urls"])
+	}
+	if _, ok := payload["reference_video_urls"]; ok {
+		t.Fatalf("legacy reference_video_urls should be removed")
+	}
+	auds, ok := payload["audio_urls"].([]string)
+	if !ok || len(auds) != 1 || auds[0] != "https://example.com/a.mp3" {
+		t.Fatalf("audio_urls = %#v", payload["audio_urls"])
+	}
+	if payload["ratio"] != "9:16" {
+		t.Fatalf("ratio = %v", payload["ratio"])
+	}
+}
+
+func TestConvertCreatePayloadOfficialAudioVideoURLs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := `{
+		"model":"mingiz-sd2",
+		"prompt":"参考音频节奏",
+		"duration":10,
+		"ratio":"9:16",
+		"resolution":"720p",
+		"images":["https://example.com/i.jpg"],
+		"audio_urls":["https://example.com/a.mp3"],
+		"video_urls":["https://example.com/v.mp4"]
+	}`
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/videos", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	bs, err := commonpkg.CreateBodyStorage([]byte(body))
+	if err != nil {
+		t.Fatalf("CreateBodyStorage: %v", err)
+	}
+	c.Set(commonpkg.KeyBodyStorage, bs)
+
+	req := &common.TaskSubmitReq{
+		Model:      "mingiz-sd2",
+		Prompt:     "参考音频节奏",
+		Images:     []string{"https://example.com/i.jpg"},
+		Ratio:      "9:16",
+		Resolution: "720p",
+		Duration:   10,
+	}
+	info := &common.RelayInfo{
+		OriginModelName: "mingiz-sd2",
+		ChannelMeta: &common.ChannelMeta{
+			UpstreamModelName: "mingiz-sd2",
+		},
+		TaskRelayInfo: &common.TaskRelayInfo{},
+	}
+	a := &TaskAdaptor{}
+	payload, err := a.convertCreatePayload(c, req, info)
+	if err != nil {
+		t.Fatalf("convertCreatePayload: %v", err)
+	}
+	auds, ok := payload["audio_urls"].([]string)
+	if !ok || len(auds) != 1 || auds[0] != "https://example.com/a.mp3" {
+		t.Fatalf("audio_urls = %#v", payload["audio_urls"])
+	}
+	vids, ok := payload["video_urls"].([]string)
+	if !ok || len(vids) != 1 || vids[0] != "https://example.com/v.mp4" {
+		t.Fatalf("video_urls = %#v", payload["video_urls"])
+	}
+	if _, ok := payload["reference_video_urls"]; ok {
+		t.Fatalf("reference_video_urls should not be sent upstream")
 	}
 }

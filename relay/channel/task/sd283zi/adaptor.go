@@ -206,8 +206,17 @@ func isTextMultipartField(fieldName string) bool {
 
 func upstreamFileFieldName(fieldName string) string {
 	switch strings.ToLower(strings.TrimSpace(fieldName)) {
+	// Images: keep mapping to files — this path has been working in production.
 	case "files", "file", "image", "images", "reference_image", "reference_images", "input_reference":
 		return "files"
+	// Audio: normalize aliases to official multipart field `audios`.
+	case "audios", "audio", "reference_audio", "reference_audios":
+		return "audios"
+	// Video: normalize aliases to official `videos`; keep `reference_videos` as-is.
+	case "videos", "video", "reference_video":
+		return "videos"
+	case "reference_videos":
+		return "reference_videos"
 	default:
 		return fieldName
 	}
@@ -353,25 +362,40 @@ func applyRawCreateFields(c *gin.Context, payload map[string]interface{}) {
 			payload["image_urls"] = entries
 		}
 	}
-	if _, ok := payload["reference_video_urls"]; !ok {
-		if arr := gjson.GetBytes(raw, "reference_video_urls"); arr.Exists() {
-			payload["reference_video_urls"] = arr.Value()
+	// Official 151/xinghe fields: video_urls / audio_urls (string arrays).
+	// Also accept legacy reference_video_urls and common audio aliases.
+	if urls := collectMediaURLsFromRaw(raw, "video_urls", "reference_video_urls", "videos", "video"); len(urls) > 0 {
+		if cur, ok := payload["video_urls"]; !ok || isEmptySlice(cur) {
+			payload["video_urls"] = urls
 		}
 	}
-	if _, ok := payload["audio_urls"]; !ok {
-		if arr := gjson.GetBytes(raw, "audio_urls"); arr.Exists() {
-			payload["audio_urls"] = arr.Value()
+	if urls := collectMediaURLsFromRaw(raw, "audio_urls", "audios", "audio", "reference_audio", "reference_audios"); len(urls) > 0 {
+		if cur, ok := payload["audio_urls"]; !ok || isEmptySlice(cur) {
+			payload["audio_urls"] = urls
 		}
 	}
 }
 
 func normalizeCreatePayload(payload map[string]interface{}) {
-	if _, ok := payload["reference_video_urls"]; !ok {
-		payload["reference_video_urls"] = []any{}
+	// Migrate legacy reference_video_urls → official video_urls.
+	if vids := coerceStringURLSlice(payload["video_urls"]); len(vids) > 0 {
+		payload["video_urls"] = vids
+	} else if vids := coerceStringURLSlice(payload["reference_video_urls"]); len(vids) > 0 {
+		payload["video_urls"] = vids
+	} else if _, ok := payload["video_urls"]; !ok {
+		payload["video_urls"] = []any{}
 	}
-	if _, ok := payload["audio_urls"]; !ok {
+	delete(payload, "reference_video_urls")
+
+	if auds := coerceStringURLSlice(payload["audio_urls"]); len(auds) > 0 {
+		payload["audio_urls"] = auds
+	} else if _, ok := payload["audio_urls"]; !ok {
 		payload["audio_urls"] = []any{}
 	}
+	// Drop non-official audio aliases if metadata leaked them in.
+	delete(payload, "audios")
+	delete(payload, "audio")
+
 	if ar, ok := payload["aspect_ratio"].(string); ok {
 		ar = strings.TrimSpace(ar)
 		if ar != "" {
@@ -380,6 +404,86 @@ func normalizeCreatePayload(payload map[string]interface{}) {
 			}
 		}
 		delete(payload, "aspect_ratio")
+	}
+}
+
+// collectMediaURLsFromRaw reads the first non-empty URL list among the given JSON keys.
+func collectMediaURLsFromRaw(raw []byte, keys ...string) []string {
+	for _, key := range keys {
+		if urls := parseURLListFromGJSON(gjson.GetBytes(raw, key)); len(urls) > 0 {
+			return urls
+		}
+	}
+	return nil
+}
+
+func parseURLListFromGJSON(node gjson.Result) []string {
+	if !node.Exists() {
+		return nil
+	}
+	out := make([]string, 0, 4)
+	if node.Type == gjson.String {
+		s := strings.TrimSpace(node.String())
+		if s == "" {
+			return nil
+		}
+		// Compatible with stringified JSON array: "[\"https://...\"]"
+		if strings.HasPrefix(s, "[") {
+			var arr []string
+			if err := common.Unmarshal([]byte(s), &arr); err == nil {
+				for _, u := range arr {
+					if u = strings.TrimSpace(u); u != "" {
+						out = append(out, u)
+					}
+				}
+				return out
+			}
+		}
+		return []string{s}
+	}
+	if node.IsArray() {
+		for _, item := range node.Array() {
+			if item.Type == gjson.String {
+				if u := strings.TrimSpace(item.String()); u != "" {
+					out = append(out, u)
+				}
+				continue
+			}
+			if u := strings.TrimSpace(item.Get("url").String()); u != "" {
+				out = append(out, u)
+			}
+		}
+	}
+	return out
+}
+
+func coerceStringURLSlice(v interface{}) []string {
+	switch s := v.(type) {
+	case []string:
+		out := make([]string, 0, len(s))
+		for _, u := range s {
+			if u = strings.TrimSpace(u); u != "" {
+				out = append(out, u)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(s))
+		for _, item := range s {
+			switch t := item.(type) {
+			case string:
+				if u := strings.TrimSpace(t); u != "" {
+					out = append(out, u)
+				}
+			case map[string]interface{}:
+				if u, _ := t["url"].(string); strings.TrimSpace(u) != "" {
+					out = append(out, strings.TrimSpace(u))
+				}
+			}
+		}
+		return out
+	default:
+		return nil
 	}
 }
 

@@ -55,7 +55,7 @@
 |----------|------------------------|
 | `content[].type=text` → `text`（多段 `\n` 拼接） | `prompt`（仅当原 `prompt` 为空时写入） |
 | `content[].type=image_url` → `image_url.url` | `image_urls[{url,file_name,content_type}]` |
-| `content[].type=video_url` → `video_url.url` | `reference_video_urls[]` |
+| `content[].type=video_url` → `video_url.url` | `video_urls[]`（官方字段；兼容读入旧 `reference_video_urls`） |
 | `content[].type=audio_url` → `audio_url.url` | `audio_urls[]` |
 | 顶层 `ratio` / `aspect_ratio` | `ratio`（已由现有逻辑处理） |
 | 顶层 `resolution` | `resolution` |
@@ -88,6 +88,6 @@
 
 1. 纯 mingiz 格式 → 不转换
 2. 典型火山 `content[]`（text + image_url）→ prompt / image_urls
-3. video_url / audio_url → reference_video_urls / audio_urls
+3. video_url / audio_url → video_urls / audio_urls
 4. generate_audio / watermark 缺省 true / false
 5. 非官方 type 的 content → 不触发转换

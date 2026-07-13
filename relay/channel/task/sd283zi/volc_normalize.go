@@ -202,11 +202,13 @@ func applyVolcNormalized(payload map[string]interface{}, n *volcNormalized) {
 	if len(n.ImageURLs) > 0 {
 		payload["image_urls"] = n.ImageURLs
 	}
+	// Official 151/xinghe field is video_urls (not reference_video_urls).
 	if len(n.VideoURLs) > 0 {
-		payload["reference_video_urls"] = n.VideoURLs
-	} else if _, ok := payload["reference_video_urls"]; !ok || isEmptySlice(payload["reference_video_urls"]) {
-		payload["reference_video_urls"] = []any{}
+		payload["video_urls"] = n.VideoURLs
+	} else if _, ok := payload["video_urls"]; !ok || isEmptySlice(payload["video_urls"]) {
+		payload["video_urls"] = []any{}
 	}
+	delete(payload, "reference_video_urls")
 	if len(n.AudioURLs) > 0 {
 		payload["audio_urls"] = n.AudioURLs
 	} else if _, ok := payload["audio_urls"]; !ok || isEmptySlice(payload["audio_urls"]) {

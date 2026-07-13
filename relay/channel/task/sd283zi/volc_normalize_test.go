@@ -116,10 +116,10 @@ func TestParseVolcOfficialContentBoolOverrides(t *testing.T) {
 
 func TestApplyVolcNormalized(t *testing.T) {
 	payload := map[string]interface{}{
-		"model":                "xinghe-2.0",
-		"prompt":               "",
-		"reference_video_urls": []any{},
-		"audio_urls":           []any{},
+		"model":      "xinghe-2.0",
+		"prompt":     "",
+		"video_urls": []any{},
+		"audio_urls": []any{},
 	}
 	n := &volcNormalized{
 		Prompt:        "一只猫",
@@ -138,9 +138,12 @@ func TestApplyVolcNormalized(t *testing.T) {
 	if !ok || len(imgs) != 1 {
 		t.Fatalf("image_urls = %v", payload["image_urls"])
 	}
-	vids, ok := payload["reference_video_urls"].([]string)
+	vids, ok := payload["video_urls"].([]string)
 	if !ok || len(vids) != 1 || vids[0] != "https://example.com/v.mp4" {
-		t.Fatalf("reference_video_urls = %v", payload["reference_video_urls"])
+		t.Fatalf("video_urls = %v", payload["video_urls"])
+	}
+	if _, ok := payload["reference_video_urls"]; ok {
+		t.Fatalf("reference_video_urls should be removed, got %v", payload["reference_video_urls"])
 	}
 	auds, ok := payload["audio_urls"].([]string)
 	if !ok || len(auds) != 1 {
@@ -414,9 +417,12 @@ func TestConvertCreatePayloadVolcOfficial(t *testing.T) {
 	if payload["watermark"] != false {
 		t.Fatalf("watermark = %v", payload["watermark"])
 	}
-	vids, ok := payload["reference_video_urls"].([]string)
+	vids, ok := payload["video_urls"].([]string)
 	if !ok || len(vids) != 1 {
-		t.Fatalf("reference_video_urls = %v", payload["reference_video_urls"])
+		t.Fatalf("video_urls = %v", payload["video_urls"])
+	}
+	if _, ok := payload["reference_video_urls"]; ok {
+		t.Fatalf("reference_video_urls should be removed, got %v", payload["reference_video_urls"])
 	}
 	auds, ok := payload["audio_urls"].([]string)
 	if !ok || len(auds) != 1 {
