@@ -817,3 +817,67 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
+
+func TestSettle_TokenBilling_AppliesCompletionRatioSnapshot(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 33, 33, 33
+	const initQuota, preConsumed, tokenRemain = 10000, 100, 8000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-token-output-ratio", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.ModelRatio = 2
+	task.PrivateData.BillingContext.CompletionRatio = common.GetPointer(3.0)
+	task.PrivateData.BillingContext.GroupRatio = 0.5
+	task.PrivateData.BillingContext.OtherRatios = map[string]float64{"resolution": 2}
+
+	adaptor := &mockAdaptor{}
+	taskResult := &relaycommon.TaskInfo{
+		Status:           model.TaskStatusSuccess,
+		TotalTokens:      100,
+		CompletionTokens: 80,
+	}
+
+	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+
+	// ((100-80)*2 + 80*2*3) * 0.5 * 2 = 520
+	const actualQuota = 520
+	assert.Equal(t, actualQuota, task.Quota)
+	assert.Equal(t, initQuota-(actualQuota-preConsumed), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain-(actualQuota-preConsumed), getTokenRemainQuota(t, tokenID))
+}
+
+func TestSettle_TokenBilling_FallsBackToTotalTokens(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 34, 34, 34
+	const initQuota, preConsumed, tokenRemain = 10000, 100, 8000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-token-total-fallback", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.ModelRatio = 2
+	task.PrivateData.BillingContext.CompletionRatio = common.GetPointer(3.0)
+	task.PrivateData.BillingContext.GroupRatio = 1
+
+	adaptor := &mockAdaptor{}
+	taskResult := &relaycommon.TaskInfo{
+		Status:      model.TaskStatusSuccess,
+		TotalTokens: 100,
+	}
+
+	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+
+	// 上游没有拆分 completion_tokens 时保持原有 total_tokens 计费语义。
+	const actualQuota = 200
+	assert.Equal(t, actualQuota, task.Quota)
+	assert.Equal(t, initQuota-(actualQuota-preConsumed), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain-(actualQuota-preConsumed), getTokenRemainQuota(t, tokenID))
+}

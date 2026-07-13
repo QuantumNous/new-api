@@ -189,6 +189,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
 	var modelRatio float64
+	var completionRatio float64
 
 	if !success {
 		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
@@ -199,6 +200,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 			var ratioSuccess bool
 			var matchName string
 			modelRatio, ratioSuccess, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
+			completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
 			acceptUnsetRatio := false
 			if info.UserSetting.AcceptUnsetRatioModel {
 				acceptUnsetRatio = true
@@ -244,6 +246,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		FreeModel:      freeModel,
 		ModelPrice:     modelPrice,
 		ModelRatio:     modelRatio,
+		CompletionRatio: completionRatio,
 		UsePrice:       usePrice,
 		Quota:          quota,
 		GroupRatioInfo: groupRatioInfo,
