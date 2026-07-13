@@ -184,6 +184,11 @@ func TestHandleRecurringInvoicePaid_CreatesCycleSubscriptionIdempotently(t *test
 	require.Equal(t, 601, subs[0].PlanId)
 	require.Equal(t, "auto_renew", subs[0].Source)
 
+	var attempts []model.RecurringChargeAttempt
+	require.NoError(t, model.DB.Where("provider = ? AND provider_invoice_id = ?", "stripe", "in_cycle_123").Find(&attempts).Error)
+	require.Len(t, attempts, 1)
+	require.Equal(t, "paid", attempts[0].Status)
+
 	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", "sub_cycle_paid_1")
 	require.NoError(t, err)
 	require.Equal(t, "active", contract.Status)
@@ -226,6 +231,11 @@ func TestHandleRecurringInvoicePaymentFailed_MarksContractPastDue(t *testing.T) 
 	require.Equal(t, "past_due", contract.Status)
 	require.Equal(t, "in_failed_123", contract.LastInvoiceId)
 	require.Equal(t, "open", contract.LastPaymentStatus)
+
+	var attempts []model.RecurringChargeAttempt
+	require.NoError(t, model.DB.Where("provider = ? AND provider_invoice_id = ?", "stripe", "in_failed_123").Find(&attempts).Error)
+	require.Len(t, attempts, 1)
+	require.Equal(t, "failed", attempts[0].Status)
 }
 
 func TestHandleRecurringSubscriptionDeleted_MarksContractCanceled(t *testing.T) {
@@ -377,7 +387,7 @@ func setupSubscriptionControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.SubscriptionPlan{}, &model.BillingSubscription{}, &model.UserSubscription{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.SubscriptionPlan{}, &model.BillingSubscription{}, &model.RecurringChargeAttempt{}, &model.UserSubscription{}))
 
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()

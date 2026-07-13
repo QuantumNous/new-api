@@ -183,11 +183,22 @@ func SubscriptionRequestStripeAutoRenew(c *gin.Context) {
 		return
 	}
 
-	checkoutURL, err := genStripeAutoRenewCheckoutURL(user, plan)
+	signupReference := "sub-signup-" + common.Sha1([]byte(fmt.Sprintf("%d-%d-%s", user.Id, plan.Id, randstr.String(12))))
+	contract, err := model.CreatePendingStripeAutoRenewSignup(user.Id, plan.Id, signupReference)
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	checkoutURL, checkoutID, err := genStripeAutoRenewCheckoutURL(user, plan, signupReference)
+	if err != nil {
+		_ = model.MarkPendingStripeAutoRenewSignupFailed(contract.Id)
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe recurring checkout create failed user_id=%d plan_id=%d error=%q", userId, plan.Id, err.Error()))
 		common.ApiErrorI18n(c, i18n.MsgPaymentStartFailed)
 		return
+	}
+	if err := model.SetBillingSubscriptionCheckoutID(contract.Id, checkoutID); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe recurring checkout persistence failed user_id=%d plan_id=%d checkout_id=%s error=%q", userId, plan.Id, checkoutID, err.Error()))
 	}
 	common.ApiSuccess(c, gin.H{"checkout_url": checkoutURL})
 }
@@ -245,15 +256,18 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 	return result.URL, nil
 }
 
-func genStripeAutoRenewCheckoutURL(user *model.User, plan *model.SubscriptionPlan) (string, error) {
+func genStripeAutoRenewCheckoutURL(user *model.User, plan *model.SubscriptionPlan, signupReference string) (string, string, error) {
 	if user == nil {
-		return "", fmt.Errorf("user is nil")
+		return "", "", fmt.Errorf("user is nil")
 	}
 	if plan == nil {
-		return "", fmt.Errorf("subscription plan is nil")
+		return "", "", fmt.Errorf("subscription plan is nil")
 	}
 	if strings.TrimSpace(plan.StripeRecurringPriceId) == "" {
-		return "", fmt.Errorf("stripe recurring price id is empty")
+		return "", "", fmt.Errorf("stripe recurring price id is empty")
+	}
+	if strings.TrimSpace(signupReference) == "" {
+		return "", "", fmt.Errorf("signup reference is empty")
 	}
 
 	stripe.Key = setting.StripeApiSecret
@@ -273,6 +287,7 @@ func genStripeAutoRenewCheckoutURL(user *model.User, plan *model.SubscriptionPla
 	params.AddMetadata("user_id", strconv.Itoa(user.Id))
 	params.AddMetadata("plan_id", strconv.Itoa(plan.Id))
 	params.AddMetadata("billing_mode", model.SubscriptionBillingModeAutoRenew)
+	params.AddMetadata("signup_reference", signupReference)
 
 	if user.StripeCustomer == "" {
 		if user.Email != "" {
@@ -285,9 +300,9 @@ func genStripeAutoRenewCheckoutURL(user *model.User, plan *model.SubscriptionPla
 
 	result, err := session.New(params)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return result.URL, nil
+	return result.URL, result.ID, nil
 }
 
 func cancelStripeAutoRenewAtPeriodEnd(subscriptionID string) (*stripe.Subscription, error) {

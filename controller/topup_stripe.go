@@ -214,8 +214,9 @@ func handleRecurringCheckoutSessionCompleted(event stripe.Event) error {
 		Subscription string `json:"subscription"`
 		Customer     string `json:"customer"`
 		Metadata     struct {
-			UserID string `json:"user_id"`
-			PlanID string `json:"plan_id"`
+			UserID          string `json:"user_id"`
+			PlanID          string `json:"plan_id"`
+			SignupReference string `json:"signup_reference"`
 		} `json:"metadata"`
 	}
 	if err := common.Unmarshal(event.Data.Raw, &payload); err != nil {
@@ -228,6 +229,9 @@ func handleRecurringCheckoutSessionCompleted(event stripe.Event) error {
 	customerID := payload.Customer
 	if userID <= 0 || planID <= 0 || subscriptionID == "" {
 		return fmt.Errorf("missing recurring checkout metadata")
+	}
+	if payload.Metadata.SignupReference != "" {
+		return model.CompleteStripeAutoRenewSignup(payload.Metadata.SignupReference, subscriptionID, customerID, string(event.Data.Raw))
 	}
 
 	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
@@ -247,6 +251,8 @@ func handleRecurringInvoicePaid(event stripe.Event) error {
 		Subscription string `json:"subscription"`
 		Customer     string `json:"customer"`
 		Status       string `json:"status"`
+		AmountPaid   int64  `json:"amount_paid"`
+		Currency     string `json:"currency"`
 		Lines        struct {
 			Data []struct {
 				Period struct {
@@ -274,7 +280,16 @@ func handleRecurringInvoicePaid(event stripe.Event) error {
 	if err != nil {
 		return err
 	}
-	if err := model.CreateRecurringCycleSubscriptionFromInvoice(contract.Id, payload.ID, period.Start, period.End); err != nil {
+	if err := model.FulfillRecurringInvoice(&model.RecurringChargeAttempt{
+		BillingSubscriptionId: contract.Id,
+		Provider:              "stripe",
+		ProviderInvoiceId:     payload.ID,
+		PeriodStart:           period.Start,
+		PeriodEnd:             period.End,
+		Amount:                payload.AmountPaid,
+		Currency:              payload.Currency,
+		ProviderPayload:       string(event.Data.Raw),
+	}); err != nil {
 		return err
 	}
 
@@ -312,6 +327,19 @@ func handleRecurringInvoicePaymentFailed(event stripe.Event) error {
 	contract, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", payload.Subscription)
 	if err != nil {
 		return err
+	}
+	if payload.ID != "" {
+		if err := model.RecordRecurringInvoiceFailure(&model.RecurringChargeAttempt{
+			BillingSubscriptionId: contract.Id,
+			Provider:              "stripe",
+			ProviderInvoiceId:     payload.ID,
+			PeriodStart:           contract.CurrentPeriodStart,
+			PeriodEnd:             contract.CurrentPeriodEnd,
+			FailureReason:         payload.Status,
+			ProviderPayload:       string(event.Data.Raw),
+		}); err != nil {
+			return err
+		}
 	}
 
 	return model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{

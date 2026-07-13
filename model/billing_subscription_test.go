@@ -92,3 +92,70 @@ func TestCreateRecurringCycleSubscriptionFromInvoice_IsIdempotent(t *testing.T) 
 	require.NoError(t, DB.Model(&UserSubscription{}).Where("provider_invoice_id = ?", "in_123").Count(&count).Error)
 	require.Equal(t, int64(1), count)
 }
+
+func TestFulfillRecurringInvoice_CreatesOnePaidAttemptAndSubscription(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&RecurringChargeAttempt{}))
+	truncateTables(t)
+
+	plan := &SubscriptionPlan{
+		Title:                  "Recurring Attempt Plan",
+		PriceAmount:            19.99,
+		Currency:               "USD",
+		DurationUnit:           SubscriptionDurationMonth,
+		DurationValue:          1,
+		TotalAmount:            500000,
+		BillingMode:            SubscriptionBillingModeAutoRenew,
+		StripeRecurringPriceId: "price_recurring_attempt",
+		Enabled:                true,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	contract := &BillingSubscription{
+		UserId:                 601,
+		PlanId:                 plan.Id,
+		Provider:               "stripe",
+		ProviderSubscriptionId: "sub_attempt_1",
+		Status:                 "active",
+	}
+	require.NoError(t, DB.Create(contract).Error)
+
+	input := &RecurringChargeAttempt{
+		BillingSubscriptionId: contract.Id,
+		Provider:              "stripe",
+		ProviderInvoiceId:     "in_attempt_1",
+		PeriodStart:           1761955200,
+		PeriodEnd:             1764547200,
+		Amount:                1999,
+		Currency:              "usd",
+		ProviderPayload:       `{"status":"paid"}`,
+	}
+	require.NoError(t, FulfillRecurringInvoice(input))
+	require.NoError(t, FulfillRecurringInvoice(input))
+
+	var attempts []RecurringChargeAttempt
+	require.NoError(t, DB.Where("provider = ? AND provider_invoice_id = ?", "stripe", "in_attempt_1").Find(&attempts).Error)
+	require.Len(t, attempts, 1)
+	require.Equal(t, "paid", attempts[0].Status)
+
+	var subscriptions []UserSubscription
+	require.NoError(t, DB.Where("billing_subscription_id = ? AND provider_invoice_id = ?", contract.Id, "in_attempt_1").Find(&subscriptions).Error)
+	require.Len(t, subscriptions, 1)
+}
+
+func TestCreatePendingStripeAutoRenewSignup_BlocksSecondAttempt(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&BillingSubscription{}))
+	truncateTables(t)
+	require.NoError(t, DB.Create(&User{
+		Id:       701,
+		Username: "pending-signup-user",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	first, err := CreatePendingStripeAutoRenewSignup(701, 801, "signup_ref_1")
+	require.NoError(t, err)
+	require.Equal(t, "pending_signup", first.Status)
+	require.Equal(t, "signup_ref_1", first.SignupReference)
+
+	_, err = CreatePendingStripeAutoRenewSignup(701, 802, "signup_ref_2")
+	require.Error(t, err)
+}
