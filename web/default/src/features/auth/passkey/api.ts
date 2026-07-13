@@ -49,11 +49,13 @@ export async function deletePasskey(): Promise<ApiResponse> {
   return res.data
 }
 
-export async function beginPasskeyLogin(): Promise<
-  ApiResponse<PasskeyOptionsPayload>
-> {
+export async function beginPasskeyLogin(
+  pending = false
+): Promise<ApiResponse<PasskeyOptionsPayload>> {
   const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
-    '/api/user/passkey/login/begin'
+    '/api/user/passkey/login/begin',
+    undefined,
+    pending ? { params: { pending: true } } : undefined
   )
   return res.data
 }

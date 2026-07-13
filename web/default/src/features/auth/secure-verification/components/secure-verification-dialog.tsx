@@ -24,6 +24,13 @@ import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { BACKUP_CODE_LENGTH } from '@/features/auth/constants'
+import {
+  cleanBackupCode,
+  formatBackupCode,
+  isValidBackupCode,
+  isValidOTP,
+} from '@/features/auth/lib/validation'
 
 import type {
   SecureVerificationState,
@@ -56,7 +63,7 @@ export function SecureVerificationDialog({
   const availableTabs: VerificationMethod[] = useMemo(() => {
     const tabs: VerificationMethod[] = []
     if (methods.has2FA) tabs.push('2fa')
-    if (methods.hasPasskey && methods.passkeySupported) tabs.push('passkey')
+    if (methods.hasPasskey) tabs.push('passkey')
     return tabs
   }, [methods])
 
@@ -75,15 +82,23 @@ export function SecureVerificationDialog({
       ? 'Confirm your identity before accessing this sensitive action.'
       : 'Enable Two-factor Authentication or Passkey in your profile settings to continue.')
 
+  const verificationCode = state.code.trim()
+  const verificationCodeIsValid =
+    isValidOTP(verificationCode) || isValidBackupCode(verificationCode)
+
   const handleVerify = () => {
     if (!activeMethod) return
-    const payload = activeMethod === '2fa' ? state.code : undefined
+    const payload =
+      activeMethod === '2fa'
+        ? cleanBackupCode(verificationCode)
+        : undefined
     onVerify(activeMethod, payload)
   }
 
   const verifyDisabled =
     state.loading ||
-    (activeMethod === '2fa' && (!state.code.trim() || state.code.length < 6))
+    (activeMethod === 'passkey' && !methods.passkeySupported) ||
+    (activeMethod === '2fa' && !verificationCodeIsValid)
 
   return (
     <Dialog
@@ -146,7 +161,7 @@ export function SecureVerificationDialog({
             {methods.has2FA && (
               <TabsTrigger value='2fa'>{t('Authenticator code')}</TabsTrigger>
             )}
-            {methods.hasPasskey && methods.passkeySupported && (
+            {methods.hasPasskey && (
               <TabsTrigger value='passkey'>{t('Passkey')}</TabsTrigger>
             )}
           </TabsList>
@@ -158,13 +173,23 @@ export function SecureVerificationDialog({
               )}
             </p>
             <Input
-              inputMode='numeric'
-              maxLength={8}
+              inputMode='text'
+              maxLength={BACKUP_CODE_LENGTH}
               value={state.code}
-              onChange={(event) => onCodeChange(event.target.value)}
+              onChange={(event) => {
+                const nextCode = event.target.value
+                onCodeChange(
+                  /^\d{0,6}$/.test(nextCode)
+                    ? nextCode
+                    : formatBackupCode(nextCode)
+                )
+              }}
               placeholder={t('Enter verification code')}
               disabled={state.loading}
+              autoComplete='one-time-code'
+              autoCapitalize='characters'
               autoFocus={activeMethod === '2fa'}
+              className='font-mono uppercase'
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !verifyDisabled) {
                   event.preventDefault()

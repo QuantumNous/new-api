@@ -74,11 +74,7 @@ func Login(c *gin.Context) {
 
 	// 检查是否启用2FA
 	if model.IsTwoFAEnabled(user.Id) {
-		// 设置pending session，等待2FA验证
-		session := sessions.Default(c)
-		session.Set("pending_username", user.Username)
-		session.Set("pending_user_id", user.Id)
-		err := session.Save()
+		pending, err := startPendingLogin(c, &user, "password", true, false)
 		if err != nil {
 			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 			return
@@ -87,9 +83,7 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": i18n.T(c, i18n.MsgUserRequire2FA),
 			"success": true,
-			"data": map[string]interface{}{
-				"require_2fa": true,
-			},
+			"data":    pending.response(),
 		})
 		return
 	}
@@ -99,6 +93,11 @@ func Login(c *gin.Context) {
 
 // loginMethodFromContext 根据请求路径推导登录方式，用于登录审计日志。
 func loginMethodFromContext(c *gin.Context) string {
+	if method, ok := c.Get(loginMethodContextKey); ok {
+		if value, ok := method.(string); ok && value != "" {
+			return value
+		}
+	}
 	switch c.FullPath() {
 	case "/api/user/login":
 		return "password"
@@ -138,6 +137,7 @@ func recordLoginAudit(user *model.User, c *gin.Context) {
 func setupLogin(user *model.User, c *gin.Context) {
 	model.UpdateUserLastLoginAt(user.Id)
 	session := sessions.Default(c)
+	clearPendingLogin(session)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
 	session.Set("role", user.Role)

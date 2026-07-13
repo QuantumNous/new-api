@@ -22,6 +22,7 @@ import type {
   LoginPayload,
   LoginResponse,
   Login2FAResponse,
+  LoginVerificationRequirements,
   TwoFAPayload,
   RegisterPayload,
   ApiResponse,
@@ -51,6 +52,19 @@ export async function login(payload: LoginPayload) {
 // Two-factor authentication login
 export async function login2fa(payload: TwoFAPayload) {
   const res = await api.post<Login2FAResponse>('/api/user/login/2fa', payload)
+  return res.data
+}
+
+export async function getPendingLoginVerification(): Promise<
+  ApiResponse<LoginVerificationRequirements>
+> {
+  const res = await api.get<ApiResponse<LoginVerificationRequirements>>(
+    '/api/user/login/verification',
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
+  )
   return res.data
 }
 

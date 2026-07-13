@@ -229,10 +229,47 @@ func PasskeyLoginBegin(c *gin.Context) {
 		return
 	}
 
-	assertion, sessionData, err := wa.BeginDiscoverableLogin()
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	session := sessions.Default(c)
+	var assertion *protocol.CredentialAssertion
+	var sessionData *webauthnlib.SessionData
+	if c.Query("pending") == "true" {
+		pending, err := getPendingLogin(c)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !pending.AllowPasskey {
+			common.ApiErrorMsg(c, "当前登录验证不允许使用Passkey")
+			return
+		}
+
+		user, err := model.GetUserById(pending.UserID, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if user.Status != common.UserStatusEnabled {
+			common.ApiErrorMsg(c, "该用户已被禁用")
+			return
+		}
+		credential, err := model.GetPasskeyByUserID(user.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		assertion, sessionData, err = wa.BeginLogin(passkeysvc.NewWebAuthnUser(user, credential))
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		session.Set(pendingPasskeyUserIDSessionKey, pending.UserID)
+	} else {
+		assertion, sessionData, err = wa.BeginDiscoverableLogin()
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		session.Delete(pendingPasskeyUserIDSessionKey)
 	}
 
 	if err := passkeysvc.SaveSessionData(c, passkeysvc.LoginSessionKey, sessionData); err != nil {
@@ -264,58 +301,87 @@ func PasskeyLoginFinish(c *gin.Context) {
 		return
 	}
 
+	session := sessions.Default(c)
+	pendingUserID, isPendingLogin := session.Get(pendingPasskeyUserIDSessionKey).(int)
+	session.Delete(pendingPasskeyUserIDSessionKey)
 	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.LoginSessionKey)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	handler := func(rawID, userHandle []byte) (webauthnlib.User, error) {
-		// 首先通过凭证ID查找用户
-		credential, err := model.GetPasskeyByCredentialID(rawID)
+	var pending *pendingLogin
+	var modelUser *model.User
+	var credential *webauthnlib.Credential
+	if isPendingLogin {
+		pending, err = getPendingLogin(c)
 		if err != nil {
-			return nil, fmt.Errorf("未找到 Passkey 凭证: %w", err)
+			common.ApiError(c, err)
+			return
+		}
+		if !pending.AllowPasskey || pending.UserID != pendingUserID {
+			common.ApiErrorMsg(c, "Passkey 登录验证状态不匹配")
+			return
 		}
 
-		// 通过凭证获取用户
-		user := &model.User{Id: credential.UserID}
-		if err := user.FillUserById(); err != nil {
-			return nil, fmt.Errorf("用户信息获取失败: %w", err)
+		modelUser, err = model.GetUserById(pending.UserID, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
 		}
-
-		if user.Status != common.UserStatusEnabled {
-			return nil, errors.New("该用户已被禁用")
+		credentialRecord, err := model.GetPasskeyByUserID(modelUser.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
 		}
-
-		if len(userHandle) > 0 {
-			userID, parseErr := strconv.Atoi(string(userHandle))
-			if parseErr != nil {
-				// 记录异常但继续验证，因为某些客户端可能使用非数字格式
-				common.SysLog(fmt.Sprintf("PasskeyLogin: userHandle parse error for credential, length: %d", len(userHandle)))
-			} else if userID != user.Id {
-				return nil, errors.New("用户句柄与凭证不匹配")
+		credential, err = wa.FinishLogin(passkeysvc.NewWebAuthnUser(modelUser, credentialRecord), *sessionData, c.Request)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	} else {
+		handler := func(rawID, userHandle []byte) (webauthnlib.User, error) {
+			credential, err := model.GetPasskeyByCredentialID(rawID)
+			if err != nil {
+				return nil, fmt.Errorf("未找到 Passkey 凭证: %w", err)
 			}
+
+			user := &model.User{Id: credential.UserID}
+			if err := user.FillUserById(); err != nil {
+				return nil, fmt.Errorf("用户信息获取失败: %w", err)
+			}
+			if user.Status != common.UserStatusEnabled {
+				return nil, errors.New("该用户已被禁用")
+			}
+
+			if len(userHandle) > 0 {
+				userID, parseErr := strconv.Atoi(string(userHandle))
+				if parseErr != nil {
+					common.SysLog(fmt.Sprintf("PasskeyLogin: userHandle parse error for credential, length: %d", len(userHandle)))
+				} else if userID != user.Id {
+					return nil, errors.New("用户句柄与凭证不匹配")
+				}
+			}
+
+			return passkeysvc.NewWebAuthnUser(user, credential), nil
 		}
 
-		return passkeysvc.NewWebAuthnUser(user, credential), nil
-	}
-
-	waUser, credential, err := wa.FinishPasskeyLogin(handler, *sessionData, c.Request)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
-	userWrapper, ok := waUser.(*passkeysvc.WebAuthnUser)
-	if !ok {
-		common.ApiErrorMsg(c, "Passkey 登录状态异常")
-		return
-	}
-
-	modelUser := userWrapper.ModelUser()
-	if modelUser == nil {
-		common.ApiErrorMsg(c, "Passkey 登录状态异常")
-		return
+		waUser, validatedCredential, err := wa.FinishPasskeyLogin(handler, *sessionData, c.Request)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		userWrapper, ok := waUser.(*passkeysvc.WebAuthnUser)
+		if !ok {
+			common.ApiErrorMsg(c, "Passkey 登录状态异常")
+			return
+		}
+		modelUser = userWrapper.ModelUser()
+		credential = validatedCredential
+		if modelUser == nil {
+			common.ApiErrorMsg(c, "Passkey 登录状态异常")
+			return
+		}
 	}
 
 	if modelUser.Status != common.UserStatusEnabled {
@@ -336,6 +402,10 @@ func PasskeyLoginFinish(c *gin.Context) {
 		return
 	}
 
+	if pending != nil {
+		completePendingLogin(c, pending, modelUser, "passkey")
+		return
+	}
 	setupLogin(modelUser, c)
 }
 

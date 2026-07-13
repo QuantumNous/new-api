@@ -5178,6 +5178,9 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Additional verification required": "需要额外验证",
+    "Use an authenticator code or Passkey to complete sign-in.": "使用身份验证器代码或 Passkey 完成登录。",
+    "Login session has expired": "登录会话已过期"
   }
 }

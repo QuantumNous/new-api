@@ -130,8 +130,8 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 9. Setup login
-	setupLogin(user, c)
+	// 9. Apply the shared local-factor gate before creating a login session.
+	completeExternalLogin(user, c, "oauth:"+providerName)
 }
 
 // handleOAuthBind handles binding OAuth account to existing user

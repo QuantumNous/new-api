@@ -5178,6 +5178,9 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Additional verification required": "Vérification supplémentaire requise",
+    "Use an authenticator code or Passkey to complete sign-in.": "Utilisez un code d’authentification ou une Passkey pour terminer la connexion.",
+    "Login session has expired": "La session de connexion a expiré"
   }
 }
