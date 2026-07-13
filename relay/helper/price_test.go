@@ -300,7 +300,7 @@ func TestModelPriceHelperPerCallIncludesCompletionRatio(t *testing.T) {
 
 	require.NoError(t, err)
 	require.False(t, priceData.UsePrice)
-	require.Zero(t, priceData.Quota)
+	require.Equal(t, 125000, priceData.Quota)
 	require.Equal(t, 0.5, priceData.ModelRatio)
 	require.Equal(t, 4.0, priceData.CompletionRatio)
 }
