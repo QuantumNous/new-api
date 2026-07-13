@@ -39,6 +39,19 @@ func TestNormalizeSyncGptImage2ImageRequestMapsResolutionToSize(t *testing.T) {
 	}
 }
 
+func TestNormalizeSyncGptImage2ImageRequestMapsRatioWithoutResolution(t *testing.T) {
+	req := dto.ImageRequest{
+		Model: "gpt-image-2",
+		Size:  "1:1",
+	}
+
+	normalizeSyncGptImage2ImageRequest(&req)
+
+	if req.Size != "1024x1024" {
+		t.Fatalf("size = %q, want %q", req.Size, "1024x1024")
+	}
+}
+
 func TestGptImage2SizeForResolution(t *testing.T) {
 	cases := []struct {
 		size       string

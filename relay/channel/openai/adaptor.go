@@ -628,7 +628,13 @@ func normalizeSyncGptImage2ImageRequest(request *dto.ImageRequest) {
 		}
 	}
 	if resolution == "" {
-		return
+		// Packy/subrouter require WIDTHxHEIGHT. When clients provide only an
+		// aspect ratio, use the documented 1K size as the compatibility default.
+		if strings.Contains(strings.TrimSpace(request.Size), ":") {
+			resolution = "1k"
+		} else {
+			return
+		}
 	}
 	if size := gptImage2SizeForResolution(request.Size, resolution); size != "" {
 		request.Size = size
