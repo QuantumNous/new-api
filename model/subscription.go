@@ -391,7 +391,7 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 	}
 	var count int64
 	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND plan_id = ?", userId, planId).
+		Where("user_id = ? AND plan_id = ? AND status = ?", userId, planId, "active").
 		Count(&count).Error; err != nil {
 		return 0, err
 	}

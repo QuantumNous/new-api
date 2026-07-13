@@ -164,7 +164,6 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	req.Plan.Currency = "USD"
 	if req.Plan.AllowBalancePay == nil {
 		req.Plan.AllowBalancePay = common.GetPointer(true)
 	}
@@ -234,7 +233,6 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	req.Plan.Currency = "USD"
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -438,4 +436,11 @@ func AdminDeleteUserSubscription(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+// SubscriptionPaymentDisabled gates the external /pay routes; the original
+// payment handlers are intentionally retained as dead code so historical
+// webhook callbacks can still complete pending orders.
+func SubscriptionPaymentDisabled(c *gin.Context) {
+	common.ApiErrorMsg(c, "外部支付通道已禁用，请联系管理员开通订阅")
 }

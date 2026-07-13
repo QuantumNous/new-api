@@ -156,10 +156,13 @@ func SetApiRouter(router *gin.Engine) {
 		subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
 		subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
 		subscriptionRoute.POST("/balance/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestBalancePay)
-		subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
-		subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
-		subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
-		subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
+		// External payment channels disabled by policy; entries kept for
+		// historical order completion via webhook callbacks (see below).
+		// Re-enable by swapping back the original handlers.
+		subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionPaymentDisabled)
+		subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionPaymentDisabled)
+		subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionPaymentDisabled)
+		subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionPaymentDisabled)
 	}
 	subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 	subscriptionAdminRoute.Use(middleware.StaffAuth())
