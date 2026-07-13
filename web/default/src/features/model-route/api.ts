@@ -77,3 +77,34 @@ export async function resetAllLearning(
   const res = await api.post('/api/model_route/reset-all-learning', data)
   return res.data
 }
+
+export type PruneOrphansRequest = {
+  channel_id?: number
+  dry_run?: boolean
+  sources?: string[]
+}
+
+export type PruneOrphansResult = {
+  policies_deleted: number
+  metrics_deleted: number
+  policy_keys?: Array<{
+    channel_id: number
+    requested_model: string
+    source?: string
+  }>
+  metrics_keys?: Array<{
+    channel_id: number
+    effective_model: string
+  }>
+}
+
+export async function pruneModelRouteOrphans(
+  data?: PruneOrphansRequest
+): Promise<{
+  success: boolean
+  message: string
+  data: PruneOrphansResult
+}> {
+  const res = await api.post('/api/model_route/prune-orphans', data ?? {})
+  return res.data
+}

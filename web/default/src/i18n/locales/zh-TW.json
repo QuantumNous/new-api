@@ -5104,6 +5104,11 @@
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
     "Zoom": "縮放",
-    "Requested models": "請求模型"
+    "Requested models": "請求模型",
+    "Clean invalid policies": "清理無效策略",
+    "Prune failed": "清理失敗",
+    "No orphan policies to prune": "沒有可清理的無效策略",
+    "Pruned {{policies}} policies and {{metrics}} metrics": "已清理 {{policies}} 條策略與 {{metrics}} 條指標",
+    "Delete {{policies}} orphan policies and {{metrics}} orphan metrics? Only configured/mapped policies no longer declared by channel models/mapping will be removed.": "將刪除 {{policies}} 條無效策略與 {{metrics}} 條孤立指標。僅清理渠道 models/mapping 已不再聲明的 configured/mapped 策略，是否繼續？"
   }
 }

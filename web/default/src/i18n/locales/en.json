@@ -5174,6 +5174,11 @@
     "Confirm reset runtime for {{count}} selected metrics?": "Confirm reset runtime for {{count}} selected metrics?",
     "Exact match": "Exact match",
     "Priority swapped with {{channel}}": "Priority swapped with {{channel}}",
-    "Refreshed": "Refreshed"
+    "Refreshed": "Refreshed",
+    "Clean invalid policies": "Clean invalid policies",
+    "Prune failed": "Prune failed",
+    "No orphan policies to prune": "No orphan policies to prune",
+    "Pruned {{policies}} policies and {{metrics}} metrics": "Pruned {{policies}} policies and {{metrics}} metrics",
+    "Delete {{policies}} orphan policies and {{metrics}} orphan metrics? Only configured/mapped policies no longer declared by channel models/mapping will be removed.": "Delete {{policies}} orphan policies and {{metrics}} orphan metrics? Only configured/mapped policies no longer declared by channel models/mapping will be removed."
   }
 }

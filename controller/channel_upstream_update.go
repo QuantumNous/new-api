@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/modelroute"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
@@ -397,6 +398,9 @@ func checkAndPersistChannelUpstreamModelUpdates(
 	if modelsChanged {
 		if err = channel.UpdateAbilities(nil); err != nil {
 			return true, autoAdded, err
+		}
+		if _, pruneErr := modelroute.PruneOrphanPoliciesForChannel(channel, modelroute.PruneOptions{}); pruneErr != nil {
+			common.SysError(fmt.Sprintf("model route prune after upstream auto-sync id=%d: %v", channel.Id, pruneErr))
 		}
 	}
 	return modelsChanged, autoAdded, nil
@@ -844,6 +848,9 @@ func applyChannelUpstreamModelUpdates(
 	if modelsChanged {
 		if err := channel.UpdateAbilities(nil); err != nil {
 			return addModels, removeModels, remainingModels, remainingRemoveModels, true, err
+		}
+		if _, pruneErr := modelroute.PruneOrphanPoliciesForChannel(channel, modelroute.PruneOptions{}); pruneErr != nil {
+			common.SysError(fmt.Sprintf("model route prune after upstream model update id=%d: %v", channel.Id, pruneErr))
 		}
 	}
 	return addModels, removeModels, remainingModels, remainingRemoveModels, modelsChanged, nil

@@ -19,9 +19,54 @@ func MigrateToModelPriority(c *gin.Context) {
 		return
 	}
 	recordManageAudit(c, "model_route.migrate", map[string]interface{}{
-		"policies": res.PoliciesTouched,
-		"metrics":  res.MetricsTouched,
-		"zeroed":   res.ChannelsZeroed,
+		"policies":        res.PoliciesTouched,
+		"metrics":         res.MetricsTouched,
+		"policies_pruned": res.PoliciesPruned,
+		"metrics_pruned":  res.MetricsPruned,
+		"zeroed":          res.ChannelsZeroed,
+	})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": res})
+}
+
+type pruneOrphansRequest struct {
+	ChannelID int64    `json:"channel_id"`
+	DryRun    bool     `json:"dry_run"`
+	Sources   []string `json:"sources"`
+}
+
+// PruneModelRouteOrphans POST /api/model_route/prune-orphans
+func PruneModelRouteOrphans(c *gin.Context) {
+	var req pruneOrphansRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		// empty body is fine
+		req = pruneOrphansRequest{}
+	}
+	opts := modelroute.PruneOptions{DryRun: req.DryRun, Sources: req.Sources}
+	var res modelroute.PruneResult
+	var err error
+	if req.ChannelID > 0 {
+		ch, loadErr := model.GetChannelById(int(req.ChannelID), true)
+		if loadErr != nil {
+			common.ApiError(c, loadErr)
+			return
+		}
+		if ch == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel not found"})
+			return
+		}
+		res, err = modelroute.PruneOrphanPoliciesForChannel(ch, opts)
+	} else {
+		res, err = modelroute.PruneOrphanPoliciesAll(opts)
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "model_route.prune_orphans", map[string]interface{}{
+		"channel_id":        req.ChannelID,
+		"dry_run":           req.DryRun,
+		"policies_deleted":  res.PoliciesDeleted,
+		"metrics_deleted":   res.MetricsDeleted,
 	})
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": res})
 }

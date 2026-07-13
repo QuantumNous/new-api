@@ -5104,6 +5104,11 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
-    "Requested models": "Mô hình yêu cầu"
+    "Requested models": "Mô hình yêu cầu",
+    "Clean invalid policies": "Dọn chính sách không hợp lệ",
+    "Prune failed": "Dọn dẹp thất bại",
+    "No orphan policies to prune": "Không có chính sách mồ côi cần dọn",
+    "Pruned {{policies}} policies and {{metrics}} metrics": "Đã dọn {{policies}} chính sách và {{metrics}} chỉ số",
+    "Delete {{policies}} orphan policies and {{metrics}} orphan metrics? Only configured/mapped policies no longer declared by channel models/mapping will be removed.": "Xóa {{policies}} chính sách mồ côi và {{metrics}} chỉ số mồ côi? Chỉ xóa configured/mapped không còn trong models/mapping của kênh."
   }
 }

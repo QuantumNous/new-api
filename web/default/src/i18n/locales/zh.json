@@ -5178,6 +5178,11 @@
     "Confirm reset runtime for {{count}} selected metrics?": "确认对已选 {{count}} 条指标执行重置短期指标？",
     "Exact match": "精确匹配",
     "Priority swapped with {{channel}}": "已与 {{channel}} 交换优先级",
-    "Refreshed": "已刷新"
+    "Refreshed": "已刷新",
+    "Clean invalid policies": "清理无效策略",
+    "Prune failed": "清理失败",
+    "No orphan policies to prune": "没有可清理的无效策略",
+    "Pruned {{policies}} policies and {{metrics}} metrics": "已清理 {{policies}} 条策略与 {{metrics}} 条指标",
+    "Delete {{policies}} orphan policies and {{metrics}} orphan metrics? Only configured/mapped policies no longer declared by channel models/mapping will be removed.": "将删除 {{policies}} 条无效策略与 {{metrics}} 条孤立指标。仅清理渠道 models/mapping 已不再声明的 configured/mapped 策略，是否继续？"
   }
 }

@@ -9,9 +9,11 @@ import (
 
 // MigrationResult summarizes one-click model-priority migration (PRD §4).
 type MigrationResult struct {
-	PoliciesTouched int              `json:"policies_touched"`
-	MetricsTouched  int              `json:"metrics_touched"`
-	ChannelsZeroed  int              `json:"channels_zeroed"`
+	PoliciesTouched int               `json:"policies_touched"`
+	MetricsTouched  int               `json:"metrics_touched"`
+	PoliciesPruned  int               `json:"policies_pruned"`
+	MetricsPruned   int               `json:"metrics_pruned"`
+	ChannelsZeroed  int               `json:"channels_zeroed"`
 	Backup          []ChannelPWBackup `json:"backup,omitempty"`
 }
 
@@ -51,6 +53,14 @@ func MigrateToModelPriority() (*MigrationResult, error) {
 	}
 	res.PoliciesTouched = pCount
 	res.MetricsTouched = mCount
+
+	// prune configured/mapped policies no longer declared by channel models/mapping
+	pruneRes, err := PruneOrphanPoliciesAll(PruneOptions{})
+	if err != nil {
+		return nil, err
+	}
+	res.PoliciesPruned = pruneRes.PoliciesDeleted
+	res.MetricsPruned = pruneRes.MetricsDeleted
 
 	// steps 6–7: zero channel priority/weight
 	for _, ch := range channels {

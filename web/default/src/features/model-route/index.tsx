@@ -45,6 +45,7 @@ import {
   listModelRoutePolicies,
   migrateToModelPriority,
   modelRouteMetricsAction,
+  pruneModelRouteOrphans,
   resetAllLearning,
   resetRuntimeLearning,
   updateModelRoutePolicyPriority,
@@ -265,6 +266,57 @@ export function ModelRouteAdmin() {
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const pruneMut = useMutation({
+    mutationFn: pruneModelRouteOrphans,
+    onSuccess: (res) => {
+      if (!res.success) {
+        toast.error(res.message || t('Prune failed'))
+        return
+      }
+      const policies = res.data?.policies_deleted ?? 0
+      const metrics = res.data?.metrics_deleted ?? 0
+      toast.success(
+        t('Pruned {{policies}} policies and {{metrics}} metrics', {
+          policies,
+          metrics,
+        })
+      )
+      void qc.invalidateQueries({ queryKey: ['model-route-policies'] })
+      void qc.invalidateQueries({ queryKey: ['model-route-metrics'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const handlePruneOrphans = async () => {
+    if (pruneMut.isPending) return
+    try {
+      const preview = await pruneModelRouteOrphans({ dry_run: true })
+      if (!preview.success) {
+        toast.error(preview.message || t('Prune failed'))
+        return
+      }
+      const policies = preview.data?.policies_deleted ?? 0
+      const metrics = preview.data?.metrics_deleted ?? 0
+      if (policies === 0 && metrics === 0) {
+        toast.success(t('No orphan policies to prune'))
+        return
+      }
+      if (
+        !window.confirm(
+          t(
+            'Delete {{policies}} orphan policies and {{metrics}} orphan metrics? Only configured/mapped policies no longer declared by channel models/mapping will be removed.',
+            { policies, metrics }
+          )
+        )
+      ) {
+        return
+      }
+      pruneMut.mutate({})
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('Prune failed'))
+    }
+  }
 
   const handlePriorityChange = async (
     row: ModelRoutePolicy,
@@ -606,6 +658,17 @@ export function ModelRouteAdmin() {
             }}
           >
             {t('Migrate to model priority')}
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
+            disabled={pruneMut.isPending}
+            onClick={() => {
+              void handlePruneOrphans()
+            }}
+          >
+            {t('Clean invalid policies')}
           </Button>
         </div>
       </SectionPageLayout.Actions>

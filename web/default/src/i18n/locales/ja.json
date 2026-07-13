@@ -5104,6 +5104,11 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
-    "Requested models": "リクエストモデル"
+    "Requested models": "リクエストモデル",
+    "Clean invalid policies": "無効なポリシーを削除",
+    "Prune failed": "削除に失敗しました",
+    "No orphan policies to prune": "削除対象の無効ポリシーはありません",
+    "Pruned {{policies}} policies and {{metrics}} metrics": "{{policies}} 件のポリシーと {{metrics}} 件のメトリクスを削除しました",
+    "Delete {{policies}} orphan policies and {{metrics}} orphan metrics? Only configured/mapped policies no longer declared by channel models/mapping will be removed.": "{{policies}} 件の無効ポリシーと {{metrics}} 件の孤立メトリクスを削除します。チャネルの models/mapping で宣言されていない configured/mapped のみが対象です。続行しますか？"
   }
 }

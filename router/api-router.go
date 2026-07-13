@@ -232,6 +232,7 @@ func SetApiRouter(router *gin.Engine) {
 		modelRoute.Use(middleware.RootAuth())
 		{
 			modelRoute.POST("/migrate", controller.MigrateToModelPriority)
+			modelRoute.POST("/prune-orphans", controller.PruneModelRouteOrphans)
 			modelRoute.POST("/reset-runtime-learning", controller.ResetRuntimeLearning)
 			modelRoute.POST("/reset-all-learning", controller.ResetAllLearning)
 			modelRoute.GET("/policies", controller.ListModelRoutePolicies)

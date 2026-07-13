@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/modelroute"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
@@ -1053,6 +1054,12 @@ func UpdateChannel(c *gin.Context) {
 	}
 	model.InitChannelCache()
 	service.ResetProxyClientCache()
+	// best-effort: drop configured/mapped route policies removed from models/mapping
+	if latest, loadErr := model.GetChannelById(channel.Id, true); loadErr == nil && latest != nil {
+		if _, pruneErr := modelroute.PruneOrphanPoliciesForChannel(latest, modelroute.PruneOptions{}); pruneErr != nil {
+			common.SysError(fmt.Sprintf("model route prune after channel update id=%d: %v", channel.Id, pruneErr))
+		}
+	}
 	// 记录变更的字段名（语言无关的字段标识），密钥仅记录"已更换"绝不记录内容。
 	changedFields := make([]string, 0)
 	if channel.Models != originChannel.Models {

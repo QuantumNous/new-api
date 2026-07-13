@@ -5104,6 +5104,11 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
-    "Requested models": "Modèles demandés"
+    "Requested models": "Modèles demandés",
+    "Clean invalid policies": "Nettoyer les politiques invalides",
+    "Prune failed": "Échec du nettoyage",
+    "No orphan policies to prune": "Aucune politique orpheline à nettoyer",
+    "Pruned {{policies}} policies and {{metrics}} metrics": "{{policies}} politiques et {{metrics}} métriques nettoyées",
+    "Delete {{policies}} orphan policies and {{metrics}} orphan metrics? Only configured/mapped policies no longer declared by channel models/mapping will be removed.": "Supprimer {{policies}} politiques orphelines et {{metrics}} métriques orphelines ? Seules les politiques configured/mapped non déclarées par models/mapping seront retirées."
   }
 }
