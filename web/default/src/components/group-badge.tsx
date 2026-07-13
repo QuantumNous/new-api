@@ -21,12 +21,22 @@ import { useTranslation } from 'react-i18next'
 import { getIdentityTextColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 
-import { StatusBadge, type StatusBadgeProps } from './status-badge'
+import {
+  CopyableStatusBadge,
+  StatusBadge,
+  type StatusBadgeProps,
+} from './status-badge'
 
 type GroupBadgeProps = Omit<StatusBadgeProps, 'children' | 'variant'> & {
   group?: string | null
   label?: string
   ratio?: number | null
+  /**
+   * Click-to-copy the group name. Enabled by default; auto/empty groups and
+   * masked labels are never copyable. Set to false for badges that carry
+   * their own click behavior (e.g. selection toggles).
+   */
+  copyable?: boolean
 }
 
 function getGroupRatioVariant(
@@ -52,7 +62,14 @@ function getGroupLabel(params: {
 
 export function GroupBadge(props: GroupBadgeProps) {
   const { t } = useTranslation()
-  const { group, label: labelOverride, ratio, className, ...badgeProps } = props
+  const {
+    group,
+    label: labelOverride,
+    ratio,
+    className,
+    copyable = true,
+    ...badgeProps
+  } = props
   const groupName = group?.trim()
   const isAutoGroup = groupName === 'auto'
   const isEmptyGroup = !groupName
@@ -65,16 +82,32 @@ export function GroupBadge(props: GroupBadgeProps) {
     t,
   })
 
-  const badge = (
+  const badgeClassName = cn(
+    'shrink-0 overflow-visible',
+    getIdentityTextColorClass(colorKey),
+    className
+  )
+  const canCopy = copyable && !isAutoGroup && !isEmptyGroup && !labelOverride
+  // CopyableStatusBadge owns the click/render behavior, so drop any
+  // caller-provided handlers when the badge is in copy mode.
+  const { onClick: _onClick, render: _render, ...copyBadgeProps } = badgeProps
+
+  const badge = canCopy ? (
+    <CopyableStatusBadge
+      {...copyBadgeProps}
+      value={groupName}
+      variant='neutral'
+      appearance='plain'
+      className={badgeClassName}
+    >
+      {label}
+    </CopyableStatusBadge>
+  ) : (
     <StatusBadge
       {...badgeProps}
       variant='neutral'
       appearance='plain'
-      className={cn(
-        'shrink-0 overflow-visible',
-        getIdentityTextColorClass(colorKey),
-        className
-      )}
+      className={badgeClassName}
     >
       {label}
     </StatusBadge>
