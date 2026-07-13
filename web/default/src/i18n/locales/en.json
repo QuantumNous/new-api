@@ -4606,5 +4606,8 @@
   "获取分组": "Get groups",
   "充值汇率": "Top-up rate",
   "自定义": "Custom",
-  "当上游无 /api/pricing 时，用 romaapi 公开模型价格 × 此倍率作为回退定价；留空或 0 表示不启用": "When upstream has no /api/pricing, fall back to romaapi public model price × this multiplier; leave empty or 0 to disable."
+  "当上游无 /api/pricing 时，用 romaapi 公开模型价格 × 此倍率作为回退定价；留空或 0 表示不启用": "When upstream has no /api/pricing, fall back to romaapi public model price × this multiplier; leave empty or 0 to disable.",
+  "All Payment Methods": "All Payment Methods",
+  "Download CSV": "Download CSV",
+  "Failed to download transaction history": "Failed to download transaction history"
 }

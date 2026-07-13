@@ -17,15 +17,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Copy, Check, Globe } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Check,
+  Globe,
+  Download,
+  Loader2,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { parseCountry } from '@/lib/country'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { parseCountry } from '@/lib/country'
-import { useBillingHistory } from '../hooks/use-billing-history'
 import { GLASS_CARD_CLS } from '../constants'
+import { useBillingHistory } from '../hooks/use-billing-history'
 import {
   getPaymentMethodName,
   formatTimestamp,
@@ -37,6 +46,20 @@ const STATUS_TABS = [
   { value: '', labelKey: 'All' },
   { value: 'success', labelKey: 'Success' },
   { value: 'pending', labelKey: 'Awaiting Payment' },
+] as const
+
+const PAYMENT_METHODS = [
+  '',
+  'stripe',
+  'paypal',
+  'creem',
+  'waffo',
+  'waffo_pancake',
+  'platega',
+  'clink',
+  'crypto',
+  'alipay',
+  'wxpay',
 ] as const
 
 function formatRechargeAmount(amount: number): string {
@@ -98,11 +121,15 @@ export function TransactionHistory() {
     pageSize,
     keyword,
     statusFilter,
+    paymentMethodFilter,
     loading,
+    exporting,
     isAdmin,
     handlePageChange,
     handleSearch,
     handleStatusChange,
+    handlePaymentMethodChange,
+    handleExport,
   } = useBillingHistory({ initialPageSize: 10 })
   const colCount = isAdmin ? 9 : 6
 
@@ -120,7 +147,7 @@ export function TransactionHistory() {
               {t('View all your transaction records')}
             </p>
           </div>
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-wrap items-center gap-2'>
             {total > 0 && (
               <span className='text-muted-foreground shrink-0 rounded-full border px-2.5 py-0.5 text-xs'>
                 {t('Total {{count}} records', { count: total })}
@@ -134,8 +161,42 @@ export function TransactionHistory() {
               }
               value={keyword}
               onChange={(e) => handleSearch(e.target.value)}
-              className='h-8 w-full sm:w-52 text-sm'
+              className='h-8 w-full text-sm sm:w-52'
             />
+            {isAdmin && (
+              <NativeSelect
+                size='sm'
+                value={paymentMethodFilter}
+                onChange={(event) =>
+                  handlePaymentMethodChange(event.target.value)
+                }
+                aria-label={t('Payment Method')}
+              >
+                {PAYMENT_METHODS.map((method) => (
+                  <NativeSelectOption key={method || 'all'} value={method}>
+                    {method
+                      ? getPaymentMethodName(method, t)
+                      : t('All Payment Methods')}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            )}
+            {isAdmin && (
+              <Button
+                variant='outline'
+                size='sm'
+                className='h-8'
+                disabled={exporting}
+                onClick={() => void handleExport()}
+              >
+                {exporting ? (
+                  <Loader2 className='mr-1.5 size-3.5 animate-spin' />
+                ) : (
+                  <Download className='mr-1.5 size-3.5' />
+                )}
+                {t('Download CSV')}
+              </Button>
+            )}
           </div>
         </div>
         {isAdmin && (
@@ -161,7 +222,7 @@ export function TransactionHistory() {
         <div className='overflow-x-auto'>
           <table className='w-full text-sm'>
             <thead>
-              <tr className='border-y bg-muted/30 text-xs text-muted-foreground'>
+              <tr className='bg-muted/30 text-muted-foreground border-y text-xs'>
                 <th className='px-4 py-2.5 text-left font-medium'>
                   {t('Order No.')}
                 </th>
@@ -172,7 +233,7 @@ export function TransactionHistory() {
                 )}
                 {isAdmin && (
                   <th className='px-4 py-2.5 text-left font-medium'>
-                    <Globe className='inline size-3 mr-1 opacity-60' />
+                    <Globe className='mr-1 inline size-3 opacity-60' />
                     {t('Country')}
                   </th>
                 )}
@@ -260,7 +321,7 @@ export function TransactionHistory() {
                     >
                       <td className='px-4 py-3'>
                         <div className='flex items-center'>
-                          <code className='font-mono text-xs text-foreground max-w-[200px] truncate'>
+                          <code className='text-foreground max-w-[200px] truncate font-mono text-xs'>
                             {record.trade_no || `#${record.id}`}
                           </code>
                           <CopyBtn
@@ -273,14 +334,14 @@ export function TransactionHistory() {
                           {record.username ? (
                             <div className='flex flex-col gap-0.5'>
                               <div className='flex items-center gap-1'>
-                                <span className='font-mono text-xs text-foreground max-w-[160px] truncate'>
+                                <span className='text-foreground max-w-[160px] truncate font-mono text-xs'>
                                   {record.username}
                                 </span>
                                 <CopyBtn text={record.username} />
                               </div>
                               {record.email && (
                                 <div className='flex items-center gap-1'>
-                                  <span className='text-muted-foreground text-xs max-w-[200px] truncate'>
+                                  <span className='text-muted-foreground max-w-[200px] truncate text-xs'>
                                     {record.email}
                                   </span>
                                   <CopyBtn text={record.email} />
@@ -330,7 +391,7 @@ export function TransactionHistory() {
                           )}
                         </td>
                       )}
-                      <td className='px-4 py-3 text-muted-foreground'>
+                      <td className='text-muted-foreground px-4 py-3'>
                         {getPaymentMethodName(record.payment_method, t)}
                       </td>
                       <td className='px-4 py-3 text-right font-mono'>
@@ -340,13 +401,13 @@ export function TransactionHistory() {
                         {formatPaidAmount(
                           record.money,
                           record.payment_method,
-                          creditedAmount,
+                          creditedAmount
                         )}
                       </td>
                       <td className='px-4 py-3 text-center'>
                         <StatusChip status={record.status} />
                       </td>
-                      <td className='px-4 py-3 text-right text-muted-foreground text-xs whitespace-nowrap'>
+                      <td className='text-muted-foreground px-4 py-3 text-right text-xs whitespace-nowrap'>
                         {formatTimestamp(record.create_time)}
                       </td>
                     </tr>
@@ -359,7 +420,7 @@ export function TransactionHistory() {
 
         {/* 分页 */}
         {totalPages > 1 && (
-          <div className='border-t flex items-center justify-between px-4 py-3'>
+          <div className='flex items-center justify-between border-t px-4 py-3'>
             <span className='text-muted-foreground text-xs'>
               {t('Page {{page}} of {{total}}', { page, total: totalPages })}
             </span>

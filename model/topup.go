@@ -437,7 +437,7 @@ func GetUserTopUps(userId int, status string, pageInfo *common.PageInfo) (topups
 
 // GetAllTopUps 获取全平台的充值记录（管理员使用，不限制时间窗口）
 // status 为空字符串时不过滤状态
-func GetAllTopUps(status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func GetAllTopUps(status string, paymentMethod string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -451,6 +451,9 @@ func GetAllTopUps(status string, pageInfo *common.PageInfo) (topups []*TopUp, to
 	query := tx.Model(&TopUp{})
 	if status != "" {
 		query = query.Where("status = ?", status)
+	}
+	if paymentMethod != "" {
+		query = query.Where("payment_method = ?", paymentMethod)
 	}
 
 	if err = query.Count(&total).Error; err != nil {
@@ -516,7 +519,7 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 
 // SearchAllTopUps 按订单号 / 邮箱 / UID 搜索全平台充值记录（管理员使用，不限制时间窗口）
 // keyword 可以是订单号前缀、用户邮箱（含 @）、或纯数字 UID
-func SearchAllTopUps(keyword string, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchAllTopUps(keyword string, status string, paymentMethod string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -550,6 +553,9 @@ func SearchAllTopUps(keyword string, status string, pageInfo *common.PageInfo) (
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
+	if paymentMethod != "" {
+		query = query.Where("payment_method = ?", paymentMethod)
+	}
 
 	if err = query.Limit(searchTopUpCountHardLimit).Count(&total).Error; err != nil {
 		tx.Rollback()
@@ -567,6 +573,35 @@ func SearchAllTopUps(keyword string, status string, pageInfo *common.PageInfo) (
 		return nil, 0, err
 	}
 	return topups, total, nil
+}
+
+// ExportAllTopUps returns all admin-visible topups matching the same filters as
+// the paginated transaction history.
+func ExportAllTopUps(keyword string, status string, paymentMethod string) (topups []*TopUp, err error) {
+	query := DB.Model(&TopUp{})
+	if keyword != "" {
+		pattern, perr := sanitizeLikePattern(keyword)
+		if perr != nil {
+			return nil, perr
+		}
+		if len(keyword) > 1 && keyword[0] != '@' && (containsAt(keyword) || isDigitOnly(keyword)) {
+			if isDigitOnly(keyword) {
+				query = query.Where("user_id = ?", keyword)
+			} else {
+				query = query.Where("user_id IN (SELECT id FROM users WHERE email LIKE ? ESCAPE '!')", pattern)
+			}
+		} else {
+			query = query.Where("trade_no LIKE ? ESCAPE '!'", pattern)
+		}
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if paymentMethod != "" {
+		query = query.Where("payment_method = ?", paymentMethod)
+	}
+	err = query.Order("id desc").Find(&topups).Error
+	return topups, err
 }
 
 // ManualCompleteTopUp 管理员手动完成订单并给用户充值

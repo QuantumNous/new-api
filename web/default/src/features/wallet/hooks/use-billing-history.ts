@@ -23,6 +23,7 @@ import { useIsAdmin } from '@/hooks/use-admin'
 import {
   getUserBillingHistory,
   getAllBillingHistory,
+  downloadAllBillingHistory,
   completeOrder,
   isApiSuccess,
 } from '../api'
@@ -49,7 +50,9 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
   const [pageSize, setPageSize] = useState(initialPageSize)
   const [keyword, setKeyword] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('')
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [completing, setCompleting] = useState(false)
 
   /**
@@ -59,7 +62,13 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     setLoading(true)
     try {
       const response = isAdmin
-        ? await getAllBillingHistory(page, pageSize, keyword, statusFilter)
+        ? await getAllBillingHistory(
+            page,
+            pageSize,
+            keyword,
+            statusFilter,
+            paymentMethodFilter
+          )
         : await getUserBillingHistory(page, pageSize, keyword)
 
       if (isApiSuccess(response) && response.data) {
@@ -81,7 +90,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [isAdmin, page, pageSize, keyword, statusFilter])
+  }, [isAdmin, page, pageSize, keyword, statusFilter, paymentMethodFilter])
 
   /**
    * Complete a pending order (admin only)
@@ -148,6 +157,29 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     setPage(1)
   }, [])
 
+  const handlePaymentMethodChange = useCallback((paymentMethod: string) => {
+    setPaymentMethodFilter(paymentMethod)
+    setPage(1)
+  }, [])
+
+  const handleExport = useCallback(async () => {
+    if (!isAdmin) return
+    setExporting(true)
+    try {
+      await downloadAllBillingHistory(
+        keyword,
+        statusFilter,
+        paymentMethodFilter
+      )
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to export billing history:', error)
+      toast.error(i18next.t('Failed to download transaction history'))
+    } finally {
+      setExporting(false)
+    }
+  }, [isAdmin, keyword, statusFilter, paymentMethodFilter])
+
   // Fetch data when dependencies change
   useEffect(() => {
     fetchBillingHistory()
@@ -160,13 +192,17 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     pageSize,
     keyword,
     statusFilter,
+    paymentMethodFilter,
     loading,
+    exporting,
     completing,
     isAdmin,
     handlePageChange,
     handlePageSizeChange,
     handleSearch,
     handleStatusChange,
+    handlePaymentMethodChange,
+    handleExport,
     handleCompleteOrder,
     refresh: fetchBillingHistory,
   }

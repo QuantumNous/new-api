@@ -308,7 +308,8 @@ export async function getAllBillingHistory(
   page: number,
   pageSize: number,
   keyword?: string,
-  status?: string
+  status?: string,
+  paymentMethod?: string
 ): Promise<ApiResponse<BillingHistoryResponse>> {
   const params = new URLSearchParams({
     p: page.toString(),
@@ -320,8 +321,31 @@ export async function getAllBillingHistory(
   if (status) {
     params.append('status', status)
   }
+  if (paymentMethod) {
+    params.append('payment_method', paymentMethod)
+  }
   const res = await api.get(`/api/user/topup?${params.toString()}`)
   return res.data
+}
+
+export async function downloadAllBillingHistory(
+  keyword?: string,
+  status?: string,
+  paymentMethod?: string
+): Promise<void> {
+  const params = new URLSearchParams()
+  if (keyword) params.append('keyword', keyword)
+  if (status) params.append('status', status)
+  if (paymentMethod) params.append('payment_method', paymentMethod)
+  const res = await api.get(`/api/user/topup/export?${params.toString()}`, {
+    responseType: 'blob',
+  })
+  const url = URL.createObjectURL(res.data as Blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`
+  anchor.click()
+  URL.revokeObjectURL(url)
 }
 
 /**
@@ -376,7 +400,10 @@ export interface FirstTopupPromoInfo {
 export async function getFirstTopupPromo(): Promise<FirstTopupPromoInfo | null> {
   try {
     const res = await api.get('/api/user/first_topup_promo')
-    if (res.data?.success && res.data?.data) return res.data.data as FirstTopupPromoInfo
-  } catch { /* ignore */ }
+    if (res.data?.success && res.data?.data)
+      return res.data.data as FirstTopupPromoInfo
+  } catch {
+    /* ignore */
+  }
   return null
 }

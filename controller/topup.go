@@ -1,10 +1,12 @@
 package controller
 
 import (
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -562,6 +564,7 @@ func GetAllTopUps(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
 	status := c.Query("status")
+	paymentMethod := c.Query("payment_method")
 
 	var (
 		topups []*model.TopUp
@@ -569,9 +572,9 @@ func GetAllTopUps(c *gin.Context) {
 		err    error
 	)
 	if keyword != "" {
-		topups, total, err = model.SearchAllTopUps(keyword, status, pageInfo)
+		topups, total, err = model.SearchAllTopUps(keyword, status, paymentMethod, pageInfo)
 	} else {
-		topups, total, err = model.GetAllTopUps(status, pageInfo)
+		topups, total, err = model.GetAllTopUps(status, paymentMethod, pageInfo)
 	}
 	if err != nil {
 		common.ApiError(c, err)
@@ -583,6 +586,57 @@ func GetAllTopUps(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(topups)
 	common.ApiSuccess(c, pageInfo)
+}
+
+// ExportAllTopUps downloads all transaction-history rows matching the admin filters.
+func ExportAllTopUps(c *gin.Context) {
+	topups, err := model.ExportAllTopUps(c.Query("keyword"), c.Query("status"), c.Query("payment_method"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.EnrichTopupsWithUserInfo(topups)
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="transactions-%s.csv"`, time.Now().UTC().Format("20060102-150405")))
+	_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+	w := csv.NewWriter(c.Writer)
+	_ = w.Write([]string{"Order No.", "UID", "Username", "Email", "Country", "Language", "Payment Method", "Recharge Amount (USD)", "Amount Paid", "Status", "Created At (UTC)", "Completed At (UTC)"})
+	for _, topup := range topups {
+		creditedAmount := topup.CreditedAmount
+		if creditedAmount <= 0 {
+			creditedAmount = float64(topup.Amount)
+		}
+		completeTime := ""
+		if topup.CompleteTime > 0 {
+			completeTime = time.Unix(topup.CompleteTime, 0).UTC().Format(time.RFC3339)
+		}
+		_ = w.Write([]string{
+			sanitizeCSVCell(topup.TradeNo),
+			strconv.Itoa(topup.UserId),
+			sanitizeCSVCell(topup.Username),
+			sanitizeCSVCell(topup.Email),
+			sanitizeCSVCell(topup.Country),
+			sanitizeCSVCell(topup.Language),
+			sanitizeCSVCell(topup.PaymentMethod),
+			strconv.FormatFloat(creditedAmount, 'f', 6, 64),
+			strconv.FormatFloat(topup.Money, 'f', 6, 64),
+			topup.Status,
+			time.Unix(topup.CreateTime, 0).UTC().Format(time.RFC3339),
+			completeTime,
+		})
+	}
+	w.Flush()
+}
+
+func sanitizeCSVCell(value string) string {
+	if value == "" {
+		return value
+	}
+	if strings.ContainsRune("=+-@", rune(value[0])) || value[0] == '\t' || value[0] == '\r' {
+		return "'" + value
+	}
+	return value
 }
 
 type AdminCompleteTopupRequest struct {

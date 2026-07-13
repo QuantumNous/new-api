@@ -4598,5 +4598,8 @@
   "Model Price Ratios": "模型价格倍率",
   "Select model": "选择模型",
   "Add model ratio": "添加模型倍率",
-  "Per-model markup override. Models not listed fall back to the channel-level User Price Ratio above.": "按模型覆盖加价倍率；未列出的模型回落上方渠道级“用户价格倍率”。"
+  "Per-model markup override. Models not listed fall back to the channel-level User Price Ratio above.": "按模型覆盖加价倍率；未列出的模型回落上方渠道级“用户价格倍率”。",
+  "All Payment Methods": "全部付款方式",
+  "Download CSV": "下载 CSV",
+  "Failed to download transaction history": "交易历史下载失败"
 }
