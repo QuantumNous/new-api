@@ -20,7 +20,6 @@ import { ChevronRight, Copy } from 'lucide-react'
 import { memo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { StatusBadge } from '@/components/status-badge'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -34,6 +33,7 @@ import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
+import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 
 export interface ModelCardProps {
@@ -116,14 +116,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               <span className='text-foreground font-mono font-semibold'>
                 {entry.formatted}
               </span>
-              /{tokenUnitLabel}
             </span>
           ))}
         </>
       )
     } else {
       priceSummary = (
-        <span className='text-muted-foreground text-xs'>
+        <span className='text-muted-foreground text-sm'>
           {t('Dynamic Pricing')}
         </span>
       )
@@ -144,7 +143,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               props.selectedGroup
             )}
           </span>
-          /{tokenUnitLabel}
         </span>
         <span className='text-muted-foreground whitespace-nowrap'>
           {t('Output')}{' '}
@@ -159,12 +157,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               props.selectedGroup
             )}
           </span>
-          /{tokenUnitLabel}
         </span>
         {hasCachedPrice && (
-          <span className='text-muted-foreground/60 whitespace-nowrap'>
+          <span className='text-muted-foreground whitespace-nowrap'>
             {t('Cached')}{' '}
-            <span className='font-mono'>
+            <span className='text-foreground font-mono font-semibold'>
               {formatPrice(
                 props.model,
                 'cache',
@@ -217,7 +214,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             <h3 className='text-foreground truncate font-mono text-[15px] leading-tight font-bold'>
               {props.model.model_name}
             </h3>
-            <div className='mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs sm:mt-1 sm:gap-x-3'>
+            <div className='mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm sm:mt-1 sm:gap-x-3'>
               {priceSummary}
             </div>
           </div>
@@ -252,21 +249,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       <div className='mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
         <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
           {primaryGroup && (
-            <span className='text-muted-foreground text-xs font-medium'>
-              {primaryGroup} {t('Groups')}
+            <span className='text-muted-foreground text-sm font-medium'>
+              {primaryGroup}
             </span>
           )}
-          <span className='text-muted-foreground text-xs font-medium'>
-            {isTokenBased ? t('Token-based') : t('Per Request')}
-          </span>
-          {isDynamicPricing && (
-            <StatusBadge
-              label={t('Dynamic Pricing')}
-              variant='warning'
-              copyable={false}
-              size='sm'
-            />
-          )}
+          <ModelBillingModeBadge model={props.model} />
         </div>
         <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />
 

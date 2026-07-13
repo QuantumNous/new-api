@@ -513,6 +513,7 @@ export function SystemInstancesPanel() {
   const staleInstances = instances.filter(
     (instance) => instance.status === 'stale'
   )
+  const hasStaleInstances = staleInstances.length > 0
   const loading = instancesQuery.isLoading
   const refreshing = instancesQuery.isFetching && !instancesQuery.isLoading
 
@@ -650,32 +651,32 @@ export function SystemInstancesPanel() {
                 seconds: INSTANCE_POLL_INTERVAL_MS / 1000,
               })}
             </span>
-            <Button
-              type='button'
-              variant='destructive'
-              size='sm'
-              onClick={() => setDeleteAllConfirmOpen(true)}
-              disabled={
-                staleInstances.length === 0 ||
-                isMutatingInstance ||
-                deleteStaleInstancesMutation.isPending
-              }
-            >
-              {deleteStaleInstancesMutation.isPending ? (
-                <Loader2
-                  data-icon='inline-start'
-                  className='size-3.5 animate-spin'
-                  aria-hidden='true'
-                />
-              ) : (
-                <Trash2
-                  data-icon='inline-start'
-                  className='size-3.5'
-                  aria-hidden='true'
-                />
-              )}
-              {t('Delete all stale')}
-            </Button>
+            {hasStaleInstances ? (
+              <Button
+                type='button'
+                variant='destructive'
+                size='sm'
+                onClick={() => setDeleteAllConfirmOpen(true)}
+                disabled={
+                  isMutatingInstance || deleteStaleInstancesMutation.isPending
+                }
+              >
+                {deleteStaleInstancesMutation.isPending ? (
+                  <Loader2
+                    data-icon='inline-start'
+                    className='size-3.5 animate-spin'
+                    aria-hidden='true'
+                  />
+                ) : (
+                  <Trash2
+                    data-icon='inline-start'
+                    className='size-3.5'
+                    aria-hidden='true'
+                  />
+                )}
+                {t('Delete all stale')}
+              </Button>
+            ) : null}
             <Button
               type='button'
               variant='outline'

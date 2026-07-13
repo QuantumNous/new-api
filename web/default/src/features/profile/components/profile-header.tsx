@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
@@ -63,8 +64,8 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
         </CardContent>
         <div className='border-t'>
           <div className='divide-border/60 grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+            {['balance', 'usage', 'requests'].map((key) => (
+              <div key={key} className='px-4 py-3.5 sm:px-5 sm:py-4'>
                 <Skeleton className='h-3.5 w-20' />
                 <Skeleton className='mt-2 h-7 w-28' />
                 <Skeleton className='mt-1.5 h-3.5 w-24' />
@@ -83,24 +84,33 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   const avatarFallback = getUserAvatarFallback(avatarName)
   const avatarFallbackStyle = getUserAvatarStyle(avatarName)
   const roleLabel = getRoleLabel(profile.role)
-  const stats = [
+  const stats: {
+    label: string
+    value: string
+    description: string
+    icon: typeof WalletCards
+    tone: IconBadgeTone
+  }[] = [
     {
       label: t('Current Balance'),
       value: formatQuota(profile.quota),
       description: t('Remaining quota'),
       icon: WalletCards,
+      tone: 'success',
     },
     {
       label: t('Total Usage'),
       value: formatQuota(profile.used_quota),
       description: t('Total consumed quota'),
       icon: BarChart3,
+      tone: 'info',
     },
     {
       label: t('API Requests'),
       value: formatCompactNumber(profile.request_count),
       description: t('Total requests made'),
       icon: Activity,
+      tone: 'chart-4',
     },
   ]
 
@@ -157,7 +167,9 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
           {stats.map((item) => (
             <div key={item.label} className='min-w-0 px-3 py-3 sm:px-5 sm:py-4'>
               <div className='flex items-center gap-2'>
-                <item.icon className='text-muted-foreground/60 size-3.5 shrink-0' />
+                <IconBadge tone={item.tone} size='stat'>
+                  <item.icon />
+                </IconBadge>
                 <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
                   {item.label}
                 </div>

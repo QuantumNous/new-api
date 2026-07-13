@@ -46,6 +46,7 @@ import {
   CardStaggerItem,
 } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -117,6 +118,7 @@ interface HeroSignal {
   label: string
   value: string
   icon: LucideIcon
+  tone: IconBadgeTone
 }
 
 function getSavedSetupGuideExpanded(): boolean | null {
@@ -183,7 +185,7 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
     <>
       <div
         className={cn(
-          'pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_48%_120%_at_78%_0%,color-mix(in_oklch,var(--primary)_8%,transparent)_0%,transparent_62%),linear-gradient(112deg,color-mix(in_oklch,var(--card)_98%,var(--primary)_2%)_0%,color-mix(in_oklch,var(--card)_94%,var(--muted)_6%)_48%,color-mix(in_oklch,var(--background)_92%,var(--accent)_8%)_100%)] dark:opacity-65',
+          'pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_48%_120%_at_78%_0%,color-mix(in_oklch,var(--overview-accent-1)_14%,transparent)_0%,transparent_62%),linear-gradient(112deg,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-2)_6%)_0%,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-3)_6%)_48%,color-mix(in_oklch,var(--background)_90%,var(--overview-accent-1)_10%)_100%)] dark:opacity-60',
           props.compact
             ? '[mask-image:linear-gradient(90deg,black_0%,black_48%,transparent_74%)] opacity-55'
             : 'opacity-85'
@@ -333,9 +335,9 @@ function RequestPreview(props: {
 
       <div className='flex items-center justify-between gap-3 border-b pb-3'>
         <div className='flex min-w-0 items-center gap-2'>
-          <span className='bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg'>
-            <TerminalSquare className='size-4' aria-hidden='true' />
-          </span>
+          <IconBadge tone='info'>
+            <TerminalSquare />
+          </IconBadge>
           <div className='min-w-0'>
             <div className='truncate text-sm font-medium'>
               {t('First API request')}
@@ -373,9 +375,9 @@ function RequestPreview(props: {
           <span className='bg-success size-2 rounded-full' />
         </div>
         <div className='flex flex-col gap-1 overflow-hidden'>
-          {previewLines.map((line, index) => (
+          {previewLines.map((line) => (
             <code
-              key={`${line}-${index}`}
+              key={line}
               className='text-muted-foreground truncate'
               title={line}
             >
@@ -395,10 +397,9 @@ function RequestPreview(props: {
               className='bg-muted/40 flex items-center justify-between gap-3 rounded-xl px-3 py-2'
             >
               <span className='flex min-w-0 items-center gap-2'>
-                <Icon
-                  className='text-muted-foreground size-3.5 shrink-0'
-                  aria-hidden='true'
-                />
+                <IconBadge tone={signal.tone} size='xs'>
+                  <Icon />
+                </IconBadge>
                 <span className='truncate text-xs font-medium'>
                   {signal.label}
                 </span>
@@ -565,16 +566,19 @@ export function OverviewDashboard() {
         label: t('Route active'),
         value: apiInfoItems.length > 0 ? t('Online') : t('Current domain'),
         icon: RadioTower,
+        tone: 'info',
       },
       {
         label: t('Auth configured'),
         value: preferredKey ? t('Secured') : t('Needs API key'),
         icon: ShieldCheck,
+        tone: 'success',
       },
       {
         label: t('Model selected'),
         value: modelsQuery.data?.[0] ?? t('Loading'),
         icon: Timer,
+        tone: 'chart-4',
       },
     ],
     [apiInfoItems.length, modelsQuery.data, preferredKey, t]

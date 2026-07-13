@@ -145,8 +145,7 @@ export function MultiSelect(props: MultiSelectProps) {
     (selectedSet.has(trimmedInput) ||
       props.options.some(
         (option) =>
-          option.value.toLowerCase() === trimmedInput.toLowerCase() ||
-          option.label.toLowerCase() === trimmedInput.toLowerCase()
+          option.value === trimmedInput || option.label === trimmedInput
       ))
 
   const canCreate =

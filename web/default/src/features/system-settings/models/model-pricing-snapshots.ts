@@ -61,6 +61,12 @@ export type ModelRow = ModelPricingSnapshot & {
 export const hasPricingValue = (value?: string) =>
   value !== undefined && value !== ''
 
+export const isBasePricingUnset = (snapshot?: ModelPricingSnapshot) =>
+  !snapshot ||
+  (snapshot.billingMode !== 'tiered_expr' &&
+    !hasPricingValue(snapshot.price) &&
+    !hasPricingValue(snapshot.ratio))
+
 const toNumberOrNull = (value?: string) => {
   if (!hasPricingValue(value)) return null
   const num = Number(value)

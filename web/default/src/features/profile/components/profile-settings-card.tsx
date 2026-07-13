@@ -56,8 +56,8 @@ export function ProfileSettingsCard({
         </CardHeader>
         <CardContent className='space-y-4 p-3 sm:p-5'>
           <Skeleton className='h-10 w-full' />
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className='h-20 w-full' />
+          {['bindings', 'preferences', 'notifications'].map((key) => (
+            <Skeleton key={key} className='h-20 w-full' />
           ))}
         </CardContent>
       </Card>
@@ -69,6 +69,7 @@ export function ProfileSettingsCard({
       title={t('Settings')}
       description={t('Configure your account preferences and integrations')}
       icon={<Settings className='h-4 w-4' />}
+      iconTone='info'
       disableHoverEffect
     >
       <Tabs value={activeTab} onValueChange={setActiveTab}>

@@ -22,7 +22,7 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	p := float64(usage.PromptTokens)
 	c := float64(usage.CompletionTokens)
 	cr := float64(usage.PromptTokensDetails.CachedTokens)
-	cc5m := float64(usage.PromptTokensDetails.CachedCreationTokens)
+	cc5m := float64(usage.PromptTokensDetails.CacheCreationTokensTotal())
 	cc1h := float64(0)
 
 	if usage.UsageSemantic == "anthropic" {
@@ -67,6 +67,8 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 		}
 	}
 
+	// OpenAI cache-write usage reports unadjusted prefix counts, so cr + cc can
+	// exceed the prompt and drive the remainder negative. Clamp at zero.
 	if p < 0 {
 		p = 0
 	}

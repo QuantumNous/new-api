@@ -244,8 +244,8 @@ export function SubscriptionPlansCard({
         <CardContent className='space-y-4 p-3 sm:p-5'>
           <Skeleton className='h-20 w-full' />
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-48 w-full' />
+            {['first', 'second', 'third'].map((key) => (
+              <Skeleton key={key} className='h-48 w-full' />
             ))}
           </div>
         </CardContent>
@@ -263,6 +263,7 @@ export function SubscriptionPlansCard({
         title={t('Subscription Plans')}
         description={t('Subscribe to a plan for model access')}
         icon={<Crown className='h-4 w-4' />}
+        iconTone='warning'
         disableHoverEffect
         contentClassName='space-y-4 sm:space-y-5'
       >
@@ -411,6 +412,38 @@ export function SubscriptionPlansCard({
                   const isCancelled = subscription?.status === 'cancelled'
                   const isActive =
                     subscription?.status === 'active' && !isExpired
+                  const nextResetTime = subscription?.next_reset_time ?? 0
+                  let statusBadge = (
+                    <StatusBadge
+                      label={t('Expired')}
+                      variant='neutral'
+                      copyable={false}
+                    />
+                  )
+                  if (isActive) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Active')}
+                        variant='success'
+                        copyable={false}
+                      />
+                    )
+                  } else if (isCancelled) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Cancelled')}
+                        variant='neutral'
+                        copyable={false}
+                      />
+                    )
+                  }
+
+                  let endTimeLabel = t('Expired at')
+                  if (isActive) {
+                    endTimeLabel = t('Until')
+                  } else if (isCancelled) {
+                    endTimeLabel = t('Cancelled at')
+                  }
 
                   return (
                     <div
@@ -424,25 +457,7 @@ export function SubscriptionPlansCard({
                               ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
                               : `${t('Subscription')} #${subscription?.id}`}
                           </span>
-                          {isActive ? (
-                            <StatusBadge
-                              label={t('Active')}
-                              variant='success'
-                              copyable={false}
-                            />
-                          ) : isCancelled ? (
-                            <StatusBadge
-                              label={t('Cancelled')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          ) : (
-                            <StatusBadge
-                              label={t('Expired')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          )}
+                          {statusBadge}
                         </div>
                         {isActive && (
                           <span className='text-muted-foreground'>
@@ -453,21 +468,15 @@ export function SubscriptionPlansCard({
                         )}
                       </div>
                       <div className='text-muted-foreground mt-1.5'>
-                        {isActive
-                          ? t('Until')
-                          : isCancelled
-                            ? t('Cancelled at')
-                            : t('Expired at')}{' '}
+                        {endTimeLabel}{' '}
                         {new Date(
                           (subscription?.end_time || 0) * 1000
                         ).toLocaleString()}
                       </div>
-                      {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
+                      {isActive && nextResetTime > 0 && (
                         <div className='text-muted-foreground mt-1'>
                           {t('Next reset')}:{' '}
-                          {new Date(
-                            subscription!.next_reset_time! * 1000
-                          ).toLocaleString()}
+                          {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
                       <div className='text-muted-foreground mt-1'>
