@@ -26,6 +26,7 @@ import {
 } from '@/lib/secure-verification'
 
 import { checkVerificationMethods, verify } from '../api'
+import { selectVerificationMethod } from '../lib/select-verification-method'
 import type {
   SecureVerificationState,
   StartVerificationOptions,
@@ -87,7 +88,12 @@ export function useSecureVerification(
       const { preferredMethod, title, description } = config
       const availableMethods = await fetchVerificationMethods()
 
-      if (!availableMethods.has2FA && !availableMethods.hasPasskey) {
+      const defaultMethod = selectVerificationMethod(
+        availableMethods,
+        preferredMethod
+      )
+
+      if (!defaultMethod) {
         toast.error(
           i18next.t(
             'Please enable Two-factor Authentication or Passkey before proceeding'
@@ -99,15 +105,6 @@ export function useSecureVerification(
           )
         )
         return false
-      }
-
-      let defaultMethod: VerificationMethod | null = preferredMethod ?? null
-      if (!defaultMethod) {
-        if (availableMethods.hasPasskey && availableMethods.passkeySupported) {
-          defaultMethod = 'passkey'
-        } else if (availableMethods.has2FA) {
-          defaultMethod = '2fa'
-        }
       }
 
       setState((prev) => ({

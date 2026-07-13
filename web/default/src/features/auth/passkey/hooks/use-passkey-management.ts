@@ -172,6 +172,7 @@ export function usePasskeyManagement(
   }, [fetchStatus])
 
   const enabled = useMemo(() => Boolean(status?.enabled), [status])
+  const systemEnabled = status?.system_enabled ?? null
   const lastUsed = useMemo(() => status?.last_used_at ?? null, [status])
 
   return {
@@ -181,6 +182,7 @@ export function usePasskeyManagement(
     removing,
     supported,
     enabled,
+    systemEnabled,
     lastUsed,
     fetchStatus,
     register,
