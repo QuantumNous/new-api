@@ -44,15 +44,13 @@ import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
+import { usePasskeyLogin } from '@/features/auth/hooks/use-passkey-login'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
-import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
-import type { AuthFormProps } from '@/features/auth/types'
+import type {
+  AuthFormProps,
+  LoginVerificationRequirements,
+} from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
-import {
-  buildAssertionResult,
-  prepareCredentialRequestOptions,
-  isPasskeySupported as detectPasskeySupport,
-} from '@/lib/passkey'
 import { cn } from '@/lib/utils'
 
 export function UserAuthForm({
@@ -64,8 +62,6 @@ export function UserAuthForm({
   const [isLoading, setIsLoading] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
-  const [passkeySupported, setPasskeySupported] = useState(false)
-  const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
@@ -86,7 +82,17 @@ export function UserAuthForm({
     setTurnstileToken,
     validateTurnstile,
   } = useTurnstile()
-  const { handleLoginSuccess, redirectTo2FA } = useAuthRedirect()
+  const { handleLoginSuccess, redirectToVerification } = useAuthRedirect()
+  const {
+    isSupported: passkeySupported,
+    isLoading: isPasskeyLoading,
+    login: executePasskeyLogin,
+  } = usePasskeyLogin({
+    onSuccess: async (userData) => {
+      await handleLoginSuccess(userData, redirectTo)
+      toast.success(t('Signed in with Passkey'))
+    },
+  })
 
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
@@ -114,12 +120,6 @@ export function UserAuthForm({
       setAgreedToLegal(true)
     }
   }, [requiresLegalConsent])
-
-  useEffect(() => {
-    detectPasskeySupport()
-      .then(setPasskeySupported)
-      .catch(() => setPasskeySupported(false))
-  }, [])
 
   const form = useForm<z.infer<typeof loginFormSchema>>({
     resolver: zodResolver(loginFormSchema),
@@ -160,8 +160,8 @@ export function UserAuthForm({
       })
 
       if (res.success) {
-        if (res.data?.require_2fa) {
-          redirectTo2FA()
+        if (res.data?.require_verification) {
+          redirectToVerification()
           return
         }
 
@@ -202,6 +202,12 @@ export function UserAuthForm({
     try {
       const res = await wechatLoginByCode(wechatCode)
       if (res?.success) {
+        const loginData = res.data as LoginVerificationRequirements | undefined
+        if (loginData?.require_verification) {
+          handleWeChatDialogChange(false)
+          redirectToVerification()
+          return
+        }
         await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
         toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
@@ -221,66 +227,7 @@ export function UserAuthForm({
       return
     }
 
-    if (!passkeySupported) {
-      toast.error(t('Passkey is not supported on this device'))
-      return
-    }
-
-    if (!navigator?.credentials) {
-      toast.error(t('Passkey is not available in this browser'))
-      return
-    }
-
-    setIsPasskeyLoading(true)
-    try {
-      const begin = await beginPasskeyLogin()
-      if (!begin.success) {
-        throw new Error(begin.message || t('Failed to start Passkey login'))
-      }
-
-      const publicKey = prepareCredentialRequestOptions(
-        begin.data?.options ?? begin.data
-      )
-
-      const credential = (await navigator.credentials.get({
-        publicKey,
-      })) as PublicKeyCredential | null
-
-      if (!credential) {
-        toast.info(t('Passkey login was cancelled'))
-        return
-      }
-
-      const assertion = buildAssertionResult(credential)
-      if (!assertion) {
-        throw new Error(t('Invalid Passkey response'))
-      }
-
-      const finish = await finishPasskeyLogin(assertion)
-      if (!finish.success) {
-        throw new Error(finish.message || t('Failed to complete Passkey login'))
-      }
-
-      if (!finish.data) {
-        throw new Error(t('Missing user data from Passkey login response'))
-      }
-
-      await handleLoginSuccess(
-        finish.data as { id?: number } | null,
-        redirectTo
-      )
-      toast.success(t('Signed in with Passkey'))
-    } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === 'NotAllowedError') {
-        toast.info(t('Passkey login was cancelled or timed out'))
-      } else if (error instanceof Error) {
-        toast.error(error.message)
-      } else {
-        toast.error(t('Passkey login failed'))
-      }
-    } finally {
-      setIsPasskeyLoading(false)
-    }
+    await executePasskeyLogin()
   }
 
   const alternativeLoginMethods = (

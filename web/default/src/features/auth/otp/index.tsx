@@ -16,37 +16,55 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { Loader2 } from 'lucide-react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+
+import { getPendingLoginVerification } from '@/features/auth/api'
 
 import { AuthLayout } from '../auth-layout'
-import { OtpForm } from './components/otp-form'
+import { LoginVerification } from './components/otp-form'
 
 export function Otp() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const verificationQuery = useQuery({
+    queryKey: ['auth', 'pending-login-verification'],
+    queryFn: async () => {
+      const response = await getPendingLoginVerification()
+      if (!response.success || !response.data?.require_verification) {
+        throw new Error(response.message || t('Login session has expired'))
+      }
+      return response.data
+    },
+    retry: false,
+    gcTime: 0,
+  })
+  const requirements = verificationQuery.data
+
+  useEffect(() => {
+    if (!verificationQuery.error) {
+      return
+    }
+    toast.error(
+      verificationQuery.error instanceof Error
+        ? verificationQuery.error.message
+        : t('Login session has expired')
+    )
+    navigate({ to: '/sign-in', replace: true })
+  }, [navigate, t, verificationQuery.error])
+
   return (
     <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='space-y-3'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Two-factor Authentication')}
-          </h2>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {t('Please enter the authentication code.')}
-          </p>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {t('Session expired?')}{' '}
-            <Link
-              to='/sign-in'
-              className='hover:text-primary font-medium underline underline-offset-4'
-            >
-              {t('Re-login')}
-            </Link>
-            .
-          </p>
-        </div>
-
-        <OtpForm />
+      <div className='flex min-h-48 w-full items-center justify-center'>
+        {requirements ? (
+          <LoginVerification requirements={requirements} />
+        ) : (
+          <Loader2 className='text-muted-foreground h-5 w-5 animate-spin' />
+        )}
       </div>
     </AuthLayout>
   )

@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import type { LoginVerificationRequirements } from '@/features/auth/types'
 import { api, getSelf } from '@/lib/api'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
@@ -171,7 +172,9 @@ function OAuthCallback() {
         const res = await api.get(`/api/oauth/${provider}`, config)
         if (res?.data?.success) {
           const { message } = res.data
-          const loginUser = (res.data?.data ?? null) as AuthUser | null
+          const loginUser = (res.data?.data ?? null) as
+            | (AuthUser & LoginVerificationRequirements)
+            | null
           // Check if this is a bind operation
           if (message === 'bind') {
             toast.success(i18next.t('Binding successful!'))
@@ -182,6 +185,10 @@ function OAuthCallback() {
             } else {
               safeNavigate('/_authenticated/profile/')
             }
+            return
+          }
+          if (loginUser?.require_verification) {
+            safeNavigate('/otp')
             return
           }
           // Otherwise it's a login, use payload user if available

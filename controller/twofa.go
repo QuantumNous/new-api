@@ -8,7 +8,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -405,31 +404,32 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	// 从会话中获取pending用户信息
-	session := sessions.Default(c)
-	pendingUserId := session.Get("pending_user_id")
-	if pendingUserId == nil {
+	pending, err := getPendingLogin(c)
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "会话已过期，请重新登录",
+			"message": err.Error(),
 		})
 		return
 	}
-	userId, ok := pendingUserId.(int)
-	if !ok {
+	if !pending.Allow2FA {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "会话数据无效，请重新登录",
+			"message": "当前登录验证不允许使用2FA",
 		})
 		return
 	}
 	// 获取用户信息
-	user, err := model.GetUserById(userId, false)
+	user, err := model.GetUserById(pending.UserID, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户不存在",
 		})
+		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		common.ApiErrorMsg(c, "该用户已被禁用")
 		return
 	}
 
@@ -477,12 +477,7 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	// 2FA验证成功，清理pending会话信息并完成登录
-	session.Delete("pending_username")
-	session.Delete("pending_user_id")
-	session.Save()
-
-	setupLogin(user, c)
+	completePendingLogin(c, pending, user, "2fa")
 }
 
 // Admin2FAStats 管理员获取2FA统计信息

@@ -49,6 +49,7 @@ import {
   getAffiliateCode,
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
+import type { LoginVerificationRequirements } from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
 import { cn } from '@/lib/utils'
 
@@ -73,7 +74,8 @@ export function SignUpForm({
     setTurnstileToken,
     validateTurnstile,
   } = useTurnstile()
-  const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
+  const { redirectToLogin, redirectToVerification, handleLoginSuccess } =
+    useAuthRedirect()
   const {
     isSending: isSendingCode,
     secondsLeft,
@@ -210,6 +212,12 @@ export function SignUpForm({
     try {
       const res = await wechatLoginByCode(wechatCode)
       if (res?.success) {
+        const loginData = res.data as LoginVerificationRequirements | undefined
+        if (loginData?.require_verification) {
+          handleWeChatDialogChange(false)
+          redirectToVerification()
+          return
+        }
         await handleLoginSuccess(res.data as { id?: number } | null)
         toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)

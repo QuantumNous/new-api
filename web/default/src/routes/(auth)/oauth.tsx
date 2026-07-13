@@ -22,6 +22,7 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { wechatLoginByCode } from '@/features/auth/api'
+import type { LoginVerificationRequirements } from '@/features/auth/types'
 import { getSelf } from '@/lib/api'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
@@ -38,7 +39,14 @@ function OAuthComponent() {
     ;(async () => {
       try {
         if (search?.provider === 'wechat' && search.code) {
-          await wechatLoginByCode(search.code)
+          const response = await wechatLoginByCode(search.code)
+          const loginData = response.data as
+            | LoginVerificationRequirements
+            | undefined
+          if (response.success && loginData?.require_verification) {
+            navigate({ to: '/otp', replace: true })
+            return
+          }
         }
         const res = await getSelf()
         if (res?.success) {

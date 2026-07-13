@@ -93,9 +93,9 @@ export function useAuthRedirect() {
   }
 
   /**
-   * Redirect to 2FA page
+   * Redirect to the local login verification page
    */
-  const redirectTo2FA = () => {
+  const redirectToVerification = () => {
     navigate({ to: '/otp', replace: true })
   }
 
@@ -115,7 +115,7 @@ export function useAuthRedirect() {
 
   return {
     handleLoginSuccess,
-    redirectTo2FA,
+    redirectToVerification,
     redirectToLogin,
     redirectToRegister,
   }

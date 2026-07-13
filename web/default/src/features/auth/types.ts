@@ -63,10 +63,14 @@ export interface BindEmailPayload {
 export interface LoginResponse {
   success: boolean
   message: string
-  data?: {
-    require_2fa?: boolean
-    id?: number
-  }
+  data?: LoginVerificationRequirements & { id?: number }
+}
+
+export interface LoginVerificationRequirements {
+  require_verification?: boolean
+  require_2fa?: boolean
+  require_passkey?: boolean
+  expires_at?: number
 }
 
 export interface Login2FAResponse {
@@ -75,10 +79,10 @@ export interface Login2FAResponse {
   data?: User
 }
 
-export interface ApiResponse {
+export interface ApiResponse<T = unknown> {
   success: boolean
   message: string
-  data?: unknown
+  data?: T
 }
 
 // ============================================================================
