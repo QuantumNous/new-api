@@ -340,7 +340,7 @@ func notifyFinalRelayFailure(c *gin.Context, relayInfo *relaycommon.RelayInfo, f
 	if c == nil || relayInfo == nil || finalErr == nil {
 		return
 	}
-	if shouldSuppressFinalFailureNotification(relayInfo.OriginModelName) {
+	if shouldSuppressFinalFailureNotification(c, relayInfo.OriginModelName, finalErr) {
 		return
 	}
 	if c.GetBool("final_failure_notified") {
@@ -398,8 +398,35 @@ func notifyFinalRelayFailure(c *gin.Context, relayInfo *relaycommon.RelayInfo, f
 	})
 }
 
-func shouldSuppressFinalFailureNotification(modelName string) bool {
-	return strings.EqualFold(strings.TrimSpace(modelName), "gpt-5.4-mini")
+func shouldSuppressFinalFailureNotification(c *gin.Context, modelName string, finalErr *types.NewAPIError) bool {
+	if strings.EqualFold(strings.TrimSpace(modelName), "gpt-5.4-mini") {
+		return true
+	}
+	if isClientDisconnectFinalFailure(c, finalErr) {
+		return true
+	}
+	return false
+}
+
+func isClientDisconnectFinalFailure(c *gin.Context, finalErr *types.NewAPIError) bool {
+	if c != nil && c.Request != nil && c.Request.Context().Err() != nil {
+		return true
+	}
+	if decision, ok := getRetryDecision(c); ok {
+		if isClientDisconnectReason(fmt.Sprint(decision["reason"])) {
+			return true
+		}
+	}
+	return finalErr != nil && isClientDisconnectReason(string(finalErr.GetErrorCode()))
+}
+
+func isClientDisconnectReason(reason string) bool {
+	switch strings.TrimSpace(reason) {
+	case "client_canceled", "client_disconnected":
+		return true
+	default:
+		return false
+	}
 }
 
 func explainRelayFailure(err *types.NewAPIError) string {
