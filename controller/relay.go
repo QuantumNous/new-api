@@ -49,10 +49,47 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.EmbeddingHelper(c, info)
 	case relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact:
 		err = relay.ResponsesHelper(c, info)
+	case relayconstant.RelayModeCodexSearch:
+		err = relay.CodexSearchHelper(c, info)
 	default:
 		err = relay.TextHelper(c, info)
 	}
 	return err
+}
+
+func prepareCodexSearchAttemptBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	priceData, err := helper.CodexSearchPriceHelper(c, info)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest), types.ErrOptionWithSkipRetry())
+	}
+	if priceData.FreeModel {
+		return nil
+	}
+	if info.Billing == nil {
+		return service.PreConsumeBilling(c, priceData.QuotaToPreConsume, info)
+	}
+	if err := info.Billing.Reserve(priceData.QuotaToPreConsume); err != nil {
+		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+	}
+	return nil
+}
+
+func settleCodexSearchBilling(c *gin.Context, info *relaycommon.RelayInfo) {
+	if err := service.SettleBilling(c, info, info.PriceData.Quota); err == nil {
+		return
+	} else {
+		common.SysError("settle Codex search billing error: " + err.Error())
+	}
+
+	if info.Billing == nil || !info.Billing.NeedsRefund() {
+		return
+	}
+	chargedQuota := info.Billing.GetPreConsumedQuota()
+	info.PriceData.Quota = chargedQuota
+	common.SetContextKey(c, constant.ContextKeyCodexSearchBillingFallback, true)
+	if err := service.SettleBilling(c, info, chargedQuota); err != nil {
+		common.SysError("finalize Codex search reserved billing error: " + err.Error())
+	}
 }
 
 func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
@@ -122,6 +159,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	if relayFormat == types.RelayFormatCodexSearch && c.GetInt("channel_type") != constant.ChannelTypeCodex {
+		newAPIError = types.NewErrorWithStatusCode(
+			errors.New("standalone search is only supported by Codex channels"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+		return
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -150,7 +196,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	var priceData types.PriceData
+	if relayFormat == types.RelayFormatCodexSearch {
+		priceData, err = helper.CodexSearchPriceHelper(c, relayInfo)
+	} else {
+		priceData, err = helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	}
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 		return
@@ -210,6 +261,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		if relayFormat == types.RelayFormatCodexSearch {
+			newAPIError = prepareCodexSearchAttemptBilling(c, relayInfo)
+			if newAPIError != nil {
+				break
+			}
+		}
+
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
@@ -223,6 +281,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			if relayFormat == types.RelayFormatCodexSearch {
+				settleCodexSearchBilling(c, relayInfo)
+				service.LogCodexSearchConsumption(c, relayInfo)
+			}
 			return
 		}
 

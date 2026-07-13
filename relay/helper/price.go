@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -248,6 +249,39 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		Quota:          quota,
 		GroupRatioInfo: groupRatioInfo,
 	}
+	return priceData, nil
+}
+
+// CodexSearchPriceHelper prices one standalone search request using the
+// model-aware web_search tool price, which is configured in dollars per 1K calls.
+func CodexSearchPriceHelper(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
+	groupRatioInfo := HandleGroupRatio(c, info)
+	pricePerCall := operation_setting.GetToolPriceForModel("web_search", info.OriginModelName) / 1000
+	if pricePerCall < 0 {
+		return types.PriceData{}, errors.New("web_search price cannot be negative")
+	}
+
+	quota, clamp := common.QuotaRoundChecked(pricePerCall * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+	if clamp != nil {
+		info.QuotaClamp = clamp
+		return types.PriceData{}, clamp
+	}
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume &&
+		(pricePerCall == 0 || groupRatioInfo.GroupRatio == 0) {
+		freeModel = true
+	}
+
+	priceData := types.PriceData{
+		FreeModel:         freeModel,
+		ModelPrice:        pricePerCall,
+		UsePrice:          true,
+		Quota:             quota,
+		QuotaToPreConsume: quota,
+		GroupRatioInfo:    groupRatioInfo,
+	}
+	info.PriceData = priceData
 	return priceData, nil
 }
 

@@ -10,6 +10,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -62,6 +63,59 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, "stream", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, billing_setting.BillingModeTieredExpr, info.TieredBillingSnapshot.BillingMode)
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
+}
+
+func TestCodexSearchPriceHelperUsesModelAwareWebSearchPricePerCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		operation_setting.RebuildToolPriceIndex()
+	})
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"tool_price_setting.prices":       `{"web_search":20,"web_search:gpt-5*":30}`,
+		"group_ratio_setting.group_ratio": `{"default":1.5}`,
+	}))
+	operation_setting.RebuildToolPriceIndex()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.4",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+
+	priceData, err := CodexSearchPriceHelper(c, info)
+
+	require.NoError(t, err)
+	require.Equal(t, 0.03, priceData.ModelPrice)
+	require.Equal(t, 22500, priceData.QuotaToPreConsume)
+	require.Equal(t, 22500, priceData.Quota)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, priceData, info.PriceData)
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"tool_price_setting.prices": `{"web_search":-1}`,
+	}))
+	operation_setting.RebuildToolPriceIndex()
+	_, err = CodexSearchPriceHelper(c, info)
+	require.EqualError(t, err, "web_search price cannot be negative")
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"tool_price_setting.prices": `{"web_search":1e308}`,
+	}))
+	operation_setting.RebuildToolPriceIndex()
+	info.QuotaClamp = nil
+	_, err = CodexSearchPriceHelper(c, info)
+	require.Error(t, err)
+	require.NotNil(t, info.QuotaClamp)
+	require.Equal(t, common.QuotaClampOverflow, info.QuotaClamp.Kind)
 }
 
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
