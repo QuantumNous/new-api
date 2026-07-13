@@ -96,6 +96,8 @@ const AddEditSubscriptionModal = ({
     total_amount: 0,
     upgrade_group: '',
     stripe_price_id: '',
+    billing_mode: 'one_time',
+    stripe_recurring_price_id: '',
     creem_product_id: '',
   });
 
@@ -122,6 +124,8 @@ const AddEditSubscriptionModal = ({
       ),
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
+      billing_mode: p.billing_mode || 'one_time',
+      stripe_recurring_price_id: p.stripe_recurring_price_id || '',
       creem_product_id: p.creem_product_id || '',
     };
   };
@@ -286,6 +290,12 @@ const AddEditSubscriptionModal = ({
 
                   <Row gutter={12}>
                     <Col span={24}>
+                      <Form.Select field='billing_mode' label={t('计费方式')}>
+                        <Select.Option value='one_time'>{t('单次支付')}</Select.Option>
+                        <Select.Option value='auto_renew'>{t('自动续费')}</Select.Option>
+                      </Form.Select>
+                    </Col>
+                    <Col span={24}>
                       <Form.Input
                         field='title'
                         label={t('套餐标题')}
@@ -294,6 +304,15 @@ const AddEditSubscriptionModal = ({
                         rules={[
                           { required: true, message: t('请输入套餐标题') },
                         ]}
+                        showClear
+                      />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Input
+                        field='stripe_recurring_price_id'
+                        label='Stripe Recurring PriceId'
+                        placeholder='price_...'
                         showClear
                       />
                     </Col>
