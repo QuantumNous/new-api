@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,10 +80,10 @@ func TestCopyChannelRejectsInvalidLegacyProxySettings(t *testing.T) {
 
 	CopyChannel(ctx)
 
-	require.Contains(t, recorder.Body.String(), "invalid channel settings")
+	assert.Contains(t, recorder.Body.String(), "invalid channel settings")
 	var channelCount int64
 	require.NoError(t, db.Model(&model.Channel{}).Count(&channelCount).Error)
-	require.Equal(t, int64(1), channelCount)
+	assert.Equal(t, int64(1), channelCount)
 }
 
 func TestDeleteChannelResetsProxyCacheWhenPreReadFails(t *testing.T) {
@@ -102,10 +103,10 @@ func TestDeleteChannelResetsProxyCacheWhenPreReadFails(t *testing.T) {
 
 	DeleteChannel(ctx)
 
-	require.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
 	afterDelete, err := service.GetHttpClientWithProxy(proxyURL)
 	require.NoError(t, err)
-	require.NotSame(t, beforeDelete, afterDelete)
+	assert.NotSame(t, beforeDelete, afterDelete)
 }
 
 func TestDeleteChannelBatchReportsAndAuditsActualDeletedCount(t *testing.T) {
@@ -128,8 +129,8 @@ func TestDeleteChannelBatchReportsAndAuditsActualDeletedCount(t *testing.T) {
 		Data    int64 `json:"data"`
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-	require.True(t, response.Success)
-	require.Equal(t, int64(1), response.Data)
+	assert.True(t, response.Success)
+	assert.Equal(t, int64(1), response.Data)
 
 	var auditLog model.Log
 	require.NoError(t, db.Order("id desc").First(&auditLog).Error)
@@ -139,7 +140,7 @@ func TestDeleteChannelBatchReportsAndAuditsActualDeletedCount(t *testing.T) {
 		} `json:"op"`
 	}
 	require.NoError(t, common.UnmarshalJsonStr(auditLog.Other, &auditData))
-	require.Equal(t, float64(1), auditData.Operation.Params["count"])
+	assert.Equal(t, float64(1), auditData.Operation.Params["count"])
 }
 
 func TestSettleTestQuotaUsesTieredBilling(t *testing.T) {
