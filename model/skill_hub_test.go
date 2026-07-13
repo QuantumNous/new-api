@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/glebarez/sqlite"
@@ -17,6 +18,33 @@ func TestValidateSkillHubSkillAcceptsZipSource(t *testing.T) {
 	}
 	if err := ValidateSkillHubSkill(skill); err != nil {
 		t.Fatalf("ValidateSkillHubSkill() error = %v", err)
+	}
+}
+
+func TestValidateSkillHubSkillOriginMetadata(t *testing.T) {
+	base := SkillHubSkill{
+		SkillID: "origin-skill", Name: "Origin Skill", Version: "1.0.0",
+		SourceType: "zip", SourceURL: "https://cdn.example.com/skill.zip",
+	}
+	valid := base
+	valid.Origin = strings.Repeat("源", 64)
+	valid.OriginURL = "https://clawhub.ai/skills/origin-skill"
+	if err := ValidateSkillHubSkill(&valid); err != nil {
+		t.Fatalf("ValidateSkillHubSkill() valid origin error = %v", err)
+	}
+
+	tooLongOrigin := base
+	tooLongOrigin.Origin = strings.Repeat("源", 65)
+	if err := ValidateSkillHubSkill(&tooLongOrigin); err == nil || err.Error() != "skill origin must be 64 characters or fewer" {
+		t.Fatalf("ValidateSkillHubSkill() error = %v, want origin length error", err)
+	}
+
+	for _, invalidURL := range []string{"clawhub.ai/skills/demo", "javascript:alert(1)", "https://user:pass@example.com/project"} {
+		invalid := base
+		invalid.OriginURL = invalidURL
+		if err := ValidateSkillHubSkill(&invalid); err == nil || err.Error() != "skill origin url must be an absolute http or https url" {
+			t.Fatalf("ValidateSkillHubSkill(%q) error = %v, want origin url error", invalidURL, err)
+		}
 	}
 }
 
@@ -158,6 +186,8 @@ func TestSkillHubSkillToResponseUsesCurrentCatalogSchema(t *testing.T) {
 		Name:           "Demo Skill",
 		Description:    "Demo description",
 		Version:        "1.2.3",
+		Origin:         "Clawhub",
+		OriginURL:      "https://clawhub.ai/skills/demo-skill",
 		Icon:           "https://cdn.example.com/icon.png",
 		Tags:           StringListToJSON([]string{"code", "demo"}),
 		Verified:       true,
@@ -179,6 +209,9 @@ func TestSkillHubSkillToResponseUsesCurrentCatalogSchema(t *testing.T) {
 	}
 	if !response.Recommended {
 		t.Fatalf("response.Recommended = false, want true")
+	}
+	if response.Origin != "Clawhub" || response.OriginURL != "https://clawhub.ai/skills/demo-skill" {
+		t.Fatalf("origin metadata = %q, %q", response.Origin, response.OriginURL)
 	}
 	if len(response.Tags) != 2 || response.Tags[0] != "code" || response.Tags[1] != "demo" {
 		t.Fatalf("tags = %#v", response.Tags)
@@ -285,6 +318,8 @@ func TestSearchSkillHubSkillsUsesConfiguredSortOrder(t *testing.T) {
 		{
 			SkillID:    "first-skill",
 			Name:       "First Skill",
+			Origin:     "Clawhub",
+			OriginURL:  "https://clawhub.ai/skills/first-skill",
 			Version:    "1.0.0",
 			Tags:       StringListToJSON([]string{"ordered"}),
 			Sort:       1,
@@ -317,11 +352,29 @@ func TestSearchSkillHubSkillsUsesConfiguredSortOrder(t *testing.T) {
 		t.Fatalf("taggedTotal = %d, want 3", taggedTotal)
 	}
 	assertSkillHubSkillIDs(t, taggedSkills, []string{"first-skill", "second-skill", "unsorted-skill"})
+
+	originSkills, originTotal, err := SearchSkillHubSkills("Clawhub", true, 0, 10)
+	if err != nil || originTotal != 1 {
+		t.Fatalf("SearchSkillHubSkills(origin) skills = %#v, total = %d, error = %v", originSkills, originTotal, err)
+	}
+	assertSkillHubSkillIDs(t, originSkills, []string{"first-skill"})
+
+	taggedOriginSkills, taggedOriginTotal, err := SearchSkillHubSkillsByTagIDs([]int{tag.Id}, "clawhub.ai", true, 0, 10)
+	if err != nil || taggedOriginTotal != 1 {
+		t.Fatalf("SearchSkillHubSkillsByTagIDs(origin) skills = %#v, total = %d, error = %v", taggedOriginSkills, taggedOriginTotal, err)
+	}
+	assertSkillHubSkillIDs(t, taggedOriginSkills, []string{"first-skill"})
 }
 
 func TestValidateSkillHubTag(t *testing.T) {
 	if err := ValidateSkillHubTag(&SkillHubTag{Name: "办公协同"}); err != nil {
 		t.Fatalf("ValidateSkillHubTag() error = %v", err)
+	}
+	if err := ValidateSkillHubTag(&SkillHubTag{Name: strings.Repeat("标", 40)}); err != nil {
+		t.Fatalf("ValidateSkillHubTag() error = %v, want 40 characters allowed", err)
+	}
+	if err := ValidateSkillHubTag(&SkillHubTag{Name: strings.Repeat("标", 41)}); err == nil || err.Error() != "tag name must be 40 characters or fewer" {
+		t.Fatalf("ValidateSkillHubTag() error = %v, want 40 character limit", err)
 	}
 	if err := ValidateSkillHubTag(&SkillHubTag{Name: ""}); err == nil || err.Error() != "tag name is required" {
 		t.Fatalf("ValidateSkillHubTag() error = %v, want name required", err)

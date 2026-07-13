@@ -39,6 +39,8 @@ const createDefaultForm = () => ({
   description: '',
   version: '1.0.0',
   author: '',
+  origin: '',
+  originUrl: '',
   icon: '',
   tags: [],
   verified: false,
@@ -91,6 +93,21 @@ const isAllowedZipUrl = (value) => {
     if (url.protocol === 'https:') return true;
     if (url.protocol !== 'http:') return false;
     return isLocalHTTPHost(url.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const isAllowedOriginUrl = (value) => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return true;
+  try {
+    const url = new URL(trimmed);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      !url.username &&
+      !url.password
+    );
   } catch {
     return false;
   }
@@ -217,6 +234,8 @@ const skillToForm = (skill) => ({
   description: skill?.description || '',
   version: skill?.version || '1.0.0',
   author: skill?.author || '',
+  origin: skill?.origin || '',
+  originUrl: skill?.originUrl || '',
   icon: skill?.icon || '',
   tags: normalizeTags(skill?.tags),
   verified: Boolean(skill?.verified),
@@ -234,6 +253,8 @@ const formToPayload = (form) => ({
   description: form.description.trim(),
   version: form.version.trim(),
   author: form.author.trim(),
+  origin: form.origin.trim(),
+  originUrl: form.originUrl.trim(),
   icon: form.icon.trim(),
   tags: normalizeTags(form.tags),
   verified: form.verified,
@@ -372,6 +393,8 @@ const SkillHub = () => {
   const [tagOptions, setTagOptions] = useState([]);
   const [selectedTagIds, setSelectedTagIds] = useState([]);
   const [selectedId, setSelectedId] = useState('');
+  const [checkedIds, setCheckedIds] = useState([]);
+  const [batchWorking, setBatchWorking] = useState(false);
   const [form, setForm] = useState(createDefaultForm);
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -415,6 +438,9 @@ const SkillHub = () => {
       }
       const items = data?.items || [];
       setSkills(items);
+      setCheckedIds((current) =>
+        current.filter((id) => items.some((item) => item.id === id)),
+      );
       if (selectedId && !items.some((item) => item.id === selectedId)) {
         setSelectedId('');
       }
@@ -561,6 +587,10 @@ const SkillHub = () => {
       );
       return;
     }
+    if (!isAllowedOriginUrl(form.originUrl)) {
+      showError('源地址必须使用 HTTP 或 HTTPS');
+      return;
+    }
     setSaving(true);
     try {
       const payload = formToPayload(form);
@@ -693,6 +723,61 @@ const SkillHub = () => {
     });
   };
 
+  const batchDelete = () => {
+    if (!checkedIds.length) return;
+    Modal.confirm({
+      title: '批量删除 Skill',
+      content: `确认删除选中的 ${checkedIds.length} 个 Skill？`,
+      okType: 'danger',
+      onOk: async () => {
+        setBatchWorking(true);
+        try {
+          const res = await API.post(
+            '/api/admin/skill-hub/skills/batch-delete',
+            {
+              ids: checkedIds,
+            },
+          );
+          if (!res.data.success) {
+            showError(res.data.message);
+            return;
+          }
+          if (checkedIds.includes(selectedId)) handleNew();
+          showSuccess(
+            `已删除 ${res.data.data?.deleted || checkedIds.length} 个 Skill`,
+          );
+          setCheckedIds([]);
+          await loadSkills();
+        } finally {
+          setBatchWorking(false);
+        }
+      },
+    });
+  };
+
+  const batchExport = async () => {
+    if (!checkedIds.length) return;
+    setBatchWorking(true);
+    try {
+      const res = await API.post(
+        '/api/admin/skill-hub/skills/batch-export',
+        { ids: checkedIds },
+        { responseType: 'blob' },
+      );
+      const url = URL.createObjectURL(res.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'skill-hub-export.zip';
+      link.click();
+      URL.revokeObjectURL(url);
+      showSuccess(`已导出 ${checkedIds.length} 个 Skill`);
+    } catch (error) {
+      showError(error.message || '批量导出失败');
+    } finally {
+      setBatchWorking(false);
+    }
+  };
+
   return (
     <div className='px-4 py-6 pb-8'>
       <div className='mx-auto flex max-w-7xl flex-col gap-4'>
@@ -748,54 +833,105 @@ const SkillHub = () => {
                 ))}
               </div>
             ) : null}
+            <div className='mb-3 flex flex-wrap items-center gap-2 border-y border-semi-color-border py-2'>
+              <Checkbox
+                checked={
+                  skills.length > 0 && checkedIds.length === skills.length
+                }
+                onChange={(event) =>
+                  setCheckedIds(
+                    event.target.checked ? skills.map((skill) => skill.id) : [],
+                  )
+                }
+              >
+                全选
+              </Checkbox>
+              <Typography.Text type='tertiary'>
+                已选择 {checkedIds.length} 项
+              </Typography.Text>
+              <Button
+                size='small'
+                disabled={!checkedIds.length || batchWorking}
+                onClick={batchExport}
+              >
+                批量导出
+              </Button>
+              <Button
+                size='small'
+                type='danger'
+                disabled={!checkedIds.length || batchWorking}
+                onClick={batchDelete}
+              >
+                批量删除
+              </Button>
+            </div>
             <Spin spinning={loading}>
               <div className='flex max-h-[70vh] flex-col gap-2 overflow-auto pr-1 pb-2'>
                 {skills.map((skill) => {
                   const tags = normalizeTags(skill.tags);
                   return (
-                    <button
+                    <div
                       key={skill.id}
-                      type='button'
-                      onClick={() => selectSkill(skill)}
                       className={`rounded border p-3 text-left transition ${
                         selectedId === skill.id
                           ? 'border-semi-color-primary bg-semi-color-primary-light-default'
                           : 'border-semi-color-border bg-semi-color-bg-1 hover:bg-semi-color-fill-0'
                       }`}
                     >
-                      <div className='flex items-center justify-between gap-2'>
-                        <span className='truncate font-semibold'>
-                          {skill.name}
-                        </span>
-                        <Space spacing={4}>
-                          {skill.recommended ? (
-                            <Tag color='violet'>推荐</Tag>
-                          ) : null}
-                          <Tag
-                            color={isPublishedSkill(skill) ? 'green' : 'grey'}
-                          >
-                            {isPublishedSkill(skill) ? '已发布' : '草稿'}
-                          </Tag>
-                        </Space>
+                      <div className='mb-2 flex items-center gap-2'>
+                        <Checkbox
+                          checked={checkedIds.includes(skill.id)}
+                          onChange={(event) =>
+                            setCheckedIds((current) =>
+                              event.target.checked
+                                ? [...new Set([...current, skill.id])]
+                                : current.filter((id) => id !== skill.id),
+                            )
+                          }
+                        />
+                        <button
+                          type='button'
+                          className='min-w-0 flex-1 text-left'
+                          onClick={() => selectSkill(skill)}
+                        >
+                          <div className='flex items-center justify-between gap-2'>
+                            <span className='truncate font-semibold'>
+                              {skill.name}
+                            </span>
+                            <Space spacing={4}>
+                              {skill.recommended ? (
+                                <Tag color='violet'>推荐</Tag>
+                              ) : null}
+                              <Tag
+                                color={
+                                  isPublishedSkill(skill) ? 'green' : 'grey'
+                                }
+                              >
+                                {isPublishedSkill(skill) ? '已发布' : '草稿'}
+                              </Tag>
+                            </Space>
+                          </div>
+                          <div className='mt-1 truncate text-xs text-semi-color-text-2'>
+                            {skill.id} · {skill.version}
+                            {skill.author ? ` · ${skill.author}` : ''}
+                            {skill.origin ? ` · ${skill.origin}` : ''}
+                          </div>
+                          <div className='mt-2 line-clamp-2 min-h-[40px] text-sm text-semi-color-text-1'>
+                            {skill.description || '暂无描述'}
+                          </div>
+                          <div className='mt-2 flex min-h-7 max-h-7 flex-wrap gap-1 overflow-hidden'>
+                            {tags.slice(0, 4).map((tag) => (
+                              <span
+                                key={tag}
+                                className='rounded bg-semi-color-fill-0 px-2 py-0.5 text-xs text-semi-color-text-2'
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </button>
                       </div>
-                      <div className='mt-1 truncate text-xs text-semi-color-text-2'>
-                        {skill.id} · {skill.version}
-                        {skill.author ? ` · ${skill.author}` : ''}
-                      </div>
-                      <div className='mt-2 line-clamp-2 min-h-[40px] text-sm text-semi-color-text-1'>
-                        {skill.description || '暂无描述'}
-                      </div>
-                      <div className='mt-2 flex min-h-7 max-h-7 flex-wrap gap-1 overflow-hidden'>
-                        {tags.slice(0, 4).map((tag) => (
-                          <span
-                            key={tag}
-                            className='rounded bg-semi-color-fill-0 px-2 py-0.5 text-xs text-semi-color-text-2'
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </button>
+                    </div>
                   );
                 })}
                 {skills.length === 0 && (
@@ -836,6 +972,23 @@ const SkillHub = () => {
                   <Input
                     value={form.author}
                     onChange={(value) => updateForm('author', value)}
+                  />
+                </Field>
+                <Field label='来源'>
+                  <Input
+                    value={form.origin}
+                    maxLength={64}
+                    placeholder='Clawhub'
+                    onChange={(value) => updateForm('origin', value)}
+                  />
+                </Field>
+                <Field label='源地址'>
+                  <Input
+                    type='url'
+                    value={form.originUrl}
+                    maxLength={2048}
+                    placeholder='https://...'
+                    onChange={(value) => updateForm('originUrl', value)}
                   />
                 </Field>
                 <Field label='排序'>

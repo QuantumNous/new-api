@@ -55,6 +55,38 @@ func seedChatModelChannel(t *testing.T, channelID int, group string, modelName s
 	model.InvalidatePricingCache()
 }
 
+func TestCreateChatModelStoresCapabilities(t *testing.T) {
+	ratio_setting.InitRatioSettings()
+	setupModelListControllerTestDB(t)
+	seedChatModelChannel(t, 1, "default", "gpt-4o-mini")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/chat-models/", strings.NewReader(`{"model":"gpt-4o-mini","name":"Vision model","api":"openai-responses","input":["audio","text","image"],"contextWindow":128000,"contextTokens":96000,"maxTokens":16384,"reasoning":true}`))
+
+	CreateChatModel(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload adminChatModelPayload
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Equal(t, "openai-responses", payload.Data.Api)
+	require.Equal(t, []string{"text", "image", "audio"}, payload.Data.Input)
+	require.Equal(t, 128000, payload.Data.ContextWindow)
+	require.Equal(t, 96000, payload.Data.ContextTokens)
+	require.Equal(t, 16384, payload.Data.MaxTokens)
+	require.True(t, payload.Data.Reasoning)
+
+	stored, err := model.GetChatModelOptionByID(payload.Data.Id)
+	require.NoError(t, err)
+	require.Equal(t, "openai-responses", stored.ApiFormat)
+	require.Equal(t, `["text","image","audio"]`, stored.InputTypes)
+	require.Equal(t, 128000, stored.ContextWindow)
+	require.Equal(t, 96000, stored.ContextTokens)
+	require.Equal(t, 16384, stored.MaxTokens)
+	require.True(t, stored.Reasoning)
+}
+
 func TestGetUserChatModelsReturnsAutoAndFiltersUnavailableModels(t *testing.T) {
 	ratio_setting.InitRatioSettings()
 	setupModelListControllerTestDB(t)
@@ -70,11 +102,17 @@ func TestGetUserChatModelsReturnsAutoAndFiltersUnavailableModels(t *testing.T) {
 	seedChatModelChannel(t, 2, "private", "gpt-3.5-turbo")
 
 	require.NoError(t, model.CreateChatModelOption(&model.ChatModelOption{
-		ModelName:   "gpt-4o-mini",
-		DisplayName: "GPT-4o mini",
-		Enabled:     true,
-		IsAuto:      true,
-		Sort:        1,
+		ModelName:     "gpt-4o-mini",
+		DisplayName:   "GPT-4o mini",
+		ApiFormat:     "openai-responses",
+		InputTypes:    `["text","image","video","audio"]`,
+		ContextWindow: 128000,
+		ContextTokens: 96000,
+		MaxTokens:     16384,
+		Reasoning:     true,
+		Enabled:       true,
+		IsAuto:        true,
+		Sort:          1,
 	}))
 	require.NoError(t, model.CreateChatModelOption(&model.ChatModelOption{
 		ModelName:   "gpt-3.5-turbo",
@@ -85,7 +123,7 @@ func TestGetUserChatModelsReturnsAutoAndFiltersUnavailableModels(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/chat-models", nil)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/chat-models", nil)
 	ctx.Set("id", 2001)
 
 	GetUserChatModels(ctx)
@@ -99,9 +137,21 @@ func TestGetUserChatModelsReturnsAutoAndFiltersUnavailableModels(t *testing.T) {
 	require.Equal(t, "gpt-4o-mini", payload.Data.Models[0].Model)
 	require.Equal(t, "Auto", payload.Data.Models[0].Name)
 	require.Equal(t, 0.15, payload.Data.Models[0].Price)
+	require.Equal(t, "openai-responses", payload.Data.Models[0].Api)
+	require.Equal(t, []string{"text", "image", "video", "audio"}, payload.Data.Models[0].Input)
+	require.Equal(t, 128000, payload.Data.Models[0].ContextWindow)
+	require.Equal(t, 96000, payload.Data.Models[0].ContextTokens)
+	require.Equal(t, 16384, payload.Data.Models[0].MaxTokens)
+	require.True(t, payload.Data.Models[0].Reasoning)
 	require.Equal(t, "gpt-4o-mini", payload.Data.Models[1].Model)
 	require.Equal(t, "GPT-4o mini", payload.Data.Models[1].Name)
 	require.Equal(t, 0.15, payload.Data.Models[1].Price)
+	require.Equal(t, payload.Data.Models[0].Input, payload.Data.Models[1].Input)
+	require.Equal(t, payload.Data.Models[0].Api, payload.Data.Models[1].Api)
+	require.Equal(t, payload.Data.Models[0].ContextWindow, payload.Data.Models[1].ContextWindow)
+	require.Equal(t, payload.Data.Models[0].ContextTokens, payload.Data.Models[1].ContextTokens)
+	require.Equal(t, payload.Data.Models[0].MaxTokens, payload.Data.Models[1].MaxTokens)
+	require.Equal(t, payload.Data.Models[0].Reasoning, payload.Data.Models[1].Reasoning)
 }
 
 func TestUpdateChatModelSetsSingleAutoWithOptionalFields(t *testing.T) {
@@ -129,7 +179,7 @@ func TestUpdateChatModelSetsSingleAutoWithOptionalFields(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/chat-models/2", strings.NewReader(`{"is_auto":true,"name":"Auto target"}`))
+	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/chat-models/2", strings.NewReader(`{"is_auto":true,"name":"Auto target","api":"anthropic-messages","input":["text","image","audio"],"contextWindow":200000,"contextTokens":160000,"maxTokens":32000,"reasoning":true}`))
 	ctx.Set("id", 1)
 	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(second.Id)}}
 
@@ -142,6 +192,12 @@ func TestUpdateChatModelSetsSingleAutoWithOptionalFields(t *testing.T) {
 	require.Equal(t, "gpt-3.5-turbo", payload.Data.Model)
 	require.Equal(t, "Auto target", payload.Data.Name)
 	require.True(t, payload.Data.IsAuto)
+	require.Equal(t, "anthropic-messages", payload.Data.Api)
+	require.Equal(t, []string{"text", "image", "audio"}, payload.Data.Input)
+	require.Equal(t, 200000, payload.Data.ContextWindow)
+	require.Equal(t, 160000, payload.Data.ContextTokens)
+	require.Equal(t, 32000, payload.Data.MaxTokens)
+	require.True(t, payload.Data.Reasoning)
 
 	var options []model.ChatModelOption
 	require.NoError(t, model.DB.Order("id ASC").Find(&options).Error)
@@ -150,6 +206,65 @@ func TestUpdateChatModelSetsSingleAutoWithOptionalFields(t *testing.T) {
 	require.True(t, options[1].IsAuto)
 	require.Equal(t, "gpt-4o-mini", options[0].ModelName)
 	require.Equal(t, "gpt-3.5-turbo", options[1].ModelName)
+	require.Equal(t, "anthropic-messages", options[1].ApiFormat)
+	require.Equal(t, `["text","image","audio"]`, options[1].InputTypes)
+	require.Equal(t, 200000, options[1].ContextWindow)
+	require.Equal(t, 160000, options[1].ContextTokens)
+	require.Equal(t, 32000, options[1].MaxTokens)
+	require.True(t, options[1].Reasoning)
+}
+
+func TestUpdateChatModelRejectsInvalidCapabilities(t *testing.T) {
+	ratio_setting.InitRatioSettings()
+	setupModelListControllerTestDB(t)
+	seedChatModelChannel(t, 1, "default", "gpt-4o-mini")
+
+	option := model.ChatModelOption{
+		ModelName:   "gpt-4o-mini",
+		DisplayName: "GPT-4o mini",
+		Enabled:     true,
+	}
+	require.NoError(t, model.CreateChatModelOption(&option))
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/chat-models/1", strings.NewReader(`{"api":"unsupported","input":["image"],"contextWindow":4096,"contextTokens":8192,"maxTokens":8192}`))
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(option.Id)}}
+
+	UpdateChatModel(ctx)
+
+	var payload struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.False(t, payload.Success)
+
+	stored, err := model.GetChatModelOptionByID(option.Id)
+	require.NoError(t, err)
+	require.Empty(t, stored.InputTypes)
+	require.Empty(t, stored.ApiFormat)
+	require.Zero(t, stored.ContextWindow)
+	require.Zero(t, stored.ContextTokens)
+	require.Zero(t, stored.MaxTokens)
+}
+
+func TestChatModelCapabilityValidation(t *testing.T) {
+	input := []string{"AUDIO", "IMAGE", "text", "video", "image"}
+	normalized, err := normalizeChatModelInputTypes(&input)
+	require.NoError(t, err)
+	require.Equal(t, []string{"text", "image", "video", "audio"}, normalized)
+	invalidInput := []string{"text", "file"}
+	_, err = normalizeChatModelInputTypes(&invalidInput)
+	require.Error(t, err)
+	require.Equal(t, []string{"text"}, parseChatModelInputTypes(""))
+	require.Equal(t, defaultChatModelAPI, parseChatModelAPI(""))
+	invalidAPI := "openai-codex-responses"
+	_, err = normalizeChatModelAPI(&invalidAPI)
+	require.Error(t, err)
+	require.Error(t, validateChatModelTokenLimits(-1, 0, 0))
+	require.Error(t, validateChatModelTokenLimits(4096, 8192, 1024))
+	require.Error(t, validateChatModelTokenLimits(4096, 2048, 8192))
+	require.NoError(t, validateChatModelTokenLimits(128000, 96000, 16384))
 }
 
 func TestBatchCreateChatModelsAddsDisabledOptions(t *testing.T) {
@@ -171,6 +286,11 @@ func TestBatchCreateChatModelsAddsDisabledOptions(t *testing.T) {
 	require.True(t, payload.Success)
 	require.Equal(t, 2, payload.Data.CreatedCount)
 	require.Equal(t, 1, payload.Data.SkippedCount)
+	require.Len(t, payload.Data.Created, 2)
+	for _, item := range payload.Data.Created {
+		require.Equal(t, defaultChatModelAPI, item.Api)
+		require.Equal(t, []string{"text"}, item.Input)
+	}
 
 	var options []model.ChatModelOption
 	require.NoError(t, model.DB.Order("id ASC").Find(&options).Error)
@@ -180,6 +300,8 @@ func TestBatchCreateChatModelsAddsDisabledOptions(t *testing.T) {
 		require.False(t, option.IsAuto)
 		require.Nil(t, option.AutoKey)
 		require.Equal(t, option.ModelName, option.DisplayName)
+		require.Equal(t, defaultChatModelAPI, option.ApiFormat)
+		require.Equal(t, `["text"]`, option.InputTypes)
 	}
 }
 

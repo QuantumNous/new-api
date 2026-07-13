@@ -31476,7 +31476,7 @@
                       "name": "keyword",
                       "required": false,
                       "enable": true,
-                      "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
                       "example": "",
                       "type": "string",
                       "schema": {
@@ -31580,7 +31580,7 @@
                           "type": "string",
                           "value": "",
                           "enable": true,
-                          "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
                           "isDelete": false
                         },
                         {
@@ -31996,7 +31996,7 @@
                       "name": "keyword",
                       "required": false,
                       "enable": true,
-                      "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
                       "example": "",
                       "type": "string",
                       "schema": {
@@ -32111,7 +32111,7 @@
                           "type": "string",
                           "value": "",
                           "enable": true,
-                          "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
                           "isDelete": false
                         },
                         {
@@ -33273,7 +33273,7 @@
                       "name": "keyword",
                       "required": false,
                       "enable": true,
-                      "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
                       "example": "",
                       "type": "string",
                       "schema": {
@@ -33415,7 +33415,7 @@
                           "type": "string",
                           "value": "",
                           "enable": true,
-                          "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
                           "isDelete": false
                         },
                         {
@@ -33663,7 +33663,7 @@
                       "name": "keyword",
                       "required": false,
                       "enable": true,
-                      "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
                       "example": "",
                       "type": "string",
                       "schema": {
@@ -33794,7 +33794,7 @@
                           "type": "string",
                           "value": "",
                           "enable": true,
-                          "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
                           "isDelete": false
                         },
                         {
@@ -49926,6 +49926,17 @@
                   "type": "string",
                   "description": "技能作者"
                 },
+                "origin": {
+                  "type": "string",
+                  "description": "技能来源，例如 Clawhub",
+                  "maxLength": 64
+                },
+                "originUrl": {
+                  "type": "string",
+                  "description": "源项目地址，必须是 HTTP 或 HTTPS 绝对 URL",
+                  "format": "uri",
+                  "maxLength": 2048
+                },
                 "icon": {
                   "type": "string",
                   "description": "图标 URL",
@@ -49977,6 +49988,8 @@
                 "description",
                 "version",
                 "author",
+                "origin",
+                "originUrl",
                 "icon",
                 "tags",
                 "verified",
@@ -50037,8 +50050,8 @@
                 },
                 "name": {
                   "type": "string",
-                  "description": "标签名称，最多 32 个字符，不能包含 / 或 \\",
-                  "maxLength": 32
+                  "description": "标签名称，最多 40 个字符，不能包含 / 或 \\",
+                  "maxLength": 40
                 },
                 "sort": {
                   "type": "integer",
@@ -50117,8 +50130,8 @@
               "properties": {
                 "name": {
                   "type": "string",
-                  "description": "标签名称，最多 32 个字符，不能包含 / 或 \\",
-                  "maxLength": 32
+                  "description": "标签名称，最多 40 个字符，不能包含 / 或 \\",
+                  "maxLength": 40
                 },
                 "sort": {
                   "type": "integer",
@@ -50169,6 +50182,17 @@
                   "type": "string",
                   "description": "技能作者"
                 },
+                "origin": {
+                  "type": "string",
+                  "description": "技能来源，例如 Clawhub",
+                  "maxLength": 64
+                },
+                "originUrl": {
+                  "type": "string",
+                  "description": "源项目地址，必须是 HTTP 或 HTTPS 绝对 URL",
+                  "format": "uri",
+                  "maxLength": 2048
+                },
                 "icon": {
                   "type": "string",
                   "description": "图标 URL",
@@ -50215,6 +50239,8 @@
                 "description",
                 "version",
                 "author",
+                "origin",
+                "originUrl",
                 "icon",
                 "tags",
                 "verified",

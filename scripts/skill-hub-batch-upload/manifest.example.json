@@ -1,0 +1,44 @@
+[
+  {
+    "id": "demo-skill",
+    "name": "Demo Skill",
+    "description": "A minimal example skill with a zip package and icon.",
+    "version": "1.0.0",
+    "author": "Skill Team",
+    "origin": "Clawhub",
+    "originUrl": "https://clawhub.ai/skills/demo-skill",
+    "tags": ["Developer Tools", "Agent"],
+    "verified": true,
+    "recommended": false,
+    "sort": 10,
+    "zip": "./packages/demo-skill.zip",
+    "icon": "./icons/demo-skill.png"
+  },
+  {
+    "id": "code-review",
+    "name": "Code Review",
+    "description": "Review source changes and produce actionable findings.",
+    "version": "1.0.0",
+    "author": "Skill Team",
+    "origin": "GitHub",
+    "originUrl": "https://github.com/example/code-review-skill",
+    "tags": ["Developer Tools", "Review"],
+    "verified": true,
+    "recommended": true,
+    "sort": 20,
+    "zip": "./packages/code-review.zip"
+  },
+  {
+    "id": "data-cleanup",
+    "name": "Data Cleanup",
+    "description": "Clean and normalize tabular data before analysis.",
+    "version": "1.2.0",
+    "author": "",
+    "tags": ["Data", "Automation"],
+    "verified": false,
+    "recommended": false,
+    "sort": 0,
+    "zip": "./packages/data-cleanup.zip",
+    "icon": "./icons/data-cleanup.webp"
+  }
+]

@@ -39,4 +39,6 @@ tmp/
 skills-lock.json
 /web/default/package-lock.json
 /web/default/bun.lock
-/scripts/
+/scripts/*
+!/scripts/skill-hub-batch-upload/
+!/scripts/skill-hub-batch-upload/**

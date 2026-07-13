@@ -21,6 +21,21 @@ import (
 
 const maxBatchCreateChatModels = 1000
 
+var supportedChatModelInputTypes = map[string]struct{}{
+	"text":  {},
+	"image": {},
+	"video": {},
+	"audio": {},
+}
+
+const defaultChatModelAPI = "openai-completions"
+
+var supportedChatModelAPIs = map[string]struct{}{
+	"openai-completions": {},
+	"openai-responses":   {},
+	"anthropic-messages": {},
+}
+
 func GetUserChatModels(c *gin.Context) {
 	pricingMap, groupRatio, _, err := getUserChatPricingScope(c)
 	if err != nil {
@@ -42,9 +57,15 @@ func GetUserChatModels(c *gin.Context) {
 			continue
 		}
 		item := dto.UserChatModelItem{
-			Model: option.ModelName,
-			Name:  chatModelDisplayName(option.DisplayName, option.ModelName),
-			Price: estimateChatModelPrice(pricing, groupRatio),
+			Model:         option.ModelName,
+			Name:          chatModelDisplayName(option.DisplayName, option.ModelName),
+			Price:         estimateChatModelPrice(pricing, groupRatio),
+			Api:           parseChatModelAPI(option.ApiFormat),
+			Input:         parseChatModelInputTypes(option.InputTypes),
+			ContextWindow: option.ContextWindow,
+			ContextTokens: option.ContextTokens,
+			MaxTokens:     option.MaxTokens,
+			Reasoning:     option.Reasoning,
 		}
 		if option.IsAuto {
 			autoItem := item
@@ -181,13 +202,42 @@ func CreateChatModel(c *gin.Context) {
 	if req.Sort != nil {
 		sortOrder = *req.Sort
 	}
+	inputTypes, err := normalizeChatModelInputTypes(req.Input)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	inputTypesJSON, err := encodeChatModelInputTypes(inputTypes)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	apiFormat, err := normalizeChatModelAPI(req.Api)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	contextWindow := optionalIntValue(req.ContextWindow)
+	contextTokens := optionalIntValue(req.ContextTokens)
+	maxTokens := optionalIntValue(req.MaxTokens)
+	if err := validateChatModelTokenLimits(contextWindow, contextTokens, maxTokens); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	reasoning := req.Reasoning != nil && *req.Reasoning
 
 	option := model.ChatModelOption{
-		ModelName:   modelName,
-		DisplayName: displayName,
-		Enabled:     enabled,
-		IsAuto:      isAuto,
-		Sort:        sortOrder,
+		ModelName:     modelName,
+		DisplayName:   displayName,
+		ApiFormat:     apiFormat,
+		InputTypes:    inputTypesJSON,
+		ContextWindow: contextWindow,
+		ContextTokens: contextTokens,
+		MaxTokens:     maxTokens,
+		Reasoning:     reasoning,
+		Enabled:       enabled,
+		IsAuto:        isAuto,
+		Sort:          sortOrder,
 	}
 	if err := model.CreateChatModelOption(&option); err != nil {
 		common.ApiError(c, err)
@@ -252,6 +302,8 @@ func BatchCreateChatModels(c *gin.Context) {
 				option := model.ChatModelOption{
 					ModelName:   modelName,
 					DisplayName: modelName,
+					ApiFormat:   defaultChatModelAPI,
+					InputTypes:  `["text"]`,
 					Enabled:     false,
 					IsAuto:      false,
 					Sort:        0,
@@ -308,6 +360,47 @@ func UpdateChatModel(c *gin.Context) {
 		IsAuto:  req.IsAuto,
 		Sort:    req.Sort,
 	}
+	effectiveContextWindow := current.ContextWindow
+	effectiveContextTokens := current.ContextTokens
+	effectiveMaxTokens := current.MaxTokens
+	if req.Api != nil {
+		apiFormat, err := normalizeChatModelAPI(req.Api)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		updates.ApiFormat = &apiFormat
+	}
+	if req.Input != nil {
+		inputTypes, err := normalizeChatModelInputTypes(req.Input)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		inputTypesJSON, err := encodeChatModelInputTypes(inputTypes)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		updates.InputTypes = &inputTypesJSON
+	}
+	if req.ContextWindow != nil {
+		effectiveContextWindow = *req.ContextWindow
+		updates.ContextWindow = req.ContextWindow
+	}
+	if req.ContextTokens != nil {
+		effectiveContextTokens = *req.ContextTokens
+		updates.ContextTokens = req.ContextTokens
+	}
+	if req.MaxTokens != nil {
+		effectiveMaxTokens = *req.MaxTokens
+		updates.MaxTokens = req.MaxTokens
+	}
+	if err := validateChatModelTokenLimits(effectiveContextWindow, effectiveContextTokens, effectiveMaxTokens); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	updates.Reasoning = req.Reasoning
 
 	effectiveModel := current.ModelName
 	if req.Model != nil {
@@ -444,17 +537,118 @@ func buildAdminChatModelItem(option model.ChatModelOption, pricingMap map[string
 		price = estimateChatModelPrice(pricing, nil)
 	}
 	return dto.AdminChatModelItem{
-		Id:          option.Id,
-		Model:       option.ModelName,
-		Name:        chatModelDisplayName(option.DisplayName, option.ModelName),
-		Enabled:     option.Enabled,
-		IsAuto:      option.IsAuto,
-		Sort:        option.Sort,
-		Price:       price,
-		Available:   available,
-		CreatedTime: option.CreatedTime,
-		UpdatedTime: option.UpdatedTime,
+		Id:            option.Id,
+		Model:         option.ModelName,
+		Name:          chatModelDisplayName(option.DisplayName, option.ModelName),
+		Enabled:       option.Enabled,
+		IsAuto:        option.IsAuto,
+		Sort:          option.Sort,
+		Price:         price,
+		Available:     available,
+		Api:           parseChatModelAPI(option.ApiFormat),
+		Input:         parseChatModelInputTypes(option.InputTypes),
+		ContextWindow: option.ContextWindow,
+		ContextTokens: option.ContextTokens,
+		MaxTokens:     option.MaxTokens,
+		Reasoning:     option.Reasoning,
+		CreatedTime:   option.CreatedTime,
+		UpdatedTime:   option.UpdatedTime,
 	}
+}
+
+func normalizeChatModelInputTypes(input *[]string) ([]string, error) {
+	if input == nil {
+		return []string{"text"}, nil
+	}
+
+	seen := make(map[string]struct{}, len(*input))
+	for _, raw := range *input {
+		value := strings.ToLower(strings.TrimSpace(raw))
+		if _, ok := supportedChatModelInputTypes[value]; !ok {
+			return nil, errors.New("input 仅支持 text、image、video 和 audio")
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+	}
+	if _, hasText := seen["text"]; !hasText {
+		return nil, errors.New("input 必须包含 text")
+	}
+	normalized := []string{"text"}
+	if _, hasImage := seen["image"]; hasImage {
+		normalized = append(normalized, "image")
+	}
+	if _, hasVideo := seen["video"]; hasVideo {
+		normalized = append(normalized, "video")
+	}
+	if _, hasAudio := seen["audio"]; hasAudio {
+		normalized = append(normalized, "audio")
+	}
+	return normalized, nil
+}
+
+func normalizeChatModelAPI(api *string) (string, error) {
+	if api == nil || strings.TrimSpace(*api) == "" {
+		return defaultChatModelAPI, nil
+	}
+	value := strings.ToLower(strings.TrimSpace(*api))
+	if _, ok := supportedChatModelAPIs[value]; !ok {
+		return "", errors.New("api 仅支持 openai-completions、openai-responses 和 anthropic-messages")
+	}
+	return value, nil
+}
+
+func parseChatModelAPI(value string) string {
+	api, err := normalizeChatModelAPI(&value)
+	if err != nil {
+		return defaultChatModelAPI
+	}
+	return api
+}
+
+func encodeChatModelInputTypes(input []string) (string, error) {
+	encoded, err := common.Marshal(input)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+func parseChatModelInputTypes(value string) []string {
+	var input []string
+	if value != "" && common.UnmarshalJsonStr(value, &input) == nil {
+		if normalized, err := normalizeChatModelInputTypes(&input); err == nil {
+			return normalized
+		}
+	}
+	return []string{"text"}
+}
+
+func optionalIntValue(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+func validateChatModelTokenLimits(contextWindow int, contextTokens int, maxTokens int) error {
+	if contextWindow < 0 {
+		return errors.New("contextWindow 不能为负数")
+	}
+	if maxTokens < 0 {
+		return errors.New("maxTokens 不能为负数")
+	}
+	if contextTokens < 0 {
+		return errors.New("contextTokens 不能为负数")
+	}
+	if contextWindow > 0 && contextTokens > contextWindow {
+		return errors.New("contextTokens 不能大于 contextWindow")
+	}
+	if contextWindow > 0 && maxTokens > contextWindow {
+		return errors.New("maxTokens 不能大于 contextWindow")
+	}
+	return nil
 }
 
 func estimateChatModelPrice(pricing model.Pricing, groupRatio map[string]float64) float64 {

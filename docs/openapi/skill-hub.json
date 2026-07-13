@@ -28,7 +28,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -187,7 +187,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -441,7 +441,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -556,7 +556,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+            "description": "搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -655,6 +655,26 @@
             "NewApiUser": []
           }
         ]
+      }
+    },
+    "/api/admin/skill-hub/skills/batch-delete": {
+      "post": {
+        "summary": "批量删除技能",
+        "description": "需要管理员权限。一次可删除 1 至 200 个技能，并清理关联标签关系及受管 OSS 文件。",
+        "tags": ["技能广场管理"],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SkillHubBatchRequest"}}}},
+        "responses": {"200": {"description": "批量删除结果"}},
+        "security": [{"SessionAuth": [], "NewApiUser": []}, {"AccessToken": [], "NewApiUser": []}]
+      }
+    },
+    "/api/admin/skill-hub/skills/batch-export": {
+      "post": {
+        "summary": "批量导出技能",
+        "description": "需要管理员权限。将真实技能 ZIP、图标文件和 manifest.json 打包为可再次批量导入的 ZIP。一次可导出 1 至 200 个技能。",
+        "tags": ["技能广场管理"],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SkillHubBatchRequest"}}}},
+        "responses": {"200": {"description": "导出压缩包", "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}}}},
+        "security": [{"SessionAuth": [], "NewApiUser": []}, {"AccessToken": [], "NewApiUser": []}]
       }
     },
     "/api/admin/skill-hub/skills/{id}": {
@@ -1078,6 +1098,17 @@
             "type": "string",
             "description": "技能版本"
           },
+          "origin": {
+            "type": "string",
+            "description": "技能来源，例如 Clawhub",
+            "maxLength": 64
+          },
+          "originUrl": {
+            "type": "string",
+            "description": "源项目地址，必须是 HTTP 或 HTTPS 绝对 URL",
+            "format": "uri",
+            "maxLength": 2048
+          },
           "icon": {
             "type": "string",
             "description": "图标 URL",
@@ -1149,8 +1180,8 @@
           },
           "name": {
             "type": "string",
-            "description": "标签名称，最多 32 个字符，不能包含 / 或 \\",
-            "maxLength": 32
+            "description": "标签名称，最多 40 个字符，不能包含 / 或 \\",
+            "maxLength": 40
           },
           "sort": {
             "type": "integer",
@@ -1197,12 +1228,25 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "标签名称，最多 32 个字符，不能包含 / 或 \\",
-            "maxLength": 32
+            "description": "标签名称，最多 40 个字符，不能包含 / 或 \\",
+            "maxLength": 40
           },
           "sort": {
             "type": "integer",
             "description": "排序权重，越大越靠前"
+          }
+        }
+      },
+      "SkillHubBatchRequest": {
+        "type": "object",
+        "required": ["ids"],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "description": "技能 ID 列表，去重后须包含 1 至 200 项",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {"type": "string"}
           }
         }
       },
@@ -1230,6 +1274,17 @@
           "version": {
             "type": "string",
             "description": "技能版本"
+          },
+          "origin": {
+            "type": "string",
+            "description": "技能来源，例如 Clawhub",
+            "maxLength": 64
+          },
+          "originUrl": {
+            "type": "string",
+            "description": "源项目地址，必须是 HTTP 或 HTTPS 绝对 URL",
+            "format": "uri",
+            "maxLength": 2048
           },
           "icon": {
             "type": "string",

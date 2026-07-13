@@ -112,6 +112,26 @@ export async function deleteSkillHubSkill(
   return res.data
 }
 
+export async function batchDeleteSkillHubSkills(ids: string[]) {
+  const res = await api.post('/api/admin/skill-hub/skills/batch-delete', {
+    ids,
+  })
+  return res.data as {
+    success: boolean
+    message?: string
+    data?: { deleted: number }
+  }
+}
+
+export async function batchExportSkillHubSkills(ids: string[]) {
+  const res = await api.post(
+    '/api/admin/skill-hub/skills/batch-export',
+    { ids },
+    { responseType: 'blob' }
+  )
+  return res.data as Blob
+}
+
 export async function setSkillHubSkillPublished(
   id: string,
   published: boolean
@@ -257,6 +277,8 @@ export function skillToForm(skill?: SkillHubSkill): SkillHubForm {
     description: skill?.description || '',
     version: skill?.version || '1.0.0',
     author: skill?.author || '',
+    origin: skill?.origin || '',
+    originUrl: skill?.originUrl || '',
     icon: skill?.icon || '',
     tags: cleanList(skill?.tags),
     verified: Boolean(skill?.verified),
@@ -277,6 +299,8 @@ function formToPayload(form: SkillHubForm) {
     description: form.description.trim(),
     version: form.version.trim(),
     author: form.author.trim(),
+    origin: form.origin.trim(),
+    originUrl: form.originUrl.trim(),
     icon: form.icon.trim(),
     tags: cleanList(form.tags),
     verified: form.verified,
