@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState, type ReactNode } from 'react'
 import { useParams } from '@tanstack/react-router'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { SectionPageLayout } from '@/components/layout'
+
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 import type { SystemOption } from '../types'
 import { SettingsPageProvider } from './settings-page-context'
@@ -81,7 +83,9 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
           />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex w-full flex-col gap-4'>{props.children}</div>
+          <div className='flex h-full min-h-0 w-full flex-col gap-4'>
+            {props.children}
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
     </SettingsPageProvider>

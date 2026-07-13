@@ -16,15 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/ui/button'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/dialog'
+
 import { getCodexUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
@@ -167,18 +170,18 @@ export function BalanceQueryDialog({
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
-        <>
-          <Button variant='outline' onClick={handleClose} disabled={isQuerying}>
-            {t('Close')}
-          </Button>
-        </>
+        <Button variant='outline' onClick={handleClose} disabled={isQuerying}>
+          {t('Close')}
+        </Button>
       }
     >
       <div className='space-y-4 py-4'>
         {/* Current Balance Display */}
         <div className='bg-muted/50 rounded-lg border p-4'>
           <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
-            <DollarSign className='h-4 w-4' />
+            <IconBadge tone='success' size='xs'>
+              <DollarSign />
+            </IconBadge>
             <span>{t('Current Balance')}</span>
           </div>
           <div className='text-2xl font-bold'>

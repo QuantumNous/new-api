@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import type { OnChangeFn, SortingState, Row } from '@tanstack/react-table'
+import type {
+  ColumnFiltersState,
+  OnChangeFn,
+  SortingState,
+  Row,
+} from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -62,7 +67,9 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/channels/')
 const CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY = 'channels:column-visibility'
+const CHANNELS_COLUMN_SIZING_STORAGE_KEY = 'channels:column-sizing'
 const CHANNELS_VIEW_MODE_STORAGE_KEY = 'channels:view-mode'
+const CHANNELS_STATUS_FILTER_STORAGE_KEY = 'channel-status-filter'
 
 const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
   'id',
@@ -111,12 +118,39 @@ export function ChannelsTable() {
     },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
-      { columnId: 'status', searchKey: 'status', type: 'array' },
+      {
+        columnId: 'status',
+        searchKey: 'status',
+        type: 'array',
+        deserialize: (value) => {
+          if (value !== undefined) return value
+          const stored = localStorage.getItem(
+            CHANNELS_STATUS_FILTER_STORAGE_KEY
+          )
+          return stored === 'enabled' || stored === 'disabled' ? [stored] : []
+        },
+      },
       { columnId: 'type', searchKey: 'type', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'array' },
       { columnId: 'model', searchKey: 'model', type: 'string' },
     ],
   })
+
+  const handleColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (
+    updater
+  ) => {
+    onColumnFiltersChange((previous) => {
+      const next = typeof updater === 'function' ? updater(previous) : updater
+      const status = next.find((f) => f.id === 'status')?.value as
+        | string[]
+        | undefined
+      localStorage.setItem(
+        CHANNELS_STATUS_FILTER_STORAGE_KEY,
+        status?.[0] ?? 'all'
+      )
+      return next
+    })
+  }
 
   // Extract filters from column filters
   const statusFilter =
@@ -283,6 +317,9 @@ export function ChannelsTable() {
       tag: false,
     },
     columnVisibilityStorageKey: CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY,
+    columnSizingStorageKey: isMobile
+      ? false
+      : CHANNELS_COLUMN_SIZING_STORAGE_KEY,
     columnFilters,
     pagination,
     globalFilter,
@@ -290,7 +327,7 @@ export function ChannelsTable() {
       ? (row: Row<Channel>) => !isTagAggregateRow(row.original)
       : false,
     onSortingChange: handleSortingChange,
-    onColumnFiltersChange,
+    onColumnFiltersChange: handleColumnFiltersChange,
     onPaginationChange,
     onGlobalFilterChange,
     getSubRows: (row: Channel & { children?: Channel[] }) => row.children,
@@ -298,6 +335,7 @@ export function ChannelsTable() {
     manualSorting: true,
     manualFiltering: true,
     withExpandedRowModel: true,
+    enableColumnResizing: !isMobile,
     ensurePageInRange,
   })
 

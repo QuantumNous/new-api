@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
@@ -31,9 +30,14 @@ import {
   Sparkles,
   Timer,
 } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getLobeIcon } from '@/lib/lobe-icon'
-import { cn } from '@/lib/utils'
+
+import { CopyButton } from '@/components/copy-button'
+import { StaticDataTable } from '@/components/data-table'
+import { sideDrawerContentClassName } from '@/components/drawer-layout'
+import { GroupBadge } from '@/components/group-badge'
+import { PublicLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -44,11 +48,6 @@ import {
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CopyButton } from '@/components/copy-button'
-import { StaticDataTable } from '@/components/data-table'
-import { sideDrawerContentClassName } from '@/components/drawer-layout'
-import { GroupBadge } from '@/components/group-badge'
-import { PublicLayout } from '@/components/layout'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
   formatLatency,
@@ -56,7 +55,10 @@ import {
   formatUptimePct,
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
-import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
+import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
+
+import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { usePricingData } from '../hooks/use-pricing-data'
 import {
   getDynamicPriceEntries,
@@ -74,6 +76,7 @@ import type {
   TokenUnit,
 } from '../types'
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
+import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
 
@@ -115,6 +118,7 @@ const MODALITY_LABEL_KEYS: Record<string, string> = {
 const TOKEN_FORMAT = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 })
+const MODEL_DETAILS_SKELETON_KEYS = ['first', 'second', 'third', 'fourth']
 
 function formatCatalogTokenCount(tokens: number): string {
   if (!Number.isFinite(tokens) || tokens <= 0) return ''
@@ -457,11 +461,7 @@ function ModelBackendProviderSection(props: { model: PricingModel }) {
 
   cells.push(
     <CatalogInfoCell key='type' label={t('Type')}>
-      <CatalogTextValue>
-        {model.quota_type === QUOTA_TYPE_VALUES.TOKEN
-          ? t('Token-based')
-          : t('Per Request')}
-      </CatalogTextValue>
+      <ModelBillingModeBadge model={model} />
     </CatalogInfoCell>
   )
 
@@ -529,10 +529,6 @@ function ModelHeader(props: { model: PricingModel }) {
   const modelIconKey = model.icon || model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
   const description = model.description || model.vendor_description || null
-  const isSpecialExpression =
-    model.billing_mode === 'tiered_expr' &&
-    Boolean(model.billing_expr) &&
-    getDynamicPricingTiers(model).length === 0
 
   return (
     <header className='pb-4'>
@@ -555,21 +551,7 @@ function ModelHeader(props: { model: PricingModel }) {
           <span className='text-muted-foreground'>{model.vendor_name}</span>
         )}
         <span className='text-muted-foreground/30'>·</span>
-        <span className='text-muted-foreground/70'>
-          {model.quota_type === QUOTA_TYPE_VALUES.TOKEN
-            ? t('Token-based')
-            : t('Per Request')}
-        </span>
-        {model.billing_mode === 'tiered_expr' && model.billing_expr && (
-          <>
-            <span className='text-muted-foreground/30'>·</span>
-            <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
-              {isSpecialExpression
-                ? t('Special billing expression')
-                : t('Dynamic Pricing')}
-            </span>
-          </>
-        )}
+        <ModelBillingModeBadge model={model} />
       </div>
       {description && (
         <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>
@@ -837,13 +819,13 @@ function getDynamicPriceFields(
   tiers: DynamicPricingTier[],
   options: DynamicPriceOptions
 ) {
-  return Array.from(
-    new Map(
+  return [
+    ...new Map(
       tiers
         .flatMap((tier) => getDynamicPriceEntries(tier, options))
         .map((entry) => [entry.field, entry])
-    ).values()
-  )
+    ).values(),
+  ]
 }
 
 function getDynamicFormattedPricesByTier(
@@ -890,19 +872,24 @@ function GroupPricingSection(props: {
 
   const extraPriceTypes = useMemo(() => {
     const types: { label: string; type: PriceType }[] = []
-    if (props.model.cache_ratio != null)
+    if (props.model.cache_ratio != null) {
       types.push({ label: t('Cache'), type: 'cache' })
-    if (props.model.create_cache_ratio != null)
+    }
+    if (props.model.create_cache_ratio != null) {
       types.push({ label: t('Cache Write'), type: 'create_cache' })
-    if (props.model.image_ratio != null)
+    }
+    if (props.model.image_ratio != null) {
       types.push({ label: t('Image'), type: 'image' })
-    if (props.model.audio_ratio != null)
+    }
+    if (props.model.audio_ratio != null) {
       types.push({ label: t('Audio In'), type: 'audio_input' })
+    }
     if (
       props.model.audio_ratio != null &&
       props.model.audio_completion_ratio != null
-    )
+    ) {
       types.push({ label: t('Audio Out'), type: 'audio_output' })
+    }
     return types
   }, [props.model, t])
 
@@ -1297,13 +1284,13 @@ export function ModelDetails() {
             <Skeleton className='h-4 w-full max-w-md' />
           </div>
           <div className='mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4'>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className='h-16 w-full' />
+            {MODEL_DETAILS_SKELETON_KEYS.map((key) => (
+              <Skeleton key={`metric-${key}`} className='h-16 w-full' />
             ))}
           </div>
           <div className='mt-6 space-y-3'>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className='h-24 w-full' />
+            {MODEL_DETAILS_SKELETON_KEYS.map((key) => (
+              <Skeleton key={`section-${key}`} className='h-24 w-full' />
             ))}
           </div>
         </div>

@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, type ComponentProps, type ReactNode } from 'react'
 import type { Table } from '@tanstack/react-table'
-import { useMediaQuery } from '@/hooks'
 import { ChevronDown, Loader2 } from 'lucide-react'
+import { useState, type ComponentProps, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
+import { DataTableViewOptions } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,7 +34,8 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer'
 import { Input } from '@/components/ui/input'
-import { DataTableViewOptions } from '@/components/data-table'
+import { useMediaQuery } from '@/hooks'
+import { cn } from '@/lib/utils'
 
 interface LogsFilterToolbarProps<TData> {
   table: Table<TData>
@@ -87,6 +88,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   const { t } = useTranslation()
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [mobilePanelCollapsed, setMobilePanelCollapsed] = useState(false)
   const isMobile = useMediaQuery('(max-width: 640px)')
 
   const hasAdvancedFilters = props.advancedFilters != null
@@ -138,11 +140,36 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
         <div
           className={cn('bg-card/50 rounded-lg border p-2.5', props.className)}
         >
-          <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
+          {!mobilePanelCollapsed && (
+            <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
+          )}
 
-          <div className='mt-2 flex flex-col gap-2'>
-            {props.stats}
+          <div
+            className={cn(
+              'flex flex-col gap-2',
+              !mobilePanelCollapsed && 'mt-2'
+            )}
+          >
+            {!mobilePanelCollapsed && props.stats}
             <div className='flex items-center justify-end gap-1.5'>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                onClick={() => setMobilePanelCollapsed((collapsed) => !collapsed)}
+                aria-expanded={!mobilePanelCollapsed}
+                aria-label={
+                  mobilePanelCollapsed ? t('Expand') : t('Collapse')
+                }
+                className='text-muted-foreground hover:text-foreground mr-auto size-7'
+              >
+                <ChevronDown
+                  className={cn(
+                    'size-3.5 transition-transform duration-200',
+                    !mobilePanelCollapsed && 'rotate-180'
+                  )}
+                />
+              </Button>
               {props.actionStart}
               <DrawerTrigger asChild>
                 <Button

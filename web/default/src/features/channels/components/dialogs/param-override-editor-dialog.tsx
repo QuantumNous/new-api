@@ -17,14 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
-  type DragEvent,
-  type KeyboardEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react'
-import {
   ChevronDown,
   ChevronUp,
   Copy,
@@ -33,9 +25,18 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
+import {
+  type DragEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
+
+import { Dialog } from '@/components/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -55,7 +56,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog } from '@/components/dialog'
+import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -290,12 +291,29 @@ const GEMINI_IMAGE_4K_TEMPLATE = {
   ],
 }
 
+// Keep in sync with upstream Codex request headers:
+// https://github.com/openai/codex/commit/7c7b4861d88960f7e3bd5b7f30f8351be666dd84
+// https://github.com/openai/codex/commit/14df0e8833aad0d6d78287954b61ffac67af936c
+// https://github.com/openai/codex/commit/ebdd8795e924a8149b616e46ca2ed7848c207a4b
 const CODEX_CLI_HEADER_PASSTHROUGH_HEADERS = [
   'Originator',
   'Session_id',
+  'Thread_id',
+  'Session-Id',
+  'Thread-Id',
+  'X-Client-Request-Id',
   'User-Agent',
   'X-Codex-Beta-Features',
+  'X-Codex-Turn-State',
   'X-Codex-Turn-Metadata',
+  'X-Codex-Window-Id',
+  'X-Codex-Parent-Thread-Id',
+  // 'X-Codex-Installation-Id',
+  'X-OpenAI-Subagent',
+  'X-OpenAI-Memgen-Request',
+  // 'X-OAI-Attestation',
+  'X-ResponsesAPI-Include-Timing-Metrics',
+  'X-OpenAI-Internal-Codex-Responses-Lite',
 ]
 
 const CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS = [
@@ -320,9 +338,15 @@ const buildPassHeadersTemplate = (headers: string[]) => ({
   ],
 })
 
-const CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
-  CODEX_CLI_HEADER_PASSTHROUGH_HEADERS
-)
+const CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE = {
+  operations: [
+    {
+      mode: 'pass_headers',
+      value: [...CODEX_CLI_HEADER_PASSTHROUGH_HEADERS],
+      keep_origin: true,
+    },
+  ],
+}
 const CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
   CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS
 )
@@ -946,6 +970,7 @@ const validateOperations = (
       if (headers.length === 0)
         return t('Rule {{line}} pass_headers format is invalid', { line })
     }
+
   }
   return ''
 }

@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
 import { KeyRound } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -38,6 +38,7 @@ export function ChannelApiAccessSection(props: ChannelApiAccessSectionProps) {
         title={t('Credentials')}
         description={t('Authentication')}
         icon={<KeyRound className='h-4 w-4' aria-hidden='true' />}
+        iconTone='success'
       />
       {props.children}
     </SideDrawerSection>

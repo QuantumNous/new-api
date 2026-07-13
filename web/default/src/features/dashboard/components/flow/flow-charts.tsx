@@ -16,14 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import type { EventParamsDefinition, IVChart } from '@visactor/vchart'
@@ -39,6 +31,14 @@ import {
   Route,
   WalletCards,
 } from 'lucide-react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MultiSelect } from '@/components/multi-select'
@@ -50,6 +50,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Toggle } from '@/components/ui/toggle'
@@ -90,6 +91,7 @@ import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useAuthStore } from '@/stores/auth-store'
+
 import { FlowNodeFilterControl } from './flow-node-filter'
 
 interface FlowChartsProps {
@@ -172,9 +174,7 @@ const FLOW_OTHER_NODE_LABEL_KEYS: Record<FlowNodeKind, string> = {
 
 type FlowChartPointerEvent = EventParamsDefinition['pointerdown']
 
-function chartRecordValue(
-  value: unknown
-): Record<string, unknown> | undefined {
+function chartRecordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === 'object'
     ? (value as Record<string, unknown>)
     : undefined
@@ -469,7 +469,9 @@ export function FlowCharts(props: FlowChartsProps) {
     overflowMode,
     flowRole,
     activeFlowNode ? flowNodeFilterKey(activeFlowNode) : '',
-    activeFlowLink ? `${activeFlowLink.source}\u0000${activeFlowLink.target}` : '',
+    activeFlowLink
+      ? `${activeFlowLink.source}\u0000${activeFlowLink.target}`
+      : '',
     selectedNodes.map(flowNodeFilterKey).join(','),
     selectedUsers.join(','),
     visibleStages.join(','),
@@ -665,7 +667,9 @@ export function FlowCharts(props: FlowChartsProps) {
       <div className='overflow-hidden rounded-lg border'>
         <div className='flex w-full flex-col gap-2 border-b px-3 py-2 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
-            <GitBranch className='text-muted-foreground/60 size-4 shrink-0' />
+            <IconBadge tone='info' size='sm'>
+              <GitBranch />
+            </IconBadge>
             <div className='text-sm font-semibold'>{chartTitle}</div>
           </div>
           <TooltipProvider>

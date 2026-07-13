@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createElement, type ReactNode } from 'react'
+
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { cn } from '@/lib/utils'
 
 export const sideDrawerContentClassName = (className?: string) =>
@@ -70,6 +72,7 @@ export function SideDrawerSectionHeader(props: {
   title: ReactNode
   description?: ReactNode
   icon?: ReactNode
+  iconTone?: IconBadgeTone
   className?: string
 }) {
   return createElement(
@@ -77,11 +80,8 @@ export function SideDrawerSectionHeader(props: {
     { className: cn('flex items-start gap-3', props.className) },
     props.icon
       ? createElement(
-          'span',
-          {
-            className:
-              'bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md',
-          },
+          IconBadge,
+          { tone: props.iconTone, size: 'md' },
           props.icon
         )
       : null,

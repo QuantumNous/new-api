@@ -14,8 +14,11 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -128,7 +131,17 @@ func withSelfUseModeDisabled(t *testing.T) {
 	})
 }
 
-func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
+func withSelfUseModeEnabled(t *testing.T) {
+	t.Helper()
+
+	original := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = original
+	})
+}
+
+func decodeListModelsPayload(t *testing.T, recorder *httptest.ResponseRecorder) listModelsResponse {
 	t.Helper()
 
 	require.Equal(t, http.StatusOK, recorder.Code)
@@ -136,7 +149,13 @@ func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder)
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 	require.True(t, payload.Success)
 	require.Equal(t, "list", payload.Object)
+	return payload
+}
 
+func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
+	t.Helper()
+
+	payload := decodeListModelsPayload(t, recorder)
 	ids := make(map[string]struct{}, len(payload.Data))
 	for _, item := range payload.Data {
 		ids[item.Id] = struct{}{}
@@ -252,6 +271,77 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.Empty(t, missingExprPricing.BillingExpr)
 }
 
+func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		model.InvalidatePricingCache()
+	})
+
+	require.NoError(t, db.Create(&model.User{
+		Id:       1003,
+		Username: "advanced-custom-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	channel := &model.Channel{
+		Id:     701,
+		Type:   constant.ChannelTypeAdvancedCustom,
+		Key:    "advanced-custom-key",
+		Status: common.ChannelStatusEnabled,
+		Name:   "advanced-custom-channel",
+		Group:  "default",
+		Models: "gemini-3.5-flash",
+	}
+	channel.SetOtherSettings(dto.ChannelOtherSettings{
+		AdvancedCustom: &dto.AdvancedCustomConfig{
+			Routes: []dto.AdvancedCustomRoute{
+				{
+					IncomingPath: "/v1/chat/completions",
+					UpstreamPath: "/v1/chat/completions",
+				},
+				{
+					IncomingPath: "/v1/responses",
+					UpstreamPath: "/v1beta/models/{model}:generateContent",
+					Converter:    "openai_responses_to_gemini_generate_content",
+					Models:       []string{"re:^gemini-"},
+				},
+			},
+		},
+	})
+	require.NoError(t, db.Create(channel).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "gemini-3.5-flash",
+		ChannelId: 701,
+		Enabled:   true,
+	}).Error)
+
+	model.InitChannelCache()
+	model.GetPricing()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1003)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	payload := decodeListModelsPayload(t, recorder)
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "gemini-3.5-flash", payload.Data[0].Id)
+	require.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+	}, payload.Data[0].SupportedEndpointTypes)
+}
+
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{
@@ -283,4 +373,82 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
+}
+
+func TestCheckUpdatePasswordRequiresCurrentPassword(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	hashedPassword, err := common.Password2Hash("CurrentPassword123")
+	require.NoError(t, err)
+	user := &model.User{
+		Username: "password-user",
+		Password: hashedPassword,
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	updatePassword, err := checkUpdatePassword("", "", user.Id)
+	require.NoError(t, err)
+	assert.False(t, updatePassword)
+
+	updatePassword, err = checkUpdatePassword("", "NewPassword123", user.Id)
+	require.Error(t, err)
+	assert.False(t, updatePassword)
+	assert.ErrorIs(t, err, errOriginalPasswordFail)
+
+	updatePassword, err = checkUpdatePassword("CurrentPassword123", "NewPassword123", user.Id)
+	require.NoError(t, err)
+	assert.True(t, updatePassword)
+}
+
+func TestCheckUpdatePasswordRejectsHistoricalEmptyPassword(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	user := &model.User{
+		Username: "legacy-passwordless-user",
+		Password: "",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	updatePassword, err := checkUpdatePassword("", "NewPassword123", user.Id)
+	require.Error(t, err)
+	assert.False(t, updatePassword)
+	assert.ErrorIs(t, err, errUserPasswordUnset)
+}
+
+func TestSetupLoginDoesNotTouchPasswordWhenPasswordFieldOmitted(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+
+	hashedPassword, err := common.Password2Hash("CurrentPassword123")
+	require.NoError(t, err)
+	user := &model.User{
+		Username: "twofa-user",
+		Password: hashedPassword,
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	router := gin.New()
+	store := cookie.NewStore([]byte("test-session-secret"))
+	router.Use(sessions.Sessions("session", store))
+	router.GET("/", func(c *gin.Context) {
+		setupLogin(&model.User{
+			Id:       user.Id,
+			Username: user.Username,
+			Role:     user.Role,
+			Status:   user.Status,
+			Group:    user.Group,
+		}, c)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var stored model.User
+	require.NoError(t, db.First(&stored, user.Id).Error)
+	assert.Equal(t, hashedPassword, stored.Password)
 }

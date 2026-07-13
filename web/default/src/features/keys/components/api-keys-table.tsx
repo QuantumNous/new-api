@@ -18,13 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { type Table as TanstackTable } from '@tanstack/react-table'
+import type { Table as TanstackTable } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
+import {
+  DISABLED_ROW_DESKTOP,
+  DISABLED_ROW_MOBILE,
+  DataTablePage,
+  useDebouncedColumnFilter,
+  useDataTable,
+} from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Empty,
   EmptyDescription,
@@ -34,14 +41,10 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DISABLED_ROW_DESKTOP,
-  DISABLED_ROW_MOBILE,
-  DataTablePage,
-  useDebouncedColumnFilter,
-  useDataTable,
-} from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { formatQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { getApiKeys, searchApiKeys } from '../api'
 import {
   API_KEY_STATUS,
@@ -49,7 +52,7 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
-import { type ApiKey } from '../types'
+import type { ApiKey } from '../types'
 import { ApiKeyCell } from './api-keys-cells'
 import { useApiKeysColumns } from './api-keys-columns'
 import { useApiKeys } from './api-keys-provider'
@@ -57,8 +60,11 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
-const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY =
-  'api-keys:column-visibility'
+const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility'
+const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
+  { length: 5 },
+  (_, index) => `api-key-mobile-skeleton-${index + 1}`
+)
 
 function isDisabledApiKeyRow(apiKey: ApiKey) {
   return apiKey.status !== API_KEY_STATUS.ENABLED
@@ -67,9 +73,9 @@ function isDisabledApiKeyRow(apiKey: ApiKey) {
 function ApiKeysMobileSkeleton() {
   return (
     <div className='divide-border overflow-hidden rounded-lg border'>
-      {Array.from({ length: 5 }).map((_, index) => (
+      {API_KEYS_MOBILE_SKELETON_IDS.map((id) => (
         <div
-          key={index}
+          key={id}
           className='space-y-2 border-b px-3 py-2.5 last:border-b-0'
         >
           <div className='flex items-center justify-between'>
@@ -183,7 +189,16 @@ function ApiKeysMobileList({
 export function ApiKeysTable() {
   const { t } = useTranslation()
   const { refreshTrigger } = useApiKeys()
-  const columns = useApiKeysColumns()
+  const [now, setNow] = useState(() => Date.now())
+  const columns = useApiKeysColumns(now)
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now())
+    }, 30_000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const {
     globalFilter,

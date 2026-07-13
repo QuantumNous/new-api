@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { splitBillingExprAndRequestRules } from '@/features/pricing/lib/billing-expr'
+
 import { safeJsonParse } from '../utils/json-parser'
 import { formatPricingNumber } from './pricing-format'
 
@@ -59,6 +60,12 @@ export type ModelRow = ModelPricingSnapshot & {
 
 export const hasPricingValue = (value?: string) =>
   value !== undefined && value !== ''
+
+export const isBasePricingUnset = (snapshot?: ModelPricingSnapshot) =>
+  !snapshot ||
+  (snapshot.billingMode !== 'tiered_expr' &&
+    !hasPricingValue(snapshot.price) &&
+    !hasPricingValue(snapshot.ratio))
 
 const toNumberOrNull = (value?: string) => {
   if (!hasPricingValue(value)) return null

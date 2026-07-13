@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { getLobeIcon } from '@/lib/lobe-icon'
+
 import {
   BadgeCell,
   BadgeListCell,
@@ -26,7 +26,9 @@ import {
 } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
-import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
+import { getLobeIcon } from '@/lib/lobe-icon'
+
+import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
@@ -39,6 +41,7 @@ import {
   stripTrailingZeros,
 } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
+import { ModelBillingModeBadge } from './model-billing-mode-badge'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
@@ -49,6 +52,7 @@ export interface PricingColumnsOptions {
   priceRate?: number
   usdExchangeRate?: number
   showRechargePrice?: boolean
+  selectedGroup?: string
 }
 
 export function usePricingColumns(
@@ -60,6 +64,7 @@ export function usePricingColumns(
     priceRate = 1,
     usdExchangeRate = 1,
     showRechargePrice = false,
+    selectedGroup,
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
@@ -93,18 +98,10 @@ export function usePricingColumns(
     {
       accessorKey: 'quota_type',
       header: t('Type'),
-      cell: ({ row }) => {
-        const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
-        return (
-          <StatusBadge
-            label={isTokenBased ? t('Token') : t('Request')}
-            variant={isTokenBased ? 'info' : 'neutral'}
-            copyable={false}
-            className='-ml-1.5'
-          />
-        )
-      },
-      size: 80,
+      cell: ({ row }) => (
+        <ModelBillingModeBadge model={row.original} className='-ml-1.5' />
+      ),
+      size: 110,
       enableSorting: false,
     },
 
@@ -122,7 +119,10 @@ export function usePricingColumns(
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(model),
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(
+            model,
+            selectedGroup
+          ),
         })
 
         if (dynamicSummary) {
@@ -184,7 +184,8 @@ export function usePricingColumns(
               tokenUnit,
               showRechargePrice,
               priceRate,
-              usdExchangeRate
+              usdExchangeRate,
+              selectedGroup
             )
           )
           const outputPrice = stripTrailingZeros(
@@ -194,7 +195,8 @@ export function usePricingColumns(
               tokenUnit,
               showRechargePrice,
               priceRate,
-              usdExchangeRate
+              usdExchangeRate,
+              selectedGroup
             )
           )
 
@@ -217,7 +219,8 @@ export function usePricingColumns(
             model,
             showRechargePrice,
             priceRate,
-            usdExchangeRate
+            usdExchangeRate,
+            selectedGroup
           )
         )
 
@@ -245,7 +248,10 @@ export function usePricingColumns(
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(model),
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(
+            model,
+            selectedGroup
+          ),
         })
 
         if (dynamicSummary) {
@@ -289,7 +295,8 @@ export function usePricingColumns(
             tokenUnit,
             showRechargePrice,
             priceRate,
-            usdExchangeRate
+            usdExchangeRate,
+            selectedGroup
           )
         )
 
