@@ -122,7 +122,7 @@ func TestValidateOneTimeSubscriptionPlan_RejectsAutoRenewPlans(t *testing.T) {
 		BillingMode: model.SubscriptionBillingModeAutoRenew,
 	})
 
-	require.EqualError(t, err, "auto_renew plans must use the Stripe recurring checkout")
+	require.EqualError(t, err, "auto_renew plans must use the recurring checkout endpoints")
 }
 
 func TestHandleRecurringCheckoutSessionCompleted_UpsertsBillingSubscription(t *testing.T) {

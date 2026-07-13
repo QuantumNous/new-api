@@ -248,8 +248,12 @@ func validateSubscriptionPlanRecurringFields(plan *model.SubscriptionPlan) error
 		return errors.New("plan is nil")
 	}
 	plan.BillingMode = normalizeSubscriptionBillingMode(plan.BillingMode)
-	if plan.BillingMode == model.SubscriptionBillingModeAutoRenew && strings.TrimSpace(plan.StripeRecurringPriceId) == "" {
-		return errors.New("stripe_recurring_price_id is required for auto_renew plan")
+	if plan.BillingMode == model.SubscriptionBillingModeAutoRenew {
+		hasStripe := strings.TrimSpace(plan.StripeRecurringPriceId) != ""
+		hasAlipay := plan.AlipayEnabled
+		if !hasStripe && !hasAlipay {
+			return errors.New("auto_renew plan requires stripe_recurring_price_id and/or alipay_enabled")
+		}
 	}
 	if plan.BillingMode == model.SubscriptionBillingModeOneTime {
 		plan.StripeRecurringPriceId = ""
@@ -259,7 +263,7 @@ func validateSubscriptionPlanRecurringFields(plan *model.SubscriptionPlan) error
 
 func validateOneTimeSubscriptionPlan(plan *model.SubscriptionPlan) error {
 	if plan != nil && plan.BillingMode == model.SubscriptionBillingModeAutoRenew {
-		return errors.New("auto_renew plans must use the Stripe recurring checkout")
+		return errors.New("auto_renew plans must use the recurring checkout endpoints")
 	}
 	return nil
 }
@@ -407,6 +411,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"enabled":                    req.Plan.Enabled,
 			"sort_order":                 req.Plan.SortOrder,
 			"billing_mode":               req.Plan.BillingMode,
+			"alipay_enabled":             req.Plan.AlipayEnabled,
 			"stripe_price_id":            req.Plan.StripePriceId,
 			"stripe_recurring_price_id":  req.Plan.StripeRecurringPriceId,
 			"creem_product_id":           req.Plan.CreemProductId,
