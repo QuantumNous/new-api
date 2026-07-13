@@ -283,13 +283,7 @@ func TestPreConsumeUserSubscription(t *testing.T) {
 // ===========================================================================
 
 func TestRefundSubscriptionPreConsume(t *testing.T) {
-	// TODO: RefundSubscriptionPreConsume calls PostConsumeUserSubscriptionDelta which
-	// starts a nested model.DB.Transaction() inside the outer tx.Transaction(). This
-	// deadlocks with SQLite MaxOpenConns(1) because the inner transaction can't acquire
-	// a second connection. Fix: refactor production code to pass tx through nested calls.
-	// Non-existent record test does NOT deadlock (no inner transaction).
 	t.Run("happy_path", func(t *testing.T) {
-		t.Skip("deadlocks: nested model.DB.Transaction inside tx (see TODO above)")
 		truncateTables(t)
 		insertUserForSubTest(t, 3001, "default", 0)
 		plan := subscriptionPlan(7001)
@@ -318,7 +312,6 @@ func TestRefundSubscriptionPreConsume(t *testing.T) {
 	})
 
 	t.Run("double_refund_idempotent", func(t *testing.T) {
-		t.Skip("deadlocks: nested model.DB.Transaction inside tx (see TestRefundSubscriptionPreConsume TODO)")
 		truncateTables(t)
 		insertUserForSubTest(t, 3002, "default", 0)
 		plan := subscriptionPlan(7002)
@@ -583,14 +576,8 @@ func TestExpireDueSubscriptions(t *testing.T) {
 
 // ===========================================================================
 // PurchaseSubscriptionWithBalance tests
-// TODO: PurchaseSubscriptionWithBalance calls GetDBTimestamp() inside tx.Transaction(),
-// which uses model.DB.Scan() (not tx). This deadlocks with SQLite MaxOpenConns(1) because
-// the inner query can't acquire a second connection. Fix: pass tx to GetDBTimestamp.
-// ===========================================================================
-
 func TestPurchaseSubscriptionWithBalance(t *testing.T) {
 	t.Run("happy_path", func(t *testing.T) {
-		t.Skip("deadlocks: GetDBTimestamp uses model.DB inside tx.Transaction()")
 		truncateTables(t)
 		insertUserForSubTest(t, 6001, "default", 5000000) // enough quota for the plan
 
@@ -618,7 +605,6 @@ func TestPurchaseSubscriptionWithBalance(t *testing.T) {
 	})
 
 	t.Run("insufficient_balance_rollback", func(t *testing.T) {
-		t.Skip("deadlocks: PurchaseSubscriptionWithBalance uses model.DB inside tx")
 		truncateTables(t)
 		insertUserForSubTest(t, 6002, "default", 10) // very low quota
 
@@ -642,9 +628,10 @@ func TestPurchaseSubscriptionWithBalance(t *testing.T) {
 	})
 
 	t.Run("already_at_max_purchase", func(t *testing.T) {
-		t.Skip("deadlocks: PurchaseSubscriptionWithBalance uses model.DB inside tx")
 		truncateTables(t)
-		insertUserForSubTest(t, 6003, "default", 5000000)
+		// Give enough quota for TWO purchases (PriceAmount 9.99 × QuotaPerUnit 500000 = 4995000 each)
+		// but MaxPurchasePerUser=1 means the second should fail with "上限" error, not "余额不足"
+		insertUserForSubTest(t, 6003, "default", 5000000+4995000)
 
 		plan := subscriptionPlan(10003)
 		plan.MaxPurchasePerUser = 1
