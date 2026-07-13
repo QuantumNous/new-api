@@ -960,9 +960,9 @@ func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 			fmt.Sprintf("国家：%s", country),
 			fmt.Sprintf("方式：%s", methodLabel),
 			fmt.Sprintf("注册于：%s", registeredAt),
-			fmt.Sprintf("第几次付款：第 %d 次", payCount),
 		}
-		_ = common.SendFeishuCard(chatID, "💰 付款成功", lines)
+		title := fmt.Sprintf("💰 付款成功（第 %d 次）", payCount)
+		_ = common.SendFeishuCard(chatID, title, lines)
 	}()
 }
 
