@@ -144,7 +144,7 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "fallback to matched rule meta",
+			name: "matched rule without preferred channel use does not skip retry",
 			ctx: func() *gin.Context {
 				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
 					RuleName:   "rule-skip-retry",
@@ -153,7 +153,7 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 					ModelName:  "gpt-5",
 				})
 			},
-			want: true,
+			want: false,
 		},
 		{
 			name: "no flag and no skip retry meta",

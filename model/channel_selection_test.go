@@ -78,6 +78,67 @@ func TestGetChannelSkipsCoolingChannelWithoutMemoryCache(t *testing.T) {
 	}
 }
 
+func TestGetRandomSatisfiedChannelExcludesAttemptedChannelOnRetry(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	t.Cleanup(func() {
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(0)
+	failed := &Channel{Id: 17, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority}
+	healthy := &Channel{Id: 29, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority}
+	SetChannelCacheForTest(map[int]*Channel{17: failed, 29: healthy}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17, 29}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 1, ChannelSelectionOptions{
+		ExcludedChannelIDs:   map[int]struct{}{17: {}},
+		AllowCoolingFallback: false,
+	})
+	if err != nil {
+		t.Fatalf("GetRandomSatisfiedChannelWithOptions returned error: %v", err)
+	}
+	if selected == nil || selected.Id != 29 {
+		t.Fatalf("expected unattempted channel 29, got %#v", selected)
+	}
+}
+
+func TestGetRandomSatisfiedChannelDoesNotReuseCoolingChannelOnRetry(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	t.Cleanup(func() {
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(0)
+	channel := &Channel{Id: 17, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority}
+	SetChannelCacheForTest(map[int]*Channel{17: channel}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17}},
+	})
+	CooldownChannel(17, "upstream timeout", time.Minute)
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 1, ChannelSelectionOptions{
+		AllowCoolingFallback: false,
+	})
+	if err != nil {
+		t.Fatalf("GetRandomSatisfiedChannelWithOptions returned error: %v", err)
+	}
+	if selected != nil {
+		t.Fatalf("expected no healthy retry channel, got %#v", selected)
+	}
+}
+
 func TestGetRandomSatisfiedChannelReturnsCoolingChannelWhenAllCandidatesCoolingWithMemoryCache(t *testing.T) {
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = true

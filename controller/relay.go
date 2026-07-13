@@ -197,6 +197,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		addUsedChannel(c, channel.Id)
+		if retryParam.ExcludedChannelIDs == nil {
+			retryParam.ExcludedChannelIDs = make(map[int]struct{})
+		}
+		retryParam.ExcludedChannelIDs[channel.Id] = struct{}{}
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
@@ -336,14 +340,14 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if openaiErr == nil {
 		return false
 	}
-	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
+		return false
+	}
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) && openaiErr.StatusCode < http.StatusInternalServerError {
 		return false
 	}
 	if types.IsChannelError(openaiErr) {
 		return true
-	}
-	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
-		return false
 	}
 	if retryTimes <= 0 {
 		return false
@@ -394,14 +398,14 @@ func isRetryableChannelError(c *gin.Context, openaiErr *types.NewAPIError) bool 
 	if openaiErr == nil {
 		return false
 	}
-	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
+		return false
+	}
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) && openaiErr.StatusCode < http.StatusInternalServerError {
 		return false
 	}
 	if types.IsChannelError(openaiErr) {
 		return true
-	}
-	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
-		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
@@ -612,6 +616,10 @@ func RelayTask(c *gin.Context) {
 		}
 
 		addUsedChannel(c, channel.Id)
+		if retryParam.ExcludedChannelIDs == nil {
+			retryParam.ExcludedChannelIDs = make(map[int]struct{})
+		}
+		retryParam.ExcludedChannelIDs[channel.Id] = struct{}{}
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
 			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
@@ -691,7 +699,7 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 	if taskErr == nil {
 		return false
 	}
-	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) && taskErr.StatusCode/100 != 5 {
 		return false
 	}
 	if retryTimes <= 0 {

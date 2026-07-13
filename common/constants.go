@@ -170,6 +170,8 @@ var BatchUpdateInterval int
 
 var RelayTimeout int // unit is second
 
+var RelayResponseHeaderTimeout int // unit is second; timeout for receiving response headers from upstream
+
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 

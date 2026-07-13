@@ -105,6 +105,10 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 }
 
 func GetChannel(group string, model string, retry int) (*Channel, error) {
+	return GetChannelWithOptions(group, model, retry, ChannelSelectionOptions{AllowCoolingFallback: true})
+}
+
+func GetChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
 	var abilities []Ability
 
 	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
@@ -118,13 +122,16 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	availableAbilities := make([]Ability, 0, len(abilities))
 	coolingAbilities := make([]Ability, 0, len(abilities))
 	for _, ability := range abilities {
+		if _, excluded := options.ExcludedChannelIDs[ability.ChannelId]; excluded {
+			continue
+		}
 		if IsChannelCoolingDown(ability.ChannelId) {
 			coolingAbilities = append(coolingAbilities, ability)
 			continue
 		}
 		availableAbilities = append(availableAbilities, ability)
 	}
-	if len(availableAbilities) == 0 {
+	if len(availableAbilities) == 0 && options.AllowCoolingFallback {
 		availableAbilities = coolingAbilities
 	}
 	if len(availableAbilities) == 0 {

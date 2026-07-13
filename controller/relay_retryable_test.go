@@ -70,6 +70,16 @@ func TestIsRetryableChannelError(t *testing.T) {
 	}
 }
 
+func TestShouldRetryAllowsTransientAffinityFailure(t *testing.T) {
+	c := newTestContext()
+	c.Set("channel_affinity_skip_retry_on_failure", true)
+	err := types.NewErrorWithStatusCode(errors.New("upstream unavailable"), types.ErrorCodeBadResponseStatusCode, http.StatusServiceUnavailable)
+
+	if !shouldRetry(c, err, 1) {
+		t.Fatal("expected transient 5xx from a sticky channel to fall back")
+	}
+}
+
 func TestShouldRetryStopsOnSemanticContextLimitError(t *testing.T) {
 	c := newTestContext()
 	err := types.NewErrorWithStatusCode(

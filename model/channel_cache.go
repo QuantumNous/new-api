@@ -94,10 +94,19 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
+type ChannelSelectionOptions struct {
+	ExcludedChannelIDs   map[int]struct{}
+	AllowCoolingFallback bool
+}
+
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+	return GetRandomSatisfiedChannelWithOptions(group, model, retry, ChannelSelectionOptions{AllowCoolingFallback: true})
+}
+
+func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannelWithOptions(group, model, retry, options)
 	}
 
 	channelSyncLock.RLock()
@@ -117,10 +126,17 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 
 	if len(channels) == 1 {
-		if channel, ok := channelsIDM[channels[0]]; ok {
-			return channel, nil
+		channel, ok := channelsIDM[channels[0]]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
 		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
+		if _, excluded := options.ExcludedChannelIDs[channel.Id]; excluded {
+			return nil, nil
+		}
+		if IsChannelCoolingDown(channel.Id) && !options.AllowCoolingFallback {
+			return nil, nil
+		}
+		return channel, nil
 	}
 
 	availableChannels := make([]*Channel, 0, len(channels))
@@ -130,13 +146,16 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		if !ok {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
+		if _, excluded := options.ExcludedChannelIDs[channel.Id]; excluded {
+			continue
+		}
 		if IsChannelCoolingDown(channel.Id) {
 			coolingChannels = append(coolingChannels, channel)
 			continue
 		}
 		availableChannels = append(availableChannels, channel)
 	}
-	if len(availableChannels) == 0 {
+	if len(availableChannels) == 0 && options.AllowCoolingFallback {
 		availableChannels = coolingChannels
 	}
 
