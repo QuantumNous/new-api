@@ -265,6 +265,26 @@ func GetFirstTopupPromo(c *gin.Context) {
 	})
 }
 
+// GetSignupGift returns the public-facing registration gift config for the
+// landing-page popup. Logged-in users are treated as ineligible because the
+// popup is intended only for acquisition traffic on the public homepage.
+func GetSignupGift(c *gin.Context) {
+	userId := c.GetInt("id")
+	quotaForNewUser := common.QuotaForNewUser
+	enabled := quotaForNewUser > 0
+	giftUsd := 0.0
+	if enabled && common.QuotaPerUnit > 0 {
+		giftUsd = float64(quotaForNewUser) / common.QuotaPerUnit
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"enabled":            enabled,
+		"eligible":           enabled && userId == 0,
+		"quota_for_new_user": quotaForNewUser,
+		"gift_usd":           giftUsd,
+	})
+}
+
 func getMinTopup() int64 {
 	minTopup := operation_setting.MinTopUp
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {

@@ -951,12 +951,16 @@ func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 		}
 		usdAmount := float64(quotaAdded) / common.QuotaPerUnit
 		methodLabel := FormatPaymentMethodLabel(paymentMethod)
+		// 该用户第几次成功付款（含本次）；此时当前 TopUp 行已在事务内落库为 success。
+		var payCount int64
+		DB.Model(&TopUp{}).Where("user_id = ? AND status = ?", userId, common.TopUpStatusSuccess).Count(&payCount)
 		lines := []string{
 			fmt.Sprintf("用户：%s", email),
 			fmt.Sprintf("金额：$%.2f", usdAmount),
 			fmt.Sprintf("国家：%s", country),
 			fmt.Sprintf("方式：%s", methodLabel),
 			fmt.Sprintf("注册于：%s", registeredAt),
+			fmt.Sprintf("第几次付款：第 %d 次", payCount),
 		}
 		_ = common.SendFeishuCard(chatID, "💰 付款成功", lines)
 	}()
