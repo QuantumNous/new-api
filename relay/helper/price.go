@@ -227,9 +227,12 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 			}
 		}
 	} else {
-		// 按 Token 计费的异步任务只能在上游返回 usage 后确定费用，提交时不预扣。
-		// 任务完成后由 RecalculateTaskQuotaByTokens 按输入、输出 Token 差额结算。
-		quota = 0
+		// 按量计费：以模型倍率的一半作为预扣额度，任务完成后按实际 usage 差额结算。
+		var err error
+		quota, err = common.QuotaFromFloatStrict(modelRatio / 2 * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		if err != nil {
+			return types.PriceData{}, err
+		}
 		modelPrice = -1
 		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
 			if groupRatioInfo.GroupRatio == 0 || modelRatio == 0 {
