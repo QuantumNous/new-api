@@ -56,11 +56,16 @@ const SubscriptionPurchaseModal = ({
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  onPayBalance,
 }) => {
+  // 外部支付入口开关（与 web/default 同步禁用）。
+  // 设为 true 可恢复 Stripe / Creem / EPay 支付入口。
+  const SHOW_EXTERNAL_PAYMENTS = false;
+
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
   const { symbol, rate } = getCurrencyConfig();
-  const price = plan ? Number(plan.price_amount || 0) : 0;
+  const price = plan ? Number(plan?.price_amount || 0) : 0;
   const convertedPrice = price * rate;
   const displayPrice = convertedPrice.toFixed(
     Number.isInteger(convertedPrice) ? 0 : 2,
@@ -70,6 +75,8 @@ const SubscriptionPurchaseModal = ({
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
   const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
   const hasAnyPayment = hasStripe || hasCreem || hasEpay;
+  // 余额支付：套餐默认允许（allow_balance_pay !== false）
+  const allowBalancePay = plan?.allow_balance_pay !== false;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -169,7 +176,7 @@ const SubscriptionPurchaseModal = ({
             </div>
           </Card>
 
-          {/* 支付方式 */}
+          {/* 购买上限提示 */}
           {purchaseLimitReached && (
             <Banner
               type='warning'
@@ -179,7 +186,32 @@ const SubscriptionPurchaseModal = ({
             />
           )}
 
-          {hasAnyPayment ? (
+          {/* 余额支付入口（与 web/default 同步：禁用外部支付，保留余额购买） */}
+          {allowBalancePay ? (
+            <Button
+              theme='solid'
+              type='primary'
+              block
+              size='large'
+              onClick={onPayBalance}
+              loading={paying}
+              disabled={purchaseLimitReached}
+            >
+              {t('余额支付')}
+            </Button>
+          ) : (
+            <Banner
+              type='info'
+              description={t('该套餐不支持余额支付，请联系管理员开通订阅')}
+              className='!rounded-xl'
+              closeIcon={null}
+            />
+          )}
+
+          {/* ===== 外部支付入口已禁用（与 web/default 同步）===== */}
+          {/* 原有的 Stripe / Creem / EPay 入口已通过 SHOW_EXTERNAL_PAYMENTS 开关关闭。
+              恢复方式：将上方的 SHOW_EXTERNAL_PAYMENTS 改为 true。 */}
+          {SHOW_EXTERNAL_PAYMENTS && hasAnyPayment && (
             <div className='space-y-3'>
               <Text size='small' type='tertiary'>
                 {t('选择支付方式')}：
@@ -242,14 +274,8 @@ const SubscriptionPurchaseModal = ({
                 </div>
               )}
             </div>
-          ) : (
-            <Banner
-              type='info'
-              description={t('管理员未开启在线支付功能，请联系管理员配置。')}
-              className='!rounded-xl'
-              closeIcon={null}
-            />
           )}
+          {/* ===== 外部支付入口禁用结束 ===== */}
         </div>
       ) : null}
     </Modal>

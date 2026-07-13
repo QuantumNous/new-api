@@ -198,6 +198,26 @@ const SubscriptionPlansCard = ({
     }
   };
 
+  const payBalance = async () => {
+    setPaying(true);
+    try {
+      const res = await API.post('/api/subscription/balance/pay', {
+        plan_id: selectedPlan.plan.id,
+      });
+      if (res.data?.success) {
+        showSuccess(t('余额支付成功'));
+        closeBuy();
+        reloadSubscriptionSelf?.();
+      } else {
+        showError(res.data?.message || t('支付失败'));
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaying(false);
+    }
+  };
+
   // 当前订阅信息 - 支持多个订阅
   const hasActiveSubscription = activeSubscriptions.length > 0;
   const hasAnySubscription = allSubscriptions.length > 0;
@@ -684,6 +704,7 @@ const SubscriptionPlansCard = ({
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
+        onPayBalance={payBalance}
       />
     </>
   );

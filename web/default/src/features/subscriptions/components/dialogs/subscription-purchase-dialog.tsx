@@ -56,6 +56,12 @@ interface PaymentMethod {
   name?: string
 }
 
+// Feature flag: external payment methods (Stripe/Creem/WaffoPancake/EPay) are
+// disabled in the purchase dialog. Only balance payment is exposed to users.
+// Set to `true` to restore the external payment UI (the handlers, state, and
+// JSX are retained below for that purpose).
+const ENABLE_EXTERNAL_PAYMENTS = false
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -328,42 +334,42 @@ export function SubscriptionPurchaseDialog(props: Props) {
             </Alert>
           )}
 
-          <div className='flex flex-col gap-2 rounded-md border p-3'>
-            <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className='text-muted-foreground'>{t('Required')}</span>
-              <span>{formatQuota(balanceCost)}</span>
-            </div>
-            <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className='text-muted-foreground'>{t('Available')}</span>
-              <span>{formatQuota(userQuota)}</span>
-            </div>
-            {!allowBalancePay ? (
-              <Alert variant='destructive'>
-                <AlertDescription>
-                  {t('This plan does not allow balance redemption')}
-                </AlertDescription>
-              </Alert>
-            ) : (
-              insufficientBalance && (
+          {allowBalancePay ? (
+            <div className='flex flex-col gap-2 rounded-md border p-3'>
+              <div className='flex items-center justify-between gap-2 text-xs'>
+                <span className='text-muted-foreground'>{t('Required')}</span>
+                <span>{formatQuota(balanceCost)}</span>
+              </div>
+              <div className='flex items-center justify-between gap-2 text-xs'>
+                <span className='text-muted-foreground'>{t('Available')}</span>
+                <span>{formatQuota(userQuota)}</span>
+              </div>
+              {insufficientBalance && (
                 <Alert variant='destructive'>
                   <AlertDescription>
                     {t('Insufficient balance')}
                   </AlertDescription>
                 </Alert>
-              )
-            )}
-            <Button
-              variant='outline'
-              onClick={handlePayBalance}
-              disabled={
-                paying || limitReached || !allowBalancePay || insufficientBalance
-              }
-            >
-              {t('Pay with Balance')}
-            </Button>
-          </div>
+              )}
+              <Button
+                variant='outline'
+                onClick={handlePayBalance}
+                disabled={paying || limitReached || insufficientBalance}
+              >
+                {t('Pay with Balance')}
+              </Button>
+            </div>
+          ) : (
+            <Alert>
+              <AlertDescription>
+                {t(
+                  'Please contact the administrator to activate your subscription.'
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
 
-          {hasAnyPayment && (
+          {ENABLE_EXTERNAL_PAYMENTS && hasAnyPayment && (
             <div className='space-y-3'>
               <p className='text-muted-foreground text-xs'>
                 {t('Select payment method')}
