@@ -24,15 +24,27 @@ const (
 	channelHealthMaxEntries       = 10_000
 	minimumChannelHealthScore     = 0.1
 
-	// A first-token latency at or above this is treated as "slow": far above the
-	// fast channels (~1-6s observed) but well below the slow-channel tail
-	// (26-54s). channelHealthSlowThreshold consecutive slow successes (a fast
-	// success resets the count) trip the circuit, so a consistently-slow channel
-	// is evicted and re-probed like a failing one, while an occasional spike on
-	// an otherwise-fast channel does not trip it.
-	channelHealthSlowLatencyThreshold = 12 * time.Second
-	channelHealthSlowThreshold        = 3
+	// channelHealthSlowThreshold consecutive slow successes (a fast success
+	// resets the count) trip the circuit, so a consistently-slow channel is
+	// evicted and re-probed like a failing one, while an occasional spike on an
+	// otherwise-fast channel does not trip it. The "slow" first-token latency
+	// bound is configurable (CHANNEL_HEALTH_SLOW_LATENCY_SECONDS); see
+	// channelHealthSlowLatency.
+	channelHealthSlowThreshold             = 3
+	defaultChannelHealthSlowLatencySeconds = 9
 )
+
+// channelHealthSlowLatency is the first-token latency at or above which a
+// successful response is treated as "slow". Default is well above the fast
+// channels (~1-6s observed) but low enough to catch moderately-slow ones;
+// tune via CHANNEL_HEALTH_SLOW_LATENCY_SECONDS without a code change.
+func channelHealthSlowLatency() time.Duration {
+	s := common.ChannelHealthSlowLatencySeconds
+	if s <= 0 {
+		s = defaultChannelHealthSlowLatencySeconds
+	}
+	return time.Duration(s) * time.Second
+}
 
 type ChannelHealthKey struct {
 	ChannelID int
@@ -158,7 +170,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	// taking too long to first token is evicted and re-probed like a failing
 	// one, so latency weighting (which only reorders within a priority tier) is
 	// not the only defense against consistently-slow channels.
-	slow := outcome.Latency >= channelHealthSlowLatencyThreshold
+	slow := outcome.Latency >= channelHealthSlowLatency()
 
 	if entry.state == ChannelHealthHalfOpen {
 		if slow {

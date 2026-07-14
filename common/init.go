@@ -112,6 +112,7 @@ func InitEnv() {
 	RelayDialTimeout = GetEnvOrDefault("RELAY_DIAL_TIMEOUT", 10)
 	RelayTLSHandshakeTimeout = GetEnvOrDefault("RELAY_TLS_HANDSHAKE_TIMEOUT", 10)
 	RelayMaxRetryDuration = GetEnvOrDefault("RELAY_MAX_RETRY_DURATION", 120)
+	ChannelHealthSlowLatencySeconds = GetEnvOrDefault("CHANNEL_HEALTH_SLOW_LATENCY_SECONDS", 9)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
 

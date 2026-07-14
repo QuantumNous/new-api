@@ -166,7 +166,7 @@ func TestChannelHealthIgnoresSemanticClientErrors(t *testing.T) {
 func TestChannelHealthOpensOnSustainedSlowness(t *testing.T) {
 	health, _ := newTestChannelHealth(t)
 	key := ChannelHealthKey{ChannelID: 50, Model: "gpt-5.5", Path: "/v1/responses"}
-	slow := channelHealthSlowLatencyThreshold + time.Second
+	slow := channelHealthSlowLatency() + time.Second
 
 	for i := 0; i < channelHealthSlowThreshold; i++ {
 		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
@@ -182,7 +182,7 @@ func TestChannelHealthOpensOnSustainedSlowness(t *testing.T) {
 func TestChannelHealthFastSuccessResetsSlowness(t *testing.T) {
 	health, _ := newTestChannelHealth(t)
 	key := ChannelHealthKey{ChannelID: 50, Model: "gpt-5.5", Path: "/v1/responses"}
-	slow := channelHealthSlowLatencyThreshold + time.Second
+	slow := channelHealthSlowLatency() + time.Second
 	fast := 500 * time.Millisecond
 
 	// A fast success between slow ones must reset the counter, so an occasional
@@ -200,7 +200,7 @@ func TestChannelHealthFastSuccessResetsSlowness(t *testing.T) {
 func TestChannelHealthHalfOpenSlowProbeReopens(t *testing.T) {
 	health, clock := newTestChannelHealth(t)
 	key := ChannelHealthKey{ChannelID: 50, Model: "gpt-5.5", Path: "/v1/responses"}
-	slow := channelHealthSlowLatencyThreshold + time.Second
+	slow := channelHealthSlowLatency() + time.Second
 	for i := 0; i < channelHealthSlowThreshold; i++ {
 		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
 	}

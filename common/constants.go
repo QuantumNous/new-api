@@ -189,6 +189,12 @@ var RelayDialTimeout int // unit is second
 // 10s Go DefaultTransport uses; previously unset on the relay transport.
 var RelayTLSHandshakeTimeout int // unit is second
 
+// ChannelHealthSlowLatencySeconds is the first-token latency (seconds) at or
+// above which a successful upstream response is treated as "slow" by the
+// adaptive channel-health circuit. Consecutive slow responses trip the circuit
+// and evict a consistently-slow channel. 0 uses the built-in default.
+var ChannelHealthSlowLatencySeconds int
+
 // RelayMaxRetryDuration caps the total wall-clock time spent retrying across
 // channels for a single request. 0 disables the cap. Bounds pathological cases
 // where a request cycles several dead/hung channels (each costing a full header
