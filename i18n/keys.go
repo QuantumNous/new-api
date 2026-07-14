@@ -151,6 +151,13 @@ const (
 	MsgPaymentCreateFailed       = "payment.create_failed"
 	MsgPaymentStartFailed        = "payment.start_failed"
 	MsgPaymentAmountTooLow       = "payment.amount_too_low"
+	MsgPaymentDisabled           = "payment.disabled"
+	MsgPaymentConfigIncomplete   = "payment.config_incomplete"
+	MsgPaymentRequestReadFailed  = "payment.request_read_failed"
+	MsgPaymentRedirectUntrusted  = "payment.redirect_untrusted"
+	MsgPaymentProductRequired    = "payment.product_required"
+	MsgPaymentProductConfigErr   = "payment.product_config_error"
+	MsgPaymentProductNotFound    = "payment.product_not_found"
 	MsgPaymentStripeNotConfig    = "payment.stripe_not_configured"
 	MsgPaymentWebhookNotConfig   = "payment.webhook_not_configured"
 	MsgPaymentPriceIdNotConfig   = "payment.price_id_not_configured"
@@ -165,6 +172,9 @@ const (
 	MsgTopupOrderStatus    = "topup.order_status"
 	MsgTopupFailed         = "topup.failed"
 	MsgTopupInvalidQuota   = "topup.invalid_quota"
+	MsgTopupAmountMin      = "topup.amount_min"
+	MsgTopupAmountMax      = "topup.amount_max"
+	MsgTopupGroupFailed    = "topup.group_failed"
 )
 
 // Channel related messages
