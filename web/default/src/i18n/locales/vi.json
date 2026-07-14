@@ -3,6 +3,11 @@
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "<=0.5s (Excellent)": "<=0.5s (Tuyệt vời)",
+    "<=1s (Good)": "<=1s (Tốt)",
+    "<=2s (Fair)": "<=2s (Trung bình)",
+    "<=5s (Poor)": "<=5s (Kém)",
+    "<=10s": "<=10s",
     "_copy": "_bản sao",
     "，": ", ",
     ", and": ", và",
@@ -5178,6 +5183,13 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Fail the test automatically if no response within this time.": "Tự động đánh dấu thất bại nếu không có phản hồi trong thời gian này.",
+    "Filter models by response time after testing.": "Lọc mô hình theo thời gian phản hồi sau khi kiểm tra.",
+    "Max seconds": "Số giây tối đa",
+    "Response time filter": "Bộ lọc thời gian phản hồi",
+    "Select fitting models ({{count}})": "Chọn mô hình phù hợp ({{count}})",
+    "Test timeout (seconds)": "Thời gian chờ kiểm tra (giây)",
+    "Test timed out ({{timeout}}s)": "Kiểm tra hết thời gian chờ ({{timeout}}s)"
   }
 }

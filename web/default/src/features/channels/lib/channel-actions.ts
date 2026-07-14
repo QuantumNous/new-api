@@ -282,7 +282,8 @@ export async function handleTestChannel(
     responseTime?: number,
     error?: string,
     errorCode?: string
-  ) => void
+  ) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const payload =
     options && (options.testModel || options.endpointType || options.stream)
@@ -296,7 +297,7 @@ export async function handleTestChannel(
       : undefined
 
   try {
-    const response = await testChannel(id, payload)
+    const response = await testChannel(id, payload, signal)
     const responseTime = getChannelTestResponseTime(response)
     const duration = formatChannelTestDuration(responseTime)
     const target = getChannelTestLabel(options)

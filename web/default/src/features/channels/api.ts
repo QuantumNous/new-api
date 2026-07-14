@@ -212,11 +212,12 @@ export async function batchSetChannelTag(
  */
 export async function testChannel(
   id: number,
-  params?: { model?: string; endpoint_type?: string; stream?: boolean }
+  params?: { model?: string; endpoint_type?: string; stream?: boolean },
+  signal?: AbortSignal
 ): Promise<ChannelTestResponse> {
   const res = await api.get(
     `/api/channel/test/${id}`,
-    channelActionConfig({ params })
+    channelActionConfig({ params, signal, disableDuplicate: true })
   )
   return res.data
 }

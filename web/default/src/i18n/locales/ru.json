@@ -3,6 +3,11 @@
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "<=0.5s (Excellent)": "<=0.5s (Отлично)",
+    "<=1s (Good)": "<=1s (Хорошо)",
+    "<=2s (Fair)": "<=2s (Удовл.)",
+    "<=5s (Poor)": "<=5s (Плохо)",
+    "<=10s": "<=10s",
     "_copy": "_копировать",
     "，": ", ",
     ", and": ", и",
@@ -5178,6 +5183,13 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Fail the test automatically if no response within this time.": "Автоматический провал теста при отсутствии ответа в течение этого времени.",
+    "Filter models by response time after testing.": "Фильтровать модели по времени отклика после тестирования.",
+    "Max seconds": "Макс. секунд",
+    "Response time filter": "Фильтр времени отклика",
+    "Select fitting models ({{count}})": "Выбрать подходящие модели ({{count}})",
+    "Test timeout (seconds)": "Тайм-аут теста (секунды)",
+    "Test timed out ({{timeout}}s)": "Тайм-аут теста ({{timeout}}с)"
   }
 }

@@ -53,6 +53,12 @@ const ModelTestModal = ({
   setSelectedEndpointType,
   isStreamTest,
   setIsStreamTest,
+  testTimeoutMs,
+  setTestTimeoutMs,
+  responseTimeFilter,
+  setResponseTimeFilter,
+  customResponseTimeSec,
+  setCustomResponseTimeSec,
   allSelectingRef,
   isMobile,
   t,
@@ -71,13 +77,32 @@ const ModelTestModal = ({
     }
   }, [streamToggleDisabled, isStreamTest, setIsStreamTest]);
 
-  const filteredModels = hasChannel
-    ? currentTestChannel.models
-        .split(',')
-        .filter((model) =>
-          model.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
-        )
-    : [];
+  const getResponseTimeThresholdMs = (filter, customSec) => {
+    if (filter === 'custom') return Number(customSec) * 1000;
+    return Number(filter);
+  };
+
+  const filteredModels = (() => {
+    if (!hasChannel) return [];
+    let models = currentTestChannel.models
+      .split(',')
+      .filter((model) =>
+        model.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
+      );
+    if (responseTimeFilter !== 'all') {
+      const maxMs = getResponseTimeThresholdMs(responseTimeFilter, customResponseTimeSec);
+      if (maxMs > 0) {
+        models = models.filter((model) => {
+          const r = modelTestResults[`${currentTestChannel.id}-${model}`];
+          if (!r) return true;
+          if (testingModels.has(model)) return true;
+          if (!r.success) return false;
+          return ((r.time || 0) * 1000) <= maxMs;
+        });
+      }
+    }
+    return models;
+  })();
 
   const endpointTypeOptions = [
     { value: '', label: t('自动检测') },
@@ -100,6 +125,16 @@ const ModelTestModal = ({
     { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
   ];
 
+  const RESPONSE_TIME_FILTER_OPTIONS = [
+    { value: 'all', label: t('全部') },
+    { value: '500', label: '<=0.5s (' + t('优秀') + ')' },
+    { value: '1000', label: '<=1s (' + t('良好') + ')' },
+    { value: '2000', label: '<=2s (' + t('一般') + ')' },
+    { value: '5000', label: '<=5s (' + t('较差') + ')' },
+    { value: '10000', label: '<=10s' },
+    { value: 'custom', label: t('自定义') },
+  ];
+
   const handleCopySelected = () => {
     if (selectedModelKeys.length === 0) {
       showError(t('请先选择模型！'));
@@ -119,19 +154,20 @@ const ModelTestModal = ({
     });
   };
 
+  const fittingModels = (() => {
+    if (!hasChannel) return [];
+    return filteredModels.filter((m) => {
+      const result = modelTestResults[`${currentTestChannel.id}-${m}`];
+      return result && result.success;
+    });
+  })();
+
   const handleSelectSuccess = () => {
     if (!currentTestChannel) return;
-    const successKeys = currentTestChannel.models
-      .split(',')
-      .filter((m) => m.toLowerCase().includes(modelSearchKeyword.toLowerCase()))
-      .filter((m) => {
-        const result = modelTestResults[`${currentTestChannel.id}-${m}`];
-        return result && result.success;
-      });
-    if (successKeys.length === 0) {
-      showInfo(t('暂无成功模型'));
+    if (fittingModels.length === 0) {
+      showInfo(t('暂无符合条件的模型'));
     }
-    setSelectedModelKeys(successKeys);
+    setSelectedModelKeys(fittingModels);
   };
 
   const columns = [
@@ -359,6 +395,57 @@ const ModelTestModal = ({
               <Button type='tertiary' onClick={handleSelectSuccess}>
                 {t('选择成功')}
               </Button>
+            </div>
+          </div>
+
+          {/* 超时设置与响应时间筛选 */}
+          <div className='flex flex-col sm:flex-row gap-2 w-full mb-2'>
+            <div className='flex items-center gap-2 flex-1 min-w-0'>
+              <Typography.Text strong className='shrink-0'>
+                {t('测试超时时间（秒）')}:
+              </Typography.Text>
+              <Input
+                type='number'
+                min={1}
+                step={1}
+                value={testTimeoutMs / 1000}
+                onChange={(v) => {
+                  const sec = Number(v);
+                  if (sec >= 1) setTestTimeoutMs(sec * 1000);
+                }}
+                className='!w-24'
+              />
+              <Typography.Text type='tertiary' size='small' className='hidden sm:block'>
+                {t('超时未响应则自动判定测试失败。')}
+              </Typography.Text>
+            </div>
+            <div className='flex items-center gap-2 shrink-0'>
+              <Typography.Text strong className='shrink-0'>
+                {t('响应时间筛选')}:
+              </Typography.Text>
+              <Select
+                value={responseTimeFilter}
+                onChange={(v) => {
+                  if (v !== null) {
+                    setResponseTimeFilter(v);
+                    setModelTablePage(1);
+                  }
+                }}
+                optionList={RESPONSE_TIME_FILTER_OPTIONS}
+                className='!w-44'
+                placeholder={t('全部')}
+              />
+              {responseTimeFilter === 'custom' && (
+                <Input
+                  type='number'
+                  min={0.5}
+                  step={0.5}
+                  value={customResponseTimeSec}
+                  onChange={(v) => setCustomResponseTimeSec(v)}
+                  placeholder={t('最大秒数')}
+                  className='!w-24'
+                />
+              )}
             </div>
           </div>
 

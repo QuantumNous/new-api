@@ -90,6 +90,10 @@ export const useChannelsData = () => {
   const [modelTablePage, setModelTablePage] = useState(1);
   const [selectedEndpointType, setSelectedEndpointType] = useState('');
   const [isStreamTest, setIsStreamTest] = useState(false);
+  const [testTimeoutMs, setTestTimeoutMs] = useState(10000);
+  const [responseTimeFilter, setResponseTimeFilter] = useState('all');
+  const [customResponseTimeSec, setCustomResponseTimeSec] = useState('');
+  const abortControllerRef = useRef(null);
   const [globalPassThroughEnabled, setGlobalPassThroughEnabled] =
     useState(false);
 
@@ -875,6 +879,14 @@ export const useChannelsData = () => {
     // 添加到正在测试的模型集合
     setTestingModels((prev) => new Set([...prev, model]));
 
+    // 创建 AbortController 用于超时控制
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    const timeoutId = testTimeoutMs > 0
+      ? setTimeout(() => abortController.abort(), testTimeoutMs)
+      : null;
+
     try {
       let url = `/api/channel/test/${record.id}?model=${model}`;
       if (endpointType) {
@@ -883,7 +895,9 @@ export const useChannelsData = () => {
       if (stream) {
         url += `&stream=true`;
       }
-      const res = await API.get(url);
+      const res = await API.get(url, {
+        signal: abortController.signal,
+      });
 
       // 检查是否在请求期间被停止
       if (shouldStopBatchTestingRef.current && isBatchTesting) {
@@ -931,20 +945,42 @@ export const useChannelsData = () => {
         showError(message);
       }
     } catch (error) {
-      // 处理网络错误
-      const testKey = `${record.id}-${model}`;
-      setModelTestResults((prev) => ({
-        ...prev,
-        [testKey]: {
-          success: false,
-          message: error.message || t('网络错误'),
-          time: 0,
-          timestamp: Date.now(),
-          errorCode: null,
-        },
-      }));
-      showError(error.message || t('测试失败'));
+      // 处理超时错误
+      if (error.name === 'AbortError' || error.name === 'CanceledError') {
+        const isTimeout = abortController.signal.aborted;
+        setModelTestResults((prev) => ({
+          ...prev,
+          [testKey]: {
+            success: false,
+            message: isTimeout
+              ? t('测试超时 ({{timeout}}s)').replace('{{timeout}}', (testTimeoutMs / 1000).toFixed(0))
+              : t('测试已取消'),
+            time: 0,
+            timestamp: Date.now(),
+            errorCode: isTimeout ? 'test_timeout' : null,
+          },
+        }));
+      } else {
+        // 处理网络错误
+        const testKey = `${record.id}-${model}`;
+        setModelTestResults((prev) => ({
+          ...prev,
+          [testKey]: {
+            success: false,
+            message: error.message || t('网络错误'),
+            time: 0,
+            timestamp: Date.now(),
+            errorCode: null,
+          },
+        }));
+        showError(error.message || t('测试失败'));
+      }
     } finally {
+      // 清理超时定时器
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
       // 从正在测试的模型集合中移除
       setTestingModels((prev) => {
         const newSet = new Set(prev);
@@ -961,11 +997,29 @@ export const useChannelsData = () => {
       return;
     }
 
-    const models = currentTestChannel.models
+    let models = currentTestChannel.models
       .split(',')
       .filter((model) =>
         model.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
       );
+
+    // 响应时间筛选
+    if (responseTimeFilter !== 'all') {
+      const getThreshold = (filter, customSec) => {
+        if (filter === 'custom') return Number(customSec) * 1000;
+        return Number(filter);
+      };
+      const maxMs = getThreshold(responseTimeFilter, customResponseTimeSec);
+      if (maxMs > 0) {
+        models = models.filter((model) => {
+          const r = modelTestResults[`${currentTestChannel.id}-${model}`];
+          if (!r) return true;
+          if (testingModels.has(model)) return true;
+          if (!r.success) return false;
+          return ((r.time || 0) * 1000) <= maxMs;
+        });
+      }
+    }
 
     if (models.length === 0) {
       showError(t('没有找到匹配的模型'));
@@ -1096,6 +1150,7 @@ export const useChannelsData = () => {
       showInfo(t('关闭弹窗，已停止批量测试'));
     }
 
+    abortControllerRef.current?.abort();
     setShowModelTestModal(false);
     setModelSearchKeyword('');
     setIsBatchTesting(false);
@@ -1104,6 +1159,9 @@ export const useChannelsData = () => {
     setModelTablePage(1);
     setSelectedEndpointType('');
     setIsStreamTest(false);
+    setTestTimeoutMs(10000);
+    setResponseTimeFilter('all');
+    setCustomResponseTimeSec('');
     // 可选择性保留测试结果，这里不清空以便用户查看
   };
 
@@ -1196,6 +1254,13 @@ export const useChannelsData = () => {
     setSelectedEndpointType,
     isStreamTest,
     setIsStreamTest,
+    testTimeoutMs,
+    setTestTimeoutMs,
+    responseTimeFilter,
+    setResponseTimeFilter,
+    customResponseTimeSec,
+    setCustomResponseTimeSec,
+    abortControllerRef,
     allSelectingRef,
 
     // Multi-key management states

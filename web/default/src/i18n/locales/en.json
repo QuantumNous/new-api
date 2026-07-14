@@ -3,6 +3,11 @@
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "<=0.5s (Excellent)": "<=0.5s (Excellent)",
+    "<=1s (Good)": "<=1s (Good)",
+    "<=2s (Fair)": "<=2s (Fair)",
+    "<=5s (Poor)": "<=5s (Poor)",
+    "<=10s": "<=10s",
     "_copy": "_copy",
     "，": ", ",
     ", and": ", and",
@@ -5178,6 +5183,13 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Fail the test automatically if no response within this time.": "Fail the test automatically if no response within this time.",
+    "Filter models by response time after testing.": "Filter models by response time after testing.",
+    "Max seconds": "Max seconds",
+    "Response time filter": "Response time filter",
+    "Select fitting models ({{count}})": "Select fitting models ({{count}})",
+    "Test timeout (seconds)": "Test timeout (seconds)",
+    "Test timed out ({{timeout}}s)": "Test timed out ({{timeout}}s)"
   }
 }
