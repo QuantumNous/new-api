@@ -38,19 +38,27 @@ func TestListModelsSupportsOpenAIAndGeminiAuthentication(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		path           string
 		headerName     string
 		expectedObject string
 		expectedField  string
 	}{
 		{
 			name:           "OpenAI bearer token",
+			path:           "/v1/models",
 			headerName:     "Authorization",
 			expectedObject: "list",
 			expectedField:  "data",
 		},
 		{
 			name:          "Gemini API key header",
+			path:          "/v1/models",
 			headerName:    "x-goog-api-key",
+			expectedField: "models",
+		},
+		{
+			name:          "Gemini API key query",
+			path:          "/v1/models?key=modelstestkey",
 			expectedField: "models",
 		},
 	}
@@ -58,12 +66,14 @@ func TestListModelsSupportsOpenAIAndGeminiAuthentication(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
-			request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-			value := "modelstestkey"
-			if test.headerName == "Authorization" {
-				value = "Bearer " + value
+			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			if test.headerName != "" {
+				value := "modelstestkey"
+				if test.headerName == "Authorization" {
+					value = "Bearer " + value
+				}
+				request.Header.Set(test.headerName, value)
 			}
-			request.Header.Set(test.headerName, value)
 
 			engine.ServeHTTP(recorder, request)
 
