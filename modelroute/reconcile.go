@@ -27,10 +27,28 @@ type PruneMetricsKey struct {
 
 // PruneResult summarizes one prune run.
 type PruneResult struct {
-	PoliciesDeleted int              `json:"policies_deleted"`
-	MetricsDeleted  int              `json:"metrics_deleted"`
-	PolicyKeys      []PrunePolicyKey `json:"policy_keys,omitempty"`
+	PoliciesDeleted int               `json:"policies_deleted"`
+	MetricsDeleted  int               `json:"metrics_deleted"`
+	PolicyKeys      []PrunePolicyKey  `json:"policy_keys,omitempty"`
 	MetricsKeys     []PruneMetricsKey `json:"metrics_keys,omitempty"`
+}
+
+// ReconcileProbeQueueFromDB restores process-local probe work from persisted route state.
+func ReconcileProbeQueueFromDB() error {
+	if !IsModelPriorityMode() {
+		return nil
+	}
+	rows, err := model.ListAllChannelModelMetrics()
+	if err != nil {
+		return err
+	}
+	for i := range rows {
+		switch rows[i].State() {
+		case model.RouteProbing, model.RouteOpen, model.RouteRateLimited:
+			EnqueueFromMetrics(&rows[i], 0)
+		}
+	}
+	return nil
 }
 
 func defaultPrunableSources() map[string]struct{} {

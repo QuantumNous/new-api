@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/modelroute"
 
 	"github.com/bytedance/gopkg/util/gopool"
 )
@@ -122,13 +123,11 @@ func notifySystemTaskRunner() {
 
 func StartSystemTaskRunner() {
 	systemTaskRunnerOnce.Do(func() {
-		if !common.IsMasterNode {
-			return
-		}
-
 		runnerID := fmt.Sprintf("%s-%s", common.NodeName, common.GetRandomString(8))
 		gopool.Go(func() {
-			logger.LogInfo(context.Background(), fmt.Sprintf("system task runner started: runner=%s idle_interval=%s", runnerID, systemTaskRunnerIdleInterval))
+			if common.IsMasterNode {
+				logger.LogInfo(context.Background(), fmt.Sprintf("system task runner started: runner=%s idle_interval=%s", runnerID, systemTaskRunnerIdleInterval))
+			}
 
 			ticker := time.NewTicker(systemTaskRunnerIdleInterval)
 			defer ticker.Stop()
@@ -140,7 +139,7 @@ func StartSystemTaskRunner() {
 				// claim pass: wakeups (e.g. a manual log cleanup) should claim
 				// immediately without re-running the scheduler every time.
 				now := time.Now()
-				if now.Sub(lastStaleLockCleanup) >= systemTaskStaleLockInterval {
+				if common.IsMasterNode && now.Sub(lastStaleLockCleanup) >= systemTaskStaleLockInterval {
 					lastStaleLockCleanup = now
 					if err := model.ExpireStaleSystemTaskLocks(common.GetTimestamp()); err != nil {
 						logger.LogWarn(context.Background(), fmt.Sprintf("system task stale lock cleanup failed: %v", err))
@@ -148,9 +147,16 @@ func StartSystemTaskRunner() {
 				}
 				if now.Sub(lastScheduler) >= systemTaskSchedulerInterval {
 					lastScheduler = now
-					runSystemTaskScheduler()
+					if err := modelroute.ReconcileProbeQueueFromDB(); err != nil {
+						logger.LogWarn(context.Background(), fmt.Sprintf("model route probe queue reconciliation failed: %v", err))
+					}
+					if common.IsMasterNode {
+						runSystemTaskScheduler()
+					}
 				}
-				runSystemTaskClaimPass(runnerID)
+				if common.IsMasterNode {
+					runSystemTaskClaimPass(runnerID)
+				}
 			}
 
 			runPass()
