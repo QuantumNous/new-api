@@ -255,8 +255,11 @@ type RecurringChargeAttempt struct {
 	Amount                 int64  `json:"amount" gorm:"bigint;default:0"`
 	Currency               string `json:"currency" gorm:"type:varchar(16);default:''"`
 	Status                 string `json:"status" gorm:"type:varchar(32);index"`
-	FailureReason          string `json:"failure_reason" gorm:"type:text"`
-	ProviderPayload        string `json:"provider_payload" gorm:"type:text"`
+	// ClaimedAt is set when a worker/checkout claims the right to initiate payment for this attempt.
+	// Used as a short lease so concurrent workers do not double-call the payment API.
+	ClaimedAt       int64  `json:"claimed_at" gorm:"bigint;default:0"`
+	FailureReason   string `json:"failure_reason" gorm:"type:text"`
+	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 	// These fields describe the paid invoice while it is being fulfilled.
 	// They intentionally remain part of the provider payload rather than charge-attempt storage.
 	PaymentStatus      string `json:"-" gorm:"-"`
@@ -264,6 +267,15 @@ type RecurringChargeAttempt struct {
 	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt          int64  `json:"updated_at" gorm:"bigint"`
 }
+
+// Recurring charge attempt statuses.
+const (
+	RecurringChargeStatusPending = "pending"
+	RecurringChargeStatusPaid    = "paid"
+	RecurringChargeStatusFailed  = "failed"
+	// PendingContract is used when invoice arrives before local contract binding (Stripe out-of-order).
+	RecurringChargeStatusPendingContract = "pending_contract"
+)
 
 func (a *RecurringChargeAttempt) BeforeCreate(tx *gorm.DB) error {
 	now := common.GetTimestamp()

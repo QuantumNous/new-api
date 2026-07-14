@@ -2,12 +2,12 @@
 
 ## 范围
 
-- 第一阶段仅支持 Stripe 自动续费；支付宝自动续费不在本次范围内。
+- 第一阶段以 Stripe 自动续费为主干；支付宝自动续费已在同分支按独立设计文档落地（见下文链接）。
 - 套餐按 `billing_mode` 拆分为 `one_time` 与 `auto_renew`，不在支付弹窗内让用户选择扣费方式。
 - 每个用户同一时间最多持有一个未结束的自动续费合约（**跨支付方全局互斥**，为后续支付宝周期扣款预留）；设置到期取消的当前周期仍计为未结束。
 - `web/classic` 已支持自动续费套餐发起 Stripe Checkout、显示合约状态和到期取消续费，管理端可配置 `billing_mode` 与 `stripe_recurring_price_id`。
 - `web/default` 本期未同步。默认前端采用独立的 React 19/Base UI 技术栈，需在后续专门的 UI 任务中按其组件和 i18n 约定实现，避免在本次 Stripe 后端功能中引入未验证的跨前端改动。
-- 支付宝自动续费设计见 `docs/development/2026-07-13-alipay-auto-renew-design.md`。模型层已 provider 泛化；Phase 1 已提供签约入口、notify 绑定、首期扣款与解约（需开通周期扣款产品并配置 `AlipayCyclePay*`）。
+- 支付宝自动续费设计见 `docs/development/2026-07-13-alipay-auto-renew-design.md`。模型层已 provider 泛化；已实现支付并签约首期、notify 履约/绑协议、到期主动扣款（claim lease）、解约；需开通支付宝**商家扣款**（或合同约定产品）并配置 `AlipayCyclePay*`。`auto_renew` 套餐的一次性支付入口（含普通支付宝 pay）仍拒绝，须走 recurring/auto-renew checkout。
 
 ## 生命周期
 

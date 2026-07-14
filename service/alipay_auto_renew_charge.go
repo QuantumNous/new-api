@@ -12,10 +12,21 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+const alipayAutoRenewChargeLease = 10 * time.Minute
+
+var (
+	// ErrAlipayAutoRenewChargeNotClaimed means another worker/request holds the charge lease.
+	ErrAlipayAutoRenewChargeNotClaimed = errors.New("alipay auto-renew charge already claimed")
+	// ErrAlipayAutoRenewChargeAlreadyPaid means this period was already fulfilled.
+	ErrAlipayAutoRenewChargeAlreadyPaid = errors.New("alipay auto-renew charge already paid")
 )
 
 // ChargeAlipayAutoRenewContract initiates one period charge for an alipay auto-renew contract.
 // On uncertain outcomes it enqueues a short-lived AlipayPendingTask for trade.query (no mid-cycle polling).
+// Concurrent callers are serialized by a DB claim lease on the charge attempt row.
 func ChargeAlipayAutoRenewContract(ctx context.Context, contract *model.BillingSubscription, notifyURL string) error {
 	if contract == nil {
 		return errors.New("contract is nil")
@@ -40,19 +51,12 @@ func ChargeAlipayAutoRenewContract(ctx context.Context, contract *model.BillingS
 	if err != nil {
 		return err
 	}
-	outTradeNo := buildAlipayAutoRenewOutTradeNo(contract.Id, contract.ProviderSubscriptionId, periodStart, periodEnd)
 
-	// Already fulfilled for this period key.
-	var existing model.UserSubscription
-	if err := model.DB.Where("billing_subscription_id = ? AND provider_invoice_id = ?", contract.Id, outTradeNo).
-		Limit(1).Find(&existing).Error; err == nil && existing.Id > 0 {
-		return nil
+	seed := strings.TrimSpace(contract.ProviderSubscriptionId)
+	if seed == "" {
+		seed = strings.TrimSpace(contract.SignupReference)
 	}
-
-	// In-flight charge already queued for query — do not double-pay.
-	if hasOpenAlipayAutoRenewCharge(outTradeNo) {
-		return nil
-	}
+	outTradeNo := BuildAlipayAutoRenewOutTradeNo(contract.Id, seed, periodStart, periodEnd)
 
 	payMoney := alipaySubscriptionMoney(plan.PriceAmount)
 	if payMoney < 0.01 {
@@ -62,8 +66,21 @@ func ChargeAlipayAutoRenewContract(ctx context.Context, contract *model.BillingS
 	subject := fmt.Sprintf("Subscription %s", plan.Title)
 	centAmount := int64(payMoney*100 + 0.5)
 
-	if err := upsertPendingAlipayChargeAttempt(contract, outTradeNo, periodStart, periodEnd, centAmount); err != nil {
+	claimed, attempt, err := ClaimAlipayAutoRenewChargeAttempt(contract, outTradeNo, periodStart, periodEnd, centAmount, now)
+	if err != nil {
+		if errors.Is(err, ErrAlipayAutoRenewChargeAlreadyPaid) {
+			return nil
+		}
+		if errors.Is(err, ErrAlipayAutoRenewChargeNotClaimed) {
+			// Another worker owns the lease; ensure short query task exists and exit.
+			_ = EnsureAlipayAutoRenewChargePendingTask(outTradeNo)
+			return nil
+		}
 		return err
+	}
+	if !claimed || attempt == nil {
+		_ = EnsureAlipayAutoRenewChargePendingTask(outTradeNo)
+		return nil
 	}
 
 	rsp, payErr := TradePayAlipayWithAgreement(ctx, AlipayAgreementTradePayRequest{
@@ -139,7 +156,7 @@ func ChargeAlipayAutoRenewContract(ctx context.Context, contract *model.BillingS
 	}
 
 	// Short-lived query only for this out_trade_no (not mid-cycle polling of all contracts).
-	if err := ensureAlipayAutoRenewChargePendingTask(outTradeNo); err != nil {
+	if err := EnsureAlipayAutoRenewChargePendingTask(outTradeNo); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("alipay auto-renew enqueue pending query failed out_trade_no=%s error=%v", outTradeNo, err))
 	}
 	if payErr != nil {
@@ -148,68 +165,122 @@ func ChargeAlipayAutoRenewContract(ctx context.Context, contract *model.BillingS
 	return nil
 }
 
-func upsertPendingAlipayChargeAttempt(contract *model.BillingSubscription, outTradeNo string, periodStart, periodEnd, centAmount int64) error {
-	var attempt model.RecurringChargeAttempt
-	err := model.DB.Where("provider = ? AND provider_invoice_id = ?", model.PaymentProviderAlipay, outTradeNo).First(&attempt).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return model.DB.Create(&model.RecurringChargeAttempt{
-			BillingSubscriptionId:  contract.Id,
-			Provider:               model.PaymentProviderAlipay,
-			ProviderInvoiceId:      outTradeNo,
-			ProviderSubscriptionId: contract.ProviderSubscriptionId,
-			PeriodStart:            periodStart,
-			PeriodEnd:              periodEnd,
-			Amount:                 centAmount,
-			Currency:               "CNY",
-			Status:                 "pending",
-		}).Error
+// ClaimAlipayAutoRenewChargeAttempt atomically claims the right to initiate payment for one period.
+// Returns claimed=true only for the winner of the lease.
+func ClaimAlipayAutoRenewChargeAttempt(
+	contract *model.BillingSubscription,
+	outTradeNo string,
+	periodStart, periodEnd, centAmount int64,
+	now time.Time,
+) (claimed bool, attempt *model.RecurringChargeAttempt, err error) {
+	if contract == nil || contract.Id <= 0 {
+		return false, nil, errors.New("invalid contract")
 	}
-	if err != nil {
-		return err
+	if strings.TrimSpace(outTradeNo) == "" {
+		return false, nil, errors.New("out_trade_no empty")
 	}
-	if attempt.Status == "paid" {
+	nowUnix := now.Unix()
+	leaseBefore := nowUnix - int64(alipayAutoRenewChargeLease.Seconds())
+
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		var locked model.BillingSubscription
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", contract.Id).
+			First(&locked).Error; err != nil {
+			return err
+		}
+
+		// Already fulfilled for this period key.
+		var existingSub model.UserSubscription
+		q := tx.Where("billing_subscription_id = ? AND provider_invoice_id = ?", locked.Id, outTradeNo).
+			Limit(1).Find(&existingSub)
+		if q.Error != nil {
+			return q.Error
+		}
+		if q.RowsAffected > 0 {
+			return ErrAlipayAutoRenewChargeAlreadyPaid
+		}
+
+		var existing model.RecurringChargeAttempt
+		findErr := tx.Where("provider = ? AND provider_invoice_id = ?", model.PaymentProviderAlipay, outTradeNo).
+			First(&existing).Error
+		if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return findErr
+		}
+
+		if errors.Is(findErr, gorm.ErrRecordNotFound) {
+			row := &model.RecurringChargeAttempt{
+				BillingSubscriptionId:  locked.Id,
+				Provider:               model.PaymentProviderAlipay,
+				ProviderInvoiceId:      outTradeNo,
+				ProviderSubscriptionId: locked.ProviderSubscriptionId,
+				PeriodStart:            periodStart,
+				PeriodEnd:              periodEnd,
+				Amount:                 centAmount,
+				Currency:               "CNY",
+				Status:                 model.RecurringChargeStatusPending,
+				ClaimedAt:              nowUnix,
+			}
+			if err := tx.Create(row).Error; err != nil {
+				// Unique race: treat as not claimed so caller backs off.
+				return ErrAlipayAutoRenewChargeNotClaimed
+			}
+			attempt = row
+			claimed = true
+			return nil
+		}
+
+		if existing.Status == model.RecurringChargeStatusPaid {
+			return ErrAlipayAutoRenewChargeAlreadyPaid
+		}
+
+		// Active lease held by another worker.
+		if existing.Status == model.RecurringChargeStatusPending &&
+			existing.ClaimedAt > leaseBefore {
+			attempt = &existing
+			claimed = false
+			return ErrAlipayAutoRenewChargeNotClaimed
+		}
+
+		// Take over failed or expired lease.
+		res := tx.Model(&model.RecurringChargeAttempt{}).
+			Where("id = ? AND (status = ? OR (status = ? AND claimed_at <= ?))",
+				existing.Id,
+				model.RecurringChargeStatusFailed,
+				model.RecurringChargeStatusPending,
+				leaseBefore,
+			).
+			Updates(map[string]interface{}{
+				"billing_subscription_id":  locked.Id,
+				"provider_subscription_id": locked.ProviderSubscriptionId,
+				"period_start":             periodStart,
+				"period_end":               periodEnd,
+				"amount":                   centAmount,
+				"currency":                 "CNY",
+				"status":                   model.RecurringChargeStatusPending,
+				"claimed_at":               nowUnix,
+				"failure_reason":           "",
+				"updated_at":               nowUnix,
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			attempt = &existing
+			claimed = false
+			return ErrAlipayAutoRenewChargeNotClaimed
+		}
+		if err := tx.First(&existing, existing.Id).Error; err != nil {
+			return err
+		}
+		attempt = &existing
+		claimed = true
 		return nil
+	})
+	if err != nil {
+		return false, attempt, err
 	}
-	return model.DB.Model(&attempt).Updates(map[string]interface{}{
-		"billing_subscription_id":  contract.Id,
-		"provider_subscription_id": contract.ProviderSubscriptionId,
-		"period_start":             periodStart,
-		"period_end":               periodEnd,
-		"amount":                   centAmount,
-		"currency":                 "CNY",
-		"status":                   "pending",
-		"failure_reason":           "",
-		"updated_at":               common.GetTimestamp(),
-	}).Error
-}
-
-func hasOpenAlipayAutoRenewCharge(outTradeNo string) bool {
-	var attempt model.RecurringChargeAttempt
-	err := model.DB.Where("provider = ? AND provider_invoice_id = ? AND status IN ?",
-		model.PaymentProviderAlipay, outTradeNo, []string{"pending", "pending_contract"}).
-		First(&attempt).Error
-	if err == nil {
-		// Only treat as open if a pending query task still exists, or attempt is very recent.
-		var task model.AlipayPendingTask
-		if e := model.DB.Where("trade_no = ?", outTradeNo).First(&task).Error; e == nil {
-			return true
-		}
-		// No task and still pending: allow retry after a short grace to avoid thundering herd.
-		if attempt.UpdatedAt > 0 && common.GetTimestamp()-attempt.UpdatedAt < 120 {
-			return true
-		}
-		return false
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return false
-	}
-	var task model.AlipayPendingTask
-	err = model.DB.Where("trade_no = ? AND trade_type = ?", outTradeNo, model.AlipayPendingTaskTypeAutoRenewCharge).First(&task).Error
-	return err == nil
-}
-
-func ensureAlipayAutoRenewChargePendingTask(outTradeNo string) error {
-	return EnsureAlipayAutoRenewChargePendingTask(outTradeNo)
+	return claimed, attempt, nil
 }
 
 // EnsureAlipayAutoRenewChargePendingTask enqueues a short-lived trade.query for one out_trade_no.
@@ -234,11 +305,15 @@ func nextAlipayAutoRenewPeriod(contract *model.BillingSubscription, plan *model.
 	}
 	startUnix := now.Unix()
 	if contract.CurrentPeriodEnd > 0 && contract.CurrentPeriodEnd <= now.Unix() {
-		// Renewal: continue from previous period end.
+		// Renewal: continue from previous period end (stable across retries).
 		startUnix = contract.CurrentPeriodEnd
-	} else if contract.CurrentPeriodEnd == 0 || contract.Status == "pending_first_charge" {
-		// First charge.
-		startUnix = now.Unix()
+	} else if contract.CurrentPeriodEnd == 0 || contract.Status == "pending_first_charge" || contract.Status == "pending_signup" {
+		// First period: use contract.CreatedAt so retries share one out_trade_no.
+		if contract.CreatedAt > 0 {
+			startUnix = contract.CreatedAt
+		} else {
+			startUnix = now.Unix()
+		}
 	} else if contract.CurrentPeriodEnd > now.Unix() {
 		return 0, 0, errors.New("contract period has not ended")
 	}
@@ -280,10 +355,6 @@ func calcAlipayPlanPeriodEnd(start time.Time, plan *model.SubscriptionPlan) (int
 	}
 }
 
-func buildAlipayAutoRenewOutTradeNo(contractID int, agreementNo string, periodStart, periodEnd int64) string {
-	return BuildAlipayAutoRenewOutTradeNo(contractID, agreementNo, periodStart, periodEnd)
-}
-
 // BuildAlipayAutoRenewOutTradeNo builds a deterministic merchant trade no for one period.
 func BuildAlipayAutoRenewOutTradeNo(contractID int, agreementNo string, periodStart, periodEnd int64) string {
 	raw := fmt.Sprintf("aliar%d%s", contractID, common.Sha1([]byte(fmt.Sprintf("%s-%d-%d", agreementNo, periodStart, periodEnd)))[:16])
@@ -293,34 +364,107 @@ func BuildAlipayAutoRenewOutTradeNo(contractID int, agreementNo string, periodSt
 	return raw
 }
 
-// PrepareAlipayAutoRenewFirstPeriod reserves the first-period charge attempt for pay-and-sign checkout.
+// PrepareAlipayAutoRenewFirstPeriod reserves a stable first-period charge attempt for pay-and-sign checkout.
+// Reuses last_invoice_id / contract.CreatedAt so double-clicks share one out_trade_no.
 func PrepareAlipayAutoRenewFirstPeriod(contract *model.BillingSubscription, plan *model.SubscriptionPlan, now time.Time) (outTradeNo string, periodStart, periodEnd int64, err error) {
 	if contract == nil || plan == nil {
 		return "", 0, 0, errors.New("contract or plan is nil")
 	}
-	periodStart = now.Unix()
-	periodEnd, err = calcAlipayPlanPeriodEnd(now, plan)
+
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		var locked model.BillingSubscription
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", contract.Id).First(&locked).Error; e != nil {
+			return e
+		}
+
+		// Reuse existing first-period attempt when present.
+		if strings.TrimSpace(locked.LastInvoiceId) != "" {
+			var existing model.RecurringChargeAttempt
+			e := tx.Where("provider = ? AND provider_invoice_id = ?", model.PaymentProviderAlipay, locked.LastInvoiceId).
+				First(&existing).Error
+			if e == nil {
+				if existing.Status == model.RecurringChargeStatusPaid {
+					outTradeNo = existing.ProviderInvoiceId
+					periodStart = existing.PeriodStart
+					periodEnd = existing.PeriodEnd
+					return nil
+				}
+				// Refresh claim lease for checkout retry (same out_trade_no).
+				nowUnix := now.Unix()
+				_ = tx.Model(&existing).Updates(map[string]interface{}{
+					"claimed_at": nowUnix,
+					"status":     model.RecurringChargeStatusPending,
+					"updated_at": nowUnix,
+				}).Error
+				outTradeNo = existing.ProviderInvoiceId
+				periodStart = existing.PeriodStart
+				periodEnd = existing.PeriodEnd
+				return nil
+			}
+		}
+
+		// Stable first period start: contract creation time (not wall clock on each click).
+		periodStart = locked.CreatedAt
+		if periodStart <= 0 {
+			periodStart = now.Unix()
+		}
+		end, e := calcAlipayPlanPeriodEnd(time.Unix(periodStart, 0), plan)
+		if e != nil {
+			return e
+		}
+		periodEnd = end
+
+		seed := strings.TrimSpace(locked.SignupReference)
+		if seed == "" {
+			seed = fmt.Sprintf("contract-%d", locked.Id)
+		}
+		outTradeNo = BuildAlipayAutoRenewOutTradeNo(locked.Id, seed, periodStart, periodEnd)
+
+		payMoney := alipaySubscriptionMoney(plan.PriceAmount)
+		centAmount := int64(payMoney*100 + 0.5)
+		nowUnix := now.Unix()
+
+		var attempt model.RecurringChargeAttempt
+		findErr := tx.Where("provider = ? AND provider_invoice_id = ?", model.PaymentProviderAlipay, outTradeNo).
+			First(&attempt).Error
+		if errors.Is(findErr, gorm.ErrRecordNotFound) {
+			if e := tx.Create(&model.RecurringChargeAttempt{
+				BillingSubscriptionId:  locked.Id,
+				Provider:               model.PaymentProviderAlipay,
+				ProviderInvoiceId:      outTradeNo,
+				ProviderSubscriptionId: locked.ProviderSubscriptionId,
+				PeriodStart:            periodStart,
+				PeriodEnd:              periodEnd,
+				Amount:                 centAmount,
+				Currency:               "CNY",
+				Status:                 model.RecurringChargeStatusPending,
+				ClaimedAt:              nowUnix,
+			}).Error; e != nil {
+				return e
+			}
+		} else if findErr != nil {
+			return findErr
+		} else if attempt.Status != model.RecurringChargeStatusPaid {
+			_ = tx.Model(&attempt).Updates(map[string]interface{}{
+				"claimed_at":   nowUnix,
+				"status":       model.RecurringChargeStatusPending,
+				"period_start": periodStart,
+				"period_end":   periodEnd,
+				"amount":       centAmount,
+				"updated_at":   nowUnix,
+			}).Error
+		}
+
+		return tx.Model(&model.BillingSubscription{}).Where("id = ?", locked.Id).Updates(map[string]interface{}{
+			"last_invoice_id":      outTradeNo,
+			"current_period_start": periodStart,
+			"current_period_end":   periodEnd,
+			"updated_at":           nowUnix,
+		}).Error
+	})
 	if err != nil {
 		return "", 0, 0, err
 	}
-	// Use signup_reference (stable before agreement_no exists) as the period key seed.
-	seed := strings.TrimSpace(contract.ProviderSubscriptionId)
-	if seed == "" {
-		seed = strings.TrimSpace(contract.SignupReference)
-	}
-	if seed == "" {
-		seed = fmt.Sprintf("contract-%d", contract.Id)
-	}
-	outTradeNo = BuildAlipayAutoRenewOutTradeNo(contract.Id, seed, periodStart, periodEnd)
-	payMoney := alipaySubscriptionMoney(plan.PriceAmount)
-	centAmount := int64(payMoney*100 + 0.5)
-	if err := upsertPendingAlipayChargeAttempt(contract, outTradeNo, periodStart, periodEnd, centAmount); err != nil {
-		return "", 0, 0, err
-	}
-	_ = model.DB.Model(&model.BillingSubscription{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
-		"last_invoice_id": outTradeNo,
-		"updated_at":      common.GetTimestamp(),
-	}).Error
 	return outTradeNo, periodStart, periodEnd, nil
 }
 
@@ -338,7 +482,7 @@ func HasAlipayAutoRenewPaidPeriod(contractID int, outTradeNo string) bool {
 	}
 	var attempt model.RecurringChargeAttempt
 	if err := model.DB.Where("provider = ? AND provider_invoice_id = ? AND status = ?",
-		model.PaymentProviderAlipay, outTradeNo, "paid").First(&attempt).Error; err == nil {
+		model.PaymentProviderAlipay, outTradeNo, model.RecurringChargeStatusPaid).First(&attempt).Error; err == nil {
 		return true
 	}
 	return false
@@ -361,7 +505,7 @@ func FinalizeAlipayAutoRenewChargeFromQuery(ctx context.Context, outTradeNo stri
 	if err := model.DB.Where("provider = ? AND provider_invoice_id = ?", model.PaymentProviderAlipay, outTradeNo).First(&attempt).Error; err != nil {
 		return err
 	}
-	if attempt.Status == "paid" {
+	if attempt.Status == model.RecurringChargeStatusPaid {
 		_ = model.DeleteAlipayPendingTask(outTradeNo)
 		return nil
 	}
