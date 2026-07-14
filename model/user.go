@@ -415,6 +415,9 @@ func DeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")
 	}
+	if err = deleteUserOAuthBindingsByUserId(DB, id); err != nil {
+		return err
+	}
 	user := User{Id: id}
 	return user.Delete()
 }

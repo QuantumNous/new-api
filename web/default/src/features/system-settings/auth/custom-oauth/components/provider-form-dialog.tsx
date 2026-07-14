@@ -60,6 +60,7 @@ import {
 import {
   customOAuthFormSchema,
   AUTH_STYLE_OPTIONS,
+  AUTO_LINK_POLICY_OPTIONS,
   type CustomOAuthProvider,
   type CustomOAuthFormValues,
 } from '../types'
@@ -102,6 +103,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
       email_field: '',
       well_known: '',
       auth_style: 0,
+      auto_link_policy: 'none',
       access_policy: '',
       access_denied_message: '',
     },
@@ -133,6 +135,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         email_field: props.provider.email_field || '',
         well_known: props.provider.well_known || '',
         auth_style: props.provider.auth_style ?? 0,
+        auto_link_policy: props.provider.auto_link_policy || 'none',
         access_policy: props.provider.access_policy || '',
         access_denied_message: props.provider.access_denied_message || '',
       })
@@ -154,6 +157,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         email_field: '',
         well_known: '',
         auth_style: 0,
+        auto_link_policy: 'none',
         access_policy: '',
         access_denied_message: '',
       })
@@ -556,6 +560,45 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                     <FormControl>
                       <Input placeholder='login' {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='auto_link_policy'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Auto-link existing users')}</FormLabel>
+                    <Select
+                      items={AUTO_LINK_POLICY_OPTIONS.map((option) => ({
+                        value: option.value,
+                        label: t(option.labelKey),
+                      }))}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger className='w-full'>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {AUTO_LINK_POLICY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {t(option.labelKey)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t(
+                        'Default is disabled. Enable only for trusted identity providers.'
+                      )}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

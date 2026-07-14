@@ -566,6 +566,11 @@ export function OAuthSection(props: OAuthSectionProps) {
               </TabsContent>
 
               <TabsContent value='oidc' className={oauthTabContentClassName}>
+                <FormDescription className='lg:col-span-2'>
+                  {t(
+                    'Built-in OIDC is a single fixed provider. Use Custom OAuth if you need multiple providers, custom names, icons, field mapping, or access policies.'
+                  )}
+                </FormDescription>
                 <OAuthSetupGuide
                   title={t('Setup guide')}
                   description={

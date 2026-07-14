@@ -81,7 +81,7 @@ interface StatusInfo {
   telegram_oauth?: boolean
   linuxdo_oauth?: boolean
   custom_oauth_providers?: Array<{
-    id: string
+    id: number
     name: string
     icon?: string
   }>
@@ -248,9 +248,9 @@ export function UserBindingDialog(props: Props) {
       const binding = oauthBindingMap.get(String(provider.id))
       items.push({
         key: `oauth_${provider.id}`,
-        label: provider.name || provider.id,
+        label: provider.name || String(provider.id),
         icon: <CustomProviderIcon iconUrl={provider.icon} />,
-        value: binding?.external_id || '',
+        value: binding?.provider_user_id || '',
         type: 'custom',
         providerId: String(provider.id),
         isBound: !!binding,
@@ -262,9 +262,9 @@ export function UserBindingDialog(props: Props) {
       if (!seenProviderIds.has(String(binding.provider_id))) {
         items.push({
           key: `oauth_${binding.provider_id}`,
-          label: binding.provider_name || binding.provider_id,
+          label: binding.provider_name || String(binding.provider_id),
           icon: <Link2 className='h-4 w-4' />,
-          value: binding.external_id || '-',
+          value: binding.provider_user_id || '-',
           type: 'custom',
           providerId: String(binding.provider_id),
           isBound: true,

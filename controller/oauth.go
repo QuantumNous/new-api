@@ -239,6 +239,17 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		}
 	}
 
+	// Custom providers may explicitly link to an existing local user before creating a new one.
+	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
+		linkedUser, linked, err := tryAutoLinkCustomOAuthUser(genericProvider, oauthUser)
+		if err != nil {
+			return nil, err
+		}
+		if linked {
+			return linkedUser, nil
+		}
+	}
+
 	// User doesn't exist, create new user if registration is enabled
 	if !common.RegisterEnabled {
 		return nil, &OAuthRegistrationDisabledError{}
@@ -341,6 +352,49 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	return user, nil
+}
+
+func tryAutoLinkCustomOAuthUser(provider *oauth.GenericOAuthProvider, oauthUser *oauth.OAuthUser) (*model.User, bool, error) {
+	policy := provider.GetAutoLinkPolicy()
+	if policy == "none" {
+		return nil, false, nil
+	}
+
+	user := &model.User{}
+	var err error
+	switch policy {
+	case "email_verified":
+		if oauthUser.Email == "" {
+			return nil, false, nil
+		}
+		if verified, ok := oauthUser.Extra["email_verified"].(bool); !ok || !verified {
+			return nil, false, nil
+		}
+		err = model.DB.Where("email = ?", oauthUser.Email).First(user).Error
+	case "username":
+		if oauthUser.Username == "" {
+			return nil, false, nil
+		}
+		err = model.DB.Where("username = ?", oauthUser.Username).First(user).Error
+	default:
+		return nil, false, nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if user.Id == 0 {
+		return nil, false, nil
+	}
+	if user.Status != common.UserStatusEnabled {
+		return user, true, nil
+	}
+	if err := model.UpdateUserOAuthBinding(user.Id, provider.GetProviderId(), oauthUser.ProviderUserID); err != nil {
+		return nil, false, err
+	}
+	return user, true, nil
 }
 
 // Error types for OAuth
