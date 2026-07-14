@@ -102,29 +102,23 @@ func NewChannelSortOptions(sortBy string, sortOrder string, idSort bool) Channel
 }
 
 func (options ChannelSortOptions) Apply(query *gorm.DB) *gorm.DB {
-	if columnName, ok := channelSortColumns[options.SortBy]; ok {
-		query = query.Order(clause.OrderByColumn{
-			Column: clause.Column{Name: columnName},
-			Desc:   options.SortOrder != "asc",
-		})
-		if columnName == "id" {
-			return query
-		}
-		return query.Order(clause.OrderByColumn{
-			Column: clause.Column{Name: "id"},
-			Desc:   true,
-		})
+	columnName := "priority"
+	descending := true
+	if requestedColumn, ok := channelSortColumns[options.SortBy]; ok {
+		columnName = requestedColumn
+		descending = options.SortOrder != "asc"
+	} else if options.IDSort {
+		columnName = "id"
 	}
-	if options.IDSort {
-		return query.Order(clause.OrderByColumn{
-			Column: clause.Column{Name: "id"},
-			Desc:   true,
-		})
+
+	query = query.Order(clause.OrderByColumn{
+		Column: clause.Column{Name: columnName},
+		Desc:   descending,
+	})
+	if columnName == "id" {
+		return query
 	}
 	return query.Order(clause.OrderByColumn{
-		Column: clause.Column{Name: "priority"},
-		Desc:   true,
-	}).Order(clause.OrderByColumn{
 		Column: clause.Column{Name: "id"},
 		Desc:   true,
 	})

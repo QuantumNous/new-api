@@ -7,9 +7,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetAllChannelsUsesIDAsStablePageTiebreaker(t *testing.T) {
-	truncateTables(t)
+func resetChannelSortTestChannels(t *testing.T) {
+	t.Helper()
 	require.NoError(t, DB.Exec("DELETE FROM channels").Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Exec("DELETE FROM channels").Error)
+	})
+}
+
+func TestGetAllChannelsUsesIDAsStablePageTiebreaker(t *testing.T) {
+	resetChannelSortTestChannels(t)
 	priority10 := int64(10)
 	priority5 := int64(5)
 	require.NoError(t, DB.Create([]*Channel{
@@ -36,8 +43,7 @@ func TestGetAllChannelsUsesIDAsStablePageTiebreaker(t *testing.T) {
 }
 
 func TestSearchTagsReturnsStableAlphabeticalOrder(t *testing.T) {
-	truncateTables(t)
-	require.NoError(t, DB.Exec("DELETE FROM channels").Error)
+	resetChannelSortTestChannels(t)
 	zeta := "zeta"
 	alpha := "alpha"
 	beta := "beta"
@@ -48,6 +54,7 @@ func TestSearchTagsReturnsStableAlphabeticalOrder(t *testing.T) {
 		{Id: 31, Name: "channel-zeta", Priority: &priority30, Tag: &zeta},
 		{Id: 32, Name: "channel-alpha", Priority: &priority20, Tag: &alpha},
 		{Id: 33, Name: "channel-beta", Priority: &priority10, Tag: &beta},
+		{Id: 34, Name: "channel-beta-duplicate", Priority: &priority10, Tag: &beta},
 	}).Error)
 
 	tags, err := SearchTags("", "", "", false)
