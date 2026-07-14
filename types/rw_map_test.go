@@ -26,6 +26,36 @@ func TestLoadFromJsonStringPreservesExistingDataOnDecodeError(t *testing.T) {
 	require.Equal(t, map[string]int{"existing": 1}, m.ReadAll())
 }
 
+func TestLoadFromJsonStringTreatsBlankInputAsNoOp(t *testing.T) {
+	// A stored option value that was never configured is persisted as an
+	// empty/whitespace string. Unmarshaling that yields "unexpected end of
+	// JSON input", which the 60s option sync would otherwise log forever.
+	// Blank input must be a no-op that preserves the current contents.
+	for _, blank := range []string{"", "   ", "\n\t"} {
+		m := NewRWMap[string, int]()
+		m.Set("existing", 1)
+
+		err := LoadFromJsonString(m, blank)
+
+		require.NoError(t, err)
+		require.Equal(t, map[string]int{"existing": 1}, m.ReadAll())
+	}
+}
+
+func TestLoadFromJsonStringWithCallbackSkipsCallbackOnBlankInput(t *testing.T) {
+	m := NewRWMap[string, int]()
+	m.Set("existing", 1)
+	callbackCount := 0
+
+	err := LoadFromJsonStringWithCallback(m, "", func() {
+		callbackCount++
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, map[string]int{"existing": 1}, m.ReadAll())
+	require.Zero(t, callbackCount)
+}
+
 func TestLoadFromJsonStringWithCallbackCommitsAtomically(t *testing.T) {
 	t.Run("success replaces data and invokes callback once", func(t *testing.T) {
 		m := NewRWMap[string, int]()

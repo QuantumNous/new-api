@@ -1,10 +1,22 @@
 package types
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 )
+
+// blankJSON reports whether a stored JSON option value carries no content.
+// Option values are sometimes persisted as an empty/whitespace string when the
+// setting was never configured; unmarshaling that yields "unexpected end of
+// JSON input", which the periodic option sync would otherwise log on every
+// pass. Treating blank input as a no-op keeps the map's current contents
+// (defaults or the last good load). An explicit empty object "{}" is valid
+// JSON and still clears the map as intended.
+func blankJSON(jsonStr string) bool {
+	return strings.TrimSpace(jsonStr) == ""
+}
 
 type RWMap[K comparable, V any] struct {
 	data  map[K]V
@@ -82,6 +94,11 @@ func (m *RWMap[K, V]) Len() int {
 }
 
 func LoadFromJsonString[K comparable, V any](m *RWMap[K, V], jsonStr string) error {
+	// Blank input means "not configured": keep current contents instead of
+	// erroring on every option sync.
+	if blankJSON(jsonStr) {
+		return nil
+	}
 	var next map[K]V
 	if err := common.Unmarshal([]byte(jsonStr), &next); err != nil {
 		return err
@@ -97,6 +114,11 @@ func LoadFromJsonString[K comparable, V any](m *RWMap[K, V], jsonStr string) err
 
 // LoadFromJsonStringWithCallback loads a JSON string into the RWMap and calls the callback on success.
 func LoadFromJsonStringWithCallback[K comparable, V any](m *RWMap[K, V], jsonStr string, onSuccess func()) error {
+	// Blank input is a no-op; skip the callback so cache invalidation does not
+	// fire on every sync for an unset option.
+	if blankJSON(jsonStr) {
+		return nil
+	}
 	if err := LoadFromJsonString(m, jsonStr); err != nil {
 		return err
 	}
