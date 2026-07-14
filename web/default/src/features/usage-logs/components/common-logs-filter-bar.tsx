@@ -125,6 +125,12 @@ export function CommonLogsFilterBar<TData>(
   const [enabledModels, setEnabledModels] = useState<string[]>([])
 
   useEffect(() => {
+    // `/api/channel/models_enabled` is admin-only (channelRoute uses AdminAuth).
+    // For normal users it returns success:false → the global interceptor pops a
+    // "无权进行此操作，权限不足" toast on the logs page. They don't need the
+    // enabled-model list anyway (the model filter falls back to free text), so
+    // only admins fetch it.
+    if (!isAdmin) return
     getEnabledModels()
       .then((res) => {
         if (res.success && Array.isArray(res.data)) {
@@ -132,7 +138,7 @@ export function CommonLogsFilterBar<TData>(
         }
       })
       .catch(() => {/* fallback to text input if fetch fails */})
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     const next: Partial<CommonLogFilters> = {}
