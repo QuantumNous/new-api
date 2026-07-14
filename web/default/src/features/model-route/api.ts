@@ -22,6 +22,8 @@ import type {
   MetricsActionRequest,
   ModelRouteMetrics,
   ModelRoutePolicy,
+  ModelPolicyPriorityMutationResponse,
+  ReorderModelRoutePoliciesRequest,
   ResetLearningRequest,
   UpdatePolicyPriorityRequest,
 } from './types'
@@ -36,8 +38,15 @@ export async function listModelRoutePolicies(params?: {
 
 export async function updateModelRoutePolicyPriority(
   data: UpdatePolicyPriorityRequest
-): Promise<{ success: boolean; message: string }> {
+): Promise<ModelPolicyPriorityMutationResponse> {
   const res = await api.put('/api/model_route/policies/priority', data)
+  return res.data
+}
+
+export async function reorderModelRoutePolicies(
+  data: ReorderModelRoutePoliciesRequest
+): Promise<ModelPolicyPriorityMutationResponse> {
+  const res = await api.put('/api/model_route/policies/reorder', data)
   return res.data
 }
 

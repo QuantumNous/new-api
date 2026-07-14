@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -10,6 +11,13 @@ import (
 	"github.com/QuantumNous/new-api/modelroute"
 	"github.com/gin-gonic/gin"
 )
+
+type modelRoutePolicyView struct {
+	model.ChannelModelPolicy
+	ChannelName    string `json:"channel_name"`
+	BaseURL        string `json:"base_url"`
+	EffectiveModel string `json:"effective_model"`
+}
 
 // MigrateToModelPriority POST /api/model_route/migrate (PRD §4).
 func MigrateToModelPriority(c *gin.Context) {
@@ -63,10 +71,10 @@ func PruneModelRouteOrphans(c *gin.Context) {
 		return
 	}
 	recordManageAudit(c, "model_route.prune_orphans", map[string]interface{}{
-		"channel_id":        req.ChannelID,
-		"dry_run":           req.DryRun,
-		"policies_deleted":  res.PoliciesDeleted,
-		"metrics_deleted":   res.MetricsDeleted,
+		"channel_id":       req.ChannelID,
+		"dry_run":          req.DryRun,
+		"policies_deleted": res.PoliciesDeleted,
+		"metrics_deleted":  res.MetricsDeleted,
 	})
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": res})
 }
@@ -139,16 +147,10 @@ func ListModelRoutePolicies(c *gin.Context) {
 		ids = append(ids, rows[i].ChannelID)
 	}
 	channels := channelDisplayMap(ids)
-	type policyView struct {
-		model.ChannelModelPolicy
-		ChannelName    string `json:"channel_name"`
-		BaseURL        string `json:"base_url"`
-		EffectiveModel string `json:"effective_model"`
-	}
-	out := make([]policyView, 0, len(rows))
+	out := make([]modelRoutePolicyView, 0, len(rows))
 	for i := range rows {
 		info := channels[rows[i].ChannelID]
-		out = append(out, policyView{
+		out = append(out, modelRoutePolicyView{
 			ChannelModelPolicy: rows[i],
 			ChannelName:        info.Name,
 			BaseURL:            info.BaseURL,
@@ -159,27 +161,122 @@ func ListModelRoutePolicies(c *gin.Context) {
 }
 
 type updatePolicyPriorityRequest struct {
-	ChannelID      int64  `json:"channel_id"`
-	RequestedModel string `json:"requested_model"`
-	ManualPriority int    `json:"manual_priority"`
+	ChannelID              int64  `json:"channel_id"`
+	RequestedModel         string `json:"requested_model"`
+	ManualPriority         int    `json:"manual_priority"`
+	ExpectedManualPriority *int   `json:"expected_manual_priority"`
+	ConflictStrategy       string `json:"conflict_strategy"`
 }
 
 // UpdateModelRoutePolicyPriority PUT /api/model_route/policies/priority
 func UpdateModelRoutePolicyPriority(c *gin.Context) {
 	var req updatePolicyPriorityRequest
-	if err := common.DecodeJson(c.Request.Body, &req); err != nil || req.ChannelID == 0 || req.RequestedModel == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel_id and requested_model required"})
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || req.ChannelID == 0 || req.RequestedModel == "" ||
+		req.ExpectedManualPriority == nil || req.ConflictStrategy != "swap" {
+		writeModelPolicyPriorityError(c, model.ErrModelPolicyInvalidPriority)
 		return
 	}
-	if err := model.UpdateChannelModelPolicyManualPriority(req.ChannelID, req.RequestedModel, req.ManualPriority); err != nil {
-		common.ApiError(c, err)
+	result, err := model.UpdateChannelModelPolicyPriority(
+		req.ChannelID,
+		req.RequestedModel,
+		req.ManualPriority,
+		*req.ExpectedManualPriority,
+	)
+	if err != nil {
+		writeModelPolicyPriorityError(c, err)
 		return
 	}
 	modelroute.InvalidateRoutePlan(req.RequestedModel)
 	recordManageAudit(c, "model_route.policy_priority", map[string]interface{}{
-		"channel_id": req.ChannelID, "requested_model": req.RequestedModel, "priority": req.ManualPriority,
+		"channel_id": req.ChannelID, "requested_model": req.RequestedModel,
+		"old_order": result.PreviousOrder, "new_order": result.CurrentOrder, "changed": result.Changed,
 	})
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{
+		"requested_model": result.RequestedModel,
+		"changed":         result.Changed,
+		"policies":        buildModelRoutePolicyViews(result.Policies),
+	}})
+}
+
+type reorderModelRoutePoliciesRequest struct {
+	RequestedModel    string                              `json:"requested_model"`
+	OrderedChannelIDs []int64                             `json:"ordered_channel_ids"`
+	Expected          []model.ModelPolicyPrioritySnapshot `json:"expected"`
+	MovedChannelID    int64                               `json:"moved_channel_id"`
+}
+
+// ReorderModelRoutePolicies PUT /api/model_route/policies/reorder
+func ReorderModelRoutePolicies(c *gin.Context) {
+	var req reorderModelRoutePoliciesRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		writeModelPolicyPriorityError(c, model.ErrModelPolicyInvalidOrder)
+		return
+	}
+	var result *model.ModelPolicyPriorityMutationResult
+	var err error
+	if req.MovedChannelID == 0 {
+		result, err = model.ReorderChannelModelPolicies(req.RequestedModel, req.OrderedChannelIDs, req.Expected)
+	} else {
+		result, err = model.ReorderChannelModelPoliciesForChannel(
+			req.RequestedModel,
+			req.OrderedChannelIDs,
+			req.Expected,
+			req.MovedChannelID,
+		)
+	}
+	if err != nil {
+		writeModelPolicyPriorityError(c, err)
+		return
+	}
+	modelroute.InvalidateRoutePlan(req.RequestedModel)
+	recordManageAudit(c, "model_route.policy_reorder", map[string]interface{}{
+		"requested_model": req.RequestedModel, "old_order": result.PreviousOrder,
+		"new_order": result.CurrentOrder, "changed": result.Changed,
+	})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{
+		"requested_model": result.RequestedModel,
+		"changed":         result.Changed,
+		"policies":        buildModelRoutePolicyViews(result.Policies),
+	}})
+}
+
+func buildModelRoutePolicyViews(rows []model.ChannelModelPolicy) []modelRoutePolicyView {
+	ids := make([]int64, 0, len(rows))
+	for i := range rows {
+		ids = append(ids, rows[i].ChannelID)
+	}
+	channels := channelDisplayMap(ids)
+	out := make([]modelRoutePolicyView, 0, len(rows))
+	for i := range rows {
+		info := channels[rows[i].ChannelID]
+		out = append(out, modelRoutePolicyView{
+			ChannelModelPolicy: rows[i],
+			ChannelName:        info.Name,
+			BaseURL:            info.BaseURL,
+			EffectiveModel:     resolvePolicyEffectiveModel(rows[i].RequestedModel, info.ModelMapping),
+		})
+	}
+	return out
+}
+
+func writeModelPolicyPriorityError(c *gin.Context, err error) {
+	status := http.StatusInternalServerError
+	code := "priority_update_failed"
+	switch {
+	case errors.Is(err, model.ErrModelPolicyInvalidPriority):
+		status, code = http.StatusBadRequest, "invalid_priority"
+	case errors.Is(err, model.ErrModelPolicyInvalidOrder):
+		status, code = http.StatusBadRequest, "invalid_order"
+	case errors.Is(err, model.ErrModelPolicyNotFound):
+		status, code = http.StatusNotFound, "policy_not_found"
+	case errors.Is(err, model.ErrModelPolicyStaleSnapshot):
+		status, code = http.StatusConflict, "stale_policy_snapshot"
+	case errors.Is(err, model.ErrModelPolicyDuplicatePriorityConflict):
+		status, code = http.StatusConflict, "duplicate_priority_conflict"
+	case errors.Is(err, model.ErrModelPolicyPriorityRangeExhausted):
+		status, code = http.StatusConflict, "priority_range_exhausted"
+	}
+	c.JSON(status, gin.H{"success": false, "message": code, "code": code})
 }
 
 // ListModelRouteMetrics GET /api/model_route/metrics
@@ -395,4 +492,3 @@ func buildRequestedModelsByMetricsKey(channelIDs []int64, channels map[int64]cha
 	}
 	return out
 }
-

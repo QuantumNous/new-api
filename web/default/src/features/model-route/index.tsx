@@ -38,18 +38,23 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
-import { NumericSpinnerInput } from '@/features/channels/components/numeric-spinner-input'
-
 import {
   listModelRouteMetrics,
   listModelRoutePolicies,
   migrateToModelPriority,
   modelRouteMetricsAction,
   pruneModelRouteOrphans,
+  reorderModelRoutePolicies,
   resetAllLearning,
   resetRuntimeLearning,
   updateModelRoutePolicyPriority,
 } from './api'
+import { PolicySortableGroup } from './components/policy-sortable-group'
+import {
+  filterPolicyGroupByChannel,
+  groupModelRoutePolicies,
+  replaceModelPolicyGroup,
+} from './lib/policy-order'
 import type { ModelRouteMetrics, ModelRoutePolicy } from './types'
 
 function fmtTs(ts?: number | null) {
@@ -76,7 +81,7 @@ function normalizeExternalUrl(raw?: string) {
   const value = (raw || '').trim()
   if (!value) return ''
   if (/^https?:\/\//i.test(value)) return value
-  if (/^\/\//.test(value)) return `https:${value}`
+  if (value.startsWith('//')) return `https:${value}`
   // bare host / path-like base_url from channel config
   if (/^[a-z0-9.-]+\.[a-z]{2,}([/:].*)?$/i.test(value)) {
     return `https://${value}`
@@ -115,22 +120,6 @@ function ChannelNameLink({
       <span className='text-muted-foreground text-xs'>ID: {channelId}</span>
     </div>
   )
-}
-
-function localizePolicySource(t: (key: string) => string, source?: string) {
-  const s = (source || '').trim().toLowerCase()
-  switch (s) {
-    case 'configured':
-      return t('Configured')
-    case 'mapped':
-      return t('Mapped')
-    case 'observed':
-      return t('Observed')
-    case 'lazy_created':
-      return t('Lazy created')
-    default:
-      return source || '—'
-  }
 }
 
 function localizeRouteState(t: (key: string) => string, state?: string) {
@@ -196,7 +185,9 @@ function matchesAnyModelSearch(
   return values.some((v) => matchesModelSearch(v, keyword, exact))
 }
 
-function metricsRowKey(row: Pick<ModelRouteMetrics, 'channel_id' | 'effective_model'>) {
+function metricsRowKey(
+  row: Pick<ModelRouteMetrics, 'channel_id' | 'effective_model'>
+) {
   return `${row.channel_id}:${row.effective_model}`
 }
 
@@ -205,26 +196,6 @@ type MetricsAction =
   | 'force_probe'
   | 'manual_disable'
   | 'restore_auto'
-
-function PolicyPriorityCell({
-  row,
-  disabled,
-  onChange,
-}: {
-  row: ModelRoutePolicy
-  disabled?: boolean
-  onChange: (value: number) => void
-}) {
-  return (
-    <NumericSpinnerInput
-      value={row.manual_priority ?? 0}
-      onChange={onChange}
-      min={-999}
-      max={9999}
-      disabled={disabled}
-    />
-  )
-}
 
 export function ModelRouteAdmin() {
   const { t } = useTranslation()
@@ -239,7 +210,12 @@ export function ModelRouteAdmin() {
   const [batchBusy, setBatchBusy] = useState(false)
   const [batchActionKey, setBatchActionKey] = useState(0)
   const [rowActionKey, setRowActionKey] = useState(0)
-  const [priorityBusy, setPriorityBusy] = useState(false)
+  const [priorityBusyModels, setPriorityBusyModels] = useState<Set<string>>(
+    () => new Set()
+  )
+  const [optimisticPolicyOrders, setOptimisticPolicyOrders] = useState<
+    Map<string, number[]>
+  >(() => new Map())
 
   // Always load full lists; filter client-side for substring match (e.g. "4.5" → grok-4.5).
   const policyQuery = useQuery({
@@ -318,78 +294,163 @@ export function ModelRouteAdmin() {
     }
   }
 
-  const handlePriorityChange = async (
-    row: ModelRoutePolicy,
-    value: number
-  ) => {
+  const handlePriorityChange = async (row: ModelRoutePolicy, value: number) => {
     const oldValue = row.manual_priority ?? 0
-    if (value === oldValue || priorityBusy) return
+    if (value === oldValue || priorityBusyModels.has(row.requested_model)) {
+      return
+    }
 
-    // Uniqueness scope: same requested_model only.
-    const all = policyQuery.data?.data ?? []
-    const conflict = all.find(
-      (p) =>
-        p.requested_model === row.requested_model &&
-        p.channel_id !== row.channel_id &&
-        (p.manual_priority ?? 0) === value
+    setPriorityBusyModels((current) =>
+      new Set(current).add(row.requested_model)
     )
-
-    setPriorityBusy(true)
     try {
-      if (conflict) {
-        // Free the target priority first, then assign; rollback on second failure.
-        const resConflict = await updateModelRoutePolicyPriority({
-          channel_id: conflict.channel_id,
-          requested_model: conflict.requested_model,
-          manual_priority: oldValue,
-        })
-        if (!resConflict.success) {
-          toast.error(resConflict.message || t('Update failed'))
-          return
-        }
-        const resCurrent = await updateModelRoutePolicyPriority({
-          channel_id: row.channel_id,
-          requested_model: row.requested_model,
-          manual_priority: value,
-        })
-        if (!resCurrent.success) {
-          try {
-            await updateModelRoutePolicyPriority({
-              channel_id: conflict.channel_id,
-              requested_model: conflict.requested_model,
-              manual_priority: value,
-            })
-          } catch {
-            // best-effort rollback
-          }
-          toast.error(resCurrent.message || t('Update failed'))
-          return
-        }
-        toast.success(
-          t('Priority swapped with {{channel}}', {
-            channel: formatChannelLabel(
-              conflict.channel_id,
-              conflict.channel_name
-            ),
-          })
+      const res = await updateModelRoutePolicyPriority({
+        channel_id: row.channel_id,
+        requested_model: row.requested_model,
+        manual_priority: value,
+        expected_manual_priority: oldValue,
+        conflict_strategy: 'swap',
+      })
+      if (!res.success) {
+        toast.error(res.message || t('Update failed'))
+        return
+      }
+      qc.setQueryData(
+        ['model-route-policies'],
+        (current: typeof policyQuery.data) =>
+          current
+            ? {
+                ...current,
+                data: replaceModelPolicyGroup(
+                  current.data,
+                  row.requested_model,
+                  res.data.policies
+                ),
+              }
+            : current
+      )
+      toast.success(
+        res.data.changed.length > 1
+          ? t('Priorities swapped')
+          : t('Priority updated')
+      )
+      await qc.invalidateQueries({ queryKey: ['model-route-policies'] })
+    } catch (err) {
+      const code = (err as { response?: { data?: { code?: string } } }).response
+        ?.data?.code
+      if (code === 'stale_policy_snapshot') {
+        toast.error(
+          t('Policies changed elsewhere. Latest data has been loaded.')
+        )
+        await qc.refetchQueries({ queryKey: ['model-route-policies'] })
+      } else if (code === 'duplicate_priority_conflict') {
+        toast.error(
+          t(
+            'Multiple routes use that priority. Reorder this model group first.'
+          )
         )
       } else {
-        const res = await updateModelRoutePolicyPriority({
-          channel_id: row.channel_id,
-          requested_model: row.requested_model,
-          manual_priority: value,
-        })
-        if (!res.success) {
-          toast.error(res.message || t('Update failed'))
-          return
-        }
-        toast.success(t('Priority updated'))
+        toast.error(err instanceof Error ? err.message : t('Update failed'))
       }
-      void qc.invalidateQueries({ queryKey: ['model-route-policies'] })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('Update failed'))
     } finally {
-      setPriorityBusy(false)
+      setPriorityBusyModels((current) => {
+        const next = new Set(current)
+        next.delete(row.requested_model)
+        return next
+      })
+    }
+  }
+
+  const handlePolicyReorder = async (
+    requestedModel: string,
+    currentPolicies: ModelRoutePolicy[],
+    orderedPolicies: ModelRoutePolicy[],
+    movedChannelID: number
+  ) => {
+    if (priorityBusyModels.has(requestedModel)) return
+    const snapshot = qc.getQueryData<typeof policyQuery.data>([
+      'model-route-policies',
+    ])
+    setPriorityBusyModels((current) => new Set(current).add(requestedModel))
+    setOptimisticPolicyOrders((current) => {
+      const next = new Map(current)
+      next.set(
+        requestedModel,
+        orderedPolicies.map((policy) => policy.channel_id)
+      )
+      return next
+    })
+    qc.setQueryData(
+      ['model-route-policies'],
+      (current: typeof policyQuery.data) =>
+        current
+          ? {
+              ...current,
+              data: replaceModelPolicyGroup(
+                current.data,
+                requestedModel,
+                orderedPolicies
+              ),
+            }
+          : current
+    )
+
+    try {
+      const res = await reorderModelRoutePolicies({
+        requested_model: requestedModel,
+        ordered_channel_ids: orderedPolicies.map((policy) => policy.channel_id),
+        expected: currentPolicies.map((policy) => ({
+          channel_id: policy.channel_id,
+          manual_priority: policy.manual_priority,
+        })),
+        moved_channel_id: movedChannelID,
+      })
+      if (!res.success) throw new Error(res.message || t('Reorder failed'))
+      qc.setQueryData(
+        ['model-route-policies'],
+        (current: typeof policyQuery.data) =>
+          current
+            ? {
+                ...current,
+                data: replaceModelPolicyGroup(
+                  current.data,
+                  requestedModel,
+                  res.data.policies
+                ),
+              }
+            : current
+      )
+      toast.success(t('Route order updated'))
+      await qc.invalidateQueries({ queryKey: ['model-route-policies'] })
+    } catch (err) {
+      if (snapshot) qc.setQueryData(['model-route-policies'], snapshot)
+      const code = (err as { response?: { data?: { code?: string } } }).response
+        ?.data?.code
+      if (code === 'stale_policy_snapshot') {
+        toast.error(
+          t('Policies changed elsewhere. Latest data has been loaded.')
+        )
+        await qc.refetchQueries({ queryKey: ['model-route-policies'] })
+      } else if (code === 'priority_range_exhausted') {
+        toast.error(
+          t(
+            'No priority space remains for this move. Adjust a priority manually first.'
+          )
+        )
+      } else {
+        toast.error(err instanceof Error ? err.message : t('Reorder failed'))
+      }
+    } finally {
+      setOptimisticPolicyOrders((current) => {
+        const next = new Map(current)
+        next.delete(requestedModel)
+        return next
+      })
+      setPriorityBusyModels((current) => {
+        const next = new Set(current)
+        next.delete(requestedModel)
+        return next
+      })
     }
   }
 
@@ -436,36 +497,28 @@ export function ModelRouteAdmin() {
   const channelKeyword = channelFilter.trim()
   const modelKw = modelKeyword.trim()
 
-  const policies = useMemo(() => {
-    const rows = [...(policyQuery.data?.data ?? [])]
-    const filtered = rows.filter((row) => {
-      if (channelKeyword) {
-        const idMatch = String(row.channel_id).includes(channelKeyword)
-        const nameMatch = includesIgnoreCase(row.channel_name, channelKeyword)
-        if (!idMatch && !nameMatch) return false
-      }
-      if (
-        !matchesAnyModelSearch(
-          [row.requested_model, row.effective_model],
-          modelKw,
-          exactModelMatch
+  const policyGroups = useMemo(
+    () =>
+      groupModelRoutePolicies(
+        policyQuery.data?.data ?? [],
+        modelKw,
+        exactModelMatch
+      ).map((group) => {
+        const override = optimisticPolicyOrders.get(group.requestedModel)
+        if (!override) return group
+        const byID = new Map(
+          group.policies.map((policy) => [policy.channel_id, policy])
         )
-      ) {
-        return false
-      }
-      return true
-    })
-    filtered.sort((a, b) => {
-      if (a.manual_priority !== b.manual_priority) {
-        return b.manual_priority - a.manual_priority
-      }
-      if (a.channel_id !== b.channel_id) {
-        return a.channel_id - b.channel_id
-      }
-      return a.requested_model.localeCompare(b.requested_model)
-    })
-    return filtered
-  }, [policyQuery.data, channelKeyword, modelKw, exactModelMatch])
+        return {
+          ...group,
+          policies: override.flatMap((channelID) => {
+            const policy = byID.get(channelID)
+            return policy ? [policy] : []
+          }),
+        }
+      }),
+    [policyQuery.data, modelKw, exactModelMatch, optimisticPolicyOrders]
+  )
 
   const metrics = useMemo(() => {
     const rows = [...(metricsQuery.data?.data ?? [])]
@@ -475,10 +528,7 @@ export function ModelRouteAdmin() {
         const nameMatch = includesIgnoreCase(row.channel_name, channelKeyword)
         if (!idMatch && !nameMatch) return false
       }
-      const modelValues = [
-        row.effective_model,
-        ...(row.requested_models ?? []),
-      ]
+      const modelValues = [row.effective_model, ...(row.requested_models ?? [])]
       if (!matchesAnyModelSearch(modelValues, modelKw, exactModelMatch)) {
         return false
       }
@@ -529,7 +579,9 @@ export function ModelRouteAdmin() {
   const runOnSelectedMetrics = async (
     label: string,
     confirmText: string,
-    runner: (row: ModelRouteMetrics) => Promise<{ success: boolean; message?: string }>
+    runner: (
+      row: ModelRouteMetrics
+    ) => Promise<{ success: boolean; message?: string }>
   ) => {
     if (selectedMetrics.length === 0 || batchBusy) return
     if (!window.confirm(confirmText)) return
@@ -635,7 +687,10 @@ export function ModelRouteAdmin() {
             }}
           >
             <RefreshCw
-              className={cn('mr-1.5 h-3.5 w-3.5', isRefreshing && 'animate-spin')}
+              className={cn(
+                'mr-1.5 h-3.5 w-3.5',
+                isRefreshing && 'animate-spin'
+              )}
             />
             {t('Refresh')}
           </Button>
@@ -682,104 +737,53 @@ export function ModelRouteAdmin() {
             <TabsTrigger value='metrics'>{t('Metrics')}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value='policies' className='mt-4'>
-            <div className='overflow-x-auto rounded-md border'>
-              <table className='w-full min-w-[860px] text-sm'>
-                <thead className='bg-muted/40 text-left'>
-                  <tr>
-                    <th className='text-muted-foreground p-2.5 font-medium'>
-                      {t('Channel')}
-                    </th>
-                    <th className='text-muted-foreground p-2.5 font-medium'>
-                      {t('Requested model')}
-                    </th>
-                    <th className='text-muted-foreground p-2.5 font-medium'>
-                      {t('Effective model')}
-                    </th>
-                    <th className='text-muted-foreground p-2.5 font-medium'>
-                      {t('Priority')}
-                    </th>
-                    <th className='text-muted-foreground p-2.5 font-medium'>
-                      {t('Enabled')}
-                    </th>
-                    <th className='text-muted-foreground p-2.5 font-medium'>
-                      {t('Source')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {policies.map((row: ModelRoutePolicy) => {
-                    const effective =
-                      row.effective_model || row.requested_model
-                    const mapped =
-                      effective !== '' && effective !== row.requested_model
-                    return (
-                      <tr
-                        key={`${row.channel_id}:${row.requested_model}`}
-                        className='hover:bg-muted/30 border-t transition-colors'
-                      >
-                        <td className='p-2.5'>
-                          <ChannelNameLink
-                            channelId={row.channel_id}
-                            channelName={row.channel_name}
-                            baseUrl={row.base_url}
-                          />
-                        </td>
-                        <td className='p-2.5 font-mono text-xs'>
-                          {row.requested_model}
-                        </td>
-                        <td className='p-2.5 font-mono text-xs'>
-                          {mapped ? (
-                            <span title={`${row.requested_model} → ${effective}`}>
-                              <span className='text-muted-foreground'>→ </span>
-                              {effective}
-                            </span>
-                          ) : (
-                            <span className='text-muted-foreground'>
-                              {effective || '—'}
-                            </span>
-                          )}
-                        </td>
-                        <td className='p-2.5'>
-                          <PolicyPriorityCell
-                            row={row}
-                            disabled={priorityBusy}
-                            onChange={(value) => {
-                              void handlePriorityChange(row, value)
-                            }}
-                          />
-                        </td>
-                        <td className='p-2.5'>
-                          {row.enabled ? (
-                            <Badge variant='secondary'>{t('Yes')}</Badge>
-                          ) : (
-                            <Badge variant='outline'>{t('No')}</Badge>
-                          )}
-                        </td>
-                        <td className='p-2.5'>
-                          <Badge variant='outline' className='font-normal'>
-                            {localizePolicySource(t, row.source)}
-                          </Badge>
-                        </td>
-                      </tr>
+          <TabsContent value='policies' className='mt-4 space-y-3'>
+            {policyGroups.map((group) => {
+              const visiblePolicies = filterPolicyGroupByChannel(
+                group.policies,
+                channelKeyword
+              )
+              if (visiblePolicies.length === 0) return null
+              const dragDisabledReason = channelKeyword
+                ? t(
+                    'Clear the channel filter to reorder the complete model group.'
+                  )
+                : undefined
+              return (
+                <PolicySortableGroup
+                  key={group.requestedModel}
+                  requestedModel={group.requestedModel}
+                  policies={group.policies}
+                  visiblePolicies={visiblePolicies}
+                  busy={priorityBusyModels.has(group.requestedModel)}
+                  dragDisabledReason={dragDisabledReason}
+                  onReorder={(ordered, movedChannelID) => {
+                    void handlePolicyReorder(
+                      group.requestedModel,
+                      group.policies,
+                      ordered,
+                      movedChannelID
                     )
-                  })}
-                  {!policyQuery.isLoading && policies.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className='text-muted-foreground p-6 text-center'
-                      >
-                        {t('No policies')}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {!policyQuery.isLoading && policies.length > 0 && (
-              <p className='text-muted-foreground mt-2 text-xs'>
-                {t('{{count}} policies', { count: policies.length })}
+                  }}
+                  onPriorityChange={(policy, value) => {
+                    void handlePriorityChange(policy, value)
+                  }}
+                />
+              )
+            })}
+            {!policyQuery.isLoading && policyGroups.length === 0 && (
+              <div className='text-muted-foreground rounded-md border p-6 text-center text-sm'>
+                {t('No policies')}
+              </div>
+            )}
+            {!policyQuery.isLoading && policyGroups.length > 0 && (
+              <p className='text-muted-foreground text-xs'>
+                {t('{{count}} policies', {
+                  count: policyGroups.reduce(
+                    (total, group) => total + group.policies.length,
+                    0
+                  ),
+                })}
               </p>
             )}
           </TabsContent>
@@ -795,7 +799,7 @@ export function ModelRouteAdmin() {
                   disabled={batchBusy}
                   onValueChange={(action) => {
                     if (
-                      !action ||
+                      typeof action !== 'string' ||
                       ![
                         'trip_open',
                         'force_probe',
@@ -850,7 +854,9 @@ export function ModelRouteAdmin() {
                       <SelectItem value='force_probe'>
                         {t('Force probe')}
                       </SelectItem>
-                      <SelectItem value='trip_open'>{t('Trip open')}</SelectItem>
+                      <SelectItem value='trip_open'>
+                        {t('Trip open')}
+                      </SelectItem>
                       <SelectItem value='manual_disable'>
                         {t('Manual disable')}
                       </SelectItem>
@@ -1050,7 +1056,7 @@ export function ModelRouteAdmin() {
                               disabled={rowActionDisabled}
                               onValueChange={(action) => {
                                 if (
-                                  !action ||
+                                  typeof action !== 'string' ||
                                   ![
                                     'trip_open',
                                     'force_probe',

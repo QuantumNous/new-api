@@ -22,7 +22,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DataTableRowActionMenu, StaticDataTable } from '@/components/data-table'
+import {
+  DataTableRowActionMenu,
+  StaticDataTable,
+} from '@/components/data-table'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,

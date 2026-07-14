@@ -53,6 +53,38 @@ export type UpdatePolicyPriorityRequest = {
   channel_id: number
   requested_model: string
   manual_priority: number
+  expected_manual_priority: number
+  conflict_strategy: 'swap'
+}
+
+export type ModelPolicyPrioritySnapshot = {
+  channel_id: number
+  manual_priority: number
+}
+
+export type ModelPolicyPriorityChange = {
+  channel_id: number
+  manual_priority: number
+}
+
+export type ModelPolicyPriorityMutationData = {
+  requested_model: string
+  changed: ModelPolicyPriorityChange[]
+  policies: ModelRoutePolicy[]
+}
+
+export type ModelPolicyPriorityMutationResponse = {
+  success: boolean
+  message: string
+  code?: string
+  data: ModelPolicyPriorityMutationData
+}
+
+export type ReorderModelRoutePoliciesRequest = {
+  requested_model: string
+  ordered_channel_ids: number[]
+  expected: ModelPolicyPrioritySnapshot[]
+  moved_channel_id?: number
 }
 
 export type MetricsActionRequest = {

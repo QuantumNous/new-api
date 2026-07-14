@@ -168,6 +168,8 @@ export function ModelMutateDrawer({
       'global.pass_through_request_enabled': false,
       'global.thinking_model_blacklist': '[]',
       'global.chat_completions_to_responses_policy': '{}',
+      routing_priority_mode: 'channel_priority',
+      routing_behavior_mode: 'experience_first',
       'general_setting.ping_interval_enabled': false,
       'general_setting.ping_interval_seconds': 60,
       'gemini.safety_settings': '',

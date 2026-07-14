@@ -237,6 +237,7 @@ func SetApiRouter(router *gin.Engine) {
 			modelRoute.POST("/reset-all-learning", controller.ResetAllLearning)
 			modelRoute.GET("/policies", controller.ListModelRoutePolicies)
 			modelRoute.PUT("/policies/priority", controller.UpdateModelRoutePolicyPriority)
+			modelRoute.PUT("/policies/reorder", controller.ReorderModelRoutePolicies)
 			modelRoute.GET("/metrics", controller.ListModelRouteMetrics)
 			modelRoute.POST("/metrics/action", controller.ModelRouteMetricsAction)
 		}

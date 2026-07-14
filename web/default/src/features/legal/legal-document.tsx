@@ -125,11 +125,7 @@ export function LegalDocument({
   return (
     <PublicLayout showMainContainer={!contentIsHtml}>
       {contentIsHtml ? (
-        <RichContent
-          mode='html'
-          htmlVariant='isolated'
-          content={rawContent}
-        />
+        <RichContent mode='html' htmlVariant='isolated' content={rawContent} />
       ) : (
         <div className='mx-auto max-w-4xl space-y-6 py-12'>
           <div className='space-y-2'>

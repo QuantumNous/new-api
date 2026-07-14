@@ -325,7 +325,9 @@ export function RoutingReliabilitySection({
 
           <div className='flex min-w-0 flex-col gap-4'>
             <div className='flex flex-col gap-1'>
-              <h4 className='text-sm font-medium'>{t('Model-level routing')}</h4>
+              <h4 className='text-sm font-medium'>
+                {t('Model-level routing')}
+              </h4>
             </div>
             <div className='grid min-w-0 gap-6 lg:grid-cols-2'>
               <FormField
