@@ -67,8 +67,17 @@ func channelNotifyMeta(channelID int) (tag, baseURL string) {
 	return tag, baseURL
 }
 
+func channelNotifyServerName() string {
+	name := strings.TrimSpace(common.SystemName)
+	if name == "" || name == "New API" {
+		name = "APIMaster.ai"
+	}
+	return name
+}
+
 func channelModelNotifyLines(channelName string, channelID int, modelName string) []string {
 	lines := []string{
+		fmt.Sprintf("服务器：%s", channelNotifyServerName()),
 		fmt.Sprintf("渠道：%s (#%d)", channelName, channelID),
 	}
 	if modelName = strings.TrimSpace(modelName); modelName != "" {
@@ -183,6 +192,7 @@ func NotifyUpstreamRecharge(channelError types.ChannelError, err *types.NewAPIEr
 		}
 	}
 	lines := []string{
+		fmt.Sprintf("服务器：%s", channelNotifyServerName()),
 		fmt.Sprintf("渠道：%s (#%d)", channelError.ChannelName, channelError.ChannelId),
 	}
 	if tag != "" {
