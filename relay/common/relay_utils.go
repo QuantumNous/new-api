@@ -23,18 +23,56 @@ type HasImage interface {
 	HasImage() bool
 }
 
-func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {
-	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
+func BaseUrlHasVersionPrefix(baseURL string) bool {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return false
+	}
+	path := strings.Trim(u.Path, "/")
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		if strings.HasPrefix(part, "v") && len(part) > 1 {
+			if part[1] >= '0' && part[1] <= '9' {
+				return true
+			}
+		}
+	}
+	return false
+}
 
+func StripVersionPrefix(path string) string {
+	if len(path) < 3 || path[0] != '/' {
+		return path
+	}
+	secondSlash := strings.Index(path[1:], "/")
+	if secondSlash == -1 {
+		return path
+	}
+	secondSlash++
+	prefix := path[:secondSlash]
+	if strings.HasPrefix(prefix, "/v") && len(prefix) > 2 {
+		verPart := prefix[2:]
+		if len(verPart) > 0 && verPart[0] >= '0' && verPart[0] <= '9' {
+			return path[secondSlash+1:]
+		}
+	}
+	return path
+}
+
+func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {
 	if strings.HasPrefix(baseURL, "https://gateway.ai.cloudflare.com") {
 		switch channelType {
 		case constant.ChannelTypeOpenAI:
-			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/v1"))
+			return fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/v1"))
 		case constant.ChannelTypeAzure:
-			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/openai/deployments"))
+			return fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/openai/deployments"))
 		}
 	}
-	return fullRequestURL
+
+	if BaseUrlHasVersionPrefix(baseURL) && strings.HasPrefix(requestURL, "/v1") {
+		requestURL = strings.TrimPrefix(requestURL, "/v1")
+	}
+	return fmt.Sprintf("%s%s", baseURL, requestURL)
 }
 
 func SanitizeURLForLog(rawURL string) string {

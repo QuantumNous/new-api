@@ -62,15 +62,15 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return fmt.Sprintf("%s/anthropic/v1/messages", info.ChannelBaseUrl), nil
 	default:
 		if info.RelayMode == constant.RelayModeRerank {
-			return fmt.Sprintf("%s/v1/rerank", info.ChannelBaseUrl), nil
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/rerank", info.ChannelType), nil
 		} else if info.RelayMode == constant.RelayModeEmbeddings {
-			return fmt.Sprintf("%s/v1/embeddings", info.ChannelBaseUrl), nil
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/embeddings", info.ChannelType), nil
 		} else if info.RelayMode == constant.RelayModeChatCompletions {
-			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/chat/completions", info.ChannelType), nil
 		} else if info.RelayMode == constant.RelayModeCompletions {
-			return fmt.Sprintf("%s/v1/completions", info.ChannelBaseUrl), nil
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/completions", info.ChannelType), nil
 		}
-		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/chat/completions", info.ChannelType), nil
 	}
 }
 

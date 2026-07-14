@@ -123,7 +123,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		// https://learn.microsoft.com/en-us/azure/cognitive-services/openai/chatgpt-quickstart?pivots=rest-api&tabs=command-line#rest-api
 		requestURL := strings.Split(info.RequestURLPath, "?")[0]
 		requestURL = fmt.Sprintf("%s?api-version=%s", requestURL, apiVersion)
-		task := strings.TrimPrefix(requestURL, "/v1/")
+		task := relaycommon.StripVersionPrefix(requestURL)
 
 		if info.RelayFormat == types.RelayFormatClaude {
 			task = strings.TrimPrefix(task, "messages")
@@ -174,6 +174,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		if (info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini) &&
 			info.RelayMode != relayconstant.RelayModeResponses &&
 			info.RelayMode != relayconstant.RelayModeResponsesCompact {
+			if relaycommon.BaseUrlHasVersionPrefix(info.ChannelBaseUrl) {
+				return fmt.Sprintf("%s/chat/completions", info.ChannelBaseUrl), nil
+			}
 			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 		}
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil

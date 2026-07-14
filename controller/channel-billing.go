@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -389,7 +390,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	default:
 		return 0, errors.New("尚未实现")
 	}
-	url := fmt.Sprintf("%s/v1/dashboard/billing/subscription", baseURL)
+	url := relaycommon.GetFullRequestURL(baseURL, "/v1/dashboard/billing/subscription", channel.Type)
 
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
@@ -406,7 +407,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	if !subscription.HasPaymentMethod {
 		startDate = now.AddDate(0, 0, -100).Format("2006-01-02")
 	}
-	url = fmt.Sprintf("%s/v1/dashboard/billing/usage?start_date=%s&end_date=%s", baseURL, startDate, endDate)
+		url = relaycommon.GetFullRequestURL(baseURL, fmt.Sprintf("/v1/dashboard/billing/usage?start_date=%s&end_date=%s", startDate, endDate), channel.Type)
 	body, err = GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err

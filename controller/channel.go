@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
@@ -1220,7 +1221,7 @@ func FetchModels(c *gin.Context) {
 	}
 
 	client := &http.Client{}
-	url := fmt.Sprintf("%s/v1/models", baseURL)
+	url := relaycommon.GetFullRequestURL(baseURL, "/v1/models", req.Type)
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {

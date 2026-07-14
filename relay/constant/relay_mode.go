@@ -54,7 +54,27 @@ const (
 	RelayModeResponsesCompact
 )
 
+func normalizeVersionPrefix(path string) string {
+	if len(path) < 3 || path[0] != '/' {
+		return path
+	}
+	secondSlash := strings.Index(path[1:], "/")
+	if secondSlash == -1 {
+		return path
+	}
+	secondSlash++
+	prefix := path[:secondSlash]
+	if strings.HasPrefix(prefix, "/v") && len(prefix) > 2 {
+		verPart := prefix[2:]
+		if len(verPart) > 0 && verPart[0] >= '0' && verPart[0] <= '9' {
+			return "/v1" + path[secondSlash:]
+		}
+	}
+	return path
+}
+
 func Path2RelayMode(path string) int {
+	path = normalizeVersionPrefix(path)
 	relayMode := RelayModeUnknown
 	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {
 		relayMode = RelayModeChatCompletions
