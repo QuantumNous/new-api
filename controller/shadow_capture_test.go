@@ -3,8 +3,10 @@ package controller
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/modelroute"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
@@ -30,10 +32,94 @@ func TestBuildCaptureOpenAI(t *testing.T) {
 	assert.Equal(t, "hello openai full", cap.View.Messages[len(cap.View.Messages)-1].Text)
 }
 
+func TestBuildCaptureOpenAIResponses(t *testing.T) {
+	tests := []struct {
+		name          string
+		request       *dto.OpenAIResponsesRequest
+		wantMessages  []modelroute.ShadowMessage
+		wantNonText   bool
+		wantMaxTokens int
+		wantCapture   bool
+	}{
+		{
+			name: "string input",
+			request: &dto.OpenAIResponsesRequest{
+				Input:           []byte(`"hello responses"`),
+				MaxOutputTokens: lo.ToPtr(uint(24)),
+			},
+			wantMessages:  []modelroute.ShadowMessage{{Role: "user", Text: "hello responses"}},
+			wantMaxTokens: 24,
+			wantCapture:   true,
+		},
+		{
+			name: "instructions and text parts",
+			request: &dto.OpenAIResponsesRequest{
+				Instructions: []byte(`"be concise"`),
+				Input: []byte(`[
+					{"type":"message","role":"user","content":[
+						{"type":"input_text","text":"first"},
+						{"type":"input_text","text":"second"}
+					]}
+				]`),
+			},
+			wantMessages: []modelroute.ShadowMessage{
+				{Role: "system", Text: "be concise"},
+				{Role: "user", Text: "first\nsecond"},
+			},
+			wantCapture: true,
+		},
+		{
+			name: "mixed text image and file",
+			request: &dto.OpenAIResponsesRequest{
+				Input: []byte(`[
+					{"type":"message","role":"user","content":[
+						{"type":"input_text","text":"describe attachments"},
+						{"type":"input_image","image_url":"https://example.com/a.png"},
+						{"type":"input_file","file_url":"https://example.com/a.pdf"}
+					]}
+				]`),
+			},
+			wantMessages: []modelroute.ShadowMessage{{Role: "user", Text: "describe attachments"}},
+			wantNonText:  true,
+			wantCapture:  true,
+		},
+		{
+			name:        "empty input",
+			request:     &dto.OpenAIResponsesRequest{},
+			wantCapture: false,
+		},
+		{
+			name: "instructions without user input",
+			request: &dto.OpenAIResponsesRequest{
+				Instructions: []byte(`"system only"`),
+			},
+			wantCapture: false,
+		},
+	}
+
+	info := &relaycommon.RelayInfo{OriginModelName: "gpt-responses", RelayFormat: types.RelayFormatOpenAIResponses}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			capture := BuildProductionShadowCaptureFromRelay(nil, info, tt.request)
+			if !tt.wantCapture {
+				assert.Nil(t, capture)
+				return
+			}
+			require.NotNil(t, capture)
+			assert.Equal(t, string(types.RelayFormatOpenAIResponses), capture.RelayFormat)
+			assert.Equal(t, "/v1/responses", capture.RequestPath)
+			assert.Equal(t, tt.wantMaxTokens, capture.MaxTokens)
+			assert.Equal(t, tt.wantMessages, capture.View.Messages)
+			assert.Equal(t, tt.wantNonText, capture.View.HasNonTextContent)
+			assert.True(t, capture.View.TextIndependentComplete)
+		})
+	}
+}
+
 func TestBuildCaptureClaude(t *testing.T) {
 	info := &relaycommon.RelayInfo{OriginModelName: "claude-3", RelayFormat: types.RelayFormatClaude}
 	req := &dto.ClaudeRequest{
-		Model: "claude-3",
+		Model:  "claude-3",
 		System: "be helpful",
 		Messages: []dto.ClaudeMessage{
 			{Role: "user", Content: "hello claude full body"},
@@ -121,4 +207,36 @@ func TestBuildShadowDTOClaudeAndGemini(t *testing.T) {
 	require.Len(t, gem.Contents, 1)
 	assert.Equal(t, "user", gem.Contents[0].Role)
 	assert.Nil(t, gem.Tools)
+}
+
+func TestBuildShadowDTOOpenAIResponses(t *testing.T) {
+	req := &modelroute.ShadowRequest{
+		Messages: []modelroute.ShadowMessage{
+			{Role: "system", Text: "be concise"},
+			{Role: "user", Text: "probe this route"},
+		},
+		MaxTokens: 19,
+	}
+
+	built, ok := buildShadowDTORequest(req, nil, "gpt-responses", types.RelayFormatOpenAIResponses)
+	require.True(t, ok)
+	responses, ok := built.(*dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-responses", responses.Model)
+	require.NotNil(t, responses.MaxOutputTokens)
+	assert.Equal(t, uint(19), *responses.MaxOutputTokens)
+	require.NotNil(t, responses.Stream)
+	assert.False(t, *responses.Stream)
+
+	var input string
+	require.NoError(t, common.Unmarshal(responses.Input, &input))
+	assert.Equal(t, "probe this route", input)
+	var instructions string
+	require.NoError(t, common.Unmarshal(responses.Instructions, &instructions))
+	assert.Equal(t, "be concise", instructions)
+
+	converted, err := convertShadowRequest(nil, &relaycommon.RelayInfo{}, &openai.Adaptor{}, responses, types.RelayFormatOpenAIResponses)
+	require.NoError(t, err)
+	_, ok = converted.(dto.OpenAIResponsesRequest)
+	assert.True(t, ok)
 }

@@ -32,7 +32,7 @@ var shadowWireOnce sync.Once
 
 // EnsureBilledShadowExecutor installs a shadow executor that goes through the normal
 // channel adaptor path so the upstream provider bills like a real request.
-// Supports OpenAI / Claude / Gemini native formats captured from production traffic.
+// Supports OpenAI Chat / Responses, Claude, and Gemini native formats captured from production traffic.
 func EnsureBilledShadowExecutor() {
 	shadowWireOnce.Do(func() {
 		modelroute.EnsureDefaultShadowWiring()
@@ -242,6 +242,12 @@ func BilledRelayShadowExecutor(ctx context.Context, req *modelroute.ShadowReques
 
 func convertShadowRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor relaychannel.Adaptor, req dto.Request, format types.RelayFormat) (any, error) {
 	switch format {
+	case types.RelayFormatOpenAIResponses:
+		rr, ok := req.(*dto.OpenAIResponsesRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected OpenAIResponsesRequest")
+		}
+		return adaptor.ConvertOpenAIResponsesRequest(c, info, *rr)
 	case types.RelayFormatClaude:
 		cr, ok := req.(*dto.ClaudeRequest)
 		if !ok {
@@ -284,6 +290,41 @@ func buildShadowDTORequest(req *modelroute.ShadowRequest, capture *modelroute.Pr
 	streamFalse := false
 
 	switch format {
+	case types.RelayFormatOpenAIResponses:
+		var instructions []string
+		var inputs []string
+		for _, m := range msgs {
+			text := strings.TrimSpace(m.Text)
+			if text == "" {
+				continue
+			}
+			if m.Role == "system" {
+				instructions = append(instructions, text)
+				continue
+			}
+			inputs = append(inputs, text)
+		}
+		if len(inputs) == 0 {
+			return nil, false
+		}
+		input, err := common.Marshal(strings.Join(inputs, "\n"))
+		if err != nil {
+			return nil, false
+		}
+		rr := &dto.OpenAIResponsesRequest{
+			Model:           modelName,
+			Input:           input,
+			MaxOutputTokens: lo.ToPtr(uint(maxTok)),
+			Stream:          &streamFalse,
+		}
+		if len(instructions) > 0 {
+			rr.Instructions, err = common.Marshal(strings.Join(instructions, "\n"))
+			if err != nil {
+				return nil, false
+			}
+		}
+		return rr, true
+
 	case types.RelayFormatClaude:
 		var system string
 		var claudeMsgs []dto.ClaudeMessage
@@ -424,7 +465,7 @@ func settleShadowQuota(info *relaycommon.RelayInfo, priceData types.PriceData, u
 }
 
 // BuildProductionShadowCaptureFromRelay extracts a capture from a live relay request for later probes.
-// Supports OpenAI chat, Claude Messages, and Gemini generateContent. No synthetic ping.
+// Supports OpenAI Chat / Responses, Claude Messages, and Gemini generateContent. No synthetic ping.
 func BuildProductionShadowCaptureFromRelay(c *gin.Context, relayInfo *relaycommon.RelayInfo, request dto.Request) *modelroute.ProductionShadowCapture {
 	if relayInfo == nil || request == nil {
 		return nil
@@ -451,6 +492,16 @@ func BuildProductionShadowCaptureFromRelay(c *gin.Context, relayInfo *relaycommo
 			relayFormat = string(types.RelayFormatOpenAI)
 		}
 		requestPath = "/v1/chat/completions"
+	case *dto.OpenAIResponsesRequest:
+		if r == nil {
+			return nil
+		}
+		fillResponsesShadowView(&view, r)
+		if r.MaxOutputTokens != nil {
+			maxTokens = int(*r.MaxOutputTokens)
+		}
+		relayFormat = string(types.RelayFormatOpenAIResponses)
+		requestPath = "/v1/responses"
 	case *dto.ClaudeRequest:
 		if r == nil {
 			return nil
@@ -536,6 +587,35 @@ func BuildProductionShadowCaptureFromRelay(c *gin.Context, relayInfo *relaycommo
 		RelayFormat: relayFormat,
 		OriginModel: relayInfo.OriginModelName,
 		MaxTokens:   maxTokens,
+	}
+}
+
+func fillResponsesShadowView(view *modelroute.ProductionRequestView, r *dto.OpenAIResponsesRequest) {
+	if len(r.Instructions) > 0 {
+		var instructions string
+		if err := common.Unmarshal(r.Instructions, &instructions); err == nil {
+			if instructions = strings.TrimSpace(instructions); instructions != "" {
+				view.Messages = append(view.Messages, modelroute.ShadowMessage{Role: "system", Text: instructions})
+			}
+		}
+	}
+
+	var texts []string
+	for _, input := range r.ParseInput() {
+		switch input.Type {
+		case "input_image", "input_file":
+			view.HasNonTextContent = true
+		case "input_text", "":
+			if text := strings.TrimSpace(input.Text); text != "" {
+				texts = append(texts, text)
+			}
+		}
+	}
+	if len(texts) > 0 {
+		view.Messages = append(view.Messages, modelroute.ShadowMessage{Role: "user", Text: strings.Join(texts, "\n")})
+	}
+	if len(r.Tools) > 0 {
+		view.HasTools = true
 	}
 }
 
