@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Seedance 四模型调试</title>
+  <title>Seedance 三模型调试</title>
   <style>
     :root {
       color-scheme: dark;
@@ -271,7 +271,7 @@
   <main class="app">
     <header class="top">
       <div class="brand">
-        <div class="logo">四模型</div>
+        <div class="logo">三模型</div>
         <div>
           <h1>Seedance 视频调试</h1>
           <p class="sub">选择模型自动构建参数。本地图片经图床转公网 URL；Key 仅保存在本机浏览器。</p>
@@ -452,34 +452,6 @@
     };
 
     const MODEL_PROFILES = {
-      "37:seedance-2.0": {
-        label: "37:seedance-2.0（标准）",
-        family: "aistar",
-        hint: "aistar 通道 · POST /v1/video/generations · width/height + duration。参考图经图床后写入 images。",
-        createPath: "/v1/video/generations",
-        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
-        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
-        durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        defaultDuration: 4,
-        showMode: true,
-        showResolution: false,
-        showAudioWatermark: false,
-        showMingizSend: false,
-      },
-      "37:seedance-2.0-fast": {
-        label: "37:seedance-2.0-fast（快速）",
-        family: "aistar",
-        hint: "aistar 快速通道 · 参数同标准版，仅 model 不同。",
-        createPath: "/v1/video/generations",
-        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
-        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
-        durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        defaultDuration: 4,
-        showMode: true,
-        showResolution: false,
-        showAudioWatermark: false,
-        showMingizSend: false,
-      },
       "doubao-seedance-2.0": {
         label: "doubao-seedance-2.0（多模态）",
         family: "doubao",
@@ -498,6 +470,20 @@
         label: "mingiz-sd2（星河 2.0）",
         family: "mingiz",
         hint: "星河 2.0 · POST /v1/videos · 可 multipart 直传本地图，或 JSON + 图床 URL。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 8, 10, 12, 15],
+        defaultDuration: 10,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: true,
+      },
+      "sd2-fast": {
+        label: "sd2-fast（快速）",
+        family: "mingiz",
+        hint: "星河快速通道 · POST /v1/videos · 可 multipart 直传本地图，或 JSON + 图床 URL（参数同 mingiz-sd2）。",
         createPath: "/v1/videos",
         queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
         contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
@@ -563,7 +549,7 @@
 
     let assets = [];
     let currentTaskId = "";
-    let currentFamily = "aistar";
+    let currentFamily = "doubao";
     let polling = false;
     let pollTimer = 0;
     let mentionTriggerRange = null;
