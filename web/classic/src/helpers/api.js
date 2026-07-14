@@ -36,7 +36,6 @@ export let API = axios.create({
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
@@ -48,7 +47,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -209,15 +207,22 @@ export const processModelsData = (data, currentModel) => {
   return { modelOptions, selectedModel };
 };
 
+export const getGroupDisplayLabel = (group, info) => {
+  const desc = info?.desc?.trim();
+  return desc || group;
+};
+
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
-  let groupOptions = Object.entries(data).map(([group, info]) => ({
-    label:
-      info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
-    value: group,
-    ratio: info.ratio,
-    fullLabel: info.desc,
-  }));
+  let groupOptions = Object.entries(data).map(([group, info]) => {
+    const label = getGroupDisplayLabel(group, info);
+    return {
+      label: label.length > 20 ? label.substring(0, 20) + '...' : label,
+      value: group,
+      ratio: info.ratio,
+      fullLabel: label,
+    };
+  });
 
   if (groupOptions.length === 0) {
     groupOptions = [
