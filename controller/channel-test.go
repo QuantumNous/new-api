@@ -140,6 +140,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			requestPath = "/v1/images/generations"
 		}
 
+		// 通用图像生成模型（gpt-image-*, dall-e-*, imagen-* 等）
+		if strings.Contains(strings.ToLower(testModel), "image") ||
+		   strings.Contains(strings.ToLower(testModel), "dall-e") {
+			requestPath = "/v1/images/generations"
+		}
+
 		// responses-only models
 		if strings.Contains(strings.ToLower(testModel), "codex") {
 			requestPath = "/v1/responses"
