@@ -395,6 +395,13 @@ func getHeaderOverrideMap(info *RelayInfo) map[string]interface{} {
 	return info.ChannelMeta.HeadersOverride
 }
 
+// sanitizeHeaderOverrideMap normalizes a raw header_override map by
+// canonicalizing keys, trimming whitespace from values, and dropping entries
+// with empty keys. Empty values are intentionally preserved as explicit
+// suppression markers; downstream consumers will Del() the matching header
+// from the outgoing request. Passthrough rule keys ("*", "re:...",
+// "regex:...") historically also use empty values and are preserved by the
+// same fall-through behavior.
 func sanitizeHeaderOverrideMap(source map[string]interface{}) map[string]interface{} {
 	if len(source) == 0 {
 		return map[string]interface{}{}
@@ -406,12 +413,11 @@ func sanitizeHeaderOverrideMap(source map[string]interface{}) map[string]interfa
 			continue
 		}
 		normalizedValue := strings.TrimSpace(fmt.Sprintf("%v", value))
-		if normalizedValue == "" {
-			if isHeaderPassthroughRuleKeyForOverride(normalizedKey) {
-				target[normalizedKey] = ""
-			}
-			continue
-		}
+		// An empty value is preserved as an explicit suppression marker:
+		// downstream consumers will Del() the header instead of forwarding it.
+		// Passthrough rule keys ("*", "re:...", "regex:...") historically use
+		// an empty value as well, and that contract is preserved by the same
+		// fall-through behavior.
 		target[normalizedKey] = normalizedValue
 	}
 	return target
@@ -428,14 +434,40 @@ func isHeaderPassthroughRuleKeyForOverride(key string) bool {
 	return strings.HasPrefix(key, "re:") || strings.HasPrefix(key, "regex:")
 }
 
+// GetEffectiveHeaderOverride returns the merged header_override map that
+// should be applied to the upstream request. When UseRuntimeHeadersOverride
+// is set, runtime overrides (from upstream features such as channel affinity
+// rules) are merged first, then the channel-level header_override is layered
+// on top. Channel-level entries win for keys defined in both layers because
+// the admin UI is the authoritative source of header policy; this includes
+// empty-string entries, which act as explicit suppression markers.
 func GetEffectiveHeaderOverride(info *RelayInfo) map[string]interface{} {
 	if info == nil {
 		return map[string]interface{}{}
 	}
-	if info.UseRuntimeHeadersOverride {
-		return sanitizeHeaderOverrideMap(info.RuntimeHeadersOverride)
+	channelOverride := sanitizeHeaderOverrideMap(getHeaderOverrideMap(info))
+	if !info.UseRuntimeHeadersOverride {
+		return channelOverride
 	}
-	return sanitizeHeaderOverrideMap(getHeaderOverrideMap(info))
+	// Merge channel-level override on top of the runtime override map. Runtime
+	// overrides come from upstream features such as channel affinity rules,
+	// which inject pass-through headers (e.g. claude-cli "anthropic-beta")
+	// into the request. The channel-level header_override is set explicitly by
+	// the operator in the admin UI and represents the more intentional source
+	// of truth, so its entries (including empty-string suppression markers)
+	// must win when both define the same key.
+	runtimeOverride := sanitizeHeaderOverrideMap(info.RuntimeHeadersOverride)
+	if len(channelOverride) == 0 {
+		return runtimeOverride
+	}
+	merged := make(map[string]interface{}, len(runtimeOverride)+len(channelOverride))
+	for k, v := range runtimeOverride {
+		merged[k] = v
+	}
+	for k, v := range channelOverride {
+		merged[k] = v
+	}
+	return merged
 }
 
 func tryParseOperations(paramOverride map[string]interface{}) ([]ParamOperation, bool) {

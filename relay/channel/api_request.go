@@ -144,6 +144,20 @@ func shouldSkipPassthroughHeader(name string) bool {
 	return false
 }
 
+// applyHeaderOverridePlaceholders resolves the placeholders supported in a
+// header_override template value. It returns the resolved value, a boolean
+// indicating whether the entry should be retained, and any error encountered.
+//
+// Supported placeholders:
+//   - {api_key}: replaced with the channel's API key.
+//   - {client_header:<name>}: replaced verbatim with the value of the named
+//     incoming request header. The placeholder must be the entire template;
+//     {api_key} is not interpolated inside client-supplied content. Missing or
+//     empty client headers cause the entry to be dropped (returns retain=false).
+//
+// An empty resolved value (after {api_key} expansion) is preserved as an
+// explicit suppression marker so downstream consumers can delete the header
+// from the upstream request.
 func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey string) (string, bool, error) {
 	trimmed := strings.TrimSpace(template)
 	if strings.HasPrefix(trimmed, clientHeaderPlaceholderPrefix) {
@@ -171,9 +185,10 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 	if strings.Contains(template, "{api_key}") {
 		template = strings.ReplaceAll(template, "{api_key}", apiKey)
 	}
-	if strings.TrimSpace(template) == "" {
-		return "", false, nil
-	}
+	// An empty template is treated as an explicit suppression marker:
+	// the entry is included with an empty value so that downstream consumers
+	// can delete the header from the upstream request, rather than letting a
+	// value previously written by the channel adaptor leak through.
 	return template, true, nil
 }
 
@@ -287,15 +302,31 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 	return headerOverride, nil
 }
 
+// ResolveHeaderOverride returns the fully resolved header_override map for the
+// current relay request. It is a public wrapper around processHeaderOverride
+// for use by channel adaptors (notably AWS Bedrock) that need to apply the
+// override on a header collection they own rather than on a *http.Request.
 func ResolveHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]string, error) {
 	return processHeaderOverride(info, c)
 }
 
+// applyHeaderOverrideToRequest writes the resolved header_override map onto an
+// outgoing *http.Request. An empty value is treated as an explicit suppression
+// marker and removes the header from the request rather than forwarding an
+// empty string (which would let a previously-set header value leak through on
+// case-insensitive lookups). When the Host header is set, the request's Host
+// field is updated as well so net/http honours it.
 func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]string) {
 	if req == nil {
 		return
 	}
 	for key, value := range headerOverride {
+		// An empty value is an explicit suppression marker: remove the header
+		// from the upstream request rather than forwarding the empty string.
+		if value == "" {
+			req.Header.Del(key)
+			continue
+		}
 		req.Header.Set(key, value)
 		// set Host in req
 		if strings.EqualFold(key, "Host") {
@@ -366,6 +397,11 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	return resp, nil
 }
 
+// DoWssRequest opens a WebSocket connection to the upstream provider for the
+// current relay request. Channel-level header_override entries are applied
+// after SetupRequestHeader so the operator-configured values win over any
+// adaptor defaults. An override value of the empty string suppresses the
+// header rather than forwarding an empty value upstream.
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
@@ -383,6 +419,11 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, err
 	}
 	for key, value := range headerOverride {
+		// An empty value explicitly suppresses the header upstream.
+		if value == "" {
+			targetHeader.Del(key)
+			continue
+		}
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))

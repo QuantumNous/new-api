@@ -1975,26 +1975,38 @@ func TestApplyParamOverrideWithRelayInfoSetHeaderMapRewritesAnthropicBeta(t *tes
 	}
 }
 
-func TestGetEffectiveHeaderOverrideUsesRuntimeOverrideAsFinalResult(t *testing.T) {
+func TestGetEffectiveHeaderOverrideMergesChannelOnTopOfRuntime(t *testing.T) {
 	info := &RelayInfo{
 		UseRuntimeHeadersOverride: true,
 		RuntimeHeadersOverride: map[string]interface{}{
-			"x-runtime": "runtime-only",
+			"x-runtime":      "runtime-only",
+			"anthropic-beta": "claude-code-20250219",
 		},
 		ChannelMeta: &ChannelMeta{
 			HeadersOverride: map[string]interface{}{
-				"X-Static":  "static-value",
-				"X-Deleted": "should-not-exist",
+				"X-Static":       "static-value",
+				"anthropic-beta": "",
 			},
 		},
 	}
 
 	effective := GetEffectiveHeaderOverride(info)
+	// Runtime-only entries are still included in the merged map.
 	if effective["x-runtime"] != "runtime-only" {
 		t.Fatalf("expected x-runtime from runtime override, got: %v", effective["x-runtime"])
 	}
-	if _, exists := effective["x-static"]; exists {
-		t.Fatalf("expected runtime override to be final and not merge channel headers")
+	// Channel-level overrides win for keys defined in both layers, including
+	// the empty-string suppression marker that downstream consumers will use
+	// to delete the header from the upstream request.
+	if effective["x-static"] != "static-value" {
+		t.Fatalf("expected x-static from channel override, got: %v", effective["x-static"])
+	}
+	v, exists := effective["anthropic-beta"]
+	if !exists {
+		t.Fatalf("expected anthropic-beta to be retained as suppression marker")
+	}
+	if v != "" {
+		t.Fatalf("expected channel-level empty value to win over runtime, got: %v", v)
 	}
 }
 
