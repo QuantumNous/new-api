@@ -50,6 +50,9 @@ type ApiKeyGroupComboboxProps = {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  id?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean
 }
 
 function formatGroupRatio(
@@ -102,6 +105,9 @@ export function ApiKeyGroupCombobox({
   onValueChange,
   placeholder,
   disabled,
+  id,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: ApiKeyGroupComboboxProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -137,7 +143,10 @@ export function ApiKeyGroupCombobox({
             type='button'
             variant='outline'
             role='combobox'
+            id={id}
+            aria-describedby={ariaDescribedBy}
             aria-expanded={open}
+            aria-invalid={ariaInvalid}
             disabled={disabled}
             className='border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 h-auto min-h-14 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3'
           />
