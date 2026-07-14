@@ -281,3 +281,8 @@ custom_oauth.name_empty: "提供商名称不能为空"
 custom_oauth.has_bindings: "无法删除已有用户绑定的提供商"
 custom_oauth.binding_not_found: "OAuth 绑定不存在"
 custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户 ID"
+custom_oauth.unbind_success: "OAuth 账户解绑成功"
+
+# WeChat auth messages
+wechat.not_enabled: "管理员未开启通过微信登录以及注册"
+wechat.account_used: "该微信账户已被绑定"

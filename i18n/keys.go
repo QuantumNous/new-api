@@ -332,4 +332,11 @@ const (
 	MsgCustomOAuthHasBindings       = "custom_oauth.has_bindings"
 	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
 	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
+	MsgCustomOAuthUnbindSuccess     = "custom_oauth.unbind_success"
+)
+
+// WeChat auth related messages
+const (
+	MsgWeChatNotEnabled  = "wechat.not_enabled"
+	MsgWeChatAccountUsed = "wechat.account_used"
 )
