@@ -57,6 +57,7 @@ var claudeCliPassThroughHeaders = []string{
 	"Anthropic-Beta",
 	"Anthropic-Dangerous-Direct-Browser-Access",
 	"Anthropic-Version",
+	"X-Anthropic-Billing-Header",
 }
 
 func buildPassHeaderTemplate(headers []string) map[string]interface{} {
@@ -100,6 +101,7 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			PathRegex:  []string{"/v1/messages"},
 			KeySources: []ChannelAffinityKeySource{
 				{Type: "gjson", Path: "metadata.user_id"},
+				{Type: "context_int", Key: "token_id"},
 			},
 			ValueRegex:            "",
 			TTLSeconds:            0,

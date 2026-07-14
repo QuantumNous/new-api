@@ -265,6 +265,7 @@ func TestChannelAffinityHitClaudeMessagesAllowsGPTModels(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(rec)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(fmt.Sprintf(`{"metadata":{"user_id":"%s"}}`, affinityValue)))
 	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Request.Header.Set("User-Agent", "claude-cli/2.1.207")
 
 	channelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5.5", "gpt pro")
 	require.True(t, found)
@@ -276,6 +277,54 @@ func TestChannelAffinityHitClaudeMessagesAllowsGPTModels(t *testing.T) {
 	require.Equal(t, "gpt-5.5", meta.ModelName)
 	require.Equal(t, "/v1/messages", meta.RequestPath)
 	require.Equal(t, "metadata.user_id", meta.KeySourcePath)
+}
+
+func TestChannelAffinityHitClaudeTemplatePassesBillingHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	var claudeRule *operation_setting.ChannelAffinityRule
+	for i := range setting.Rules {
+		rule := &setting.Rules[i]
+		if strings.EqualFold(strings.TrimSpace(rule.Name), "claude cli trace") {
+			claudeRule = rule
+			break
+		}
+	}
+	require.NotNil(t, claudeRule)
+
+	affinityValue := fmt.Sprintf("claude-user-%d", time.Now().UnixNano())
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*claudeRule, "claude-sonnet-4-6", "default", affinityValue)
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 40, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(fmt.Sprintf(`{"metadata":{"user_id":"%s"}}`, affinityValue)))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Request.Header.Set("User-Agent", "claude-cli/2.1.207")
+
+	channelID, found := GetPreferredChannelByAffinity(ctx, "claude-sonnet-4-6", "default")
+	require.True(t, found)
+	require.Equal(t, 40, channelID)
+
+	mergedOverride, applied := ApplyChannelAffinityOverrideTemplate(ctx, nil)
+	require.True(t, applied)
+	info := &relaycommon.RelayInfo{
+		RequestHeaders: map[string]string{
+			"X-Anthropic-Billing-Header": "cc_version=2.1.207.6dd; cc_entrypoint=cli;",
+		},
+		ChannelMeta: &relaycommon.ChannelMeta{ParamOverride: mergedOverride},
+	}
+
+	_, err := relaycommon.ApplyParamOverrideWithRelayInfo([]byte(`{"model":"claude-sonnet-4-6"}`), info)
+	require.NoError(t, err)
+	require.Equal(t, "cc_version=2.1.207.6dd; cc_entrypoint=cli;", info.RuntimeHeadersOverride["x-anthropic-billing-header"])
 }
 
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {

@@ -110,7 +110,7 @@ func (ctx *responsesStreamCtx) shouldSynthesize(c *gin.Context, info *relaycommo
 // ended normally (EOF / [DONE] / handler-stop), emit response.completed so
 // the client preserves partial output. Otherwise emit response.failed with a
 // diagnostic message reflecting the EndReason.
-func (ctx *responsesStreamCtx) emitTerminal(c *gin.Context, info *relaycommon.RelayInfo) *dto.Usage {
+func (ctx *responsesStreamCtx) emitTerminal(c *gin.Context, info *relaycommon.RelayInfo) (*dto.Usage, error) {
 	usage := ctx.buildUsage(info)
 	responseID := ctx.resolveResponseID(c)
 	model := ctx.resolveModel(info)
@@ -119,12 +119,16 @@ func (ctx *responsesStreamCtx) emitTerminal(c *gin.Context, info *relaycommon.Re
 	normalEnd := info == nil || info.StreamStatus == nil || info.StreamStatus.IsNormalEnd()
 	hadOutput := ctx.outputTextLen > 0 || ctx.reasoningTextLen > 0
 
+	var err error
 	if normalEnd && hadOutput {
-		ctx.writeCompletedEvent(c, responseID, model, createdAt, usage)
+		err = ctx.writeCompletedEvent(c, responseID, model, createdAt, usage)
 	} else {
-		ctx.writeFailedEvent(c, responseID, model, createdAt, usage, info)
+		err = ctx.writeFailedEvent(c, responseID, model, createdAt, usage, info)
 	}
-	return usage
+	if err != nil {
+		return nil, err
+	}
+	return usage, nil
 }
 
 func (ctx *responsesStreamCtx) buildUsage(info *relaycommon.RelayInfo) *dto.Usage {
@@ -184,7 +188,7 @@ func (ctx *responsesStreamCtx) resolveCreatedAt() int64 {
 // writeCompletedEvent emits a response.completed event with the minimum
 // shape required by Codex (id + usage) and the optional fields most other
 // clients consult (model, created_at, status, output=[]).
-func (ctx *responsesStreamCtx) writeCompletedEvent(c *gin.Context, id, model string, createdAt int64, usage *dto.Usage) {
+func (ctx *responsesStreamCtx) writeCompletedEvent(c *gin.Context, id, model string, createdAt int64, usage *dto.Usage) error {
 	response := map[string]any{
 		"id":         id,
 		"object":     "response",
@@ -194,12 +198,12 @@ func (ctx *responsesStreamCtx) writeCompletedEvent(c *gin.Context, id, model str
 		"output":     []any{},
 		"usage":      usageToResponsesPayload(usage),
 	}
-	ctx.writeSyntheticEvent(c, "response.completed", response)
+	return ctx.writeSyntheticEvent(c, "response.completed", response)
 }
 
 // writeFailedEvent emits a response.failed event with an error object that
 // Codex's parser maps to a human-readable error message.
-func (ctx *responsesStreamCtx) writeFailedEvent(c *gin.Context, id, model string, createdAt int64, usage *dto.Usage, info *relaycommon.RelayInfo) {
+func (ctx *responsesStreamCtx) writeFailedEvent(c *gin.Context, id, model string, createdAt int64, usage *dto.Usage, info *relaycommon.RelayInfo) error {
 	message := "upstream stream interrupted"
 	code := "stream_disconnect"
 	if info != nil && info.StreamStatus != nil {
@@ -225,13 +229,13 @@ func (ctx *responsesStreamCtx) writeFailedEvent(c *gin.Context, id, model string
 		},
 		"usage": usageToResponsesPayload(usage),
 	}
-	ctx.writeSyntheticEvent(c, "response.failed", response)
+	return ctx.writeSyntheticEvent(c, "response.failed", response)
 }
 
 // writeSyntheticEvent serializes the payload and writes the
 // `event:` + `data:` SSE pair using the same format helper.ResponseChunkData
 // uses for upstream-passthrough events.
-func (ctx *responsesStreamCtx) writeSyntheticEvent(c *gin.Context, eventType string, response map[string]any) {
+func (ctx *responsesStreamCtx) writeSyntheticEvent(c *gin.Context, eventType string, response map[string]any) error {
 	payload := map[string]any{
 		"type":     eventType,
 		"response": response,
@@ -239,11 +243,15 @@ func (ctx *responsesStreamCtx) writeSyntheticEvent(c *gin.Context, eventType str
 	data, err := common.Marshal(payload)
 	if err != nil {
 		logger.LogError(c, fmt.Sprintf("synthesize %s: marshal failed: %s", eventType, err.Error()))
-		return
+		return err
 	}
 
 	syntheticEvent := dto.ResponsesStreamResponse{Type: eventType}
-	sendResponsesStreamData(c, syntheticEvent, string(data))
+	if err := sendResponsesStreamData(c, syntheticEvent, string(data)); err != nil {
+		logger.LogError(c, fmt.Sprintf("synthesize %s: write failed: %s", eventType, err.Error()))
+		return err
+	}
+	return nil
 }
 
 func ensureResponsesTerminalOutputField(streamResponse dto.ResponsesStreamResponse, data string) string {

@@ -96,6 +96,18 @@ func TestShouldRetryStopsOnSemanticContextLimitError(t *testing.T) {
 	}
 }
 
+func TestProcessChannelErrorDoesNotCooldownSemanticContextLimitError(t *testing.T) {
+	err := types.NewErrorWithStatusCode(
+		errors.New("Your input exceeds the context window of this model. Please adjust your input and try again."),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadGateway,
+	)
+
+	if shouldCooldownForUpstreamError(err) {
+		t.Fatal("expected semantic context errors not to trigger upstream cooldown")
+	}
+}
+
 func TestIsRetryableChannelErrorSkipsSpecificChannel(t *testing.T) {
 	c := newTestContext()
 	c.Set("specific_channel_id", 5)

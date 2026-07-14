@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -12,8 +13,56 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCalculateTextQuotaSummaryClampsNegativeUncachedRemainder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5",
+		PriceData: types.PriceData{
+			ModelRatio:         1,
+			CompletionRatio:    1,
+			CacheRatio:         0.1,
+			CacheCreationRatio: 1.25,
+			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+	usage := &dto.Usage{
+		PromptTokens: 100,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         80,
+			CachedCreationTokens: 80,
+		},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	// The overlapping cache counters cost 80*0.1 + 80*1.25. They must not
+	// create a negative 60-token base charge.
+	require.Equal(t, 108, summary.Quota)
+}
+
+func TestCalculateTextQuotaSummarySaturatesOversizedQuota(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "oversized-model",
+		PriceData: types.PriceData{
+			ModelRatio:      1e20,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1})
+
+	require.Equal(t, common.MaxQuota, summary.Quota)
+}
 
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -409,6 +458,17 @@ func TestCalculateTextQuotaSummaryKeepsToolSurchargeWithZeroTokens(t *testing.T)
 	require.Zero(t, summary.TotalTokens)
 	require.Equal(t, int64(5000), summary.ToolCallSurchargeQuota.Round(0).IntPart())
 	require.Equal(t, 5000, summary.Quota)
+}
+
+func TestComposeTieredTextQuotaSaturatesFinalSurcharge(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	relayInfo := &relaycommon.RelayInfo{}
+	summary := textQuotaSummary{ToolCallSurchargeQuota: decimal.NewFromInt(int64(common.MaxQuota))}
+
+	quota := composeTieredTextQuota(relayInfo, summary, common.MaxQuota, nil)
+
+	require.Equal(t, common.MaxQuota, quota)
+	require.NotNil(t, relayInfo.QuotaClamp)
 }
 
 func TestComposeTieredTextQuotaFallbackKeepsToolCallSurcharges(t *testing.T) {

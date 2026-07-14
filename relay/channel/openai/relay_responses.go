@@ -90,7 +90,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			return
 		}
 		streamCtx.observe(streamResponse)
-		sendResponsesStreamData(c, streamResponse, ensureResponsesTerminalOutputField(streamResponse, data))
+		if err := sendResponsesStreamData(c, streamResponse, ensureResponsesTerminalOutputField(streamResponse, data)); err != nil {
+			sr.Stop(err)
+			return
+		}
 		switch streamResponse.Type {
 		case "response.completed":
 			if streamResponse.Response != nil {
@@ -140,10 +143,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	// response.failed (timeout / scanner error / no output) based on
 	// info.StreamStatus.
 	if streamCtx.shouldSynthesize(c, info) {
-		if synthUsage := streamCtx.emitTerminal(c, info); synthUsage != nil {
-			usage = synthUsage
+		synthUsage, err := streamCtx.emitTerminal(c, info)
+		if err != nil {
+			if info != nil && info.StreamStatus != nil {
+				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonHandlerStop, err, "synthetic_terminal_write")
+			}
+		} else {
+			if synthUsage != nil {
+				usage = synthUsage
+			}
+			logger.LogInfo(c, fmt.Sprintf("synthesized responses terminal event (status=%s)", streamStatusSummary(info)))
 		}
-		logger.LogInfo(c, fmt.Sprintf("synthesized responses terminal event (status=%s)", streamStatusSummary(info)))
 	}
 
 	if usage.CompletionTokens == 0 {

@@ -187,7 +187,8 @@ func TestResponsesStreamCtx_EmitTerminal_CompletedOnGracefulEOFWithOutput(t *tes
 	})
 	ctx.observe(dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: "hello world"})
 
-	usage := ctx.emitTerminal(c, info)
+	usage, err := ctx.emitTerminal(c, info)
+	require.NoError(t, err)
 	require.NotNil(t, usage)
 	assert.Greater(t, usage.CompletionTokens, 0, "should estimate output tokens locally")
 	assert.Equal(t, 100, usage.PromptTokens, "prompt tokens come from estimate")
@@ -219,7 +220,8 @@ func TestResponsesStreamCtx_EmitTerminal_FailedOnTimeout(t *testing.T) {
 	ctx := newResponsesStreamCtx()
 	ctx.observe(dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: "partial"})
 
-	usage := ctx.emitTerminal(c, info)
+	usage, err := ctx.emitTerminal(c, info)
+	require.NoError(t, err)
 	require.NotNil(t, usage)
 
 	eventName, dataJSON := extractSyntheticEvent(t, recorder)
@@ -245,7 +247,8 @@ func TestResponsesStreamCtx_EmitTerminal_FailedWhenNoOutput(t *testing.T) {
 
 	ctx := newResponsesStreamCtx()
 	// EOF without any output/reasoning deltas — synthesize failed, not completed
-	ctx.emitTerminal(c, info)
+	_, err := ctx.emitTerminal(c, info)
+	require.NoError(t, err)
 
 	eventName, _ := extractSyntheticEvent(t, recorder)
 	assert.Equal(t, "response.failed", eventName, "no output => failed even on graceful EOF")
@@ -267,7 +270,8 @@ func TestResponsesStreamCtx_EmitTerminal_PrefersUpstreamUsage(t *testing.T) {
 	})
 	ctx.observe(dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: "hi"})
 
-	ctx.emitTerminal(c, info)
+	_, err := ctx.emitTerminal(c, info)
+	require.NoError(t, err)
 
 	_, dataJSON := extractSyntheticEvent(t, recorder)
 	var payload map[string]any
@@ -289,7 +293,8 @@ func TestResponsesStreamCtx_EmitTerminal_ReasoningCountsAsOutput(t *testing.T) {
 	// because the client/Codex should preserve reasoning state for the next turn.
 	ctx.observe(dto.ResponsesStreamResponse{Type: "response.reasoning_text.delta", Delta: "thinking about this..."})
 
-	ctx.emitTerminal(c, info)
+	_, err := ctx.emitTerminal(c, info)
+	require.NoError(t, err)
 
 	eventName, _ := extractSyntheticEvent(t, recorder)
 	assert.Equal(t, "response.completed", eventName)

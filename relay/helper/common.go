@@ -38,6 +38,10 @@ func FlushWriter(c *gin.Context) (err error) {
 	return nil
 }
 
+func requestContextDone(c *gin.Context) bool {
+	return c != nil && c.Request != nil && c.Request.Context().Err() != nil
+}
+
 func SetEventStreamHeaders(c *gin.Context) {
 	// 检查是否已经设置过头部
 	if _, exists := c.Get("event_stream_headers_set"); exists {
@@ -66,16 +70,35 @@ func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
 	return nil
 }
 
-func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
-	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
-	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s\n", data)})
-	_ = FlushWriter(c)
+func renderCustomEvent(c *gin.Context, event common.CustomEvent) error {
+	return event.Render(c.Writer)
 }
 
-func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) {
-	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
-	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s", data)})
-	_ = FlushWriter(c)
+func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) error {
+	if requestContextDone(c) {
+		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+	}
+	if err := renderCustomEvent(c, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)}); err != nil {
+		return err
+	}
+	if err := renderCustomEvent(c, common.CustomEvent{Data: fmt.Sprintf("data: %s\n", data)}); err != nil {
+		return err
+	}
+	return FlushWriter(c)
+}
+
+func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) error {
+	if requestContextDone(c) {
+		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+	}
+
+	if err := renderCustomEvent(c, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)}); err != nil {
+		return err
+	}
+	if err := renderCustomEvent(c, common.CustomEvent{Data: fmt.Sprintf("data: %s", data)}); err != nil {
+		return err
+	}
+	return FlushWriter(c)
 }
 
 func StringData(c *gin.Context, str string) error {

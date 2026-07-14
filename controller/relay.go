@@ -423,6 +423,10 @@ func isRetryableChannelError(c *gin.Context, openaiErr *types.NewAPIError) bool 
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
+func shouldCooldownForUpstreamError(err *types.NewAPIError) bool {
+	return !isSemanticClientError(err) && service.ShouldCooldownChannelForUpstreamError(err)
+}
+
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
@@ -434,7 +438,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		// this channel misbehaved; cool it for the full duration so it stops
 		// being re-picked. This subsumes upstream 5xx / capability 4xx.
 		service.CooldownChannelForRetry(channelError, err)
-	} else if service.ShouldCooldownChannelForUpstreamError(err) {
+	} else if shouldCooldownForUpstreamError(err) {
 		service.CooldownChannelForUpstreamError(channelError, err)
 	}
 

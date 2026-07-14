@@ -197,7 +197,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if !common.StringsContains(constant.TaskPricePatches, modelName) {
 		for _, ra := range info.PriceData.OtherRatios {
 			if ra != 1.0 {
-				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+				quota, quotaErr := common.QuotaFromFloatStrict(float64(info.PriceData.Quota) * ra)
+				if quotaErr != nil {
+					return nil, service.TaskErrorWrapper(quotaErr, "quota_out_of_range", http.StatusBadRequest)
+				}
+				info.PriceData.Quota = quota
 			}
 		}
 	}
@@ -260,22 +264,26 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
 // 公式: baseQuota × ∏(ratio) — 其中 baseQuota 是不含 OtherRatios 的基础额度。
 func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float64) int {
-	// 从 PriceData 获取不含 OtherRatios 的基础价格
-	baseQuota := info.PriceData.Quota
-	// 先除掉原有的 OtherRatios 恢复基础额度
+	// From PriceData get the base quota without OtherRatios.
+	baseQuota := float64(info.PriceData.Quota)
+	// Remove the original OtherRatios before applying the adjusted values.
 	for _, ra := range info.PriceData.OtherRatios {
 		if ra != 1.0 && ra > 0 {
-			baseQuota = int(float64(baseQuota) / ra)
+			baseQuota /= ra
 		}
 	}
-	// 应用新的 ratios
-	result := float64(baseQuota)
+	// Apply the new ratios and preserve clamp metadata for settlement logs.
+	result := baseQuota
 	for _, ra := range ratios {
 		if ra != 1.0 {
 			result *= ra
 		}
 	}
-	return int(result)
+	quota, clamp := common.QuotaFromFloatChecked(result)
+	if clamp != nil && info.QuotaClamp == nil {
+		info.QuotaClamp = clamp
+	}
+	return quota
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){

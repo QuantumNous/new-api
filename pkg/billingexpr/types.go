@@ -3,6 +3,8 @@ package billingexpr
 import (
 	"crypto/sha256"
 	"fmt"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type RequestInput struct {
@@ -53,10 +55,11 @@ type BillingSnapshot struct {
 
 // TieredResult holds everything needed after running tiered settlement.
 type TieredResult struct {
-	ActualQuotaBeforeGroup float64 `json:"actual_quota_before_group"`
-	ActualQuotaAfterGroup  int     `json:"actual_quota_after_group"`
-	MatchedTier            string  `json:"matched_tier"`
-	CrossedTier            bool    `json:"crossed_tier"`
+	ActualQuotaBeforeGroup float64            `json:"actual_quota_before_group"`
+	ActualQuotaAfterGroup  int                `json:"actual_quota_after_group"`
+	QuotaClamp             *common.QuotaClamp `json:"quota_clamp,omitempty"`
+	MatchedTier            string             `json:"matched_tier"`
+	CrossedTier            bool               `json:"crossed_tier"`
 }
 
 // ExprHashString returns the SHA-256 hex digest of an expression string.
