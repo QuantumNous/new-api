@@ -65,6 +65,7 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
+// Relay validates and dispatches a synchronous relay request.
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -247,6 +248,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 }
 
+// respondRelayError emits the terminal error in the client's relay protocol
+// only when no real upstream payload has already reached the response.
 func respondRelayError(c *gin.Context, relayFormat types.RelayFormat, apiErr *types.NewAPIError) {
 	if c == nil || apiErr == nil || helper.HasWrittenUpstreamResponse(c) {
 		return
@@ -291,6 +294,8 @@ func respondRelayError(c *gin.Context, relayFormat types.RelayFormat, apiErr *ty
 	c.JSON(apiErr.StatusCode, gin.H{"error": apiErr.ToOpenAIError()})
 }
 
+// geminiRelayError maps a relay failure to the Google RPC error envelope used
+// by native Gemini endpoints.
 func geminiRelayError(apiErr *types.NewAPIError) gin.H {
 	status := "UNKNOWN"
 	switch apiErr.StatusCode {
@@ -364,6 +369,7 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	return meta
 }
 
+// getChannel selects the channel used for the current relay attempt.
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
@@ -399,6 +405,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	return channel, nil
 }
 
+// shouldRetry reports whether a failed relay may be attempted on another channel.
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
 		return false
@@ -437,6 +444,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
+// processChannelError records an upstream failure and applies channel error policy.
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	upstreamStatusCode := err.GetUpstreamStatusCode()
 	if upstreamStatusCode != err.StatusCode {
@@ -574,6 +582,7 @@ func RelayTaskFetch(c *gin.Context) {
 	}
 }
 
+// RelayTask validates and dispatches an asynchronous task relay request.
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {

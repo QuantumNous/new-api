@@ -36,6 +36,8 @@ func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage 
 	return openAIResp
 }
 
+// xAIStreamHandler forwards xAI chat chunks while retaining cached-token usage
+// details required for accurate prompt billing.
 func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	usage := &dto.Usage{}
 	var responseTextBuilder strings.Builder

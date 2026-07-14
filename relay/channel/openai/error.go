@@ -11,10 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// upstreamErrorStatusCode prevents error payloads carried by HTTP 2xx from
+// being exposed as successful relay responses.
 func upstreamErrorStatusCode(statusCode int) int {
 	return types.NormalizeUpstreamErrorStatusCode(statusCode)
 }
 
+// responsesStreamError recognizes terminal Responses API error event variants
+// and normalizes them to a retry-aware relay error.
 func responsesStreamError(event *dto.ResponsesStreamResponse) *types.NewAPIError {
 	if event == nil {
 		return nil
@@ -30,6 +34,8 @@ func responsesStreamError(event *dto.ResponsesStreamResponse) *types.NewAPIError
 	}
 }
 
+// writeConvertedStreamError emits a mid-stream failure in the converted
+// Claude or OpenAI Chat protocol selected by the client.
 func writeConvertedStreamError(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) {
 	if apiErr == nil {
 		return
@@ -41,6 +47,8 @@ func writeConvertedStreamError(c *gin.Context, info *relaycommon.RelayInfo, apiE
 	_ = helper.ObjectData(c, gin.H{"error": apiErr.ToOpenAIError()})
 }
 
+// writeResponsesStreamError emits the flat type=error payload required by an
+// already-started OpenAI Responses stream.
 func writeResponsesStreamError(c *gin.Context, apiErr *types.NewAPIError) {
 	if apiErr == nil {
 		return

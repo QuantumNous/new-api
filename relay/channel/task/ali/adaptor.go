@@ -94,8 +94,10 @@ type AliUsage struct {
 	SR         dto.IntValue     `json:"SR,omitempty"`
 }
 
-type aliDurationValue int
+type aliDurationValue float64
 
+// UnmarshalJSON accepts the integer, decimal, and quoted duration forms used
+// by different Ali task endpoints while retaining fractional precision.
 func (v *aliDurationValue) UnmarshalJSON(data []byte) error {
 	var value dto.StringValue
 	if err := value.UnmarshalJSON(data); err != nil {
@@ -105,7 +107,7 @@ func (v *aliDurationValue) UnmarshalJSON(data []byte) error {
 	if err != nil || math.IsNaN(duration) || math.IsInf(duration, 0) || duration < 0 || duration > float64(^uint(0)>>1) {
 		return fmt.Errorf("invalid duration %q", value)
 	}
-	*v = aliDurationValue(int(duration))
+	*v = aliDurationValue(duration)
 	return nil
 }
 

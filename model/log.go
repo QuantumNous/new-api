@@ -113,6 +113,8 @@ func assignDisplayLogIds(logs []*Log, startIdx int) {
 	}
 }
 
+// formatUserLogs removes channel and administrator-only metadata before user
+// logs leave the model layer, then assigns display-only pagination IDs.
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
 		logs[i].ChannelId = 0

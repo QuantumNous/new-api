@@ -9,9 +9,12 @@ import (
 
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestBaiduStreamHandlerTreatsIsEndFollowedByEOFAsDone protects the ERNIE
+// terminal-frame/EOF race from appending a false error event.
 func TestBaiduStreamHandlerTreatsIsEndFollowedByEOFAsDone(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -33,12 +36,12 @@ func TestBaiduStreamHandlerTreatsIsEndFollowedByEOFAsDone(t *testing.T) {
 
 	require.Nil(t, apiErr)
 	require.NotNil(t, usage)
-	require.Equal(t, 1, usage.PromptTokens)
-	require.Equal(t, 1, usage.CompletionTokens)
-	require.Equal(t, 2, usage.TotalTokens)
+	assert.Equal(t, 1, usage.PromptTokens)
+	assert.Equal(t, 1, usage.CompletionTokens)
+	assert.Equal(t, 2, usage.TotalTokens)
 	require.NotNil(t, info.StreamStatus)
-	require.Equal(t, common.StreamEndReasonDone, info.StreamStatus.EndReason)
-	require.False(t, info.StreamStatus.HasErrors())
-	require.Contains(t, recorder.Body.String(), `"finish_reason":"stop"`)
-	require.NotContains(t, recorder.Body.String(), `"error"`)
+	assert.Equal(t, common.StreamEndReasonDone, info.StreamStatus.EndReason)
+	assert.False(t, info.StreamStatus.HasErrors())
+	assert.Contains(t, recorder.Body.String(), `"finish_reason":"stop"`)
+	assert.NotContains(t, recorder.Body.String(), `"error"`)
 }

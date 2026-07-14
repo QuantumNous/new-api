@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestXAIStreamHandlerPreservesPromptTokenDetails ensures cached prompt tokens
+// survive xAI stream conversion and remain available to billing.
 func TestXAIStreamHandlerPreservesPromptTokenDetails(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)

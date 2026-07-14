@@ -56,6 +56,8 @@ func (r *StreamResult) reset() {
 	r.stopped = false
 }
 
+// StreamErrorBeforeResponse returns an interruption error only while retrying
+// another channel remains safe because no real payload was written.
 func StreamErrorBeforeResponse(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	if HasWrittenUpstreamResponse(c) {
 		return nil
@@ -63,6 +65,8 @@ func StreamErrorBeforeResponse(c *gin.Context, info *relaycommon.RelayInfo) *typ
 	return StreamError(info)
 }
 
+// StreamError validates that a stream produced at least one event and reached
+// an explicit clean terminal state without handler or scanner errors.
 func StreamError(info *relaycommon.RelayInfo) *types.NewAPIError {
 	if info == nil || info.StreamStatus == nil {
 		return types.NewOpenAIError(fmt.Errorf("upstream returned an empty stream"), types.ErrorCodeEmptyResponse, http.StatusBadGateway)

@@ -477,16 +477,21 @@ func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return doRequest(c, req, info)
 }
 
+// cancelOnCloseBody keeps a traced request context alive until its response
+// body reaches EOF, fails, or is explicitly closed.
 type cancelOnCloseBody struct {
 	io.ReadCloser
 	cancel context.CancelFunc
 	once   sync.Once
 }
 
+// finish cancels the traced request context exactly once.
 func (b *cancelOnCloseBody) finish() {
 	b.once.Do(b.cancel)
 }
 
+// Read delegates to the upstream body and releases its request context when
+// the body terminates.
 func (b *cancelOnCloseBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	if err != nil {
@@ -495,12 +500,15 @@ func (b *cancelOnCloseBody) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// Close closes the upstream body and releases its request context.
 func (b *cancelOnCloseBody) Close() error {
 	err := b.ReadCloser.Close()
 	b.finish()
 	return err
 }
 
+// doRequest sends one upstream HTTP request with proxy selection, request-time
+// SSE keepalive, and a streaming first-byte deadline that does not bound body reads.
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error
@@ -519,7 +527,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
 		generalSettings := operation_setting.GetGeneralSetting()
-		if generalSettings.PingIntervalEnabled && !info.DisablePing && common2.StreamingFirstByteTimeout <= 0 {
+		if generalSettings.PingIntervalEnabled && !info.DisablePing {
 			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
 			stopPinger, pingerDone = startPingKeepAlive(c, pingInterval)
 			// 使用defer确保在任何情况下都能停止ping goroutine

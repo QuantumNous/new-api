@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// OaiResponsesHandler relays an OpenAI Responses API response and returns its usage.
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -69,6 +70,8 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	return &usage, nil
 }
 
+// OaiResponsesStreamHandler forwards native Responses events and always
+// accounts for text delivered before a terminal upstream error.
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid response or response body")
@@ -137,17 +140,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
-	if streamErr != nil {
-		if !helper.HasWrittenUpstreamResponse(c) {
-			return nil, streamErr
-		}
-		writeResponsesStreamError(c, streamErr)
-		return usage, nil
-	}
-	if apiErr := helper.StreamErrorBeforeResponse(c, info); apiErr != nil {
-		return nil, apiErr
-	}
-
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
 		tempStr := responseTextBuilder.String()
@@ -163,6 +155,16 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	}
 
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	if streamErr != nil {
+		if !helper.HasWrittenUpstreamResponse(c) {
+			return nil, streamErr
+		}
+		writeResponsesStreamError(c, streamErr)
+		return usage, nil
+	}
+	if apiErr := helper.StreamErrorBeforeResponse(c, info); apiErr != nil {
+		return nil, apiErr
+	}
 
 	return usage, nil
 }

@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRelayRetryDelayUsesBoundedExponentialJitter verifies every backoff stage
+// remains within its equal-jitter floor and exponential cap.
 func TestRelayRetryDelayUsesBoundedExponentialJitter(t *testing.T) {
 	for attempt, bounds := range []struct {
 		min time.Duration
@@ -31,11 +33,15 @@ func TestRelayRetryDelayUsesBoundedExponentialJitter(t *testing.T) {
 	}
 }
 
+// TestRelayRetryDelayHonorsAndCapsRetryAfter verifies upstream guidance wins
+// over jitter without allowing an excessive relay stall.
 func TestRelayRetryDelayHonorsAndCapsRetryAfter(t *testing.T) {
 	require.Equal(t, 5*time.Second, relayRetryDelay(0, 5*time.Second))
 	require.Equal(t, relayRetryAfterMax, relayRetryDelay(0, time.Minute))
 }
 
+// TestShouldRetryUpstreamFirstByteTimeout protects failover for the dedicated
+// first-byte timeout error even though its mapped status is 504.
 func TestShouldRetryUpstreamFirstByteTimeout(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -49,6 +55,8 @@ func TestShouldRetryUpstreamFirstByteTimeout(t *testing.T) {
 	require.True(t, shouldRetry(c, apiErr, 1))
 }
 
+// TestShouldRetryStopsAfterResponseWasWritten prevents duplicate model output
+// from a second channel after a partial response reached the client.
 func TestShouldRetryStopsAfterResponseWasWritten(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -65,6 +73,8 @@ func TestShouldRetryStopsAfterResponseWasWritten(t *testing.T) {
 	require.False(t, shouldRetry(c, apiErr, 1))
 }
 
+// TestShouldRetryAllowsSyntheticPingOnly confirms keepalive comments do not
+// make failover unsafe before the first upstream payload.
 func TestShouldRetryAllowsSyntheticPingOnly(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -79,6 +89,8 @@ func TestShouldRetryAllowsSyntheticPingOnly(t *testing.T) {
 	require.True(t, shouldRetry(c, apiErr, 1))
 }
 
+// TestRespondRelayErrorRestoresJSONContentTypeBeforeWrite verifies an unstarted
+// stream can still return the original HTTP status and JSON error contract.
 func TestRespondRelayErrorRestoresJSONContentTypeBeforeWrite(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -92,6 +104,8 @@ func TestRespondRelayErrorRestoresJSONContentTypeBeforeWrite(t *testing.T) {
 	require.Contains(t, recorder.Header().Get("Content-Type"), "application/json")
 }
 
+// TestRespondRelayErrorUsesSSEAfterSyntheticPing verifies Chat Completions
+// errors retain SSE framing after response headers were committed by a ping.
 func TestRespondRelayErrorUsesSSEAfterSyntheticPing(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -109,6 +123,8 @@ func TestRespondRelayErrorUsesSSEAfterSyntheticPing(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), "data: [DONE]")
 }
 
+// TestRespondRelayErrorUsesResponsesEventAfterSyntheticPing protects the flat
+// type=error event contract for Responses and Responses Compaction.
 func TestRespondRelayErrorUsesResponsesEventAfterSyntheticPing(t *testing.T) {
 	for _, relayFormat := range []types.RelayFormat{
 		types.RelayFormatOpenAIResponses,
@@ -136,6 +152,8 @@ func TestRespondRelayErrorUsesResponsesEventAfterSyntheticPing(t *testing.T) {
 	}
 }
 
+// TestRespondRelayErrorUsesGeminiErrorAfterSyntheticPing ensures native Gemini
+// streams never receive an OpenAI-shaped error after a keepalive.
 func TestRespondRelayErrorUsesGeminiErrorAfterSyntheticPing(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -154,6 +172,8 @@ func TestRespondRelayErrorUsesGeminiErrorAfterSyntheticPing(t *testing.T) {
 	require.NotContains(t, body, "[DONE]")
 }
 
+// TestRespondRelayErrorUsesGeminiJSONBeforeResponseWrite verifies native Gemini
+// errors preserve both the HTTP status and Google RPC JSON envelope.
 func TestRespondRelayErrorUsesGeminiJSONBeforeResponseWrite(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)

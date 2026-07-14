@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,6 +117,8 @@ func TestOaiResponsesToChatBufferedStreamHandlerReturnsJSONFromSSE(t *testing.T)
 	require.Contains(t, got, `"finish_reason":"tool_calls"`)
 }
 
+// TestOaiResponsesToChatBufferedStreamHandlerRejectsPrematureEOF ensures a
+// non-stream client never receives an incomplete buffered response as success.
 func TestOaiResponsesToChatBufferedStreamHandlerRejectsPrematureEOF(t *testing.T) {
 	body := `data: {"type":"response.output_text.delta","delta":"partial"}` + "\n\n"
 	c, recorder, resp, info := newResponsesChatTestContext(t, body, false)
@@ -126,6 +129,29 @@ func TestOaiResponsesToChatBufferedStreamHandlerRejectsPrematureEOF(t *testing.T
 	require.NotNil(t, apiErr)
 	require.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
 	require.Empty(t, recorder.Body.String())
+}
+
+// TestOaiResponsesToChatStreamHandlerBackfillsUsageBeforeMidStreamError
+// protects billing for converted text delivered before an error event.
+func TestOaiResponsesToChatStreamHandlerBackfillsUsageBeforeMidStreamError(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test"}}`,
+		`data: {"type":"response.output_text.delta","delta":"partial"}`,
+		`data: {"type":"error","code":"server_error","message":"upstream busy"}`,
+		``,
+	}, "\n")
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	info.ChannelMeta.UpstreamModelName = "custom-test"
+	info.SetEstimatePromptTokens(7)
+
+	usage, apiErr := OaiResponsesToChatStreamHandler(c, info, resp)
+
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 7, usage.PromptTokens)
+	assert.Greater(t, usage.CompletionTokens, 0)
+	assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+	assert.Contains(t, recorder.Body.String(), `"error"`)
 }
 
 func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {

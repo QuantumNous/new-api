@@ -231,6 +231,7 @@ func extractOpenAIImageStreamErrorMessage(data []byte) string {
 	return "upstream image stream returned error event"
 }
 
+// openaiImageJSONAsStreamHandler relays a JSON image response as server-sent events.
 func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 

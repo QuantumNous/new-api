@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// filterPricingByUsableGroups removes inaccessible models and trims each
+// surviving model's group metadata so callers cannot discover unusable groups.
 func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string]string) []model.Pricing {
 	if len(pricing) == 0 {
 		return pricing

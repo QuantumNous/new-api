@@ -54,6 +54,7 @@ type openAIImageData struct {
 	B64Json string `json:"b64_json"`
 }
 
+// zhipu4vImageHandler converts a Zhipu 4V image response and returns its usage.
 func zhipu4vImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	responseBody, err := io.ReadAll(resp.Body)

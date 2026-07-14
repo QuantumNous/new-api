@@ -32,6 +32,7 @@ func ConvertRerankRequest(request dto.RerankRequest) *AliRerankRequest {
 	}
 }
 
+// RerankHandler converts an Ali rerank response and returns its token usage.
 func RerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
 	defer service.CloseResponseBodyGracefully(resp)
 	responseBody, err := io.ReadAll(resp.Body)

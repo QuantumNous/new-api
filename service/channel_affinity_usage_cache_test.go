@@ -24,6 +24,8 @@ func buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP string)
 	return ctx
 }
 
+// TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode verifies Claude
+// cache-read usage is recorded under the Claude-specific accounting mode.
 func TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode(t *testing.T) {
 	ruleName := t.Name()
 	usingGroup := "default"
@@ -51,6 +53,8 @@ func TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode(t *testing.T) 
 	require.Equal(t, cacheTokenRateModeCachedOverPromptPlusCached, stats.CachedTokenRateMode)
 }
 
+// TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode verifies mixed
+// cache metrics preserve both provider-neutral and format-specific observations.
 func TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode(t *testing.T) {
 	ruleName := t.Name()
 	usingGroup := "default"
@@ -81,6 +85,8 @@ func TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode(t *testing.T) {
 	require.Equal(t, cacheTokenRateModeMixed, stats.CachedTokenRateMode)
 }
 
+// TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty
+// verifies unsupported relay formats do not pollute affinity usage state.
 func TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty(t *testing.T) {
 	ruleName := t.Name()
 	usingGroup := "default"

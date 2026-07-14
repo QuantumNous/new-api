@@ -1,7 +1,6 @@
 package palm
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 
@@ -50,6 +49,8 @@ func streamResponsePaLM2OpenAI(palmResponse *PaLMChatResponse) *dto.ChatCompleti
 	return &response
 }
 
+// palmStreamHandler preserves genuine upstream HTTP failures and normalizes
+// business-error envelopes carried by HTTP 200 responses to 502.
 func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError, string) {
 	defer service.CloseResponseBodyGracefully(resp)
 	responseBody, err := io.ReadAll(resp.Body)
@@ -57,7 +58,7 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 		return types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway), ""
 	}
 	var palmResponse PaLMChatResponse
-	if err := json.Unmarshal(responseBody, &palmResponse); err != nil {
+	if err := common.Unmarshal(responseBody, &palmResponse); err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway), ""
 	}
 	if palmResponse.Error.Code != 0 || len(palmResponse.Candidates) == 0 {
@@ -69,7 +70,7 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 			Message: message,
 			Type:    palmResponse.Error.Status,
 			Code:    palmResponse.Error.Code,
-		}, http.StatusBadGateway), ""
+		}, types.NormalizeUpstreamErrorStatusCode(resp.StatusCode)), ""
 	}
 	fullTextResponse := streamResponsePaLM2OpenAI(&palmResponse)
 	fullTextResponse.Id = helper.GetResponseID(c)
@@ -82,6 +83,8 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 	return nil, palmResponse.Candidates[0].Content
 }
 
+// palmHandler converts a complete PaLM response and refuses empty candidate
+// lists as upstream failures instead of emitting empty success payloads.
 func palmHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	responseBody, err := io.ReadAll(resp.Body)
@@ -89,7 +92,7 @@ func palmHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respons
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 	var palmResponse PaLMChatResponse
-	err = json.Unmarshal(responseBody, &palmResponse)
+	err = common.Unmarshal(responseBody, &palmResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}

@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestCompleteLoginWithTwoFAKeepsSessionPending verifies that the shared gate
+// never creates an authenticated session before the second factor succeeds.
 func TestCompleteLoginWithTwoFAKeepsSessionPending(t *testing.T) {
 	require.NoError(t, appI18n.Init())
 	db := setupModelListControllerTestDB(t)
@@ -78,6 +80,8 @@ func TestCompleteLoginWithTwoFAKeepsSessionPending(t *testing.T) {
 	assert.Equal(t, user.Id, state.PendingUserId)
 }
 
+// TestCompleteLoginWithTwoFARejectsDisabledUser covers disabled accounts with
+// and without 2FA so external login methods cannot bypass the status check.
 func TestCompleteLoginWithTwoFARejectsDisabledUser(t *testing.T) {
 	require.NoError(t, appI18n.Init())
 
@@ -146,6 +150,8 @@ func TestCompleteLoginWithTwoFARejectsDisabledUser(t *testing.T) {
 	}
 }
 
+// TestSetupLoginRejectsUserDisabledWhileTwoFAIsPending protects the race where
+// an administrator disables an account between primary and second-factor login.
 func TestSetupLoginRejectsUserDisabledWhileTwoFAIsPending(t *testing.T) {
 	require.NoError(t, appI18n.Init())
 	db := setupModelListControllerTestDB(t)

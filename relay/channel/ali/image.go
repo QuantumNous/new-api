@@ -283,6 +283,7 @@ func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, originBody [
 	return &imageResponse
 }
 
+// aliImageHandler converts an Ali image response into the requested relay format.
 func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
 	responseFormat := c.GetString("response_format")
 	defer service.CloseResponseBodyGracefully(resp)

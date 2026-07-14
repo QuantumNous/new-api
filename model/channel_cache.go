@@ -103,6 +103,8 @@ func InitChannelCache() {
 	common.SysLog("channels synced from database")
 }
 
+// SyncChannelCache refreshes the in-memory channel index and schedules the next
+// refresh only while memory caching remains enabled.
 func SyncChannelCache(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
@@ -111,6 +113,8 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
+// GetRandomSatisfiedChannel applies request-path filtering and failed-channel
+// exclusions consistently across the memory-cache and database selection paths.
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string, excludedSets ...map[int]struct{}) (*Channel, error) {
 	var excluded map[int]struct{}
 	if len(excludedSets) > 0 {

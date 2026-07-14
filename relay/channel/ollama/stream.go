@@ -91,6 +91,8 @@ func toUnix(ts string) int64 {
 	return t.Unix()
 }
 
+// ollamaStreamHandler translates Ollama JSON lines and preserves billing for
+// partial output when a malformed chunk or premature EOF ends the stream.
 func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("empty response"), types.ErrorCodeBadResponse, http.StatusBadRequest)
@@ -122,6 +124,9 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 				return nil, apiErr
 			}
 			_ = helper.ObjectData(c, gin.H{"error": apiErr.ToOpenAIError()})
+			if usage.TotalTokens == 0 {
+				usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			}
 			return usage, nil
 		}
 		if chunk.Model != "" {

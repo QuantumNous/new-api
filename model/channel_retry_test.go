@@ -5,9 +5,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestGetRandomSatisfiedChannelExcludesFailedAndUsesHighestRemainingPriority
+// verifies that cache retries never return an excluded channel or skip a priority tier.
 func TestGetRandomSatisfiedChannelExcludesFailedAndUsesHighestRemainingPriority(t *testing.T) {
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = true
@@ -41,18 +44,20 @@ func TestGetRandomSatisfiedChannelExcludesFailedAndUsesHighestRemainingPriority(
 	channel, err := GetRandomSatisfiedChannel("default", "gpt-test", 1, "/v1/chat/completions", map[int]struct{}{1: {}})
 	require.NoError(t, err)
 	require.NotNil(t, channel)
-	require.Equal(t, 2, channel.Id)
+	assert.Equal(t, 2, channel.Id)
 
 	channel, err = GetRandomSatisfiedChannel("default", "gpt-test", 2, "/v1/chat/completions", map[int]struct{}{1: {}, 2: {}})
 	require.NoError(t, err)
 	require.NotNil(t, channel)
-	require.Equal(t, 3, channel.Id)
+	assert.Equal(t, 3, channel.Id)
 
 	channel, err = GetRandomSatisfiedChannel("default", "gpt-test", 3, "/v1/chat/completions", map[int]struct{}{1: {}, 2: {}, 3: {}})
 	require.NoError(t, err)
-	require.Nil(t, channel)
+	assert.Nil(t, channel)
 }
 
+// TestGetRandomSatisfiedChannelDatabasePathExcludesFailedChannels verifies the
+// no-cache path applies the same exclusion contract as in-memory selection.
 func TestGetRandomSatisfiedChannelDatabasePathExcludesFailedChannels(t *testing.T) {
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = false
@@ -83,9 +88,9 @@ func TestGetRandomSatisfiedChannelDatabasePathExcludesFailedChannels(t *testing.
 	channel, err := GetRandomSatisfiedChannel(group, modelName, 1, "/v1/chat/completions", map[int]struct{}{firstID: {}})
 	require.NoError(t, err)
 	require.NotNil(t, channel)
-	require.Equal(t, secondID, channel.Id)
+	assert.Equal(t, secondID, channel.Id)
 
 	channel, err = GetRandomSatisfiedChannel(group, modelName, 2, "/v1/chat/completions", map[int]struct{}{firstID: {}, secondID: {}})
 	require.NoError(t, err)
-	require.Nil(t, channel)
+	assert.Nil(t, channel)
 }

@@ -75,6 +75,9 @@ func ExtendWriteDeadline(c *gin.Context) {
 	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(streamWriteTimeout))
 }
 
+// StreamScannerHandler consumes SSE data payloads and provider meta terminal
+// lines while coordinating timeout, keepalive, cancellation, and final status.
+// data: prefixes are removed; meta: prefixes are intentionally preserved.
 func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
 
 	if resp == nil || dataHandler == nil {
@@ -252,17 +255,20 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 
 			ticker.Reset(streamingTimeout)
-			data := scanner.Text()
-			logger.LogDebug(c, "stream scanner data: %s", data)
+			line := scanner.Text()
+			logger.LogDebug(c, "stream scanner data: %s", line)
 
-			if len(data) < 6 {
+			var data string
+			switch {
+			case strings.HasPrefix(line, "data:"):
+				data = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			case strings.HasPrefix(line, "meta:"):
+				data = strings.TrimSpace(line)
+			case strings.HasPrefix(strings.TrimSpace(line), "[DONE]"):
+				data = "[DONE]"
+			default:
 				continue
 			}
-			if data[:5] != "data:" && data[:6] != "[DONE]" {
-				continue
-			}
-			data = data[5:]
-			data = strings.TrimSpace(data)
 			if data == "" {
 				continue
 			}
@@ -290,7 +296,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
 			}
 		}
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
 	})
 
 	// 主循环等待完成或超时
@@ -306,6 +311,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}
 
 	cleanup()
+	if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNone {
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+	}
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))
 	} else {

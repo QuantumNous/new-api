@@ -175,6 +175,7 @@ func responseMiniMax2OpenAIImage(response *MiniMaxImageResponse, info *relaycomm
 	return imageResponse, nil
 }
 
+// miniMaxImageHandler converts a MiniMax image response and returns its usage.
 func miniMaxImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	responseBody, err := io.ReadAll(resp.Body)

@@ -1507,7 +1507,8 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 	return info, nil
 }
 
-// Update subscription used amount by delta (positive consume more, negative refund).
+// PostConsumeUserSubscriptionDelta applies a positive settlement charge or a
+// negative refund under a row lock, clamping refunds at zero usage.
 func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
 	if userSubscriptionId <= 0 {
 		return errors.New("invalid userSubscriptionId")
@@ -1520,6 +1521,8 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 	})
 }
 
+// postConsumeUserSubscriptionDeltaTx updates a locked subscription inside the
+// caller's transaction and rejects charges beyond the purchased total.
 func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64) error {
 	if tx == nil {
 		return errors.New("tx is nil")

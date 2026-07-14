@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestFilterPricingByUsableGroupsTrimsEnableGroups verifies that mixed group
+// metadata exposes only the intersection available to the requesting user.
 func TestFilterPricingByUsableGroupsTrimsEnableGroups(t *testing.T) {
 	pricing := []model.Pricing{
 		{ModelName: "model-mixed", EnableGroup: []string{"default", "internal"}},
@@ -26,6 +28,8 @@ func TestFilterPricingByUsableGroupsTrimsEnableGroups(t *testing.T) {
 	assert.Equal(t, []string{"default", "internal"}, pricing[0].EnableGroup)
 }
 
+// TestFilterPricingByUsableGroupsEmptyInputs fixes the empty-access contract:
+// no usable group must produce no visible pricing entries.
 func TestFilterPricingByUsableGroupsEmptyInputs(t *testing.T) {
 	pricing := []model.Pricing{{ModelName: "model-a", EnableGroup: []string{"default"}}}
 

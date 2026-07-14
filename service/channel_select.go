@@ -21,6 +21,8 @@ type RetryParam struct {
 	resetNextTry       bool
 }
 
+// ExcludeChannel records a failed non-multi-key channel so later attempts cannot
+// select the same exhausted upstream again.
 func (p *RetryParam) ExcludeChannel(channelId int) {
 	if p == nil || channelId <= 0 {
 		return

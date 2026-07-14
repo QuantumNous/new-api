@@ -114,9 +114,10 @@ func embeddingResponseBaidu2OpenAI(response *BaiduEmbeddingResponse) *dto.OpenAI
 	return &openAIEmbeddingResponse
 }
 
+// baiduStreamHandler converts ERNIE SSE chunks and treats the provider's
+// is_end frame as the authoritative successful terminal event.
 func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	usage := &dto.Usage{}
-	receivedEnd := false
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var baiduResponse BaiduChatStreamResponse
 		if err := common.Unmarshal([]byte(data), &baiduResponse); err != nil {
@@ -135,21 +136,10 @@ func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 			sr.Error(err)
 		}
 		if baiduResponse.IsEnd {
-			receivedEnd = true
 			sr.Done()
 		}
 	})
 	service.CloseResponseBodyGracefully(resp)
-	// The scanner and data handler run concurrently. If Baidu closes the body
-	// immediately after is_end=true, EOF can win the StreamStatus endOnce race.
-	// All stream goroutines have exited here, so normalize that confirmed clean
-	// terminal frame to the protocol's normal completion state.
-	if receivedEnd && info.StreamStatus != nil &&
-		info.StreamStatus.EndReason == relaycommon.StreamEndReasonEOF &&
-		!info.StreamStatus.HasErrors() {
-		info.StreamStatus.EndReason = relaycommon.StreamEndReasonDone
-		info.StreamStatus.EndError = nil
-	}
 	if apiErr := helper.StreamError(info); apiErr != nil {
 		if !helper.HasWrittenUpstreamResponse(c) {
 			return apiErr, nil
@@ -159,6 +149,8 @@ func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return nil, usage
 }
 
+// baiduHandler promotes native business-error payloads to retryable upstream
+// failures instead of returning an empty HTTP 200 completion.
 func baiduHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	var baiduResponse BaiduChatResponse
 	defer service.CloseResponseBodyGracefully(resp)
@@ -184,6 +176,8 @@ func baiduHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 	return nil, &fullTextResponse.Usage
 }
 
+// baiduEmbeddingHandler preserves embedding usage while rejecting native
+// error envelopes before any downstream response is written.
 func baiduEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	var baiduResponse BaiduEmbeddingResponse
 	defer service.CloseResponseBodyGracefully(resp)

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -419,27 +421,149 @@ func (Task *Task) Update() error {
 	return err
 }
 
+// UpdateQuota persists only the settled task charge, avoiding accidental
+// overwrites of status fields changed by concurrent polling.
 func (t *Task) UpdateQuota() error {
 	return DB.Model(t).Update("quota", t.Quota).Error
 }
 
-// AdjustTaskUsedQuota synchronously applies an async task settlement delta to
-// both user and channel usage without counting it as another request.
-func AdjustTaskUsedQuota(userID, channelID, delta int) error {
-	if delta == 0 {
+// ApplyQuotaSettlement atomically applies an asynchronous task's final charge
+// to its funding source, token, task row, and aggregate usage counters. The
+// caller passes a subscription ID only when the task was funded by a
+// subscription; zero selects the wallet path. It writes through to the database
+// even when batch updates are enabled so every settlement row shares one
+// transaction; any queued pre-consume deltas remain additive and may flush
+// before or after this transaction without changing the final total.
+func (t *Task) ApplyQuotaSettlement(finalQuota int, subscriptionID int) error {
+	if t == nil {
+		return errors.New("task is nil")
+	}
+	if t.ID <= 0 {
+		return errors.New("task must be persisted before quota settlement")
+	}
+	if finalQuota < 0 {
+		return errors.New("final task quota cannot be negative")
+	}
+	if finalQuota == t.Quota {
 		return nil
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&User{}).Where("id = ?", userID).
-			UpdateColumn("used_quota", gorm.Expr("used_quota + ?", delta)).Error; err != nil {
+
+	expectedQuota := t.Quota
+	settlementDelta := finalQuota - expectedQuota
+	userID := 0
+	tokenKey := ""
+	walletSettlement := subscriptionID <= 0
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var storedTask Task
+		if err := lockForUpdate(tx).Where("id = ?", t.ID).First(&storedTask).Error; err != nil {
 			return err
 		}
-		if channelID <= 0 {
-			return nil
+		if storedTask.Quota != expectedQuota {
+			return fmt.Errorf("task quota changed before settlement: expected=%d actual=%d", expectedQuota, storedTask.Quota)
 		}
-		return tx.Model(&Channel{}).Where("id = ?", channelID).
-			UpdateColumn("used_quota", gorm.Expr("used_quota + ?", delta)).Error
+		if storedTask.PrivateData.BillingSource != t.PrivateData.BillingSource ||
+			storedTask.PrivateData.SubscriptionId != t.PrivateData.SubscriptionId {
+			return errors.New("task funding source changed before settlement")
+		}
+		if storedTask.PrivateData.SubscriptionId != subscriptionID {
+			return fmt.Errorf("task settlement funding mismatch: expected subscription=%d actual=%d", subscriptionID, storedTask.PrivateData.SubscriptionId)
+		}
+		if (storedTask.PrivateData.BillingSource == "subscription") != (subscriptionID > 0) {
+			return errors.New("task settlement billing source and subscription ID disagree")
+		}
+		userID = storedTask.UserId
+
+		if subscriptionID > 0 {
+			if err := postConsumeUserSubscriptionDeltaTx(tx, subscriptionID, int64(settlementDelta)); err != nil {
+				return err
+			}
+			result := tx.Model(&User{}).Where("id = ?", storedTask.UserId).
+				UpdateColumn("used_quota", gorm.Expr("used_quota + ?", settlementDelta))
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return fmt.Errorf("task settlement user not found: %w", gorm.ErrRecordNotFound)
+			}
+		} else {
+			result := tx.Model(&User{}).Where("id = ?", storedTask.UserId).Updates(map[string]any{
+				"quota":      gorm.Expr("quota - ?", settlementDelta),
+				"used_quota": gorm.Expr("used_quota + ?", settlementDelta),
+			})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return fmt.Errorf("task settlement user not found: %w", gorm.ErrRecordNotFound)
+			}
+		}
+
+		if storedTask.PrivateData.TokenId > 0 {
+			var token Token
+			query := tx.Select([]string{"id", "user_id", "key"}).
+				Where("id = ? AND user_id = ?", storedTask.PrivateData.TokenId, storedTask.UserId).
+				Limit(1).Find(&token)
+			if query.Error != nil {
+				return query.Error
+			}
+			if query.RowsAffected > 0 {
+				tokenKey = token.Key
+				result := tx.Model(&Token{}).Where("id = ? AND user_id = ?", token.Id, storedTask.UserId).Updates(map[string]any{
+					"remain_quota":  gorm.Expr("remain_quota - ?", settlementDelta),
+					"used_quota":    gorm.Expr("used_quota + ?", settlementDelta),
+					"accessed_time": common.GetTimestamp(),
+				})
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected != 1 {
+					return fmt.Errorf("task settlement token disappeared: %w", gorm.ErrRecordNotFound)
+				}
+			}
+		}
+
+		result := tx.Model(&Task{}).
+			Where("id = ? AND quota = ?", storedTask.ID, expectedQuota).
+			UpdateColumn("quota", finalQuota)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("task quota changed during settlement")
+		}
+
+		if storedTask.ChannelId > 0 {
+			result = tx.Model(&Channel{}).Where("id = ?", storedTask.ChannelId).
+				UpdateColumn("used_quota", gorm.Expr("used_quota + ?", settlementDelta))
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return fmt.Errorf("task settlement channel not found: %w", gorm.ErrRecordNotFound)
+			}
+		}
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	t.Quota = finalQuota
+	if common.RedisEnabled {
+		cacheDelta := int64(-settlementDelta)
+		if walletSettlement {
+			if err := cacheIncrUserQuota(userID, cacheDelta); err != nil {
+				common.SysLog("failed to synchronize task settlement user quota cache: " + err.Error())
+			}
+		}
+		if tokenKey != "" {
+			if err := cacheIncrTokenQuota(tokenKey, cacheDelta); err != nil {
+				common.SysLog("failed to synchronize task settlement token quota cache: " + err.Error())
+			}
+		}
+	}
+	return nil
 }
 
 // UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).

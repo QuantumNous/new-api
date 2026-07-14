@@ -468,9 +468,14 @@ func isJSONRequest(c *gin.Context) bool {
 	return strings.Contains(strings.ToLower(c.Request.Header.Get("Content-Type")), "application/json")
 }
 
+// convertOpenAICompatibleRequest applies OpenAI channel normalization while
+// preserving client-provided stream options required by custom routes.
 func (a *Adaptor) convertOpenAICompatibleRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request != nil && info.SupportStreamOptions && lo.FromPtrOr(request.Stream, false) && constant.ForceStreamOption {
-		request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+		if request.StreamOptions == nil {
+			request.StreamOptions = &dto.StreamOptions{}
+		}
+		request.StreamOptions.IncludeUsage = true
 	}
 	old := info.ChannelType
 	info.ChannelType = constant.ChannelTypeOpenAI

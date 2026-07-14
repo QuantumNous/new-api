@@ -85,6 +85,8 @@ type SubscriptionFunding struct {
 
 func (s *SubscriptionFunding) Source() string { return BillingSourceSubscription }
 
+// PreConsume reserves the session's precomputed amount from a subscription that
+// is eligible for the request group and captures its purchased group snapshot.
 func (s *SubscriptionFunding) PreConsume(_ int) error {
 	// amount 参数被忽略，使用内部 s.amount（已在构造时根据 preConsumedQuota 计算）
 	res, err := model.PreConsumeUserSubscriptionForGroup(s.requestId, s.userId, s.modelName, s.group, 0, s.amount)

@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// prepareSubscriptionSafetyTest migrates and clears only the tables used by
+// subscription safety cases so each case starts from deterministic state.
 func prepareSubscriptionSafetyTest(t *testing.T) {
 	t.Helper()
 	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))
@@ -18,6 +20,8 @@ func prepareSubscriptionSafetyTest(t *testing.T) {
 	})
 }
 
+// createSubscriptionSafetyPlan inserts a mutable plan fixture used to verify
+// that purchased subscription snapshots, not later plan edits, drive billing.
 func createSubscriptionSafetyPlan(t *testing.T, id int, upgradeGroup string) {
 	t.Helper()
 	require.NoError(t, DB.Create(&SubscriptionPlan{
@@ -34,6 +38,8 @@ func createSubscriptionSafetyPlan(t *testing.T, id int, upgradeGroup string) {
 	}).Error)
 }
 
+// createSubscriptionSafetySubscription inserts an active subscription with an
+// explicit purchased group and wallet-overflow policy.
 func createSubscriptionSafetySubscription(t *testing.T, id, userId, planId int, upgradeGroup string, amountUsed int64, allowWalletOverflow bool) {
 	t.Helper()
 	now := time.Now()
@@ -51,6 +57,8 @@ func createSubscriptionSafetySubscription(t *testing.T, id, userId, planId int, 
 	}).Error)
 }
 
+// subscriptionSafetyUsed reads persisted usage so assertions validate database
+// effects rather than an in-memory subscription copy.
 func subscriptionSafetyUsed(t *testing.T, id int) int64 {
 	t.Helper()
 	var sub UserSubscription
@@ -58,6 +66,8 @@ func subscriptionSafetyUsed(t *testing.T, id int) int64 {
 	return sub.AmountUsed
 }
 
+// TestPreConsumeUserSubscriptionForGroupSkipsMismatchedPlan verifies a scoped
+// subscription cannot fund requests routed through another group.
 func TestPreConsumeUserSubscriptionForGroupSkipsMismatchedPlan(t *testing.T) {
 	prepareSubscriptionSafetyTest(t)
 
@@ -75,6 +85,8 @@ func TestPreConsumeUserSubscriptionForGroupSkipsMismatchedPlan(t *testing.T) {
 	assert.EqualValues(t, 300, subscriptionSafetyUsed(t, 710002))
 }
 
+// TestPreConsumeUserSubscriptionForGroupAllowsUnscopedPlan preserves the legacy
+// contract that an empty purchased group can fund any usable request group.
 func TestPreConsumeUserSubscriptionForGroupAllowsUnscopedPlan(t *testing.T) {
 	prepareSubscriptionSafetyTest(t)
 
@@ -88,6 +100,8 @@ func TestPreConsumeUserSubscriptionForGroupAllowsUnscopedPlan(t *testing.T) {
 	assert.EqualValues(t, 300, subscriptionSafetyUsed(t, 710005))
 }
 
+// TestPreConsumeUserSubscriptionForGroupUsesPurchasedGroupSnapshot ensures a
+// later plan-group edit cannot broaden or revoke an existing purchase unexpectedly.
 func TestPreConsumeUserSubscriptionForGroupUsesPurchasedGroupSnapshot(t *testing.T) {
 	prepareSubscriptionSafetyTest(t)
 
@@ -112,6 +126,8 @@ func TestPreConsumeUserSubscriptionForGroupUsesPurchasedGroupSnapshot(t *testing
 	assert.EqualValues(t, 300, subscriptionSafetyUsed(t, 710007))
 }
 
+// TestUserActiveSubscriptionsAllowWalletOverflowForGroupIgnoresMismatchedPlan
+// ensures an unrelated strict subscription does not block wallet fallback.
 func TestUserActiveSubscriptionsAllowWalletOverflowForGroupIgnoresMismatchedPlan(t *testing.T) {
 	prepareSubscriptionSafetyTest(t)
 
@@ -128,6 +144,8 @@ func TestUserActiveSubscriptionsAllowWalletOverflowForGroupIgnoresMismatchedPlan
 	assert.False(t, allowed)
 }
 
+// TestRefundSubscriptionPreConsumeIsIdempotent verifies request-ID bookkeeping
+// permits retries without returning the same reserved quota twice.
 func TestRefundSubscriptionPreConsumeIsIdempotent(t *testing.T) {
 	prepareSubscriptionSafetyTest(t)
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
 	"os"
@@ -143,6 +144,28 @@ func makeTask(userId, channelId, quota, tokenId int, billingSource string, subsc
 	}
 }
 
+// persistBillingTask stores a task so settlement can lock and update its
+// durable quota in the same transaction as the related accounting rows.
+func persistBillingTask(t *testing.T, task *model.Task) {
+	t.Helper()
+	require.NoError(t, model.DB.Create(task).Error)
+}
+
+// injectTaskSettlementChannelFailure makes the final aggregate update fail so
+// tests can prove every earlier write in the settlement transaction rolls back.
+func injectTaskSettlementChannelFailure(t *testing.T) {
+	t.Helper()
+	const callbackName = "task_billing_test:fail_channel_settlement"
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "channels" {
+			tx.AddError(errors.New("injected channel settlement failure"))
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Update().Remove(callbackName))
+	})
+}
+
 func TestPriceDataOtherRatiosFilterAndSnapshot(t *testing.T) {
 	priceData := types.PriceData{}
 
@@ -243,6 +266,8 @@ func TestTaskBillingContextPriceDataFiltersMultiplier(t *testing.T) {
 // Read-back helpers
 // ---------------------------------------------------------------------------
 
+// getUserQuota reads persisted wallet quota so settlement assertions do not
+// depend on stale model instances.
 func getUserQuota(t *testing.T, id int) int {
 	t.Helper()
 	var user model.User
@@ -250,6 +275,8 @@ func getUserQuota(t *testing.T, id int) int {
 	return user.Quota
 }
 
+// getUserUsedQuota reads the aggregate usage counter affected by async
+// settlement deltas without incrementing request count.
 func getUserUsedQuota(t *testing.T, id int) int {
 	t.Helper()
 	var user model.User
@@ -257,6 +284,8 @@ func getUserUsedQuota(t *testing.T, id int) int {
 	return user.UsedQuota
 }
 
+// getUserRequestCount verifies a refund or adjustment is not recorded as a new
+// API request.
 func getUserRequestCount(t *testing.T, id int) int {
 	t.Helper()
 	var user model.User
@@ -264,6 +293,8 @@ func getUserRequestCount(t *testing.T, id int) int {
 	return user.RequestCount
 }
 
+// getChannelUsedQuota reads the channel aggregate paired with user used_quota
+// so tests can assert both sides move by the same delta.
 func getChannelUsedQuota(t *testing.T, id int) int64 {
 	t.Helper()
 	var channel model.Channel
@@ -292,6 +323,15 @@ func getSubscriptionUsed(t *testing.T, id int) int64 {
 	return sub.AmountUsed
 }
 
+// getTaskQuota reads the durable final charge independently of the in-memory
+// task so rollback assertions cover the task row as well as account balances.
+func getTaskQuota(t *testing.T, id int64) int {
+	t.Helper()
+	var task model.Task
+	require.NoError(t, model.DB.Select("quota").Where("id = ?", id).First(&task).Error)
+	return task.Quota
+}
+
 func getLastLog(t *testing.T) *model.Log {
 	t.Helper()
 	var log model.Log
@@ -313,6 +353,8 @@ func countLogs(t *testing.T) int64 {
 // RefundTaskQuota tests
 // ===========================================================================
 
+// TestRefundTaskQuota_Wallet verifies a failed asynchronous task restores wallet
+// and token quota while emitting a refund log with the original model context.
 func TestRefundTaskQuota_Wallet(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -326,8 +368,9 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	persistBillingTask(t, task)
 
-	RefundTaskQuota(ctx, task, "task failed: upstream error")
+	require.NoError(t, RefundTaskQuota(ctx, task, "task failed: upstream error"))
 
 	// User quota should increase by preConsumed
 	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
@@ -335,6 +378,8 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	// Token remain_quota should increase, used_quota should decrease
 	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
 	assert.Equal(t, -preConsumed, getTokenUsedQuota(t, tokenID))
+	assert.Zero(t, task.Quota)
+	assert.Zero(t, getTaskQuota(t, task.ID))
 
 	// A refund log should be created
 	log := getLastLog(t)
@@ -344,6 +389,8 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	assert.Equal(t, "test-model", log.ModelName)
 }
 
+// TestRefundTaskQuota_RollsBackUsedQuotaWithoutCountingAnotherRequest verifies
+// refund statistics reverse consumption without inflating request volume.
 func TestRefundTaskQuota_RollsBackUsedQuotaWithoutCountingAnotherRequest(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -359,7 +406,8 @@ func TestRefundTaskQuota_RollsBackUsedQuotaWithoutCountingAnotherRequest(t *test
 		Update("used_quota", preConsumed).Error)
 
 	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
-	RefundTaskQuota(ctx, task, "upstream failed")
+	persistBillingTask(t, task)
+	require.NoError(t, RefundTaskQuota(ctx, task, "upstream failed"))
 
 	assert.Equal(t, 10000, getUserQuota(t, userID))
 	assert.Zero(t, getUserUsedQuota(t, userID))
@@ -367,6 +415,8 @@ func TestRefundTaskQuota_RollsBackUsedQuotaWithoutCountingAnotherRequest(t *test
 	assert.Equal(t, 1, getUserRequestCount(t, userID))
 }
 
+// TestRefundTaskQuota_Subscription verifies subscription-funded tasks refund
+// the subscription and token without touching wallet quota.
 func TestRefundTaskQuota_Subscription(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -382,8 +432,9 @@ func TestRefundTaskQuota_Subscription(t *testing.T) {
 	seedSubscription(t, subID, userID, subTotal, subUsed)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceSubscription, subID)
+	persistBillingTask(t, task)
 
-	RefundTaskQuota(ctx, task, "subscription task failed")
+	require.NoError(t, RefundTaskQuota(ctx, task, "subscription task failed"))
 
 	// Subscription used should decrease by preConsumed
 	assert.Equal(t, subUsed-int64(preConsumed), getSubscriptionUsed(t, subID))
@@ -396,6 +447,7 @@ func TestRefundTaskQuota_Subscription(t *testing.T) {
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
 
+// TestRefundTaskQuota_ZeroQuota verifies a task with no reservation is a no-op.
 func TestRefundTaskQuota_ZeroQuota(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -405,7 +457,7 @@ func TestRefundTaskQuota_ZeroQuota(t *testing.T) {
 
 	task := makeTask(userID, 0, 0, 0, BillingSourceWallet, 0)
 
-	RefundTaskQuota(ctx, task, "zero quota task")
+	require.NoError(t, RefundTaskQuota(ctx, task, "zero quota task"))
 
 	// No change to user quota
 	assert.Equal(t, 5000, getUserQuota(t, userID))
@@ -414,6 +466,7 @@ func TestRefundTaskQuota_ZeroQuota(t *testing.T) {
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+// TestRefundTaskQuota_NoToken verifies wallet refunds do not require a token row.
 func TestRefundTaskQuota_NoToken(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -425,8 +478,9 @@ func TestRefundTaskQuota_NoToken(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0) // TokenId=0
+	persistBillingTask(t, task)
 
-	RefundTaskQuota(ctx, task, "no token task failed")
+	require.NoError(t, RefundTaskQuota(ctx, task, "no token task failed"))
 
 	// User quota refunded
 	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
@@ -441,6 +495,8 @@ func TestRefundTaskQuota_NoToken(t *testing.T) {
 // RecalculateTaskQuota tests
 // ===========================================================================
 
+// TestRecalculate_PositiveDelta verifies an under-reserved wallet task charges
+// the same positive delta to wallet, token, task, and aggregate counters.
 func TestRecalculate_PositiveDelta(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -455,8 +511,9 @@ func TestRecalculate_PositiveDelta(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	persistBillingTask(t, task)
 
-	RecalculateTaskQuota(ctx, task, actualQuota, "adaptor adjustment")
+	require.NoError(t, RecalculateTaskQuota(ctx, task, actualQuota, "adaptor adjustment"))
 
 	// User quota should decrease by the delta (1000 additional charge)
 	assert.Equal(t, initQuota-(actualQuota-preConsumed), getUserQuota(t, userID))
@@ -466,6 +523,7 @@ func TestRecalculate_PositiveDelta(t *testing.T) {
 
 	// task.Quota should be updated to actualQuota
 	assert.Equal(t, actualQuota, task.Quota)
+	assert.Equal(t, actualQuota, getTaskQuota(t, task.ID))
 
 	// Log type should be Consume (additional charge)
 	log := getLastLog(t)
@@ -474,6 +532,8 @@ func TestRecalculate_PositiveDelta(t *testing.T) {
 	assert.Equal(t, actualQuota-preConsumed, log.Quota)
 }
 
+// TestRecalculate_NegativeDelta verifies an over-reserved wallet task returns
+// the difference and records the adjustment as a refund.
 func TestRecalculate_NegativeDelta(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -488,8 +548,9 @@ func TestRecalculate_NegativeDelta(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	persistBillingTask(t, task)
 
-	RecalculateTaskQuota(ctx, task, actualQuota, "adaptor adjustment")
+	require.NoError(t, RecalculateTaskQuota(ctx, task, actualQuota, "adaptor adjustment"))
 
 	// User quota should increase by abs(delta) = 2000 (refund overpayment)
 	assert.Equal(t, initQuota+(preConsumed-actualQuota), getUserQuota(t, userID))
@@ -507,6 +568,8 @@ func TestRecalculate_NegativeDelta(t *testing.T) {
 	assert.Equal(t, preConsumed-actualQuota, log.Quota)
 }
 
+// TestRecalculate_NegativeDeltaRollsBackUsedQuota verifies aggregate user and
+// channel usage converge on the final charge after a downward settlement.
 func TestRecalculate_NegativeDeltaRollsBackUsedQuota(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -522,13 +585,15 @@ func TestRecalculate_NegativeDeltaRollsBackUsedQuota(t *testing.T) {
 		Update("used_quota", preConsumed).Error)
 
 	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
-	RecalculateTaskQuota(ctx, task, actualQuota, "actual usage")
+	persistBillingTask(t, task)
+	require.NoError(t, RecalculateTaskQuota(ctx, task, actualQuota, "actual usage"))
 
 	assert.Equal(t, actualQuota, getUserUsedQuota(t, userID))
 	assert.Equal(t, int64(actualQuota), getChannelUsedQuota(t, channelID))
 	assert.Equal(t, 1, getUserRequestCount(t, userID))
 }
 
+// TestRecalculate_ZeroDelta verifies an exact reservation requires no writes.
 func TestRecalculate_ZeroDelta(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -540,7 +605,7 @@ func TestRecalculate_ZeroDelta(t *testing.T) {
 
 	task := makeTask(userID, 0, preConsumed, 0, BillingSourceWallet, 0)
 
-	RecalculateTaskQuota(ctx, task, preConsumed, "exact match")
+	require.NoError(t, RecalculateTaskQuota(ctx, task, preConsumed, "exact match"))
 
 	// No change to user quota
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
@@ -549,6 +614,7 @@ func TestRecalculate_ZeroDelta(t *testing.T) {
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+// TestRecalculate_ActualQuotaZero verifies invalid zero usage does not settle.
 func TestRecalculate_ActualQuotaZero(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -560,13 +626,15 @@ func TestRecalculate_ActualQuotaZero(t *testing.T) {
 
 	task := makeTask(userID, 0, 5000, 0, BillingSourceWallet, 0)
 
-	RecalculateTaskQuota(ctx, task, 0, "zero actual")
+	require.NoError(t, RecalculateTaskQuota(ctx, task, 0, "zero actual"))
 
 	// No change (early return)
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+// TestRecalculate_Subscription_NegativeDelta verifies an over-reserved
+// subscription task refunds both the subscription and token.
 func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -583,8 +651,9 @@ func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 	seedSubscription(t, subID, userID, subTotal, subUsed)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceSubscription, subID)
+	persistBillingTask(t, task)
 
-	RecalculateTaskQuota(ctx, task, actualQuota, "subscription over-charge")
+	require.NoError(t, RecalculateTaskQuota(ctx, task, actualQuota, "subscription over-charge"))
 
 	// Subscription used should decrease by delta (refund 3000)
 	assert.Equal(t, subUsed-int64(preConsumed-actualQuota), getSubscriptionUsed(t, subID))
@@ -599,6 +668,126 @@ func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
 
+// TestRecalculateTaskQuota_WritesThroughBatchMode verifies settlement bypasses
+// deferred batch queues and commits every related database row immediately.
+func TestRecalculateTaskQuota_WritesThroughBatchMode(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, channelID = 49, 49
+	const preConsumed, actualQuota = 1000, 600
+	seedUser(t, userID, 9000)
+	seedChannel(t, channelID)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).
+		Update("used_quota", preConsumed).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channelID).
+		Update("used_quota", preConsumed).Error)
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+	persistBillingTask(t, task)
+
+	common.BatchUpdateEnabled = true
+	t.Cleanup(func() { common.BatchUpdateEnabled = false })
+	require.NoError(t, RecalculateTaskQuota(ctx, task, actualQuota, "batch mode settlement"))
+
+	assert.Equal(t, 9400, getUserQuota(t, userID))
+	assert.Equal(t, actualQuota, getUserUsedQuota(t, userID))
+	assert.Equal(t, int64(actualQuota), getChannelUsedQuota(t, channelID))
+	assert.Equal(t, actualQuota, getTaskQuota(t, task.ID))
+}
+
+// TestRefundTaskQuota_RollsBackEveryBillingWrite verifies a late channel
+// failure leaves wallet, token, task quota, and both usage aggregates unchanged.
+func TestRefundTaskQuota_RollsBackEveryBillingWrite(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 47, 47, 47
+	const preConsumed = 3000
+	seedUser(t, userID, 7000)
+	seedToken(t, tokenID, userID, "sk-refund-atomic", 7000)
+	seedChannel(t, channelID)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]any{
+		"used_quota": preConsumed, "request_count": 1,
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channelID).
+		Update("used_quota", preConsumed).Error)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	persistBillingTask(t, task)
+	injectTaskSettlementChannelFailure(t)
+
+	err := RefundTaskQuota(ctx, task, "injected failure")
+	require.Error(t, err)
+	assert.Equal(t, 7000, getUserQuota(t, userID))
+	assert.Equal(t, preConsumed, getUserUsedQuota(t, userID))
+	assert.Equal(t, int64(preConsumed), getChannelUsedQuota(t, channelID))
+	assert.Equal(t, 7000, getTokenRemainQuota(t, tokenID))
+	assert.Zero(t, getTokenUsedQuota(t, tokenID))
+	assert.Equal(t, preConsumed, task.Quota)
+	assert.Equal(t, preConsumed, getTaskQuota(t, task.ID))
+	assert.Zero(t, countLogs(t))
+}
+
+// TestRecalculateTaskQuota_RollsBackEverySubscriptionWrite verifies a late
+// channel failure also rolls back subscription, token, task, and user writes.
+func TestRecalculateTaskQuota_RollsBackEverySubscriptionWrite(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID, subscriptionID = 48, 48, 48, 48
+	const preConsumed, actualQuota = 5000, 2000
+	seedUser(t, userID, 0)
+	seedToken(t, tokenID, userID, "sk-subscription-atomic", 5000)
+	seedChannel(t, channelID)
+	seedSubscription(t, subscriptionID, userID, 100000, preConsumed)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]any{
+		"used_quota": preConsumed, "request_count": 1,
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channelID).
+		Update("used_quota", preConsumed).Error)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceSubscription, subscriptionID)
+	persistBillingTask(t, task)
+	injectTaskSettlementChannelFailure(t)
+
+	err := RecalculateTaskQuota(ctx, task, actualQuota, "injected failure")
+	require.Error(t, err)
+	assert.Zero(t, getUserQuota(t, userID))
+	assert.Equal(t, preConsumed, getUserUsedQuota(t, userID))
+	assert.Equal(t, int64(preConsumed), getChannelUsedQuota(t, channelID))
+	assert.Equal(t, int64(preConsumed), getSubscriptionUsed(t, subscriptionID))
+	assert.Equal(t, 5000, getTokenRemainQuota(t, tokenID))
+	assert.Zero(t, getTokenUsedQuota(t, tokenID))
+	assert.Equal(t, preConsumed, task.Quota)
+	assert.Equal(t, preConsumed, getTaskQuota(t, task.ID))
+	assert.Zero(t, countLogs(t))
+}
+
+// TestRefundTaskQuota_RejectsFundingSourceMismatch verifies an in-memory task
+// cannot redirect a persisted subscription refund into the wallet path.
+func TestRefundTaskQuota_RejectsFundingSourceMismatch(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, channelID, subscriptionID = 50, 50, 50
+	const preConsumed = 2000
+	seedUser(t, userID, 100)
+	seedChannel(t, channelID)
+	seedSubscription(t, subscriptionID, userID, 10000, preConsumed)
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceSubscription, subscriptionID)
+	persistBillingTask(t, task)
+
+	task.PrivateData.BillingSource = BillingSourceWallet
+	task.PrivateData.SubscriptionId = 0
+	err := RefundTaskQuota(ctx, task, "tampered funding source")
+
+	require.Error(t, err)
+	assert.Equal(t, 100, getUserQuota(t, userID))
+	assert.Equal(t, int64(preConsumed), getSubscriptionUsed(t, subscriptionID))
+	assert.Equal(t, preConsumed, getTaskQuota(t, task.ID))
+	assert.Zero(t, countLogs(t))
+}
+
 // ===========================================================================
 // CAS + Billing integration tests
 // Simulates the flow in updateVideoSingleTask (service/task_polling.go)
@@ -607,7 +796,7 @@ func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 // simulatePollBilling reproduces the CAS + billing logic from updateVideoSingleTask.
 // It takes a persisted task (already in DB), applies the new status, and performs
 // the conditional update + billing exactly as the polling loop does.
-func simulatePollBilling(ctx context.Context, task *model.Task, newStatus model.TaskStatus, actualQuota int) {
+func simulatePollBilling(ctx context.Context, task *model.Task, newStatus model.TaskStatus, actualQuota int) error {
 	snap := task.Snapshot()
 
 	shouldRefund := false
@@ -646,13 +835,15 @@ func simulatePollBilling(ctx context.Context, task *model.Task, newStatus model.
 	}
 
 	if shouldSettle && actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "test settle")
+		return RecalculateTaskQuota(ctx, task, actualQuota, "test settle")
 	}
 	if shouldRefund {
-		RefundTaskQuota(ctx, task, task.FailReason)
+		return RefundTaskQuota(ctx, task, task.FailReason)
 	}
+	return nil
 }
 
+// TestCASGuardedRefund_Win verifies the status-CAS winner performs one refund.
 func TestCASGuardedRefund_Win(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -669,7 +860,7 @@ func TestCASGuardedRefund_Win(t *testing.T) {
 	task.Status = model.TaskStatus(model.TaskStatusInProgress)
 	require.NoError(t, model.DB.Create(task).Error)
 
-	simulatePollBilling(ctx, task, model.TaskStatus(model.TaskStatusFailure), 0)
+	require.NoError(t, simulatePollBilling(ctx, task, model.TaskStatus(model.TaskStatusFailure), 0))
 
 	// CAS wins: task in DB should now be FAILURE
 	var reloaded model.Task
@@ -685,6 +876,7 @@ func TestCASGuardedRefund_Win(t *testing.T) {
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
 
+// TestCASGuardedRefund_Lose verifies a status-CAS loser cannot double-refund.
 func TestCASGuardedRefund_Lose(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -707,7 +899,7 @@ func TestCASGuardedRefund_Lose(t *testing.T) {
 
 	// Our process still has the old in-memory state (IN_PROGRESS) and tries to transition
 	// task.Status is still IN_PROGRESS in the snapshot
-	simulatePollBilling(ctx, task, model.TaskStatus(model.TaskStatusFailure), 0)
+	require.NoError(t, simulatePollBilling(ctx, task, model.TaskStatus(model.TaskStatusFailure), 0))
 
 	// CAS lost: user quota should NOT change (no double refund)
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
@@ -717,6 +909,7 @@ func TestCASGuardedRefund_Lose(t *testing.T) {
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+// TestCASGuardedSettle_Win verifies the status-CAS winner settles exactly once.
 func TestCASGuardedSettle_Win(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -734,7 +927,7 @@ func TestCASGuardedSettle_Win(t *testing.T) {
 	task.Status = model.TaskStatus(model.TaskStatusInProgress)
 	require.NoError(t, model.DB.Create(task).Error)
 
-	simulatePollBilling(ctx, task, model.TaskStatus(model.TaskStatusSuccess), actualQuota)
+	require.NoError(t, simulatePollBilling(ctx, task, model.TaskStatus(model.TaskStatusSuccess), actualQuota))
 
 	// CAS wins: task should be SUCCESS
 	var reloaded model.Task
@@ -749,6 +942,7 @@ func TestCASGuardedSettle_Win(t *testing.T) {
 	assert.Equal(t, actualQuota, task.Quota)
 }
 
+// TestNonTerminalUpdate_NoBilling verifies progress-only polls do not settle.
 func TestNonTerminalUpdate_NoBilling(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -765,7 +959,7 @@ func TestNonTerminalUpdate_NoBilling(t *testing.T) {
 	require.NoError(t, model.DB.Create(task).Error)
 
 	// Simulate a non-terminal poll update (still IN_PROGRESS, progress changed)
-	simulatePollBilling(ctx, task, model.TaskStatus(model.TaskStatusInProgress), 0)
+	require.NoError(t, simulatePollBilling(ctx, task, model.TaskStatus(model.TaskStatusInProgress), 0))
 
 	// User quota should NOT change
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
@@ -792,10 +986,15 @@ func (m *mockAdaptor) FetchTask(string, string, map[string]any, string) (*http.R
 	return nil, nil
 }
 func (m *mockAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) { return nil, nil }
+
+// AdjustBillingOnComplete returns a deterministic provider adjustment so tests
+// can distinguish adaptor pricing from token fallback pricing.
 func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
 	return m.adjustReturn
 }
 
+// TestTaskBillingContext_OldJSONRemainsCompatible verifies snapshots written
+// before completion_ratio was introduced still decode without data loss.
 func TestTaskBillingContext_OldJSONRemainsCompatible(t *testing.T) {
 	var billingContext model.TaskBillingContext
 	require.NoError(t, common.Unmarshal([]byte(`{"model_ratio":0.5,"group_ratio":2,"origin_model_name":"legacy-video"}`), &billingContext))
@@ -805,6 +1004,8 @@ func TestTaskBillingContext_OldJSONRemainsCompatible(t *testing.T) {
 	assert.Zero(t, billingContext.CompletionRatio)
 }
 
+// TestSettleTaskBilling_UsesSnapshotCompletionRatio verifies output pricing uses
+// the ratio captured at submission rather than mutable global settings.
 func TestSettleTaskBilling_UsesSnapshotCompletionRatio(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -826,11 +1027,11 @@ func TestSettleTaskBilling_UsesSnapshotCompletionRatio(t *testing.T) {
 	task.PrivateData.BillingContext.OriginModelName = "snapshot-only-video-model"
 	require.NoError(t, model.DB.Create(task).Error)
 
-	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+	require.NoError(t, settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
 		Status:           model.TaskStatusSuccess,
 		TotalTokens:      100,
 		CompletionTokens: 40,
-	})
+	}))
 
 	// ((100 - 40) + 40 * 3) * 0.5 * 2 * 4 = 720.
 	assert.Equal(t, 720, task.Quota)
@@ -839,6 +1040,8 @@ func TestSettleTaskBilling_UsesSnapshotCompletionRatio(t *testing.T) {
 	assert.Equal(t, int64(720), getChannelUsedQuota(t, channelID))
 }
 
+// TestSettleTaskBilling_OldSnapshotKeepsLegacyCompletionRatio ensures legacy
+// snapshots keep output ratio one even if current model configuration changes.
 func TestSettleTaskBilling_OldSnapshotKeepsLegacyCompletionRatio(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -860,16 +1063,18 @@ func TestSettleTaskBilling_OldSnapshotKeepsLegacyCompletionRatio(t *testing.T) {
 	task.PrivateData.BillingContext.OriginModelName = "legacy-video"
 	require.NoError(t, model.DB.Create(task).Error)
 
-	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+	require.NoError(t, settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
 		Status:           model.TaskStatusSuccess,
 		TotalTokens:      100,
 		CompletionTokens: 40,
-	})
+	}))
 
 	// Legacy snapshots used a completion ratio of 1: (60 + 40) * 0.5 * 2 = 100.
 	assert.Equal(t, preConsumed, task.Quota)
 }
 
+// TestRecalculateTaskQuotaByTokens_TotalOnlyKeepsLegacyFormula verifies a
+// provider that reports only total usage does not invent output-token charges.
 func TestRecalculateTaskQuotaByTokens_TotalOnlyKeepsLegacyFormula(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -890,12 +1095,14 @@ func TestRecalculateTaskQuotaByTokens_TotalOnlyKeepsLegacyFormula(t *testing.T) 
 	task.PrivateData.BillingContext.OtherRatios = map[string]float64{"duration": 4}
 	require.NoError(t, model.DB.Create(task).Error)
 
-	RecalculateTaskQuotaByTokens(ctx, task, 100, 0)
+	require.NoError(t, RecalculateTaskQuotaByTokens(ctx, task, 100, 0))
 
 	// No completion usage: 100 * 0.5 * 2 * 4 = 400.
 	assert.Equal(t, 400, task.Quota)
 }
 
+// TestRecalculateTaskQuotaByTokens_NormalizesInvalidUsage covers negative,
+// completion-only, and completion-greater-than-total reports without overbilling.
 func TestRecalculateTaskQuotaByTokens_NormalizesInvalidUsage(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -951,7 +1158,7 @@ func TestRecalculateTaskQuotaByTokens_NormalizesInvalidUsage(t *testing.T) {
 			task.PrivateData.BillingContext.CompletionRatio = 3
 			require.NoError(t, model.DB.Create(task).Error)
 
-			RecalculateTaskQuotaByTokens(ctx, task, test.totalTokens, test.completionTokens)
+			require.NoError(t, RecalculateTaskQuotaByTokens(ctx, task, test.totalTokens, test.completionTokens))
 
 			assert.Equal(t, test.expectedQuota, task.Quota)
 		})
@@ -962,6 +1169,8 @@ func TestRecalculateTaskQuotaByTokens_NormalizesInvalidUsage(t *testing.T) {
 // PerCallBilling tests — settleTaskBillingOnComplete
 // ===========================================================================
 
+// TestSettle_PerCallBilling_SkipsAdaptorAdjust verifies fixed-price tasks ignore
+// provider-specific completion adjustments.
 func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -980,7 +1189,7 @@ func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
 	adaptor := &mockAdaptor{adjustReturn: 2000}
 	taskResult := &relaycommon.TaskInfo{Status: model.TaskStatusSuccess}
 
-	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+	require.NoError(t, settleTaskBillingOnComplete(ctx, adaptor, task, taskResult))
 
 	// Per-call: no adjustment despite adaptor returning 2000
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
@@ -989,6 +1198,8 @@ func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+// TestSettle_PerCallBilling_SkipsTotalTokens verifies fixed-price tasks ignore
+// token usage reported at completion.
 func TestSettle_PerCallBilling_SkipsTotalTokens(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -1007,7 +1218,7 @@ func TestSettle_PerCallBilling_SkipsTotalTokens(t *testing.T) {
 	adaptor := &mockAdaptor{adjustReturn: 0}
 	taskResult := &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, TotalTokens: 9999}
 
-	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+	require.NoError(t, settleTaskBillingOnComplete(ctx, adaptor, task, taskResult))
 
 	// Per-call: no recalculation by tokens
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
@@ -1016,6 +1227,8 @@ func TestSettle_PerCallBilling_SkipsTotalTokens(t *testing.T) {
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+// TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment verifies provider
+// adjustments remain enabled for usage-based asynchronous tasks.
 func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
@@ -1030,12 +1243,13 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	persistBillingTask(t, task)
 	// PerCallBilling defaults to false
 
 	adaptor := &mockAdaptor{adjustReturn: adaptorQuota}
 	taskResult := &relaycommon.TaskInfo{Status: model.TaskStatusSuccess}
 
-	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+	require.NoError(t, settleTaskBillingOnComplete(ctx, adaptor, task, taskResult))
 
 	// Non-per-call: adaptor adjustment applies (refund 2000)
 	assert.Equal(t, initQuota+(preConsumed-adaptorQuota), getUserQuota(t, userID))

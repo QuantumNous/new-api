@@ -429,6 +429,8 @@ type ResponsesStreamResponse struct {
 	Part         *ResponsesReasoningSummaryPart `json:"part,omitempty"`
 }
 
+// GetOpenAIError extracts a Responses stream error while tolerating nil events
+// and missing upstream type fields.
 func (r *ResponsesStreamResponse) GetOpenAIError() *types.OpenAIError {
 	if r == nil {
 		return nil

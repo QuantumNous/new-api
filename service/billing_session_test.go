@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestConstrainRetryGroupForBilling verifies scoped subscription retries stay
+// inside the purchased group while wallet and unscoped funding retain auto routing.
 func TestConstrainRetryGroupForBilling(t *testing.T) {
 	tests := []struct {
 		name       string

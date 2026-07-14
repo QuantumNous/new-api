@@ -223,6 +223,8 @@ func streamResponseDify2OpenAI(difyResponse DifyChunkChatCompletionResponse) *dt
 	return &response
 }
 
+// difyStreamHandler translates Dify events and estimates billable usage when
+// an error terminates a stream after partial output.
 func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var responseText string
 	usage := &dto.Usage{}
@@ -257,6 +259,13 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 			sr.Error(err)
 		}
 	})
+	if usage.TotalTokens == 0 && responseText != "" {
+		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
+	if nodeToken > 0 {
+		usage.CompletionTokens += nodeToken
+		usage.TotalTokens += nodeToken
+	}
 	if streamErr != nil {
 		if !helper.HasWrittenUpstreamResponse(c) {
 			return nil, streamErr
@@ -271,10 +280,10 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if usage.TotalTokens == 0 {
 		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
-	usage.CompletionTokens += nodeToken
 	return usage, nil
 }
 
+// difyHandler converts a buffered Dify response and returns its token usage.
 func difyHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var difyResponse DifyChatCompletionResponse
 	defer service.CloseResponseBodyGracefully(resp)

@@ -55,6 +55,7 @@ func sweepTimedOutTasks(ctx context.Context) {
 	legacyReason := "任务超时（旧系统遗留任务，不进行退款，请联系管理员）"
 	now := time.Now().Unix()
 	timedOutCount := 0
+	refundFailureCount := 0
 
 	for _, task := range tasks {
 		isLegacy := task.SubmitTime > 0 && task.SubmitTime < legacyTaskCutoff
@@ -80,12 +81,18 @@ func sweepTimedOutTasks(ctx context.Context) {
 		}
 		timedOutCount++
 		if !isLegacy && task.Quota != 0 {
-			RefundTaskQuota(ctx, task, reason)
+			if err := RefundTaskQuota(ctx, task, reason); err != nil {
+				refundFailureCount++
+				logger.LogError(ctx, fmt.Sprintf("sweepTimedOutTasks refund failed for task %s: %v", task.TaskID, err))
+			}
 		}
 	}
 
 	if timedOutCount > 0 {
 		logger.LogInfo(ctx, fmt.Sprintf("sweepTimedOutTasks: timed out %d tasks", timedOutCount))
+	}
+	if refundFailureCount > 0 {
+		logger.LogError(ctx, fmt.Sprintf("sweepTimedOutTasks: %d timed-out task refunds failed", refundFailureCount))
 	}
 }
 
@@ -181,7 +188,9 @@ func DispatchPlatformUpdate(ctx context.Context, platform constant.TaskPlatform,
 	case constant.TaskPlatformMidjourney:
 		// MJ 轮询由其自身处理，这里预留入口
 	case constant.TaskPlatformSuno:
-		_ = UpdateSunoTasks(ctx, taskChannelM, taskM)
+		if err := UpdateSunoTasks(ctx, taskChannelM, taskM); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("UpdateSunoTasks failed: %s", err.Error()))
+		}
 	default:
 		if err := UpdateVideoTasks(ctx, platform, taskChannelM, taskM); err != nil {
 			common.SysLog(fmt.Sprintf("UpdateVideoTasks fail: %s", err))
@@ -191,6 +200,7 @@ func DispatchPlatformUpdate(ctx context.Context, platform constant.TaskPlatform,
 
 // UpdateSunoTasks 按渠道更新所有 Suno 任务
 func UpdateSunoTasks(ctx context.Context, taskChannelM map[int][]string, taskM map[string]*model.Task) error {
+	var updateErrors []error
 	for channelId, taskIds := range taskChannelM {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -198,11 +208,14 @@ func UpdateSunoTasks(ctx context.Context, taskChannelM map[int][]string, taskM m
 		err := updateSunoTasks(ctx, channelId, taskIds, taskM)
 		if err != nil {
 			logger.LogError(ctx, fmt.Sprintf("渠道 #%d 更新异步任务失败: %s", channelId, err.Error()))
+			updateErrors = append(updateErrors, fmt.Errorf("channel %d: %w", channelId, err))
 		}
 	}
-	return nil
+	return errors.Join(updateErrors...)
 }
 
+// updateSunoTasks applies each Suno terminal transition with a status CAS so
+// concurrent pollers cannot refund the same failed task more than once.
 func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM map[string]*model.Task) error {
 	logger.LogInfo(ctx, fmt.Sprintf("渠道 #%d 未完成的任务有: %d", channelId, len(taskIds)))
 	if ctx.Err() != nil {
@@ -307,7 +320,9 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 		}
 		wasTerminal := snap.Status == model.TaskStatusFailure || snap.Status == model.TaskStatusSuccess
 		if task.Status == model.TaskStatusFailure && !wasTerminal && task.Quota != 0 {
-			RefundTaskQuota(ctx, task, task.FailReason)
+			if err := RefundTaskQuota(ctx, task, task.FailReason); err != nil {
+				return fmt.Errorf("refund Suno task %s: %w", task.TaskID, err)
+			}
 		}
 	}
 	return nil
@@ -360,6 +375,7 @@ func UpdateVideoTasks(ctx context.Context, platform constant.TaskPlatform, taskC
 	sort.Ints(channelIDs)
 
 	var wg sync.WaitGroup
+	updateErrors := make(chan error, len(channelIDs))
 	for _, channelId := range channelIDs {
 		taskIds := taskChannelM[channelId]
 		if len(taskIds) == 0 {
@@ -372,16 +388,24 @@ func UpdateVideoTasks(ctx context.Context, platform constant.TaskPlatform, taskC
 			defer wg.Done()
 			if err := updateVideoTasks(ctx, platform, channelId, taskIds, taskM); err != nil {
 				logger.LogError(ctx, fmt.Sprintf("Channel #%d failed to update video async tasks: %s", channelId, err.Error()))
+				updateErrors <- fmt.Errorf("channel %d: %w", channelId, err)
 			}
 		})
 	}
 	wg.Wait()
+	close(updateErrors)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	return nil
+	var errs []error
+	for err := range updateErrors {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
+// updateVideoTasks polls every pending task for one channel, continuing after
+// individual failures and returning their joined error to the channel runner.
 func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, channelId int, taskIds []string, taskM map[string]*model.Task) error {
 	logger.LogInfo(ctx, fmt.Sprintf("Channel #%d pending video tasks: %d", channelId, len(taskIds)))
 	if ctx.Err() != nil {
@@ -420,12 +444,14 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	info.ApiKey = cacheGetChannel.Key
 	adaptor.Init(info)
 	disablePollingSleep := cacheGetChannel.GetOtherSettings().DisableTaskPollingSleep
+	var updateErrors []error
 	for i, taskId := range taskIds {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Failed to update video task %s: %s", taskId, err.Error()))
+			updateErrors = append(updateErrors, fmt.Errorf("task %s: %w", taskId, err))
 		}
 		if disablePollingSleep || i == len(taskIds)-1 {
 			continue
@@ -438,9 +464,11 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 		case <-time.After(1 * time.Second):
 		}
 	}
-	return nil
+	return errors.Join(updateErrors...)
 }
 
+// updateVideoSingleTask polls one provider task and applies its terminal state
+// and billing adjustment, returning any settlement failure to the batch caller.
 func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *model.Channel, taskId string, taskM map[string]*model.Task) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -595,10 +623,14 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	if shouldSettle {
-		settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+		if err := settleTaskBillingOnComplete(ctx, adaptor, task, taskResult); err != nil {
+			return fmt.Errorf("settle task %s billing: %w", task.TaskID, err)
+		}
 	}
 	if shouldRefund {
-		RefundTaskQuota(ctx, task, task.FailReason)
+		if err := RefundTaskQuota(ctx, task, task.FailReason); err != nil {
+			return fmt.Errorf("refund task %s billing: %w", task.TaskID, err)
+		}
 	}
 
 	return nil
@@ -643,21 +675,20 @@ func truncateBase64(s string) string {
 //
 //  2. taskResult.TotalTokens > 0 → 按 token 重算
 //  3. 都不满足 → 保持预扣额度不变
-func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
+func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) error {
 	// 0. 按次计费的任务不做差额结算
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))
-		return
+		return nil
 	}
 	// 1. 优先让 adaptor 决定最终额度
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
-		return
+		return RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
 	}
 	// 2. 回退到 token 重算
 	if taskResult.TotalTokens > 0 || taskResult.CompletionTokens > 0 {
-		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens, taskResult.CompletionTokens)
-		return
+		return RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens, taskResult.CompletionTokens)
 	}
 	// 3. 无调整，保持预扣额度
+	return nil
 }

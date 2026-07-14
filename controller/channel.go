@@ -1156,6 +1156,8 @@ func equalStringPtr(a, b *string) bool {
 	return *a == *b
 }
 
+// FetchModels proxies a channel model-list request and always releases the
+// upstream response body, including non-200 responses.
 func FetchModels(c *gin.Context) {
 	var req struct {
 		BaseURL string `json:"base_url"`

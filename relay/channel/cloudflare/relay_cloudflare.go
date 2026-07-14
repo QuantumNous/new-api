@@ -2,13 +2,13 @@ package cloudflare
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -21,6 +21,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// cloudflareUpstreamError extracts both OpenAI-compatible and native
+// Cloudflare error envelopes without classifying valid success payloads.
 func cloudflareUpstreamError(responseBody []byte) *types.OpenAIError {
 	var envelope struct {
 		Success *bool  `json:"success"`
@@ -31,7 +33,7 @@ func cloudflareUpstreamError(responseBody []byte) *types.OpenAIError {
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
-	if err := json.Unmarshal(responseBody, &envelope); err != nil {
+	if err := common.Unmarshal(responseBody, &envelope); err != nil {
 		return nil
 	}
 	if upstreamErr := dto.GetOpenAIError(envelope.Error); upstreamErr != nil &&
@@ -54,6 +56,8 @@ func cloudflareUpstreamError(responseBody []byte) *types.OpenAIError {
 	return nil
 }
 
+// convertCf2CompletionsRequest maps the legacy completion prompt into the
+// native Cloudflare request shape.
 func convertCf2CompletionsRequest(textRequest dto.GeneralOpenAIRequest) *CfRequest {
 	p, _ := textRequest.Prompt.(string)
 	return &CfRequest{
@@ -64,6 +68,8 @@ func convertCf2CompletionsRequest(textRequest dto.GeneralOpenAIRequest) *CfReque
 	}
 }
 
+// cfStreamHandler rejects malformed or business-error chunks before output and
+// returns protocol errors in-stream only after real model content was written.
 func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	defer service.CloseResponseBodyGracefully(resp)
 	scanner := helper.NewStreamScanner(resp.Body)
@@ -94,7 +100,7 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 		}
 
 		var response dto.ChatCompletionsStreamResponse
-		err := json.Unmarshal([]byte(data), &response)
+		err := common.Unmarshal([]byte(data), &response)
 		if err != nil {
 			logger.LogError(c, "error_unmarshalling_stream_response: "+err.Error())
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
@@ -154,6 +160,8 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 	return nil, usage
 }
 
+// cfHandler validates chat and embedding schemas separately so provider error
+// envelopes cannot be serialized as empty successful OpenAI responses.
 func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	defer service.CloseResponseBodyGracefully(resp)
 	responseBody, err := io.ReadAll(resp.Body)
@@ -165,7 +173,7 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 	}
 	if info.RelayMode == relayconstant.RelayModeEmbeddings {
 		var response dto.OpenAIEmbeddingResponse
-		if err := json.Unmarshal(responseBody, &response); err != nil {
+		if err := common.Unmarshal(responseBody, &response); err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 		}
 		if len(response.Data) == 0 {
@@ -176,7 +184,7 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 			response.Usage.PromptTokens = info.GetEstimatePromptTokens()
 			response.Usage.TotalTokens = response.Usage.PromptTokens + response.Usage.CompletionTokens
 		}
-		jsonResponse, err := json.Marshal(response)
+		jsonResponse, err := common.Marshal(response)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 		}
@@ -186,7 +194,7 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 		return nil, &response.Usage
 	}
 	var response dto.TextResponse
-	err = json.Unmarshal(responseBody, &response)
+	err = common.Unmarshal(responseBody, &response)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
@@ -201,7 +209,7 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 	usage := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	response.Usage = *usage
 	response.Id = helper.GetResponseID(c)
-	jsonResponse, err := json.Marshal(response)
+	jsonResponse, err := common.Marshal(response)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
@@ -211,6 +219,8 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 	return nil, usage
 }
 
+// cfSTTHandler converts native transcription results while preserving
+// upstream business errors and response-body lifecycle guarantees.
 func cfSTTHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	defer service.CloseResponseBodyGracefully(resp)
 	var cfResp CfAudioResponse
@@ -221,7 +231,7 @@ func cfSTTHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 	if upstreamErr := cloudflareUpstreamError(responseBody); upstreamErr != nil {
 		return types.WithOpenAIError(*upstreamErr, types.NormalizeUpstreamErrorStatusCode(resp.StatusCode)), nil
 	}
-	err = json.Unmarshal(responseBody, &cfResp)
+	err = common.Unmarshal(responseBody, &cfResp)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
@@ -230,7 +240,7 @@ func cfSTTHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 		Text: cfResp.Result.Text,
 	}
 
-	jsonResponse, err := json.Marshal(audioResp)
+	jsonResponse, err := common.Marshal(audioResp)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}

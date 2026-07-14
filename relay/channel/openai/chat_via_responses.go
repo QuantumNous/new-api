@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// OaiResponsesToChatHandler converts a buffered Responses API result to Chat Completions.
 func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -77,6 +78,7 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	return usage, nil
 }
 
+// OaiResponsesToChatBufferedStreamHandler converts a buffered Responses stream to Chat Completions.
 func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -174,6 +176,8 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 	return usage, nil
 }
 
+// OaiResponsesToChatStreamHandler converts a Responses stream to the client's
+// protocol and estimates usage for partial output before an error event.
 func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -294,8 +298,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 		writeConvertedStreamError(c, info, streamErr)
 		usage := state.Usage()
-		if usage == nil {
-			usage = &dto.Usage{}
+		if usage == nil || usage.TotalTokens == 0 {
+			usage = service.ResponseText2Usage(c, state.UsageText(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			state.SetUsage(usage)
 		}
 		return usage, nil
 	}

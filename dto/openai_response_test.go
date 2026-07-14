@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGetOpenAIErrorDefaultsMissingType locks in a non-empty error type for
+// provider envelopes that include a message and code but omit type.
 func TestGetOpenAIErrorDefaultsMissingType(t *testing.T) {
 	apiErr := GetOpenAIError(map[string]any{
 		"message": "upstream busy",

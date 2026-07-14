@@ -1,7 +1,6 @@
 package cohere
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -19,12 +18,14 @@ import (
 	"github.com/samber/lo"
 )
 
+// cohereUpstreamError extracts Cohere business errors that may be wrapped in
+// an otherwise successful HTTP response.
 func cohereUpstreamError(responseBody []byte) *types.OpenAIError {
 	var envelope struct {
 		Message string `json:"message"`
 		Error   any    `json:"error"`
 	}
-	if err := json.Unmarshal(responseBody, &envelope); err != nil {
+	if err := common.Unmarshal(responseBody, &envelope); err != nil {
 		return nil
 	}
 	if message := strings.TrimSpace(envelope.Message); message != "" {
@@ -99,6 +100,8 @@ func stopReasonCohere2OpenAI(reason string) string {
 	}
 }
 
+// cohereStreamHandler converts Cohere line events and backfills usage when an
+// upstream error follows already-delivered text.
 func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	responseId := helper.GetResponseID(c)
@@ -132,7 +135,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			break
 		}
 		var cohereResp CohereResponse
-		if err := json.Unmarshal([]byte(data), &cohereResp); err != nil {
+		if err := common.Unmarshal([]byte(data), &cohereResp); err != nil {
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 			break
 		}
@@ -185,6 +188,9 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		if !helper.HasWrittenUpstreamResponse(c) {
 			return nil, streamErr
 		}
+		if usage.TotalTokens == 0 {
+			usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
+		}
 		_ = helper.ObjectData(c, gin.H{"error": streamErr.ToOpenAIError()})
 		return usage, nil
 	}
@@ -195,6 +201,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	return usage, nil
 }
 
+// cohereHandler converts a buffered Cohere chat response and returns its usage.
 func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	createdTime := common.GetTimestamp()
 	defer service.CloseResponseBodyGracefully(resp)
@@ -206,7 +213,7 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		return nil, types.WithOpenAIError(*upstreamErr, types.NormalizeUpstreamErrorStatusCode(resp.StatusCode))
 	}
 	var cohereResp CohereResponseResult
-	err = json.Unmarshal(responseBody, &cohereResp)
+	err = common.Unmarshal(responseBody, &cohereResp)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -233,7 +240,7 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		},
 	}
 
-	jsonResponse, err := json.Marshal(openaiResp)
+	jsonResponse, err := common.Marshal(openaiResp)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -243,6 +250,7 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	return &usage, nil
 }
 
+// cohereRerankHandler converts a Cohere rerank response and returns its usage.
 func cohereRerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	responseBody, err := io.ReadAll(resp.Body)
@@ -253,7 +261,7 @@ func cohereRerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, types.WithOpenAIError(*upstreamErr, types.NormalizeUpstreamErrorStatusCode(resp.StatusCode))
 	}
 	var cohereResp CohereRerankResponseResult
-	err = json.Unmarshal(responseBody, &cohereResp)
+	err = common.Unmarshal(responseBody, &cohereResp)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -272,7 +280,7 @@ func cohereRerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	rerankResp.Results = cohereResp.Results
 	rerankResp.Usage = usage
 
-	jsonResponse, err := json.Marshal(rerankResp)
+	jsonResponse, err := common.Marshal(rerankResp)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}

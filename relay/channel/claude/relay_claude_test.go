@@ -1,17 +1,60 @@
 package claude
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func commonPointer[T any](value T) *T {
 	return &value
+}
+
+// TestClaudeStreamHandlerBackfillsUsageAndPreservesCacheBeforeMidStreamError
+// verifies partial text is counted without discarding message_start cache usage.
+func TestClaudeStreamHandlerBackfillsUsageAndPreservesCacheBeforeMidStreamError(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Set(common.RequestIdKey, "claude-error-test")
+	body := strings.Join([]string{
+		`data: {"type":"message_start","message":{"id":"msg_1","model":"claude-test","usage":{"input_tokens":5,"cache_read_input_tokens":3}}}`,
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial"}}`,
+		`data: {"type":"error","error":{"type":"overloaded_error","message":"upstream busy"}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-test"},
+		RelayFormat: types.RelayFormatClaude,
+		IsStream:    true,
+		DisablePing: true,
+	}
+
+	usage, apiErr := ClaudeStreamHandler(c, resp, info)
+
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 5, usage.PromptTokens)
+	assert.Equal(t, 3, usage.PromptTokensDetails.CachedTokens)
+	assert.Greater(t, usage.CompletionTokens, 0)
+	assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+	assert.Contains(t, recorder.Body.String(), `"type":"overloaded_error"`)
 }
 
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {

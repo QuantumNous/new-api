@@ -90,6 +90,8 @@ func getPriority(group string, model string, retry int) (int, error) {
 	return priorityToUse, nil
 }
 
+// getChannelQuery builds the priority tier selected by a retry index when no
+// explicit failed-channel exclusion set is present.
 func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
 	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
@@ -105,6 +107,8 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
+// GetChannel selects a database-backed channel after removing failed IDs and,
+// when exclusions change the candidates, retains only the highest remaining priority.
 func GetChannel(group string, model string, retry int, requestPath string, excludedSets ...map[int]struct{}) (*Channel, error) {
 	var abilities []Ability
 	var excluded map[int]struct{}

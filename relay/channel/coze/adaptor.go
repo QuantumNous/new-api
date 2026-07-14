@@ -1,24 +1,26 @@
 package coze
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	appcommon "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
-type Adaptor struct {
-}
+// Adaptor implements the relay channel contract for Coze chat requests.
+type Adaptor struct{}
 
+// ConvertGeminiRequest reports that Coze does not support Gemini-format input.
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *common.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")
@@ -76,10 +78,13 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *common.RelayInfo, requestBody 
 	// 解析 resp
 	var cozeResponse CozeChatResponse
 	respBody, err := io.ReadAll(resp.Body)
+	service.CloseResponseBodyGracefully(resp)
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(respBody, &cozeResponse)
+	if err := appcommon.Unmarshal(respBody, &cozeResponse); err != nil {
+		return nil, fmt.Errorf("unmarshal create chat response failed: %w", err)
+	}
 	if cozeResponse.Code != 0 {
 		return nil, errors.New(cozeResponse.Msg)
 	}

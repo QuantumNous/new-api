@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,15 +22,19 @@ type errorReadCloser struct {
 	closed bool
 }
 
+// Read forces the response-body failure path without returning partial bytes.
 func (r *errorReadCloser) Read([]byte) (int, error) {
 	return 0, errors.New("read failed")
 }
 
+// Close records cleanup so read-failure tests can assert body ownership.
 func (r *errorReadCloser) Close() error {
 	r.closed = true
 	return nil
 }
 
+// TestResetStatusCode verifies mappings accept integral encodings, reject
+// malformed values, and retain the provider's original status for policy checks.
 func TestResetStatusCode(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +99,8 @@ func TestResetStatusCode(t *testing.T) {
 	}
 }
 
+// TestParseRetryAfter covers delta seconds, HTTP dates, expired values, and
+// saturation of values that cannot fit in time.Duration.
 func TestParseRetryAfter(t *testing.T) {
 	now := time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC)
 	require.Equal(t, 3*time.Second, ParseRetryAfter("3", now))
@@ -104,20 +111,26 @@ func TestParseRetryAfter(t *testing.T) {
 	require.Equal(t, time.Duration(1<<63-1), ParseRetryAfter("9223372036854775807", now))
 }
 
+// TestRelayErrorHandlerClosesBodyWhenReadFails protects response cleanup and
+// metadata preservation when the upstream body cannot be read.
 func TestRelayErrorHandlerClosesBodyWhenReadFails(t *testing.T) {
 	body := &errorReadCloser{}
 	resp := &http.Response{
 		StatusCode: http.StatusBadGateway,
-		Header:     make(http.Header),
+		Header:     http.Header{"Retry-After": []string{"7"}},
 		Body:       body,
 	}
 
 	apiErr := RelayErrorHandler(context.Background(), resp, false)
 
 	require.NotNil(t, apiErr)
-	require.True(t, body.closed)
+	assert.True(t, body.closed)
+	assert.Equal(t, http.StatusBadGateway, apiErr.UpstreamStatusCode)
+	assert.Equal(t, 7*time.Second, apiErr.RetryAfter)
 }
 
+// TestTaskErrorFromAPIErrorPreservesRetryAfter verifies async relay errors carry
+// provider backoff hints into task retry handling.
 func TestTaskErrorFromAPIErrorPreservesRetryAfter(t *testing.T) {
 	apiErr := types.NewErrorWithStatusCode(errors.New("busy"), types.ErrorCodeBadResponseStatusCode, http.StatusServiceUnavailable)
 	apiErr.RetryAfter = 7 * time.Second

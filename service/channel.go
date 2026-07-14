@@ -42,6 +42,8 @@ func EnableChannel(channelId int, usingKey string, channelName string) {
 	}
 }
 
+// ShouldDisableChannel evaluates auto-disable policy against the original
+// upstream status so locally mapped client statuses do not hide provider failures.
 func ShouldDisableChannel(err *types.NewAPIError) bool {
 	if !common.AutomaticDisableChannelEnabled {
 		return false

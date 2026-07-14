@@ -13,9 +13,12 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestOpenaiHandlerTurnsSuccessfulErrorPayloadIntoRetryableStatus verifies an
+// error envelope carried by HTTP 200 is normalized to a gateway failure.
 func TestOpenaiHandlerTurnsSuccessfulErrorPayloadIntoRetryableStatus(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -38,10 +41,14 @@ func TestOpenaiHandlerTurnsSuccessfulErrorPayloadIntoRetryableStatus(t *testing.
 	require.Equal(t, types.ErrorCode("overloaded"), apiErr.GetErrorCode())
 }
 
+// TestUpstreamErrorStatusCodePreservesFailureStatus verifies genuine upstream
+// failure statuses survive normalization unchanged.
 func TestUpstreamErrorStatusCodePreservesFailureStatus(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, upstreamErrorStatusCode(http.StatusServiceUnavailable))
 }
 
+// TestResponsesStreamErrorRecognizesTopLevelErrorEvent protects the flat error
+// event variant used by the Responses streaming API.
 func TestResponsesStreamErrorRecognizesTopLevelErrorEvent(t *testing.T) {
 	apiErr := responsesStreamError(&dto.ResponsesStreamResponse{
 		Type:    "error",
@@ -55,6 +62,8 @@ func TestResponsesStreamErrorRecognizesTopLevelErrorEvent(t *testing.T) {
 	require.Equal(t, types.ErrorCode("server_error"), apiErr.GetErrorCode())
 }
 
+// TestOpenaiHandlerRecognizesErrorWithoutType verifies a missing optional type
+// does not hide an otherwise valid upstream error envelope.
 func TestOpenaiHandlerRecognizesErrorWithoutType(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -77,6 +86,8 @@ func TestOpenaiHandlerRecognizesErrorWithoutType(t *testing.T) {
 	require.Equal(t, types.ErrorCode("server_error"), apiErr.GetErrorCode())
 }
 
+// TestOaiStreamHandlerRejectsFailuresBeforeWritingResponse keeps first-event
+// failures retryable and leaves the downstream body untouched.
 func TestOaiStreamHandlerRejectsFailuresBeforeWritingResponse(t *testing.T) {
 	oldTimeout := constant.StreamingTimeout
 	constant.StreamingTimeout = 30
@@ -120,6 +131,8 @@ func TestOaiStreamHandlerRejectsFailuresBeforeWritingResponse(t *testing.T) {
 	}
 }
 
+// TestOaiResponsesStreamHandlerRejectsErrorEventBeforeWritingResponse keeps a
+// first Responses error event retryable without emitting partial protocol data.
 func TestOaiResponsesStreamHandlerRejectsErrorEventBeforeWritingResponse(t *testing.T) {
 	oldTimeout := constant.StreamingTimeout
 	constant.StreamingTimeout = 30
@@ -149,6 +162,8 @@ func TestOaiResponsesStreamHandlerRejectsErrorEventBeforeWritingResponse(t *test
 	require.Empty(t, recorder.Body.String())
 }
 
+// TestOaiStreamHandlerDoesNotReturnRetryableErrorAfterWritingResponse prevents
+// failover from duplicating Chat Completions output after a mid-stream error.
 func TestOaiStreamHandlerDoesNotReturnRetryableErrorAfterWritingResponse(t *testing.T) {
 	oldTimeout := constant.StreamingTimeout
 	constant.StreamingTimeout = 30
@@ -186,6 +201,8 @@ func TestOaiStreamHandlerDoesNotReturnRetryableErrorAfterWritingResponse(t *test
 	require.NotContains(t, recorder.Body.String(), "data: [DONE]")
 }
 
+// TestOaiResponsesStreamHandlerForwardsMidStreamError verifies a Responses
+// error after text is forwarded and the delivered text remains billable.
 func TestOaiResponsesStreamHandlerForwardsMidStreamError(t *testing.T) {
 	oldTimeout := constant.StreamingTimeout
 	constant.StreamingTimeout = 30
@@ -212,11 +229,16 @@ func TestOaiResponsesStreamHandlerForwardsMidStreamError(t *testing.T) {
 		IsStream:    true,
 		DisablePing: true,
 	}
+	info.ChannelMeta.UpstreamModelName = "custom-test"
+	info.SetEstimatePromptTokens(7)
 
 	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
 
 	require.Nil(t, apiErr)
 	require.NotNil(t, usage)
+	assert.Equal(t, 7, usage.PromptTokens)
+	assert.Greater(t, usage.CompletionTokens, 0)
+	assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
 	require.Contains(t, recorder.Body.String(), `"type":"error"`)
 	require.Contains(t, recorder.Body.String(), `"message":"upstream busy"`)
 	require.NotContains(t, recorder.Body.String(), `"type":"response.completed"`)

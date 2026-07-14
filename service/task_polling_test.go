@@ -34,6 +34,8 @@ type taskPollingFetchAdaptor struct {
 
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
+// FetchTask returns the response fixture keyed by the requested task ID so
+// concurrent polling tests remain deterministic.
 func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
 	taskID, _ := body["task_id"].(string)
 	if taskID == a.blockTaskID && a.releaseBlock != nil {
@@ -106,6 +108,8 @@ func (a *taskPollingFetchAdaptor) fetchedTaskIDs() []string {
 	return append([]string(nil), a.taskIDs...)
 }
 
+// seedTaskPollingChannel creates the minimal enabled channel required by the
+// polling dispatcher and optionally disables inter-task delays in tests.
 func seedTaskPollingChannel(t *testing.T, id int, disableSleep bool) {
 	t.Helper()
 	baseURL := "http://example.test"
@@ -127,15 +131,20 @@ type closeTrackingReadCloser struct {
 	closed bool
 }
 
+// Read returns EOF immediately because the fixture tests ownership and cleanup,
+// not response parsing.
 func (b *closeTrackingReadCloser) Read(_ []byte) (int, error) {
 	return 0, io.EOF
 }
 
+// Close records that a non-OK polling response released its body.
 func (b *closeTrackingReadCloser) Close() error {
 	b.closed = true
 	return nil
 }
 
+// TestUpdateSunoTasksClosesNonOKResponseBody protects connection reuse when the
+// Suno polling endpoint returns an error status.
 func TestUpdateSunoTasksClosesNonOKResponseBody(t *testing.T) {
 	truncate(t)
 
@@ -159,6 +168,8 @@ func TestUpdateSunoTasksClosesNonOKResponseBody(t *testing.T) {
 	assert.True(t, body.closed)
 }
 
+// TestUpdateSunoTasksConcurrentFailureRefundsOnce verifies the terminal-status
+// CAS allows exactly one refund across concurrent pollers.
 func TestUpdateSunoTasksConcurrentFailureRefundsOnce(t *testing.T) {
 	truncate(t)
 

@@ -90,6 +90,7 @@ func streamResponseTencent2OpenAI(TencentResponse *TencentChatResponse) *dto.Cha
 	return &response
 }
 
+// tencentStreamHandler relays Tencent stream events and accumulates usage.
 func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	var responseText string
@@ -159,6 +160,7 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 	return usage, nil
 }
 
+// tencentHandler converts a buffered Tencent response and returns its usage.
 func tencentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	var tencentSb TencentChatResponseSB

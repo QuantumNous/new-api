@@ -136,6 +136,8 @@ func GetClaudeAuthHeader(token string) http.Header {
 	return h
 }
 
+// GetResponseBody executes a channel-authenticated request and closes the body
+// on every status path, preserving an earlier request or read error over a close error.
 func GetResponseBody(method, url string, channel *model.Channel, headers http.Header) (body []byte, err error) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {

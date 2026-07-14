@@ -37,6 +37,8 @@ var (
 	errOriginalPasswordFail = errors.New("original password is incorrect")
 )
 
+// Login validates password credentials and then delegates session creation to
+// the same status and 2FA gate used by external identity providers.
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
@@ -109,6 +111,8 @@ func completeLoginWithTwoFA(user *model.User, c *gin.Context) {
 	})
 }
 
+// ensureUserCanLogin centralizes the enabled-account invariant for both the
+// primary login gate and the final session-creation step.
 func ensureUserCanLogin(user *model.User, c *gin.Context) bool {
 	if user == nil || user.Status != common.UserStatusEnabled {
 		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
@@ -154,7 +158,8 @@ func recordLoginAudit(user *model.User, c *gin.Context) {
 	}, extra)
 }
 
-// setup session & cookies and then return user info
+// setupLogin rechecks account status immediately before persisting an
+// authenticated session, closing the disable-during-2FA race window.
 func setupLogin(user *model.User, c *gin.Context) {
 	// Recheck here because an administrator may disable the user while a 2FA
 	// login is pending.

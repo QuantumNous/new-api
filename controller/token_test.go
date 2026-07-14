@@ -163,6 +163,8 @@ func openTokenControllerExternalDB(t *testing.T, dialect string, dsn string) (*g
 	return db, managedTokensTable
 }
 
+// seedToken inserts a full-key fixture and returns the persisted row so masking
+// and ownership tests can compare API output with database state.
 func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string) *model.Token {
 	t.Helper()
 
@@ -184,6 +186,8 @@ func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string
 	return token
 }
 
+// seedTokenOwner creates the minimal enabled user required for group-access
+// validation without relying on state from another test.
 func seedTokenOwner(t *testing.T, db *gorm.DB, userID int, group string) {
 	t.Helper()
 	require.NoError(t, db.AutoMigrate(&model.User{}))
@@ -196,6 +200,8 @@ func seedTokenOwner(t *testing.T, db *gorm.DB, userID int, group string) {
 	}).Error)
 }
 
+// setTokenUsableGroups installs a temporary group policy and restores the
+// process-global setting during cleanup to keep token tests isolated.
 func setTokenUsableGroups(t *testing.T, value string) {
 	t.Helper()
 	previous := setting.UserUsableGroups2JSONString()
@@ -529,6 +535,8 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	}
 }
 
+// TestGetTokenKeyRequiresOwnershipAndReturnsFullKey verifies that the explicit
+// key-reveal endpoint returns a full key only to its owning user.
 func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	token := seedToken(t, db, 1, "owned-token", "owner1234token5678")
@@ -563,6 +571,8 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 }
 
+// TestAddTokenRejectsGroupUnavailableToUser prevents creation of a token pinned
+// to a group outside the owner's configured access set.
 func TestAddTokenRejectsGroupUnavailableToUser(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	seedTokenOwner(t, db, 101, "default")
@@ -582,6 +592,8 @@ func TestAddTokenRejectsGroupUnavailableToUser(t *testing.T) {
 	assert.Zero(t, count)
 }
 
+// TestUpdateTokenRejectsGroupUnavailableToUser prevents an update from moving
+// an existing token into a group the owner cannot use.
 func TestUpdateTokenRejectsGroupUnavailableToUser(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	seedTokenOwner(t, db, 102, "default")

@@ -24,6 +24,8 @@ func buildMaskedTokenResponse(token *model.Token) *model.Token {
 	return &maskedToken
 }
 
+// buildMaskedTokenResponses clones token rows before masking them so API
+// serialization cannot mutate cached models or expose full keys.
 func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 	maskedTokens := make([]*model.Token, 0, len(tokens))
 	for _, token := range tokens {
@@ -32,6 +34,8 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 	return maskedTokens
 }
 
+// validateTokenGroupForUser permits empty and auto routing while rejecting a
+// fixed group that the current user cannot select.
 func validateTokenGroupForUser(c *gin.Context, userId int, group string) bool {
 	if group == "" || group == "auto" {
 		return true
@@ -181,6 +185,8 @@ func GetTokenUsage(c *gin.Context) {
 	})
 }
 
+// AddToken creates a user token only after its fixed routing group is confirmed
+// usable, preventing tokens that fail every request at runtime.
 func AddToken(c *gin.Context) {
 	token := model.Token{}
 	err := c.ShouldBindJSON(&token)
@@ -267,6 +273,8 @@ func DeleteToken(c *gin.Context) {
 	})
 }
 
+// UpdateToken revalidates a changed fixed group while allowing unrelated edits
+// to legacy tokens whose stored group is no longer selectable.
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusOnly := c.Query("status_only")

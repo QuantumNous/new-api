@@ -130,7 +130,9 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	return nil
 }
 
-func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
+// finalizeClaudeStreamUsage fills only missing token totals so message_start
+// cache accounting remains intact on both clean and interrupted streams.
+func finalizeClaudeStreamUsage(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
 	if claudeInfo.Usage.PromptTokens == 0 {
 		//上游出错
 	}
@@ -155,6 +157,12 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 	if claudeInfo.Usage != nil && claudeInfo.Usage.BillingUsage == nil {
 		claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(buildMessageDeltaPatchUsage(nil, claudeInfo))
 	}
+}
+
+// HandleStreamFinalResponse finalizes Claude usage and emits the terminal
+// protocol frames expected by OpenAI-compatible clients.
+func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
+	finalizeClaudeStreamUsage(c, info, claudeInfo)
 
 	if info.RelayFormat == types.RelayFormatClaude {
 		//
@@ -171,6 +179,7 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 	}
 }
 
+// ClaudeStreamHandler relays Claude server-sent events and accumulates token usage.
 func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	claudeInfo := &ClaudeResponseInfo{
 		ResponseId:   helper.GetResponseID(c),
@@ -195,6 +204,7 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		} else {
 			_ = helper.ObjectData(c, gin.H{"error": err.ToOpenAIError()})
 		}
+		finalizeClaudeStreamUsage(c, info, claudeInfo)
 		return claudeInfo.Usage, nil
 	}
 	if apiErr := helper.StreamErrorBeforeResponse(c, info); apiErr != nil {

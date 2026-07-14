@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestUnsupportedClaudeConvertersReturnErrors prevents unsupported provider
+// conversions from crashing the relay process with implementation panics.
 func TestUnsupportedClaudeConvertersReturnErrors(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -53,6 +53,8 @@ func getWeChatIdByCode(code string) (string, error) {
 	return res.Data, nil
 }
 
+// WeChatAuth resolves or registers the WeChat identity, rejects disabled
+// accounts, and applies the shared 2FA gate before login completes.
 func WeChatAuth(c *gin.Context) {
 	if !common.WeChatAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{

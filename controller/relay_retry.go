@@ -16,6 +16,8 @@ const (
 	relayRetryAfterMax    = 30 * time.Second
 )
 
+// relayRetryDelay returns bounded exponential equal-jitter backoff while
+// honoring an upstream Retry-After value up to the relay wait cap.
 func relayRetryDelay(attempt int, retryAfter time.Duration) time.Duration {
 	if attempt < 0 {
 		attempt = 0
@@ -40,6 +42,8 @@ func relayRetryDelay(attempt int, retryAfter time.Duration) time.Duration {
 	return delay
 }
 
+// waitBeforeRelayRetry waits for the computed retry delay or aborts promptly
+// when the downstream request context is canceled.
 func waitBeforeRelayRetry(c *gin.Context, apiErr *types.NewAPIError, attempt int) bool {
 	retryAfter := time.Duration(0)
 	if apiErr != nil {

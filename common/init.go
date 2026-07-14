@@ -28,6 +28,8 @@ func printHelp() {
 	fmt.Println("Usage: newapi [--port <port>] [--log-dir <log directory>] [--version] [--help]")
 }
 
+// InitEnv applies process-level environment overrides before dependent settings
+// are initialized, including relay retry and first-byte timeout controls.
 func InitEnv() {
 	flag.Parse()
 

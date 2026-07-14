@@ -527,6 +527,8 @@ func TestAdaptorConvertsOpenAIChatRequestToResponsesUpstream(t *testing.T) {
 	assert.NotEmpty(t, responsesReq.Input)
 }
 
+// TestAdaptorRequestsUsageWhenResponsesStreamConvertsToChat verifies forced
+// usage reporting augments rather than replaces client stream options.
 func TestAdaptorRequestsUsageWhenResponsesStreamConvertsToChat(t *testing.T) {
 	oldForceStreamOption := constant.ForceStreamOption
 	constant.ForceStreamOption = true
@@ -549,9 +551,10 @@ func TestAdaptorRequestsUsageWhenResponsesStreamConvertsToChat(t *testing.T) {
 	c := advancedCustomGinContext("/v1/responses")
 
 	converted, err := adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
-		Model:  "gpt-test",
-		Input:  mustAdvancedCustomRawMessage(t, "hello"),
-		Stream: common.GetPointer(true),
+		Model:         "gpt-test",
+		Input:         mustAdvancedCustomRawMessage(t, "hello"),
+		Stream:        common.GetPointer(true),
+		StreamOptions: &dto.StreamOptions{IncludeObfuscation: true},
 	})
 	require.NoError(t, err)
 
@@ -559,6 +562,7 @@ func TestAdaptorRequestsUsageWhenResponsesStreamConvertsToChat(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, chatReq.StreamOptions)
 	require.True(t, chatReq.StreamOptions.IncludeUsage)
+	require.True(t, chatReq.StreamOptions.IncludeObfuscation)
 }
 
 func TestAdaptorConvertsOpenAIChatRequestToClaudeUpstream(t *testing.T) {

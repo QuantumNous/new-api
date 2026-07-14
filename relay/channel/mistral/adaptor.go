@@ -22,6 +22,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 	return nil, errors.New("not implemented")
 }
 
+// ConvertClaudeRequest reports that Claude request conversion is unsupported.
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")

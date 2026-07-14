@@ -263,6 +263,8 @@ func TestClearCurrentChannelAffinityCache(t *testing.T) {
 	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
 }
 
+// TestChannelAffinityHitCodexTemplatePassHeadersEffective verifies an affinity
+// cache hit still renders the selected channel's request-header template.
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

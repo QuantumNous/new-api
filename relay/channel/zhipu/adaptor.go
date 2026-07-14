@@ -23,6 +23,8 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 	return nil, errors.New("not implemented")
 }
 
+// ConvertClaudeRequest returns an explicit unsupported-conversion error so an
+// incompatible Zhipu route cannot panic the relay process.
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")

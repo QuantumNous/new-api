@@ -1,8 +1,6 @@
 package zhipu
 
 import (
-	"bufio"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -155,49 +153,42 @@ func streamMetaResponseZhipu2OpenAI(zhipuResponse *ZhipuStreamMetaResponse) (*dt
 	return &response, &zhipuResponse.Usage
 }
 
+// zhipuStreamHandler translates Zhipu's data/meta stream into OpenAI SSE while
+// preserving terminal usage and surfacing incomplete upstream streams as errors.
 func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
-	defer service.CloseResponseBodyGracefully(resp)
 	var usage *dto.Usage
 	var responseText strings.Builder
 	var streamErr *types.NewAPIError
-	completed := false
-	scanner := helper.NewStreamScanner(resp.Body)
-	scanner.Split(bufio.ScanLines)
-	helper.SetEventStreamHeaders(c)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		switch {
-		case strings.HasPrefix(line, "data:"):
-			response := streamResponseZhipu2OpenAI(strings.TrimPrefix(line, "data:"))
+		case strings.HasPrefix(data, "meta:"):
+			var zhipuResponse ZhipuStreamMetaResponse
+			if err := common.Unmarshal([]byte(strings.TrimPrefix(data, "meta:")), &zhipuResponse); err != nil {
+				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+				sr.Stop(streamErr)
+				return
+			}
+			response, zhipuUsage := streamMetaResponseZhipu2OpenAI(&zhipuResponse)
+			usage = zhipuUsage
+			if err := helper.ObjectData(c, response); err != nil {
+				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+				sr.Stop(streamErr)
+				return
+			}
+			sr.Done()
+		default:
+			response := streamResponseZhipu2OpenAI(data)
 			if len(response.Choices) > 0 {
 				responseText.WriteString(response.Choices[0].Delta.GetContentString())
 			}
 			if err := helper.ObjectData(c, response); err != nil {
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
-			}
-		case strings.HasPrefix(line, "meta:"):
-			var zhipuResponse ZhipuStreamMetaResponse
-			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "meta:")), &zhipuResponse); err != nil {
-				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
-				break
-			}
-			response, zhipuUsage := streamMetaResponseZhipu2OpenAI(&zhipuResponse)
-			usage = zhipuUsage
-			completed = true
-			if err := helper.ObjectData(c, response); err != nil {
-				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+				sr.Stop(streamErr)
 			}
 		}
-		if streamErr != nil || completed {
-			break
-		}
-	}
+	})
 	if streamErr == nil {
-		if err := scanner.Err(); err != nil {
-			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
-		} else if !completed {
-			streamErr = types.NewOpenAIError(io.ErrUnexpectedEOF, types.ErrorCodeBadResponse, http.StatusBadGateway)
-		}
+		streamErr = helper.StreamError(info)
 	}
 	if usage == nil {
 		usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
@@ -213,6 +204,8 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return usage, nil
 }
 
+// zhipuHandler translates a non-streaming Zhipu response into the OpenAI chat
+// completion schema and promotes successful-HTTP business errors to gateway errors.
 func zhipuHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	var zhipuResponse ZhipuResponse
@@ -220,7 +213,7 @@ func zhipuHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
-	err = json.Unmarshal(responseBody, &zhipuResponse)
+	err = common.Unmarshal(responseBody, &zhipuResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
@@ -231,7 +224,7 @@ func zhipuHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 		}, types.NormalizeUpstreamErrorStatusCode(resp.StatusCode))
 	}
 	fullTextResponse := responseZhipu2OpenAI(&zhipuResponse)
-	jsonResponse, err := json.Marshal(fullTextResponse)
+	jsonResponse, err := common.Marshal(fullTextResponse)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}

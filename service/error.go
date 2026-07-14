@@ -84,10 +84,20 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	return claudeErr
 }
 
+// RelayErrorHandler normalizes an upstream error body while preserving the raw
+// status and Retry-After metadata across every parse and read-error return path.
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
+	upstreamStatusCode := resp.StatusCode
+	retryAfter := ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+	defer func() {
+		if newApiErr == nil {
+			return
+		}
+		newApiErr.UpstreamStatusCode = upstreamStatusCode
+		newApiErr.RetryAfter = retryAfter
+	}()
+
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
-	newApiErr.UpstreamStatusCode = resp.StatusCode
-	newApiErr.RetryAfter = ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 	defer CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
@@ -120,8 +130,6 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		oaiError := errResponse.TryToOpenAIError()
 		if oaiError != nil {
 			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
-			newApiErr.UpstreamStatusCode = resp.StatusCode
-			newApiErr.RetryAfter = ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 			if showBodyWhenFail {
 				newApiErr.Err = buildErrWithBody(newApiErr.Error())
 			}
@@ -129,14 +137,14 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		}
 	}
 	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
-	newApiErr.UpstreamStatusCode = resp.StatusCode
-	newApiErr.RetryAfter = ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 	if showBodyWhenFail {
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
 	return
 }
 
+// ResetStatusCode applies configured client-facing mappings without discarding
+// the original upstream status used by retry and channel health decisions.
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {
 	if newApiErr == nil {
 		return
@@ -190,6 +198,8 @@ func ParseRetryAfter(value string, now time.Time) time.Duration {
 	return when.Sub(now)
 }
 
+// parseStatusCodeMappingValue accepts integral JSON representations and rejects
+// fractional or out-of-range HTTP status values.
 func parseStatusCodeMappingValue(value any) (int, bool) {
 	var statusCode int
 	switch v := value.(type) {

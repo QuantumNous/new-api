@@ -30,6 +30,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 	return nil, errors.New("not implemented")
 }
 
+// ConvertClaudeRequest reports that Claude request conversion is unsupported.
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")
@@ -102,6 +103,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
+// DoResponse relays a Dify response using the streaming or buffered handler.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.IsStream {
 		return difyStreamHandler(c, info, resp)

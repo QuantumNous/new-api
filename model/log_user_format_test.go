@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestFormatUserLogsRemovesChannelMetadata protects both top-level and nested
+// channel identifiers from disclosure in non-admin log responses.
 func TestFormatUserLogsRemovesChannelMetadata(t *testing.T) {
 	other := common.MapToJsonStr(map[string]interface{}{
 		"channel_id":    42,

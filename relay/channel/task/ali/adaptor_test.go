@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -172,12 +173,17 @@ func TestConvertToAliRequestWan25I2VKeepsLegacyImgURL(t *testing.T) {
 	require.NotContains(t, string(body), `"media"`)
 }
 
+// TestParseTaskResultAcceptsDecimalDuration verifies fractional Ali usage is
+// preserved by the provider DTO and does not break task-result parsing.
 func TestParseTaskResultAcceptsDecimalDuration(t *testing.T) {
 	body := []byte(`{"output":{"task_id":"task-1","task_status":"SUCCEEDED","video_url":"https://example.com/video.mp4"},"usage":{"duration":13.93}}`)
+	var upstream AliVideoResponse
+	require.NoError(t, common.Unmarshal(body, &upstream))
+	assert.InDelta(t, 13.93, float64(upstream.Usage.Duration), 1e-9)
 
 	result, err := (&TaskAdaptor{}).ParseTaskResult(body)
 
 	require.NoError(t, err)
-	require.Equal(t, model.TaskStatusSuccess, result.Status)
-	require.Equal(t, "https://example.com/video.mp4", result.Url)
+	assert.Equal(t, model.TaskStatusSuccess, result.Status)
+	assert.Equal(t, "https://example.com/video.mp4", result.Url)
 }

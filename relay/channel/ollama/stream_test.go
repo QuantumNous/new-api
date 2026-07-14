@@ -94,3 +94,31 @@ func TestOllamaChatHandlerNonStreamToolCalls(t *testing.T) {
 		})
 	}
 }
+
+// TestOllamaStreamHandlerBackfillsUsageBeforeMalformedChunkError ensures a
+// malformed line after valid text cannot turn partial output into free usage.
+func TestOllamaStreamHandlerBackfillsUsageBeforeMalformedChunkError(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`{"model":"llama3.1","created_at":"2026-05-27T12:00:00Z","message":{"role":"assistant","content":"partial"},"done":false}`,
+			`not-json`,
+			``,
+		}, "\n"))),
+	}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "llama3.1"}}
+	info.SetEstimatePromptTokens(7)
+
+	usage, apiErr := ollamaStreamHandler(c, info, resp)
+
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 7, usage.PromptTokens)
+	assert.Greater(t, usage.CompletionTokens, 0)
+	assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+	assert.Contains(t, recorder.Body.String(), `"error"`)
+}

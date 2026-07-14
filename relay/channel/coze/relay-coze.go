@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// convertCozeChatRequest maps supported OpenAI chat fields to a Coze request.
 func convertCozeChatRequest(c *gin.Context, request dto.GeneralOpenAIRequest) *CozeChatRequest {
 	var messages []CozeEnterMessage
 	// 将 request的messages的role为user的content转换为CozeMessage
@@ -46,6 +47,7 @@ func convertCozeChatRequest(c *gin.Context, request dto.GeneralOpenAIRequest) *C
 	return cozeRequest
 }
 
+// cozeChatHandler converts a completed Coze response to the OpenAI response format.
 func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -56,7 +58,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 	var response dto.TextResponse
 	var cozeResponse CozeChatDetailResponse
 	response.Model = info.UpstreamModelName
-	err = json.Unmarshal(responseBody, &cozeResponse)
+	err = common.Unmarshal(responseBody, &cozeResponse)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -86,7 +88,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 			FinishReason: "stop",
 		},
 	}
-	jsonResponse, err := json.Marshal(response)
+	jsonResponse, err := common.Marshal(response)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -97,6 +99,8 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 	return &usage, nil
 }
 
+// cozeChatStreamHandler requires an explicit terminal event and keeps failures
+// retryable until real model output has reached the downstream client.
 func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	scanner := helper.NewStreamScanner(resp.Body)
@@ -168,12 +172,14 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	return usage, nil
 }
 
+// handleCozeEvent converts one Coze SSE event and reports whether it is the
+// terminal event, keeping protocol errors retryable until output is written.
 func handleCozeEvent(c *gin.Context, event string, data string, responseText *string, usage *dto.Usage, id string, info *relaycommon.RelayInfo) (bool, *types.NewAPIError) {
 	switch event {
 	case "conversation.chat.completed":
 		// 将 data 解析为 CozeChatResponseData
 		var chatData CozeChatResponseData
-		err := json.Unmarshal([]byte(data), &chatData)
+		err := common.Unmarshal([]byte(data), &chatData)
 		if err != nil {
 			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
@@ -192,13 +198,13 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 	case "conversation.message.delta":
 		// 将 data 解析为 CozeChatV3MessageDetail
 		var messageData CozeChatV3MessageDetail
-		err := json.Unmarshal([]byte(data), &messageData)
+		err := common.Unmarshal([]byte(data), &messageData)
 		if err != nil {
 			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
 
 		var content string
-		err = json.Unmarshal(messageData.Content, &content)
+		err = common.Unmarshal(messageData.Content, &content)
 		if err != nil {
 			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
@@ -224,7 +230,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 
 	case "error":
 		var errorData CozeError
-		err := json.Unmarshal([]byte(data), &errorData)
+		err := common.Unmarshal([]byte(data), &errorData)
 		if err != nil {
 			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
@@ -237,6 +243,8 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 	return false, nil
 }
 
+// checkIfChatComplete polls a non-stream Coze conversation until it reaches a
+// terminal state or returns a provider error.
 func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo) (error, bool) {
 	requestURL := fmt.Sprintf("%s/v3/chat/retrieve", info.ChannelBaseUrl)
 
@@ -266,7 +274,7 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 	if err != nil {
 		return fmt.Errorf("read response body failed: %w", err), false
 	}
-	err = json.Unmarshal(responseBody, &cozeResponse)
+	err = common.Unmarshal(responseBody, &cozeResponse)
 	if err != nil {
 		return fmt.Errorf("unmarshal response body failed: %w", err), false
 	}
@@ -283,6 +291,7 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 	}
 }
 
+// getChatDetail retrieves the messages for a completed Coze conversation.
 func getChatDetail(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo) (*http.Response, error) {
 	requestURL := fmt.Sprintf("%s/v3/chat/message/list", info.ChannelBaseUrl)
 
@@ -302,6 +311,7 @@ func getChatDetail(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo) (*ht
 	return resp, nil
 }
 
+// doRequest sends a Coze polling request with the configured proxy client.
 func doRequest(req *http.Request, info *relaycommon.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error // 声明 err 变量

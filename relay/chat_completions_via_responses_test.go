@@ -32,7 +32,9 @@ func TestIsResponsesEventStreamContentType(t *testing.T) {
 	}
 }
 
-func TestIsResponsesStreamResponseSniffsMissingContentType(t *testing.T) {
+// TestIsResponsesStreamResponseSniffsBodyPrefix verifies SSE detection works
+// with missing or incorrect media types without consuming the response body.
+func TestIsResponsesStreamResponseSniffsBodyPrefix(t *testing.T) {
 	tests := []struct {
 		name         string
 		contentType  string
@@ -44,7 +46,9 @@ func TestIsResponsesStreamResponseSniffsMissingContentType(t *testing.T) {
 		{name: "missing header with event prefix", body: "event: response.created\ndata: {}\n", clientStream: true, want: true},
 		{name: "missing header with data prefix", body: "data: {}\n", clientStream: true, want: true},
 		{name: "missing header with json body", body: `{"id":"resp_1"}`, clientStream: true, want: false},
-		{name: "json header is authoritative", contentType: "application/json", body: "data: {}\n", clientStream: true, want: false},
+		{name: "json header with data prefix", contentType: "application/json", body: "data: {}\n", clientStream: true, want: true},
+		{name: "plain text header with event prefix", contentType: "text/plain", body: "event: response.created\ndata: {}\n", clientStream: true, want: true},
+		{name: "json header with json body", contentType: "application/json", body: `{"id":"resp_1"}`, clientStream: true, want: false},
 		{name: "non-stream client does not sniff", body: "data: {}\n", clientStream: false, want: false},
 	}
 
@@ -64,6 +68,8 @@ func TestIsResponsesStreamResponseSniffsMissingContentType(t *testing.T) {
 	}
 }
 
+// TestRecalcQuotaFromRatiosIgnoresInvalidMultipliers ensures non-finite and
+// non-positive provider ratios cannot corrupt a valid task adjustment.
 func TestRecalcQuotaFromRatiosIgnoresInvalidMultipliers(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		PriceData: types.PriceData{

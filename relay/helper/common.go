@@ -108,6 +108,7 @@ func StringData(c *gin.Context, str string) error {
 	return FlushWriter(c)
 }
 
+// PingData writes a keepalive comment to a server-sent event stream.
 func PingData(c *gin.Context) error {
 	if c == nil || c.Writer == nil {
 		return errors.New("context or writer is nil")
@@ -134,8 +135,12 @@ func HasWrittenUpstreamResponse(c *gin.Context) bool {
 	if c == nil || c.Writer == nil || !c.Writer.Written() {
 		return false
 	}
+	writtenBytes := c.Writer.Size()
+	if writtenBytes <= 0 {
+		return false
+	}
 	pingBytes := common.GetContextKeyInt(c, constant.ContextKeyRelayPingBytes)
-	return pingBytes <= 0 || c.Writer.Size() != pingBytes
+	return pingBytes <= 0 || writtenBytes != pingBytes
 }
 
 func ObjectData(c *gin.Context, object interface{}) error {

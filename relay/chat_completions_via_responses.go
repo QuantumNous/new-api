@@ -71,6 +71,8 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 	}
 }
 
+// chatCompletionsViaResponses converts chat requests to Responses while
+// detecting SSE bodies even when compatible upstreams mislabel their media type.
 func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request *dto.GeneralOpenAIRequest) (*dto.Usage, *types.NewAPIError) {
 	chatJSON, err := common.Marshal(request)
 	if err != nil {
@@ -185,10 +187,15 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	return usage, nil
 }
 
+// isResponsesEventStreamContentType performs a case-insensitive SSE media-type
+// check while allowing optional parameters such as charset.
 func isResponsesEventStreamContentType(contentType string) bool {
 	return strings.Contains(strings.ToLower(contentType), "text/event-stream")
 }
 
+// isResponsesStreamResponse combines the declared media type with a non-
+// destructive body-prefix check because some Codex-compatible upstreams omit
+// or mislabel SSE response headers.
 func isResponsesStreamResponse(resp *http.Response, clientStream bool) bool {
 	if resp == nil {
 		return false
@@ -197,7 +204,7 @@ func isResponsesStreamResponse(resp *http.Response, clientStream bool) bool {
 	if isResponsesEventStreamContentType(contentType) {
 		return true
 	}
-	if !clientStream || contentType != "" || resp.Body == nil {
+	if !clientStream || resp.Body == nil {
 		return false
 	}
 

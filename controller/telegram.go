@@ -81,6 +81,8 @@ func TelegramBind(c *gin.Context) {
 	c.Redirect(302, common.ThemeAwarePath("/console/personal"))
 }
 
+// TelegramLogin verifies Telegram authorization data and routes the resolved
+// account through the shared status and 2FA gates before creating a session.
 func TelegramLogin(c *gin.Context) {
 	if !common.TelegramOAuthEnabled {
 		c.JSON(200, gin.H{

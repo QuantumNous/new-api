@@ -70,6 +70,8 @@ func TestStreamScannerHandler_NilInputs(t *testing.T) {
 	StreamScannerHandler(c, &http.Response{Body: io.NopCloser(strings.NewReader(""))}, info, nil)
 }
 
+// TestStreamScannerHandler_InvalidStreamingTimeoutUsesDefault prevents a
+// disabled or negative setting from panicking time.NewTicker.
 func TestStreamScannerHandler_InvalidStreamingTimeoutUsesDefault(t *testing.T) {
 	// Not parallel: modifies global constant.StreamingTimeout.
 	oldTimeout := constant.StreamingTimeout
@@ -226,6 +228,28 @@ func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {
 	})
 
 	assert.Equal(t, "{\"trimmed\":true}", got)
+}
+
+// TestStreamScannerHandler_ForwardsMetaLineWithPrefix protects provider
+// terminal metadata while retaining normal data-prefix stripping.
+func TestStreamScannerHandler_ForwardsMetaLineWithPrefix(t *testing.T) {
+	t.Parallel()
+
+	body := "data: first\nmeta:{\"usage\":{\"total_tokens\":3}}\n"
+	c, resp, info := setupStreamTest(t, strings.NewReader(body))
+
+	var got []string
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		got = append(got, data)
+		if strings.HasPrefix(data, "meta:") {
+			sr.Done()
+		}
+	})
+
+	assert.Equal(t, []string{"first", `meta:{"usage":{"total_tokens":3}}`}, got)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+	assert.Equal(t, 2, info.ReceivedResponseCount)
 }
 
 // TestStreamScannerHandler_ClientCancelAbortsUpstreamAndReturns pins the
