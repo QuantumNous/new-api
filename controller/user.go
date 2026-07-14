@@ -1484,3 +1484,45 @@ func UpdateUserSetting(c *gin.Context) {
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
 }
+
+// UpdateUserGroup 只更新用户的分组字段，不影响其他字段
+func UpdateUserGroup(c *gin.Context) {
+	userId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || userId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	var req struct {
+		Group string `json:"group"`
+	}
+	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	if req.Group == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// 检查用户是否存在
+	var user model.User
+	err = model.DB.Where("id = ?", userId).First(&user).Error
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+		return
+	}
+
+	// 只更新 group 字段，不影响其他任何字段
+	err = model.UpdateUserGroup(userId, req.Group)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgOperationFailed)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}

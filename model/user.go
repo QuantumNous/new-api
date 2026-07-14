@@ -1265,3 +1265,15 @@ func RootUserExists() bool {
 	}
 	return true
 }
+
+// UpdateUserGroup 只更新用户的分组字段，不影响其他任何字段
+func UpdateUserGroup(userId int, newGroup string) error {
+	err := DB.Model(&User{}).Where("id = ?", userId).Update(commonGroupCol, newGroup).Error
+	if err != nil {
+		return err
+	}
+	// 更新缓存
+	var user User
+	DB.Where("id = ?", userId).First(&user)
+	return updateUserCache(user)
+}
