@@ -81,7 +81,11 @@ func InitEnv() {
 	// Initialize variables from constants.go that were using environment variables
 	DebugEnabled = os.Getenv("DEBUG") == "true"
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
-	AdaptiveChannelHealthEnabled = GetEnvOrDefaultBool("ADAPTIVE_CHANNEL_HEALTH_ENABLED", false)
+	// Enabled by default for this deployment: latency-weighted routing plus
+	// circuit-breaking measurably improves speed by steering traffic to fast
+	// channels and away from slow/unhealthy ones. Set
+	// ADAPTIVE_CHANNEL_HEALTH_ENABLED=false to disable without a redeploy.
+	AdaptiveChannelHealthEnabled = GetEnvOrDefaultBool("ADAPTIVE_CHANNEL_HEALTH_ENABLED", true)
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 	NodeName = os.Getenv("NODE_NAME")
 	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
