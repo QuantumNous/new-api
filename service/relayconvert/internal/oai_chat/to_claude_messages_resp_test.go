@@ -103,6 +103,31 @@ func TestBuildClaudeUsageFromOpenAICacheWriteUsage(t *testing.T) {
 	assert.Equal(t, 3616, usage.BillingUsage.OpenAIUsage.PromptTokensDetails.CacheWriteTokens)
 }
 
+func TestBuildClaudeUsageFromOpenAIPureCacheRead(t *testing.T) {
+	// HsMirage's pure cache-read reproduction (issue #4395):
+	// second identical request hits cache; CacheWriteTokens==0, CachedTokens>0.
+	usage := buildClaudeUsageFromOpenAIUsage(&dto.Usage{
+		PromptTokens:     15305,
+		CompletionTokens: 5,
+		TotalTokens:      15310,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:     15104,
+			CacheWriteTokens: 0,
+		},
+	})
+
+	require.NotNil(t, usage)
+	// input_tokens must exclude cached: 15305 - 15104 = 201
+	assert.Equal(t, 201, usage.InputTokens)
+	assert.Equal(t, 15104, usage.CacheReadInputTokens)
+	assert.Equal(t, 0, usage.CacheCreationInputTokens)
+	assert.Equal(t, 5, usage.OutputTokens)
+	// Total context = 201 + 15104 = 15305 (not double-counted)
+	require.NotNil(t, usage.BillingUsage)
+	require.NotNil(t, usage.BillingUsage.OpenAIUsage)
+	assert.Equal(t, 15305, usage.BillingUsage.OpenAIUsage.PromptTokens)
+}
+
 func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
