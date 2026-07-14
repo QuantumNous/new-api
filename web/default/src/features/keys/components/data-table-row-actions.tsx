@@ -116,10 +116,9 @@ export function DataTableRowActions<TData>({
 
   const handleOpenChatPreset = useCallback(
     async (preset: ChatPreset) => {
-      const realKey = await resolveRealKey(apiKey.id)
-      if (!realKey) return
-
       if (preset.type === 'fluent') {
+        const realKey = await resolveRealKey(apiKey.id)
+        if (!realKey) return
         const success = sendToFluent(realKey, serverAddress)
         if (success) {
           toast.success(t('Sent the API key to FluentRead.'))
@@ -133,6 +132,21 @@ export function DataTableRowActions<TData>({
         return
       }
 
+      // Open the web tab synchronously inside the click gesture and redirect it
+      // after the key resolves. Awaiting the key before window.open detached it
+      // from the user gesture, so the popup blocker turned every chat link into
+      // a blank about:blank tab.
+      const pendingWindow =
+        preset.type === 'web' && typeof window !== 'undefined'
+          ? window.open('', '_blank')
+          : null
+
+      const realKey = await resolveRealKey(apiKey.id)
+      if (!realKey) {
+        pendingWindow?.close()
+        return
+      }
+
       const resolvedUrl = resolveChatUrl({
         template: preset.url,
         apiKey: realKey,
@@ -140,15 +154,29 @@ export function DataTableRowActions<TData>({
       })
 
       if (!resolvedUrl) {
+        pendingWindow?.close()
         toast.error(t('Invalid chat link. Please contact your administrator.'))
         return
       }
 
-      if (typeof window === 'undefined') return
+      if (typeof window === 'undefined') {
+        pendingWindow?.close()
+        return
+      }
 
-      try {
-        window.open(resolvedUrl, '_blank', 'noopener')
-      } catch {
+      if (preset.type === 'web') {
+        if (!pendingWindow) {
+          // The synchronous open was still blocked; don't navigate the current
+          // page away to the chat site, just surface it.
+          toast.error(t('Popup blocked. Please allow popups for this site.'))
+          return
+        }
+        // Web link: drop the opener for security, then navigate the tab.
+        pendingWindow.opener = null
+        pendingWindow.location.href = resolvedUrl
+      } else {
+        // Custom-protocol link: launch from the current page so no blank tab is
+        // left behind while the desktop app handler takes over.
         window.location.href = resolvedUrl
       }
     },
