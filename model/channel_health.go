@@ -23,6 +23,15 @@ const (
 	channelHealthIdleTTL          = 15 * time.Minute
 	channelHealthMaxEntries       = 10_000
 	minimumChannelHealthScore     = 0.1
+
+	// A first-token latency at or above this is treated as "slow": far above the
+	// fast channels (~1-6s observed) but well below the slow-channel tail
+	// (26-54s). channelHealthSlowThreshold consecutive slow successes (a fast
+	// success resets the count) trip the circuit, so a consistently-slow channel
+	// is evicted and re-probed like a failing one, while an occasional spike on
+	// an otherwise-fast channel does not trip it.
+	channelHealthSlowLatencyThreshold = 12 * time.Second
+	channelHealthSlowThreshold        = 3
 )
 
 type ChannelHealthKey struct {
@@ -41,6 +50,7 @@ type ChannelOutcome struct {
 type channelHealthEntry struct {
 	state           ChannelHealthState
 	failures        []time.Time
+	slowSamples     []time.Time
 	openUntil       time.Time
 	probeLeaseUntil time.Time
 	latencyEWMA     float64
@@ -143,12 +153,42 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 			entry.latencyEWMA = entry.latencyEWMA*0.8 + latency*0.2
 		}
 	}
+
+	// A successful-but-slow response is a soft failure: a channel that keeps
+	// taking too long to first token is evicted and re-probed like a failing
+	// one, so latency weighting (which only reorders within a priority tier) is
+	// not the only defense against consistently-slow channels.
+	slow := outcome.Latency >= channelHealthSlowLatencyThreshold
+
 	if entry.state == ChannelHealthHalfOpen {
+		if slow {
+			entry.state = ChannelHealthOpen
+			entry.openUntil = now.Add(channelHealthOpenDuration)
+			entry.probeLeaseUntil = time.Time{}
+			return
+		}
 		entry.state = ChannelHealthClosed
 		entry.failures = nil
+		entry.slowSamples = nil
 		entry.openUntil = time.Time{}
 		entry.probeLeaseUntil = time.Time{}
+		return
 	}
+
+	if slow {
+		entry.slowSamples = pruneChannelHealthFailures(entry.slowSamples, now.Add(-channelHealthFailureWindow))
+		entry.slowSamples = append(entry.slowSamples, now)
+		if len(entry.slowSamples) >= channelHealthSlowThreshold {
+			entry.state = ChannelHealthOpen
+			entry.openUntil = now.Add(channelHealthOpenDuration)
+			entry.slowSamples = nil
+			entry.probeLeaseUntil = time.Time{}
+		}
+		return
+	}
+	// A fast success signals recovery: clear accumulated slowness so only
+	// sustained (un-interrupted) slowness trips the circuit.
+	entry.slowSamples = nil
 }
 
 func (r *channelHealthRegistry) Acquire(key ChannelHealthKey) bool {

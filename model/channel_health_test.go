@@ -163,6 +163,59 @@ func TestChannelHealthIgnoresSemanticClientErrors(t *testing.T) {
 	}
 }
 
+func TestChannelHealthOpensOnSustainedSlowness(t *testing.T) {
+	health, _ := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 50, Model: "gpt-5.5", Path: "/v1/responses"}
+	slow := channelHealthSlowLatencyThreshold + time.Second
+
+	for i := 0; i < channelHealthSlowThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	}
+	if got := health.State(key); got != ChannelHealthOpen {
+		t.Fatalf("state after %d slow successes = %v, want %v (consistently-slow channel must be evicted)", channelHealthSlowThreshold, got, ChannelHealthOpen)
+	}
+	if health.Acquire(key) {
+		t.Fatal("slow-tripped channel allowed a request before its recovery interval")
+	}
+}
+
+func TestChannelHealthFastSuccessResetsSlowness(t *testing.T) {
+	health, _ := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 50, Model: "gpt-5.5", Path: "/v1/responses"}
+	slow := channelHealthSlowLatencyThreshold + time.Second
+	fast := 500 * time.Millisecond
+
+	// A fast success between slow ones must reset the counter, so an occasional
+	// spike on an otherwise-fast channel never trips the circuit.
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	if got := health.State(key); got != ChannelHealthClosed {
+		t.Fatalf("state = %v, want %v (a fast success must reset the slow counter)", got, ChannelHealthClosed)
+	}
+}
+
+func TestChannelHealthHalfOpenSlowProbeReopens(t *testing.T) {
+	health, clock := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 50, Model: "gpt-5.5", Path: "/v1/responses"}
+	slow := channelHealthSlowLatencyThreshold + time.Second
+	for i := 0; i < channelHealthSlowThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	}
+	clock.Advance(channelHealthOpenDuration)
+	if !health.Acquire(key) {
+		t.Fatal("expected half-open probe after open interval")
+	}
+
+	// A still-slow probe must reopen, not recover.
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	if got := health.State(key); got != ChannelHealthOpen {
+		t.Fatalf("state after slow probe = %v, want %v", got, ChannelHealthOpen)
+	}
+}
+
 func TestChannelHealthCountsOverloadStatuses(t *testing.T) {
 	// 408/429 mean the channel is overloaded / rate-limited right now: a
 	// channel-capacity signal that should deprioritize it, unlike genuine
