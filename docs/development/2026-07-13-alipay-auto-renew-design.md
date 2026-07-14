@@ -217,6 +217,36 @@ https://<公网域名>/api/subscription/alipay/notify
 - [ ] 并发 charge 仅一侧发起 TradePay
 - [ ] 放弃签约可重新发起（expired/failed）
 
+## 工作待办（Todo）
+
+跟踪本分支支付宝自动续费落地进度（与会话 todo 对齐；完成后请勾选并更新日期）。
+
+### 已完成
+
+- [x] 首期稳定 `out_trade_no` + DB claim lease（防双击双扣 / 双 worker）
+- [x] claim / 首期复用单测（`service/alipay_auto_renew_charge_test.go`）
+- [x] Stripe `/stripe/pay` 与 affinity 相关测试修复
+- [x] SQLite `decimal(p,s)` AutoMigrate 旁路 + 单测（`model/sqlite_decimal_migrate_test.go`）
+- [x] 设计文档整理（产品码 / 多套餐金额 / 商家扣款合规约束）
+- [x] 本地 Postgres `newapi-local`：`docker-compose.postgres.yml` + `.env.postgres` 部署最新镜像
+- [x] 代码提交：`217b1054e` fix: harden Alipay auto-renew claim lease and document merchant pay
+
+### 待办（商户开通与联调；支付宝配置先暂停时优先看这里）
+
+- [ ] **配置**：按合同填写 `AlipayCyclePayPersonalProductCode` / `AlipayCyclePayProductCode` / `AlipayCyclePaySignScene`，打开 `AlipayCyclePayEnabled`
+- [ ] **Notify**：公网可达 `https://<域名>/api/subscription/alipay/notify`（支付 + 签约 + 解约）
+- [ ] **套餐**：`billing_mode=auto_renew`、`alipay_enabled`；标价折合人民币注意单笔限额（文档常见 ≤100 元）
+- [ ] **E2E 验收**：支付并签约 → 绑 `agreement_no` → 首期权益 → 到期主动扣款 → 取消续费
+- [ ] **多周期验收**：至少跑通二期扣款 / 失败 past_due / 查单补偿
+
+### 可选后续
+
+- [ ] 对齐支付宝扣款时段（北京时间 7:00–22:00）与「下次预计扣款前 48h」窗口（代码守卫或调度策略）
+- [ ] 运营规则校验：单笔 ≤100、首期优惠 ≥ 正价 1/3、周期建议 ≥30 天
+- [ ] 套餐级 `sign_scene`（多模版）
+- [ ] `web/default` 支付宝 auto_renew 购买 / 取消 UI
+- [ ] 对账与报表
+
 ## 本地验证备注
 
 - Postgres 模式：`deploy/newapi-local` 使用  
