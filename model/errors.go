@@ -26,4 +26,11 @@ var (
 var ErrRedeemFailed = errors.New("redeem.failed")
 
 // 2FA errors
-var ErrTwoFANotEnabled = errors.New("2fa not enabled")
+var (
+	ErrTwoFANotEnabled    = errors.New("2fa not enabled")
+	ErrTwoFAUserIdEmpty   = errors.New("2fa user id empty")
+	ErrTwoFAAlreadyExists = errors.New("2fa already exists")
+	ErrTwoFARecordIdEmpty = errors.New("2fa record id empty")
+	ErrTwoFACodeInvalid   = errors.New("2fa code invalid")
+	ErrTwoFAUserNotExists = errors.New("2fa user not exists")
+)

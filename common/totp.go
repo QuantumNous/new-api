@@ -2,6 +2,7 @@ package common
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -19,6 +20,11 @@ const (
 	// 限制配置
 	MaxFailAttempts = 5   // 最大失败尝试次数
 	LockoutDuration = 300 // 锁定时间（秒）
+)
+
+var (
+	ErrTOTPCodeLength  = errors.New("totp code must be six digits")
+	ErrTOTPCodeNumeric = errors.New("totp code must be numeric")
 )
 
 // GenerateTOTPSecret 生成TOTP密钥和配置
@@ -130,12 +136,12 @@ func ValidateNumericCode(code string) (string, error) {
 	code = strings.ReplaceAll(code, " ", "")
 
 	if len(code) != 6 {
-		return "", fmt.Errorf("验证码必须是6位数字")
+		return "", ErrTOTPCodeLength
 	}
 
 	// 检查是否为纯数字
 	if _, err := strconv.Atoi(code); err != nil {
-		return "", fmt.Errorf("验证码只能包含数字")
+		return "", ErrTOTPCodeNumeric
 	}
 
 	return code, nil
