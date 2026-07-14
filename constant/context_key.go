@@ -7,7 +7,12 @@ const (
 	ContextKeyPromptTokens    ContextKey = "prompt_tokens"
 	ContextKeyEstimatedTokens ContextKey = "estimated_tokens"
 
-	ContextKeyOriginalModel    ContextKey = "original_model"
+	ContextKeyOriginalModel ContextKey = "original_model"
+	// ContextKeyModelAliasedFrom stores the pre-rewrite model name when
+	// the distributor applies a GlobalModelAlias. Set by middleware so
+	// downstream logging / observability can attribute a request to the
+	// client-supplied name even after the alias rewrite.
+	ContextKeyModelAliasedFrom ContextKey = "model_aliased_from"
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 
 	/* token related keys */

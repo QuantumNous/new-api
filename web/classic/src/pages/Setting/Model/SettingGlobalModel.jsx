@@ -66,12 +66,22 @@ const chatCompletionsToResponsesPolicyAllChannelsExample = JSON.stringify(
   2,
 );
 
+const globalModelAliasExample = JSON.stringify(
+  {
+    'gpt-4o': 'openai/gpt-4o',
+    'claude-3-5-sonnet': 'anthropic/claude-3-5-sonnet-20241022',
+  },
+  null,
+  2,
+);
+
 const defaultGlobalSettingInputs = {
   'global.pass_through_request_enabled': false,
   'global.thinking_model_blacklist': '[]',
   'global.chat_completions_to_responses_policy': '{}',
   'general_setting.ping_interval_enabled': false,
   'general_setting.ping_interval_seconds': 60,
+  GlobalModelAlias: '{}',
 };
 
 export default function SettingGlobalModel(props) {
@@ -100,6 +110,10 @@ export default function SettingGlobalModel(props) {
       return text === '' ? '[]' : value;
     }
     if (key === 'global.chat_completions_to_responses_policy') {
+      const text = typeof value === 'string' ? value.trim() : '';
+      return text === '' ? '{}' : value;
+    }
+    if (key === 'GlobalModelAlias') {
       const text = typeof value === 'string' ? value.trim() : '';
       return text === '' ? '{}' : value;
     }
@@ -157,6 +171,16 @@ export default function SettingGlobalModel(props) {
           }
         }
         if (key === 'global.chat_completions_to_responses_policy') {
+          try {
+            value =
+              value && String(value).trim() !== ''
+                ? JSON.stringify(JSON.parse(value), null, 2)
+                : defaultGlobalSettingInputs[key];
+          } catch (error) {
+            value = defaultGlobalSettingInputs[key];
+          }
+        }
+        if (key === 'GlobalModelAlias') {
           try {
             value =
               value && String(value).trim() !== ''
@@ -402,6 +426,35 @@ export default function SettingGlobalModel(props) {
                 </Col>
               </Row>
             </Form.Section>
+
+            <Row>
+              <Col span={24}>
+                <Form.TextArea
+                  label={t('全局模型别名')}
+                  field={'GlobalModelAlias'}
+                  placeholder={t('例如：') + '\n' + globalModelAliasExample}
+                  rows={5}
+                  rules={[
+                    {
+                      validator: (rule, value) => {
+                        if (!value || value.trim() === '') return true;
+                        return verifyJSON(value);
+                      },
+                      message: t('不是合法的 JSON 字符串'),
+                    },
+                  ]}
+                  extraText={t(
+                    '将旧模型名（客户端发送的名称）映射到新模型名（渠道使用的名称），全局单跳生效。key == value 或为空的条目自动忽略。',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      GlobalModelAlias: value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
 
             <Row>
               <Button size='default' onClick={onSubmit}>

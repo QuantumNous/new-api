@@ -76,6 +76,15 @@ const chatToResponsesPolicyAllChannelsExample = JSON.stringify(
   2
 )
 
+const globalModelAliasExample = JSON.stringify(
+  {
+    'gpt-4o': 'openai/gpt-4o',
+    'claude-3-5-sonnet': 'anthropic/claude-3-5-sonnet-20241022',
+  },
+  null,
+  2
+)
+
 const jsonString = z.string().refine((value) => {
   const trimmed = value.trim()
   if (!trimmed) return true
@@ -88,6 +97,7 @@ const jsonString = z.string().refine((value) => {
 }, 'Invalid JSON format')
 
 const schema = z.object({
+  GlobalModelAlias: jsonString,
   global: z.object({
     pass_through_request_enabled: z.boolean(),
     thinking_model_blacklist: jsonString,
@@ -103,6 +113,7 @@ type GlobalModelSettingsFormValues = z.output<typeof schema>
 type GlobalModelSettingsFormInput = z.input<typeof schema>
 
 type FlatGlobalModelSettings = {
+  GlobalModelAlias: string
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string
   'global.chat_completions_to_responses_policy': string
@@ -127,6 +138,7 @@ const flattenGlobalValues = (
     values.general_setting.ping_interval_enabled,
   'general_setting.ping_interval_seconds':
     values.general_setting.ping_interval_seconds,
+  GlobalModelAlias: normalizeJsonText(values.GlobalModelAlias, '{}'),
 })
 
 function normalizeJsonText(value: string, fallback: string) {
@@ -159,6 +171,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
 
   const formatJsonField = (
     field:
+      | 'GlobalModelAlias'
       | 'global.thinking_model_blacklist'
       | 'global.chat_completions_to_responses_policy'
   ) => {
@@ -403,6 +416,40 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     'Recommended to keep this high to avoid upstream throttling.'
                   )}
                 </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='GlobalModelAlias'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Global Model Alias')}</FormLabel>
+                <FormDescription>
+                  {t(
+                    'Map legacy model names to canonical names. Applied globally before channel selection. Single-hop only; self-aliases and empty entries are ignored.'
+                  )}
+                </FormDescription>
+                <div className='flex gap-2'>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      rows={5}
+                      placeholder={globalModelAliasExample}
+                      className='font-mono text-xs'
+                    />
+                  </FormControl>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => formatJsonField('GlobalModelAlias')}
+                  >
+                    {t('Format JSON')}
+                  </Button>
+                </div>
                 <FormMessage />
               </FormItem>
             )}

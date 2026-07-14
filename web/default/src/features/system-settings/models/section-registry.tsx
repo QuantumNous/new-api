@@ -43,6 +43,10 @@ const MODELS_SECTIONS = [
     build: (settings: ModelSettings) => (
       <GlobalSettingsCard
         defaultValues={{
+          GlobalModelAlias: formatJsonForEditor(
+            settings.GlobalModelAlias,
+            '{}'
+          ),
           global: {
             pass_through_request_enabled:
               settings['global.pass_through_request_enabled'],
