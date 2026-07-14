@@ -1976,6 +1976,7 @@
     "Filter by task ID": "Filter by task ID",
     "Filter by token name": "Filter by token name",
     "Filter by username": "Filter by username",
+    "Filter by user ID, username, name or email...": "Filter by user ID, username, name or email...",
     "Filter by username, name or email...": "Filter by username, name or email...",
     "Filter Dashboard Models": "Filter Dashboard Models",
     "Filter models by provider, group, type, endpoint, and tags.": "Filter models by provider, group, type, endpoint, and tags.",

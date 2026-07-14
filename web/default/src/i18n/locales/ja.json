@@ -1976,6 +1976,7 @@
     "Filter by task ID": "タスクIDでフィルター",
     "Filter by token name": "トークン名でフィルター",
     "Filter by username": "ユーザー名でフィルター",
+    "Filter by user ID, username, name or email...": "ユーザーID、ユーザー名、名前、メールで絞り込み...",
     "Filter by username, name or email...": "ユーザー名、名前またはメールアドレスでフィルター...",
     "Filter Dashboard Models": "ダッシュボードモデルをフィルタリング",
     "Filter models by provider, group, type, endpoint, and tags.": "プロバイダー、グループ、タイプ、エンドポイント、タグでモデルを絞り込みます。",

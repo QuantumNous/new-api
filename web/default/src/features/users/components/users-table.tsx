@@ -144,6 +144,7 @@ export function UsersTable() {
     globalFilterFn: (row, _columnId, filterValue) => {
       const searchValue = String(filterValue).toLowerCase()
       const fields = [
+        row.original.id,
         row.getValue('username'),
         row.original.display_name,
         row.original.email,
@@ -157,6 +158,7 @@ export function UsersTable() {
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
+    manualFiltering: true,
     manualPagination: true,
     manualFiltering: true,
     totalCount: data?.total || 0,
@@ -176,7 +178,9 @@ export function UsersTable() {
       skeletonKeyPrefix='users-skeleton'
       applyHeaderSize
       toolbarProps={{
-        searchPlaceholder: t('Filter by username, name or email...'),
+        searchPlaceholder: t(
+          'Filter by user ID, username, name or email...'
+        ),
         filters: [
           {
             columnId: 'status',

@@ -1976,6 +1976,7 @@
     "Filter by task ID": "Фильтр по ID задачи",
     "Filter by token name": "Фильтр по имени токена",
     "Filter by username": "Фильтр по имени пользователя",
+    "Filter by user ID, username, name or email...": "Фильтр по ID пользователя, имени пользователя, имени или email...",
     "Filter by username, name or email...": "Фильтр по имени пользователя, имени или email...",
     "Filter Dashboard Models": "Фильтровать модели панели управления",
     "Filter models by provider, group, type, endpoint, and tags.": "Фильтруйте модели по поставщику, группе, типу, endpoint и тегам.",

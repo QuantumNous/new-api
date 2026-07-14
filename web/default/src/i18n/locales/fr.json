@@ -1976,6 +1976,7 @@
     "Filter by task ID": "Filtrer par ID de tâche",
     "Filter by token name": "Filtrer par nom de jeton",
     "Filter by username": "Filtrer par nom d'utilisateur",
+    "Filter by user ID, username, name or email...": "Filtrer par ID utilisateur, nom d’utilisateur, nom ou e-mail...",
     "Filter by username, name or email...": "Filtrer par nom d'utilisateur, nom ou e-mail...",
     "Filter Dashboard Models": "Filtrer les modèles du tableau de bord",
     "Filter models by provider, group, type, endpoint, and tags.": "Filtrer les modèles par fournisseur, groupe, type, endpoint et tags.",

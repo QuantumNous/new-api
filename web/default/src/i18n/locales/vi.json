@@ -1976,6 +1976,7 @@
     "Filter by task ID": "Lọc theo ID nhiệm vụ",
     "Filter by token name": "Lọc theo tên token",
     "Filter by username": "Lọc theo tên người dùng",
+    "Filter by user ID, username, name or email...": "Lọc theo ID người dùng, tên người dùng, tên hoặc email...",
     "Filter by username, name or email...": "Lọc theo tên người dùng, tên hoặc email...",
     "Filter Dashboard Models": "Lọc Mô hình Bảng điều khiển",
     "Filter models by provider, group, type, endpoint, and tags.": "Lọc mô hình theo nhà cung cấp, nhóm, loại, endpoint và thẻ.",
