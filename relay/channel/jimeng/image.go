@@ -50,13 +50,12 @@ func responseJimeng2OpenAIImage(_ *gin.Context, response *ImageResponse, info *r
 
 // jimengImageHandler handles the Jimeng image generation response
 func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
 	var jimengResponse ImageResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
-	service.CloseResponseBodyGracefully(resp)
-
 	err = json.Unmarshal(responseBody, &jimengResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
@@ -69,7 +68,7 @@ func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 			Type:    "jimeng_error",
 			Param:   "",
 			Code:    fmt.Sprintf("%d", jimengResponse.Code),
-		}, resp.StatusCode)
+		}, types.NormalizeUpstreamErrorStatusCode(resp.StatusCode))
 	}
 
 	// Convert Jimeng response to OpenAI format

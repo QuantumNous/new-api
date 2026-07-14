@@ -32,7 +32,7 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if oaiError := chatResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
-		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+		return nil, types.WithOpenAIError(*oaiError, upstreamErrorStatusCode(resp.StatusCode))
 	}
 
 	if responseID := helper.GetResponseID(c); responseID != "" {
@@ -97,7 +97,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		var errorResp dto.OpenAITextResponse
 		if err := common.UnmarshalJsonStr(data, &errorResp); err == nil {
 			if oaiError := errorResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
-				streamErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+				streamErr = types.WithOpenAIError(*oaiError, upstreamErrorStatusCode(resp.StatusCode))
 				sr.Stop(streamErr)
 				return
 			}
@@ -131,7 +131,18 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	})
 
 	if streamErr != nil {
-		return nil, streamErr
+		if !helper.HasWrittenUpstreamResponse(c) {
+			return nil, streamErr
+		}
+		writeResponsesStreamError(c, streamErr)
+		usage := state.Usage()
+		if usage == nil {
+			usage = &dto.Usage{}
+		}
+		return usage, nil
+	}
+	if apiErr := helper.StreamErrorBeforeResponse(c, info); apiErr != nil {
+		return nil, apiErr
 	}
 
 	usage := state.Usage()

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/require"
 )
@@ -169,4 +170,14 @@ func TestConvertToAliRequestWan25I2VKeepsLegacyImgURL(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(body), `"img_url"`)
 	require.NotContains(t, string(body), `"media"`)
+}
+
+func TestParseTaskResultAcceptsDecimalDuration(t *testing.T) {
+	body := []byte(`{"output":{"task_id":"task-1","task_status":"SUCCEEDED","video_url":"https://example.com/video.mp4"},"usage":{"duration":13.93}}`)
+
+	result, err := (&TaskAdaptor{}).ParseTaskResult(body)
+
+	require.NoError(t, err)
+	require.Equal(t, model.TaskStatusSuccess, result.Status)
+	require.Equal(t, "https://example.com/video.mp4", result.Url)
 }

@@ -469,6 +469,9 @@ func isJSONRequest(c *gin.Context) bool {
 }
 
 func (a *Adaptor) convertOpenAICompatibleRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	if request != nil && info.SupportStreamOptions && lo.FromPtrOr(request.Stream, false) && constant.ForceStreamOption {
+		request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+	}
 	old := info.ChannelType
 	info.ChannelType = constant.ChannelTypeOpenAI
 	converted, err := a.openaiAdaptor.ConvertOpenAIRequest(c, info, request)

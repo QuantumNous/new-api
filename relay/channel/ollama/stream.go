@@ -104,10 +104,9 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var responseId = common.GetUUID()
 	var created = time.Now().Unix()
 	var toolCallIndex int
-	start := helper.GenerateStartEmptyResponse(responseId, created, model, nil)
-	if data, err := common.Marshal(start); err == nil {
-		_ = helper.StringData(c, string(data))
-	}
+	var responseText strings.Builder
+	started := false
+	completed := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -118,12 +117,24 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		var chunk ollamaChatStreamChunk
 		if err := common.Unmarshal([]byte(line), &chunk); err != nil {
 			logger.LogError(c, "ollama stream json decode error: "+err.Error()+" line="+line)
-			return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			apiErr := types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+			if !helper.HasWrittenUpstreamResponse(c) {
+				return nil, apiErr
+			}
+			_ = helper.ObjectData(c, gin.H{"error": apiErr.ToOpenAIError()})
+			return usage, nil
 		}
 		if chunk.Model != "" {
 			model = chunk.Model
 		}
 		created = toUnix(chunk.CreatedAt)
+		if !started {
+			start := helper.GenerateStartEmptyResponse(responseId, created, model, nil)
+			if data, err := common.Marshal(start); err == nil {
+				_ = helper.StringData(c, string(data))
+			}
+			started = true
+		}
 
 		if !chunk.Done {
 			// delta content
@@ -145,6 +156,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			}
 			if content != "" {
 				delta.Choices[0].Delta.SetContentString(content)
+				responseText.WriteString(content)
 			}
 			if chunk.Message != nil && len(chunk.Message.Thinking) > 0 {
 				raw := strings.TrimSpace(string(chunk.Message.Thinking))
@@ -194,10 +206,23 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 		// send [DONE]
 		helper.Done(c)
+		completed = true
 		break
 	}
-	if err := scanner.Err(); err != nil && err != io.EOF {
+	if !completed {
+		err := scanner.Err()
+		if err == nil || err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
 		logger.LogError(c, "ollama stream scan error: "+err.Error())
+		apiErr := types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+		if !helper.HasWrittenUpstreamResponse(c) {
+			return nil, apiErr
+		}
+		_ = helper.ObjectData(c, gin.H{"error": apiErr.ToOpenAIError()})
+		if usage.TotalTokens == 0 {
+			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		}
 	}
 	return usage, nil
 }

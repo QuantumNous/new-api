@@ -1,7 +1,10 @@
 package relay
 
 import (
+	"io"
 	"math"
+	"net/http"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -25,6 +28,38 @@ func TestIsResponsesEventStreamContentType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, isResponsesEventStreamContentType(tt.contentType))
+		})
+	}
+}
+
+func TestIsResponsesStreamResponseSniffsMissingContentType(t *testing.T) {
+	tests := []struct {
+		name         string
+		contentType  string
+		body         string
+		clientStream bool
+		want         bool
+	}{
+		{name: "event stream header", contentType: "text/event-stream", body: "data: {}\n", want: true},
+		{name: "missing header with event prefix", body: "event: response.created\ndata: {}\n", clientStream: true, want: true},
+		{name: "missing header with data prefix", body: "data: {}\n", clientStream: true, want: true},
+		{name: "missing header with json body", body: `{"id":"resp_1"}`, clientStream: true, want: false},
+		{name: "json header is authoritative", contentType: "application/json", body: "data: {}\n", clientStream: true, want: false},
+		{name: "non-stream client does not sniff", body: "data: {}\n", clientStream: false, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := &http.Response{
+				Header: http.Header{"Content-Type": []string{tt.contentType}},
+				Body:   io.NopCloser(strings.NewReader(tt.body)),
+			}
+
+			assert.Equal(t, tt.want, isResponsesStreamResponse(resp, tt.clientStream))
+			gotBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, tt.body, string(gotBody))
+			require.NoError(t, resp.Body.Close())
 		})
 	}
 }

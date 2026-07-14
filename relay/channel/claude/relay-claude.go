@@ -187,7 +187,18 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		}
 	})
 	if err != nil {
-		return nil, err
+		if !helper.HasWrittenUpstreamResponse(c) {
+			return nil, err
+		}
+		if info.RelayFormat == types.RelayFormatClaude {
+			_ = helper.ClaudeData(c, dto.ClaudeResponse{Type: "error", Error: err.ToClaudeError()})
+		} else {
+			_ = helper.ObjectData(c, gin.H{"error": err.ToOpenAIError()})
+		}
+		return claudeInfo.Usage, nil
+	}
+	if apiErr := helper.StreamErrorBeforeResponse(c, info); apiErr != nil {
+		return nil, apiErr
 	}
 
 	HandleStreamFinalResponse(c, info, claudeInfo)

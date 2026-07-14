@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
@@ -249,6 +250,27 @@ func getUserQuota(t *testing.T, id int) int {
 	return user.Quota
 }
 
+func getUserUsedQuota(t *testing.T, id int) int {
+	t.Helper()
+	var user model.User
+	require.NoError(t, model.DB.Select("used_quota").Where("id = ?", id).First(&user).Error)
+	return user.UsedQuota
+}
+
+func getUserRequestCount(t *testing.T, id int) int {
+	t.Helper()
+	var user model.User
+	require.NoError(t, model.DB.Select("request_count").Where("id = ?", id).First(&user).Error)
+	return user.RequestCount
+}
+
+func getChannelUsedQuota(t *testing.T, id int) int64 {
+	t.Helper()
+	var channel model.Channel
+	require.NoError(t, model.DB.Select("used_quota").Where("id = ?", id).First(&channel).Error)
+	return channel.UsedQuota
+}
+
 func getTokenRemainQuota(t *testing.T, id int) int {
 	t.Helper()
 	var token model.Token
@@ -320,6 +342,29 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 	assert.Equal(t, preConsumed, log.Quota)
 	assert.Equal(t, "test-model", log.ModelName)
+}
+
+func TestRefundTaskQuota_RollsBackUsedQuotaWithoutCountingAnotherRequest(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, channelID = 41, 41
+	const preConsumed = 3000
+	seedUser(t, userID, 7000)
+	seedChannel(t, channelID)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]any{
+		"used_quota": preConsumed, "request_count": 1,
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channelID).
+		Update("used_quota", preConsumed).Error)
+
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+	RefundTaskQuota(ctx, task, "upstream failed")
+
+	assert.Equal(t, 10000, getUserQuota(t, userID))
+	assert.Zero(t, getUserUsedQuota(t, userID))
+	assert.Zero(t, getChannelUsedQuota(t, channelID))
+	assert.Equal(t, 1, getUserRequestCount(t, userID))
 }
 
 func TestRefundTaskQuota_Subscription(t *testing.T) {
@@ -460,6 +505,28 @@ func TestRecalculate_NegativeDelta(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 	assert.Equal(t, preConsumed-actualQuota, log.Quota)
+}
+
+func TestRecalculate_NegativeDeltaRollsBackUsedQuota(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, channelID = 42, 42
+	const preConsumed, actualQuota = 5000, 3000
+	seedUser(t, userID, 5000)
+	seedChannel(t, channelID)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]any{
+		"used_quota": preConsumed, "request_count": 1,
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channelID).
+		Update("used_quota", preConsumed).Error)
+
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+	RecalculateTaskQuota(ctx, task, actualQuota, "actual usage")
+
+	assert.Equal(t, actualQuota, getUserUsedQuota(t, userID))
+	assert.Equal(t, int64(actualQuota), getChannelUsedQuota(t, channelID))
+	assert.Equal(t, 1, getUserRequestCount(t, userID))
 }
 
 func TestRecalculate_ZeroDelta(t *testing.T) {
@@ -727,6 +794,168 @@ func (m *mockAdaptor) FetchTask(string, string, map[string]any, string) (*http.R
 func (m *mockAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) { return nil, nil }
 func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
 	return m.adjustReturn
+}
+
+func TestTaskBillingContext_OldJSONRemainsCompatible(t *testing.T) {
+	var billingContext model.TaskBillingContext
+	require.NoError(t, common.Unmarshal([]byte(`{"model_ratio":0.5,"group_ratio":2,"origin_model_name":"legacy-video"}`), &billingContext))
+
+	assert.Equal(t, 0.5, billingContext.ModelRatio)
+	assert.Equal(t, 2.0, billingContext.GroupRatio)
+	assert.Zero(t, billingContext.CompletionRatio)
+}
+
+func TestSettleTaskBilling_UsesSnapshotCompletionRatio(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, channelID = 43, 43
+	const preConsumed = 100
+	seedUser(t, userID, 9900)
+	seedChannel(t, channelID)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).
+		Update("used_quota", preConsumed).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channelID).
+		Update("used_quota", preConsumed).Error)
+
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.ModelRatio = 0.5
+	task.PrivateData.BillingContext.GroupRatio = 2
+	task.PrivateData.BillingContext.CompletionRatio = 3
+	task.PrivateData.BillingContext.OtherRatios = map[string]float64{"duration": 4}
+	task.PrivateData.BillingContext.OriginModelName = "snapshot-only-video-model"
+	require.NoError(t, model.DB.Create(task).Error)
+
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+		Status:           model.TaskStatusSuccess,
+		TotalTokens:      100,
+		CompletionTokens: 40,
+	})
+
+	// ((100 - 40) + 40 * 3) * 0.5 * 2 * 4 = 720.
+	assert.Equal(t, 720, task.Quota)
+	assert.Equal(t, 9280, getUserQuota(t, userID))
+	assert.Equal(t, 720, getUserUsedQuota(t, userID))
+	assert.Equal(t, int64(720), getChannelUsedQuota(t, channelID))
+}
+
+func TestSettleTaskBilling_OldSnapshotKeepsLegacyCompletionRatio(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	oldCompletionRatios := ratio_setting.CompletionRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{"legacy-video":9}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(oldCompletionRatios))
+	})
+
+	const userID, channelID = 45, 45
+	const preConsumed = 100
+	seedUser(t, userID, 9900)
+	seedChannel(t, channelID)
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.ModelRatio = 0.5
+	task.PrivateData.BillingContext.GroupRatio = 2
+	task.PrivateData.BillingContext.CompletionRatio = 0
+	task.PrivateData.BillingContext.OriginModelName = "legacy-video"
+	require.NoError(t, model.DB.Create(task).Error)
+
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+		Status:           model.TaskStatusSuccess,
+		TotalTokens:      100,
+		CompletionTokens: 40,
+	})
+
+	// Legacy snapshots used a completion ratio of 1: (60 + 40) * 0.5 * 2 = 100.
+	assert.Equal(t, preConsumed, task.Quota)
+}
+
+func TestRecalculateTaskQuotaByTokens_TotalOnlyKeepsLegacyFormula(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, channelID = 44, 44
+	const preConsumed = 100
+	seedUser(t, userID, 9900)
+	seedChannel(t, channelID)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).
+		Update("used_quota", preConsumed).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channelID).
+		Update("used_quota", preConsumed).Error)
+
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.ModelRatio = 0.5
+	task.PrivateData.BillingContext.GroupRatio = 2
+	task.PrivateData.BillingContext.CompletionRatio = 3
+	task.PrivateData.BillingContext.OtherRatios = map[string]float64{"duration": 4}
+	require.NoError(t, model.DB.Create(task).Error)
+
+	RecalculateTaskQuotaByTokens(ctx, task, 100, 0)
+
+	// No completion usage: 100 * 0.5 * 2 * 4 = 400.
+	assert.Equal(t, 400, task.Quota)
+}
+
+func TestRecalculateTaskQuotaByTokens_NormalizesInvalidUsage(t *testing.T) {
+	tests := []struct {
+		name             string
+		totalTokens      int
+		completionTokens int
+		expectedQuota    int
+	}{
+		{
+			name:             "negative completion becomes input only",
+			totalTokens:      100,
+			completionTokens: -20,
+			expectedQuota:    100,
+		},
+		{
+			name:             "completion is capped by positive total",
+			totalTokens:      100,
+			completionTokens: 200,
+			expectedQuota:    300,
+		},
+		{
+			name:             "zero total supports completion only usage",
+			totalTokens:      0,
+			completionTokens: 40,
+			expectedQuota:    120,
+		},
+		{
+			name:             "negative total supports completion only usage",
+			totalTokens:      -10,
+			completionTokens: 40,
+			expectedQuota:    120,
+		},
+		{
+			name:             "zero normalized usage leaves preconsume unchanged",
+			totalTokens:      0,
+			completionTokens: -10,
+			expectedQuota:    10,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			truncate(t)
+			ctx := context.Background()
+
+			const userID, channelID = 46, 46
+			const preConsumed = 10
+			seedUser(t, userID, 10000)
+			seedChannel(t, channelID)
+
+			task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+			task.PrivateData.BillingContext.ModelRatio = 1
+			task.PrivateData.BillingContext.GroupRatio = 1
+			task.PrivateData.BillingContext.CompletionRatio = 3
+			require.NoError(t, model.DB.Create(task).Error)
+
+			RecalculateTaskQuotaByTokens(ctx, task, test.totalTokens, test.completionTokens)
+
+			assert.Equal(t, test.expectedQuota, task.Quota)
+		})
+	}
 }
 
 // ===========================================================================

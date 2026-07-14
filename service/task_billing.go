@@ -126,6 +126,9 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		if bc.ModelRatio > 0 {
 			other["model_ratio"] = bc.ModelRatio
 		}
+		if bc.CompletionRatio > 0 {
+			other["completion_ratio"] = bc.CompletionRatio
+		}
 		other["group_ratio"] = bc.GroupRatio
 		if priceData := taskBillingContextPriceData(bc); priceData != nil {
 			for k, v := range priceData.OtherRatios() {
@@ -176,6 +179,9 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 
 	// 2. 退还令牌额度
 	taskAdjustTokenQuota(ctx, task, -quota)
+	if err := model.AdjustTaskUsedQuota(task.UserId, task.ChannelId, -quota); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("failed to roll back used quota for task %s: %s", task.TaskID, err.Error()))
+	}
 
 	// 3. 记录日志
 	other := taskBillingOther(task)
@@ -233,13 +239,15 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		logger.LogError(ctx, fmt.Sprintf("差额结算回写 quota 失败 task %s: %s", task.TaskID, err.Error()))
 	}
 
+	if err := model.AdjustTaskUsedQuota(task.UserId, task.ChannelId, quotaDelta); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("failed to adjust used quota for task %s: %s", task.TaskID, err.Error()))
+	}
+
 	var logType int
 	var logQuota int
 	if quotaDelta > 0 {
 		logType = model.LogTypeConsume
 		logQuota = quotaDelta
-		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)
-		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
 	} else {
 		logType = model.LogTypeRefund
 		logQuota = -quotaDelta
@@ -266,42 +274,72 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 }
 
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。
-// 当任务成功且返回了 totalTokens 时，根据模型倍率和分组倍率重新计算实际扣费额度，
+// 当任务成功且返回 token 用量时，按提交时的输入/输出倍率快照重新计算实际扣费额度，
 // 与预扣费的差额进行补扣或退还。支持钱包和订阅计费来源。
-func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTokens int) {
-	if totalTokens <= 0 {
+func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTokens, completionTokens int) {
+	reportedTotalTokens := totalTokens
+	reportedCompletionTokens := completionTokens
+	if totalTokens < 0 {
+		totalTokens = 0
+	}
+	if completionTokens < 0 {
+		completionTokens = 0
+	}
+	if totalTokens == 0 {
+		// Some task providers only report output usage. Treat that as an
+		// output-only total so the same tokens are never counted twice.
+		totalTokens = completionTokens
+	} else if completionTokens > totalTokens {
+		completionTokens = totalTokens
+	}
+	if totalTokens == 0 {
 		return
 	}
 
 	modelName := taskModelName(task)
 
-	// 获取模型价格和倍率
-	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
-	// 只有配置了倍率(非固定价格)时才按 token 重新计费
-	if !hasRatioSetting || modelRatio <= 0 {
-		return
-	}
-
-	// 获取用户和组的倍率信息
-	group := task.Group
-	if group == "" {
-		user, err := model.GetUserById(task.UserId, false)
-		if err == nil {
-			group = user.Group
+	bc := task.PrivateData.BillingContext
+	modelRatio := 0.0
+	finalGroupRatio := 0.0
+	completionRatio := 0.0
+	if bc != nil {
+		modelRatio = bc.ModelRatio
+		finalGroupRatio = bc.GroupRatio
+		completionRatio = bc.CompletionRatio
+		if completionRatio <= 0 {
+			// Billing contexts created before CompletionRatio was added used the
+			// legacy formula where input and output tokens both had ratio 1.
+			completionRatio = 1
 		}
 	}
-	if group == "" {
-		return
+	if modelRatio <= 0 {
+		var hasRatioSetting bool
+		modelRatio, hasRatioSetting, _ = ratio_setting.GetModelRatio(modelName)
+		if !hasRatioSetting || modelRatio <= 0 {
+			return
+		}
 	}
-
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
-	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
-	} else {
-		finalGroupRatio = groupRatio
+	if finalGroupRatio <= 0 {
+		group := task.Group
+		if group == "" {
+			user, err := model.GetUserById(task.UserId, false)
+			if err == nil {
+				group = user.Group
+			}
+		}
+		if group == "" {
+			return
+		}
+		finalGroupRatio = ratio_setting.GetGroupRatio(group)
+		if userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(group, group); ok {
+			finalGroupRatio = userGroupRatio
+		}
+	}
+	if bc == nil && completionRatio <= 0 {
+		completionRatio = ratio_setting.GetCompletionRatio(modelName)
+	}
+	if completionRatio <= 0 {
+		completionRatio = 1
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）
@@ -310,9 +348,10 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		otherMultiplier = priceData.OtherRatioMultiplier()
 	}
 
-	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier（饱和转换，防止溢出成负数）
-	actualQuota, clamp := common.QuotaFromFloatChecked(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
+	inputTokens := totalTokens - completionTokens
+	billableTokens := float64(inputTokens) + float64(completionTokens)*completionRatio
+	actualQuota, clamp := common.QuotaFromFloatChecked(billableTokens * modelRatio * finalGroupRatio * otherMultiplier)
 
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
+	reason := fmt.Sprintf("token重算：reportedTotalTokens=%d, reportedCompletionTokens=%d, totalTokens=%d, inputTokens=%d, completionTokens=%d, modelRatio=%.2f, completionRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", reportedTotalTokens, reportedCompletionTokens, totalTokens, inputTokens, completionTokens, modelRatio, completionRatio, finalGroupRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason, clamp)
 }

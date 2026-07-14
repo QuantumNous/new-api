@@ -72,35 +72,49 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 检查是否启用2FA
+	completeLoginWithTwoFA(&user, c)
+}
+
+// completeLoginWithTwoFA applies the same local second-factor gate to every
+// primary login method before a fully authenticated session is created.
+func completeLoginWithTwoFA(user *model.User, c *gin.Context) {
+	if !ensureUserCanLogin(user, c) {
+		return
+	}
 	twoFAEnabled, err := model.IsTwoFAEnabled(user.Id)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("Login failed to load 2FA status for user %d: %v", user.Id, err))
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		return
 	}
-	if twoFAEnabled {
-		// 设置pending session，等待2FA验证
-		session := sessions.Default(c)
-		session.Set("pending_username", user.Username)
-		session.Set("pending_user_id", user.Id)
-		err := session.Save()
-		if err != nil {
-			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": i18n.T(c, i18n.MsgUserRequire2FA),
-			"success": true,
-			"data": map[string]interface{}{
-				"require_2fa": true,
-			},
-		})
+	if !twoFAEnabled {
+		setupLogin(user, c)
 		return
 	}
 
-	setupLogin(&user, c)
+	session := sessions.Default(c)
+	session.Set("pending_username", user.Username)
+	session.Set("pending_user_id", user.Id)
+	if err := session.Save(); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": i18n.T(c, i18n.MsgUserRequire2FA),
+		"success": true,
+		"data": map[string]interface{}{
+			"require_2fa": true,
+		},
+	})
+}
+
+func ensureUserCanLogin(user *model.User, c *gin.Context) bool {
+	if user == nil || user.Status != common.UserStatusEnabled {
+		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
+		return false
+	}
+	return true
 }
 
 // loginMethodFromContext 根据请求路径推导登录方式，用于登录审计日志。
@@ -142,6 +156,11 @@ func recordLoginAudit(user *model.User, c *gin.Context) {
 
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	// Recheck here because an administrator may disable the user while a 2FA
+	// login is pending.
+	if !ensureUserCanLogin(user, c) {
+		return
+	}
 	model.UpdateUserLastLoginAt(user.Id)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)

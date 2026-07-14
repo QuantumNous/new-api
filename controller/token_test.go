@@ -14,8 +14,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -179,6 +182,27 @@ func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string
 		t.Fatalf("failed to create token: %v", err)
 	}
 	return token
+}
+
+func seedTokenOwner(t *testing.T, db *gorm.DB, userID int, group string) {
+	t.Helper()
+	require.NoError(t, db.AutoMigrate(&model.User{}))
+	require.NoError(t, db.Create(&model.User{
+		Id:       userID,
+		Username: fmt.Sprintf("token-owner-%d", userID),
+		Group:    group,
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}).Error)
+}
+
+func setTokenUsableGroups(t *testing.T, value string) {
+	t.Helper()
+	previous := setting.UserUsableGroups2JSONString()
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(value))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(previous))
+	})
 }
 
 func newAuthenticatedContext(t *testing.T, method string, target string, body any, userID int) (*gin.Context, *httptest.ResponseRecorder) {
@@ -537,4 +561,46 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
 	}
+}
+
+func TestAddTokenRejectsGroupUnavailableToUser(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	seedTokenOwner(t, db, 101, "default")
+	setTokenUsableGroups(t, `{"default":"Default"}`)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", map[string]any{
+		"name":            "invalid-group-token",
+		"unlimited_quota": true,
+		"group":           "internal",
+	}, 101)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	assert.False(t, response.Success)
+	var count int64
+	require.NoError(t, db.Model(&model.Token{}).Where("user_id = ?", 101).Count(&count).Error)
+	assert.Zero(t, count)
+}
+
+func TestUpdateTokenRejectsGroupUnavailableToUser(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	seedTokenOwner(t, db, 102, "default")
+	setTokenUsableGroups(t, `{"default":"Default"}`)
+	token := seedToken(t, db, 102, "group-update-token", "group1234update5678")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", map[string]any{
+		"id":              token.Id,
+		"name":            token.Name,
+		"expired_time":    -1,
+		"remain_quota":    100,
+		"unlimited_quota": true,
+		"group":           "internal",
+	}, 102)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	assert.False(t, response.Success)
+	var stored model.Token
+	require.NoError(t, db.First(&stored, token.Id).Error)
+	assert.Equal(t, "default", stored.Group)
 }

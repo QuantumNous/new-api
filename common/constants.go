@@ -183,7 +183,8 @@ var SyncFrequency int // unit is second
 var BatchUpdateEnabled = false
 var BatchUpdateInterval int
 
-var RelayTimeout int // unit is second
+var RelayTimeout int              // unit is second
+var StreamingFirstByteTimeout int // unit is second; 0 disables the independent header wait deadline
 
 var RelayIdleConnTimeout int // unit is second
 var RelayMaxIdleConns int

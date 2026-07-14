@@ -105,13 +105,22 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+func GetChannel(group string, model string, retry int, requestPath string, excludedSets ...map[int]struct{}) (*Channel, error) {
 	var abilities []Ability
+	var excluded map[int]struct{}
+	if len(excludedSets) > 0 {
+		excluded = excludedSets[0]
+	}
 
 	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
-	if err != nil {
-		return nil, err
+	var channelQuery *gorm.DB
+	if len(excluded) > 0 {
+		channelQuery = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
+	} else {
+		channelQuery, err = getChannelQuery(group, model, retry)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) || common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		err = channelQuery.Order("weight DESC").Find(&abilities).Error
@@ -122,6 +131,32 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 		return nil, err
 	}
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+	if len(excluded) > 0 {
+		remaining := abilities[:0]
+		var highestPriority int64
+		hasPriority := false
+		for _, ability := range abilities {
+			if _, skip := excluded[ability.ChannelId]; skip {
+				continue
+			}
+			priority := lo.FromPtr(ability.Priority)
+			if !hasPriority || priority > highestPriority {
+				highestPriority = priority
+				hasPriority = true
+			}
+			remaining = append(remaining, ability)
+		}
+		abilities = remaining
+		if hasPriority {
+			highest := abilities[:0]
+			for _, ability := range abilities {
+				if lo.FromPtr(ability.Priority) == highestPriority {
+					highest = append(highest, ability)
+				}
+			}
+			abilities = highest
+		}
+	}
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one

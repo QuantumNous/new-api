@@ -33,12 +33,11 @@ func ConvertRerankRequest(request dto.RerankRequest) *AliRerankRequest {
 }
 
 func RerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
+	defer service.CloseResponseBodyGracefully(resp)
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError), nil
 	}
-	service.CloseResponseBodyGracefully(resp)
-
 	var aliResponse AliRerankResponse
 	err = json.Unmarshal(responseBody, &aliResponse)
 	if err != nil {
@@ -51,7 +50,7 @@ func RerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 			Type:    aliResponse.Code,
 			Param:   aliResponse.RequestId,
 			Code:    aliResponse.Code,
-		}, resp.StatusCode), nil
+		}, types.NormalizeUpstreamErrorStatusCode(resp.StatusCode)), nil
 	}
 
 	usage := dto.Usage{

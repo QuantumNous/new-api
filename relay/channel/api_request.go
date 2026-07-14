@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
@@ -474,6 +476,31 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	return doRequest(c, req, info)
 }
+
+type cancelOnCloseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+func (b *cancelOnCloseBody) finish() {
+	b.once.Do(b.cancel)
+}
+
+func (b *cancelOnCloseBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil {
+		b.finish()
+	}
+	return n, err
+}
+
+func (b *cancelOnCloseBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.finish()
+	return err
+}
+
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error
@@ -492,7 +519,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
 		generalSettings := operation_setting.GetGeneralSetting()
-		if generalSettings.PingIntervalEnabled && !info.DisablePing {
+		if generalSettings.PingIntervalEnabled && !info.DisablePing && common2.StreamingFirstByteTimeout <= 0 {
 			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
 			stopPinger, pingerDone = startPingKeepAlive(c, pingInterval)
 			// 使用defer确保在任何情况下都能停止ping goroutine
@@ -506,21 +533,63 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
-	resp, err := client.Do(req)
+	requestForDo := req
+	var firstByteCancel context.CancelFunc
+	var firstByteTimer *time.Timer
+	var firstByteTimedOut atomic.Bool
+	if info.IsStream && common2.StreamingFirstByteTimeout > 0 {
+		var firstByteCtx context.Context
+		firstByteCtx, firstByteCancel = context.WithCancel(req.Context())
+		firstByteTimer = time.AfterFunc(time.Duration(common2.StreamingFirstByteTimeout)*time.Second, func() {
+			firstByteTimedOut.Store(true)
+			firstByteCancel()
+		})
+		trace := &httptrace.ClientTrace{
+			GotFirstResponseByte: func() {
+				firstByteTimer.Stop()
+			},
+		}
+		requestForDo = req.Clone(httptrace.WithClientTrace(firstByteCtx, trace))
+	}
+
+	resp, err := client.Do(requestForDo)
+	if firstByteTimer != nil {
+		firstByteTimer.Stop()
+	}
 	if err != nil {
+		if firstByteCancel != nil {
+			firstByteCancel()
+		}
 		logger.LogError(c, "do request failed: "+err.Error())
+		if firstByteTimedOut.Load() {
+			return nil, types.NewErrorWithStatusCode(
+				fmt.Errorf("upstream first byte timeout after %ds: %w", common2.StreamingFirstByteTimeout, err),
+				types.ErrorCodeUpstreamFirstByteTimeout,
+				http.StatusGatewayTimeout,
+			)
+		}
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
+		if firstByteCancel != nil {
+			firstByteCancel()
+		}
 		return nil, errors.New("resp is nil")
+	}
+	if firstByteCancel != nil {
+		resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: firstByteCancel}
 	}
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {
 		c.Set(common2.UpstreamRequestIdKey, upID)
 	}
 
-	_ = req.Body.Close()
-	_ = c.Request.Body.Close()
+	if req.Body != nil {
+		_ = req.Body.Close()
+	}
+	if c.Request != nil && c.Request.Body != nil {
+		_ = c.Request.Body.Close()
+	}
 	return resp, nil
 }
 

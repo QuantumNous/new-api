@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
@@ -150,7 +151,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 	httpResp = resp.(*http.Response)
 	clientStream := info.IsStream
-	upstreamStream := isResponsesEventStreamContentType(httpResp.Header.Get("Content-Type"))
+	upstreamStream := isResponsesStreamResponse(httpResp, clientStream)
 	info.IsStream = clientStream || upstreamStream
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
@@ -186,4 +187,27 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 func isResponsesEventStreamContentType(contentType string) bool {
 	return strings.Contains(strings.ToLower(contentType), "text/event-stream")
+}
+
+func isResponsesStreamResponse(resp *http.Response, clientStream bool) bool {
+	if resp == nil {
+		return false
+	}
+	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if isResponsesEventStreamContentType(contentType) {
+		return true
+	}
+	if !clientStream || contentType != "" || resp.Body == nil {
+		return false
+	}
+
+	originalBody := resp.Body
+	reader := bufio.NewReader(originalBody)
+	prefix, _ := reader.Peek(6)
+	resp.Body = struct {
+		io.Reader
+		io.Closer
+	}{Reader: reader, Closer: originalBody}
+
+	return strings.HasPrefix(string(prefix), "event:") || strings.HasPrefix(string(prefix), "data:")
 }

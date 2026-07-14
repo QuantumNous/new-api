@@ -130,8 +130,8 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 9. Setup login
-	setupLogin(user, c)
+	// 9. Apply the same 2FA gate used by password login.
+	completeLoginWithTwoFA(user, c)
 }
 
 // handleOAuthBind handles binding OAuth account to existing user

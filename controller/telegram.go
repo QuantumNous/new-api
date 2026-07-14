@@ -108,7 +108,7 @@ func TelegramLogin(c *gin.Context) {
 		})
 		return
 	}
-	setupLogin(&user, c)
+	completeLoginWithTwoFA(&user, c)
 }
 
 func verifyTelegramAuthorization(params url.Values, token string, now time.Time) (string, error) {

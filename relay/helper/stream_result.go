@@ -1,7 +1,12 @@
 package helper
 
 import (
+	"fmt"
+	"net/http"
+
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 )
 
 // StreamResult is passed to each dataHandler invocation, providing methods
@@ -49,4 +54,28 @@ func (r *StreamResult) IsStopped() bool {
 // reset clears the per-chunk stopped flag so the object can be reused.
 func (r *StreamResult) reset() {
 	r.stopped = false
+}
+
+func StreamErrorBeforeResponse(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	if HasWrittenUpstreamResponse(c) {
+		return nil
+	}
+	return StreamError(info)
+}
+
+func StreamError(info *relaycommon.RelayInfo) *types.NewAPIError {
+	if info == nil || info.StreamStatus == nil {
+		return types.NewOpenAIError(fmt.Errorf("upstream returned an empty stream"), types.ErrorCodeEmptyResponse, http.StatusBadGateway)
+	}
+
+	status := info.StreamStatus
+	if status.EndReason == relaycommon.StreamEndReasonDone && info.ReceivedResponseCount > 0 && !status.HasErrors() {
+		return nil
+	}
+
+	message := "upstream stream ended before completion"
+	if info.ReceivedResponseCount == 0 && !status.HasErrors() {
+		message = "upstream returned an empty stream"
+	}
+	return types.NewOpenAIError(fmt.Errorf("%s: %s", message, status.Summary()), types.ErrorCodeBadResponse, http.StatusBadGateway)
 }

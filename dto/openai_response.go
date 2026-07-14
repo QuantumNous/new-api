@@ -415,6 +415,9 @@ const (
 type ResponsesStreamResponse struct {
 	Type     string                   `json:"type"`
 	Response *OpenAIResponsesResponse `json:"response,omitempty"`
+	Code     any                      `json:"code,omitempty"`
+	Message  string                   `json:"message,omitempty"`
+	Param    string                   `json:"param,omitempty"`
 	Delta    string                   `json:"delta,omitempty"`
 	Item     *ResponsesOutput         `json:"item,omitempty"`
 	// - response.function_call_arguments.delta
@@ -426,6 +429,24 @@ type ResponsesStreamResponse struct {
 	Part         *ResponsesReasoningSummaryPart `json:"part,omitempty"`
 }
 
+func (r *ResponsesStreamResponse) GetOpenAIError() *types.OpenAIError {
+	if r == nil {
+		return nil
+	}
+	if r.Type == "error" && (r.Message != "" || r.Code != nil || r.Param != "") {
+		return &types.OpenAIError{
+			Message: r.Message,
+			Type:    "upstream_error",
+			Param:   r.Param,
+			Code:    r.Code,
+		}
+	}
+	if r.Response != nil {
+		return r.Response.GetOpenAIError()
+	}
+	return nil
+}
+
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
 func GetOpenAIError(errorField any) *types.OpenAIError {
 	if errorField == nil {
@@ -434,9 +455,19 @@ func GetOpenAIError(errorField any) *types.OpenAIError {
 
 	switch err := errorField.(type) {
 	case types.OpenAIError:
+		if err.Type == "" && (err.Message != "" || err.Code != nil || err.Param != "") {
+			err.Type = "upstream_error"
+		}
 		return &err
 	case *types.OpenAIError:
-		return err
+		if err == nil {
+			return nil
+		}
+		copyErr := *err
+		if copyErr.Type == "" && (copyErr.Message != "" || copyErr.Code != nil || copyErr.Param != "") {
+			copyErr.Type = "upstream_error"
+		}
+		return &copyErr
 	case map[string]interface{}:
 		// 处理从JSON解析来的map结构
 		openaiErr := &types.OpenAIError{}
@@ -451,6 +482,9 @@ func GetOpenAIError(errorField any) *types.OpenAIError {
 		}
 		if errCode, ok := err["code"]; ok {
 			openaiErr.Code = errCode
+		}
+		if openaiErr.Type == "" && (openaiErr.Message != "" || openaiErr.Code != nil || openaiErr.Param != "") {
+			openaiErr.Type = "upstream_error"
 		}
 		return openaiErr
 	case string:

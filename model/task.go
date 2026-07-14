@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -113,6 +114,7 @@ type TaskBillingContext struct {
 	ModelPrice      float64            `json:"model_price,omitempty"`       // 模型单价
 	GroupRatio      float64            `json:"group_ratio,omitempty"`       // 分组倍率
 	ModelRatio      float64            `json:"model_ratio,omitempty"`       // 模型倍率
+	CompletionRatio float64            `json:"completion_ratio,omitempty"`  // 输出 token 倍率
 	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
@@ -419,6 +421,25 @@ func (Task *Task) Update() error {
 
 func (t *Task) UpdateQuota() error {
 	return DB.Model(t).Update("quota", t.Quota).Error
+}
+
+// AdjustTaskUsedQuota synchronously applies an async task settlement delta to
+// both user and channel usage without counting it as another request.
+func AdjustTaskUsedQuota(userID, channelID, delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&User{}).Where("id = ?", userID).
+			UpdateColumn("used_quota", gorm.Expr("used_quota + ?", delta)).Error; err != nil {
+			return err
+		}
+		if channelID <= 0 {
+			return nil
+		}
+		return tx.Model(&Channel{}).Where("id = ?", channelID).
+			UpdateColumn("used_quota", gorm.Expr("used_quota + ?", delta)).Error
+	})
 }
 
 // UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).

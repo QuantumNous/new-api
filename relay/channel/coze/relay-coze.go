@@ -98,6 +98,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 }
 
 func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
 	scanner := helper.NewStreamScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
 	helper.SetEventStreamHeaders(c)
@@ -107,16 +108,20 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	var currentEvent string
 	var currentData string
 	var usage = &dto.Usage{}
+	var streamErr *types.NewAPIError
+	completed := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		if line == "" {
 			if currentEvent != "" && currentData != "" {
-				// handle last event
-				handleCozeEvent(c, currentEvent, currentData, &responseText, usage, id, info)
+				completed, streamErr = handleCozeEvent(c, currentEvent, currentData, &responseText, usage, id, info)
 				currentEvent = ""
 				currentData = ""
+				if completed || streamErr != nil {
+					break
+				}
 			}
 			continue
 		}
@@ -133,12 +138,26 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	}
 
 	// Last event
-	if currentEvent != "" && currentData != "" {
-		handleCozeEvent(c, currentEvent, currentData, &responseText, usage, id, info)
+	if !completed && streamErr == nil && currentEvent != "" && currentData != "" {
+		completed, streamErr = handleCozeEvent(c, currentEvent, currentData, &responseText, usage, id, info)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	if streamErr == nil {
+		if err := scanner.Err(); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+		} else if !completed {
+			streamErr = types.NewOpenAIError(io.ErrUnexpectedEOF, types.ErrorCodeBadResponse, http.StatusBadGateway)
+		}
+	}
+	if streamErr != nil {
+		if !helper.HasWrittenUpstreamResponse(c) {
+			return nil, streamErr
+		}
+		_ = helper.ObjectData(c, gin.H{"error": streamErr.ToOpenAIError()})
+		if usage.TotalTokens == 0 {
+			usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, c.GetInt("coze_input_count"))
+		}
+		return usage, nil
 	}
 	helper.Done(c)
 
@@ -149,15 +168,14 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	return usage, nil
 }
 
-func handleCozeEvent(c *gin.Context, event string, data string, responseText *string, usage *dto.Usage, id string, info *relaycommon.RelayInfo) {
+func handleCozeEvent(c *gin.Context, event string, data string, responseText *string, usage *dto.Usage, id string, info *relaycommon.RelayInfo) (bool, *types.NewAPIError) {
 	switch event {
 	case "conversation.chat.completed":
 		// 将 data 解析为 CozeChatResponseData
 		var chatData CozeChatResponseData
 		err := json.Unmarshal([]byte(data), &chatData)
 		if err != nil {
-			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
-			return
+			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
 
 		usage.PromptTokens = chatData.Usage.InputCount
@@ -166,22 +184,23 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 
 		finishReason := "stop"
 		stopResponse := helper.GenerateStopResponse(id, common.GetTimestamp(), info.UpstreamModelName, finishReason)
-		helper.ObjectData(c, stopResponse)
+		if err := helper.ObjectData(c, stopResponse); err != nil {
+			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+		}
+		return true, nil
 
 	case "conversation.message.delta":
 		// 将 data 解析为 CozeChatV3MessageDetail
 		var messageData CozeChatV3MessageDetail
 		err := json.Unmarshal([]byte(data), &messageData)
 		if err != nil {
-			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
-			return
+			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
 
 		var content string
 		err = json.Unmarshal(messageData.Content, &content)
 		if err != nil {
-			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
-			return
+			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
 
 		*responseText += content
@@ -199,18 +218,23 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 		choice.Delta.SetContentString(content)
 		openaiResponse.Choices = append(openaiResponse.Choices, choice)
 
-		helper.ObjectData(c, openaiResponse)
+		if err := helper.ObjectData(c, openaiResponse); err != nil {
+			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+		}
 
 	case "error":
 		var errorData CozeError
 		err := json.Unmarshal([]byte(data), &errorData)
 		if err != nil {
-			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
-			return
+			return false, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
-
-		common.SysLog(fmt.Sprintf("stream event error: %v %v", errorData.Code, errorData.Message))
+		return false, types.WithOpenAIError(types.OpenAIError{
+			Message: errorData.Message,
+			Type:    "coze_error",
+			Code:    errorData.Code,
+		}, http.StatusBadGateway)
 	}
+	return false, nil
 }
 
 func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo) (error, bool) {

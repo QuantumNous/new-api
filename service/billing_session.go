@@ -149,6 +149,29 @@ func (s *BillingSession) GetPreConsumedQuota() int {
 	return s.preConsumedQuota
 }
 
+// ConstrainRetryGroupForBilling keeps a scoped subscription inside the group
+// captured when it was purchased. Wallet and unscoped subscription funding
+// retain the caller's original retry group, including auto-group failover.
+func ConstrainRetryGroupForBilling(relayInfo *relaycommon.RelayInfo, retryGroup string) string {
+	if relayInfo == nil || relayInfo.Billing == nil {
+		return retryGroup
+	}
+	session, ok := relayInfo.Billing.(*BillingSession)
+	if !ok {
+		return retryGroup
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	subscription, ok := session.funding.(*SubscriptionFunding)
+	if !ok {
+		return retryGroup
+	}
+	if group := strings.TrimSpace(subscription.UpgradeGroup); group != "" {
+		return group
+	}
+	return retryGroup
+}
+
 func (s *BillingSession) Reserve(targetQuota int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -387,6 +410,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 				requestId: relayInfo.RequestId,
 				userId:    relayInfo.UserId,
 				modelName: relayInfo.OriginModelName,
+				group:     relayInfo.UsingGroup,
 				amount:    subConsume,
 			},
 		}
@@ -426,7 +450,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
 				// 仅当用户的活跃订阅允许钱包回退时才回退到钱包，否则返回订阅额度不足错误
-				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflow(relayInfo.UserId)
+				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflowForGroup(relayInfo.UserId, relayInfo.UsingGroup)
 				if overflowErr != nil {
 					return nil, types.NewError(overflowErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 				}

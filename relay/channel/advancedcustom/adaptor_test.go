@@ -527,6 +527,40 @@ func TestAdaptorConvertsOpenAIChatRequestToResponsesUpstream(t *testing.T) {
 	assert.NotEmpty(t, responsesReq.Input)
 }
 
+func TestAdaptorRequestsUsageWhenResponsesStreamConvertsToChat(t *testing.T) {
+	oldForceStreamOption := constant.ForceStreamOption
+	constant.ForceStreamOption = true
+	t.Cleanup(func() { constant.ForceStreamOption = oldForceStreamOption })
+
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1/chat/completions",
+				Converter:    relayconvert.ConverterOpenAIResponsesToOpenAIChat,
+			},
+		},
+	})
+	info.RelayFormat = types.RelayFormatOpenAIResponses
+	info.RelayMode = relayconstant.RelayModeResponses
+	info.RequestURLPath = "/v1/responses"
+	info.SupportStreamOptions = true
+	c := advancedCustomGinContext("/v1/responses")
+
+	converted, err := adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model:  "gpt-test",
+		Input:  mustAdvancedCustomRawMessage(t, "hello"),
+		Stream: common.GetPointer(true),
+	})
+	require.NoError(t, err)
+
+	chatReq, ok := converted.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.NotNil(t, chatReq.StreamOptions)
+	require.True(t, chatReq.StreamOptions.IncludeUsage)
+}
+
 func TestAdaptorConvertsOpenAIChatRequestToClaudeUpstream(t *testing.T) {
 	adaptor := &Adaptor{}
 	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{

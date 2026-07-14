@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -85,12 +86,14 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	newApiErr.UpstreamStatusCode = resp.StatusCode
+	newApiErr.RetryAfter = ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+	defer CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
-	CloseResponseBodyGracefully(resp)
 	var errResponse dto.GeneralErrorResponse
 	responseBodyText := string(responseBody)
 	responseBodyPreview := common.LocalLogPreview(responseBodyText)
@@ -117,6 +120,8 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		oaiError := errResponse.TryToOpenAIError()
 		if oaiError != nil {
 			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+			newApiErr.UpstreamStatusCode = resp.StatusCode
+			newApiErr.RetryAfter = ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 			if showBodyWhenFail {
 				newApiErr.Err = buildErrWithBody(newApiErr.Error())
 			}
@@ -124,6 +129,8 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		}
 	}
 	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	newApiErr.UpstreamStatusCode = resp.StatusCode
+	newApiErr.RetryAfter = ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 	if showBodyWhenFail {
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
@@ -151,37 +158,72 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 		if !ok {
 			return
 		}
+		if newApiErr.UpstreamStatusCode == 0 {
+			newApiErr.UpstreamStatusCode = newApiErr.StatusCode
+		}
 		newApiErr.StatusCode = intCode
 	}
 }
 
+// ParseRetryAfter accepts both delta-seconds and an HTTP-date. Invalid or
+// already-expired values are ignored.
+func ParseRetryAfter(value string, now time.Time) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.ParseUint(value, 10, 64); err == nil {
+		if seconds == 0 {
+			return 0
+		}
+		const maxDuration = time.Duration(1<<63 - 1)
+		maxSeconds := uint64(maxDuration / time.Second)
+		if seconds > maxSeconds {
+			return maxDuration
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	when, err := http.ParseTime(value)
+	if err != nil || !when.After(now) {
+		return 0
+	}
+	return when.Sub(now)
+}
+
 func parseStatusCodeMappingValue(value any) (int, bool) {
+	var statusCode int
 	switch v := value.(type) {
 	case string:
 		if v == "" {
 			return 0, false
 		}
-		statusCode, err := strconv.Atoi(v)
+		parsed, err := strconv.Atoi(v)
 		if err != nil {
 			return 0, false
 		}
-		return statusCode, true
+		statusCode = parsed
 	case float64:
 		if v != math.Trunc(v) {
 			return 0, false
 		}
-		return int(v), true
+		statusCode = int(v)
 	case int:
-		return v, true
+		statusCode = v
 	case json.Number:
-		statusCode, err := strconv.Atoi(v.String())
+		parsed, err := strconv.Atoi(v.String())
 		if err != nil {
 			return 0, false
 		}
-		return statusCode, true
+		statusCode = parsed
 	default:
 		return 0, false
 	}
+	// ResetStatusCode is only applied to error responses. Mapping an error to a
+	// success code makes clients treat an error payload as a successful request.
+	if statusCode < 100 || statusCode > 599 || (statusCode >= 200 && statusCode < 300) {
+		return 0, false
+	}
+	return statusCode, true
 }
 
 func TaskErrorWrapperLocal(err error, code string, statusCode int) *dto.TaskError {
@@ -219,5 +261,6 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *dto.TaskError {
 		Message:    apiErr.Err.Error(),
 		StatusCode: apiErr.StatusCode,
 		Error:      apiErr.Err,
+		RetryAfter: apiErr.RetryAfter,
 	}
 }

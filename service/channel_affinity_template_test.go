@@ -278,6 +278,7 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 		}
 	}
 	require.NotNil(t, codexRule)
+	require.False(t, codexRule.SkipRetryOnFailure)
 
 	affinityValue := fmt.Sprintf("pc-hit-%d", time.Now().UnixNano())
 	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5", "default", affinityValue)

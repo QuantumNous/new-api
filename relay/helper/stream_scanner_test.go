@@ -70,6 +70,23 @@ func TestStreamScannerHandler_NilInputs(t *testing.T) {
 	StreamScannerHandler(c, &http.Response{Body: io.NopCloser(strings.NewReader(""))}, info, nil)
 }
 
+func TestStreamScannerHandler_InvalidStreamingTimeoutUsesDefault(t *testing.T) {
+	// Not parallel: modifies global constant.StreamingTimeout.
+	oldTimeout := constant.StreamingTimeout
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	for _, timeout := range []int{0, -1} {
+		constant.StreamingTimeout = timeout
+		c, resp, info := setupStreamTest(t, strings.NewReader("data: [DONE]\n"))
+
+		require.NotPanics(t, func() {
+			StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+		})
+		require.NotNil(t, info.StreamStatus)
+		assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+	}
+}
+
 func TestNewStreamScanner_AllowsLargeStreamLine(t *testing.T) {
 	oldBufferMB := constant.StreamScannerMaxBufferMB
 	constant.StreamScannerMaxBufferMB = 1

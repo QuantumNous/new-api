@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -87,9 +89,24 @@ type AliVideoOutput struct {
 
 // AliUsage 使用统计
 type AliUsage struct {
-	Duration   dto.IntValue `json:"duration,omitempty"`
-	VideoCount dto.IntValue `json:"video_count,omitempty"`
-	SR         dto.IntValue `json:"SR,omitempty"`
+	Duration   aliDurationValue `json:"duration,omitempty"`
+	VideoCount dto.IntValue     `json:"video_count,omitempty"`
+	SR         dto.IntValue     `json:"SR,omitempty"`
+}
+
+type aliDurationValue int
+
+func (v *aliDurationValue) UnmarshalJSON(data []byte) error {
+	var value dto.StringValue
+	if err := value.UnmarshalJSON(data); err != nil {
+		return err
+	}
+	duration, err := strconv.ParseFloat(string(value), 64)
+	if err != nil || math.IsNaN(duration) || math.IsInf(duration, 0) || duration < 0 || duration > float64(^uint(0)>>1) {
+		return fmt.Errorf("invalid duration %q", value)
+	}
+	*v = aliDurationValue(int(duration))
+	return nil
 }
 
 type AliMetadata struct {
@@ -494,7 +511,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 
 	// 检查错误
 	if aliResp.Code != "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("%s: %s", aliResp.Code, aliResp.Message), "ali_api_error", resp.StatusCode)
+		taskErr = service.TaskErrorWrapper(fmt.Errorf("%s: %s", aliResp.Code, aliResp.Message), "ali_api_error", types.NormalizeUpstreamErrorStatusCode(resp.StatusCode))
 		return
 	}
 

@@ -3,17 +3,32 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type errorReadCloser struct {
+	closed bool
+}
+
+func (r *errorReadCloser) Read([]byte) (int, error) {
+	return 0, errors.New("read failed")
+}
+
+func (r *errorReadCloser) Close() error {
+	r.closed = true
+	return nil
+}
 
 func TestResetStatusCode(t *testing.T) {
 	t.Parallel()
@@ -48,6 +63,18 @@ func TestResetStatusCode(t *testing.T) {
 			statusCodeConfig: `{"200":503}`,
 			expectedCode:     200,
 		},
+		{
+			name:             "do not map an error to success",
+			statusCode:       503,
+			statusCodeConfig: `{"503":200}`,
+			expectedCode:     503,
+		},
+		{
+			name:             "skip out of range target",
+			statusCode:       503,
+			statusCodeConfig: `{"503":999}`,
+			expectedCode:     503,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -60,8 +87,44 @@ func TestResetStatusCode(t *testing.T) {
 			}
 			ResetStatusCode(newAPIError, tc.statusCodeConfig)
 			require.Equal(t, tc.expectedCode, newAPIError.StatusCode)
+			if tc.expectedCode != tc.statusCode {
+				require.Equal(t, tc.statusCode, newAPIError.GetUpstreamStatusCode())
+			}
 		})
 	}
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	now := time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC)
+	require.Equal(t, 3*time.Second, ParseRetryAfter("3", now))
+	require.Equal(t, 5*time.Second, ParseRetryAfter(now.Add(5*time.Second).Format(http.TimeFormat), now))
+	require.Zero(t, ParseRetryAfter("0", now))
+	require.Zero(t, ParseRetryAfter("invalid", now))
+	require.Zero(t, ParseRetryAfter(now.Add(-time.Second).Format(http.TimeFormat), now))
+	require.Equal(t, time.Duration(1<<63-1), ParseRetryAfter("9223372036854775807", now))
+}
+
+func TestRelayErrorHandlerClosesBodyWhenReadFails(t *testing.T) {
+	body := &errorReadCloser{}
+	resp := &http.Response{
+		StatusCode: http.StatusBadGateway,
+		Header:     make(http.Header),
+		Body:       body,
+	}
+
+	apiErr := RelayErrorHandler(context.Background(), resp, false)
+
+	require.NotNil(t, apiErr)
+	require.True(t, body.closed)
+}
+
+func TestTaskErrorFromAPIErrorPreservesRetryAfter(t *testing.T) {
+	apiErr := types.NewErrorWithStatusCode(errors.New("busy"), types.ErrorCodeBadResponseStatusCode, http.StatusServiceUnavailable)
+	apiErr.RetryAfter = 7 * time.Second
+
+	taskErr := TaskErrorFromAPIError(apiErr)
+
+	require.Equal(t, 7*time.Second, taskErr.RetryAfter)
 }
 
 func TestRelayErrorHandlerTruncatesInvalidJSONBodyInLog(t *testing.T) {

@@ -66,6 +66,9 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+	// ContextKeyRelayPingBytes tracks synthetic SSE keepalive bytes so retry
+	// logic can distinguish them from actual upstream response data.
+	ContextKeyRelayPingBytes ContextKey = "relay_ping_bytes"
 
 	// ContextKeyAuditLogged marks that the current request has already recorded
 	// a manage/operation audit log inside the handler. When set, the admin-audit

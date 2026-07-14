@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
@@ -116,10 +117,25 @@ func PingData(c *gin.Context) error {
 		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
-	if _, err := c.Writer.Write([]byte(": PING\n\n")); err != nil {
+	written, err := c.Writer.Write([]byte(": PING\n\n"))
+	if written > 0 {
+		pingBytes := common.GetContextKeyInt(c, constant.ContextKeyRelayPingBytes)
+		common.SetContextKey(c, constant.ContextKeyRelayPingBytes, pingBytes+written)
+	}
+	if err != nil {
 		return fmt.Errorf("write ping data failed: %w", err)
 	}
 	return FlushWriter(c)
+}
+
+// HasWrittenUpstreamResponse reports whether the downstream response contains
+// anything beyond synthetic SSE keepalive comments.
+func HasWrittenUpstreamResponse(c *gin.Context) bool {
+	if c == nil || c.Writer == nil || !c.Writer.Written() {
+		return false
+	}
+	pingBytes := common.GetContextKeyInt(c, constant.ContextKeyRelayPingBytes)
+	return pingBytes <= 0 || c.Writer.Size() != pingBytes
 }
 
 func ObjectData(c *gin.Context, object interface{}) error {

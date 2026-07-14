@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -43,13 +44,14 @@ const (
 	ErrorCodeViolationFeeGrokCSAM   ErrorCode = "violation_fee.grok.csam"
 
 	// new api error
-	ErrorCodeCountTokenFailed   ErrorCode = "count_token_failed"
-	ErrorCodeModelPriceError    ErrorCode = "model_price_error"
-	ErrorCodeInvalidApiType     ErrorCode = "invalid_api_type"
-	ErrorCodeJsonMarshalFailed  ErrorCode = "json_marshal_failed"
-	ErrorCodeDoRequestFailed    ErrorCode = "do_request_failed"
-	ErrorCodeGetChannelFailed   ErrorCode = "get_channel_failed"
-	ErrorCodeGenRelayInfoFailed ErrorCode = "gen_relay_info_failed"
+	ErrorCodeCountTokenFailed         ErrorCode = "count_token_failed"
+	ErrorCodeModelPriceError          ErrorCode = "model_price_error"
+	ErrorCodeInvalidApiType           ErrorCode = "invalid_api_type"
+	ErrorCodeJsonMarshalFailed        ErrorCode = "json_marshal_failed"
+	ErrorCodeDoRequestFailed          ErrorCode = "do_request_failed"
+	ErrorCodeUpstreamFirstByteTimeout ErrorCode = "upstream_first_byte_timeout"
+	ErrorCodeGetChannelFailed         ErrorCode = "get_channel_failed"
+	ErrorCodeGenRelayInfoFailed       ErrorCode = "gen_relay_info_failed"
 
 	// channel error
 	ErrorCodeChannelNoAvailableKey        ErrorCode = "channel:no_available_key"
@@ -88,14 +90,37 @@ const (
 )
 
 type NewAPIError struct {
-	Err            error
-	RelayError     any
-	skipRetry      bool
-	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
+	Err                error
+	RelayError         any
+	skipRetry          bool
+	recordErrorLog     *bool
+	errorType          ErrorType
+	errorCode          ErrorCode
+	StatusCode         int
+	UpstreamStatusCode int
+	RetryAfter         time.Duration
+	Metadata           json.RawMessage
+}
+
+// GetUpstreamStatusCode returns the status received from the upstream before
+// any user-configured response mapping is applied.
+func (e *NewAPIError) GetUpstreamStatusCode() int {
+	if e == nil {
+		return 0
+	}
+	if e.UpstreamStatusCode != 0 {
+		return e.UpstreamStatusCode
+	}
+	return e.StatusCode
+}
+
+// NormalizeUpstreamErrorStatusCode prevents a business-error payload wrapped
+// in HTTP 2xx from being exposed or retried as a successful response.
+func NormalizeUpstreamErrorStatusCode(statusCode int) int {
+	if statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices {
+		return http.StatusBadGateway
+	}
+	return statusCode
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
