@@ -196,3 +196,25 @@ func TestNormalizeGptImage2ModelName(t *testing.T) {
 	require.Equal(t, "gpt-image-2", NormalizeGptImage2ModelName("gpt-image-2-official"))
 	require.Equal(t, "gpt-image-2", NormalizeGptImage2ModelName("gpt-image-2"))
 }
+
+func TestPrepareGptImage2StripsResponseFormat(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	body := `{"model":"gpt-image-2","prompt":"x","n":1,"response_format":"b64_json"}`
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	PrepareGptImage2ModelRequest(c, "gpt-image-2")
+
+	// response_format must be gone so cheap channels (73/81) pass the pick filter
+	// and no upstream ever receives the unknown parameter.
+	raw, err := readGptImage2RequestJSON(c)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "response_format")
+
+	req := gptImage2CapabilityRequestFromContext(c, "gpt-image-2")
+	require.Empty(t, req.ResponseFormat)
+	require.True(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 73}, req))
+	require.True(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 81}, req))
+}

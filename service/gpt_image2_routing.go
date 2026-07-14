@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"mime/multipart"
 	"strconv"
 	"strings"
@@ -63,6 +64,12 @@ func PrepareGptImage2ModelRequest(c *gin.Context, modelName string) string {
 	if !IsGptImage2Family(modelName) {
 		return modelName
 	}
+	// None of the enabled gpt-image-2 upstreams (packy #72, APIMart #59/#73/#81)
+	// accept response_format; PackyAPI returns 400 Unknown parameter. Strip it here
+	// — before routing and forwarding — so the request stays eligible for the cheap
+	// channels instead of being forced onto the only upstream whose capability filter
+	// didn't reject it.
+	stripGptImage2UnsupportedParams(c)
 	profile := ClassifyGptImage2Profile(c, modelName)
 	officialFallback := classifyGptImage2OfficialFallback(c)
 	if c != nil {
@@ -70,6 +77,53 @@ func PrepareGptImage2ModelRequest(c *gin.Context, modelName string) string {
 		c.Set(contextKeyGptImage2OfficialFB, officialFallback)
 	}
 	return NormalizeGptImage2ModelName(modelName)
+}
+
+// gptImage2UnsupportedParams lists request fields that no enabled gpt-image-2
+// upstream honors; carrying them only causes upstream 400s and skews routing.
+var gptImage2UnsupportedParams = []string{"response_format"}
+
+// stripGptImage2UnsupportedParams removes unsupported fields from a JSON
+// gpt-image-2 request body and rewrites the shared body storage so both channel
+// routing and upstream forwarding observe the cleaned payload. Multipart bodies
+// are left untouched (no enabled channel serves them with these fields set).
+func stripGptImage2UnsupportedParams(c *gin.Context) {
+	if c == nil || c.Request == nil {
+		return
+	}
+	if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+		return
+	}
+	raw, err := readGptImage2RequestJSON(c)
+	if err != nil || len(raw) == 0 {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if common.Unmarshal(raw, &fields) != nil {
+		return
+	}
+	removed := false
+	for _, key := range gptImage2UnsupportedParams {
+		if _, ok := fields[key]; ok {
+			delete(fields, key)
+			removed = true
+		}
+	}
+	if !removed {
+		return
+	}
+	cleaned, err := common.Marshal(fields)
+	if err != nil {
+		return
+	}
+	storage, err := common.CreateBodyStorage(cleaned)
+	if err != nil {
+		return
+	}
+	c.Set(common.KeyBodyStorage, storage)
+	c.Set(common.KeyRequestBody, cleaned)
+	c.Request.Body = io.NopCloser(storage)
+	c.Request.ContentLength = int64(len(cleaned))
 }
 
 // GptImage2ProfileFromContext reads the profile set during distributor prep.
