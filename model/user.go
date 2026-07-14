@@ -750,33 +750,31 @@ func (user *User) HardDelete() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	var tokens []Token
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if common.RedisEnabled {
+			if err := tx.Unscoped().Select("id", commonKeyCol).Where("user_id = ?", user.Id).Find(&tokens).Error; err != nil {
+				return err
+			}
+		}
 		if err := deleteUserAuthenticationData(tx, user.Id); err != nil {
 			return err
 		}
 		return tx.Unscoped().Delete(user).Error
 	})
+	if err != nil {
+		return err
+	}
+	if err := invalidateTokensCache(tokens); err != nil {
+		common.SysError(fmt.Sprintf("failed to invalidate token cache after hard deleting user %d: %v", user.Id, err))
+	}
+	if err := invalidateUserCache(user.Id); err != nil {
+		common.SysError(fmt.Sprintf("failed to invalidate user cache after hard deleting user %d: %v", user.Id, err))
+	}
+	return nil
 }
 
 func deleteUserAuthenticationData(tx *gorm.DB, userId int) error {
-	if common.RedisEnabled {
-		var tokens []Token
-		if err := tx.Unscoped().Select("id", commonKeyCol).Where("user_id = ?", userId).Find(&tokens).Error; err != nil {
-			return err
-		}
-		for _, token := range tokens {
-			if token.Key == "" {
-				continue
-			}
-			if err := cacheDeleteToken(token.Key); err != nil {
-				return err
-			}
-		}
-		if err := invalidateUserCache(userId); err != nil {
-			return err
-		}
-	}
-
 	for _, authenticationData := range []any{
 		&TwoFABackupCode{},
 		&TwoFA{},

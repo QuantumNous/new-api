@@ -23,7 +23,7 @@ const (
 	// The legacy Telegram widget has no nonce. Keep its signed assertion short-lived
 	// so captured callbacks cannot be reused indefinitely.
 	telegramAuthorizationMaxAge     = 5 * time.Minute
-	telegramAuthorizationFutureSkew = 30 * time.Second
+	telegramAuthorizationFutureSkew = 2 * time.Minute
 )
 
 func TelegramBind(c *gin.Context) {
@@ -37,6 +37,7 @@ func TelegramBind(c *gin.Context) {
 	params := c.Request.URL.Query()
 	telegramId, err := verifyTelegramAuthorization(params, common.TelegramBotToken, time.Now())
 	if err != nil {
+		common.SysLog("TelegramBind authorization failed: " + err.Error())
 		c.JSON(200, gin.H{
 			"message": "无效的请求",
 			"success": false,
@@ -91,6 +92,7 @@ func TelegramLogin(c *gin.Context) {
 	params := c.Request.URL.Query()
 	telegramId, err := verifyTelegramAuthorization(params, common.TelegramBotToken, time.Now())
 	if err != nil {
+		common.SysLog("TelegramLogin authorization failed: " + err.Error())
 		c.JSON(200, gin.H{
 			"message": "无效的请求",
 			"success": false,
