@@ -90,9 +90,23 @@ func (r *channelHealthRegistry) getOrCreate(key ChannelHealthKey, now time.Time)
 	return entry
 }
 
+// isChannelOverloadStatus reports whether a 4xx status is actually a channel
+// capacity signal (request timeout / too many requests) rather than a genuine
+// client error. These indicate the channel cannot serve right now and should
+// be deprioritized, so they count against health like a 5xx.
+func isChannelOverloadStatus(statusCode int) bool {
+	return statusCode == http.StatusRequestTimeout || statusCode == http.StatusTooManyRequests
+}
+
 func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutcome) {
-	if !common.AdaptiveChannelHealthEnabled || outcome.LocalError || outcome.SemanticError ||
-		(outcome.StatusCode >= http.StatusBadRequest && outcome.StatusCode < http.StatusInternalServerError) {
+	if !common.AdaptiveChannelHealthEnabled || outcome.LocalError || outcome.SemanticError {
+		return
+	}
+	// Ignore genuine client 4xx (bad request, auth, not found, unprocessable);
+	// they are not the channel's availability problem. 408/429 are the
+	// exception: they signal an overloaded channel and must count.
+	if outcome.StatusCode >= http.StatusBadRequest && outcome.StatusCode < http.StatusInternalServerError &&
+		!isChannelOverloadStatus(outcome.StatusCode) {
 		return
 	}
 
@@ -104,7 +118,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	if entry == nil {
 		return
 	}
-	if outcome.StatusCode >= http.StatusInternalServerError || outcome.StatusCode <= 0 {
+	if outcome.StatusCode >= http.StatusInternalServerError || outcome.StatusCode <= 0 || isChannelOverloadStatus(outcome.StatusCode) {
 		if entry.state == ChannelHealthHalfOpen {
 			entry.state = ChannelHealthOpen
 			entry.openUntil = now.Add(channelHealthOpenDuration)

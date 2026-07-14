@@ -163,6 +163,38 @@ func TestChannelHealthIgnoresSemanticClientErrors(t *testing.T) {
 	}
 }
 
+func TestChannelHealthCountsOverloadStatuses(t *testing.T) {
+	// 408/429 mean the channel is overloaded / rate-limited right now: a
+	// channel-capacity signal that should deprioritize it, unlike genuine
+	// client 4xx.
+	for _, status := range []int{http.StatusRequestTimeout, http.StatusTooManyRequests} {
+		health, _ := newTestChannelHealth(t)
+		key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.5", Path: "/v1/responses"}
+		for i := 0; i < channelHealthFailureThreshold; i++ {
+			health.Record(key, ChannelOutcome{StatusCode: status})
+		}
+		if got := health.State(key); got != ChannelHealthOpen {
+			t.Fatalf("status %d: state = %v, want %v (overloaded channel must lose health)", status, got, ChannelHealthOpen)
+		}
+	}
+}
+
+func TestChannelHealthIgnoresGenuineClientErrors(t *testing.T) {
+	// Real client errors (bad request, auth, not found, unprocessable) are not
+	// the channel's availability problem; credential failures are handled by the
+	// cooldown/auto-ban system, not the health circuit.
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusUnprocessableEntity} {
+		health, _ := newTestChannelHealth(t)
+		key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.5", Path: "/v1/responses"}
+		for i := 0; i < channelHealthFailureThreshold+1; i++ {
+			health.Record(key, ChannelOutcome{StatusCode: status})
+		}
+		if got := health.State(key); got != ChannelHealthClosed {
+			t.Fatalf("status %d: state = %v, want %v (client errors must not affect channel health)", status, got, ChannelHealthClosed)
+		}
+	}
+}
+
 func TestChannelHealthIgnoresGatewayLocalErrors(t *testing.T) {
 	health, _ := newTestChannelHealth(t)
 	key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.5", Path: "/v1/responses"}
