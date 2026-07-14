@@ -560,7 +560,7 @@ export function ChannelAffinitySection(props: Props) {
               },
               {
                 id: 'model-regex',
-                header: t('Model Regex'),
+                header: t('Model Regex (Go syntax)'),
                 cell: (rule) => (
                   <RuleBadgeList items={rule.model_regex || []} />
                 ),

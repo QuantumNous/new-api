@@ -44,7 +44,7 @@ const PARAM_OVERRIDE_ACTION_MAP: Record<string, string> = {
   to_lower: 'To Lower',
   to_upper: 'To Upper',
   replace: 'Replace',
-  regex_replace: 'Regex Replace',
+  regex_replace: 'Go Regex Replacement',
   set_header: 'Set Header',
   delete_header: 'Delete Header',
   copy_header: 'Copy Header',
