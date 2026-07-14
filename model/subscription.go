@@ -1077,7 +1077,7 @@ func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
 	now := common.GetTimestamp()
 	var strictCount int64
 	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
+		Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0) AND allow_wallet_overflow = ?",
 			userId, "active", now, false).
 		Count(&strictCount).Error; err != nil {
 		return false, err
@@ -1534,7 +1534,7 @@ func preConsumeUserSubscriptionInternal(requestId string, userId int, modelName 
 
 		var subs []UserSubscription
 		subQuery := lockForUpdate(tx).
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now)
+			Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0)", userId, "active", now)
 		if excludeBindGroup {
 			subQuery = subQuery.Where("source != ?", "bind_group")
 		}

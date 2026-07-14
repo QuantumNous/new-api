@@ -237,10 +237,52 @@ func TestGetActiveSubscriptionBindGroups_SkipsEmptyBindGroup(t *testing.T) {
 	assert.Empty(t, groups, "empty bind_group should be skipped")
 }
 
+func TestPreConsumeUserSubscription_IncludesPermanentBindGroupSubscription(t *testing.T) {
+	truncateTablesForSubscription(t)
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))
+
+	plan := &SubscriptionPlan{
+		Title:       "公司自动分配套餐",
+		BindGroup:   "company_group",
+		Enabled:     true,
+		TotalAmount: 1000,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	user := &User{
+		Username:    "test_user_permanent_bind_group",
+		DisplayName: "Test",
+		Password:    "test",
+		Role:        1,
+		Status:      1,
+	}
+	require.NoError(t, DB.Create(user).Error)
+
+	now := common.GetTimestamp()
+	sub := &UserSubscription{
+		UserId:      user.Id,
+		PlanId:      plan.Id,
+		AmountTotal: 1000,
+		AmountUsed:  0,
+		StartTime:   now,
+		EndTime:     0,
+		Status:      "active",
+		Source:      "bind_group",
+	}
+	require.NoError(t, DB.Create(sub).Error)
+
+	result, err := PreConsumeUserSubscription("test-permanent-bind-group", user.Id, "gpt-test", 0, 100)
+	require.NoError(t, err)
+	assert.Equal(t, sub.Id, result.UserSubscriptionId)
+	assert.Equal(t, int64(0), result.AmountUsedBefore)
+	assert.Equal(t, int64(100), result.AmountUsedAfter)
+}
+
 // 辅助函数：清理订阅相关表
 func truncateTablesForSubscription(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
+		DB.Exec("DELETE FROM subscription_pre_consume_records")
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM users WHERE username LIKE 'test_user_%'")
