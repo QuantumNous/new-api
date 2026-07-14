@@ -64,6 +64,12 @@ const resetPeriodOptions = [
   { value: 'custom', label: '自定义(秒)' },
 ];
 
+const planKindOptions = [
+  { value: 'base', label: '主套餐' },
+  { value: 'booster', label: '加量包' },
+  { value: 'hidden', label: '隐藏（仅后台）' },
+];
+
 const AddEditSubscriptionModal = ({
   visible,
   handleClose,
@@ -83,6 +89,7 @@ const AddEditSubscriptionModal = ({
   const getInitValues = () => ({
     title: '',
     subtitle: '',
+    plan_kind: 'base',
     price_amount: 0,
     currency: 'USD',
     duration_unit: 'month',
@@ -103,10 +110,14 @@ const AddEditSubscriptionModal = ({
     const base = getInitValues();
     if (editingPlan?.plan?.id === undefined) return base;
     const p = editingPlan.plan || {};
+    const planKind = ['base', 'booster', 'hidden'].includes(p.plan_kind)
+      ? p.plan_kind
+      : 'base';
     return {
       ...base,
       title: p.title || '',
       subtitle: p.subtitle || '',
+      plan_kind: planKind,
       price_amount: Number(p.price_amount || 0),
       currency: 'USD',
       duration_unit: p.duration_unit || 'month',
@@ -151,6 +162,7 @@ const AddEditSubscriptionModal = ({
       const payload = {
         plan: {
           ...values,
+          plan_kind: values.plan_kind || 'base',
           price_amount: Number(values.price_amount || 0),
           currency: 'USD',
           duration_value: Number(values.duration_value || 0),
@@ -305,6 +317,24 @@ const AddEditSubscriptionModal = ({
                         placeholder={t('例如：适合轻度使用')}
                         showClear
                       />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Select
+                        field='plan_kind'
+                        label={t('套餐类型')}
+                        required
+                        rules={[{ required: true, message: t('请选择套餐类型') }]}
+                        extraText={t(
+                          '主套餐：客户端订阅主商品；加量包：需先有主套餐；隐藏：用户端列表不展示，仅后台可绑定',
+                        )}
+                      >
+                        {planKindOptions.map((o) => (
+                          <Select.Option key={o.value} value={o.value}>
+                            {t(o.label)}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
                     </Col>
 
                     <Col span={12}>

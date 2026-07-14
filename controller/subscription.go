@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -37,6 +38,11 @@ func GetSubscriptionPlans(c *gin.Context) {
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
+		p.EnsurePlanKind()
+		// Hidden plans stay available for admin bind / internal use, but not public listing.
+		if p.PlanKind == model.SubscriptionPlanKindHidden {
+			continue
+		}
 		result = append(result, SubscriptionPlanDTO{
 			Plan: p,
 		})
@@ -102,6 +108,7 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
+		p.EnsurePlanKind()
 		result = append(result, SubscriptionPlanDTO{
 			Plan: p,
 		})
@@ -154,6 +161,12 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	planKind, err := resolvePlanKindForCreate(req.Plan.PlanKind)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	req.Plan.PlanKind = planKind
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -166,7 +179,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
-	err := model.DB.Create(&req.Plan).Error
+	err = model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -221,6 +234,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	// Empty plan_kind is treated as "omit" so clients that do not yet send the field
+	// (e.g. web/default admin UI) will not overwrite an existing classification.
+	planKindUpdate, err := resolvePlanKindForUpdate(req.Plan.PlanKind)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -234,7 +254,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
@@ -254,6 +274,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
+		}
+		if planKindUpdate != nil {
+			updateMap["plan_kind"] = *planKindUpdate
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err
@@ -406,4 +429,28 @@ func AdminDeleteUserSubscription(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+func resolvePlanKindForCreate(raw string) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return model.SubscriptionPlanKindBase, nil
+	}
+	kind, ok := model.ParsePlanKind(raw)
+	if !ok {
+		return "", errors.New("套餐类型无效，可选：base / booster / hidden")
+	}
+	return kind, nil
+}
+
+// resolvePlanKindForUpdate returns nil when the field is omitted (empty),
+// so callers can skip updating plan_kind and preserve the stored value.
+func resolvePlanKindForUpdate(raw string) (*string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	kind, ok := model.ParsePlanKind(raw)
+	if !ok {
+		return nil, errors.New("套餐类型无效，可选：base / booster / hidden")
+	}
+	return &kind, nil
 }

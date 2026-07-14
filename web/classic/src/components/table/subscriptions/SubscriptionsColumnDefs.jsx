@@ -83,6 +83,14 @@ const renderPlanTitle = (text, record, t) => {
       )}
       <Divider margin={12} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <Text type='tertiary'>{t('类型')}</Text>
+        <Text>
+          {plan?.plan_kind === 'booster'
+            ? t('加量包')
+            : plan?.plan_kind === 'hidden'
+              ? t('隐藏')
+              : t('主套餐')}
+        </Text>
         <Text type='tertiary'>{t('价格')}</Text>
         <Text strong className='subscription-price-text'>
           {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
@@ -224,6 +232,44 @@ const renderUpgradeGroup = (text, record, t) => {
   );
 };
 
+const renderPlanKind = (text, record, t) => {
+  const kind = record?.plan?.plan_kind || 'base';
+  if (kind === 'booster') {
+    return (
+      <Tag
+        color='white'
+        shape='circle'
+        type='light'
+        className='subscription-status-tag is-enabled'
+      >
+        {t('加量包')}
+      </Tag>
+    );
+  }
+  if (kind === 'hidden') {
+    return (
+      <Tag
+        color='white'
+        shape='circle'
+        type='light'
+        className='subscription-status-tag is-disabled'
+      >
+        {t('隐藏')}
+      </Tag>
+    );
+  }
+  return (
+    <Tag
+      color='white'
+      shape='circle'
+      type='light'
+      className='subscription-status-tag is-enabled'
+    >
+      {t('主套餐')}
+    </Tag>
+  );
+};
+
 const renderResetPeriod = (text, record, t) => {
   const period = record?.plan?.quota_reset_period || 'never';
   const isNever = period === 'never';
@@ -354,6 +400,11 @@ export const getSubscriptionsColumns = ({
       dataIndex: ['plan', 'title'],
       width: 200,
       render: (text, record) => renderPlanTitle(text, record, t),
+    },
+    {
+      title: t('类型'),
+      width: 90,
+      render: (text, record) => renderPlanKind(text, record, t),
     },
     {
       title: t('价格'),

@@ -32,6 +32,16 @@ const (
 	SubscriptionResetCustom  = "custom"
 )
 
+// Subscription plan kinds (client / product classification)
+const (
+	// SubscriptionPlanKindBase is a primary subscription plan.
+	SubscriptionPlanKindBase = "base"
+	// SubscriptionPlanKindBooster is a quota booster pack (requires an active base plan on clients).
+	SubscriptionPlanKindBooster = "booster"
+	// SubscriptionPlanKindHidden is enabled for admin/bind but not exposed on public plan lists.
+	SubscriptionPlanKindHidden = "hidden"
+)
+
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
@@ -158,6 +168,10 @@ type SubscriptionPlan struct {
 
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
+
+	// PlanKind classifies the plan for clients: base | booster | hidden.
+	// Empty values are treated as base for backward compatibility.
+	PlanKind string `json:"plan_kind" gorm:"type:varchar(16);not null;default:'base'"`
 
 	AlipayEnabled  bool   `json:"alipay_enabled" gorm:"default:false"`
 	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
@@ -328,6 +342,38 @@ func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	default:
 		return 0, fmt.Errorf("invalid duration_unit: %s", plan.DurationUnit)
 	}
+}
+
+// ParsePlanKind validates an explicit plan kind string.
+// Empty input is invalid here; callers that want a default should use NormalizePlanKind.
+func ParsePlanKind(kind string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case SubscriptionPlanKindBase:
+		return SubscriptionPlanKindBase, true
+	case SubscriptionPlanKindBooster:
+		return SubscriptionPlanKindBooster, true
+	case SubscriptionPlanKindHidden:
+		return SubscriptionPlanKindHidden, true
+	default:
+		return "", false
+	}
+}
+
+// NormalizePlanKind returns a canonical plan kind.
+// Empty or unknown values fall back to base for safe read-path defaults.
+func NormalizePlanKind(kind string) string {
+	if parsed, ok := ParsePlanKind(kind); ok {
+		return parsed
+	}
+	return SubscriptionPlanKindBase
+}
+
+// EnsurePlanKind mutates plan.PlanKind to a canonical value.
+func (p *SubscriptionPlan) EnsurePlanKind() {
+	if p == nil {
+		return
+	}
+	p.PlanKind = NormalizePlanKind(p.PlanKind)
 }
 
 func NormalizeResetPeriod(period string) string {
