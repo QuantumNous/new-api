@@ -237,6 +237,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   const imageAbortControllerRef = useRef(null);
   const imageCacheInFlightRef = useRef(new Set());
   const videoPollingRef = useRef(new Set());
+  const fileSelectionVersionRef = useRef(0);
   const playgroundUserIdentity = useMemo(
     () => ({
       id: userState?.user?.id || null,
@@ -2239,6 +2240,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
         return;
       }
 
+      const selectionVersion = fileSelectionVersionRef.current;
       setSelectedInlineFiles((prevFiles) => [...prevFiles, ...attachmentsToAdd]);
       Toast.success({
         content:
@@ -2255,6 +2257,10 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
               attachment.file,
               attachment.kind,
             );
+
+            if (fileSelectionVersionRef.current !== selectionVersion) {
+              return;
+            }
 
             if (!result.text || result.text.trim() === '') {
               setSelectedInlineFiles((prevFiles) =>
@@ -2291,6 +2297,10 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
               ),
             );
           } catch (error) {
+            if (fileSelectionVersionRef.current !== selectionVersion) {
+              return;
+            }
+
             console.error('读取文件失败:', error);
             setSelectedInlineFiles((prevFiles) =>
               prevFiles.map((item) =>
