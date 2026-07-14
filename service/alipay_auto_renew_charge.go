@@ -209,6 +209,11 @@ func hasOpenAlipayAutoRenewCharge(outTradeNo string) bool {
 }
 
 func ensureAlipayAutoRenewChargePendingTask(outTradeNo string) error {
+	return EnsureAlipayAutoRenewChargePendingTask(outTradeNo)
+}
+
+// EnsureAlipayAutoRenewChargePendingTask enqueues a short-lived trade.query for one out_trade_no.
+func EnsureAlipayAutoRenewChargePendingTask(outTradeNo string) error {
 	if strings.TrimSpace(outTradeNo) == "" {
 		return errors.New("out_trade_no empty")
 	}
@@ -276,11 +281,67 @@ func calcAlipayPlanPeriodEnd(start time.Time, plan *model.SubscriptionPlan) (int
 }
 
 func buildAlipayAutoRenewOutTradeNo(contractID int, agreementNo string, periodStart, periodEnd int64) string {
+	return BuildAlipayAutoRenewOutTradeNo(contractID, agreementNo, periodStart, periodEnd)
+}
+
+// BuildAlipayAutoRenewOutTradeNo builds a deterministic merchant trade no for one period.
+func BuildAlipayAutoRenewOutTradeNo(contractID int, agreementNo string, periodStart, periodEnd int64) string {
 	raw := fmt.Sprintf("aliar%d%s", contractID, common.Sha1([]byte(fmt.Sprintf("%s-%d-%d", agreementNo, periodStart, periodEnd)))[:16])
 	if len(raw) > 64 {
 		return raw[:64]
 	}
 	return raw
+}
+
+// PrepareAlipayAutoRenewFirstPeriod reserves the first-period charge attempt for pay-and-sign checkout.
+func PrepareAlipayAutoRenewFirstPeriod(contract *model.BillingSubscription, plan *model.SubscriptionPlan, now time.Time) (outTradeNo string, periodStart, periodEnd int64, err error) {
+	if contract == nil || plan == nil {
+		return "", 0, 0, errors.New("contract or plan is nil")
+	}
+	periodStart = now.Unix()
+	periodEnd, err = calcAlipayPlanPeriodEnd(now, plan)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	// Use signup_reference (stable before agreement_no exists) as the period key seed.
+	seed := strings.TrimSpace(contract.ProviderSubscriptionId)
+	if seed == "" {
+		seed = strings.TrimSpace(contract.SignupReference)
+	}
+	if seed == "" {
+		seed = fmt.Sprintf("contract-%d", contract.Id)
+	}
+	outTradeNo = BuildAlipayAutoRenewOutTradeNo(contract.Id, seed, periodStart, periodEnd)
+	payMoney := alipaySubscriptionMoney(plan.PriceAmount)
+	centAmount := int64(payMoney*100 + 0.5)
+	if err := upsertPendingAlipayChargeAttempt(contract, outTradeNo, periodStart, periodEnd, centAmount); err != nil {
+		return "", 0, 0, err
+	}
+	_ = model.DB.Model(&model.BillingSubscription{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
+		"last_invoice_id": outTradeNo,
+		"updated_at":      common.GetTimestamp(),
+	}).Error
+	return outTradeNo, periodStart, periodEnd, nil
+}
+
+// HasAlipayAutoRenewPaidPeriod reports whether the contract already has a paid cycle for outTradeNo.
+func HasAlipayAutoRenewPaidPeriod(contractID int, outTradeNo string) bool {
+	if contractID <= 0 || strings.TrimSpace(outTradeNo) == "" {
+		return false
+	}
+	var n int64
+	_ = model.DB.Model(&model.UserSubscription{}).
+		Where("billing_subscription_id = ? AND provider_invoice_id = ?", contractID, outTradeNo).
+		Count(&n).Error
+	if n > 0 {
+		return true
+	}
+	var attempt model.RecurringChargeAttempt
+	if err := model.DB.Where("provider = ? AND provider_invoice_id = ? AND status = ?",
+		model.PaymentProviderAlipay, outTradeNo, "paid").First(&attempt).Error; err == nil {
+		return true
+	}
+	return false
 }
 
 func alipaySubscriptionMoney(amountUSD float64) float64 {

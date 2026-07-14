@@ -6,9 +6,11 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -108,6 +110,59 @@ func TestHandleAlipayAutoRenewAgreementNotify_CompletesSignup(t *testing.T) {
 	require.Equal(t, 911, contract.UserId)
 	require.Equal(t, "pending_first_charge", contract.Status)
 	require.Equal(t, "208800000", contract.ProviderCustomerId)
+}
+
+func TestHandleAlipayAutoRenewTradeNotify_FulfillsFirstPeriodPayAndSign(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.User{Id: 931, Username: "ali-pay-sign", Status: common.UserStatusEnabled}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id: 932, Title: "PaySign", PriceAmount: 19.99, Currency: "USD",
+		DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1,
+		Enabled: true, BillingMode: model.SubscriptionBillingModeAutoRenew,
+		AlipayEnabled: true, TotalAmount: 2000,
+	}).Error)
+	contract, err := model.CreateOrReusePendingAutoRenewSignup(model.PaymentProviderAlipay, 931, 932, "signup_paysign_1")
+	require.NoError(t, err)
+	outTradeNo, periodStart, periodEnd, err := service.PrepareAlipayAutoRenewFirstPeriod(contract, &model.SubscriptionPlan{
+		Id: 932, DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1, PriceAmount: 19.99, TotalAmount: 2000,
+	}, time.Unix(1761955200, 0))
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(outTradeNo, "aliar"))
+
+	// Bind agreement first (either order is possible).
+	require.NoError(t, model.CompleteAutoRenewSignup(model.PaymentProviderAlipay, "signup_paysign_1", "agr_paysign_1", "2088", `{}`))
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/subscription/alipay/notify", nil)
+	require.True(t, handleAlipayAutoRenewTradeNotify(c, map[string]string{
+		"out_trade_no":          outTradeNo,
+		"trade_status":          "TRADE_SUCCESS",
+		"agreement_no":          "agr_paysign_1",
+		"external_agreement_no": "signup_paysign_1",
+	}, outTradeNo))
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var subs []model.UserSubscription
+	require.NoError(t, model.DB.Where("provider_invoice_id = ?", outTradeNo).Find(&subs).Error)
+	require.Len(t, subs, 1)
+	require.Equal(t, periodStart, subs[0].StartTime)
+	require.Equal(t, periodEnd, subs[0].EndTime)
+
+	// Agreement notify must NOT create a second charge/period.
+	recorder2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(recorder2)
+	c2.Request = httptest.NewRequest(http.MethodPost, "/api/subscription/alipay/notify", nil)
+	require.True(t, handleAlipayAutoRenewAgreementNotify(c2, map[string]string{
+		"external_agreement_no": "signup_paysign_1",
+		"agreement_no":          "agr_paysign_1",
+		"status":                "NORMAL",
+		"notify_type":           "dut_user_sign",
+	}))
+	var attempts []model.RecurringChargeAttempt
+	require.NoError(t, model.DB.Where("billing_subscription_id = ?", contract.Id).Find(&attempts).Error)
+	require.Len(t, attempts, 1)
+	require.Equal(t, "paid", attempts[0].Status)
 }
 
 func TestHandleAlipayAutoRenewAgreementNotify_UnsignMarksCanceled(t *testing.T) {

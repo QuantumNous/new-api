@@ -345,7 +345,7 @@ export default function SettingsPaymentGatewayAlipay(props) {
             description={
               <>
                 {t(
-                  '自动续费（周期扣款）需商户开通支付宝周期扣款/委托代扣产品。启用后用户可为 auto_renew 套餐签约，系统仅在周期到期时主动扣款。',
+                  '自动续费采用「支付并签约」：首期在支付页完成付款并授权周期扣款；之后仅在周期到期时由系统主动扣款。',
                 )}
                 <br />
                 {t(

@@ -27,20 +27,21 @@
 
 | | Stripe | 支付宝周期扣款 |
 |--|--------|----------------|
-| 扣款发起 | 支付方主动（invoice） | **商户主动**调扣款 API |
+| 扣款发起 | 支付方主动（invoice） | 首期：**支付并签约**；续期：**商户主动** `trade.pay` |
 | 合约标识 | `subscription` id | `agreement_no` |
-| 签约入口 | Checkout `mode=subscription` | `alipay.user.agreement.page.sign` 等 |
+| 开通入口 | Checkout `mode=subscription` | page/wap pay + `agreement_sign_params` |
 | 解约 | `cancel_at_period_end` | `alipay.user.agreement.unsign` |
-| 周期边界 | invoice line period | **本地维护** `current_period_*` + 调度器 |
+| 周期边界 | invoice line period | **本地维护** `current_period_*` + 到期扫描 |
 
 必须开通支付宝「周期扣款 / 委托代扣」类产品权限；与现有电脑网站支付不是同一能力。
 
 ## 决策（已定）
 
 1. **全局互斥**：同一用户任意时刻最多 1 个未结束 auto_renew 合约（跨 Stripe/Alipay）。
-2. **首期策略（MVP）**：签约成功后**立即发起首期扣款**，成功才发权益；仅签约未扣款不发权益。
-3. **解约语义**：用户取消 → 调支付宝解约，本地 `cancel_at_period_end=true` 或按解约结果置 `canceled`；当前周期 `UserSubscription` 用到 `EndTime`。
-4. **金额**：签约时按套餐 `PriceAmount × 汇率` 写入协议约束金额；改价需新签，不做静默改价。
+2. **首期策略**：**支付并签约**——支付页完成首期付款并授权；支付成功发权益；签约 notify 只绑 `agreement_no`，**不再二次扣首期**。
+3. **续期策略**：仅在 `current_period_end` 到期后 worker 主动扣；中间 idle。
+4. **解约语义**：用户取消 → `agreement.unsign` + `cancel_at_period_end`；当前周期权益保留到 `EndTime`。
+5. **金额**：支付金额与 `period_rule.single_amount` 按套餐 `PriceAmount × 汇率`；改价需新签。
 
 ## 模型映射
 

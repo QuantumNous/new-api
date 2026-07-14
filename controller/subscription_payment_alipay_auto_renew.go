@@ -20,6 +20,7 @@ type SubscriptionAlipayAutoRenewPayRequest struct {
 	ReturnURL string `json:"return_url,omitempty"`
 }
 
+// SubscriptionRequestAlipayAutoRenew starts 支付并签约: first-period page/wap pay + cycle agreement in one redirect.
 func SubscriptionRequestAlipayAutoRenew(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
@@ -78,14 +79,15 @@ func SubscriptionRequestAlipayAutoRenew(c *gin.Context) {
 		return
 	}
 	singleAmount := service.FormatAlipayAmount(payMoney)
-	periodRule, err := service.BuildAlipayPeriodRuleFromPlan(plan, singleAmount, time.Now())
+	now := time.Now()
+	periodRule, err := service.BuildAlipayPeriodRuleFromPlan(plan, singleAmount, now)
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 
 	signupReference := "sub-ali-ar-" + common.Sha1([]byte(fmt.Sprintf("%d-%d-%s", user.Id, plan.Id, randstr.String(12))))
-	// Alipay external_agreement_no max length is 32; keep a short unique reference.
+	// Alipay external_agreement_no max length is 32.
 	if len(signupReference) > 32 {
 		signupReference = signupReference[:32]
 	}
@@ -100,10 +102,27 @@ func SubscriptionRequestAlipayAutoRenew(c *gin.Context) {
 		signupReference = contract.SignupReference
 	}
 
-	signURL, err := service.BuildAlipayAgreementPageSignURL(service.AlipayAgreementPageSignRequest{
+	outTradeNo, _, _, err := service.PrepareAlipayAutoRenewFirstPeriod(contract, plan, now)
+	if err != nil {
+		if !reusedPending {
+			_ = model.MarkPendingAutoRenewSignupFailed(contract.Id)
+		}
+		common.ApiError(c, err)
+		return
+	}
+
+	method := service.GetAlipayPayMethod(c.Request)
+	returnURL := getSubscriptionAlipayReturnURL(req.ReturnURL)
+	notifyURL := getSubscriptionAlipayNotifyURL()
+	payURL, err := service.BuildAlipayPayAndSignURL(service.AlipayPayAndSignRequest{
+		Method:              method,
+		OutTradeNo:          outTradeNo,
+		TotalAmount:         singleAmount,
+		Subject:             fmt.Sprintf("Subscription %s", plan.Title),
+		ReturnURL:           returnURL,
+		NotifyURL:           notifyURL,
+		QuitURL:             returnURL,
 		ExternalAgreementNo: signupReference,
-		ReturnURL:           getSubscriptionAlipayReturnURL(req.ReturnURL),
-		NotifyURL:           getSubscriptionAlipayNotifyURL(),
 		ExternalLogonId:     user.Username,
 		SingleAmount:        periodRule.SingleAmount,
 		PeriodType:          periodRule.PeriodType,
@@ -114,21 +133,28 @@ func SubscriptionRequestAlipayAutoRenew(c *gin.Context) {
 		if !reusedPending {
 			_ = model.MarkPendingAutoRenewSignupFailed(contract.Id)
 		}
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay auto-renew sign URL failed user_id=%d plan_id=%d error=%q", userId, plan.Id, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay pay-and-sign URL failed user_id=%d plan_id=%d error=%q", userId, plan.Id, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
 		return
 	}
 
+	// Short query only for this first-period out_trade_no (not mid-cycle polling).
+	if err := service.EnsureAlipayAutoRenewChargePendingTask(outTradeNo); err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Alipay pay-and-sign enqueue pending query failed out_trade_no=%s error=%q", outTradeNo, err.Error()))
+	}
+
 	common.ApiSuccess(c, gin.H{
 		"pay_type":         "redirect",
-		"checkout_url":     signURL,
-		"pay_url":          signURL,
+		"checkout_url":     payURL,
+		"pay_url":          payURL,
 		"signup_reference": signupReference,
+		"out_trade_no":     outTradeNo,
+		"mode":             "pay_and_sign",
 	})
 }
 
 // handleAlipayAutoRenewAgreementNotify processes agreement sign / unsign async notifications.
-// Returns handled=true when the payload is recognized as an auto-renew agreement event.
+// For 支付并签约, first-period money is already collected via the pay notify — do not charge again.
 func handleAlipayAutoRenewAgreementNotify(c *gin.Context, normalized map[string]string) bool {
 	externalAgreementNo := strings.TrimSpace(normalized["external_agreement_no"])
 	agreementNo := strings.TrimSpace(normalized["agreement_no"])
@@ -137,7 +163,6 @@ func handleAlipayAutoRenewAgreementNotify(c *gin.Context, normalized map[string]
 		return false
 	}
 
-	// Prefer local lookup by signup reference; fall back to provider agreement id.
 	var contract *model.BillingSubscription
 	var err error
 	if externalAgreementNo != "" {
@@ -150,7 +175,6 @@ func handleAlipayAutoRenewAgreementNotify(c *gin.Context, normalized map[string]
 	if contract == nil && agreementNo != "" {
 		contract, err = model.GetBillingSubscriptionByProviderSubscriptionID(model.PaymentProviderAlipay, agreementNo)
 		if err != nil {
-			// Not our agreement (or not yet created) — let other handlers try.
 			return false
 		}
 	}
@@ -185,7 +209,6 @@ func handleAlipayAutoRenewAgreementNotify(c *gin.Context, normalized map[string]
 		return true
 	}
 
-	// Sign success (NORMAL / TEMP treated as pending first charge completion)
 	if agreementNo == "" {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Alipay agreement notify missing agreement_no external=%s", externalAgreementNo))
 		c.String(http.StatusBadRequest, "fail")
@@ -197,29 +220,35 @@ func handleAlipayAutoRenewAgreementNotify(c *gin.Context, normalized map[string]
 		return true
 	}
 
-	if service.IsAlipayCyclePayConfigured() {
-		// Re-load after Complete so period/provider fields are current.
-		if updated, err := model.GetBillingSubscriptionByProviderSubscriptionID(model.PaymentProviderAlipay, agreementNo); err == nil {
-			if err := service.ChargeAlipayAutoRenewContract(c.Request.Context(), updated, getSubscriptionAlipayNotifyURL()); err != nil {
-				logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay auto-renew first charge failed agreement=%s error=%q", agreementNo, err.Error()))
-				// Still ack agreement notify so Alipay does not storm; due-scan/pending query can retry.
-			}
-		}
-	}
-
+	// Pay-and-sign: first period is the page/wap payment. Never charge first period again here.
+	// If payment notify already fulfilled, contract may already be active; CompleteAutoRenewSignup keeps status.
+	// If payment is still pending, leave pending_first_charge until trade notify / short query settles.
 	c.String(http.StatusOK, "success")
 	return true
 }
 
-// handleAlipayAutoRenewTradeNotify fulfills a cycle charge when trade notify matches a recurring attempt.
+// handleAlipayAutoRenewTradeNotify fulfills the first-period pay-and-sign payment or a later cycle charge.
 func handleAlipayAutoRenewTradeNotify(c *gin.Context, normalized map[string]string, outTradeNo string) bool {
 	if outTradeNo == "" || !strings.HasPrefix(outTradeNo, "aliar") {
 		return false
 	}
 	if !service.IsAlipayTradeSuccess(normalized["trade_status"]) {
-		// Keep attempt as failed/pending; do not invent success.
 		c.String(http.StatusOK, "success")
 		return true
+	}
+
+	// If agreement_no is present on trade notify (some products attach it), bind early.
+	if agreementNo := strings.TrimSpace(normalized["agreement_no"]); agreementNo != "" {
+		external := strings.TrimSpace(normalized["external_agreement_no"])
+		if external != "" {
+			_ = model.CompleteAutoRenewSignup(
+				model.PaymentProviderAlipay,
+				external,
+				agreementNo,
+				firstNonEmpty(normalized["buyer_id"], normalized["buyer_user_id"]),
+				common.GetJsonString(normalized),
+			)
+		}
 	}
 
 	if err := service.FinalizeAlipayAutoRenewChargeFromQuery(

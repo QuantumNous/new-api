@@ -127,6 +127,111 @@ func BuildAlipayAgreementPageSignURL(req AlipayAgreementPageSignRequest) (string
 	return signURL.String(), nil
 }
 
+// AlipayPayAndSignRequest is the first-period "支付并签约" checkout (pay + agreement in one redirect).
+type AlipayPayAndSignRequest struct {
+	Method              string // alipay.trade.page.pay or alipay.trade.wap.pay
+	OutTradeNo          string
+	TotalAmount         string
+	Subject             string
+	ReturnURL           string
+	NotifyURL           string
+	QuitURL             string
+	ExternalAgreementNo string
+	ExternalLogonId     string
+	SingleAmount        string
+	PeriodType          string
+	Period              string
+	ExecuteTime         string
+}
+
+// BuildAlipayPayAndSignURL builds a page/wap pay URL with agreement_sign_params so first payment
+// and cycle-pay authorization complete in one user flow.
+func BuildAlipayPayAndSignURL(req AlipayPayAndSignRequest) (string, error) {
+	if !IsAlipayCyclePayConfigured() {
+		return "", errors.New("alipay cycle pay is not configured")
+	}
+	if strings.TrimSpace(req.OutTradeNo) == "" {
+		return "", errors.New("out_trade_no is empty")
+	}
+	if strings.TrimSpace(req.TotalAmount) == "" || strings.TrimSpace(req.SingleAmount) == "" {
+		return "", errors.New("amount is empty")
+	}
+	if strings.TrimSpace(req.ExternalAgreementNo) == "" {
+		return "", errors.New("external_agreement_no is empty")
+	}
+	if strings.TrimSpace(req.PeriodType) == "" || strings.TrimSpace(req.Period) == "" {
+		return "", errors.New("period rule is incomplete")
+	}
+	method, err := normalizeAlipayPayMethod(req.Method)
+	if err != nil {
+		return "", err
+	}
+	executeTime := strings.TrimSpace(req.ExecuteTime)
+	if executeTime == "" {
+		executeTime = time.Now().Format("2006-01-02")
+	}
+	subject := strings.TrimSpace(req.Subject)
+	if subject == "" {
+		subject = "Subscription auto renew"
+	}
+
+	client, err := newAlipayClient(setting.AlipayGateway, setting.AlipayAppID, setting.AlipayPrivateKey, setting.AlipayPublicKey)
+	if err != nil {
+		return "", err
+	}
+
+	// SignParams.ProductCode is the withholding product; Trade.ProductCode is page/wap pay product.
+	signProductCode := strings.TrimSpace(setting.AlipayCyclePayProductCode)
+	if signProductCode == "" {
+		signProductCode = "GENERAL_WITHHOLDING"
+	}
+	signParams := &alipay.SignParams{
+		ProductCode:         signProductCode,
+		PersonalProductCode: setting.AlipayCyclePayPersonalProductCode,
+		SignScene:           setting.AlipayCyclePaySignScene,
+		ExternalAgreementNo: req.ExternalAgreementNo,
+		ExternalLogonId:     req.ExternalLogonId,
+		AccessParams: &alipay.AccessParams{
+			Channel: "ALIPAYAPP",
+		},
+		PeriodRuleParams: &alipay.PeriodRuleParams{
+			PeriodType:   req.PeriodType,
+			Period:       req.Period,
+			ExecuteTime:  executeTime,
+			SingleAmount: req.SingleAmount,
+		},
+		SignNotifyURL: req.NotifyURL,
+	}
+
+	trade := alipay.Trade{
+		NotifyURL:           req.NotifyURL,
+		ReturnURL:           req.ReturnURL,
+		OutTradeNo:          req.OutTradeNo,
+		TotalAmount:         req.TotalAmount,
+		Subject:             subject,
+		ProductCode:         GetAlipayProductCode(method),
+		TimeoutExpress:      DefaultAlipayTimeoutExpress(),
+		AgreementSignParams: signParams,
+	}
+
+	if method == "alipay.trade.wap.pay" {
+		payURL, err := client.TradeWapPay(alipay.TradeWapPay{
+			Trade:   trade,
+			QuitURL: req.QuitURL,
+		})
+		if err != nil {
+			return "", err
+		}
+		return payURL.String(), nil
+	}
+
+	payURL, err := client.TradePagePay(alipay.TradePagePay{Trade: trade})
+	if err != nil {
+		return "", err
+	}
+	return payURL.String(), nil
+}
+
 func UnsignAlipayAgreement(ctx context.Context, agreementNo string, notifyURL string) error {
 	if strings.TrimSpace(agreementNo) == "" {
 		return errors.New("agreement_no is empty")
