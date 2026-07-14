@@ -167,7 +167,22 @@ func GetContextKeyString(c *gin.Context, key constant.ContextKey) string {
 }
 
 func GetContextKeyInt(c *gin.Context, key constant.ContextKey) int {
-	return c.GetInt(string(key))
+	value, exists := c.Get(string(key))
+	if !exists {
+		return 0
+	}
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return SafeInt64ToInt(v)
+	case int32:
+		return int(v)
+	case float64:
+		return SafeInt64ToInt(int64(v))
+	default:
+		return c.GetInt(string(key))
+	}
 }
 
 func GetContextKeyBool(c *gin.Context, key constant.ContextKey) bool {

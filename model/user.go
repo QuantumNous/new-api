@@ -36,14 +36,14 @@ type User struct {
 	TelegramId       string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken      *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
-	Quota            int                        `json:"quota" gorm:"type:int;default:0"`
-	UsedQuota        int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount     int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	Quota            int64                      `json:"quota" gorm:"type:bigint;default:0"`
+	UsedQuota        int64                      `json:"used_quota" gorm:"type:bigint;default:0;column:used_quota"` // used quota
+	RequestCount     int                        `json:"request_count" gorm:"type:int;default:0;"`                  // request number
 	Group            string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode          string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount         int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota         int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
-	AffHistoryQuota  int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	AffQuota         int64                      `json:"aff_quota" gorm:"type:bigint;default:0;column:aff_quota"`           // 邀请剩余额度
+	AffHistoryQuota  int64                      `json:"aff_history_quota" gorm:"type:bigint;default:0;column:aff_history"` // 邀请历史额度
 	InviterId        int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 	DeletedAt        gorm.DeletedAt             `gorm:"index"`
 	LinuxDOId        string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
@@ -59,7 +59,7 @@ func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
 		Id:       user.Id,
 		Group:    user.Group,
-		Quota:    user.Quota,
+		Quota:    common.SafeInt64ToInt(user.Quota),
 		Status:   user.Status,
 		Username: user.Username,
 		Setting:  user.Setting,
@@ -433,8 +433,8 @@ func inviteUser(inviterId int) (err error) {
 		return err
 	}
 	user.AffCount++
-	user.AffQuota += common.QuotaForInviter
-	user.AffHistoryQuota += common.QuotaForInviter
+	user.AffQuota += int64(common.QuotaForInviter)
+	user.AffHistoryQuota += int64(common.QuotaForInviter)
 	return DB.Save(user).Error
 }
 
@@ -458,13 +458,13 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	}
 
 	// 再次检查用户的AffQuota是否足够
-	if user.AffQuota < quota {
+	if user.AffQuota < int64(quota) {
 		return errors.New("邀请额度不足！")
 	}
 
 	// 更新用户额度
-	user.AffQuota -= quota
-	user.Quota += quota
+	user.AffQuota -= int64(quota)
+	user.Quota += int64(quota)
 
 	// 保存用户状态
 	if err := tx.Save(user).Error; err != nil {
@@ -532,7 +532,7 @@ func (user *User) Insert(inviterId int) error {
 			if err := user.prepareForInsert(tx); err != nil {
 				return err
 			}
-			user.Quota = common.QuotaForNewUser
+			user.Quota = int64(common.QuotaForNewUser)
 			user.AffCode = common.GetRandomString(4)
 
 			// 初始化用户设置，包括默认的边栏配置
@@ -596,7 +596,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		if err := user.prepareForInsert(tx); err != nil {
 			return err
 		}
-		user.Quota = common.QuotaForNewUser
+		user.Quota = int64(common.QuotaForNewUser)
 		user.AffCode = common.GetRandomString(4)
 
 		// 初始化用户设置
@@ -992,17 +992,18 @@ func GetUserQuota(id int, fromDB bool) (quota int, err error) {
 		// Don't return error - fall through to DB
 	}
 	fromDB = true
-	err = DB.Model(&User{}).Where("id = ?", id).Select("quota").Find(&quota).Error
+	var rawQuota int64
+	err = DB.Model(&User{}).Where("id = ?", id).Select("quota").Find(&rawQuota).Error
 	if err != nil {
 		return 0, err
 	}
-
-	return quota, nil
+	return common.SafeInt64ToInt(rawQuota), nil
 }
 
 func GetUserUsedQuota(id int) (quota int, err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Select("used_quota").Find(&quota).Error
-	return quota, err
+	var rawQuota int64
+	err = DB.Model(&User{}).Where("id = ?", id).Select("used_quota").Find(&rawQuota).Error
+	return common.SafeInt64ToInt(rawQuota), err
 }
 
 func GetUserEmail(id int) (email string, err error) {

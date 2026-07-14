@@ -77,7 +77,7 @@ func truncate(t *testing.T) {
 
 func seedUser(t *testing.T, id int, quota int) {
 	t.Helper()
-	user := &model.User{Id: id, Username: "test_user", Quota: quota, Status: common.UserStatusEnabled}
+	user := &model.User{Id: id, Username: "test_user", Quota: int64(quota), Status: common.UserStatusEnabled}
 	require.NoError(t, model.DB.Create(user).Error)
 }
 
@@ -89,7 +89,7 @@ func seedToken(t *testing.T, id int, userId int, key string, remainQuota int) {
 		Key:         key,
 		Name:        "test_token",
 		Status:      common.TokenStatusEnabled,
-		RemainQuota: remainQuota,
+		RemainQuota: int64(remainQuota),
 		UsedQuota:   0,
 	}
 	require.NoError(t, model.DB.Create(token).Error)
@@ -246,21 +246,21 @@ func getUserQuota(t *testing.T, id int) int {
 	t.Helper()
 	var user model.User
 	require.NoError(t, model.DB.Select("quota").Where("id = ?", id).First(&user).Error)
-	return user.Quota
+	return int(user.Quota)
 }
 
 func getTokenRemainQuota(t *testing.T, id int) int {
 	t.Helper()
 	var token model.Token
 	require.NoError(t, model.DB.Select("remain_quota").Where("id = ?", id).First(&token).Error)
-	return token.RemainQuota
+	return int(token.RemainQuota)
 }
 
 func getTokenUsedQuota(t *testing.T, id int) int {
 	t.Helper()
 	var token model.Token
 	require.NoError(t, model.DB.Select("used_quota").Where("id = ?", id).First(&token).Error)
-	return token.UsedQuota
+	return int(token.UsedQuota)
 }
 
 func getSubscriptionUsed(t *testing.T, id int) int64 {

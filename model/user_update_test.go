@@ -57,8 +57,8 @@ func TestUserUpdateDoesNotOverwriteAccountingFields(t *testing.T) {
 	var got User
 	require.NoError(t, DB.First(&got, user.Id).Error)
 	assert.Equal(t, "after", got.DisplayName)
-	assert.Equal(t, 600, got.Quota)
-	assert.Equal(t, 420, got.UsedQuota)
+	assert.Equal(t, int64(600), got.Quota)
+	assert.Equal(t, int64(420), got.UsedQuota)
 	assert.Equal(t, 4, got.RequestCount)
 }
 
@@ -86,8 +86,8 @@ func TestUpdateUserSettingOnlyUpdatesSetting(t *testing.T) {
 
 	var got User
 	require.NoError(t, DB.First(&got, user.Id).Error)
-	assert.Equal(t, 750, got.Quota)
-	assert.Equal(t, 270, got.UsedQuota)
+	assert.Equal(t, int64(750), got.Quota)
+	assert.Equal(t, int64(270), got.UsedQuota)
 	assert.Equal(t, 4, got.RequestCount)
 	assert.Equal(t, "zh", got.GetSetting().Language)
 }
