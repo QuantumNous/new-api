@@ -39,6 +39,65 @@ const STATUS_RELATED_KEYS = [
   'general_setting.custom_currency_exchange_rate',
 ]
 
+// Debounce timers to batch invalidations and toasts across sequential mutations.
+let invalidateOptionsTimer: ReturnType<typeof setTimeout> | null = null
+let invalidateStatusTimer: ReturnType<typeof setTimeout> | null = null
+let successToastTimer: ReturnType<typeof setTimeout> | null = null
+let hasBatchError = false
+let batchErrorTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleOptionsInvalidate(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  if (invalidateOptionsTimer) clearTimeout(invalidateOptionsTimer)
+  invalidateOptionsTimer = setTimeout(() => {
+    queryClient.invalidateQueries({ queryKey: ['system-options'] })
+    invalidateOptionsTimer = null
+  }, 100)
+}
+
+function scheduleStatusInvalidate(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  if (invalidateStatusTimer) clearTimeout(invalidateStatusTimer)
+  invalidateStatusTimer = setTimeout(() => {
+    queryClient.invalidateQueries({ queryKey: ['status'] })
+    try {
+      window.localStorage.removeItem('status')
+    } catch {
+      /* empty */
+    }
+    invalidateStatusTimer = null
+  }, 100)
+}
+
+function scheduleSuccessToast() {
+  if (hasBatchError) return
+  if (successToastTimer) clearTimeout(successToastTimer)
+  successToastTimer = setTimeout(() => {
+    toast.success(i18next.t('Setting updated successfully'))
+    successToastTimer = null
+  }, 100)
+}
+
+function handleBatchError(message: string) {
+  // Cancel pending success toast
+  if (successToastTimer) {
+    clearTimeout(successToastTimer)
+    successToastTimer = null
+  }
+
+  // Set error flag to block subsequent success toasts in the current batch
+  hasBatchError = true
+  if (batchErrorTimer) clearTimeout(batchErrorTimer)
+  batchErrorTimer = setTimeout(() => {
+    hasBatchError = false
+  }, 200)
+
+  // Show error immediately
+  toast.error(message)
+}
+
 export function useUpdateOption() {
   const queryClient = useQueryClient()
 
@@ -46,26 +105,20 @@ export function useUpdateOption() {
     mutationFn: (request: UpdateOptionRequest) => updateSystemOption(request),
     onSuccess: (data, variables) => {
       if (data.success) {
-        // Always refresh system-options
-        queryClient.invalidateQueries({ queryKey: ['system-options'] })
+        scheduleOptionsInvalidate(queryClient)
 
-        // If updating frontend-display-related config, also refresh status
         if (STATUS_RELATED_KEYS.includes(variables.key)) {
-          queryClient.invalidateQueries({ queryKey: ['status'] })
-          try {
-            window.localStorage.removeItem('status')
-          } catch {
-            /* empty */
-          }
+          scheduleStatusInvalidate(queryClient)
         }
 
-        toast.success(i18next.t('Setting updated successfully'))
+        scheduleSuccessToast()
       } else {
-        toast.error(data.message || i18next.t('Failed to update setting'))
+        // Errors are shown immediately for instant feedback
+        handleBatchError(data.message || i18next.t('Failed to update setting'))
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to update setting'))
+      handleBatchError(error.message || i18next.t('Failed to update setting'))
     },
   })
 }
