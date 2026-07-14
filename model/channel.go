@@ -103,9 +103,16 @@ func NewChannelSortOptions(sortBy string, sortOrder string, idSort bool) Channel
 
 func (options ChannelSortOptions) Apply(query *gorm.DB) *gorm.DB {
 	if columnName, ok := channelSortColumns[options.SortBy]; ok {
-		return query.Order(clause.OrderByColumn{
+		query = query.Order(clause.OrderByColumn{
 			Column: clause.Column{Name: columnName},
 			Desc:   options.SortOrder != "asc",
+		})
+		if columnName == "id" {
+			return query
+		}
+		return query.Order(clause.OrderByColumn{
+			Column: clause.Column{Name: "id"},
+			Desc:   true,
 		})
 	}
 	if options.IDSort {
@@ -116,6 +123,9 @@ func (options ChannelSortOptions) Apply(query *gorm.DB) *gorm.DB {
 	}
 	return query.Order(clause.OrderByColumn{
 		Column: clause.Column{Name: "priority"},
+		Desc:   true,
+	}).Order(clause.OrderByColumn{
+		Column: clause.Column{Name: "id"},
 		Desc:   true,
 	})
 }
@@ -928,6 +938,7 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 
 	err := DB.Table("(?) as sub", subQuery).
 		Select("DISTINCT tag").
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "tag"}}).
 		Find(&tags).Error
 
 	if err != nil {
