@@ -33,6 +33,36 @@ func TestJsonRawMessageToString(t *testing.T) {
 			data: nil,
 			want: "",
 		},
+		{
+			name: "empty object",
+			data: json.RawMessage(`{}`),
+			want: `{}`,
+		},
+		{
+			name: "array",
+			data: json.RawMessage(`[1,2,3]`),
+			want: `[1,2,3]`,
+		},
+		{
+			name: "boolean",
+			data: json.RawMessage(`true`),
+			want: `true`,
+		},
+		{
+			name: "number",
+			data: json.RawMessage(`123`),
+			want: `123`,
+		},
+		{
+			name: "whitespace padded",
+			data: json.RawMessage(`   {"a":1}   `),
+			want: `{"a":1}`,
+		},
+		{
+			name: "malformed string",
+			data: json.RawMessage(`"unterminated`),
+			want: `"unterminated`,
+		},
 	}
 
 	for _, tt := range tests {
