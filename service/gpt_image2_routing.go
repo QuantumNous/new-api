@@ -21,6 +21,7 @@ const (
 	contextKeyGptImage2OfficialFB   = "gpt_image2_official_fallback"
 	contextKeyGptImage2RaceHedge    = "gpt_image2_for_race_hedge"
 	contextKeyGptImage2RoutingRetry = "gpt_image2_routing_retry"
+	contextKeyGptImage2ResponseFmt  = "gpt_image2_client_response_format"
 )
 
 var ErrGptImage2ChannelTierMismatch = errors.New("selected channel cannot serve this gpt-image-2 request profile")
@@ -68,7 +69,8 @@ func PrepareGptImage2ModelRequest(c *gin.Context, modelName string) string {
 	// accept response_format; PackyAPI returns 400 Unknown parameter. Strip it here
 	// — before routing and forwarding — so the request stays eligible for the cheap
 	// channels instead of being forced onto the only upstream whose capability filter
-	// didn't reject it.
+	// didn't reject it. The client's requested format is remembered so the response
+	// handler can convert the upstream payload back to what the client asked for.
 	stripGptImage2UnsupportedParams(c)
 	profile := ClassifyGptImage2Profile(c, modelName)
 	officialFallback := classifyGptImage2OfficialFallback(c)
@@ -87,11 +89,16 @@ var gptImage2UnsupportedParams = []string{"response_format"}
 // gpt-image-2 request body and rewrites the shared body storage so both channel
 // routing and upstream forwarding observe the cleaned payload. Multipart bodies
 // are left untouched (no enabled channel serves them with these fields set).
+//
+// The client's requested response_format is recorded on the context first, so
+// GptImage2ConvertResponseFormat can transform the upstream payload back into the
+// format the client asked for (url ↔ b64_json).
 func stripGptImage2UnsupportedParams(c *gin.Context) {
 	if c == nil || c.Request == nil {
 		return
 	}
 	if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+		captureGptImage2ResponseFormat(c, gptImage2ResponseFormatFromForm(c))
 		return
 	}
 	raw, err := readGptImage2RequestJSON(c)
@@ -101,6 +108,9 @@ func stripGptImage2UnsupportedParams(c *gin.Context) {
 	var fields map[string]json.RawMessage
 	if common.Unmarshal(raw, &fields) != nil {
 		return
+	}
+	if v, ok := fields["response_format"]; ok {
+		captureGptImage2ResponseFormat(c, jsonString(v))
 	}
 	removed := false
 	for _, key := range gptImage2UnsupportedParams {
@@ -124,6 +134,46 @@ func stripGptImage2UnsupportedParams(c *gin.Context) {
 	c.Set(common.KeyRequestBody, cleaned)
 	c.Request.Body = io.NopCloser(storage)
 	c.Request.ContentLength = int64(len(cleaned))
+}
+
+// captureGptImage2ResponseFormat records a normalized client response_format
+// ("url" or "b64_json") on the context; unknown/empty values are ignored so the
+// response handler keeps the upstream's native format.
+func captureGptImage2ResponseFormat(c *gin.Context, format string) {
+	if c == nil {
+		return
+	}
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "url":
+		c.Set(contextKeyGptImage2ResponseFmt, "url")
+	case "b64_json":
+		c.Set(contextKeyGptImage2ResponseFmt, "b64_json")
+	}
+}
+
+func gptImage2ResponseFormatFromForm(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	form, err := common.ParseMultipartFormReusable(c)
+	if err != nil || form == nil {
+		return ""
+	}
+	return firstGptImage2FormValue(form.Value, "response_format")
+}
+
+// GptImage2ClientResponseFormat returns the response_format the client requested
+// ("url", "b64_json", or "" when none/unsupported was set).
+func GptImage2ClientResponseFormat(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if v, ok := c.Get(contextKeyGptImage2ResponseFmt); ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }
 
 // GptImage2ProfileFromContext reads the profile set during distributor prep.

@@ -217,4 +217,23 @@ func TestPrepareGptImage2StripsResponseFormat(t *testing.T) {
 	require.Empty(t, req.ResponseFormat)
 	require.True(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 73}, req))
 	require.True(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 81}, req))
+
+	// The client's requested format is remembered for response-side conversion.
+	require.Equal(t, "b64_json", GptImage2ClientResponseFormat(c))
+}
+
+func TestPrepareGptImage2CapturesURLResponseFormat(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	body := `{"model":"gpt-image-2","prompt":"x","n":1,"response_format":"url"}`
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	PrepareGptImage2ModelRequest(c, "gpt-image-2")
+
+	require.Equal(t, "url", GptImage2ClientResponseFormat(c))
+	raw, err := readGptImage2RequestJSON(c)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "response_format")
 }
