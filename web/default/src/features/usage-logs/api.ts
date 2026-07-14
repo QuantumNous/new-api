@@ -36,6 +36,26 @@ function buildApiPath(endpoint: string, isAdmin: boolean): string {
   return isAdmin ? endpoint : `${endpoint}/self`
 }
 
+/**
+ * True when a response is the backend's admin-only rejection. A normal user can
+ * reach an admin log endpoint if their cached `role` is briefly stale (e.g. a
+ * demoted admin whose localStorage still says role>=10, or a first render before
+ * the session guard refreshes `user`). In that case we transparently retry the
+ * `/self` variant instead of surfacing "无权进行此操作，权限不足" on the user's
+ * own log page.
+ */
+function isInsufficientPrivilege(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false
+  const record = data as { success?: boolean; message?: string }
+  if (record.success !== false) return false
+  const message = record.message ?? ''
+  return (
+    message.includes('权限不足') ||
+    message.includes('權限不足') ||
+    message.toLowerCase().includes('insufficient privilege')
+  )
+}
+
 async function fetchLogs<T>(
   endpoint: string,
   params: T,
@@ -47,8 +67,11 @@ async function fetchLogs<T>(
     page_size: paramRecord.page_size || 20,
     ...params,
   })
-  const path = buildApiPath(endpoint, isAdmin)
-  const res = await api.get(`${path}?${queryParams}`)
+  const res = await api.get(`${buildApiPath(endpoint, isAdmin)}?${queryParams}`)
+  if (isAdmin && isInsufficientPrivilege(res.data)) {
+    const fallback = await api.get(`${buildApiPath(endpoint, false)}?${queryParams}`)
+    return fallback.data
+  }
   return res.data
 }
 
@@ -60,8 +83,11 @@ async function fetchLogStats<T>(
   const queryParams = buildQueryParams(
     params as unknown as Record<string, unknown>
   )
-  const path = buildApiPath(endpoint, isAdmin)
-  const res = await api.get(`${path}/stat?${queryParams}`)
+  const res = await api.get(`${buildApiPath(endpoint, isAdmin)}/stat?${queryParams}`)
+  if (isAdmin && isInsufficientPrivilege(res.data)) {
+    const fallback = await api.get(`${buildApiPath(endpoint, false)}/stat?${queryParams}`)
+    return fallback.data
+  }
   return res.data
 }
 
