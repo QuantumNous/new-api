@@ -85,12 +85,31 @@ func authHelper(c *gin.Context, minRole int) {
 			status = user.Status
 			useAccessToken = true
 		} else {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
-			})
-			c.Abort()
-			return
+			// Access token not found — try API token (sk-xxx from tokens table)
+			apiKey := strings.TrimPrefix(accessToken, "Bearer ")
+			apiKey = strings.TrimPrefix(apiKey, "sk-")
+			apiToken, tokenErr := model.ValidateUserToken(apiKey)
+			if apiToken != nil {
+				tokenUser, tokenUserErr := model.GetUserById(apiToken.UserId, false)
+				if tokenUserErr == nil && tokenUser != nil && tokenUser.Username != "" {
+					username = tokenUser.Username
+					role = tokenUser.Role
+					id = tokenUser.Id
+					status = tokenUser.Status
+					useAccessToken = true
+				}
+			}
+			if username == nil {
+				if tokenErr != nil {
+					common.SysLog("AdminAuth API token validation error: " + tokenErr.Error())
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
+				})
+				c.Abort()
+				return
+			}
 		}
 	}
 	// get header New-Api-User
