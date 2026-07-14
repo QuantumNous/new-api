@@ -307,6 +307,20 @@ func GetChannelHealthScore(key ChannelHealthKey) float64 {
 	return adaptiveChannelHealth.Score(key)
 }
 
+// IsChannelFastEnoughForAffinity reports whether a prompt-cache-sticky channel
+// is healthy enough to keep routing to. It returns false once the channel is
+// sustained-slow (health score pinned to the floor, i.e. first-token latency
+// past the slow threshold) or its circuit is open, so a cache-locked user is
+// released to normal health-weighted selection and moves to a faster available
+// channel. A cold/unknown or fast channel keeps its affinity. No-op (always
+// true) when adaptive health is disabled.
+func IsChannelFastEnoughForAffinity(key ChannelHealthKey) bool {
+	if !common.AdaptiveChannelHealthEnabled {
+		return true
+	}
+	return GetChannelHealthScore(key) > minimumChannelHealthScore
+}
+
 func clearChannelHealthForTest() {
 	adaptiveChannelHealth = newChannelHealthRegistry(time.Now)
 }

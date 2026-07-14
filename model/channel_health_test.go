@@ -163,6 +163,44 @@ func TestChannelHealthIgnoresSemanticClientErrors(t *testing.T) {
 	}
 }
 
+func TestIsChannelFastEnoughForAffinity(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldEnabled
+	})
+
+	cold := ChannelHealthKey{ChannelID: 40, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	if !IsChannelFastEnoughForAffinity(cold) {
+		t.Fatal("cold/unknown sticky channel must keep affinity")
+	}
+
+	fast := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	for i := 0; i < 4; i++ {
+		RecordChannelOutcome(fast, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1500 * time.Millisecond})
+	}
+	if !IsChannelFastEnoughForAffinity(fast) {
+		t.Fatal("fast sticky channel must keep affinity")
+	}
+
+	slow := ChannelHealthKey{ChannelID: 42, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	for i := 0; i < 5; i++ {
+		RecordChannelOutcome(slow, ChannelOutcome{StatusCode: http.StatusOK, Latency: 20 * time.Second})
+	}
+	if IsChannelFastEnoughForAffinity(slow) {
+		t.Fatal("sustained-slow sticky channel must yield affinity so routing can pick a faster channel")
+	}
+
+	// Gate: disabled adaptive health keeps affinity regardless (current behavior).
+	common.AdaptiveChannelHealthEnabled = false
+	if !IsChannelFastEnoughForAffinity(slow) {
+		t.Fatal("with adaptive health off, affinity must be preserved (no-op)")
+	}
+	common.AdaptiveChannelHealthEnabled = true
+}
+
 func TestChannelHealthOpensOnSustainedSlowness(t *testing.T) {
 	health, _ := newTestChannelHealth(t)
 	key := ChannelHealthKey{ChannelID: 50, Model: "gpt-5.5", Path: "/v1/responses"}

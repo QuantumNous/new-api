@@ -103,7 +103,13 @@ func Distribute() func(c *gin.Context) {
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) && model.AcquireChannelHealth(model.ChannelHealthKey{ChannelID: preferred.Id, Model: modelRequest.Model, Path: service.ChannelHealthPath(c.Request.URL.Path)}) {
+					affinityKey := model.ChannelHealthKey{ChannelID: preferredChannelID, Model: modelRequest.Model, Path: service.ChannelHealthPath(c.Request.URL.Path)}
+					// Keep prompt-cache affinity only while the sticky channel is fast
+					// enough. A sustained-slow sticky yields to normal health-weighted
+					// selection so a cache-locked user is moved to a faster available
+					// channel (IsChannelFastEnoughForAffinity is checked before Acquire
+					// so we never strand a half-open probe lease on a channel we skip).
+					if err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) && model.IsChannelFastEnoughForAffinity(affinityKey) && model.AcquireChannelHealth(affinityKey) {
 						if preferred.Status != common.ChannelStatusEnabled {
 							// Affinity channel is disabled, fall back to random selection
 							// Skip retry only applies if we actually used the affinity channel
