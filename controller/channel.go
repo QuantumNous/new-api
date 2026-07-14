@@ -232,6 +232,15 @@ func FetchUpstreamModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	
+	if typeStr := c.Query("type"); typeStr != "" {
+		if t, err := strconv.Atoi(typeStr); err == nil {
+			channel.Type = t
+		}
+	}
+	if baseURL := c.Query("base_url"); baseURL != "" {
+		channel.BaseURL = &baseURL
+	}
 
 	ids, err := fetchChannelUpstreamModelIDs(channel)
 	if err != nil {

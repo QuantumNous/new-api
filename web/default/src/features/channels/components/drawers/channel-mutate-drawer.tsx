@@ -128,6 +128,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import {
   fetchModels,
+  fetchUpstreamModels,
   getAllModels,
   getChannel,
   getChannelKey,
@@ -620,6 +621,9 @@ export function ChannelMutateDrawer({
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
+  const initialTypeRef = useRef<number>(0)
+  const initialBaseUrlRef = useRef<string>('')
+  const initialKeyRef = useRef<string>('')
   const [statusCodeRiskOpen, setStatusCodeRiskOpen] = useState(false)
   const [statusCodeRiskDetailItems, setStatusCodeRiskDetailItems] = useState<
     string[]
@@ -1244,14 +1248,20 @@ export function ChannelMutateDrawer({
       initialModelMappingRef.current = channelData.data.model_mapping || ''
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
+      initialTypeRef.current = channelData.data.type ?? 0
+      initialBaseUrlRef.current = channelData.data.base_url || ''
+      initialKeyRef.current = channelKey ?? ''
     } else if (!isEditing) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
       setAdvancedSettingsOpen(false)
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
       initialStatusCodeMappingRef.current = ''
+      initialTypeRef.current = 0
+      initialBaseUrlRef.current = ''
+      initialKeyRef.current = ''
     }
-  }, [isEditing, channelData, form])
+  }, [isEditing, channelData, form, channelKey])
 
   // Handle type change - set default values for specific types
   useEffect(() => {
@@ -1447,6 +1457,38 @@ export function ChannelMutateDrawer({
     }
     throw new Error(response.message || 'No models fetched from upstream')
   }, [canEditSensitive, form, t])
+
+  const editModeFetcher = useCallback(async (): Promise<string[]> => {
+    const formKey = form.getValues('key')
+    if (formKey?.trim()) {
+      const response = await fetchModels({
+        type: form.getValues('type'),
+        key: formKey,
+        base_url: form.getValues('base_url') || '',
+      })
+      if (response.success && response.data) {
+        return response.data
+      }
+      throw new Error(response.message || 'No models fetched from upstream')
+    }
+    const overrides: { type?: number; base_url?: string } = {}
+    const currentTypeVal = form.getValues('type')
+    const currentBaseUrlVal = form.getValues('base_url') || ''
+    if (currentTypeVal !== initialTypeRef.current) {
+      overrides.type = currentTypeVal
+    }
+    if (currentBaseUrlVal !== initialBaseUrlRef.current) {
+      overrides.base_url = currentBaseUrlVal
+    }
+    const response = await fetchUpstreamModels(
+      channelId!,
+      Object.keys(overrides).length > 0 ? overrides : undefined
+    )
+    if (response.success && response.data) {
+      return response.data
+    }
+    throw new Error(response.message || 'No models fetched from upstream')
+  }, [form, channelId])
 
   // Handle model operations
   const handleFillRelatedModels = useCallback(() => {
@@ -4682,7 +4724,7 @@ export function ChannelMutateDrawer({
         }}
         redirectModels={redirectModelList}
         redirectSourceModels={redirectModelKeyList}
-        customFetcher={!isEditing ? createModeFetcher : undefined}
+        customFetcher={isEditing ? editModeFetcher : createModeFetcher}
         channelName={!isEditing ? currentName?.trim() : undefined}
         existingModelsOverride={
           !isEditing

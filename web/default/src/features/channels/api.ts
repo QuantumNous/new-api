@@ -238,11 +238,15 @@ export async function updateChannelBalance(
  * Fetch available models from upstream provider
  */
 export async function fetchUpstreamModels(
-  id: number
+  id: number,
+  overrides?: { type?: number; base_url?: string }
 ): Promise<FetchModelsResponse> {
+  const params: Record<string, string> = {}
+  if (overrides?.type != null) params.type = String(overrides.type)
+  if (overrides?.base_url) params.base_url = overrides.base_url
   const res = await api.get(
     `/api/channel/fetch_models/${id}`,
-    channelActionConfig()
+    channelActionConfig({ params: Object.keys(params).length > 0 ? params : undefined })
   )
   return res.data
 }
