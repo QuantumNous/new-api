@@ -15,6 +15,7 @@ type RetryParam struct {
 	Ctx                *gin.Context
 	TokenGroup         string
 	ModelName          string
+	RequestPath        string
 	Retry              *int
 	ExcludedChannelIDs map[int]struct{}
 	resetNextTry       bool
@@ -119,6 +120,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			channel, _ = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
 				ExcludedChannelIDs:   param.ExcludedChannelIDs,
 				AllowCoolingFallback: len(param.ExcludedChannelIDs) == 0,
+				Path:                 param.RequestPath,
 			})
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
@@ -160,6 +162,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		channel, err = model.GetRandomSatisfiedChannelWithOptions(param.TokenGroup, param.ModelName, param.GetRetry(), model.ChannelSelectionOptions{
 			ExcludedChannelIDs:   param.ExcludedChannelIDs,
 			AllowCoolingFallback: param.GetRetry() == 0,
+			Path:                 param.RequestPath,
 		})
 		if err != nil {
 			return nil, param.TokenGroup, err

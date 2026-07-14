@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -129,6 +130,10 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 			coolingAbilities = append(coolingAbilities, ability)
 			continue
 		}
+		key := ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: options.Path}
+		if !IsChannelHealthAvailable(key) {
+			continue
+		}
 		availableAbilities = append(availableAbilities, ability)
 	}
 	if len(availableAbilities) == 0 && options.AllowCoolingFallback {
@@ -158,7 +163,6 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	}
 	targetPriority := sortedUniquePriorities[retry]
 
-	weightSum := uint(0)
 	var targetAbilities []Ability
 	for _, ability := range availableAbilities {
 		priority := int(0)
@@ -169,25 +173,65 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 			continue
 		}
 		targetAbilities = append(targetAbilities, ability)
-		weightSum += ability.Weight + 10
 	}
 	if len(targetAbilities) == 0 {
 		return nil, nil
 	}
 
-	channelId := targetAbilities[0].ChannelId
-	weight := common.GetRandomInt(int(weightSum))
-	for _, ability := range targetAbilities {
-		weight -= int(ability.Weight) + 10
-		if weight <= 0 {
-			channelId = ability.ChannelId
-			break
-		}
+	effectiveWeights := make([]int, len(targetAbilities))
+	totalWeight := 0
+	for i, ability := range targetAbilities {
+		baseWeight := int(ability.Weight) + 10
+		score := GetChannelHealthScore(ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: options.Path})
+		effectiveWeights[i] = max(1, int(math.Round(float64(baseWeight)*score)))
+		totalWeight += effectiveWeights[i]
+	}
+
+	channelId := selectAcquirableAbilityChannelId(targetAbilities, effectiveWeights, model, options.Path)
+	if channelId == 0 {
+		return nil, nil
 	}
 
 	channel := Channel{}
 	err = DB.First(&channel, "id = ?", channelId).Error
 	return &channel, err
+}
+
+// selectAcquirableAbilityChannelId picks a weighted-random starting
+// candidate, then tries every candidate exactly once, wrapping around from
+// that start point, until one successfully acquires its health lease. This
+// ensures a lost half-open probe race on the initial pick still falls back
+// to other available candidates instead of failing outright. Returns 0 if
+// none can be acquired.
+func selectAcquirableAbilityChannelId(candidates []Ability, weights []int, model string, path string) int {
+	totalWeight := 0
+	for _, w := range weights {
+		totalWeight += w
+	}
+	if totalWeight <= 0 {
+		return 0
+	}
+
+	startIdx := 0
+	cumulative := 0
+	randomWeight := common.GetRandomInt(totalWeight)
+	for i, w := range weights {
+		cumulative += w
+		if randomWeight < cumulative {
+			startIdx = i
+			break
+		}
+	}
+
+	for offset := 0; offset < len(candidates); offset++ {
+		idx := (startIdx + offset) % len(candidates)
+		ability := candidates[idx]
+		key := ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: path}
+		if AcquireChannelHealth(key) {
+			return ability.ChannelId
+		}
+	}
+	return 0
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {

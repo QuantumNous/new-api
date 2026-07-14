@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -16,9 +17,10 @@ import (
 )
 
 var (
-	httpClient      *http.Client
-	proxyClientLock sync.Mutex
-	proxyClients    = make(map[string]*http.Client)
+	httpClient       *http.Client // non-streaming relay + general use
+	httpClientStream *http.Client // streaming relay: shorter response-header timeout
+	proxyClientLock  sync.Mutex
+	proxyClients     = make(map[string]*http.Client)
 )
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
@@ -33,42 +35,107 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-func InitHttpClient() {
+// relayResponseHeaderTimeout returns the response-header timeout for the given
+// stream mode. Streaming upstreams send response headers before the SSE body,
+// so streaming can use a shorter timeout to fail over from a dead/hung channel
+// quickly without risking slow non-streaming (buffered/reasoning) responses.
+func relayResponseHeaderTimeout(streaming bool) time.Duration {
+	if streaming && common.RelayStreamResponseHeaderTimeout > 0 {
+		return time.Duration(common.RelayStreamResponseHeaderTimeout) * time.Second
+	}
+	return time.Duration(common.RelayResponseHeaderTimeout) * time.Second
+}
+
+// defaultRelayDialContext returns a timeout-bounded dialer so a black-holed
+// upstream fails at connect instead of hanging (the transport previously set no
+// dial timeout at all).
+func defaultRelayDialContext() func(context.Context, string, string) (net.Conn, error) {
+	return (&net.Dialer{
+		Timeout:   time.Duration(common.RelayDialTimeout) * time.Second,
+		KeepAlive: 30 * time.Second,
+	}).DialContext
+}
+
+// newRelayTransport builds a relay transport with connect, TLS-handshake, idle
+// and response-header timeouts. proxyFunc / dialContext may be nil.
+func newRelayTransport(
+	streaming bool,
+	proxyFunc func(*http.Request) (*url.URL, error),
+	dialContext func(context.Context, string, string) (net.Conn, error),
+) *http.Transport {
+	if dialContext == nil {
+		dialContext = defaultRelayDialContext()
+	}
 	transport := &http.Transport{
 		MaxIdleConns:          common.RelayMaxIdleConns,
 		MaxIdleConnsPerHost:   common.RelayMaxIdleConnsPerHost,
 		ForceAttemptHTTP2:     true,
-		Proxy:                 http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
-		ResponseHeaderTimeout: time.Duration(common.RelayResponseHeaderTimeout) * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSHandshakeTimeout:   time.Duration(common.RelayTLSHandshakeTimeout) * time.Second,
+		ResponseHeaderTimeout: relayResponseHeaderTimeout(streaming),
+		Proxy:                 proxyFunc,
+		DialContext:           dialContext,
 	}
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig
 	}
-
-	if common.RelayTimeout == 0 {
-		httpClient = &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-	} else {
-		httpClient = &http.Client{
-			Transport:     transport,
-			Timeout:       time.Duration(common.RelayTimeout) * time.Second,
-			CheckRedirect: checkRedirect,
-		}
-	}
+	return transport
 }
 
+func newRelayClient(transport *http.Transport) *http.Client {
+	client := &http.Client{
+		Transport:     transport,
+		CheckRedirect: checkRedirect,
+	}
+	if common.RelayTimeout > 0 {
+		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+	}
+	return client
+}
+
+func InitHttpClient() {
+	httpClient = newRelayClient(newRelayTransport(false, http.ProxyFromEnvironment, nil))
+	httpClientStream = newRelayClient(newRelayTransport(true, http.ProxyFromEnvironment, nil))
+}
+
+// GetHttpClient returns the shared non-streaming relay client (also used for
+// general-purpose upstream calls).
 func GetHttpClient() *http.Client {
 	return httpClient
 }
 
-// GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
-func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
-	if proxyURL == "" {
-		return GetHttpClient(), nil
+// GetRelayHttpClient returns the shared relay client tuned for the request's
+// stream mode. Streaming uses a shorter response-header timeout so a dead
+// channel is abandoned in seconds rather than a full minute.
+func GetRelayHttpClient(streaming bool) *http.Client {
+	if streaming && httpClientStream != nil {
+		return httpClientStream
 	}
-	return NewProxyHttpClient(proxyURL)
+	if httpClient != nil {
+		return httpClient
+	}
+	// Defensive: init on demand if InitHttpClient has not run yet.
+	InitHttpClient()
+	if streaming {
+		return httpClientStream
+	}
+	return httpClient
+}
+
+// GetHttpClientWithProxy returns the default client or a proxy-enabled one when
+// proxyURL is provided (non-streaming timeouts).
+func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
+	return GetRelayHttpClientWithProxy(proxyURL, false)
+}
+
+// GetRelayHttpClientWithProxy is the stream-aware variant of
+// GetHttpClientWithProxy.
+func GetRelayHttpClientWithProxy(proxyURL string, streaming bool) (*http.Client, error) {
+	if proxyURL == "" {
+		return GetRelayHttpClient(streaming), nil
+	}
+	return newProxyHttpClient(proxyURL, streaming)
 }
 
 // ResetProxyClientCache 清空代理客户端缓存，确保下次使用时重新初始化
@@ -83,17 +150,23 @@ func ResetProxyClientCache() {
 	proxyClients = make(map[string]*http.Client)
 }
 
-// NewProxyHttpClient 创建支持代理的 HTTP 客户端
+// NewProxyHttpClient 创建支持代理的 HTTP 客户端（非流式超时）
 func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
+	return newProxyHttpClient(proxyURL, false)
+}
+
+func newProxyHttpClient(proxyURL string, streaming bool) (*http.Client, error) {
 	if proxyURL == "" {
-		if client := GetHttpClient(); client != nil {
-			return client, nil
-		}
-		return http.DefaultClient, nil
+		return GetRelayHttpClient(streaming), nil
 	}
 
+	// Cache per (proxy, stream mode): streaming clients use a shorter
+	// response-header timeout, so they must not share a transport with
+	// non-streaming clients.
+	cacheKey := proxyURL + "|stream=" + strconv.FormatBool(streaming)
+
 	proxyClientLock.Lock()
-	if client, ok := proxyClients[proxyURL]; ok {
+	if client, ok := proxyClients[cacheKey]; ok {
 		proxyClientLock.Unlock()
 		return client, nil
 	}
@@ -104,27 +177,11 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		return nil, err
 	}
 
+	var client *http.Client
 	switch parsedURL.Scheme {
 	case "http", "https":
-		transport := &http.Transport{
-			MaxIdleConns:          common.RelayMaxIdleConns,
-			MaxIdleConnsPerHost:   common.RelayMaxIdleConnsPerHost,
-			ForceAttemptHTTP2:     true,
-			Proxy:                 http.ProxyURL(parsedURL),
-			ResponseHeaderTimeout: time.Duration(common.RelayResponseHeaderTimeout) * time.Second,
-		}
-		if common.TLSInsecureSkipVerify {
-			transport.TLSClientConfig = common.InsecureTLSConfig
-		}
-		client := &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
-		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
-		proxyClientLock.Unlock()
-		return client, nil
+		transport := newRelayTransport(streaming, http.ProxyURL(parsedURL), nil)
+		client = newRelayClient(transport)
 
 	case "socks5", "socks5h":
 		// 获取认证信息
@@ -146,27 +203,28 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			return nil, err
 		}
 
-		transport := &http.Transport{
-			MaxIdleConns:          common.RelayMaxIdleConns,
-			MaxIdleConnsPerHost:   common.RelayMaxIdleConnsPerHost,
-			ForceAttemptHTTP2:     true,
-			ResponseHeaderTimeout: time.Duration(common.RelayResponseHeaderTimeout) * time.Second,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return dialer.Dial(network, addr)
-			},
+		// Bound the SOCKS5 dial with the relay dial timeout so a hung proxy
+		// does not stall the request indefinitely.
+		dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if common.RelayDialTimeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, time.Duration(common.RelayDialTimeout)*time.Second)
+				defer cancel()
+			}
+			if ctxDialer, ok := dialer.(proxy.ContextDialer); ok {
+				return ctxDialer.DialContext(ctx, network, addr)
+			}
+			return dialer.Dial(network, addr)
 		}
-		if common.TLSInsecureSkipVerify {
-			transport.TLSClientConfig = common.InsecureTLSConfig
-		}
-
-		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
-		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
-		proxyClientLock.Unlock()
-		return client, nil
+		transport := newRelayTransport(streaming, nil, dialContext)
+		client = newRelayClient(transport)
 
 	default:
 		return nil, fmt.Errorf("unsupported proxy scheme: %s, must be http, https, socks5 or socks5h", parsedURL.Scheme)
 	}
+
+	proxyClientLock.Lock()
+	proxyClients[cacheKey] = client
+	proxyClientLock.Unlock()
+	return client, nil
 }

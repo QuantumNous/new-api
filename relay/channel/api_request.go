@@ -488,12 +488,12 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	var client *http.Client
 	var err error
 	if info.ChannelSetting.Proxy != "" {
-		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
+		client, err = service.GetRelayHttpClientWithProxy(info.ChannelSetting.Proxy, info.IsStream)
 		if err != nil {
 			return nil, fmt.Errorf("new proxy http client failed: %w", err)
 		}
 	} else {
-		client = service.GetHttpClient()
+		client = service.GetRelayHttpClient(info.IsStream)
 	}
 
 	var stopPinger context.CancelFunc

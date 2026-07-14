@@ -111,6 +111,7 @@ var EmailLoginAuthServerList = []string{
 
 var DebugEnabled bool
 var MemoryCacheEnabled bool
+var AdaptiveChannelHealthEnabled bool
 
 var LogConsumeEnabled = true
 
@@ -171,6 +172,28 @@ var BatchUpdateInterval int
 var RelayTimeout int // unit is second
 
 var RelayResponseHeaderTimeout int // unit is second; timeout for receiving response headers from upstream
+
+// RelayStreamResponseHeaderTimeout bounds how long a streaming relay waits for
+// the upstream to send response headers. Streaming upstreams return headers
+// almost immediately (before the SSE body), so this can be much shorter than
+// RelayResponseHeaderTimeout to fail over from a dead/hung channel quickly
+// without risking slow non-streaming (e.g. buffered reasoning) responses.
+var RelayStreamResponseHeaderTimeout int // unit is second
+
+// RelayDialTimeout bounds the TCP connect phase to an upstream. Go's
+// DefaultTransport uses 30s here; the relay transport previously set none,
+// letting a black-holed host hang on connect indefinitely.
+var RelayDialTimeout int // unit is second
+
+// RelayTLSHandshakeTimeout bounds the TLS handshake to an upstream. Matches the
+// 10s Go DefaultTransport uses; previously unset on the relay transport.
+var RelayTLSHandshakeTimeout int // unit is second
+
+// RelayMaxRetryDuration caps the total wall-clock time spent retrying across
+// channels for a single request. 0 disables the cap. Bounds pathological cases
+// where a request cycles several dead/hung channels (each costing a full header
+// timeout) and spends minutes before giving up. The first attempt always runs.
+var RelayMaxRetryDuration int // unit is second
 
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int

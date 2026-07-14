@@ -103,7 +103,7 @@ func Distribute() func(c *gin.Context) {
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) {
+					if err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) && model.AcquireChannelHealth(model.ChannelHealthKey{ChannelID: preferred.Id, Model: modelRequest.Model, Path: service.ChannelHealthPath(c.Request.URL.Path)}) {
 						if preferred.Status != common.ChannelStatusEnabled {
 							// Affinity channel is disabled, fall back to random selection
 							// Skip retry only applies if we actually used the affinity channel
@@ -129,10 +129,11 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:         c,
+						ModelName:   modelRequest.Model,
+						TokenGroup:  usingGroup,
+						RequestPath: service.ChannelHealthPath(c.Request.URL.Path),
+						Retry:       common.GetPointer(0),
 					})
 					if err != nil {
 						showGroup := usingGroup

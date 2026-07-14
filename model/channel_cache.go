@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"sort"
 	"strings"
@@ -97,6 +98,7 @@ func SyncChannelCache(frequency int) {
 type ChannelSelectionOptions struct {
 	ExcludedChannelIDs   map[int]struct{}
 	AllowCoolingFallback bool
+	Path                 string
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
@@ -136,6 +138,10 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		if IsChannelCoolingDown(channel.Id) && !options.AllowCoolingFallback {
 			return nil, nil
 		}
+		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path}
+		if !AcquireChannelHealth(key) {
+			return nil, nil
+		}
 		return channel, nil
 	}
 
@@ -151,6 +157,10 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		}
 		if IsChannelCoolingDown(channel.Id) {
 			coolingChannels = append(coolingChannels, channel)
+			continue
+		}
+		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path}
+		if !IsChannelHealthAvailable(key) {
 			continue
 		}
 		availableChannels = append(availableChannels, channel)
@@ -206,20 +216,58 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		smoothingFactor = 100
 	}
 
-	// Calculate the total weight of all channels up to endIdx
-	totalWeight := sumWeight * smoothingFactor
+	// Calculate health-adjusted weights without mutating cached channel config.
+	effectiveWeights := make([]int, len(targetChannels))
+	totalWeight := 0
+	for i, channel := range targetChannels {
+		baseWeight := channel.GetWeight()*smoothingFactor + smoothingAdjustment
+		if baseWeight == 0 {
+			continue
+		}
+		score := GetChannelHealthScore(ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path})
+		effectiveWeights[i] = max(1, int(math.Round(float64(baseWeight)*score)))
+		totalWeight += effectiveWeights[i]
+	}
 
-	// Generate a random value in the range [0, totalWeight)
+	return selectAcquirableChannel(targetChannels, effectiveWeights, model, options.Path)
+}
+
+// selectAcquirableChannel picks a weighted-random starting candidate, then
+// tries every candidate exactly once, wrapping around from that start point,
+// until one successfully acquires its health lease. This ensures a lost
+// half-open probe race on the initial pick still falls back to other
+// available candidates instead of failing outright.
+func selectAcquirableChannel(candidates []*Channel, weights []int, model string, path string) (*Channel, error) {
+	totalWeight := 0
+	for _, w := range weights {
+		totalWeight += w
+	}
+	if totalWeight <= 0 {
+		return nil, errors.New("channel not found")
+	}
+
+	startIdx := 0
+	cumulative := 0
 	randomWeight := rand.Intn(totalWeight)
+	for i, w := range weights {
+		cumulative += w
+		if randomWeight < cumulative {
+			startIdx = i
+			break
+		}
+	}
 
-	// Find a channel based on its weight
-	for _, channel := range targetChannels {
-		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
-		if randomWeight < 0 {
+	for offset := 0; offset < len(candidates); offset++ {
+		idx := (startIdx + offset) % len(candidates)
+		if weights[idx] == 0 {
+			continue
+		}
+		channel := candidates[idx]
+		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: path}
+		if AcquireChannelHealth(key) {
 			return channel, nil
 		}
 	}
-	// return null if no channel is not found
 	return nil, errors.New("channel not found")
 }
 

@@ -81,6 +81,7 @@ func InitEnv() {
 	// Initialize variables from constants.go that were using environment variables
 	DebugEnabled = os.Getenv("DEBUG") == "true"
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
+	AdaptiveChannelHealthEnabled = GetEnvOrDefaultBool("ADAPTIVE_CHANNEL_HEALTH_ENABLED", false)
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 	NodeName = os.Getenv("NODE_NAME")
 	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
@@ -103,6 +104,10 @@ func InitEnv() {
 	BatchUpdateInterval = GetEnvOrDefault("BATCH_UPDATE_INTERVAL", 5)
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
 	RelayResponseHeaderTimeout = GetEnvOrDefault("RELAY_RESPONSE_HEADER_TIMEOUT", 60)
+	RelayStreamResponseHeaderTimeout = GetEnvOrDefault("RELAY_STREAM_RESPONSE_HEADER_TIMEOUT", 30)
+	RelayDialTimeout = GetEnvOrDefault("RELAY_DIAL_TIMEOUT", 10)
+	RelayTLSHandshakeTimeout = GetEnvOrDefault("RELAY_TLS_HANDSHAKE_TIMEOUT", 10)
+	RelayMaxRetryDuration = GetEnvOrDefault("RELAY_MAX_RETRY_DURATION", 120)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
 
