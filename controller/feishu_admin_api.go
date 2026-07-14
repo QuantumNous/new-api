@@ -690,7 +690,7 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 		}
 
 		requestedGroup := strings.TrimSpace(item.Group)
-		group, _ := service.ResolveAuthoritativeGroupForFeishuUser(0, "", requestedGroup, openId)
+		group, _ := service.ResolveAuthoritativeGroupForFeishuUser(0, "", requestedGroup, openId, item.JobTitle)
 
 		role := common.RoleCommonUser
 		if item.Role != nil {
@@ -1374,7 +1374,7 @@ func FeishuInitWebhook(c *gin.Context) {
 			password = common.GetRandomString(12)
 		}
 		requestedGroup := strings.TrimSpace(item.Group)
-		group, _ := service.ResolveAuthoritativeGroupForFeishuUser(0, "", requestedGroup, openId)
+		group, _ := service.ResolveAuthoritativeGroupForFeishuUser(0, "", requestedGroup, openId, item.JobTitle)
 		role := common.RoleCommonUser
 		if item.Role != nil {
 			role = *item.Role
@@ -1587,7 +1587,7 @@ func BatchUpdateFeishuUsers(c *gin.Context) {
 			requestedGroup := strings.TrimSpace(item.Group)
 			finalGroup := requestedGroup
 			if user.FeishuId != "" {
-				finalGroup, _ = service.ResolveAuthoritativeGroupForFeishuUser(user.Id, user.Group, requestedGroup, user.FeishuId)
+				finalGroup, _ = service.ResolveAuthoritativeGroupForFeishuUser(user.Id, user.Group, requestedGroup, user.FeishuId, item.JobTitle)
 			}
 			if finalGroup != "" && finalGroup != user.Group {
 				updates["group"] = finalGroup

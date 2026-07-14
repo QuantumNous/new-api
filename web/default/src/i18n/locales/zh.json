@@ -2437,6 +2437,7 @@
     "Jina": "Jina",
     "Job title": "岗位",
     "Job Title": "岗位",
+    "Job Title Package Mapping": "飞书岗位套餐映射",
     "Job title to test": "输入岗位测试",
     "JSON": "JSON",
     "JSON array of group identifiers. When enabled below, new tokens rotate through this list.": "分组标识符的 JSON 数组。在下方启用时，新令牌将在此列表中轮换。",

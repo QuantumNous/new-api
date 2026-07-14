@@ -23,20 +23,39 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { FeishuGroupMappings } from './components/feishu-group-mappings'
 import { ProtectedGroupsConfig } from './components/protected-groups-config'
+import { RulesDialogs } from './components/rules-dialogs'
+import { RulesPrimaryButtons } from './components/rules-primary-buttons'
+import { RulesProvider } from './components/rules-provider'
+import { RulesTable } from './components/rules-table'
 
 export function AutoGroupRules() {
   const { t } = useTranslation()
   return (
     <SectionPageLayout fixedContent>
-      <SectionPageLayout.Title>{t('Feishu Group Package Mapping')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t('Auto Group Rules')}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
-        <Tabs defaultValue='mappings' className='flex h-full min-h-0 flex-col gap-4'>
+        <Tabs
+          defaultValue='mappings'
+          className='flex h-full min-h-0 flex-col gap-4'
+        >
           <TabsList className='w-fit'>
             <TabsTrigger value='mappings'>{t('Mappings')}</TabsTrigger>
+            <TabsTrigger value='job-title-mappings'>
+              {t('Job Title Package Mapping')}
+            </TabsTrigger>
             <TabsTrigger value='protected'>{t('Protected groups')}</TabsTrigger>
           </TabsList>
           <TabsContent value='mappings' className='min-h-0 flex-1'>
             <FeishuGroupMappings />
+          </TabsContent>
+          <TabsContent value='job-title-mappings' className='min-h-0 flex-1'>
+            <RulesProvider>
+              <div className='flex h-full min-h-0 flex-col gap-4'>
+                <RulesPrimaryButtons />
+                <RulesTable />
+              </div>
+              <RulesDialogs />
+            </RulesProvider>
           </TabsContent>
           <TabsContent value='protected' className='min-h-0 flex-1'>
             <ProtectedGroupsConfig />

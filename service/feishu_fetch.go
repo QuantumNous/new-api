@@ -245,7 +245,7 @@ func TryAutoGroupOnUserCreate(userId int, currentGroup, feishuId string) string 
 			common.SysLog(fmt.Sprintf("auto-group: update job_title failed for user %d: %s", userId, uerr.Error()))
 		}
 	}
-	finalGroup, _ := ResolveAuthoritativeGroupForFeishuUser(userId, currentGroup, currentGroup, feishuId)
+	finalGroup, _ := ResolveAuthoritativeGroupForFeishuUser(userId, currentGroup, currentGroup, feishuId, jobTitle)
 	if finalGroup != "" && finalGroup != currentGroup {
 		if applyErr := ApplyAutoGroupChange(userId, currentGroup, finalGroup); applyErr == nil {
 			return finalGroup

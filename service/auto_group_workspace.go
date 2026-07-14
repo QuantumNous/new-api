@@ -84,6 +84,14 @@ func ClassifyAutoGroup(ctx AutoGroupContext) AutoGroupDecision {
 	if IsProtectedGroup(ctx.CurrentGroup) {
 		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "当前分组受保护", Source: "protected"}
 	}
+	// 岗位映射由管理员维护，优先于飞书通讯录用户组映射；人工锁定和
+	// 受保护分组仍保持更高优先级，避免覆盖管理员的明确分配。
+	if targetGroup, err := ResolveGroupByJobTitle(ctx.JobTitle); err == nil && targetGroup != "" {
+		if ctx.CurrentGroup == targetGroup {
+			return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: targetGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "飞书岗位已匹配当前套餐分组", Source: "feishu_job_title"}
+		}
+		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: targetGroup, Action: model.AutoGroupActionAutoApply, Confidence: model.AutoGroupConfidenceHigh, Reason: "飞书岗位命中套餐映射: " + ctx.JobTitle, Source: "feishu_job_title"}
+	}
 	if mapping, err := model.FindFeishuGroupPackageMapping(ctx.FeishuGroupIds, ctx.FeishuGroupNames); err == nil && mapping != nil {
 		if ctx.CurrentGroup == mapping.TargetGroup {
 			return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: mapping.TargetGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "飞书用户组已匹配当前套餐分组", Source: "feishu_user_group"}

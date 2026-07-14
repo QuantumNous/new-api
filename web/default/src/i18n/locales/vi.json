@@ -2433,6 +2433,7 @@
     "Jina": "Jina",
     "Job title": "Chức danh",
     "Job Title": "Chức danh",
+    "Job Title Package Mapping": "Ánh xạ chức danh Feishu với gói dịch vụ",
     "Job title to test": "输入岗位测试",
     "JSON": "JSON",
     "JSON array of group identifiers. When enabled below, new tokens rotate through this list.": "Mảng JSON của các định danh nhóm. Khi được bật bên dưới, các token mới sẽ luân phiên qua danh sách này.",

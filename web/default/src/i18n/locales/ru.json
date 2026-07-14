@@ -2433,6 +2433,7 @@
     "Jina": "Jina",
     "Job title": "Должность",
     "Job Title": "Должность",
+    "Job Title Package Mapping": "Сопоставление должности Feishu с тарифом",
     "Job title to test": "输入岗位测试",
     "JSON": "JSON",
     "JSON array of group identifiers. When enabled below, new tokens rotate through this list.": "Массив JSON идентификаторов групп. Если включено ниже, новые токены будут циклически перебираться по этому списку.",

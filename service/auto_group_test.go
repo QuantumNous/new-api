@@ -25,6 +25,7 @@ func setupTestDB(t *testing.T) {
 	}
 	if err := db.AutoMigrate(
 		&model.GroupMappingRule{},
+		&model.FeishuGroupPackageMapping{},
 		&model.User{},
 		&model.SubscriptionPlan{},
 		&model.UserSubscription{},
@@ -219,6 +220,51 @@ func TestResolveAndCheckAutoGroup_ShouldChange(t *testing.T) {
 	}
 	if g != "dev" {
 		t.Errorf("expected dev, got %s", g)
+	}
+}
+
+func TestClassifyAutoGroup_JobTitleMappingTakesPriorityOverFeishuGroup(t *testing.T) {
+	setupTestDB(t)
+	if err := model.CreateGroupMappingRule(&model.GroupMappingRule{
+		JobTitle: "财务专员", TargetGroup: "city-function", Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := model.CreateFeishuGroupPackageMapping(&model.FeishuGroupPackageMapping{
+		FeishuGroupId: "finance-team", FeishuGroupName: "财务组", TargetGroup: "finance-plan", Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	decision := ClassifyAutoGroup(AutoGroupContext{
+		CurrentGroup:     "pending",
+		JobTitle:         "财务专员",
+		FeishuGroupIds:   []string{"finance-team"},
+		FeishuGroupNames: []string{"财务组"},
+	})
+	if decision.Action != model.AutoGroupActionAutoApply {
+		t.Fatalf("expected auto apply, got %+v", decision)
+	}
+	if decision.SuggestedGroup != "city-function" || decision.Source != "feishu_job_title" {
+		t.Fatalf("job title mapping must win over feishu group mapping, got %+v", decision)
+	}
+}
+
+func TestClassifyAutoGroup_ManualGroupLockOverridesJobTitleMapping(t *testing.T) {
+	setupTestDB(t)
+	if err := model.CreateGroupMappingRule(&model.GroupMappingRule{
+		JobTitle: "财务专员", TargetGroup: "city-function", Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	decision := ClassifyAutoGroup(AutoGroupContext{
+		CurrentGroup:      "manually-assigned",
+		JobTitle:          "财务专员",
+		ManualGroupLocked: true,
+	})
+	if decision.Action != model.AutoGroupActionSkip || decision.Source != "manual_group_locked" {
+		t.Fatalf("manual group lock must remain authoritative, got %+v", decision)
 	}
 }
 

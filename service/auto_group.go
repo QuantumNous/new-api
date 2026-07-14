@@ -47,21 +47,27 @@ func IsProtectedGroup(group string) bool {
 	return false
 }
 
-func ResolveAuthoritativeGroupForFeishuUser(userId int, currentGroup, requestedGroup, feishuOpenId string) (string, string) {
+func ResolveAuthoritativeGroupForFeishuUser(userId int, currentGroup, requestedGroup, feishuOpenId, jobTitle string) (string, string) {
 	currentGroup = strings.TrimSpace(currentGroup)
 	requestedGroup = strings.TrimSpace(requestedGroup)
 	feishuOpenId = strings.TrimSpace(feishuOpenId)
 	var user model.User
 	if userId > 0 {
-		if err := model.DB.Select("manual_group_locked").Where("id = ?", userId).First(&user).Error; err == nil && user.ManualGroupLocked {
+		if err := model.DB.Select("manual_group_locked", "job_title").Where("id = ?", userId).First(&user).Error; err == nil && user.ManualGroupLocked {
 			return currentGroup, "管理员手动维护分组"
+		}
+		if strings.TrimSpace(jobTitle) == "" {
+			jobTitle = user.JobTitle
 		}
 	}
 	if IsProtectedGroup(currentGroup) {
 		return currentGroup, "当前分组受保护"
 	}
+	if targetGroup, err := ResolveGroupByJobTitle(jobTitle); err == nil && targetGroup != "" {
+		return targetGroup, "飞书岗位命中套餐映射: " + strings.TrimSpace(jobTitle)
+	}
 	if feishuOpenId != "" {
-		ctx := AutoGroupContext{UserId: userId, FeishuOpenId: feishuOpenId, CurrentGroup: currentGroup}
+		ctx := AutoGroupContext{UserId: userId, FeishuOpenId: feishuOpenId, CurrentGroup: currentGroup, JobTitle: jobTitle}
 		catalog, catalogErr := FetchFeishuGroupCatalog()
 		if catalogErr == nil {
 			membership, groupErr := FetchFeishuUserGroupMembershipDetail(feishuOpenId, catalog)
