@@ -25,16 +25,12 @@ import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Progress } from '@/components/ui/progress'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { toIntlLocale } from '@/i18n/languages'
-import { formatQuotaWithCurrency } from '@/lib/currency'
 import { formatQuota, formatTimestamp } from '@/lib/format'
-import { cn } from '@/lib/utils'
 
 import {
   USER_STATUS,
@@ -44,26 +40,10 @@ import {
 } from '../constants'
 import type { User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
-
-/**
- * Inline quota values longer than this switch to locale-aware compact
- * notation (e.g. "¥4.8万"); precise values stay available in the tooltip.
- */
-const MAX_INLINE_QUOTA_CHARS = 8
-
-function getQuotaProgressColor(percentage: number): string {
-  if (percentage <= 10) {
-    return '[&_[data-slot=progress-indicator]]:bg-destructive'
-  }
-  if (percentage <= 30) {
-    return '[&_[data-slot=progress-indicator]]:bg-warning'
-  }
-  return '[&_[data-slot=progress-indicator]]:bg-success'
-}
+import { UserQuotaCell } from './user-quota-cell'
 
 export function useUsersColumns(): ColumnDef<User>[] {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const { t } = useTranslation()
   return [
     {
       id: 'select',
@@ -201,61 +181,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       header: t('Quota'),
       cell: ({ row }) => {
         const user = row.original
-        const used = user.used_quota
-        const remaining = user.quota
-        const total = used + remaining
-        const percentage = total > 0 ? (remaining / total) * 100 : 0
-
-        if (total === 0) {
-          return <StatusBadge variant='neutral'>{t('No Quota')}</StatusBadge>
-        }
-
-        const toInlineQuota = (value: number) => {
-          const full = formatQuota(value)
-          if (full.length <= MAX_INLINE_QUOTA_CHARS) {
-            return full
-          }
-          return formatQuotaWithCurrency(value, { compact: true, locale })
-        }
-
-        return (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div className='w-full cursor-help space-y-1 sm:w-[150px]' />
-              }
-            >
-              <div className='flex justify-between gap-2 text-xs'>
-                <span className='truncate font-medium tabular-nums'>
-                  {toInlineQuota(remaining)}
-                </span>
-                <span className='text-muted-foreground truncate tabular-nums'>
-                  {toInlineQuota(total)}
-                </span>
-              </div>
-              <Progress
-                value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor(percentage))}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className='space-y-1 text-xs'>
-                <div>
-                  {t('Used:')} {formatQuota(used)}
-                </div>
-                <div>
-                  {t('Remaining:')} {formatQuota(remaining)}
-                </div>
-                <div>
-                  {t('Total:')} {formatQuota(total)}
-                </div>
-                <div>
-                  {t('Percentage:')} {percentage.toFixed(1)}%
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )
+        return <UserQuotaCell used={user.used_quota} remaining={user.quota} />
       },
       size: 170,
       meta: {
