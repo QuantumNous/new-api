@@ -62,24 +62,21 @@
 
 ```text
 用户选择 auto_renew + 支付宝
-  → pending_signup (external_agreement_no)
-  → 跳转协议签约页
+  → pending_signup + 预创建首期 out_trade_no (aliar*)
+  → 跳转 page/wap「支付并签约」URL
 
-签约成功通知
-  → 绑定 agreement_no
-  → 发起首期扣款 (out_trade_no)
-  → 成功: FulfillRecurringInvoice + active
-  → 失败: past_due / pending_first_charge + 查单重试
+支付成功 notify（首期）
+  → FulfillRecurringInvoice + active
+  → 若 notify 带 agreement_no 可提前绑定
 
-周期调度器 (alipay only)
-  → 扫描 active 且 current_period_end <= now（且未 cancel_at_period_end 到期）
-  → 创建 RecurringChargeAttempt(pending) + 调扣款
-  → 通知/查单成功 → Fulfill
-  → 失败 → past_due + 退避
+签约成功 notify
+  → 只绑定 agreement_no（不再二次扣首期）
+
+续期（到期扫描）
+  → trade.pay + agreement_no → 短查单 / notify → Fulfill
 
 用户取消
-  → agreement.unsign
-  → cancel_at_period_end 或 canceled
+  → agreement.unsign + cancel_at_period_end
 
 支付宝解约通知
   → 本地 canceled（不重开）
@@ -89,9 +86,9 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/subscription/alipay/checkout/auto-renew` | 创建/复用 pending，返回签约 URL |
-| POST | `/api/subscription/alipay/notify` | 扩展：识别签约/扣款/解约（或拆子路径） |
-| POST | `/api/subscription/self/cancel-renewal` | 已有；按 `provider` 分发到 unsign |
+| POST | `/api/subscription/alipay/checkout/auto-renew` | 支付并签约 checkout（返回 pay_url） |
+| POST | `/api/subscription/alipay/notify` | 支付 / 签约 / 解约 / 续期交易回调 |
+| POST | `/api/subscription/self/cancel-renewal` | 按 provider 解约 |
 
 Admin 套餐：`billing_mode=auto_renew` 时可勾选启用支付宝自动续费；产品码/模板可全局配置（`setting`）或套餐级字段（后续）。
 
