@@ -1061,7 +1061,7 @@ function RouteEditor({
                     className='max-w-full gap-1.5 font-mono'
                   >
                     <span className='font-sans text-[10px] font-semibold tracking-normal uppercase'>
-                      {t(ruleKind === 'regex' ? 'Go Regex' : 'Exact')}
+                      {t(ruleKind === 'regex' ? 'Regex' : 'Exact')}
                     </span>
                     <span className='truncate'>{displayModel}</span>
                   </Badge>
@@ -1271,12 +1271,12 @@ function ModelRuleHelpPopover() {
         <div className='text-muted-foreground space-y-2 text-xs leading-relaxed'>
           <p>
             {t(
-              'Use exact model names such as gpt-4o, or prefix Go regular expressions with re:, for example re:^gemini-.'
+              'Use exact model names such as gpt-4o, or regex rules prefixed with re: such as re:^gemini-.'
             )}
           </p>
           <p>
             {t(
-              'Separate multiple rules with ASCII commas. If a Go regular expression contains a comma, switch to JSON Text.'
+              'Separate multiple rules with English commas. For regex patterns that need commas, switch to JSON Text.'
             )}
           </p>
           <p>

@@ -189,9 +189,7 @@ export function RuleEditorDialog(props: Props) {
   const handleSave = (values: RuleFormValues) => {
     const modelRegex = normalizeStringList(values.model_regex_text)
     if (modelRegex.length === 0) {
-      toast.error(
-        t('At least one Go regular expression is required for model matching.')
-      )
+      toast.error(t('At least one model regex pattern is required'))
       return
     }
 
@@ -280,7 +278,7 @@ export function RuleEditorDialog(props: Props) {
 
         <div className='grid gap-3 sm:grid-cols-2'>
           <div className='grid gap-1.5'>
-            <Label>{t('Model Regex (Go syntax, one per line)')} *</Label>
+            <Label>{t('Model Regex (one per line)')} *</Label>
             <Textarea
               rows={4}
               placeholder={'^gpt-4o.*$\n^claude-3.*$'}
@@ -288,7 +286,7 @@ export function RuleEditorDialog(props: Props) {
             />
           </div>
           <div className='grid gap-1.5'>
-            <Label>{t('Path Regex (Go syntax, one per line)')}</Label>
+            <Label>{t('Path Regex (one per line)')}</Label>
             <Textarea
               rows={4}
               placeholder='/v1/chat/completions'
@@ -419,7 +417,7 @@ export function RuleEditorDialog(props: Props) {
 
             <div className='grid gap-3 sm:grid-cols-2'>
               <div className='grid gap-1.5'>
-                <Label>{t('Value Regex (Go syntax)')}</Label>
+                <Label>{t('Value Regex')}</Label>
                 <Input
                   placeholder='^[-0-9A-Za-z._:]{1,128}$'
                   {...form.register('value_regex')}

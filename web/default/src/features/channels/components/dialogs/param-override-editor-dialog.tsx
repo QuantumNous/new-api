@@ -103,7 +103,7 @@ const OPERATION_MODE_OPTIONS = [
   { label: 'Copy Field', value: 'copy' },
   { label: 'Move Field', value: 'move' },
   { label: 'String Replace', value: 'replace' },
-  { label: 'Go Regex Replacement', value: 'regex_replace' },
+  { label: 'Regex Replace', value: 'regex_replace' },
   { label: 'Trim Prefix', value: 'trim_prefix' },
   { label: 'Trim Suffix', value: 'trim_suffix' },
   { label: 'Ensure Prefix', value: 'ensure_prefix' },
@@ -221,8 +221,7 @@ const MODE_DESCRIPTIONS: Record<string, string> = {
   copy: 'Copy source field to target field',
   move: 'Move source field to target field',
   replace: 'Do string replacement in the target field',
-  regex_replace:
-    'Replace text in the target field using a Go regular expression.',
+  regex_replace: 'Do regex replacement in the target field',
   trim_prefix: 'Remove string prefix',
   trim_suffix: 'Remove string suffix',
   ensure_prefix: 'Ensure the string has a specified prefix',
@@ -605,7 +604,7 @@ const getModePathPlaceholder = (mode: string): string => {
 
 const getModeFromLabel = (mode: string): string => {
   if (mode === 'replace') return 'Match Text'
-  if (mode === 'regex_replace') return 'Go Regex Pattern'
+  if (mode === 'regex_replace') return 'Regex Pattern'
   if (mode === 'copy_header' || mode === 'move_header') return 'Source Header'
   return 'Source Field'
 }
