@@ -102,6 +102,10 @@ func InitOptionMap() {
 	common.OptionMap["AlipayReturnURL"] = setting.AlipayReturnURL
 	common.OptionMap["AlipaySellerID"] = setting.AlipaySellerID
 	common.OptionMap["AlipayMinTopUp"] = strconv.Itoa(setting.AlipayMinTopUp)
+	common.OptionMap["AlipayCyclePayEnabled"] = strconv.FormatBool(setting.AlipayCyclePayEnabled)
+	common.OptionMap["AlipayCyclePayPersonalProductCode"] = setting.AlipayCyclePayPersonalProductCode
+	common.OptionMap["AlipayCyclePayProductCode"] = setting.AlipayCyclePayProductCode
+	common.OptionMap["AlipayCyclePaySignScene"] = setting.AlipayCyclePaySignScene
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -463,6 +467,14 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.AlipaySellerID = value
 	case "AlipayMinTopUp":
 		setting.AlipayMinTopUp, _ = strconv.Atoi(value)
+	case "AlipayCyclePayEnabled":
+		setting.AlipayCyclePayEnabled = value == "true"
+	case "AlipayCyclePayPersonalProductCode":
+		setting.AlipayCyclePayPersonalProductCode = value
+	case "AlipayCyclePayProductCode":
+		setting.AlipayCyclePayProductCode = value
+	case "AlipayCyclePaySignScene":
+		setting.AlipayCyclePaySignScene = value
 	case "CreemApiKey":
 		setting.CreemApiKey = value
 	case "CreemProducts":

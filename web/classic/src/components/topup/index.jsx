@@ -97,6 +97,7 @@ const TopUp = () => {
     useState('subscription_first');
   const [activeSubscriptions, setActiveSubscriptions] = useState([]);
   const [allSubscriptions, setAllSubscriptions] = useState([]);
+  const [autoRenewSubscription, setAutoRenewSubscription] = useState(null);
 
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
@@ -566,6 +567,7 @@ const TopUp = () => {
         // All subscriptions (including expired)
         const allSubs = res.data.data?.all_subscriptions || [];
         setAllSubscriptions(allSubs);
+        setAutoRenewSubscription(res.data.data?.auto_renew_subscription || null);
       }
     } catch (e) {
       // ignore
@@ -972,6 +974,7 @@ const TopUp = () => {
         onChangeBillingPreference={updateBillingPreference}
         activeSubscriptions={activeSubscriptions}
         allSubscriptions={allSubscriptions}
+        autoRenewSubscription={autoRenewSubscription}
         reloadSubscriptionSelf={getSubscriptionSelf}
       />
     </div>

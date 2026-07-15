@@ -119,6 +119,8 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 	service.StartAlipayPendingTopUpTask()
+	// Alipay auto-renew: light due-period charge (no mid-cycle polling)
+	service.StartAlipayAutoRenewChargeTask()
 
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {

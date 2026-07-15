@@ -23,6 +23,11 @@ const (
 	SubscriptionDurationCustom = "custom"
 )
 
+const (
+	SubscriptionBillingModeOneTime   = "one_time"
+	SubscriptionBillingModeAutoRenew = "auto_renew"
+)
+
 // Subscription quota reset period
 const (
 	SubscriptionResetNever   = "never"
@@ -173,9 +178,11 @@ type SubscriptionPlan struct {
 	// Empty values are treated as base for backward compatibility.
 	PlanKind string `json:"plan_kind" gorm:"type:varchar(16);not null;default:'base'"`
 
-	AlipayEnabled  bool   `json:"alipay_enabled" gorm:"default:false"`
-	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
-	CreemProductId string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	AlipayEnabled          bool   `json:"alipay_enabled" gorm:"default:false"`
+	StripePriceId          string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
+	StripeRecurringPriceId string `json:"stripe_recurring_price_id" gorm:"type:varchar(128);default:''"`
+	CreemProductId         string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	BillingMode            string `json:"billing_mode" gorm:"type:varchar(16);not null;default:'one_time'"`
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
@@ -228,6 +235,94 @@ type SubscriptionOrder struct {
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
 
+type BillingSubscription struct {
+	Id                           int     `json:"id"`
+	UserId                       int     `json:"user_id" gorm:"index"`
+	PlanId                       int     `json:"plan_id" gorm:"index"`
+	Provider                     string  `json:"provider" gorm:"type:varchar(32);index;uniqueIndex:idx_billing_subscription_provider_subscription,priority:1"`
+	ProviderSubscriptionId       string  `json:"provider_subscription_id" gorm:"type:varchar(128);index"`
+	ProviderSubscriptionUniqueId *string `json:"-" gorm:"type:varchar(128);uniqueIndex:idx_billing_subscription_provider_subscription,priority:2"`
+	SignupReference              string  `json:"signup_reference" gorm:"type:varchar(128);default:'';index"`
+	SignupReferenceUniqueId      *string `json:"-" gorm:"type:varchar(128);uniqueIndex:idx_billing_subscription_signup_reference"`
+	ProviderCheckoutId           string  `json:"provider_checkout_id" gorm:"type:varchar(128);default:'';index"`
+	ProviderCustomerId           string  `json:"provider_customer_id" gorm:"type:varchar(128);default:''"`
+	ProviderPriceId              string  `json:"provider_price_id" gorm:"type:varchar(128);default:''"`
+	Status                       string  `json:"status" gorm:"type:varchar(32);index"`
+	CancelAtPeriodEnd            bool    `json:"cancel_at_period_end" gorm:"default:false"`
+	CurrentPeriodStart           int64   `json:"current_period_start" gorm:"bigint;default:0"`
+	CurrentPeriodEnd             int64   `json:"current_period_end" gorm:"bigint;default:0"`
+	LastInvoiceId                string  `json:"last_invoice_id" gorm:"type:varchar(128);default:''"`
+	LastPaymentStatus            string  `json:"last_payment_status" gorm:"type:varchar(32);default:''"`
+	ProviderPayload              string  `json:"provider_payload" gorm:"type:text"`
+	CreatedAt                    int64   `json:"created_at" gorm:"bigint"`
+	UpdatedAt                    int64   `json:"updated_at" gorm:"bigint"`
+}
+
+type RecurringChargeAttempt struct {
+	Id                     int    `json:"id"`
+	BillingSubscriptionId  int    `json:"billing_subscription_id" gorm:"index"`
+	Provider               string `json:"provider" gorm:"type:varchar(32);uniqueIndex:idx_recurring_charge_provider_invoice,priority:1"`
+	ProviderInvoiceId      string `json:"provider_invoice_id" gorm:"type:varchar(128);uniqueIndex:idx_recurring_charge_provider_invoice,priority:2"`
+	ProviderSubscriptionId string `json:"provider_subscription_id" gorm:"type:varchar(128);index;default:''"`
+	PeriodStart            int64  `json:"period_start" gorm:"bigint;default:0"`
+	PeriodEnd              int64  `json:"period_end" gorm:"bigint;default:0"`
+	Amount                 int64  `json:"amount" gorm:"bigint;default:0"`
+	Currency               string `json:"currency" gorm:"type:varchar(16);default:''"`
+	Status                 string `json:"status" gorm:"type:varchar(32);index"`
+	// ClaimedAt is set when a worker/checkout claims the right to initiate payment for this attempt.
+	// Used as a short lease so concurrent workers do not double-call the payment API.
+	ClaimedAt       int64  `json:"claimed_at" gorm:"bigint;default:0"`
+	FailureReason   string `json:"failure_reason" gorm:"type:text"`
+	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
+	// These fields describe the paid invoice while it is being fulfilled.
+	// They intentionally remain part of the provider payload rather than charge-attempt storage.
+	PaymentStatus      string `json:"-" gorm:"-"`
+	ProviderCustomerId string `json:"-" gorm:"-"`
+	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt          int64  `json:"updated_at" gorm:"bigint"`
+}
+
+// Recurring charge attempt statuses.
+const (
+	RecurringChargeStatusPending = "pending"
+	RecurringChargeStatusPaid    = "paid"
+	RecurringChargeStatusFailed  = "failed"
+	// PendingContract is used when invoice arrives before local contract binding (Stripe out-of-order).
+	RecurringChargeStatusPendingContract = "pending_contract"
+)
+
+func (a *RecurringChargeAttempt) BeforeCreate(tx *gorm.DB) error {
+	now := common.GetTimestamp()
+	a.CreatedAt = now
+	a.UpdatedAt = now
+	return nil
+}
+
+func (a *RecurringChargeAttempt) BeforeUpdate(tx *gorm.DB) error {
+	a.UpdatedAt = common.GetTimestamp()
+	return nil
+}
+
+func (s *BillingSubscription) BeforeCreate(tx *gorm.DB) error {
+	if s.ProviderSubscriptionId != "" && s.ProviderSubscriptionUniqueId == nil {
+		providerSubscriptionID := s.ProviderSubscriptionId
+		s.ProviderSubscriptionUniqueId = &providerSubscriptionID
+	}
+	if s.SignupReference != "" && s.SignupReferenceUniqueId == nil {
+		signupReference := s.SignupReference
+		s.SignupReferenceUniqueId = &signupReference
+	}
+	now := common.GetTimestamp()
+	s.CreatedAt = now
+	s.UpdatedAt = now
+	return nil
+}
+
+func (s *BillingSubscription) BeforeUpdate(tx *gorm.DB) error {
+	s.UpdatedAt = common.GetTimestamp()
+	return nil
+}
+
 func (o *SubscriptionOrder) ApplyPaymentSnapshot(snapshot PaymentSnapshot) {
 	if o == nil {
 		return
@@ -277,11 +372,374 @@ func GetSubscriptionOrderByTradeNoAndUserId(tradeNo string, userId int) *Subscri
 	return &order
 }
 
+func GetBillingSubscriptionByProviderSubscriptionID(provider string, providerSubscriptionID string) (*BillingSubscription, error) {
+	var sub BillingSubscription
+	err := DB.Where("provider = ? AND provider_subscription_id = ?", provider, providerSubscriptionID).First(&sub).Error
+	if err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
+// ListDueAlipayAutoRenewContracts returns alipay contracts whose current period has ended
+// and still need a renewal charge (not cancel-at-period-end, not canceled).
+// Intermediate idle contracts (period still open) are intentionally excluded.
+func ListDueAlipayAutoRenewContracts(now int64, limit int) ([]BillingSubscription, error) {
+	if now <= 0 {
+		now = common.GetTimestamp()
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var contracts []BillingSubscription
+	err := DB.Where(
+		"provider = ? AND provider_subscription_id <> '' AND current_period_end > 0 AND current_period_end <= ? AND status IN ? AND cancel_at_period_end = ?",
+		PaymentProviderAlipay,
+		now,
+		[]string{"active", "past_due", "pending_first_charge"},
+		false,
+	).Order("current_period_end asc, id asc").Limit(limit).Find(&contracts).Error
+	return contracts, err
+}
+
+// ListExpiredCancelAtPeriodEndAlipayContracts returns contracts that should stop after the current period.
+func ListExpiredCancelAtPeriodEndAlipayContracts(now int64, limit int) ([]BillingSubscription, error) {
+	if now <= 0 {
+		now = common.GetTimestamp()
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var contracts []BillingSubscription
+	err := DB.Where(
+		"provider = ? AND cancel_at_period_end = ? AND current_period_end > 0 AND current_period_end <= ? AND status IN ?",
+		PaymentProviderAlipay,
+		true,
+		now,
+		[]string{"active", "past_due", "pending_first_charge", "trialing"},
+	).Order("current_period_end asc, id asc").Limit(limit).Find(&contracts).Error
+	return contracts, err
+}
+
+func backfillRecurringSubscriptionUniqueKeys() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var contracts []BillingSubscription
+		if err := tx.Where("(provider_subscription_unique_id IS NULL AND provider_subscription_id <> '') OR (signup_reference_unique_id IS NULL AND signup_reference <> '')").Find(&contracts).Error; err != nil {
+			return err
+		}
+		for _, contract := range contracts {
+			updates := map[string]interface{}{}
+			if contract.ProviderSubscriptionId != "" && contract.ProviderSubscriptionUniqueId == nil {
+				providerSubscriptionID := contract.ProviderSubscriptionId
+				updates["provider_subscription_unique_id"] = &providerSubscriptionID
+			}
+			if contract.SignupReference != "" && contract.SignupReferenceUniqueId == nil {
+				signupReference := contract.SignupReference
+				updates["signup_reference_unique_id"] = &signupReference
+			}
+			if len(updates) > 0 {
+				if err := tx.Model(&BillingSubscription{}).Where("id = ?", contract.Id).Updates(updates).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		var subscriptions []UserSubscription
+		if err := tx.Where("provider_invoice_unique_id IS NULL AND provider_invoice_id <> ''").Find(&subscriptions).Error; err != nil {
+			return err
+		}
+		for _, subscription := range subscriptions {
+			providerInvoiceID := subscription.ProviderInvoiceId
+			if err := tx.Model(&UserSubscription{}).Where("id = ?", subscription.Id).Update("provider_invoice_unique_id", &providerInvoiceID).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// Non-ended auto-renew statuses that block starting another contract (any provider).
+var autoRenewBlockingStatuses = []string{"pending_signup", "pending_first_charge", "active", "trialing", "past_due"}
+
+// Current auto-renew statuses returned to the user console (any provider).
+var autoRenewCurrentStatuses = []string{"pending_first_charge", "active", "trialing", "past_due"}
+
+// Pending auto-renew signup rows older than this are expired so the user can retry.
+const autoRenewPendingSignupTTL = 48 * time.Hour
+
+// HasNonEndedAutoRenewContract reports whether the user already has any non-ended
+// auto-renew contract across all payment providers (global mutual exclusion).
+func HasNonEndedAutoRenewContract(userId int) (bool, error) {
+	if userId <= 0 {
+		return false, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var count int64
+	err := DB.Model(&BillingSubscription{}).
+		Where(
+			"user_id = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
+			userId,
+			autoRenewBlockingStatuses,
+			true,
+			now,
+		).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// GetCurrentBillingSubscriptionByUserID returns the user's current auto-renew contract
+// from any provider (global single-contract policy).
+func GetCurrentBillingSubscriptionByUserID(userId int) (*BillingSubscription, error) {
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var sub BillingSubscription
+	err := DB.Where(
+		"user_id = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
+		userId,
+		autoRenewCurrentStatuses,
+		true,
+		now,
+	).Order("current_period_end desc, id desc").First(&sub).Error
+	if err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
+func UpsertBillingSubscriptionByProviderID(input *BillingSubscription) error {
+	if input == nil {
+		return errors.New("billing subscription is nil")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var existing BillingSubscription
+		err := tx.Where("provider = ? AND provider_subscription_id = ?", input.Provider, input.ProviderSubscriptionId).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tx.Create(input).Error
+		}
+		if err != nil {
+			return err
+		}
+		if existing.Status == "canceled" && input.Status != "canceled" {
+			return nil
+		}
+		updateMap := map[string]interface{}{
+			"user_id":              input.UserId,
+			"plan_id":              input.PlanId,
+			"signup_reference":     input.SignupReference,
+			"provider_checkout_id": input.ProviderCheckoutId,
+			"provider_customer_id": input.ProviderCustomerId,
+			"provider_price_id":    input.ProviderPriceId,
+			"status":               input.Status,
+			"cancel_at_period_end": input.CancelAtPeriodEnd,
+			"current_period_start": input.CurrentPeriodStart,
+			"current_period_end":   input.CurrentPeriodEnd,
+			"last_invoice_id":      input.LastInvoiceId,
+			"last_payment_status":  input.LastPaymentStatus,
+			"provider_payload":     input.ProviderPayload,
+			"updated_at":           common.GetTimestamp(),
+		}
+		if input.ProviderSubscriptionId != "" {
+			providerSubscriptionID := input.ProviderSubscriptionId
+			updateMap["provider_subscription_unique_id"] = &providerSubscriptionID
+		}
+		return tx.Model(&existing).Updates(updateMap).Error
+	})
+}
+
+func CreatePendingStripeAutoRenewSignup(userId int, planId int, signupReference string) (*BillingSubscription, error) {
+	return CreateOrReusePendingAutoRenewSignup(PaymentProviderStripe, userId, planId, signupReference)
+}
+
+func CreateOrReusePendingStripeAutoRenewSignup(userId int, planId int, signupReference string) (*BillingSubscription, error) {
+	return CreateOrReusePendingAutoRenewSignup(PaymentProviderStripe, userId, planId, signupReference)
+}
+
+// CreateOrReusePendingAutoRenewSignup creates a pending signup for provider, or reuses an
+// existing pending_signup for the same plan so double-clicks can open a fresh provider session.
+// Global mutual exclusion: any non-ended contract on another provider/plan blocks creation.
+// Stale pending_signup rows older than autoRenewPendingSignupTTL are expired first.
+func CreateOrReusePendingAutoRenewSignup(provider string, userId int, planId int, signupReference string) (*BillingSubscription, error) {
+	provider = strings.TrimSpace(provider)
+	if provider == "" || userId <= 0 || planId <= 0 || strings.TrimSpace(signupReference) == "" {
+		return nil, errors.New("invalid pending auto-renew signup")
+	}
+
+	var result *BillingSubscription
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
+
+		now := common.GetTimestamp()
+		staleBefore := now - int64(autoRenewPendingSignupTTL.Seconds())
+		if err := tx.Model(&BillingSubscription{}).
+			Where("user_id = ? AND status = ? AND created_at > 0 AND created_at < ?",
+				userId, "pending_signup", staleBefore).
+			Updates(map[string]interface{}{
+				"status":     "signup_expired",
+				"updated_at": now,
+			}).Error; err != nil {
+			return err
+		}
+
+		var existing []BillingSubscription
+		if err := tx.Where(
+			"user_id = ? AND ((status IN ?) OR (cancel_at_period_end = ? AND current_period_end > ?))",
+			userId,
+			autoRenewBlockingStatuses,
+			true,
+			now,
+		).Order("id asc").Find(&existing).Error; err != nil {
+			return err
+		}
+
+		for i := range existing {
+			contract := existing[i]
+			switch contract.Status {
+			case "pending_signup":
+				// Reuse only when same provider + plan; otherwise free the slot.
+				if contract.Provider == provider && contract.PlanId == planId {
+					result = &contract
+					return nil
+				}
+				if err := tx.Model(&contract).Updates(map[string]interface{}{
+					"status":     "signup_expired",
+					"updated_at": now,
+				}).Error; err != nil {
+					return err
+				}
+			default:
+				return errors.New("user already has a non-ended auto-renew subscription")
+			}
+		}
+
+		contract := &BillingSubscription{
+			UserId:          userId,
+			PlanId:          planId,
+			Provider:        provider,
+			SignupReference: signupReference,
+			Status:          "pending_signup",
+		}
+		if err := tx.Create(contract).Error; err != nil {
+			return err
+		}
+		result = contract
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func SetBillingSubscriptionCheckoutID(id int, checkoutID string) error {
+	if id <= 0 || strings.TrimSpace(checkoutID) == "" {
+		return errors.New("invalid billing subscription checkout id")
+	}
+	return DB.Model(&BillingSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"provider_checkout_id": checkoutID,
+		"updated_at":           common.GetTimestamp(),
+	}).Error
+}
+
+func MarkPendingStripeAutoRenewSignupFailed(id int) error {
+	return MarkPendingAutoRenewSignupFailed(id)
+}
+
+func MarkPendingAutoRenewSignupFailed(id int) error {
+	if id <= 0 {
+		return errors.New("invalid billing subscription id")
+	}
+	return DB.Model(&BillingSubscription{}).Where("id = ? AND status = ?", id, "pending_signup").Updates(map[string]interface{}{
+		"status":     "signup_failed",
+		"updated_at": common.GetTimestamp(),
+	}).Error
+}
+
+func MarkPendingStripeAutoRenewSignupExpired(signupReference string, checkoutID string) error {
+	return MarkPendingAutoRenewSignupExpired(PaymentProviderStripe, signupReference, checkoutID)
+}
+
+func MarkPendingAutoRenewSignupExpired(provider string, signupReference string, checkoutID string) error {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(signupReference) == "" {
+		return errors.New("signup reference is empty")
+	}
+	updates := map[string]interface{}{
+		"status":     "signup_expired",
+		"updated_at": common.GetTimestamp(),
+	}
+	if strings.TrimSpace(checkoutID) != "" {
+		updates["provider_checkout_id"] = checkoutID
+	}
+	return DB.Model(&BillingSubscription{}).
+		Where("provider = ? AND signup_reference = ? AND status = ?", provider, signupReference, "pending_signup").
+		Updates(updates).Error
+}
+
+func CompleteStripeAutoRenewSignup(signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
+	return CompleteAutoRenewSignup(PaymentProviderStripe, signupReference, providerSubscriptionID, providerCustomerID, providerPayload)
+}
+
+// CompleteAutoRenewSignup binds a provider subscription/agreement id onto a pending signup.
+// Only pending_signup / signup_failed advance to pending_first_charge (replay-safe).
+func CompleteAutoRenewSignup(provider string, signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(signupReference) == "" || strings.TrimSpace(providerSubscriptionID) == "" {
+		return errors.New("invalid auto-renew signup completion")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var contract BillingSubscription
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where("provider = ? AND signup_reference = ?", provider, signupReference).First(&contract).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("pending auto-renew signup not found")
+		}
+		if err != nil {
+			return err
+		}
+		if contract.ProviderSubscriptionId != "" && contract.ProviderSubscriptionId != providerSubscriptionID {
+			return errors.New("signup is already bound to another provider subscription")
+		}
+		updates := map[string]interface{}{
+			"provider_subscription_id": providerSubscriptionID,
+			"provider_customer_id":     providerCustomerID,
+			"provider_payload":         providerPayload,
+			"updated_at":               common.GetTimestamp(),
+		}
+		providerSubscriptionIDCopy := providerSubscriptionID
+		updates["provider_subscription_unique_id"] = &providerSubscriptionIDCopy
+		if contract.Status == "pending_signup" || contract.Status == "signup_failed" {
+			updates["status"] = "pending_first_charge"
+		}
+		return tx.Model(&contract).Updates(updates).Error
+	})
+}
+
+func CompleteStripeAutoRenewSignupAndFulfill(signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
+	return CompleteAutoRenewSignupAndFulfill(PaymentProviderStripe, signupReference, providerSubscriptionID, providerCustomerID, providerPayload)
+}
+
+// CompleteAutoRenewSignupAndFulfill binds the provider contract then fulfills any out-of-order charges.
+func CompleteAutoRenewSignupAndFulfill(provider string, signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
+	if err := CompleteAutoRenewSignup(provider, signupReference, providerSubscriptionID, providerCustomerID, providerPayload); err != nil {
+		return err
+	}
+	return FulfillPendingInvoices(provider, providerSubscriptionID)
+}
+
 // User subscription instance
 type UserSubscription struct {
 	Id     int `json:"id"`
 	UserId int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
 	PlanId int `json:"plan_id" gorm:"index"`
+
+	BillingSubscriptionId   int     `json:"billing_subscription_id" gorm:"index;default:0"`
+	ProviderInvoiceId       string  `json:"provider_invoice_id" gorm:"type:varchar(128);default:'';index"`
+	ProviderInvoiceUniqueId *string `json:"-" gorm:"type:varchar(128);uniqueIndex:idx_user_subscription_provider_invoice"`
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
@@ -303,6 +761,10 @@ type UserSubscription struct {
 }
 
 func (s *UserSubscription) BeforeCreate(tx *gorm.DB) error {
+	if s.ProviderInvoiceId != "" && s.ProviderInvoiceUniqueId == nil {
+		providerInvoiceID := s.ProviderInvoiceId
+		s.ProviderInvoiceUniqueId = &providerInvoiceID
+	}
 	now := common.GetTimestamp()
 	s.CreatedAt = now
 	s.UpdatedAt = now
@@ -582,6 +1044,335 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		return nil, err
 	}
 	return sub, nil
+}
+
+func CreateRecurringCycleSubscriptionFromInvoice(billingSubscriptionID int, providerInvoiceID string, periodStart int64, periodEnd int64) error {
+	if billingSubscriptionID <= 0 {
+		return errors.New("invalid billing subscription id")
+	}
+	if strings.TrimSpace(providerInvoiceID) == "" {
+		return errors.New("provider invoice id is empty")
+	}
+	if periodStart <= 0 || periodEnd <= periodStart {
+		return errors.New("invalid recurring period")
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var contract BillingSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", billingSubscriptionID).
+			First(&contract).Error; err != nil {
+			return err
+		}
+
+		return createRecurringCycleSubscriptionFromInvoiceTx(tx, &contract, providerInvoiceID, periodStart, periodEnd)
+	})
+}
+
+func FulfillRecurringInvoice(input *RecurringChargeAttempt) error {
+	if input == nil || input.BillingSubscriptionId <= 0 {
+		return errors.New("invalid recurring charge attempt")
+	}
+	if strings.TrimSpace(input.Provider) == "" || strings.TrimSpace(input.ProviderInvoiceId) == "" {
+		return errors.New("provider and provider invoice id are required")
+	}
+	if input.PeriodStart <= 0 || input.PeriodEnd <= input.PeriodStart {
+		return errors.New("invalid recurring period")
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var contract BillingSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", input.BillingSubscriptionId).
+			First(&contract).Error; err != nil {
+			return err
+		}
+		if contract.Status == "canceled" {
+			return nil
+		}
+
+		var attempt RecurringChargeAttempt
+		err := tx.Where("provider = ? AND provider_invoice_id = ?", input.Provider, input.ProviderInvoiceId).First(&attempt).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			input.Status = "paid"
+			if err := tx.Create(input).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		} else {
+			if attempt.BillingSubscriptionId != 0 && attempt.BillingSubscriptionId != contract.Id {
+				return errors.New("provider invoice belongs to another billing subscription")
+			}
+			if err := tx.Model(&attempt).Updates(map[string]interface{}{
+				"billing_subscription_id": contract.Id,
+				"status":                  "paid",
+				"period_start":            input.PeriodStart,
+				"period_end":              input.PeriodEnd,
+				"amount":                  input.Amount,
+				"currency":                input.Currency,
+				"failure_reason":          "",
+				"provider_payload":        input.ProviderPayload,
+				"updated_at":              common.GetTimestamp(),
+			}).Error; err != nil {
+				return err
+			}
+		}
+
+		updates := map[string]interface{}{
+			"status":               "active",
+			"current_period_start": input.PeriodStart,
+			"current_period_end":   input.PeriodEnd,
+			"last_invoice_id":      input.ProviderInvoiceId,
+			"last_payment_status":  input.PaymentStatus,
+			"provider_payload":     input.ProviderPayload,
+			"updated_at":           common.GetTimestamp(),
+		}
+		if input.PaymentStatus == "" {
+			updates["last_payment_status"] = "paid"
+		}
+		if input.ProviderCustomerId != "" {
+			updates["provider_customer_id"] = input.ProviderCustomerId
+		}
+		if err := tx.Model(&contract).Updates(updates).Error; err != nil {
+			return err
+		}
+
+		return createRecurringCycleSubscriptionFromInvoiceTx(tx, &contract, input.ProviderInvoiceId, input.PeriodStart, input.PeriodEnd)
+	})
+}
+
+func FulfillPendingStripeInvoices(providerSubscriptionID string) error {
+	return FulfillPendingInvoices(PaymentProviderStripe, providerSubscriptionID)
+}
+
+// FulfillPendingInvoices applies out-of-order charge attempts that arrived before the contract was bound.
+func FulfillPendingInvoices(provider string, providerSubscriptionID string) error {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(providerSubscriptionID) == "" {
+		return errors.New("provider subscription id is empty")
+	}
+	contract, err := GetBillingSubscriptionByProviderSubscriptionID(provider, providerSubscriptionID)
+	if err != nil {
+		return err
+	}
+	var attempts []RecurringChargeAttempt
+	if err := DB.Where("provider = ? AND provider_subscription_id = ? AND status = ?", provider, providerSubscriptionID, "pending_contract").Order("period_end ASC").Find(&attempts).Error; err != nil {
+		return err
+	}
+	for _, attempt := range attempts {
+		attempt.BillingSubscriptionId = contract.Id
+		if strings.TrimSpace(attempt.ProviderPayload) != "" {
+			var payload struct {
+				Status   string `json:"status"`
+				Customer string `json:"customer"`
+			}
+			if err := common.UnmarshalJsonStr(attempt.ProviderPayload, &payload); err == nil {
+				attempt.PaymentStatus = payload.Status
+				attempt.ProviderCustomerId = payload.Customer
+			}
+		}
+		if err := FulfillRecurringInvoice(&attempt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func SyncBillingSubscriptionFromStripe(providerSubscriptionID string, status string, cancelAtPeriodEnd bool, periodStart int64, periodEnd int64, customerID string, providerPayload string) error {
+	return SyncBillingSubscriptionFromProvider(PaymentProviderStripe, providerSubscriptionID, status, cancelAtPeriodEnd, periodStart, periodEnd, customerID, providerPayload)
+}
+
+// SyncBillingSubscriptionFromProvider updates local contract metadata from provider lifecycle events.
+// It never reopens a canceled contract and never invents paid entitlements.
+func SyncBillingSubscriptionFromProvider(provider string, providerSubscriptionID string, status string, cancelAtPeriodEnd bool, periodStart int64, periodEnd int64, customerID string, providerPayload string) error {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(providerSubscriptionID) == "" {
+		return errors.New("provider subscription id is empty")
+	}
+	contract, err := GetBillingSubscriptionByProviderSubscriptionID(provider, providerSubscriptionID)
+	if err != nil {
+		return err
+	}
+	if contract.Status == "canceled" {
+		return nil
+	}
+
+	mappedStatus := strings.TrimSpace(status)
+	switch mappedStatus {
+	case "active", "trialing", "past_due", "canceled", "unpaid", "incomplete", "incomplete_expired", "paused":
+		// keep provider vocabulary for observability
+	case "":
+		mappedStatus = contract.Status
+	default:
+		mappedStatus = contract.Status
+	}
+	// Do not demote a paid-active contract to incomplete via noisy provider updates.
+	if (mappedStatus == "incomplete" || mappedStatus == "incomplete_expired") &&
+		(contract.Status == "active" || contract.Status == "trialing" || contract.Status == "past_due" || contract.Status == "pending_first_charge") {
+		mappedStatus = contract.Status
+	}
+
+	input := &BillingSubscription{
+		UserId:                 contract.UserId,
+		PlanId:                 contract.PlanId,
+		Provider:               contract.Provider,
+		ProviderSubscriptionId: contract.ProviderSubscriptionId,
+		ProviderCustomerId:     customerID,
+		ProviderPriceId:        contract.ProviderPriceId,
+		Status:                 mappedStatus,
+		CancelAtPeriodEnd:      cancelAtPeriodEnd,
+		CurrentPeriodStart:     periodStart,
+		CurrentPeriodEnd:       periodEnd,
+		LastInvoiceId:          contract.LastInvoiceId,
+		LastPaymentStatus:      contract.LastPaymentStatus,
+		ProviderPayload:        providerPayload,
+	}
+	if input.ProviderCustomerId == "" {
+		input.ProviderCustomerId = contract.ProviderCustomerId
+	}
+	if input.CurrentPeriodStart <= 0 {
+		input.CurrentPeriodStart = contract.CurrentPeriodStart
+	}
+	if input.CurrentPeriodEnd <= 0 {
+		input.CurrentPeriodEnd = contract.CurrentPeriodEnd
+	}
+	return UpsertBillingSubscriptionByProviderID(input)
+}
+
+func RecordRecurringInvoiceFailure(input *RecurringChargeAttempt) error {
+	if input == nil || input.BillingSubscriptionId <= 0 {
+		return errors.New("invalid recurring charge attempt")
+	}
+	if strings.TrimSpace(input.Provider) == "" || strings.TrimSpace(input.ProviderInvoiceId) == "" {
+		return errors.New("provider and provider invoice id are required")
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var attempt RecurringChargeAttempt
+		err := tx.Where("provider = ? AND provider_invoice_id = ?", input.Provider, input.ProviderInvoiceId).First(&attempt).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			input.Status = "failed"
+			return tx.Create(input).Error
+		}
+		if err != nil {
+			return err
+		}
+		if attempt.BillingSubscriptionId != input.BillingSubscriptionId {
+			return errors.New("provider invoice belongs to another billing subscription")
+		}
+		if attempt.Status == "paid" {
+			return nil
+		}
+		return tx.Model(&attempt).Updates(map[string]interface{}{
+			"status":           "failed",
+			"failure_reason":   input.FailureReason,
+			"provider_payload": input.ProviderPayload,
+			"updated_at":       common.GetTimestamp(),
+		}).Error
+	})
+}
+
+func RecordPendingStripeInvoice(input *RecurringChargeAttempt) error {
+	if input == nil {
+		return errors.New("invalid pending stripe invoice")
+	}
+	input.Provider = PaymentProviderStripe
+	return RecordPendingProviderInvoice(input)
+}
+
+// RecordPendingProviderInvoice stores a paid/attempted charge that arrived before the local contract existed.
+func RecordPendingProviderInvoice(input *RecurringChargeAttempt) error {
+	if input == nil || strings.TrimSpace(input.Provider) == "" || strings.TrimSpace(input.ProviderInvoiceId) == "" || strings.TrimSpace(input.ProviderSubscriptionId) == "" {
+		return errors.New("invalid pending provider invoice")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var attempt RecurringChargeAttempt
+		err := tx.Where("provider = ? AND provider_invoice_id = ?", input.Provider, input.ProviderInvoiceId).First(&attempt).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			input.Status = "pending_contract"
+			return tx.Create(input).Error
+		}
+		if err != nil {
+			return err
+		}
+		if attempt.Status == "paid" {
+			return nil
+		}
+		return tx.Model(&attempt).Updates(map[string]interface{}{
+			"provider_subscription_id": input.ProviderSubscriptionId,
+			"period_start":             input.PeriodStart,
+			"period_end":               input.PeriodEnd,
+			"amount":                   input.Amount,
+			"currency":                 input.Currency,
+			"status":                   "pending_contract",
+			"provider_payload":         input.ProviderPayload,
+			"updated_at":               common.GetTimestamp(),
+		}).Error
+	})
+}
+
+func createRecurringCycleSubscriptionFromInvoiceTx(tx *gorm.DB, contract *BillingSubscription, providerInvoiceID string, periodStart int64, periodEnd int64) error {
+	if contract == nil {
+		return errors.New("billing subscription is nil")
+	}
+
+	var existing UserSubscription
+	query := tx.Where("billing_subscription_id = ? AND provider_invoice_id = ?",
+		contract.Id,
+		providerInvoiceID,
+	).Limit(1).Find(&existing)
+	if query.Error != nil {
+		return query.Error
+	}
+	if query.RowsAffected > 0 {
+		return nil
+	}
+
+	plan, err := getSubscriptionPlanByIdTx(tx, contract.PlanId)
+	if err != nil {
+		return err
+	}
+
+	nextReset := calcNextResetTime(time.Unix(periodStart, 0), plan, periodEnd)
+	lastReset := int64(0)
+	if nextReset > 0 {
+		lastReset = periodStart
+	}
+
+	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
+	prevGroup := ""
+	if upgradeGroup != "" {
+		currentGroup, err := getUserGroupByIdTx(tx, contract.UserId)
+		if err != nil {
+			return err
+		}
+		if currentGroup != upgradeGroup {
+			prevGroup = currentGroup
+			if err := tx.Model(&User{}).Where("id = ?", contract.UserId).
+				Update("group", upgradeGroup).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	sub := &UserSubscription{
+		UserId:                contract.UserId,
+		PlanId:                contract.PlanId,
+		BillingSubscriptionId: contract.Id,
+		ProviderInvoiceId:     providerInvoiceID,
+		AmountTotal:           plan.TotalAmount,
+		AmountUsed:            0,
+		StartTime:             periodStart,
+		EndTime:               periodEnd,
+		Status:                "active",
+		Source:                "auto_renew",
+		LastResetTime:         lastReset,
+		NextResetTime:         nextReset,
+		UpgradeGroup:          upgradeGroup,
+		PrevUserGroup:         prevGroup,
+		CreatedAt:             common.GetTimestamp(),
+		UpdatedAt:             common.GetTimestamp(),
+	}
+	return tx.Create(sub).Error
 }
 
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.

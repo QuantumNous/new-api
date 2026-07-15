@@ -7,9 +7,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/stripe/stripe-go/v81"
 	"gorm.io/gorm"
 )
 
@@ -67,11 +69,129 @@ func GetSubscriptionSelf(c *gin.Context) {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
 
+	var autoRenewSubscription *model.BillingSubscription
+	autoRenewSubscription, err = model.GetCurrentBillingSubscriptionByUserID(userId)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		common.ApiError(c, err)
+		return
+	}
+
 	common.ApiSuccess(c, gin.H{
-		"billing_preference": pref,
-		"subscriptions":      activeSubscriptions, // all active subscriptions
-		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"billing_preference":      pref,
+		"subscriptions":           activeSubscriptions, // all active subscriptions
+		"all_subscriptions":       allSubscriptions,    // all subscriptions including expired
+		"auto_renew_subscription": autoRenewSubscription,
 	})
+}
+
+func CancelSubscriptionRenewal(c *gin.Context) {
+	userId := c.GetInt("id")
+	contract, err := model.GetCurrentBillingSubscriptionByUserID(userId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "auto-renew subscription not found")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	if strings.TrimSpace(contract.ProviderSubscriptionId) == "" {
+		common.ApiErrorMsg(c, "provider subscription id is empty")
+		return
+	}
+
+	// Provider-specific cancel. Alipay agreement.unsign will plug in here later.
+	switch contract.Provider {
+	case model.PaymentProviderStripe:
+		var stripeSub *stripe.Subscription
+		if !contract.CancelAtPeriodEnd {
+			stripeSub, err = cancelStripeAutoRenewAtPeriodEnd(contract.ProviderSubscriptionId)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+
+		cancelAtPeriodEnd := true
+		currentPeriodStart := contract.CurrentPeriodStart
+		currentPeriodEnd := contract.CurrentPeriodEnd
+		providerCustomerID := contract.ProviderCustomerId
+		status := contract.Status
+		providerPayload := contract.ProviderPayload
+		if stripeSub != nil {
+			cancelAtPeriodEnd = stripeSub.CancelAtPeriodEnd
+			currentPeriodStart = stripeSub.CurrentPeriodStart
+			currentPeriodEnd = stripeSub.CurrentPeriodEnd
+			providerCustomerID = stripeSub.Customer.ID
+			if providerCustomerID == "" {
+				providerCustomerID = contract.ProviderCustomerId
+			}
+			if stripeSub.Status != "" {
+				status = string(stripeSub.Status)
+			}
+			providerPayload = common.GetJsonString(stripeSub)
+		}
+
+		err = model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+			UserId:                 contract.UserId,
+			PlanId:                 contract.PlanId,
+			Provider:               contract.Provider,
+			ProviderSubscriptionId: contract.ProviderSubscriptionId,
+			ProviderCustomerId:     providerCustomerID,
+			ProviderPriceId:        contract.ProviderPriceId,
+			Status:                 status,
+			CancelAtPeriodEnd:      cancelAtPeriodEnd,
+			CurrentPeriodStart:     currentPeriodStart,
+			CurrentPeriodEnd:       currentPeriodEnd,
+			LastInvoiceId:          contract.LastInvoiceId,
+			LastPaymentStatus:      contract.LastPaymentStatus,
+			ProviderPayload:        providerPayload,
+		})
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	case model.PaymentProviderAlipay:
+		if !service.IsAlipayCyclePayConfigured() {
+			common.ApiErrorMsg(c, "alipay cycle pay is not configured")
+			return
+		}
+		if !contract.CancelAtPeriodEnd {
+			if err := service.UnsignAlipayAgreement(c.Request.Context(), contract.ProviderSubscriptionId, getSubscriptionAlipayNotifyURL()); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+		err = model.UpsertBillingSubscriptionByProviderID(&model.BillingSubscription{
+			UserId:                 contract.UserId,
+			PlanId:                 contract.PlanId,
+			Provider:               contract.Provider,
+			ProviderSubscriptionId: contract.ProviderSubscriptionId,
+			ProviderCustomerId:     contract.ProviderCustomerId,
+			ProviderPriceId:        contract.ProviderPriceId,
+			Status:                 contract.Status,
+			CancelAtPeriodEnd:      true,
+			CurrentPeriodStart:     contract.CurrentPeriodStart,
+			CurrentPeriodEnd:       contract.CurrentPeriodEnd,
+			LastInvoiceId:          contract.LastInvoiceId,
+			LastPaymentStatus:      contract.LastPaymentStatus,
+			ProviderPayload:        contract.ProviderPayload,
+		})
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	default:
+		common.ApiErrorMsg(c, "unsupported auto-renew provider")
+		return
+	}
+
+	updated, err := model.GetCurrentBillingSubscriptionByUserID(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"auto_renew_subscription": updated})
 }
 
 func UpdateSubscriptionPreference(c *gin.Context) {
@@ -118,6 +238,40 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 
 type AdminUpsertSubscriptionPlanRequest struct {
 	Plan model.SubscriptionPlan `json:"plan"`
+}
+
+func normalizeSubscriptionBillingMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case model.SubscriptionBillingModeAutoRenew:
+		return model.SubscriptionBillingModeAutoRenew
+	default:
+		return model.SubscriptionBillingModeOneTime
+	}
+}
+
+func validateSubscriptionPlanRecurringFields(plan *model.SubscriptionPlan) error {
+	if plan == nil {
+		return errors.New("plan is nil")
+	}
+	plan.BillingMode = normalizeSubscriptionBillingMode(plan.BillingMode)
+	if plan.BillingMode == model.SubscriptionBillingModeAutoRenew {
+		hasStripe := strings.TrimSpace(plan.StripeRecurringPriceId) != ""
+		hasAlipay := plan.AlipayEnabled
+		if !hasStripe && !hasAlipay {
+			return errors.New("auto_renew plan requires stripe_recurring_price_id and/or alipay_enabled")
+		}
+	}
+	if plan.BillingMode == model.SubscriptionBillingModeOneTime {
+		plan.StripeRecurringPriceId = ""
+	}
+	return nil
+}
+
+func validateOneTimeSubscriptionPlan(plan *model.SubscriptionPlan) error {
+	if plan != nil && plan.BillingMode == model.SubscriptionBillingModeAutoRenew {
+		return errors.New("auto_renew plans must use the recurring checkout endpoints")
+	}
+	return nil
 }
 
 func AdminCreateSubscriptionPlan(c *gin.Context) {
@@ -177,6 +331,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+		return
+	}
+	if err := validateSubscriptionPlanRecurringFields(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	err = model.DB.Create(&req.Plan).Error
@@ -254,6 +412,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 
+	if err := validateSubscriptionPlanRecurringFields(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
@@ -266,7 +429,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"custom_seconds":             req.Plan.CustomSeconds,
 			"enabled":                    req.Plan.Enabled,
 			"sort_order":                 req.Plan.SortOrder,
+			"billing_mode":               req.Plan.BillingMode,
+			"alipay_enabled":             req.Plan.AlipayEnabled,
 			"stripe_price_id":            req.Plan.StripePriceId,
+			"stripe_recurring_price_id":  req.Plan.StripeRecurringPriceId,
 			"creem_product_id":           req.Plan.CreemProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,

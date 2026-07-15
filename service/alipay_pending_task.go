@@ -113,9 +113,63 @@ func runAlipayPendingTopUpTaskOnce() {
 		switch task.TradeType {
 		case model.AlipayPendingTaskTypeSubscription:
 			handleAlipayPendingSubscriptionTask(ctx, now, task)
+		case model.AlipayPendingTaskTypeAutoRenewCharge:
+			handleAlipayPendingAutoRenewChargeTask(ctx, now, task)
 		default:
 			handleAlipayPendingTopUpTask(ctx, now, task)
 		}
+	}
+}
+
+func handleAlipayPendingAutoRenewChargeTask(ctx context.Context, now time.Time, task *model.AlipayPendingTask) {
+	var attempt model.RecurringChargeAttempt
+	err := model.DB.Where("provider = ? AND provider_invoice_id = ?", model.PaymentProviderAlipay, task.TradeNo).First(&attempt).Error
+	if err != nil {
+		_ = model.DeleteAlipayPendingTask(task.TradeNo)
+		return
+	}
+	if attempt.Status == "paid" {
+		_ = model.DeleteAlipayPendingTask(task.TradeNo)
+		return
+	}
+
+	// Bound short query window (~2h) so mid-life subscriptions are never polled forever.
+	if attempt.CreatedAt > 0 && now.Unix() >= attempt.CreatedAt+2*3600 {
+		_ = model.RecordRecurringInvoiceFailure(&model.RecurringChargeAttempt{
+			BillingSubscriptionId:  attempt.BillingSubscriptionId,
+			Provider:               model.PaymentProviderAlipay,
+			ProviderInvoiceId:      attempt.ProviderInvoiceId,
+			ProviderSubscriptionId: attempt.ProviderSubscriptionId,
+			PeriodStart:            attempt.PeriodStart,
+			PeriodEnd:              attempt.PeriodEnd,
+			Amount:                 attempt.Amount,
+			Currency:               attempt.Currency,
+			FailureReason:          "query_timeout",
+			ProviderPayload:        attempt.ProviderPayload,
+		})
+		_ = model.DeleteAlipayPendingTask(task.TradeNo)
+		logger.LogWarn(ctx, fmt.Sprintf("alipay auto-renew charge query timed out trade_no=%s", task.TradeNo))
+		return
+	}
+
+	result, err := QueryAlipayTrade(ctx, setting.AlipayGateway, setting.AlipayAppID, setting.AlipayPrivateKey, task.TradeNo)
+	if err != nil {
+		if IsAlipayPermanentTradeQueryError(err) {
+			if attempt.CreatedAt > 0 && now.Unix() < attempt.CreatedAt+30*60 {
+				_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+				return
+			}
+			_ = FinalizeAlipayAutoRenewChargeFromQuery(ctx, task.TradeNo, "TRADE_CLOSED", common.GetJsonString(map[string]string{"error": err.Error()}))
+			return
+		}
+		_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+		logger.LogWarn(ctx, fmt.Sprintf("alipay auto-renew charge query failed trade_no=%s error=%v", task.TradeNo, err))
+		return
+	}
+
+	if err := FinalizeAlipayAutoRenewChargeFromQuery(ctx, task.TradeNo, result.TradeStatus, common.GetJsonString(result)); err != nil {
+		_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+		logger.LogWarn(ctx, fmt.Sprintf("alipay auto-renew charge finalize failed trade_no=%s error=%v", task.TradeNo, err))
 	}
 }
 

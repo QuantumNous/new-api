@@ -1,5 +1,17 @@
 {
   "translation": {
+    "自动续费": "自动续费",
+    "取消自动续费": "取消自动续费",
+    "取消后当前订阅将在本周期结束时失效。": "取消后当前订阅将在本周期结束时失效。",
+    "确认取消": "确认取消",
+    "已取消自动续费": "已取消自动续费",
+    "操作失败": "操作失败",
+    "将于": "将于",
+    "下次续费": "下次续费",
+    "计费方式": "计费方式",
+    "单次支付": "单次支付",
+    "Stripe Recurring PriceId（自动续费必填）": "Stripe Recurring PriceId（自动续费必填）",
+    "自动续费套餐必须填写 Stripe Recurring PriceId": "自动续费套餐必须填写 Stripe Recurring PriceId",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

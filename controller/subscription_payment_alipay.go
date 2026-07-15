@@ -85,10 +85,9 @@ func getSubscriptionAlipayReturnURL(requested string) string {
 }
 
 func getSubscriptionAlipayNotifyURL() string {
-	if strings.TrimSpace(setting.AlipayNotifyURL) != "" {
-		return setting.AlipayNotifyURL
-	}
-	return strings.TrimRight(service.GetCallbackAddress(), "/") + "/api/subscription/alipay/notify"
+	// Keep subscription/auto-renew callbacks on a dedicated path so top-up notify
+	// overrides do not mis-route agreement / cycle-pay events.
+	return service.AlipaySubscriptionNotifyURL()
 }
 
 func getSubscriptionAlipayMoney(amount float64) float64 {
@@ -129,6 +128,10 @@ func SubscriptionRequestAlipayPay(c *gin.Context) {
 	}
 	if !plan.Enabled {
 		common.ApiErrorI18n(c, i18n.MsgSubscriptionNotEnabled)
+		return
+	}
+	if err := validateOneTimeSubscriptionPlan(plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	if plan.PriceAmount < 0.01 {
@@ -235,7 +238,15 @@ func SubscriptionRequestAlipayNotify(c *gin.Context) {
 		return
 	}
 
+	// Auto-renew agreement sign/unsign (no out_trade_no on pure agreement notifies).
+	if handleAlipayAutoRenewAgreementNotify(c, normalized) {
+		return
+	}
+
 	outTradeNo := normalized["out_trade_no"]
+	if handleAlipayAutoRenewTradeNotify(c, normalized, outTradeNo) {
+		return
+	}
 	if handleSubscriptionAlipayNotify(c, normalized, outTradeNo) {
 		return
 	}

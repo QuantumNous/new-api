@@ -261,7 +261,10 @@ func migrateDB() error {
 		return err
 	}
 
-	err := DB.AutoMigrate(
+	// TopUp / SubscriptionOrder / SubscriptionPlan use decimal(p,s) types. glebarez/sqlite's
+	// AutoMigrate rewrite treats the comma inside decimal(10,6) as a column separator and
+	// fails with "invalid DDL, unbalanced brackets" on every restart. Use SQLite-safe paths.
+	models := []interface{}{
 		&Channel{},
 		&Token{},
 		&User{},
@@ -271,7 +274,6 @@ func migrateDB() error {
 		&Ability{},
 		&Log{},
 		&Midjourney{},
-		&TopUp{},
 		&AlipayPendingTask{},
 		&QuotaData{},
 		&Task{},
@@ -284,7 +286,8 @@ func migrateDB() error {
 		&TwoFA{},
 		&TwoFABackupCode{},
 		&Checkin{},
-		&SubscriptionOrder{},
+		&BillingSubscription{},
+		&RecurringChargeAttempt{},
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
@@ -294,18 +297,24 @@ func migrateDB() error {
 		&SkillHubTag{},
 		&SkillHubSkillTag{},
 		&ClientRelease{},
-	)
+	}
+	if !common.UsingSQLite {
+		models = append(models, &TopUp{}, &SubscriptionOrder{}, &SubscriptionPlan{})
+	}
+	err := DB.AutoMigrate(models...)
 	if err != nil {
 		return err
 	}
 	if common.UsingSQLite {
+		if err := ensureDecimalMoneyTablesSQLite(); err != nil {
+			return err
+		}
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
 		}
-	} else {
-		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
-			return err
-		}
+	}
+	if err := backfillRecurringSubscriptionUniqueKeys(); err != nil {
+		return err
 	}
 	if err := SyncSkillHubTagsFromSkills(); err != nil {
 		return err
@@ -336,7 +345,6 @@ func migrateDBFast() error {
 		{&Ability{}, "Ability"},
 		{&Log{}, "Log"},
 		{&Midjourney{}, "Midjourney"},
-		{&TopUp{}, "TopUp"},
 		{&AlipayPendingTask{}, "AlipayPendingTask"},
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
@@ -349,7 +357,8 @@ func migrateDBFast() error {
 		{&TwoFA{}, "TwoFA"},
 		{&TwoFABackupCode{}, "TwoFABackupCode"},
 		{&Checkin{}, "Checkin"},
-		{&SubscriptionOrder{}, "SubscriptionOrder"},
+		{&BillingSubscription{}, "BillingSubscription"},
+		{&RecurringChargeAttempt{}, "RecurringChargeAttempt"},
 		{&UserSubscription{}, "UserSubscription"},
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
@@ -359,6 +368,18 @@ func migrateDBFast() error {
 		{&SkillHubTag{}, "SkillHubTag"},
 		{&SkillHubSkillTag{}, "SkillHubSkillTag"},
 		{&ClientRelease{}, "ClientRelease"},
+	}
+	if !common.UsingSQLite {
+		migrations = append(migrations,
+			struct {
+				model interface{}
+				name  string
+			}{&TopUp{}, "TopUp"},
+			struct {
+				model interface{}
+				name  string
+			}{&SubscriptionOrder{}, "SubscriptionOrder"},
+		)
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -384,6 +405,9 @@ func migrateDBFast() error {
 		}
 	}
 	if common.UsingSQLite {
+		if err := ensureDecimalMoneyTablesSQLite(); err != nil {
+			return err
+		}
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
 		}
@@ -391,6 +415,9 @@ func migrateDBFast() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := backfillRecurringSubscriptionUniqueKeys(); err != nil {
+		return err
 	}
 	if err := SyncSkillHubTagsFromSkills(); err != nil {
 		return err
@@ -410,6 +437,10 @@ func ensurePlaygroundConversationTypeColumn() error {
 }
 
 func migratePaymentSnapshotColumns() error {
+	// SQLite path is handled by ensureDecimalMoneyTablesSQLite (raw ADD COLUMN only).
+	if common.UsingSQLite {
+		return nil
+	}
 	if err := ensurePaymentSnapshotColumns(&TopUp{}); err != nil {
 		return err
 	}
@@ -437,6 +468,132 @@ func ensurePaymentSnapshotColumns(model interface{}) error {
 		if err := DB.Migrator().AddColumn(model, column); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ensureDecimalMoneyTablesSQLite creates/extends top_ups and subscription_orders without GORM
+// AutoMigrate, which cannot safely rewrite decimal(p,s) columns under glebarez/sqlite.
+func ensureDecimalMoneyTablesSQLite() error {
+	if !common.UsingSQLite {
+		return nil
+	}
+	if err := ensureSQLiteTableByColumns("top_ups", topUpSQLiteCreateSQL, topUpSQLiteColumns); err != nil {
+		return err
+	}
+	if err := ensureSQLiteTableByColumns("subscription_orders", subscriptionOrderSQLiteCreateSQL, subscriptionOrderSQLiteColumns); err != nil {
+		return err
+	}
+	return nil
+}
+
+const topUpSQLiteCreateSQL = `CREATE TABLE IF NOT EXISTS ` + "`top_ups`" + ` (
+` + "`id`" + ` integer,
+` + "`user_id`" + ` integer,
+` + "`amount`" + ` integer,
+` + "`money`" + ` real,
+` + "`display_amount`" + ` decimal(12,6) NOT NULL DEFAULT 0,
+` + "`display_currency`" + ` varchar(32) NOT NULL DEFAULT '',
+` + "`settlement_amount`" + ` decimal(12,6) NOT NULL DEFAULT 0,
+` + "`settlement_currency`" + ` varchar(16) NOT NULL DEFAULT '',
+` + "`exchange_rate_snapshot`" + ` decimal(12,6) NOT NULL DEFAULT 0,
+` + "`trade_no`" + ` varchar(255),
+` + "`payment_method`" + ` varchar(50),
+` + "`payment_provider`" + ` varchar(50) DEFAULT '',
+` + "`create_time`" + ` integer,
+` + "`complete_time`" + ` integer,
+` + "`status`" + ` text,
+PRIMARY KEY (` + "`id`" + `)
+)`
+
+var topUpSQLiteColumns = []sqliteColumnDef{
+	{Name: "user_id", DDL: "`user_id` integer"},
+	{Name: "amount", DDL: "`amount` integer"},
+	{Name: "money", DDL: "`money` real"},
+	{Name: "display_amount", DDL: "`display_amount` decimal(12,6) NOT NULL DEFAULT 0"},
+	{Name: "display_currency", DDL: "`display_currency` varchar(32) NOT NULL DEFAULT ''"},
+	{Name: "settlement_amount", DDL: "`settlement_amount` decimal(12,6) NOT NULL DEFAULT 0"},
+	{Name: "settlement_currency", DDL: "`settlement_currency` varchar(16) NOT NULL DEFAULT ''"},
+	{Name: "exchange_rate_snapshot", DDL: "`exchange_rate_snapshot` decimal(12,6) NOT NULL DEFAULT 0"},
+	{Name: "trade_no", DDL: "`trade_no` varchar(255)"},
+	{Name: "payment_method", DDL: "`payment_method` varchar(50)"},
+	{Name: "payment_provider", DDL: "`payment_provider` varchar(50) DEFAULT ''"},
+	{Name: "create_time", DDL: "`create_time` integer"},
+	{Name: "complete_time", DDL: "`complete_time` integer"},
+	{Name: "status", DDL: "`status` text"},
+}
+
+const subscriptionOrderSQLiteCreateSQL = `CREATE TABLE IF NOT EXISTS ` + "`subscription_orders`" + ` (
+` + "`id`" + ` integer,
+` + "`user_id`" + ` integer,
+` + "`plan_id`" + ` integer,
+` + "`money`" + ` real,
+` + "`display_amount`" + ` decimal(12,6) NOT NULL DEFAULT 0,
+` + "`display_currency`" + ` varchar(32) NOT NULL DEFAULT '',
+` + "`settlement_amount`" + ` decimal(12,6) NOT NULL DEFAULT 0,
+` + "`settlement_currency`" + ` varchar(16) NOT NULL DEFAULT '',
+` + "`exchange_rate_snapshot`" + ` decimal(12,6) NOT NULL DEFAULT 0,
+` + "`trade_no`" + ` varchar(255),
+` + "`payment_method`" + ` varchar(50),
+` + "`payment_provider`" + ` varchar(50) DEFAULT '',
+` + "`status`" + ` text,
+` + "`create_time`" + ` integer,
+` + "`complete_time`" + ` integer,
+` + "`provider_payload`" + ` text,
+PRIMARY KEY (` + "`id`" + `)
+)`
+
+var subscriptionOrderSQLiteColumns = []sqliteColumnDef{
+	{Name: "user_id", DDL: "`user_id` integer"},
+	{Name: "plan_id", DDL: "`plan_id` integer"},
+	{Name: "money", DDL: "`money` real"},
+	{Name: "display_amount", DDL: "`display_amount` decimal(12,6) NOT NULL DEFAULT 0"},
+	{Name: "display_currency", DDL: "`display_currency` varchar(32) NOT NULL DEFAULT ''"},
+	{Name: "settlement_amount", DDL: "`settlement_amount` decimal(12,6) NOT NULL DEFAULT 0"},
+	{Name: "settlement_currency", DDL: "`settlement_currency` varchar(16) NOT NULL DEFAULT ''"},
+	{Name: "exchange_rate_snapshot", DDL: "`exchange_rate_snapshot` decimal(12,6) NOT NULL DEFAULT 0"},
+	{Name: "trade_no", DDL: "`trade_no` varchar(255)"},
+	{Name: "payment_method", DDL: "`payment_method` varchar(50)"},
+	{Name: "payment_provider", DDL: "`payment_provider` varchar(50) DEFAULT ''"},
+	{Name: "status", DDL: "`status` text"},
+	{Name: "create_time", DDL: "`create_time` integer"},
+	{Name: "complete_time", DDL: "`complete_time` integer"},
+	{Name: "provider_payload", DDL: "`provider_payload` text"},
+}
+
+func ensureSQLiteTableByColumns(tableName, createSQL string, required []sqliteColumnDef) error {
+	if !DB.Migrator().HasTable(tableName) {
+		if err := DB.Exec(createSQL).Error; err != nil {
+			return err
+		}
+	}
+	var cols []struct {
+		Name string `gorm:"column:name"`
+	}
+	if err := DB.Raw("PRAGMA table_info(`" + tableName + "`)").Scan(&cols).Error; err != nil {
+		return err
+	}
+	existing := make(map[string]struct{}, len(cols))
+	for _, c := range cols {
+		existing[c.Name] = struct{}{}
+	}
+	for _, col := range required {
+		if _, ok := existing[col.Name]; ok {
+			continue
+		}
+		if err := DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN " + col.DDL).Error; err != nil {
+			return err
+		}
+	}
+	// Best-effort indexes (ignore errors if already present).
+	if tableName == "top_ups" {
+		_ = DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS `idx_top_ups_trade_no` ON `top_ups`(`trade_no`)").Error
+		_ = DB.Exec("CREATE INDEX IF NOT EXISTS `idx_top_ups_user_id` ON `top_ups`(`user_id`)").Error
+	}
+	if tableName == "subscription_orders" {
+		_ = DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS `idx_subscription_orders_trade_no` ON `subscription_orders`(`trade_no`)").Error
+		_ = DB.Exec("CREATE INDEX IF NOT EXISTS `idx_subscription_orders_user_id` ON `subscription_orders`(`user_id`)").Error
+		_ = DB.Exec("CREATE INDEX IF NOT EXISTS `idx_subscription_orders_plan_id` ON `subscription_orders`(`plan_id`)").Error
 	}
 	return nil
 }
@@ -472,8 +629,11 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`enabled`" + ` numeric DEFAULT 1,
 ` + "`sort_order`" + ` integer DEFAULT 0,
 ` + "`plan_kind`" + ` varchar(16) NOT NULL DEFAULT 'base',
+` + "`alipay_enabled`" + ` numeric DEFAULT 0,
 ` + "`stripe_price_id`" + ` varchar(128) DEFAULT '',
+` + "`stripe_recurring_price_id`" + ` varchar(128) DEFAULT '',
 ` + "`creem_product_id`" + ` varchar(128) DEFAULT '',
+` + "`billing_mode`" + ` varchar(16) NOT NULL DEFAULT 'one_time',
 ` + "`max_purchase_per_user`" + ` integer DEFAULT 0,
 ` + "`upgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
@@ -506,8 +666,11 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "enabled", DDL: "`enabled` numeric DEFAULT 1"},
 		{Name: "sort_order", DDL: "`sort_order` integer DEFAULT 0"},
 		{Name: "plan_kind", DDL: "`plan_kind` varchar(16) NOT NULL DEFAULT 'base'"},
+		{Name: "alipay_enabled", DDL: "`alipay_enabled` numeric DEFAULT 0"},
 		{Name: "stripe_price_id", DDL: "`stripe_price_id` varchar(128) DEFAULT ''"},
+		{Name: "stripe_recurring_price_id", DDL: "`stripe_recurring_price_id` varchar(128) DEFAULT ''"},
 		{Name: "creem_product_id", DDL: "`creem_product_id` varchar(128) DEFAULT ''"},
+		{Name: "billing_mode", DDL: "`billing_mode` varchar(16) NOT NULL DEFAULT 'one_time'"},
 		{Name: "max_purchase_per_user", DDL: "`max_purchase_per_user` integer DEFAULT 0"},
 		{Name: "upgrade_group", DDL: "`upgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},

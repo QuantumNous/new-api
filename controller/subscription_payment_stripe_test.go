@@ -62,28 +62,36 @@ func TestSubscriptionRequestStripePayReturnsTradeNo(t *testing.T) {
 		HTTPClient: mockClient,
 	}))
 
+	// Use unique IDs and invalidate plan cache so other auto_renew tests cannot poison GetSubscriptionPlanById.
+	const userID = 1301
+	const planID = 1401
+	model.InvalidateSubscriptionPlanCache(planID)
+
 	require.NoError(t, model.DB.Create(&model.User{
-		Id:             301,
-		Username:       "stripe-sub-user",
-		Email:          "stripe-sub-user@example.com",
+		Id:             userID,
+		Username:       "stripe-sub-user-once",
+		Email:          "stripe-sub-user-once@example.com",
 		Status:         common.UserStatusEnabled,
 		StripeCustomer: "",
 	}).Error)
 	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
-		Id:            401,
-		Title:         "Stripe Pro",
+		Id:            planID,
+		Title:         "Stripe Pro One Time",
 		PriceAmount:   19.99,
 		Currency:      "USD",
 		DurationUnit:  model.SubscriptionDurationMonth,
 		DurationValue: 1,
 		Enabled:       true,
-		TotalAmount:   1000,
+		// Ordinary /stripe/pay is one-time only; auto_renew must use recurring checkout.
+		BillingMode: model.SubscriptionBillingModeOneTime,
+		TotalAmount: 1000,
 	}).Error)
+	model.InvalidateSubscriptionPlanCache(planID)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
-	c.Set("id", 301)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/subscription/stripe/pay", bytes.NewBufferString(`{"plan_id":401}`))
+	c.Set("id", userID)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/subscription/stripe/pay", bytes.NewBufferString(fmt.Sprintf(`{"plan_id":%d}`, planID)))
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	SubscriptionRequestStripePay(c)
@@ -102,7 +110,7 @@ func TestSubscriptionRequestStripePayReturnsTradeNo(t *testing.T) {
 
 	order := model.GetSubscriptionOrderByTradeNo(tradeNo)
 	require.NotNil(t, order)
-	require.Equal(t, 301, order.UserId)
-	require.Equal(t, 401, order.PlanId)
+	require.Equal(t, userID, order.UserId)
+	require.Equal(t, planID, order.PlanId)
 	require.Equal(t, tradeNo, order.TradeNo)
 }

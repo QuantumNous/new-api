@@ -83,6 +83,7 @@ const SubscriptionPlansCard = ({
   onChangeBillingPreference,
   activeSubscriptions = [],
   allSubscriptions = [],
+  autoRenewSubscription = null,
   reloadSubscriptionSelf,
   withCard = true,
 }) => {
@@ -91,6 +92,7 @@ const SubscriptionPlansCard = ({
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [cancellingAutoRenew, setCancellingAutoRenew] = useState(false);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
@@ -116,17 +118,29 @@ const SubscriptionPlansCard = ({
   };
 
   const payStripe = async () => {
-    if (!selectedPlan?.plan?.stripe_price_id) {
+    const isAutoRenew =
+      selectedPlan?.plan?.billing_mode === 'auto_renew';
+    const stripePriceID = isAutoRenew
+      ? selectedPlan?.plan?.stripe_recurring_price_id
+      : selectedPlan?.plan?.stripe_price_id;
+    if (!stripePriceID) {
       showError(t('该套餐未配置 Stripe'));
       return;
     }
     setPaying(true);
     try {
-      const res = await API.post('/api/subscription/stripe/pay', {
-        plan_id: selectedPlan.plan.id,
-      });
+      const res = await API.post(
+        isAutoRenew
+          ? '/api/subscription/stripe/checkout/auto-renew'
+          : '/api/subscription/stripe/pay',
+        {
+          plan_id: selectedPlan.plan.id,
+        },
+      );
       if (res.data?.message === 'success') {
-        redirectToPaymentUrl(res.data.data?.pay_link);
+        redirectToPaymentUrl(
+          isAutoRenew ? res.data.data?.checkout_url : res.data.data?.pay_link,
+        );
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -141,6 +155,31 @@ const SubscriptionPlansCard = ({
     } finally {
       setPaying(false);
     }
+  };
+
+  const cancelAutoRenew = () => {
+    Modal.confirm({
+      title: t('取消自动续费'),
+      content: t('取消后当前订阅将在本周期结束时失效。'),
+      okText: t('确认取消'),
+      cancelText: t('取消'),
+      onOk: async () => {
+        setCancellingAutoRenew(true);
+        try {
+          const res = await API.post('/api/subscription/self/cancel-renewal');
+          if (res.data?.success) {
+            showSuccess(t('已取消自动续费'));
+            await reloadSubscriptionSelf?.();
+            return;
+          }
+          showError(res.data?.message || t('操作失败'));
+        } catch (e) {
+          showError(t('操作失败'));
+        } finally {
+          setCancellingAutoRenew(false);
+        }
+      },
+    });
   };
 
   const payCreem = async () => {
@@ -172,14 +211,24 @@ const SubscriptionPlansCard = ({
   };
 
   const payAlipay = async () => {
+    const isAutoRenew = selectedPlan?.plan?.billing_mode === 'auto_renew';
     setPaying(true);
     try {
-      const res = await API.post('/api/subscription/alipay/pay', {
-        plan_id: selectedPlan.plan.id,
-        payment_method: 'alipay',
-      });
-      if (res.data?.message === 'success') {
-        redirectToPaymentUrl(res.data.data?.pay_url);
+      const res = await API.post(
+        isAutoRenew
+          ? '/api/subscription/alipay/checkout/auto-renew'
+          : '/api/subscription/alipay/pay',
+        isAutoRenew
+          ? { plan_id: selectedPlan.plan.id }
+          : {
+              plan_id: selectedPlan.plan.id,
+              payment_method: 'alipay',
+            },
+      );
+      if (res.data?.message === 'success' || res.data?.success) {
+        redirectToPaymentUrl(
+          res.data.data?.checkout_url || res.data.data?.pay_url,
+        );
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -399,6 +448,43 @@ const SubscriptionPlansCard = ({
                 {subscriptionPreferenceLabel}
                 {t('，当前无生效订阅，将自动使用钱包')}
               </Text>
+            )}
+
+            {autoRenewSubscription && (
+              <>
+                <Divider margin={8} />
+                <div className='flex items-center justify-between gap-3 text-xs'>
+                  <div className='min-w-0'>
+                    <div className='flex items-center gap-2 mb-1'>
+                      <Text strong>{t('自动续费')}</Text>
+                      <Tag color='white' size='small' shape='circle'>
+                        {autoRenewSubscription.cancel_at_period_end
+                          ? t('已取消自动续费')
+                          : t('生效')}
+                      </Tag>
+                    </div>
+                    <Text type='tertiary' size='small'>
+                      {autoRenewSubscription.cancel_at_period_end
+                        ? t('将于')
+                        : t('下次续费')}:{' '}
+                      {new Date(
+                        (autoRenewSubscription.current_period_end || 0) * 1000,
+                      ).toLocaleString()}
+                    </Text>
+                  </div>
+                  {!autoRenewSubscription.cancel_at_period_end && (
+                    <Button
+                      size='small'
+                      theme='borderless'
+                      type='danger'
+                      onClick={cancelAutoRenew}
+                      loading={cancellingAutoRenew}
+                    >
+                      {t('取消自动续费')}
+                    </Button>
+                  )}
+                </div>
+              </>
             )}
 
             {hasAnySubscription ? (

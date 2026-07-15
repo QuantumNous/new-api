@@ -285,12 +285,27 @@ const renderResetPeriod = (text, record, t) => {
 };
 
 const renderPaymentConfig = (text, record, t, enableEpay) => {
-  const hasStripe = !!record?.plan?.stripe_price_id;
-  const hasCreem = !!record?.plan?.creem_product_id;
-  const hasEpay = !!enableEpay;
+  const plan = record?.plan || {};
+  const isAutoRenew = plan.billing_mode === 'auto_renew';
+  const hasStripe = !!(
+    plan.stripe_price_id || plan.stripe_recurring_price_id
+  );
+  const hasAlipay = !!plan.alipay_enabled;
+  const hasCreem = !!plan.creem_product_id;
+  const hasEpay = !!enableEpay && !isAutoRenew;
 
   return (
-    <Space spacing={4}>
+    <Space spacing={4} wrap>
+      {isAutoRenew && (
+        <Tag
+          color='orange'
+          shape='circle'
+          type='light'
+          className='subscription-channel-tag'
+        >
+          {t('自动续费')}
+        </Tag>
+      )}
       {hasStripe && (
         <Tag
           color='white'
@@ -299,6 +314,16 @@ const renderPaymentConfig = (text, record, t, enableEpay) => {
           className='subscription-channel-tag is-stripe'
         >
           Stripe
+        </Tag>
+      )}
+      {hasAlipay && (
+        <Tag
+          color='white'
+          shape='circle'
+          type='light'
+          className='subscription-channel-tag is-alipay'
+        >
+          {t('支付宝')}
         </Tag>
       )}
       {hasCreem && (

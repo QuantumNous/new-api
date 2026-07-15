@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,10 +16,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
+	stripeSubscription "github.com/stripe/stripe-go/v81/subscription"
 	"github.com/thanhpk/randstr"
 )
 
+var stripeSubscriptionUpdate = stripeSubscription.Update
+
 type SubscriptionStripePayRequest struct {
+	PlanId int `json:"plan_id"`
+}
+
+type SubscriptionStripeAutoRenewPayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
@@ -40,6 +48,10 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	}
 	if !plan.Enabled {
 		common.ApiErrorI18n(c, i18n.MsgSubscriptionNotEnabled)
+		return
+	}
+	if err := validateOneTimeSubscriptionPlan(plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	if plan.PriceAmount < 0.01 {
@@ -113,6 +125,92 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	})
 }
 
+func SubscriptionRequestStripeAutoRenew(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
+	var req SubscriptionStripeAutoRenewPayRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !plan.Enabled {
+		common.ApiErrorI18n(c, i18n.MsgSubscriptionNotEnabled)
+		return
+	}
+	if plan.BillingMode != model.SubscriptionBillingModeAutoRenew {
+		common.ApiErrorMsg(c, "plan is not auto_renew")
+		return
+	}
+	if strings.TrimSpace(plan.StripeRecurringPriceId) == "" {
+		common.ApiErrorMsg(c, "stripe_recurring_price_id is required")
+		return
+	}
+
+	userId := c.GetInt("id")
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if user == nil {
+		common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+		return
+	}
+
+	// Prefer reusing an existing pending_signup for this plan (double-click / retry).
+	// A new reference is only used when no reusable pending row exists.
+	// Active / past_due / pending_first_charge contracts are rejected here.
+	signupReference := "sub-signup-" + common.Sha1([]byte(fmt.Sprintf("%d-%d-%s", user.Id, plan.Id, randstr.String(12))))
+	contract, err := model.CreateOrReusePendingStripeAutoRenewSignup(user.Id, plan.Id, signupReference)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	reusedPending := contract.SignupReference != signupReference
+	if strings.TrimSpace(contract.SignupReference) != "" {
+		signupReference = contract.SignupReference
+	}
+
+	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
+		if !reusedPending {
+			_ = model.MarkPendingStripeAutoRenewSignupFailed(contract.Id)
+		}
+		common.ApiErrorI18n(c, i18n.MsgPaymentStripeNotConfig)
+		return
+	}
+	if setting.StripeWebhookSecret == "" {
+		if !reusedPending {
+			_ = model.MarkPendingStripeAutoRenewSignupFailed(contract.Id)
+		}
+		common.ApiErrorI18n(c, i18n.MsgPaymentWebhookNotConfig)
+		return
+	}
+
+	checkoutURL, checkoutID, err := genStripeAutoRenewCheckoutURL(user, plan, signupReference)
+	if err != nil {
+		// Fresh pending rows are released on Checkout create failure so the user can retry.
+		// Reused pending rows stay pending_signup and can open another Checkout session.
+		if !reusedPending {
+			_ = model.MarkPendingStripeAutoRenewSignupFailed(contract.Id)
+		}
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe recurring checkout create failed user_id=%d plan_id=%d error=%q", userId, plan.Id, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgPaymentStartFailed)
+		return
+	}
+	if err := model.SetBillingSubscriptionCheckoutID(contract.Id, checkoutID); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe recurring checkout persistence failed user_id=%d plan_id=%d checkout_id=%s error=%q", userId, plan.Id, checkoutID, err.Error()))
+	}
+	common.ApiSuccess(c, gin.H{"checkout_url": checkoutURL})
+}
+
 func genStripeSubscriptionLink(referenceId string, customerId string, email string, plan *model.SubscriptionPlan) (string, error) {
 	if plan == nil {
 		return "", fmt.Errorf("subscription plan is nil")
@@ -164,4 +262,67 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		return "", err
 	}
 	return result.URL, nil
+}
+
+func genStripeAutoRenewCheckoutURL(user *model.User, plan *model.SubscriptionPlan, signupReference string) (string, string, error) {
+	if user == nil {
+		return "", "", fmt.Errorf("user is nil")
+	}
+	if plan == nil {
+		return "", "", fmt.Errorf("subscription plan is nil")
+	}
+	if strings.TrimSpace(plan.StripeRecurringPriceId) == "" {
+		return "", "", fmt.Errorf("stripe recurring price id is empty")
+	}
+	if strings.TrimSpace(signupReference) == "" {
+		return "", "", fmt.Errorf("signup reference is empty")
+	}
+
+	stripe.Key = setting.StripeApiSecret
+
+	params := &stripe.CheckoutSessionParams{
+		Mode: stripe.String(string(stripe.CheckoutSessionModeSubscription)),
+		LineItems: []*stripe.CheckoutSessionLineItemParams{
+			{
+				Price:    stripe.String(plan.StripeRecurringPriceId),
+				Quantity: stripe.Int64(1),
+			},
+		},
+		SuccessURL:          stripe.String(paymentReturnPath("/console/topup")),
+		CancelURL:           stripe.String(paymentReturnPath("/console/topup")),
+		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
+	}
+	params.AddMetadata("user_id", strconv.Itoa(user.Id))
+	params.AddMetadata("plan_id", strconv.Itoa(plan.Id))
+	params.AddMetadata("billing_mode", model.SubscriptionBillingModeAutoRenew)
+	params.AddMetadata("signup_reference", signupReference)
+
+	if user.StripeCustomer == "" {
+		if user.Email != "" {
+			params.CustomerEmail = stripe.String(user.Email)
+		}
+		params.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
+	} else {
+		params.Customer = stripe.String(user.StripeCustomer)
+	}
+
+	result, err := session.New(params)
+	if err != nil {
+		return "", "", err
+	}
+	return result.URL, result.ID, nil
+}
+
+func cancelStripeAutoRenewAtPeriodEnd(subscriptionID string) (*stripe.Subscription, error) {
+	if strings.TrimSpace(subscriptionID) == "" {
+		return nil, fmt.Errorf("subscription id is empty")
+	}
+	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
+		return nil, fmt.Errorf("invalid stripe api secret")
+	}
+	stripe.Key = setting.StripeApiSecret
+	params := &stripe.SubscriptionParams{
+		CancelAtPeriodEnd: stripe.Bool(true),
+	}
+	return stripeSubscriptionUpdate(subscriptionID, params)
 }

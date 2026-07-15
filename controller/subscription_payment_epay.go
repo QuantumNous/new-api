@@ -42,6 +42,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgSubscriptionNotEnabled)
 		return
 	}
+	if err := validateOneTimeSubscriptionPlan(plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	if plan.PriceAmount < 0.01 {
 		common.ApiErrorI18n(c, i18n.MsgPaymentAmountTooLow)
 		return

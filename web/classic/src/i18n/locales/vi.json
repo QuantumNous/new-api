@@ -1,5 +1,17 @@
 {
   "translation": {
+    "自动续费": "Tự động gia hạn",
+    "取消自动续费": "Hủy tự động gia hạn",
+    "取消后当前订阅将在本周期结束时失效。": "Sau khi hủy, gói đăng ký hiện tại sẽ kết thúc khi chu kỳ thanh toán này hết hạn.",
+    "确认取消": "Xác nhận hủy",
+    "已取消自动续费": "Đã hủy tự động gia hạn",
+    "操作失败": "Thao tác thất bại",
+    "将于": "Kết thúc vào",
+    "下次续费": "Lần gia hạn tiếp theo",
+    "计费方式": "Phương thức thanh toán",
+    "单次支付": "Thanh toán một lần",
+    "Stripe Recurring PriceId（自动续费必填）": "Stripe Recurring PriceId (bắt buộc cho gia hạn tự động)",
+    "自动续费套餐必须填写 Stripe Recurring PriceId": "Gói tự động gia hạn yêu cầu Stripe Recurring PriceId",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Tìm kiếm Web {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Tìm kiếm Web {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Gọi tạo hình ảnh {{symbol}}{{price}} / 1 lần * {{ratioType}} {{ratio}}",

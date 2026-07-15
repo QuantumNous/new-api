@@ -51,6 +51,10 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgSubscriptionNotEnabled)
 		return
 	}
+	if err := validateOneTimeSubscriptionPlan(plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	if plan.CreemProductId == "" {
 		common.ApiErrorI18n(c, i18n.MsgPaymentCreemNotConfig)
 		return

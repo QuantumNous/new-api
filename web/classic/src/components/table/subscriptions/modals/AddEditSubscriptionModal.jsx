@@ -103,6 +103,9 @@ const AddEditSubscriptionModal = ({
     total_amount: 0,
     upgrade_group: '',
     stripe_price_id: '',
+    billing_mode: 'one_time',
+    stripe_recurring_price_id: '',
+    alipay_enabled: false,
     creem_product_id: '',
   });
 
@@ -133,6 +136,9 @@ const AddEditSubscriptionModal = ({
       ),
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
+      billing_mode: p.billing_mode || 'one_time',
+      stripe_recurring_price_id: p.stripe_recurring_price_id || '',
+      alipay_enabled: !!p.alipay_enabled,
       creem_product_id: p.creem_product_id || '',
     };
   };
@@ -157,6 +163,16 @@ const AddEditSubscriptionModal = ({
       showError(t('套餐标题不能为空'));
       return;
     }
+    if (
+      values.billing_mode === 'auto_renew' &&
+      !values.stripe_recurring_price_id?.trim() &&
+      !values.alipay_enabled
+    ) {
+      showError(
+        t('自动续费套餐需配置 Stripe Recurring PriceId 和/或启用支付宝'),
+      );
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
@@ -176,6 +192,22 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          stripe_price_id:
+            values.billing_mode === 'one_time'
+              ? values.stripe_price_id || ''
+              : '',
+          stripe_recurring_price_id:
+            values.billing_mode === 'auto_renew'
+              ? values.stripe_recurring_price_id || ''
+              : '',
+          alipay_enabled:
+            values.billing_mode === 'auto_renew'
+              ? !!values.alipay_enabled
+              : !!values.alipay_enabled,
+          creem_product_id:
+            values.billing_mode === 'one_time'
+              ? values.creem_product_id || ''
+              : '',
         },
       };
       if (editingPlan?.plan?.id) {
@@ -297,6 +329,16 @@ const AddEditSubscriptionModal = ({
                   </div>
 
                   <Row gutter={12}>
+                    <Col span={24}>
+                      <Form.Select field='billing_mode' label={t('计费方式')}>
+                        <Select.Option value='one_time'>
+                          {t('单次支付')}
+                        </Select.Option>
+                        <Select.Option value='auto_renew'>
+                          {t('自动续费')}
+                        </Select.Option>
+                      </Form.Select>
+                    </Col>
                     <Col span={24}>
                       <Form.Input
                         field='title'
@@ -555,29 +597,65 @@ const AddEditSubscriptionModal = ({
                         {t('第三方支付配置')}
                       </Text>
                       <div className='subscription-edit-section-copy text-xs'>
-                        {t('Stripe/Creem 商品ID（可选）')}
+                        {values.billing_mode === 'auto_renew'
+                          ? t('配置 Stripe 和/或支付宝自动续费')
+                          : t('Stripe/Creem 商品ID（可选）')}
                       </div>
                     </div>
                   </div>
 
                   <Row gutter={12}>
-                    <Col span={24}>
-                      <Form.Input
-                        field='stripe_price_id'
-                        label='Stripe PriceId'
-                        placeholder='price_...'
-                        showClear
-                      />
-                    </Col>
+                    {values.billing_mode === 'auto_renew' ? (
+                      <>
+                        <Col span={24}>
+                          <Form.Input
+                            field='stripe_recurring_price_id'
+                            label='Stripe Recurring PriceId'
+                            placeholder='price_...'
+                            showClear
+                            extraText={t(
+                              '可与支付宝同时配置；至少配置一种自动续费渠道',
+                            )}
+                          />
+                        </Col>
+                        <Col span={24}>
+                          <Form.Switch
+                            field='alipay_enabled'
+                            label={t('启用支付宝自动续费')}
+                            extraText={t(
+                              '请先在「支付设置 → Alipay」开启「启用支付宝自动续费（周期扣款）」并保存产品码；异步通知需配置 /api/subscription/alipay/notify',
+                            )}
+                          />
+                        </Col>
+                      </>
+                    ) : (
+                      <>
+                        <Col span={24}>
+                          <Form.Input
+                            field='stripe_price_id'
+                            label='Stripe PriceId'
+                            placeholder='price_...'
+                            showClear
+                          />
+                        </Col>
 
-                    <Col span={24}>
-                      <Form.Input
-                        field='creem_product_id'
-                        label='Creem ProductId'
-                        placeholder='prod_...'
-                        showClear
-                      />
-                    </Col>
+                        <Col span={24}>
+                          <Form.Input
+                            field='creem_product_id'
+                            label='Creem ProductId'
+                            placeholder='prod_...'
+                            showClear
+                          />
+                        </Col>
+
+                        <Col span={24}>
+                          <Form.Switch
+                            field='alipay_enabled'
+                            label={t('启用支付宝')}
+                          />
+                        </Col>
+                      </>
+                    )}
                   </Row>
                 </Card>
               </div>
