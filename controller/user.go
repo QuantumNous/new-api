@@ -149,6 +149,9 @@ func setupLogin(user *model.User, c *gin.Context) {
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
+	// v1 治理：写入治理角色层级与部门，使 authHelper 无需每请求回源 DB 即可注入 context。
+	session.Set("role_level", user.RoleLevel)
+	session.Set("department", user.Department)
 	err := session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)

@@ -299,6 +299,14 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 
+		// v1 治理：预算池与额度审批
+		apiRouter.POST("/quota/apply", middleware.UserAuth(), controller.ApplyQuota)
+		quotaRoute := apiRouter.Group("/quota")
+		quotaRoute.Use(middleware.GovernanceAuth())
+		{
+			quotaRoute.POST("/approve", controller.ApproveQuota)
+		}
+
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{
 			logRoute.GET("/token", middleware.TokenAuthReadOnly(), controller.GetLogByKey)

@@ -41,6 +41,8 @@ func authHelper(c *gin.Context, minRole int) {
 	id := session.Get("id")
 	status := session.Get("status")
 	useAccessToken := false
+	var user *model.User // token 路径下回退读取 RoleLevel/Department 用
+	var authErr error
 	if username == nil {
 		// Check access token
 		accessToken := c.Request.Header.Get("Authorization")
@@ -52,7 +54,7 @@ func authHelper(c *gin.Context, minRole int) {
 			c.Abort()
 			return
 		}
-		user, authErr := model.ValidateAccessToken(accessToken)
+		user, authErr = model.ValidateAccessToken(accessToken)
 		if authErr != nil {
 			if errors.Is(authErr, model.ErrDatabase) {
 				common.SysLog("ValidateAccessToken database error: " + authErr.Error())
@@ -153,6 +155,24 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("group", session.Get("group"))
 	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
+
+	// 治理角色层级与部门（T3）：注入 context 供 RequireRole / 部门范围限制使用。
+	// 优先从 session 读取（登录时已写入，零额外 DB 开销）；
+	// 走 access token 的路径无 session，则回退到令牌对应用户（治理端点低频，可接受）。
+	if rl := session.Get("role_level"); rl != nil {
+		c.Set("role_level", rl)
+	} else if useAccessToken && user != nil {
+		c.Set("role_level", user.RoleLevel)
+	} else {
+		c.Set("role_level", 0)
+	}
+	if dept := session.Get("department"); dept != nil {
+		c.Set("department", dept)
+	} else if useAccessToken && user != nil {
+		c.Set("department", user.Department)
+	} else {
+		c.Set("department", "")
+	}
 
 	// 管理/root 写操作审计兜底：内聚在鉴权链路里，保证任何经过 AdminAuth/RootAuth
 	// 的写接口都会自动留痕（无需在路由上单独挂审计中间件，避免漏挂）。

@@ -18,3 +18,13 @@ type QuotaApplication struct {
 }
 
 func (QuotaApplication) TableName() string { return "quota_application" }
+
+// GetQuotaApplicationById 按主键查询申请单；未找到返回 gorm.ErrRecordNotFound。
+func GetQuotaApplicationById(id int64) (*QuotaApplication, error) {
+	var app QuotaApplication
+	err := DB.Where("id = ?", id).First(&app).Error
+	if err != nil {
+		return nil, err
+	}
+	return &app, nil
+}
