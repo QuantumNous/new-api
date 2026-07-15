@@ -108,6 +108,18 @@ func TestBuildMessageDeltaPatchUsage(t *testing.T) {
 		require.EqualValues(t, 99, usage.OutputTokens)
 	})
 
+	t.Run("keep upstream OutputTokens when CompletionTokens is available", func(t *testing.T) {
+		claudeResponse := &dto.ClaudeResponse{Usage: &dto.ClaudeUsage{
+			OutputTokens: 53,
+		}}
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{
+			CompletionTokens: 99,
+		}}
+
+		usage := buildMessageDeltaPatchUsage(claudeResponse, claudeInfo)
+		require.EqualValues(t, 53, usage.OutputTokens)
+	})
+
 	t.Run("keep upstream non-zero values", func(t *testing.T) {
 		claudeResponse := &dto.ClaudeResponse{Usage: &dto.ClaudeUsage{
 			InputTokens:              9,
