@@ -24,9 +24,16 @@ type GeneralSetting struct {
 
 // 默认配置
 var generalSetting = GeneralSetting{
-	DocsLink:                   "https://docs.newapi.pro",
-	PingIntervalEnabled:        false,
-	PingIntervalSeconds:        60,
+	DocsLink: "https://docs.newapi.pro",
+	// Ping keepalive is on by default: reasoning-heavy models (gpt-5.x,
+	// reasoning_effort:max) can go silent for tens of seconds while thinking,
+	// and without a keepalive SSE clients (e.g. Codex CLI) hit their idle
+	// timeout and abort with "stream disconnected before completion: idle
+	// timeout waiting for SSE". A ": PING" comment every 10s resets the client's
+	// idle timer through the silent window. 10s is well under typical client
+	// idle timeouts; the overhead is a few bytes per interval.
+	PingIntervalEnabled:        true,
+	PingIntervalSeconds:        10,
 	QuotaDisplayType:           QuotaDisplayTypeUSD,
 	CustomCurrencySymbol:       "¤",
 	CustomCurrencyExchangeRate: 1.0,
