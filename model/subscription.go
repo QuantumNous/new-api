@@ -578,14 +578,31 @@ func CreateOrReusePendingAutoRenewSignup(provider string, userId int, planId int
 
 		now := common.GetTimestamp()
 		staleBefore := now - int64(autoRenewPendingSignupTTL.Seconds())
-		if err := tx.Model(&BillingSubscription{}).
-			Where("user_id = ? AND status = ? AND created_at > 0 AND created_at < ?",
-				userId, "pending_signup", staleBefore).
-			Updates(map[string]interface{}{
-				"status":     "signup_expired",
-				"updated_at": now,
-			}).Error; err != nil {
+		// Expire stale pending_signup contracts and their bill rows (top_ups).
+		var stalePending []BillingSubscription
+		if err := tx.Where("user_id = ? AND status = ? AND created_at > 0 AND created_at < ?",
+			userId, "pending_signup", staleBefore).Find(&stalePending).Error; err != nil {
 			return err
+		}
+		if len(stalePending) > 0 {
+			if err := tx.Model(&BillingSubscription{}).
+				Where("user_id = ? AND status = ? AND created_at > 0 AND created_at < ?",
+					userId, "pending_signup", staleBefore).
+				Updates(map[string]interface{}{
+					"status":     "signup_expired",
+					"updated_at": now,
+				}).Error; err != nil {
+				return err
+			}
+			for i := range stalePending {
+				if ref := strings.TrimSpace(stalePending[i].SignupReference); ref != "" {
+					_ = ExpirePendingAutoRenewTopUp(ref)
+				}
+				// Alipay first-period bill may use last_invoice_id as trade_no.
+				if inv := strings.TrimSpace(stalePending[i].LastInvoiceId); inv != "" {
+					_ = ExpirePendingAutoRenewTopUp(inv)
+				}
+			}
 		}
 
 		var existing []BillingSubscription
@@ -613,6 +630,12 @@ func CreateOrReusePendingAutoRenewSignup(provider string, userId int, planId int
 					"updated_at": now,
 				}).Error; err != nil {
 					return err
+				}
+				if ref := strings.TrimSpace(contract.SignupReference); ref != "" {
+					_ = ExpirePendingAutoRenewTopUp(ref)
+				}
+				if inv := strings.TrimSpace(contract.LastInvoiceId); inv != "" {
+					_ = ExpirePendingAutoRenewTopUp(inv)
 				}
 			default:
 				return errors.New("user already has a non-ended auto-renew subscription")
