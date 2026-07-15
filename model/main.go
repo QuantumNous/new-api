@@ -212,7 +212,12 @@ func InitDB() (err error) {
 		}
 		common.SysLog("database migration started")
 		err = migrateDB()
-		return err
+		if err != nil {
+			return err
+		}
+		if err = SeedBudgetPoolIfEmpty(); err != nil {
+			return err
+		}
 	} else {
 		common.FatalLog(err)
 	}
@@ -299,6 +304,9 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&BudgetPool{},
+		&QuotaApplication{},
+		&AuditLog{},
 	)
 	if err != nil {
 		return err
@@ -351,6 +359,9 @@ func migrateDBFast() error {
 		{&SystemInstance{}, "SystemInstance"},
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
+		{&BudgetPool{}, "BudgetPool"},
+		{&QuotaApplication{}, "QuotaApplication"},
+		{&AuditLog{}, "AuditLog"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

@@ -27,6 +27,8 @@ type User struct {
 	OriginalPassword string                     `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
 	DisplayName      string                     `json:"display_name" gorm:"index" validate:"max=20"`
 	Role             int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
+	RoleLevel        int                        `json:"role_level" gorm:"type:int;default:0"`        // 0=普通用户 10=部门管理员 100=超级管理员（v1 治理扩展）
+	Department       string                     `json:"department" gorm:"type:varchar(64);default:''"` // 部门标签（v1 仅用于报表聚合，无硬隔离）
 	Status           int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email            string                     `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId         string                     `json:"github_id" gorm:"column:github_id;index"`
