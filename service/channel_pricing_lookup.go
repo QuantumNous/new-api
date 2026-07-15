@@ -51,8 +51,7 @@ func ChannelModelPriceData(channelID int, modelName string) (ChannelModelPriceRa
 		Where("id = ?", channelID).
 		Scan(&ch).Error
 
-	candidates := PricingNameCandidates(modelName, ch.ModelMapping)
-	pricing, ok := LookupChannelPricingRow(channelID, candidates)
+	pricing, ok := LookupPreferredChannelPricingRow(channelID, modelName, ch.ModelMapping)
 	var inputPrice, outputPrice, cachePrice, cacheCreationPrice float64
 	if ok {
 		inputPrice, outputPrice, cachePrice, cacheCreationPrice =

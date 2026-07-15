@@ -553,8 +553,9 @@ func modelDataInt64(info map[string]interface{}, key string) int64 {
 	}
 }
 
-// applyModelMappingPricingToRow fills pricing fields from channel_model_pricings when
-// the global-name LEFT JOIN missed but model_mapping points at a priced upstream name.
+// applyModelMappingPricingToRow replaces pricing with the mapped upstream
+// model's row. The mapping is authoritative even when a cheaper canonical row
+// was already joined: billing must follow the model actually sent upstream.
 func applyModelMappingPricingToRow(
 	channelID int,
 	modelMapping *string,
@@ -562,9 +563,6 @@ func applyModelMappingPricingToRow(
 	inputPrice, outputPrice, cachePrice, cacheCreationPrice, groupRatio **float64,
 	pricingSource **string,
 ) {
-	if inputPrice != nil && *inputPrice != nil && **inputPrice > 0 {
-		return
-	}
 	pr, ok := service.ResolvePricingViaModelMapping(channelID, modelMapping, canonical)
 	if !ok {
 		return

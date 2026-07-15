@@ -23,7 +23,10 @@ func TestChannelModelPriceDataUsesActualChannelPrices(t *testing.T) {
 		CREATE TABLE channels (
 			id integer primary key,
 			recharge_rate real,
-			model_mapping text
+			model_mapping text,
+			setting text,
+			apimaster_price_ratio real,
+			model_price_ratios text
 		)
 	`).Error)
 	require.NoError(t, db.Exec(`

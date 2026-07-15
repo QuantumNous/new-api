@@ -113,6 +113,19 @@ func LookupChannelPricingRow(channelID int, candidates []string) (*ChannelPricin
 	}, true
 }
 
+// LookupPreferredChannelPricingRow resolves the price for the model that will
+// actually be sent upstream. A channel-level model_mapping is authoritative:
+// when canonical maps to another model, that target's price must not be mixed
+// with (or undercut by) a cheaper canonical/alias row from the same channel.
+func LookupPreferredChannelPricingRow(channelID int, canonical string, modelMapping *string) (*ChannelPricingLookupRow, bool) {
+	if target := ModelMappingTarget(modelMapping, canonical); target != "" {
+		if row, ok := LookupChannelPricingRow(channelID, []string{target}); ok {
+			return row, true
+		}
+	}
+	return LookupChannelPricingRow(channelID, ModelNameCandidates(canonical))
+}
+
 type channelPricingResolveContext struct {
 	ModelMapping        *string
 	Setting             *string
@@ -158,8 +171,7 @@ func loadChannelPricingResolveContext(channelID int) (channelPricingResolveConte
 }
 
 func resolveChannelPricingRow(channelID int, modelName string, ch channelPricingResolveContext) (*ChannelPricingLookupRow, bool) {
-	candidates := PricingNameCandidates(modelName, ch.ModelMapping)
-	if row, ok := LookupChannelPricingRow(channelID, candidates); ok {
+	if row, ok := LookupPreferredChannelPricingRow(channelID, modelName, ch.ModelMapping); ok {
 		return row, true
 	}
 	manual, ok := LookupPublicManualPricing(ch.Setting, modelName)
