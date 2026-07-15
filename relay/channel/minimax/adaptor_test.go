@@ -8,16 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetRequestURLForImageGeneration(t *testing.T) {
@@ -36,6 +31,27 @@ func TestGetRequestURLForImageGeneration(t *testing.T) {
 	}
 
 	want := "https://api.minimax.chat/v1/image_generation"
+	if got != want {
+		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+	}
+}
+
+func TestGetRequestURLForChatCompletionsUsesOpenAICompatibleEndpoint(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.minimax.chat",
+		},
+	}
+
+	got, err := GetRequestURL(info)
+	if err != nil {
+		t.Fatalf("GetRequestURL returned error: %v", err)
+	}
+
+	want := "https://api.minimax.chat/v1/chat/completions"
 	if got != want {
 		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
 	}
@@ -123,120 +139,6 @@ func TestDoResponseForImageGeneration(t *testing.T) {
 	if strings.Contains(body, `"image_urls"`) {
 		t.Fatalf("response body = %s, should not expose raw MiniMax image_urls payload", body)
 	}
-}
-
-func TestDoResponseForOpenAITextStripsMiniMaxFields(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	c.Set(common.RequestIdKey, "minimax-text-test")
-
-	info := &relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeChatCompletions,
-		RelayFormat: types.RelayFormatOpenAI,
-		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "MiniMax-M3",
-		},
-	}
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     make(http.Header),
-		Body: ioNopCloser(`{
-			"id":"chatcmpl-minimax",
-			"object":"chat.completion",
-			"created":1710000000,
-			"model":"MiniMax-M3",
-			"choices":[{
-				"index":0,
-				"message":{
-					"role":"assistant",
-					"content":"hello",
-					"name":"MiniMax AI",
-					"audio_content":""
-				},
-				"finish_reason":"stop"
-			}],
-			"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3},
-			"input_sensitive":false,
-			"output_sensitive":false,
-			"input_sensitive_type":0,
-			"output_sensitive_type":0,
-			"output_sensitive_int":0,
-			"service_tier":"standard",
-			"base_resp":{"status_code":0,"status_msg":""}
-		}`),
-	}
-
-	adaptor := &Adaptor{}
-	usage, err := adaptor.DoResponse(c, resp, info)
-
-	require.Nil(t, err)
-	require.NotNil(t, usage)
-	body := recorder.Body.String()
-	assert.Contains(t, body, `"object":"chat.completion"`)
-	assert.Contains(t, body, `"content":"hello"`)
-	assert.Contains(t, body, `"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3`)
-	assert.NotContains(t, body, `"input_sensitive"`)
-	assert.NotContains(t, body, `"output_sensitive"`)
-	assert.NotContains(t, body, `"service_tier"`)
-	assert.NotContains(t, body, `"base_resp"`)
-	assert.NotContains(t, body, `"name"`)
-	assert.NotContains(t, body, `"audio_content"`)
-}
-
-func TestDoResponseForOpenAIStreamStripsMiniMaxFieldsAndMessage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	oldTimeout := appconstant.StreamingTimeout
-	appconstant.StreamingTimeout = 30
-	t.Cleanup(func() { appconstant.StreamingTimeout = oldTimeout })
-
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	c.Set(common.RequestIdKey, "minimax-stream-test")
-
-	info := &relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeChatCompletions,
-		RelayFormat: types.RelayFormatOpenAI,
-		IsStream:    true,
-		DisablePing: true,
-		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "MiniMax-M3",
-		},
-	}
-	streamBody := strings.Join([]string{
-		`data: {"id":"chatcmpl-minimax","object":"chat.completion.chunk","created":1710000000,"model":"MiniMax-M3","choices":[{"index":0,"delta":{"role":"assistant","name":"MiniMax AI","audio_content":""},"finish_reason":null}]}`,
-		`data: {"id":"chatcmpl-minimax","object":"chat.completion.chunk","created":1710000000,"model":"MiniMax-M3","choices":[{"index":0,"delta":{"content":"hello","reasoning_content":"thinking"},"finish_reason":null}]}`,
-		`data: {"id":"chatcmpl-minimax","object":"chat.completion.chunk","created":1710000000,"model":"MiniMax-M3","choices":[{"index":0,"delta":{},"message":{"role":"assistant","content":"hello","name":"MiniMax AI","audio_content":""},"finish_reason":"stop"}],"input_sensitive":false,"output_sensitive":false,"service_tier":"standard","base_resp":{"status_code":0,"status_msg":""}}`,
-		`data: [DONE]`,
-		``,
-	}, "\n")
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-		Body:       ioNopCloser(streamBody),
-	}
-
-	adaptor := &Adaptor{}
-	usage, err := adaptor.DoResponse(c, resp, info)
-
-	require.Nil(t, err)
-	require.NotNil(t, usage)
-	body := recorder.Body.String()
-	assert.Contains(t, body, `"role":"assistant"`)
-	assert.Contains(t, body, `"content":"hello"`)
-	assert.Contains(t, body, `"reasoning_content":"thinking"`)
-	assert.Contains(t, body, `"finish_reason":"stop"`)
-	assert.Contains(t, body, `data: [DONE]`)
-	assert.NotContains(t, body, `"message"`)
-	assert.NotContains(t, body, `"name"`)
-	assert.NotContains(t, body, `"audio_content"`)
-	assert.NotContains(t, body, `"input_sensitive"`)
-	assert.NotContains(t, body, `"output_sensitive"`)
-	assert.NotContains(t, body, `"service_tier"`)
-	assert.NotContains(t, body, `"base_resp"`)
 }
 
 type nopReadCloser struct {

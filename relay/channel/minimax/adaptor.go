@@ -133,9 +133,6 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		adaptor := claude.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
 	default:
-		if info.RelayFormat == types.RelayFormatOpenAI && info.RelayMode == constant.RelayModeChatCompletions {
-			info.ChannelSetting.ForceFormat = true
-		}
 		adaptor := openai.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
 	}
