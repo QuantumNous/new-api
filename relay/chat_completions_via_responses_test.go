@@ -50,6 +50,31 @@ func TestDetectResponsesEventStreamSniffsMissingContentTypeAndPreservesBody(t *t
 	assert.Equal(t, body, string(got))
 }
 
+func TestDetectResponsesEventStreamSkipsLeadingWhitespaceAndBOM(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "leading whitespace", body: " event: response.created\n"},
+		{name: "UTF-8 BOM", body: "\ufeffevent: response.created\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := &http.Response{
+				Header: http.Header{},
+				Body:   io.NopCloser(strings.NewReader(tt.body)),
+			}
+
+			require.True(t, detectResponsesEventStream(resp))
+
+			got, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, tt.body, string(got))
+		})
+	}
+}
+
 func TestDetectResponsesEventStreamLeavesJsonBodyAsNonStream(t *testing.T) {
 	body := `{"id":"resp_1","status":"completed"}`
 	resp := &http.Response{

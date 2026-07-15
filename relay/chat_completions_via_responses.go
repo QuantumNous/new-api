@@ -200,8 +200,9 @@ func detectResponsesEventStream(resp *http.Response) bool {
 		return false
 	}
 
+	const sniffLen = 64
 	reader := bufio.NewReader(resp.Body)
-	peeked, err := reader.Peek(len("event:"))
+	peeked, err := reader.Peek(sniffLen)
 	resp.Body = struct {
 		io.Reader
 		io.Closer
