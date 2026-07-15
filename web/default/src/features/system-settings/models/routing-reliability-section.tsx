@@ -83,6 +83,9 @@ const routingReliabilitySchema = z
         .min(1, 'Interval must be at least 1 minute'),
       channel_test_mode: z.enum(channelTestModes),
     }),
+    channel_limit_setting: z.object({
+      enabled: z.boolean(),
+    }),
   })
   .superRefine((values, ctx) => {
     const disableParsed = parseHttpStatusCodeRules(
@@ -127,6 +130,7 @@ type RoutingReliabilitySectionProps = {
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
     'monitor_setting.channel_test_mode': ChannelTestMode
+    'channel_limit_setting.enabled': boolean
   }
 }
 
@@ -145,6 +149,7 @@ type NormalizedRoutingReliabilityValues = {
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_mode': ChannelTestMode
+  'channel_limit_setting.enabled': boolean
 }
 
 function normalizeChannelTestMode(value?: string): ChannelTestMode {
@@ -172,6 +177,9 @@ const buildFormDefaults = (
       defaults['monitor_setting.channel_test_mode']
     ),
   },
+  channel_limit_setting: {
+    enabled: defaults['channel_limit_setting.enabled'] ?? true,
+  },
 })
 
 const normalizeDefaults = (
@@ -197,6 +205,7 @@ const normalizeDefaults = (
   'monitor_setting.channel_test_mode': normalizeChannelTestMode(
     defaults['monitor_setting.channel_test_mode']
   ),
+  'channel_limit_setting.enabled': defaults['channel_limit_setting.enabled'],
 })
 
 const normalizeFormValues = (
@@ -220,6 +229,7 @@ const normalizeFormValues = (
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
   'monitor_setting.channel_test_mode': values.monitor_setting.channel_test_mode,
+  'channel_limit_setting.enabled': values.channel_limit_setting.enabled,
 })
 
 export function RoutingReliabilitySection({
@@ -463,6 +473,38 @@ export function RoutingReliabilitySection({
                       <FormDescription>
                         {t(
                           'Bring channels back online after successful checks'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className='flex min-w-0 flex-col gap-4'>
+            <div className='flex flex-col gap-1'>
+              <h4 className='text-sm font-medium'>{t('Channel Limits')}</h4>
+            </div>
+            <div className='grid min-w-0 gap-6 lg:grid-cols-3'>
+              <FormField
+                control={form.control}
+                name='channel_limit_setting.enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Channel Limit Enabled')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Master switch for per-channel concurrency limits'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>
