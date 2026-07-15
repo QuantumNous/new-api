@@ -14,8 +14,9 @@ import (
 // When the file exists on disk (e.g. running from the repo root), it is served
 // live so edits take effect without rebuilding the frontend or Go binary.
 var seedanceDiskFiles = map[string]string{
-	"/seedance-debug.html":      "seedance-debug.html",
-	"/docs/seedance-4models.md": "docs/seedance-4models.md",
+	"/seedance-debug.html":                 "seedance-debug.html",
+	"/docs/seedance-4models.md":            "docs/seedance-4models.md",
+	"/docs/seedance-asset-api-user-guide.md": "docs/seedance-asset-api-user-guide.md",
 }
 
 func seedanceDiskOverride() gin.HandlerFunc {
