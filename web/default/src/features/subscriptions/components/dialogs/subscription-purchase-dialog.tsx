@@ -40,6 +40,7 @@ import { Separator } from '@/components/ui/separator'
 import { GroupBadge } from '@/components/group-badge'
 import {
   paySubscriptionStripe,
+  paySubscriptionStripeAutoRenew,
   paySubscriptionCreem,
   paySubscriptionEpay,
 } from '../../api'
@@ -79,7 +80,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const plan = props.plan?.plan
   if (!plan) return null
 
-  const hasStripe = props.enableStripe && !!plan.stripe_price_id
+  const isAutoRenewPlan = plan.billing_mode === 'auto_renew'
+  const hasStripe =
+    props.enableStripe &&
+    !!(isAutoRenewPlan
+      ? plan.stripe_recurring_price_id
+      : plan.stripe_price_id)
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
@@ -98,14 +104,19 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayStripe = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionStripe({ plan_id: plan.id })
-      if (res.message === 'success' && res.data?.pay_link) {
-        window.open(res.data.pay_link, '_blank')
+      // ApiSuccess returns success=true with message="" (not message="success").
+      // One-time pay uses pay_link; auto_renew checkout uses checkout_url.
+      const res = isAutoRenewPlan
+        ? await paySubscriptionStripeAutoRenew({ plan_id: plan.id })
+        : await paySubscriptionStripe({ plan_id: plan.id })
+      const payUrl = res.data?.checkout_url || res.data?.pay_link
+      if (res.success && payUrl) {
+        window.open(payUrl, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
         toast.error(
-          res.message && res.message !== 'success'
+          res.message && res.message !== 'success' && res.message !== ''
             ? res.message
             : t('Payment request failed')
         )
@@ -121,13 +132,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
     setPaying(true)
     try {
       const res = await paySubscriptionCreem({ plan_id: plan.id })
-      if (res.message === 'success' && res.data?.checkout_url) {
-        window.open(res.data.checkout_url, '_blank')
+      const payUrl = res.data?.checkout_url || res.data?.pay_link
+      if (res.success && payUrl) {
+        window.open(payUrl, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
         toast.error(
-          res.message && res.message !== 'success'
+          res.message && res.message !== 'success' && res.message !== ''
             ? res.message
             : t('Payment request failed')
         )

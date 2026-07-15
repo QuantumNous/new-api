@@ -115,6 +115,17 @@ export async function paySubscriptionStripe(
   return res.data
 }
 
+/** Stripe auto_renew Checkout (returns data.checkout_url). */
+export async function paySubscriptionStripeAutoRenew(
+  data: SubscriptionPayRequest
+): Promise<SubscriptionPayResponse> {
+  const res = await api.post(
+    '/api/subscription/stripe/checkout/auto-renew',
+    data
+  )
+  return res.data
+}
+
 export async function paySubscriptionCreem(
   data: SubscriptionPayRequest
 ): Promise<SubscriptionPayResponse> {

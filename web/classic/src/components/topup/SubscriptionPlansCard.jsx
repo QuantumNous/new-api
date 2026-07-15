@@ -137,10 +137,11 @@ const SubscriptionPlansCard = ({
           plan_id: selectedPlan.plan.id,
         },
       );
-      if (res.data?.message === 'success') {
-        redirectToPaymentUrl(
-          isAutoRenew ? res.data.data?.checkout_url : res.data.data?.pay_link,
-        );
+      // ApiSuccess uses success=true and message="" (not message="success").
+      const payUrl =
+        res.data?.data?.checkout_url || res.data?.data?.pay_link;
+      if (res.data?.success && payUrl) {
+        redirectToPaymentUrl(payUrl);
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -192,8 +193,9 @@ const SubscriptionPlansCard = ({
       const res = await API.post('/api/subscription/creem/pay', {
         plan_id: selectedPlan.plan.id,
       });
-      if (res.data?.message === 'success') {
-        redirectToPaymentUrl(res.data.data?.checkout_url);
+      const payUrl = res.data?.data?.checkout_url || res.data?.data?.pay_link;
+      if (res.data?.success && payUrl) {
+        redirectToPaymentUrl(payUrl);
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -225,10 +227,12 @@ const SubscriptionPlansCard = ({
               payment_method: 'alipay',
             },
       );
-      if (res.data?.message === 'success' || res.data?.success) {
-        redirectToPaymentUrl(
-          res.data.data?.checkout_url || res.data.data?.pay_url,
-        );
+      const payUrl =
+        res.data?.data?.checkout_url ||
+        res.data?.data?.pay_url ||
+        res.data?.data?.pay_link;
+      if (res.data?.success && payUrl) {
+        redirectToPaymentUrl(payUrl);
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -256,7 +260,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id,
         payment_method: selectedEpayMethod,
       });
-      if (res.data?.message === 'success') {
+      if (res.data?.success && res.data?.url) {
         submitEpayForm({ url: res.data.url, params: res.data.data });
         showSuccess(t('已发起支付'));
         closeBuy();
