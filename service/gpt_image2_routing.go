@@ -748,7 +748,10 @@ func gptImage2ChannelSupportsRequest(ch *model.Channel, req gptImage2CapabilityR
 			!req.HasStream && !req.HasPartialImages && req.InputFidelity == "" && req.ResponseFormat == "" &&
 			req.Style == "" && !strings.EqualFold(req.Background, "transparent")
 	case 72: // PackyAPI Images API
-		if req.AsyncPath || req.ExplicitOfficial || req.N != 1 || req.HasStream || req.HasPartialImages {
+		// The public async endpoint is also compatible with Packy's synchronous
+		// Images API: the adaptor rewrites /generations/async to /generations and
+		// the response handler wraps the completed image in a local task.
+		if req.ExplicitOfficial || req.N != 1 || req.HasStream || req.HasPartialImages {
 			return false
 		}
 		if req.EditsPath {

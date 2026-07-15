@@ -256,4 +256,5 @@ func TestPrepareGptImage2AsyncIgnoresResponseFormat(t *testing.T) {
 	require.True(t, req.AsyncPath)
 	require.Empty(t, req.ResponseFormat)
 	require.True(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 59}, req))
+	require.True(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 72}, req))
 }
