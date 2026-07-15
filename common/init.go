@@ -108,7 +108,15 @@ func InitEnv() {
 	BatchUpdateInterval = GetEnvOrDefault("BATCH_UPDATE_INTERVAL", 5)
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
 	RelayResponseHeaderTimeout = GetEnvOrDefault("RELAY_RESPONSE_HEADER_TIMEOUT", 60)
-	RelayStreamResponseHeaderTimeout = GetEnvOrDefault("RELAY_STREAM_RESPONSE_HEADER_TIMEOUT", 30)
+	// Streaming response-header timeout: how long to wait for the upstream to
+	// send HTTP response headers (the 200, before any body/token). Healthy
+	// upstreams return headers in a few seconds — first-token latency (5-8s
+	// observed) happens after headers — so 15s is ~2x the healthy margin. A
+	// stuck/overloaded upstream that hasn't sent headers by then is a dead end;
+	// failing over at 15s instead of 30s halves the wasted time per bad channel
+	// and lets more channels be tried within RELAY_MAX_RETRY_DURATION. Reasoning
+	// latency is unaffected (it is in the body, not the headers).
+	RelayStreamResponseHeaderTimeout = GetEnvOrDefault("RELAY_STREAM_RESPONSE_HEADER_TIMEOUT", 15)
 	RelayDialTimeout = GetEnvOrDefault("RELAY_DIAL_TIMEOUT", 10)
 	RelayTLSHandshakeTimeout = GetEnvOrDefault("RELAY_TLS_HANDSHAKE_TIMEOUT", 10)
 	RelayMaxRetryDuration = GetEnvOrDefault("RELAY_MAX_RETRY_DURATION", 120)
