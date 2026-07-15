@@ -210,6 +210,35 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	return nil, errors.New("channel not found")
 }
 
+// GetSatisfiedChannels returns every enabled channel that can serve the
+// request, ordered by descending priority. The returned slice is independent
+// from the cached channel ID slices and is safe for the caller to reorder.
+func GetSatisfiedChannels(group string, modelName string, requestPath string, excludeIDs []int) ([]*Channel, error) {
+	if !common.MemoryCacheEnabled {
+		return getSatisfiedChannelsFromDB(group, modelName, requestPath, excludeIDs)
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	channelIDs := filterChannelsByRequestPathAndModel(group2model2channels[group][modelName], requestPath, modelName)
+	if len(channelIDs) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
+		channelIDs = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, modelName)
+	}
+	channelIDs = excludeChannelIDs(channelIDs, excludeIDs)
+
+	channels := make([]*Channel, 0, len(channelIDs))
+	for _, channelID := range channelIDs {
+		channel, ok := channelsIDM[channelID]
+		if !ok {
+			return nil, fmt.Errorf("channel #%d does not exist", channelID)
+		}
+		channels = append(channels, channel)
+	}
+	return channels, nil
+}
+
 // filterChannelsByRequestPathAndModel restricts candidates by request path and
 // model. Only Advanced Custom (type 58) channels are path-checked: they are kept
 // only when one of their configured routes matches requestPath and model. All
