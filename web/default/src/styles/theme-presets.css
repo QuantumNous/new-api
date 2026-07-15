@@ -426,10 +426,11 @@ For commercial licensing, please contact support@quantumnous.com
  *   - `anthropic`: warm cream surfaces are a brand choice, NOT a primary-mix
  *     derivation (the Anthropic system deliberately uses warm neutrals for
  *     cards/borders rather than tinting them with the clay accent).
- *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces. */
+ *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces.
+ *   - `opencode`: ships its own warm neutral surface ladder. */
 [data-theme-preset]:not([data-theme-preset='default']):not(
-    [data-theme-preset='anthropic']
-  ):not([data-theme-preset='simple-large']) {
+  [data-theme-preset='anthropic']
+):not([data-theme-preset='simple-large']):not([data-theme-preset='opencode']) {
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
@@ -454,7 +455,9 @@ For commercial licensing, please contact support@quantumnous.com
 .dark
   [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='anthropic']
-  ):not([data-theme-preset='simple-large']) {
+  ):not([data-theme-preset='simple-large']):not(
+    [data-theme-preset='opencode']
+  ) {
   --card: color-mix(in oklch, var(--primary) 8%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 12%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 12%, var(--background));
@@ -469,6 +472,126 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar: color-mix(in oklch, var(--primary) 5%, var(--background));
   --sidebar-accent: color-mix(in oklch, var(--primary) 18%, var(--background));
   --sidebar-border: color-mix(in oklch, var(--primary) 22%, var(--background));
+}
+
+/* ── OpenCode ─────────────────────────────────────────────────────────── */
+/* Warm neutral surfaces come from opencode.ai. Functional colors follow
+ * OpenCode's official application palette so charts and statuses remain
+ * distinguishable inside the intentionally monochrome product shell. */
+[data-theme-preset='opencode'] {
+  --background: hsl(0 20% 99%);
+  --foreground: hsl(0 5% 12%);
+  --card: hsl(0 8% 97%);
+  --card-foreground: hsl(0 5% 12%);
+  --popover: hsl(0 8% 97%);
+  --popover-foreground: hsl(0 5% 12%);
+
+  --primary: hsl(0 5% 12%);
+  --primary-foreground: hsl(0 20% 99%);
+  --secondary: hsl(0 8% 94%);
+  --secondary-foreground: hsl(0 5% 12%);
+  --muted: hsl(0 8% 97%);
+  --muted-foreground: hsl(0 1% 39%);
+  --accent: hsl(64 74% 95%);
+  --accent-foreground: hsl(0 5% 12%);
+
+  --destructive: #d1383d;
+  --destructive-foreground: hsl(0 20% 99%);
+  --success: #3d9a57;
+  --success-foreground: hsl(0 5% 12%);
+  --warning: #d68c27;
+  --warning-foreground: hsl(0 5% 12%);
+  --info: #318795;
+  --info-foreground: #0a0a0a;
+  --neutral: hsl(0 1% 39%);
+  --neutral-foreground: hsl(0 20% 99%);
+
+  --border: hsl(0 100% 3% / 12%);
+  --input: hsl(30 2% 81%);
+  --ring: #034cff;
+
+  --chart-1: #3b7dd8;
+  --chart-2: #7b5bb6;
+  --chart-3: #d68c27;
+  --chart-4: #3d9a57;
+  --chart-5: #318795;
+
+  --sidebar: hsl(0 8% 97%);
+  --sidebar-foreground: hsl(0 5% 12%);
+  --sidebar-primary: hsl(0 5% 12%);
+  --sidebar-primary-foreground: hsl(0 20% 99%);
+  --sidebar-accent: hsl(64 74% 95%);
+  --sidebar-accent-foreground: hsl(0 5% 12%);
+  --sidebar-border: hsl(0 100% 3% / 12%);
+  --sidebar-ring: #034cff;
+
+  --skeleton-base: hsl(0 8% 94%);
+  --skeleton-highlight: hsl(0 20% 99%);
+  --table-row: var(--background);
+  --table-header: var(--card);
+  --table-header-hover: var(--secondary);
+  --table-disabled: hsl(0 8% 94%);
+  --table-disabled-hover: hsl(0 8% 91%);
+  --table-disabled-border: hsl(0 100% 3% / 18%);
+
+  --radius: 0rem;
+  --font-body: var(--font-opencode-mono);
+}
+.dark [data-theme-preset='opencode'] {
+  --background: hsl(0 9% 7%);
+  --foreground: hsl(0 15% 94%);
+  --card: hsl(0 6% 10%);
+  --card-foreground: hsl(0 15% 94%);
+  --popover: hsl(0 6% 15%);
+  --popover-foreground: hsl(0 15% 94%);
+
+  --primary: hsl(0 15% 94%);
+  --primary-foreground: hsl(0 9% 7%);
+  --secondary: hsl(0 6% 15%);
+  --secondary-foreground: hsl(0 15% 94%);
+  --muted: hsl(0 6% 10%);
+  --muted-foreground: hsl(0 4% 71%);
+  --accent: #091f52;
+  --accent-foreground: #ededed;
+
+  --destructive: #e06c75;
+  --destructive-foreground: hsl(0 9% 7%);
+  --success: #7fd88f;
+  --success-foreground: hsl(0 9% 7%);
+  --warning: #f5a742;
+  --warning-foreground: hsl(0 9% 7%);
+  --info: #56b6c2;
+  --info-foreground: hsl(0 9% 7%);
+  --neutral: hsl(0 2% 49%);
+  --neutral-foreground: hsl(0 9% 7%);
+
+  --border: hsl(0 4% 23%);
+  --input: hsl(0 3% 28%);
+  --ring: #9dbefe;
+
+  --chart-1: #fab283;
+  --chart-2: #5c9cf5;
+  --chart-3: #9d7cd8;
+  --chart-4: #7fd88f;
+  --chart-5: #56b6c2;
+
+  --sidebar: hsl(0 6% 10%);
+  --sidebar-foreground: hsl(0 15% 94%);
+  --sidebar-primary: hsl(0 15% 94%);
+  --sidebar-primary-foreground: hsl(0 9% 7%);
+  --sidebar-accent: #091f52;
+  --sidebar-accent-foreground: #ededed;
+  --sidebar-border: hsl(0 4% 23%);
+  --sidebar-ring: #9dbefe;
+
+  --skeleton-base: hsl(0 6% 15%);
+  --skeleton-highlight: hsl(0 3% 28%);
+  --table-row: var(--background);
+  --table-header: var(--card);
+  --table-header-hover: hsl(0 6% 15%);
+  --table-disabled: hsl(0 6% 13%);
+  --table-disabled-hover: hsl(0 6% 17%);
+  --table-disabled-border: hsl(0 3% 28%);
 }
 
 /* ── Anthropic ────────────────────────────────────────────────────────── */
@@ -617,8 +740,8 @@ For commercial licensing, please contact support@quantumnous.com
  * presets may set `--font-body` (Anthropic → serif), and the user's
  * explicit Font choice wins because these blocks sit AFTER preset blocks.
  *
- * The provider resolves `font: 'default'` → `'sans' | 'serif'` against the
- * active preset before writing the attribute, so the DOM always carries a
+ * The provider resolves `font: 'default'` → `'sans' | 'serif' | 'mono'`
+ * against the active preset before writing the attribute, so the DOM always carries a
  * concrete value and CSS only needs the simple `[data-theme-font='serif']`
  * selector below (no `:not()`, no per-preset branches). */
 [data-theme-font='sans'] {
@@ -626,6 +749,17 @@ For commercial licensing, please contact support@quantumnous.com
 }
 [data-theme-font='serif'] {
   --font-body: var(--font-serif);
+}
+[data-theme-font='mono'] {
+  --font-body: var(--font-opencode-mono);
+  --font-mono: var(--font-opencode-mono);
+  font-feature-settings:
+    'kern' 1,
+    'liga' 1,
+    'calt' 1,
+    'zero' 1,
+    'tnum' 1;
+  letter-spacing: 0;
 }
 
 /* ── Serif typography refinements ────────────────────────────────────────

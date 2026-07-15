@@ -18,6 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 @custom-variant dark (&:is(.dark *));
 
+@property --radius {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 16px;
+}
+
+body[data-theme-radius-transition='active'] {
+  transition: --radius 1500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body[data-theme-radius-transition='active'] *,
+body[data-theme-radius-transition='active'] *::before,
+body[data-theme-radius-transition='active'] *::after {
+  transition-property:
+    color, background-color, border-color, text-decoration-color, fill, stroke,
+    opacity, box-shadow, transform, translate, scale, rotate, filter,
+    backdrop-filter !important;
+}
+
 @theme inline {
   --font-sans: 'Public Sans', sans-serif;
   /* Editorial serif token — the body face used by the `serif` font axis
@@ -98,10 +117,13 @@ For commercial licensing, please contact support@quantumnous.com
   --app-header-height: 3rem;
   /* Static build-channel fallback consumed when JS hasn't booted yet. */
   --app-rev: '2k6e8r7p';
-  /* Currently active body font. The font axis swaps this between
-   * `--font-sans` and `--font-serif` via `[data-theme-font='...']` blocks
-   * in theme-presets.css. Default mirrors `--font-sans` so behavior is
-   * identical when no font preference is set. */
+  --font-opencode-mono:
+    'IBM Plex Mono', 'Noto Sans Mono CJK SC', 'Noto Sans Mono CJK TC',
+    'Noto Sans Mono CJK JP', 'Cascadia Mono', 'SFMono-Regular', Consolas,
+    'Liberation Mono', 'Microsoft YaHei UI', monospace;
+  /* Currently active body font. The font axis swaps this between the sans,
+   * serif, and OpenCode mono stacks via `[data-theme-font='...']` blocks in
+   * theme-presets.css. Default mirrors `--font-sans`. */
   --font-body: var(--font-sans);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -161,7 +183,11 @@ For commercial licensing, please contact support@quantumnous.com
   );
   /* Disabled rows: kept subtle so they read as "quiet", not as a colored
      alert state. */
-  --table-disabled: color-mix(in oklch, var(--foreground) 3%, var(--background));
+  --table-disabled: color-mix(
+    in oklch,
+    var(--foreground) 3%,
+    var(--background)
+  );
   --table-disabled-hover: color-mix(
     in oklch,
     var(--foreground) 4.5%,
@@ -225,7 +251,11 @@ For commercial licensing, please contact support@quantumnous.com
     var(--foreground) 9%,
     var(--background)
   );
-  --table-disabled: color-mix(in oklch, var(--foreground) 7%, var(--background));
+  --table-disabled: color-mix(
+    in oklch,
+    var(--foreground) 7%,
+    var(--background)
+  );
   --table-disabled-hover: color-mix(
     in oklch,
     var(--foreground) 9.5%,

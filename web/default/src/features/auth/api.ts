@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import { clearDevAuthSession, startDevAuthSession } from '@/lib/dev-auth'
 
 import type {
   LoginPayload,
@@ -37,6 +38,15 @@ import type {
 
 // User login with username and password
 export async function login(payload: LoginPayload) {
+  if (import.meta.env.DEV) {
+    const user = startDevAuthSession(payload.username)
+    return {
+      success: true,
+      message: '',
+      data: { id: user?.id },
+    }
+  }
+
   const turnstile = payload.turnstile ?? ''
   const res = await api.post<LoginResponse>(
     `/api/user/login?turnstile=${turnstile}`,
@@ -56,6 +66,11 @@ export async function login2fa(payload: TwoFAPayload) {
 
 // User logout
 export async function logout(): Promise<ApiResponse> {
+  if (import.meta.env.DEV) {
+    clearDevAuthSession()
+    return { success: true, message: '' }
+  }
+
   const res = await api.get('/api/user/logout')
   return res.data
 }

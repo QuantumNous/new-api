@@ -38,6 +38,13 @@ export const THEME_PRESETS = [
     swatches: ['oklch(0.984 0.005 95)', 'oklch(0.685 0.142 38)'],
   },
   {
+    // OpenCode's product language is built on warm near-black/near-white
+    // surfaces, hairline borders, and a restrained blue interaction accent.
+    value: 'opencode',
+    name: 'OpenCode',
+    swatches: ['hsl(0 5% 12%)', 'hsl(30 2% 81%)'],
+  },
+  {
     value: 'simple-large',
     name: 'Simple Large-font',
     swatches: ['oklch(0.15 0 0)', 'oklch(0.99 0 0)'],
@@ -88,9 +95,9 @@ export type ContentLayout = 'full' | 'centered'
  * Font axis for the theme.
  *
  * - `default` — resolve at runtime from the active preset
- *   (see `PRESET_DEFAULT_FONT`). The shipped `default` and `anthropic`
- *   presets resolve to serif; other named color presets fall back to
- *   sans unless they list a different choice. Mirrors how
+ *   (see `PRESET_DEFAULT_FONT`). Anthropic resolves to serif and OpenCode
+ *   resolves to mono; other named presets fall back to sans unless they list
+ *   a different choice. Mirrors how
  *   `radius: 'default'` defers to a per-preset hint.
  * - `sans` — humanist sans (Public Sans), the project's UI fallback.
  * - `serif` — editorial serif (Lora + CJK fallbacks), the project's
@@ -105,7 +112,7 @@ export type ThemeFont = 'default' | 'sans' | 'serif'
  * needs simple attribute selectors (no `:not()` gymnastics, no per-preset
  * font branches).
  */
-export type ResolvedThemeFont = Exclude<ThemeFont, 'default'>
+export type ResolvedThemeFont = Exclude<ThemeFont, 'default'> | 'mono'
 
 export type ThemeCustomization = {
   preset: ThemePreset
@@ -178,6 +185,7 @@ export const PRESET_DEFAULT_FONT: Partial<
 > = {
   default: 'sans',
   anthropic: 'serif',
+  opencode: 'mono',
 }
 
 /**

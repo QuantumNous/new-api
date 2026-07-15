@@ -20,6 +20,7 @@ import axios, { type AxiosRequestConfig } from 'axios'
 import { t } from 'i18next'
 import { toast } from 'sonner'
 
+import { getDevAuthUser, isDevAuthSession } from '@/lib/dev-auth'
 import { useAuthStore } from '@/stores/auth-store'
 
 declare module 'axios' {
@@ -65,7 +66,8 @@ api.get = ((url: string, config: ApiRequestConfig = {}) => {
   const key = `${url}?${params}`
 
   // Return existing in-flight request if available
-  if (inFlightGet.has(key)) return inFlightGet.get(key)!
+  const inFlightRequest = inFlightGet.get(key)
+  if (inFlightRequest) return inFlightRequest
 
   // Create new request and clean up after completion
   const req = originalGet(url, config).finally(() => inFlightGet.delete(key))
@@ -100,6 +102,17 @@ api.interceptors.response.use(
   (error) => {
     const skip = error?.config?.skipErrorHandler
     const status = error?.response?.status
+    const isDevTokenVerificationFailure =
+      import.meta.env.DEV &&
+      [401, 403].includes(status ?? 0) &&
+      error?.response?.data?.message === 'token verify failed!'
+
+    if (
+      isDevTokenVerificationFailure ||
+      (isDevAuthSession() && [401, 403].includes(status ?? 0))
+    ) {
+      return Promise.reject(error)
+    }
 
     if (status === 401) {
       try {
@@ -161,6 +174,12 @@ export function getCommonHeaders(): Record<string, string> {
 
 // Attach user ID header for all requests
 api.interceptors.request.use((config) => {
+  if (isDevAuthSession()) {
+    config.skipBusinessError = true
+    config.skipErrorHandler = true
+    return config
+  }
+
   const uid = getUserId()
   if (uid) {
     // Custom header for user identification
@@ -179,6 +198,11 @@ api.interceptors.request.use((config) => {
 
 // Get current user info
 export async function getSelf() {
+  const devUser = getDevAuthUser()
+  if (devUser) {
+    return { success: true, message: '', data: devUser }
+  }
+
   const res = await api.get('/api/user/self', {
     // Avoid global 401 toast during guards/preloads
     skipErrorHandler: true,

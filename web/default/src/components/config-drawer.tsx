@@ -309,8 +309,8 @@ function PresetConfig() {
  * `Auto` deliberately leaves `fontFamily` undefined so the preview inherits
  * the currently active body font — that way the user sees what `Auto` will
  * actually look like for the active preset (Anthropic → serif glyphs,
- * everything else → sans glyphs) without us having to duplicate the
- * preset-default mapping in the UI.
+ * OpenCode → mono glyphs, everything else → sans glyphs) without us having to
+ * duplicate the preset-default mapping in the UI.
  */
 const FONT_OPTIONS: {
   value: ThemeFont
@@ -392,7 +392,7 @@ const RADIUS_OPTIONS: {
   // CSS border-radius value used to render the visual preview corner.
   preview: string
 }[] = [
-  { value: 'default', label: 'Auto', preview: '1rem' },
+  { value: 'default', label: 'Auto', preview: 'var(--radius)' },
   { value: 'none', label: '0', preview: '0' },
   { value: 'sm', label: '0.3', preview: '0.3rem' },
   { value: 'md', label: '0.5', preview: '0.5rem' },

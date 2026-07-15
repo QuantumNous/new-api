@@ -76,6 +76,7 @@ export function UserAuthForm({
     status?.passkey_login ?? status?.data?.passkey_login
   )
   const passwordLoginEnabled =
+    import.meta.env.DEV ||
     (status?.password_login_enabled ??
       status?.data?.password_login_enabled ??
       true) !== false
@@ -90,7 +91,8 @@ export function UserAuthForm({
 
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
-  const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
+  const requiresLegalConsent =
+    !import.meta.env.DEV && (hasUserAgreement || hasPrivacyPolicy)
   const passkeyButtonDisabled =
     isPasskeyLoading ||
     !passkeySupported ||
@@ -149,7 +151,7 @@ export function UserAuthForm({
       return
     }
 
-    if (!validateTurnstile()) return
+    if (!import.meta.env.DEV && !validateTurnstile()) return
 
     setIsLoading(true)
     try {
@@ -168,7 +170,7 @@ export function UserAuthForm({
         await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
         toast.success(t('Welcome back!'))
       }
-    } catch (_error) {
+    } catch {
       // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)
@@ -208,7 +210,7 @@ export function UserAuthForm({
       } else {
         toast.error(res?.message || loginFailedMessage)
       }
-    } catch (_error) {
+    } catch {
       toast.error(loginFailedMessage)
     } finally {
       setIsWeChatSubmitting(false)
@@ -383,7 +385,7 @@ export function UserAuthForm({
             </Button>
 
             {/* Turnstile */}
-            {isTurnstileEnabled && (
+            {!import.meta.env.DEV && isTurnstileEnabled && (
               <div className='mt-2'>
                 <Turnstile
                   siteKey={turnstileSiteKey}
@@ -394,12 +396,14 @@ export function UserAuthForm({
           </>
         )}
 
-        <LegalConsent
-          status={status}
-          checked={agreedToLegal}
-          onCheckedChange={setAgreedToLegal}
-          className='mt-1'
-        />
+        {!import.meta.env.DEV && (
+          <LegalConsent
+            status={status}
+            checked={agreedToLegal}
+            onCheckedChange={setAgreedToLegal}
+            className='mt-1'
+          />
+        )}
 
         {!hasAlternativeLogin && alternativeLoginMethods}
       </form>

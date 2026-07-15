@@ -21,6 +21,7 @@ import i18n from 'i18next'
 
 import type { User } from '@/features/users/types'
 import { getSelf } from '@/lib/api'
+import { isDevAuthSession } from '@/lib/dev-auth'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { saveUserId } from '../lib/storage'
@@ -60,7 +61,7 @@ export function useAuthRedirect() {
     redirectTo?: string
   ) => {
     // Save user ID if available
-    if (userData?.id) {
+    if (userData?.id && !isDevAuthSession()) {
       saveUserId(userData.id)
     }
 
@@ -72,7 +73,7 @@ export function useAuthRedirect() {
         auth.setUser(user)
 
         // Update user ID if not already set
-        if (user.id) {
+        if (user.id && !isDevAuthSession()) {
           saveUserId(user.id)
         }
 

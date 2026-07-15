@@ -44,6 +44,7 @@ import {
 } from '@/lib/theme-customization'
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
+const RADIUS_TRANSITION_DURATION = 1500
 
 function readCookie<T extends string>(
   name: string,
@@ -63,6 +64,20 @@ function applyAttribute(name: string, value: string | null) {
   } else {
     body.setAttribute(name, value)
   }
+}
+
+let radiusTransitionTimer: number | undefined
+
+function triggerRadiusTransition() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return
+  document.body.setAttribute('data-theme-radius-transition', 'active')
+  if (radiusTransitionTimer !== undefined) {
+    window.clearTimeout(radiusTransitionTimer)
+  }
+  radiusTransitionTimer = window.setTimeout(() => {
+    document.body.removeAttribute('data-theme-radius-transition')
+    radiusTransitionTimer = undefined
+  }, RADIUS_TRANSITION_DURATION + 100)
 }
 
 type ThemeCustomizationContextType = {
@@ -171,6 +186,7 @@ export function ThemeCustomizationProvider(props: {
   }, [contentLayout])
 
   const setPreset = useCallback((value: ThemePreset) => {
+    triggerRadiusTransition()
     _setPreset(value)
     if (value === DEFAULT_THEME_CUSTOMIZATION.preset) {
       removeCookie(THEME_COOKIE_KEYS.preset)
@@ -189,6 +205,7 @@ export function ThemeCustomizationProvider(props: {
   }, [])
 
   const setRadius = useCallback((value: ThemeRadius) => {
+    triggerRadiusTransition()
     _setRadius(value)
     if (value === DEFAULT_THEME_CUSTOMIZATION.radius) {
       removeCookie(THEME_COOKIE_KEYS.radius)

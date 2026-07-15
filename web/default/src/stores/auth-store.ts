@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { create } from 'zustand'
 
 import type { AdminCapabilities } from '@/lib/admin-permissions'
+import {
+  clearDevAuthSession,
+  getDevAuthUser,
+  isDevAuthSession,
+} from '@/lib/dev-auth'
 
 export type UserPermissions = {
   sidebar_settings?: boolean
@@ -66,6 +71,15 @@ export const useAuthStore = create<AuthState>()((set) => {
   const initUser = (() => {
     try {
       if (typeof window !== 'undefined') {
+        if (import.meta.env.DEV) {
+          const devUser = getDevAuthUser()
+          if (devUser) return devUser
+
+          window.localStorage.removeItem('user')
+          window.localStorage.removeItem('uid')
+          return null
+        }
+
         const saved = window.localStorage.getItem('user')
         return saved ? JSON.parse(saved) : null
       }
@@ -85,7 +99,9 @@ export const useAuthStore = create<AuthState>()((set) => {
         set((state) => {
           // Persist user to localStorage
           if (typeof window !== 'undefined') {
-            if (user) {
+            if (import.meta.env.DEV && isDevAuthSession()) {
+              window.localStorage.removeItem('user')
+            } else if (user) {
               window.localStorage.setItem('user', JSON.stringify(user))
             } else {
               window.localStorage.removeItem('user')
@@ -97,6 +113,7 @@ export const useAuthStore = create<AuthState>()((set) => {
         set((state) => {
           if (typeof window !== 'undefined') {
             window.localStorage.removeItem('user')
+            clearDevAuthSession()
           }
           return {
             ...state,
