@@ -49,3 +49,27 @@ func TestRouteCandidateInputPriceStoredRowWinsOverManualPublicPricing(t *testing
 		t.Fatalf("price=%v want 0.75", got)
 	}
 }
+
+func TestMappedPricingRowOverridesCheaperCanonicalFallback(t *testing.T) {
+	mapping := `{"gpt-image-2":"gpt-image-2-official"}`
+	candidate := pricedRouteCandidate{ModelMapping: &mapping}
+
+	applyPricedCandidateRow(&candidate, "gpt-image-2", "gpt-image-2", 0.0085)
+	applyPricedCandidateRow(&candidate, "gpt-image-2", "gpt-image-2-official", 0.16872)
+
+	if !candidate.HasMappedInputPrice {
+		t.Fatal("expected mapped price to be resolved")
+	}
+	if candidate.InputPrice != 0.16872 {
+		t.Fatalf("price=%v want mapped official price 0.16872", candidate.InputPrice)
+	}
+}
+
+func TestPricedCandidateIgnoresUnrelatedModelRows(t *testing.T) {
+	candidate := pricedRouteCandidate{}
+	applyPricedCandidateRow(&candidate, "gpt-image-2", "unrelated-cheap-model", 0.00001)
+	applyPricedCandidateRow(&candidate, "gpt-image-2", "gpt-image-2", 0.05)
+	if candidate.InputPrice != 0.05 {
+		t.Fatalf("price=%v want canonical price 0.05", candidate.InputPrice)
+	}
+}

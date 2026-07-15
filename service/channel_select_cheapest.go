@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -225,6 +226,8 @@ func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bo
 	type pricedCandidateRow struct {
 		ChannelID           int
 		Setting             *string
+		ModelMapping        *string
+		PricingModelName    *string
 		InputPrice          *float64
 		RechargeRate        *float64
 		ApimasterPriceRatio *float64
@@ -234,8 +237,11 @@ func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bo
 	var rows []pricedCandidateRow
 
 	q := model.DB.Table("channels c").
-		Select(`c.id AS channel_id, c.setting, p.input_price, c.recharge_rate, c.apimaster_price_ratio, c.model_price_ratios, c.priority`).
-		Joins("LEFT JOIN channel_model_pricings p ON p.channel_id = c.id AND p.model_name IN ? AND p.input_price > 0", candidates).
+		Select(`c.id AS channel_id, c.setting, c.model_mapping, p.model_name AS pricing_model_name, p.input_price, c.recharge_rate, c.apimaster_price_ratio, c.model_price_ratios, c.priority`).
+		// Join all pricing rows for eligible channels so a per-channel model_mapping
+		// target can be resolved in Go without database-specific JSON operators.
+		// applyPricedCandidateRow filters unrelated model rows below.
+		Joins("LEFT JOIN channel_model_pricings p ON p.channel_id = c.id AND p.input_price > 0").
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
 		Where(modelsMatchClause, modelsMatchArgs...).
@@ -256,15 +262,19 @@ func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bo
 			candidate = pricedRouteCandidate{
 				ChannelID:    row.ChannelID,
 				Setting:      row.Setting,
+				ModelMapping: row.ModelMapping,
 				RechargeRate: floatPointerOrDefault(row.RechargeRate, 1),
 				// per-model override > channel default > 1.0
 				ApimasterPriceRatio: EffectiveModelPriceRatio(row.ModelPriceRatios, row.ApimasterPriceRatio, modelName),
 				Priority:            int64PointerOrDefault(row.Priority, 0),
 			}
 		}
-		if row.InputPrice != nil && *row.InputPrice > 0 && (!candidate.HasInputPrice || *row.InputPrice < candidate.InputPrice) {
-			candidate.InputPrice = *row.InputPrice
-			candidate.HasInputPrice = true
+		if row.InputPrice != nil && *row.InputPrice > 0 {
+			pricingModelName := ""
+			if row.PricingModelName != nil {
+				pricingModelName = *row.PricingModelName
+			}
+			applyPricedCandidateRow(&candidate, modelName, pricingModelName, *row.InputPrice)
 		}
 		candidatesByChannel[row.ChannelID] = candidate
 	}
@@ -289,11 +299,37 @@ func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bo
 type pricedRouteCandidate struct {
 	ChannelID           int
 	Setting             *string
+	ModelMapping        *string
 	InputPrice          float64
 	HasInputPrice       bool
+	HasMappedInputPrice bool
 	RechargeRate        float64
 	ApimasterPriceRatio float64
 	Priority            int64
+}
+
+func applyPricedCandidateRow(candidate *pricedRouteCandidate, modelName, pricingModelName string, inputPrice float64) {
+	if candidate == nil || inputPrice <= 0 {
+		return
+	}
+	target := ModelMappingTarget(candidate.ModelMapping, modelName)
+	if target != "" && pricingModelName == target {
+		if !candidate.HasMappedInputPrice || inputPrice < candidate.InputPrice {
+			candidate.InputPrice = inputPrice
+			candidate.HasInputPrice = true
+			candidate.HasMappedInputPrice = true
+		}
+		return
+	}
+	if !slices.Contains(ModelPricingLookupNames(modelName), pricingModelName) {
+		return
+	}
+	if !candidate.HasMappedInputPrice && (!candidate.HasInputPrice || inputPrice < candidate.InputPrice) {
+		// Keep a canonical/alias price as fallback only when the mapped target
+		// has no stored price, matching LookupPreferredChannelPricingRow.
+		candidate.InputPrice = inputPrice
+		candidate.HasInputPrice = true
+	}
 }
 
 func routeCandidateUserInputPrice(candidate pricedRouteCandidate, modelName string, globalInputUSD float64) (float64, bool) {
