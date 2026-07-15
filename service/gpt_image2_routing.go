@@ -760,7 +760,7 @@ func gptImage2ChannelSupportsRequest(ch *model.Channel, req gptImage2CapabilityR
 	case 73, 81: // APIMart gpt-image-2 generation
 		return !req.ExplicitOfficial && !req.EditsPath && !req.Multipart && req.N >= 1 && req.N <= 10 &&
 			req.ImageURLCount <= 16 && !req.HasMaskURL && !req.HasStream && !req.HasPartialImages &&
-			req.Quality == "" && req.Background == "" && req.OutputFormat == "" && !req.OutputCompression &&
+			req.Background == "" && req.OutputFormat == "" && !req.OutputCompression &&
 			req.ResponseFormat == "" && req.Moderation == "" && req.InputFidelity == "" && req.User == "" && req.Style == ""
 	default:
 		// Unknown channels must opt in with an explicit capability implementation;

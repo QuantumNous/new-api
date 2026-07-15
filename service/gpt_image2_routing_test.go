@@ -163,9 +163,9 @@ func TestGptImage2DocumentDrivenChannelCapabilities(t *testing.T) {
 			want: map[int]bool{59: false, 72: false, 73: true, 81: true},
 		},
 		{
-			name: "quality is documented by official and Packy only",
+			name: "quality is supported by every generation provider",
 			body: `{"model":"gpt-image-2","prompt":"x","quality":"high"}`,
-			want: map[int]bool{59: true, 72: true, 73: false, 81: false},
+			want: map[int]bool{59: true, 72: true, 73: true, 81: true},
 		},
 		{
 			name: "mask URL is an official APIMart generation capability",
