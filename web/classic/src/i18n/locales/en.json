@@ -3842,6 +3842,13 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "Seedance 素材网关": "Seedance Asset Gateway",
+    "将 /api/seedance 素材组与真人认证接口转发到 83zi 渠道，并按用户做本地归属隔离": "Forward /api/seedance asset-group and real-person APIs to an 83zi channel with local user ownership",
+    "启用 Seedance 素材 API": "Enable Seedance asset APIs",
+    "GET 时回源刷新素材状态": "Refresh asset status on GET",
+    "网关渠道 ID": "Gateway channel ID",
+    "渠道 Base URL 指向 83zi（如 http://s.83zi.com），Key 为该站 sk-": "Channel Base URL should point to 83zi (e.g. http://s.83zi.com); Key is that site sk-",
+    "保存 Seedance 素材设置": "Save Seedance asset settings"
   }
 }

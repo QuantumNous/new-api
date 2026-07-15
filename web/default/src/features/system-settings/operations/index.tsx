@@ -65,6 +65,9 @@ const defaultOperationsSettings: OperationsSettings = {
   'perf_metrics_setting.flush_interval': 5,
   'perf_metrics_setting.bucket_time': 'hour',
   'perf_metrics_setting.retention_days': 0,
+  'seedance_asset.enabled': false,
+  'seedance_asset.gateway_channel_id': 0,
+  'seedance_asset.refresh_on_get': true,
 }
 
 export function OperationsSettings() {
@@ -95,6 +98,7 @@ export function OperationsSettings() {
     | 'worker'
     | 'logs'
     | 'performance'
+    | 'seedance-asset'
     | 'update-checker'
   const sectionContent = getOperationsSectionContent(
     activeSection,

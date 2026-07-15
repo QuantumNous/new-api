@@ -320,6 +320,9 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
+  'seedance_asset.enabled': boolean
+  'seedance_asset.gateway_channel_id': number
+  'seedance_asset.refresh_on_get': boolean
 }
 
 export type SecuritySettings = {

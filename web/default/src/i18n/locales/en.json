@@ -1758,7 +1758,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -4470,6 +4470,15 @@
     "operation and charging behavior": "operation and charging behavior",
     "，": ", ",
     "，and ": ", and ",
-    "、": ", "
+    "、": ", ",
+    "Seedance Asset Gateway": "Seedance Asset Gateway",
+    "Proxy seedance asset APIs to an 83zi gateway channel with local user ownership": "Proxy seedance asset APIs to an 83zi gateway channel with local user ownership",
+    "Enable Seedance asset APIs": "Enable Seedance asset APIs",
+    "Expose /api/seedance asset-group and real-person endpoints": "Expose /api/seedance asset-group and real-person endpoints",
+    "Gateway channel ID": "Gateway channel ID",
+    "Channel whose Base URL points to 83zi (e.g. http://s.83zi.com) and Key is that site sk-": "Channel whose Base URL points to 83zi (e.g. http://s.83zi.com) and Key is that site sk-",
+    "Refresh asset status on GET": "Refresh asset status on GET",
+    "When enabled, GET /api/seedance/assets/{id} refreshes status from the gateway": "When enabled, GET /api/seedance/assets/{id} refreshes status from the gateway",
+    "Save Seedance asset settings": "Save Seedance asset settings"
   }
 }

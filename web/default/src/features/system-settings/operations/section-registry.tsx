@@ -25,6 +25,7 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { SeedanceAssetSettingsSection } from './seedance-asset-settings-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -139,6 +140,21 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'seedance-asset',
+    titleKey: 'Seedance Asset Gateway',
+    descriptionKey:
+      'Proxy seedance asset APIs to an 83zi gateway channel with local user ownership',
+    build: (settings: OperationsSettings) => (
+      <SeedanceAssetSettingsSection
+        defaultValues={{
+          enabled: settings['seedance_asset.enabled'] ?? false,
+          gatewayChannelId: settings['seedance_asset.gateway_channel_id'] ?? 0,
+          refreshOnGet: settings['seedance_asset.refresh_on_get'] ?? true,
         }}
       />
     ),

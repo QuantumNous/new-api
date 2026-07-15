@@ -2642,6 +2642,13 @@
     "并确认自行承担部署": "并确认自行承担部署",
     "运营和收费行为产生的法律责任": "运营和收费行为产生的法律责任",
     "，": "，",
-    "、": "、"
+    "、": "、",
+    "Seedance 素材网关": "Seedance 素材网关",
+    "将 /api/seedance 素材组与真人认证接口转发到 83zi 渠道，并按用户做本地归属隔离": "将 /api/seedance 素材组与真人认证接口转发到 83zi 渠道，并按用户做本地归属隔离",
+    "启用 Seedance 素材 API": "启用 Seedance 素材 API",
+    "GET 时回源刷新素材状态": "GET 时回源刷新素材状态",
+    "网关渠道 ID": "网关渠道 ID",
+    "渠道 Base URL 指向 83zi（如 http://s.83zi.com），Key 为该站 sk-": "渠道 Base URL 指向 83zi（如 http://s.83zi.com），Key 为该站 sk-",
+    "保存 Seedance 素材设置": "保存 Seedance 素材设置"
   }
 }

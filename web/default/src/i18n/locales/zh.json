@@ -1758,7 +1758,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4475,6 +4475,15 @@
     "operation and charging behavior": "运营和收费行为产生的法律责任",
     "，": "，",
     "，and ": "，",
-    "、": "、"
+    "、": "、",
+    "Seedance Asset Gateway": "Seedance 素材网关",
+    "Proxy seedance asset APIs to an 83zi gateway channel with local user ownership": "将 Seedance 素材 API 转发到 83zi 渠道，并按用户做本地归属隔离",
+    "Enable Seedance asset APIs": "启用 Seedance 素材 API",
+    "Expose /api/seedance asset-group and real-person endpoints": "开放 /api/seedance 素材组与真人认证接口",
+    "Gateway channel ID": "网关渠道 ID",
+    "Channel whose Base URL points to 83zi (e.g. http://s.83zi.com) and Key is that site sk-": "渠道 Base URL 指向 83zi（如 http://s.83zi.com），Key 为该站 sk-",
+    "Refresh asset status on GET": "GET 时回源刷新素材状态",
+    "When enabled, GET /api/seedance/assets/{id} refreshes status from the gateway": "启用后，GET /api/seedance/assets/{id} 会从网关刷新状态",
+    "Save Seedance asset settings": "保存 Seedance 素材设置"
   }
 }
