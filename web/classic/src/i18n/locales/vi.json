@@ -4776,6 +4776,7 @@
     "上下文预算": "Ngân sách ngữ cảnh",
     "最大输出 Token": "Số token đầu ra tối đa",
     "推理模型": "Mô hình suy luận",
+    "支持快速模式": "Hỗ trợ chế độ nhanh",
     "Token 限制必须是非负整数": "Giới hạn token phải là số nguyên không âm",
     "上下文预算不能大于上下文窗口": "Ngân sách ngữ cảnh không được lớn hơn cửa sổ ngữ cảnh",
     "最大输出 Token 不能大于上下文窗口": "Số token đầu ra tối đa không được lớn hơn cửa sổ ngữ cảnh",

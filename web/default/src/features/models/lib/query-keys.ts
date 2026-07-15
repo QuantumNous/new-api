@@ -44,6 +44,8 @@ export const chatModelsQueryKeys = {
     [...chatModelsQueryKeys.lists(), filters] as const,
   candidates: (filters?: { keyword?: string }) =>
     [...chatModelsQueryKeys.all, 'candidates', filters] as const,
+  thinkingLevels: () =>
+    [...chatModelsQueryKeys.all, 'thinking-levels'] as const,
 }
 
 /**

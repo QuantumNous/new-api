@@ -38,6 +38,7 @@ import type {
   ListChatModelsParams,
   ListChatModelsResponse,
   ListChatModelCandidatesResponse,
+  ListChatModelThinkingLevelsResponse,
   BatchCreateChatModelsResponse,
   ChatModelOption,
   UpsertChatModelPayload,
@@ -131,6 +132,11 @@ export async function listChatModelCandidates(params?: {
   keyword?: string
 }): Promise<ListChatModelCandidatesResponse> {
   const res = await api.get('/api/chat-models/candidates', { params })
+  return res.data
+}
+
+export async function listChatModelThinkingLevels(): Promise<ListChatModelThinkingLevelsResponse> {
+  const res = await api.get('/api/chat-models/thinking-levels')
   return res.data
 }
 

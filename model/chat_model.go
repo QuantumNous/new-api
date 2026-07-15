@@ -11,35 +11,41 @@ import (
 const ChatModelAutoKey = "global"
 
 type ChatModelOption struct {
-	Id            int     `json:"id"`
-	ModelName     string  `json:"model" gorm:"size:255;not null;uniqueIndex"`
-	DisplayName   string  `json:"name" gorm:"size:255"`
-	ApiFormat     string  `json:"api" gorm:"size:32"`
-	InputTypes    string  `json:"-" gorm:"type:text"`
-	ContextWindow int     `json:"contextWindow"`
-	ContextTokens int     `json:"contextTokens"`
-	MaxTokens     int     `json:"maxTokens"`
-	Reasoning     bool    `json:"reasoning"`
-	Enabled       bool    `json:"enabled" gorm:"index"`
-	IsAuto        bool    `json:"is_auto" gorm:"index"`
-	AutoKey       *string `json:"-" gorm:"size:32;uniqueIndex"`
-	Sort          int     `json:"sort" gorm:"index"`
-	CreatedTime   int64   `json:"created_time" gorm:"bigint"`
-	UpdatedTime   int64   `json:"updated_time" gorm:"bigint"`
+	Id               int     `json:"id"`
+	ModelName        string  `json:"model" gorm:"size:255;not null;uniqueIndex"`
+	DisplayName      string  `json:"name" gorm:"size:255"`
+	ApiFormat        string  `json:"api" gorm:"size:32"`
+	InputTypes       string  `json:"-" gorm:"type:text"`
+	ContextWindow    int     `json:"contextWindow"`
+	ContextTokens    int     `json:"contextTokens"`
+	MaxTokens        int     `json:"maxTokens"`
+	Reasoning        bool    `json:"reasoning"`
+	ThinkingLevels   string  `json:"-" gorm:"type:text"`
+	ThinkingDefault  string  `json:"thinkingDefault" gorm:"size:64"`
+	SupportsFastMode bool    `json:"supportsFastMode" gorm:"not null;default:false"`
+	Enabled          bool    `json:"enabled" gorm:"index"`
+	IsAuto           bool    `json:"is_auto" gorm:"index"`
+	AutoKey          *string `json:"-" gorm:"size:32;uniqueIndex"`
+	Sort             int     `json:"sort" gorm:"index"`
+	CreatedTime      int64   `json:"created_time" gorm:"bigint"`
+	UpdatedTime      int64   `json:"updated_time" gorm:"bigint"`
 }
 
 type ChatModelOptionUpdates struct {
-	ModelName     *string
-	DisplayName   *string
-	ApiFormat     *string
-	InputTypes    *string
-	ContextWindow *int
-	ContextTokens *int
-	MaxTokens     *int
-	Reasoning     *bool
-	Enabled       *bool
-	IsAuto        *bool
-	Sort          *int
+	ModelName        *string
+	DisplayName      *string
+	ApiFormat        *string
+	InputTypes       *string
+	ContextWindow    *int
+	ContextTokens    *int
+	MaxTokens        *int
+	Reasoning        *bool
+	ThinkingLevels   *string
+	ThinkingDefault  *string
+	SupportsFastMode *bool
+	Enabled          *bool
+	IsAuto           *bool
+	Sort             *int
 }
 
 func CreateChatModelOption(option *ChatModelOption) error {
@@ -96,6 +102,15 @@ func UpdateChatModelOption(id int, updates ChatModelOptionUpdates) (*ChatModelOp
 		}
 		if updates.Reasoning != nil {
 			updateFields["reasoning"] = *updates.Reasoning
+		}
+		if updates.ThinkingLevels != nil {
+			updateFields["thinking_levels"] = *updates.ThinkingLevels
+		}
+		if updates.ThinkingDefault != nil {
+			updateFields["thinking_default"] = *updates.ThinkingDefault
+		}
+		if updates.SupportsFastMode != nil {
+			updateFields["supports_fast_mode"] = *updates.SupportsFastMode
 		}
 		if updates.Enabled != nil {
 			updateFields["enabled"] = *updates.Enabled

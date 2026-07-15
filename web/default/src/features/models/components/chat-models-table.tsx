@@ -65,11 +65,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { TagInput } from '@/components/tag-input'
 import {
   batchCreateChatModels,
   createChatModel,
   deleteChatModel,
   listChatModelCandidates,
+  listChatModelThinkingLevels,
   listChatModels,
   updateChatModel,
 } from '../api'
@@ -83,6 +85,15 @@ import type {
 
 const PAGE_SIZE = 20
 const DEFAULT_API_FORMAT: ChatModelApiFormat = 'openai-completions'
+const NO_THINKING_DEFAULT = '__NO_THINKING_DEFAULT__'
+const COMMON_THINKING_LEVELS = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+]
 const CHAT_MODEL_API_FORMATS: ChatModelApiFormat[] = [
   'openai-completions',
   'openai-responses',
@@ -99,6 +110,9 @@ type ChatModelFormState = {
   contextTokens: number
   maxTokens: number
   reasoning: boolean
+  thinkingLevels: string[]
+  thinkingDefault: string
+  supportsFastMode: boolean
   enabled: boolean
   is_auto: boolean
   sort: number
@@ -113,6 +127,9 @@ const emptyForm: ChatModelFormState = {
   contextTokens: 0,
   maxTokens: 0,
   reasoning: false,
+  thinkingLevels: [],
+  thinkingDefault: '',
+  supportsFastMode: false,
   enabled: true,
   is_auto: false,
   sort: 0,
@@ -138,6 +155,19 @@ function normalizeApiFormat(
 
 function isValidTokenLimit(value: number) {
   return Number.isSafeInteger(value) && value >= 0
+}
+
+function normalizeThinkingLevels(values: string[]) {
+  const levels: string[] = []
+  const seen = new Set<string>()
+  for (const rawLevel of values) {
+    const level = rawLevel.trim().toLowerCase()
+    if (level && !seen.has(level)) {
+      seen.add(level)
+      levels.push(level)
+    }
+  }
+  return levels
 }
 
 function formatPrice(price: number) {
@@ -187,12 +217,26 @@ export function ChatModelsTable() {
     queryFn: () => listChatModelCandidates(),
   })
 
+  const { data: thinkingLevelsData } = useQuery({
+    queryKey: chatModelsQueryKeys.thinkingLevels(),
+    queryFn: listChatModelThinkingLevels,
+  })
+
   const items = data?.data?.items ?? []
   const total = data?.data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const candidates = useMemo(
     () => candidatesData?.data?.items ?? [],
     [candidatesData?.data?.items]
+  )
+  const thinkingLevelOptions = useMemo(
+    () =>
+      normalizeThinkingLevels([
+        ...COMMON_THINKING_LEVELS,
+        ...(thinkingLevelsData?.data?.items ?? []),
+        ...form.thinkingLevels,
+      ]),
+    [form.thinkingLevels, thinkingLevelsData?.data?.items]
   )
   const candidateOptions = useMemo(
     () =>
@@ -352,6 +396,9 @@ export function ChatModelsTable() {
       contextTokens: item.contextTokens ?? 0,
       maxTokens: item.maxTokens ?? 0,
       reasoning: item.reasoning ?? false,
+      thinkingLevels: normalizeThinkingLevels(item.thinkingLevels ?? []),
+      thinkingDefault: item.thinkingDefault ?? '',
+      supportsFastMode: item.supportsFastMode ?? false,
       enabled: item.enabled,
       is_auto: item.is_auto,
       sort: item.sort,
@@ -383,6 +430,15 @@ export function ChatModelsTable() {
       return
     }
 
+    const thinkingLevels = normalizeThinkingLevels(form.thinkingLevels)
+    const thinkingDefault = form.thinkingDefault.trim().toLowerCase()
+    if (thinkingDefault && !thinkingLevels.includes(thinkingDefault)) {
+      toast.error(
+        t('Default thinking level must be included in thinking levels')
+      )
+      return
+    }
+
     const payload: UpsertChatModelPayload = {
       model: modelName,
       name: form.name.trim(),
@@ -392,6 +448,9 @@ export function ChatModelsTable() {
       contextTokens: form.contextTokens,
       maxTokens: form.maxTokens,
       reasoning: form.reasoning,
+      thinkingLevels,
+      thinkingDefault,
+      supportsFastMode: form.supportsFastMode,
       enabled: form.enabled,
       is_auto: form.is_auto,
       sort: Number.isFinite(form.sort) ? form.sort : 0,
@@ -848,6 +907,69 @@ export function ChatModelsTable() {
               </Field>
             </div>
             <Field>
+              <FieldLabel htmlFor='chat-model-thinking-levels'>
+                {t('Thinking levels')}
+              </FieldLabel>
+              <TagInput
+                id='chat-model-thinking-levels'
+                value={form.thinkingLevels}
+                options={thinkingLevelOptions}
+                placeholder={t('Select a level or type a new one')}
+                onChange={(values) => {
+                  const thinkingLevels = normalizeThinkingLevels(values)
+                  setForm((current) => ({
+                    ...current,
+                    thinkingLevels,
+                    thinkingDefault: thinkingLevels.includes(
+                      current.thinkingDefault
+                    )
+                      ? current.thinkingDefault
+                      : '',
+                  }))
+                }}
+              />
+              <FieldDescription>
+                {t(
+                  'Select a common or previously configured level, or press Enter to add a provider-specific level. Leave empty to use legacy Reasoning.'
+                )}
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor='chat-model-thinking-default'>
+                {t('Default thinking level')}
+              </FieldLabel>
+              <Select
+                value={form.thinkingDefault || NO_THINKING_DEFAULT}
+                disabled={form.thinkingLevels.length === 0}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    thinkingDefault:
+                      value === NO_THINKING_DEFAULT ? '' : (value ?? ''),
+                  }))
+                }
+              >
+                <SelectTrigger id='chat-model-thinking-default'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem value={NO_THINKING_DEFAULT}>
+                      {t('No default')}
+                    </SelectItem>
+                    {form.thinkingLevels.map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {level}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <FieldDescription>
+                {t('Only a selected thinking level can be the default.')}
+              </FieldDescription>
+            </Field>
+            <Field>
               <FieldLabel htmlFor='chat-model-sort'>{t('Sort')}</FieldLabel>
               <Input
                 id='chat-model-sort'
@@ -893,6 +1015,21 @@ export function ChatModelsTable() {
               />
               <FieldLabel htmlFor='chat-model-reasoning'>
                 {t('Reasoning')}
+              </FieldLabel>
+            </Field>
+            <Field orientation='horizontal'>
+              <Switch
+                id='chat-model-supports-fast-mode'
+                checked={form.supportsFastMode}
+                onCheckedChange={(checked) =>
+                  setForm((current) => ({
+                    ...current,
+                    supportsFastMode: checked,
+                  }))
+                }
+              />
+              <FieldLabel htmlFor='chat-model-supports-fast-mode'>
+                {t('Supports fast mode')}
               </FieldLabel>
             </Field>
           </FieldGroup>

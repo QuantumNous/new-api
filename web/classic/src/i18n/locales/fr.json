@@ -4257,6 +4257,7 @@
     "上下文预算": "Budget de contexte",
     "最大输出 Token": "Nombre maximal de tokens de sortie",
     "推理模型": "Modèle de raisonnement",
+    "支持快速模式": "Prend en charge le mode rapide",
     "Token 限制必须是非负整数": "Les limites de tokens doivent être des entiers positifs ou nuls",
     "上下文预算不能大于上下文窗口": "Le budget de contexte ne peut pas dépasser la fenêtre de contexte",
     "最大输出 Token 不能大于上下文窗口": "Le nombre maximal de tokens de sortie ne peut pas dépasser la fenêtre de contexte",

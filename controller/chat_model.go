@@ -57,15 +57,18 @@ func GetUserChatModels(c *gin.Context) {
 			continue
 		}
 		item := dto.UserChatModelItem{
-			Model:         option.ModelName,
-			Name:          chatModelDisplayName(option.DisplayName, option.ModelName),
-			Price:         estimateChatModelPrice(pricing, groupRatio),
-			Api:           parseChatModelAPI(option.ApiFormat),
-			Input:         parseChatModelInputTypes(option.InputTypes),
-			ContextWindow: option.ContextWindow,
-			ContextTokens: option.ContextTokens,
-			MaxTokens:     option.MaxTokens,
-			Reasoning:     option.Reasoning,
+			Model:            option.ModelName,
+			Name:             chatModelDisplayName(option.DisplayName, option.ModelName),
+			Price:            estimateChatModelPrice(pricing, groupRatio),
+			Api:              parseChatModelAPI(option.ApiFormat),
+			Input:            parseChatModelInputTypes(option.InputTypes),
+			ContextWindow:    option.ContextWindow,
+			ContextTokens:    option.ContextTokens,
+			MaxTokens:        option.MaxTokens,
+			Reasoning:        option.Reasoning,
+			ThinkingLevels:   parseChatModelThinkingLevels(option.ThinkingLevels),
+			ThinkingDefault:  option.ThinkingDefault,
+			SupportsFastMode: option.SupportsFastMode,
 		}
 		if option.IsAuto {
 			autoItem := item
@@ -156,6 +159,35 @@ func ListChatModelCandidates(c *gin.Context) {
 	})
 }
 
+// ListChatModelThinkingLevels returns the distinct thinking level IDs that are
+// already configured by administrators. This is only a picker data source: it
+// deliberately does not define or validate a global enum because support is
+// model- and provider-specific.
+func ListChatModelThinkingLevels(c *gin.Context) {
+	options, err := model.GetAllChatModelOptions("", nil)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	levels := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, option := range options {
+		for _, level := range parseChatModelThinkingLevels(option.ThinkingLevels) {
+			if _, exists := seen[level]; exists {
+				continue
+			}
+			seen[level] = struct{}{}
+			levels = append(levels, level)
+		}
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"items": levels,
+		"total": len(levels),
+	})
+}
+
 func CreateChatModel(c *gin.Context) {
 	var req dto.CreateChatModelRequest
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
@@ -225,19 +257,35 @@ func CreateChatModel(c *gin.Context) {
 		return
 	}
 	reasoning := req.Reasoning != nil && *req.Reasoning
+	thinkingLevels, thinkingDefault, err := normalizeChatModelThinkingProfile(req.ThinkingLevels, req.ThinkingDefault)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	thinkingLevelsJSON, err := encodeChatModelThinkingLevels(thinkingLevels)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(thinkingLevels) > 0 {
+		reasoning = thinkingProfileHasReasoning(thinkingLevels)
+	}
 
 	option := model.ChatModelOption{
-		ModelName:     modelName,
-		DisplayName:   displayName,
-		ApiFormat:     apiFormat,
-		InputTypes:    inputTypesJSON,
-		ContextWindow: contextWindow,
-		ContextTokens: contextTokens,
-		MaxTokens:     maxTokens,
-		Reasoning:     reasoning,
-		Enabled:       enabled,
-		IsAuto:        isAuto,
-		Sort:          sortOrder,
+		ModelName:        modelName,
+		DisplayName:      displayName,
+		ApiFormat:        apiFormat,
+		InputTypes:       inputTypesJSON,
+		ContextWindow:    contextWindow,
+		ContextTokens:    contextTokens,
+		MaxTokens:        maxTokens,
+		Reasoning:        reasoning,
+		ThinkingLevels:   thinkingLevelsJSON,
+		ThinkingDefault:  thinkingDefault,
+		SupportsFastMode: req.SupportsFastMode != nil && *req.SupportsFastMode,
+		Enabled:          enabled,
+		IsAuto:           isAuto,
+		Sort:             sortOrder,
 	}
 	if err := model.CreateChatModelOption(&option); err != nil {
 		common.ApiError(c, err)
@@ -356,9 +404,10 @@ func UpdateChatModel(c *gin.Context) {
 
 	pricingMap := getChatPricingMap(model.GetPricing())
 	updates := model.ChatModelOptionUpdates{
-		Enabled: req.Enabled,
-		IsAuto:  req.IsAuto,
-		Sort:    req.Sort,
+		Enabled:          req.Enabled,
+		IsAuto:           req.IsAuto,
+		Sort:             req.Sort,
+		SupportsFastMode: req.SupportsFastMode,
 	}
 	effectiveContextWindow := current.ContextWindow
 	effectiveContextTokens := current.ContextTokens
@@ -401,6 +450,37 @@ func UpdateChatModel(c *gin.Context) {
 		return
 	}
 	updates.Reasoning = req.Reasoning
+	if req.ThinkingLevels != nil || req.ThinkingDefault != nil {
+		levelsInput := req.ThinkingLevels
+		if levelsInput == nil {
+			currentLevels := parseChatModelThinkingLevels(current.ThinkingLevels)
+			levelsInput = &currentLevels
+		}
+		defaultInput := req.ThinkingDefault
+		if defaultInput == nil {
+			currentDefault := current.ThinkingDefault
+			if req.ThinkingLevels != nil && len(*req.ThinkingLevels) == 0 {
+				currentDefault = ""
+			}
+			defaultInput = &currentDefault
+		}
+		thinkingLevels, thinkingDefault, err := normalizeChatModelThinkingProfile(levelsInput, defaultInput)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		thinkingLevelsJSON, err := encodeChatModelThinkingLevels(thinkingLevels)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		updates.ThinkingLevels = &thinkingLevelsJSON
+		updates.ThinkingDefault = &thinkingDefault
+		if len(thinkingLevels) > 0 {
+			profileReasoning := thinkingProfileHasReasoning(thinkingLevels)
+			updates.Reasoning = &profileReasoning
+		}
+	}
 
 	effectiveModel := current.ModelName
 	if req.Model != nil {
@@ -537,22 +617,25 @@ func buildAdminChatModelItem(option model.ChatModelOption, pricingMap map[string
 		price = estimateChatModelPrice(pricing, nil)
 	}
 	return dto.AdminChatModelItem{
-		Id:            option.Id,
-		Model:         option.ModelName,
-		Name:          chatModelDisplayName(option.DisplayName, option.ModelName),
-		Enabled:       option.Enabled,
-		IsAuto:        option.IsAuto,
-		Sort:          option.Sort,
-		Price:         price,
-		Available:     available,
-		Api:           parseChatModelAPI(option.ApiFormat),
-		Input:         parseChatModelInputTypes(option.InputTypes),
-		ContextWindow: option.ContextWindow,
-		ContextTokens: option.ContextTokens,
-		MaxTokens:     option.MaxTokens,
-		Reasoning:     option.Reasoning,
-		CreatedTime:   option.CreatedTime,
-		UpdatedTime:   option.UpdatedTime,
+		Id:               option.Id,
+		Model:            option.ModelName,
+		Name:             chatModelDisplayName(option.DisplayName, option.ModelName),
+		Enabled:          option.Enabled,
+		IsAuto:           option.IsAuto,
+		Sort:             option.Sort,
+		Price:            price,
+		Available:        available,
+		Api:              parseChatModelAPI(option.ApiFormat),
+		Input:            parseChatModelInputTypes(option.InputTypes),
+		ContextWindow:    option.ContextWindow,
+		ContextTokens:    option.ContextTokens,
+		MaxTokens:        option.MaxTokens,
+		Reasoning:        option.Reasoning,
+		ThinkingLevels:   parseChatModelThinkingLevels(option.ThinkingLevels),
+		ThinkingDefault:  option.ThinkingDefault,
+		SupportsFastMode: option.SupportsFastMode,
+		CreatedTime:      option.CreatedTime,
+		UpdatedTime:      option.UpdatedTime,
 	}
 }
 
@@ -623,6 +706,86 @@ func parseChatModelInputTypes(value string) []string {
 		}
 	}
 	return []string{"text"}
+}
+
+func normalizeChatModelThinkingProfile(levelsInput *[]string, defaultInput *string) ([]string, string, error) {
+	if levelsInput == nil {
+		if defaultInput != nil && strings.TrimSpace(*defaultInput) != "" {
+			return nil, "", errors.New("thinkingDefault requires thinkingLevels")
+		}
+		return nil, "", nil
+	}
+	if len(*levelsInput) > 32 {
+		return nil, "", errors.New("thinkingLevels cannot contain more than 32 items")
+	}
+
+	levels := make([]string, 0, len(*levelsInput))
+	seen := make(map[string]struct{}, len(*levelsInput))
+	for _, raw := range *levelsInput {
+		level := strings.ToLower(strings.TrimSpace(raw))
+		if level == "" {
+			return nil, "", errors.New("thinkingLevels cannot contain empty values")
+		}
+		if len(level) > 64 {
+			return nil, "", errors.New("thinking level cannot exceed 64 characters")
+		}
+		for _, char := range level {
+			if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' && char != '_' {
+				return nil, "", errors.New("thinking level can only contain lowercase letters, numbers, '-' and '_'")
+			}
+		}
+		if _, exists := seen[level]; exists {
+			continue
+		}
+		seen[level] = struct{}{}
+		levels = append(levels, level)
+	}
+
+	thinkingDefault := ""
+	if defaultInput != nil {
+		thinkingDefault = strings.ToLower(strings.TrimSpace(*defaultInput))
+	}
+	if thinkingDefault != "" {
+		if _, exists := seen[thinkingDefault]; !exists {
+			return nil, "", errors.New("thinkingDefault must be included in thinkingLevels")
+		}
+	}
+	return levels, thinkingDefault, nil
+}
+
+func encodeChatModelThinkingLevels(levels []string) (string, error) {
+	if len(levels) == 0 {
+		return "", nil
+	}
+	encoded, err := common.Marshal(levels)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+func parseChatModelThinkingLevels(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return []string{}
+	}
+	var levels []string
+	if common.UnmarshalJsonStr(value, &levels) != nil {
+		return []string{}
+	}
+	normalized, _, err := normalizeChatModelThinkingProfile(&levels, nil)
+	if err != nil {
+		return []string{}
+	}
+	return normalized
+}
+
+func thinkingProfileHasReasoning(levels []string) bool {
+	for _, level := range levels {
+		if level != "off" {
+			return true
+		}
+	}
+	return false
 }
 
 func optionalIntValue(value *int) int {

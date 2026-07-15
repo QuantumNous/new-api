@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/glebarez/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -457,6 +458,30 @@ func TestSearchSkillHubTagsAndSkillsByTagIDsRespectPublishedVisibility(t *testin
 	}
 	if total != 2 || len(adminSkills) != 2 {
 		t.Fatalf("admin skills = %#v, total = %d; want both skills", adminSkills, total)
+	}
+}
+
+func TestSkillHubSkillsByTagIDsQueryAvoidsPostgresDistinctOrderConflict(t *testing.T) {
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  "host=localhost user=test dbname=test sslmode=disable",
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{DryRun: true, DisableAutomaticPing: true})
+	if err != nil {
+		t.Fatalf("open PostgreSQL dry-run database: %v", err)
+	}
+
+	sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		var skills []*SkillHubSkill
+		return skillHubSkillsByTagIDsQuery(tx, []int{1, 2}).
+			Order(skillHubQualifiedSkillOrder).
+			Find(&skills)
+	})
+	upperSQL := strings.ToUpper(sql)
+	if strings.Contains(upperSQL, "DISTINCT") {
+		t.Fatalf("PostgreSQL tag query must not use DISTINCT with expression ordering: %s", sql)
+	}
+	if !strings.Contains(upperSQL, " IN (SELECT ") || !strings.Contains(sql, "skill_hub_skill_tags") {
+		t.Fatalf("PostgreSQL tag query must filter through a skill ID subquery: %s", sql)
 	}
 }
 

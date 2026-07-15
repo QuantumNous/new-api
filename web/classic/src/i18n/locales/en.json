@@ -4372,6 +4372,7 @@
     "上下文预算": "Context budget",
     "最大输出 Token": "Maximum output tokens",
     "推理模型": "Reasoning model",
+    "支持快速模式": "Supports fast mode",
     "Token 限制必须是非负整数": "Token limits must be non-negative integers",
     "上下文预算不能大于上下文窗口": "Context budget cannot exceed the context window",
     "最大输出 Token 不能大于上下文窗口": "Maximum output tokens cannot exceed the context window",
@@ -4380,6 +4381,16 @@
     "这是 Token 容量，不是价格；建议为原生窗口的 75%–80%（{{min}}–{{max}} Token）；0 表示不额外限制": "This is a token capacity, not a price. Recommended: 75%–80% of the native window ({{min}}–{{max}} tokens); 0 means no additional limit",
     "这是 Token 容量，不是价格；建议为原生窗口的 75%–80%；0 表示不额外限制": "This is a token capacity, not a price. Recommended: 75%–80% of the native window; 0 means no additional limit",
     "建议按模型官方公布的最大输出填写；0 表示未配置": "Use the model's officially published maximum output; 0 means not configured",
+    "思考深度": "Thinking levels",
+    "例如：off, low, provider-specific-level": "For example: off, low, provider-specific-level",
+    "填写该模型与 Provider 实际支持的值，用逗号或空格分隔；留空时沿用“推理模型”开关": "Enter the values supported by this exact model and provider, separated by commas or spaces. Leave empty to use the Reasoning model switch.",
+    "默认思考深度": "Default thinking level",
+    "可选，且必须在思考深度列表中": "Optional; must be one of the thinking levels",
+    "默认思考深度必须包含在思考深度列表中": "Default thinking level must be included in thinking levels",
+    "请选择，或输入新档位后按 Enter": "Select levels, or type a new one and press Enter",
+    "从常用档位或已有配置中多选；Provider 有新档位时可输入并按 Enter 添加。留空时沿用“推理模型”开关": "Select common or previously configured levels. To add a new provider-specific level, type it and press Enter. Leave empty to use the Reasoning model switch.",
+    "请选择默认深度": "Select a default thinking level",
+    "默认值只能从已选择的思考深度中设置": "The default can only be selected from the chosen thinking levels",
     "0 表示未配置": "0 means not configured"
   }
 }

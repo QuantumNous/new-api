@@ -31,6 +31,14 @@ type batchAdminChatModelsPayload struct {
 	Data    dto.BatchCreateChatModelsResponse `json:"data"`
 }
 
+type thinkingLevelOptionsPayload struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Items []string `json:"items"`
+		Total int      `json:"total"`
+	} `json:"data"`
+}
+
 func seedChatModelChannel(t *testing.T, channelID int, group string, modelName string) {
 	t.Helper()
 
@@ -62,7 +70,7 @@ func TestCreateChatModelStoresCapabilities(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/chat-models/", strings.NewReader(`{"model":"gpt-4o-mini","name":"Vision model","api":"openai-responses","input":["audio","text","image"],"contextWindow":128000,"contextTokens":96000,"maxTokens":16384,"reasoning":true}`))
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/chat-models/", strings.NewReader(`{"model":"gpt-4o-mini","name":"Vision model","api":"openai-responses","input":["audio","text","image"],"contextWindow":128000,"contextTokens":96000,"maxTokens":16384,"reasoning":false,"thinkingLevels":["off","low","medium","high","xhigh","max"],"thinkingDefault":"medium","supportsFastMode":true}`))
 
 	CreateChatModel(ctx)
 
@@ -76,6 +84,9 @@ func TestCreateChatModelStoresCapabilities(t *testing.T) {
 	require.Equal(t, 96000, payload.Data.ContextTokens)
 	require.Equal(t, 16384, payload.Data.MaxTokens)
 	require.True(t, payload.Data.Reasoning)
+	require.Equal(t, []string{"off", "low", "medium", "high", "xhigh", "max"}, payload.Data.ThinkingLevels)
+	require.Equal(t, "medium", payload.Data.ThinkingDefault)
+	require.True(t, payload.Data.SupportsFastMode)
 
 	stored, err := model.GetChatModelOptionByID(payload.Data.Id)
 	require.NoError(t, err)
@@ -85,6 +96,9 @@ func TestCreateChatModelStoresCapabilities(t *testing.T) {
 	require.Equal(t, 96000, stored.ContextTokens)
 	require.Equal(t, 16384, stored.MaxTokens)
 	require.True(t, stored.Reasoning)
+	require.Equal(t, `["off","low","medium","high","xhigh","max"]`, stored.ThinkingLevels)
+	require.Equal(t, "medium", stored.ThinkingDefault)
+	require.True(t, stored.SupportsFastMode)
 }
 
 func TestGetUserChatModelsReturnsAutoAndFiltersUnavailableModels(t *testing.T) {
@@ -102,17 +116,20 @@ func TestGetUserChatModelsReturnsAutoAndFiltersUnavailableModels(t *testing.T) {
 	seedChatModelChannel(t, 2, "private", "gpt-3.5-turbo")
 
 	require.NoError(t, model.CreateChatModelOption(&model.ChatModelOption{
-		ModelName:     "gpt-4o-mini",
-		DisplayName:   "GPT-4o mini",
-		ApiFormat:     "openai-responses",
-		InputTypes:    `["text","image","video","audio"]`,
-		ContextWindow: 128000,
-		ContextTokens: 96000,
-		MaxTokens:     16384,
-		Reasoning:     true,
-		Enabled:       true,
-		IsAuto:        true,
-		Sort:          1,
+		ModelName:        "gpt-4o-mini",
+		DisplayName:      "GPT-4o mini",
+		ApiFormat:        "openai-responses",
+		InputTypes:       `["text","image","video","audio"]`,
+		ContextWindow:    128000,
+		ContextTokens:    96000,
+		MaxTokens:        16384,
+		Reasoning:        true,
+		ThinkingLevels:   `["off","adaptive","max"]`,
+		ThinkingDefault:  "adaptive",
+		SupportsFastMode: true,
+		Enabled:          true,
+		IsAuto:           true,
+		Sort:             1,
 	}))
 	require.NoError(t, model.CreateChatModelOption(&model.ChatModelOption{
 		ModelName:   "gpt-3.5-turbo",
@@ -143,6 +160,9 @@ func TestGetUserChatModelsReturnsAutoAndFiltersUnavailableModels(t *testing.T) {
 	require.Equal(t, 96000, payload.Data.Models[0].ContextTokens)
 	require.Equal(t, 16384, payload.Data.Models[0].MaxTokens)
 	require.True(t, payload.Data.Models[0].Reasoning)
+	require.Equal(t, []string{"off", "adaptive", "max"}, payload.Data.Models[0].ThinkingLevels)
+	require.Equal(t, "adaptive", payload.Data.Models[0].ThinkingDefault)
+	require.True(t, payload.Data.Models[0].SupportsFastMode)
 	require.Equal(t, "gpt-4o-mini", payload.Data.Models[1].Model)
 	require.Equal(t, "GPT-4o mini", payload.Data.Models[1].Name)
 	require.Equal(t, 0.15, payload.Data.Models[1].Price)
@@ -152,6 +172,9 @@ func TestGetUserChatModelsReturnsAutoAndFiltersUnavailableModels(t *testing.T) {
 	require.Equal(t, payload.Data.Models[0].ContextTokens, payload.Data.Models[1].ContextTokens)
 	require.Equal(t, payload.Data.Models[0].MaxTokens, payload.Data.Models[1].MaxTokens)
 	require.Equal(t, payload.Data.Models[0].Reasoning, payload.Data.Models[1].Reasoning)
+	require.Equal(t, payload.Data.Models[0].ThinkingLevels, payload.Data.Models[1].ThinkingLevels)
+	require.Equal(t, payload.Data.Models[0].ThinkingDefault, payload.Data.Models[1].ThinkingDefault)
+	require.Equal(t, payload.Data.Models[0].SupportsFastMode, payload.Data.Models[1].SupportsFastMode)
 }
 
 func TestUpdateChatModelSetsSingleAutoWithOptionalFields(t *testing.T) {
@@ -179,7 +202,7 @@ func TestUpdateChatModelSetsSingleAutoWithOptionalFields(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/chat-models/2", strings.NewReader(`{"is_auto":true,"name":"Auto target","api":"anthropic-messages","input":["text","image","audio"],"contextWindow":200000,"contextTokens":160000,"maxTokens":32000,"reasoning":true}`))
+	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/chat-models/2", strings.NewReader(`{"is_auto":true,"name":"Auto target","api":"anthropic-messages","input":["text","image","audio"],"contextWindow":200000,"contextTokens":160000,"maxTokens":32000,"reasoning":false,"thinkingLevels":["off","adaptive","max"],"thinkingDefault":"adaptive","supportsFastMode":true}`))
 	ctx.Set("id", 1)
 	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(second.Id)}}
 
@@ -198,6 +221,9 @@ func TestUpdateChatModelSetsSingleAutoWithOptionalFields(t *testing.T) {
 	require.Equal(t, 160000, payload.Data.ContextTokens)
 	require.Equal(t, 32000, payload.Data.MaxTokens)
 	require.True(t, payload.Data.Reasoning)
+	require.Equal(t, []string{"off", "adaptive", "max"}, payload.Data.ThinkingLevels)
+	require.Equal(t, "adaptive", payload.Data.ThinkingDefault)
+	require.True(t, payload.Data.SupportsFastMode)
 
 	var options []model.ChatModelOption
 	require.NoError(t, model.DB.Order("id ASC").Find(&options).Error)
@@ -212,6 +238,9 @@ func TestUpdateChatModelSetsSingleAutoWithOptionalFields(t *testing.T) {
 	require.Equal(t, 160000, options[1].ContextTokens)
 	require.Equal(t, 32000, options[1].MaxTokens)
 	require.True(t, options[1].Reasoning)
+	require.Equal(t, `["off","adaptive","max"]`, options[1].ThinkingLevels)
+	require.Equal(t, "adaptive", options[1].ThinkingDefault)
+	require.True(t, options[1].SupportsFastMode)
 }
 
 func TestUpdateChatModelRejectsInvalidCapabilities(t *testing.T) {
@@ -248,6 +277,38 @@ func TestUpdateChatModelRejectsInvalidCapabilities(t *testing.T) {
 	require.Zero(t, stored.MaxTokens)
 }
 
+func TestUpdateChatModelClearsThinkingProfileAndKeepsLegacyReasoning(t *testing.T) {
+	ratio_setting.InitRatioSettings()
+	setupModelListControllerTestDB(t)
+	seedChatModelChannel(t, 1, "default", "gpt-4o-mini")
+
+	option := model.ChatModelOption{
+		ModelName:        "gpt-4o-mini",
+		DisplayName:      "GPT-4o mini",
+		ThinkingLevels:   `["off","low","high"]`,
+		ThinkingDefault:  "low",
+		Reasoning:        true,
+		SupportsFastMode: true,
+		Enabled:          true,
+	}
+	require.NoError(t, model.CreateChatModelOption(&option))
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/chat-models/1", strings.NewReader(`{"thinkingLevels":[],"reasoning":true,"supportsFastMode":false}`))
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(option.Id)}}
+
+	UpdateChatModel(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	stored, err := model.GetChatModelOptionByID(option.Id)
+	require.NoError(t, err)
+	require.Empty(t, stored.ThinkingLevels)
+	require.Empty(t, stored.ThinkingDefault)
+	require.True(t, stored.Reasoning)
+	require.False(t, stored.SupportsFastMode)
+}
+
 func TestChatModelCapabilityValidation(t *testing.T) {
 	input := []string{"AUDIO", "IMAGE", "text", "video", "image"}
 	normalized, err := normalizeChatModelInputTypes(&input)
@@ -265,6 +326,44 @@ func TestChatModelCapabilityValidation(t *testing.T) {
 	require.Error(t, validateChatModelTokenLimits(4096, 8192, 1024))
 	require.Error(t, validateChatModelTokenLimits(4096, 2048, 8192))
 	require.NoError(t, validateChatModelTokenLimits(128000, 96000, 16384))
+	levels := []string{" OFF ", "low", "LOW", "xhigh", "max"}
+	thinkingDefault := " XHIGH "
+	normalizedLevels, normalizedDefault, err := normalizeChatModelThinkingProfile(&levels, &thinkingDefault)
+	require.NoError(t, err)
+	require.Equal(t, []string{"off", "low", "xhigh", "max"}, normalizedLevels)
+	require.Equal(t, "xhigh", normalizedDefault)
+	require.True(t, thinkingProfileHasReasoning(normalizedLevels))
+	invalidDefault := "adaptive"
+	_, _, err = normalizeChatModelThinkingProfile(&levels, &invalidDefault)
+	require.Error(t, err)
+	invalidLevels := []string{"off", "not valid"}
+	_, _, err = normalizeChatModelThinkingProfile(&invalidLevels, nil)
+	require.Error(t, err)
+}
+
+func TestListChatModelThinkingLevelsUsesConfiguredProfiles(t *testing.T) {
+	setupModelListControllerTestDB(t)
+	require.NoError(t, model.CreateChatModelOption(&model.ChatModelOption{
+		ModelName:      "first-model",
+		ThinkingLevels: `["off","low","provider-depth"]`,
+	}))
+	require.NoError(t, model.CreateChatModelOption(&model.ChatModelOption{
+		ModelName:      "second-model",
+		ThinkingLevels: `["off","xhigh","max"]`,
+	}))
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/chat-models/thinking-levels", nil)
+
+	ListChatModelThinkingLevels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload thinkingLevelOptionsPayload
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Equal(t, []string{"off", "low", "provider-depth", "xhigh", "max"}, payload.Data.Items)
+	require.Equal(t, len(payload.Data.Items), payload.Data.Total)
 }
 
 func TestBatchCreateChatModelsAddsDisabledOptions(t *testing.T) {
@@ -290,6 +389,9 @@ func TestBatchCreateChatModelsAddsDisabledOptions(t *testing.T) {
 	for _, item := range payload.Data.Created {
 		require.Equal(t, defaultChatModelAPI, item.Api)
 		require.Equal(t, []string{"text"}, item.Input)
+		require.NotNil(t, item.ThinkingLevels)
+		require.Empty(t, item.ThinkingLevels)
+		require.False(t, item.SupportsFastMode)
 	}
 
 	var options []model.ChatModelOption
@@ -302,6 +404,7 @@ func TestBatchCreateChatModelsAddsDisabledOptions(t *testing.T) {
 		require.Equal(t, option.ModelName, option.DisplayName)
 		require.Equal(t, defaultChatModelAPI, option.ApiFormat)
 		require.Equal(t, `["text"]`, option.InputTypes)
+		require.False(t, option.SupportsFastMode)
 	}
 }
 

@@ -43,7 +43,10 @@
                         "contextWindow": 128000,
                         "contextTokens": 96000,
                         "maxTokens": 16384,
-                        "reasoning": false
+                        "reasoning": true,
+                        "thinkingLevels": ["off", "low", "xhigh", "max"],
+                        "thinkingDefault": "xhigh",
+                        "supportsFastMode": true
                       },
                       {
                         "model": "gpt-4o",
@@ -54,7 +57,8 @@
                         "contextWindow": 128000,
                         "contextTokens": 96000,
                         "maxTokens": 16384,
-                        "reasoning": false
+                        "reasoning": false,
+                        "supportsFastMode": false
                       }
                     ]
                   }
@@ -155,7 +159,10 @@
                 "contextWindow": 128000,
                 "contextTokens": 96000,
                 "maxTokens": 16384,
-                "reasoning": false
+                "reasoning": true,
+                "thinkingLevels": ["off", "low", "xhigh", "max"],
+                "thinkingDefault": "xhigh",
+                "supportsFastMode": true
               }
             }
           }
@@ -204,6 +211,39 @@
         }
       }
     },
+    "/api/chat-models/thinking-levels": {
+      "get": {
+        "summary": "获取已配置的思考深度候选",
+        "description": "需要管理员权限。动态汇总所有对话模型已经配置的思考深度 ID，供管理页面选择或搜索；该列表不是固定枚举，管理员仍可为模型新增 provider 特有档位。",
+        "tags": ["对话模型管理"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "example": ["off", "low", "xhigh", "max"]
+                        },
+                        "total": { "type": "integer", "example": 4 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat-models/{id}": {
       "patch": {
         "summary": "编辑对话模型配置",
@@ -236,7 +276,10 @@
                 "contextWindow": 200000,
                 "contextTokens": 160000,
                 "maxTokens": 32000,
-                "reasoning": true
+                "reasoning": true,
+                "thinkingLevels": ["off", "adaptive", "max"],
+                "thinkingDefault": "adaptive",
+                "supportsFastMode": true
               }
             }
           }
@@ -376,10 +419,29 @@
           },
           "reasoning": {
             "type": "boolean",
-            "description": "模型是否支持推理能力"
+            "description": "兼容旧客户端的粗粒度推理标志；thinkingLevels 非空时由后端派生"
+          },
+          "thinkingLevels": {
+            "$ref": "#/components/schemas/ThinkingLevels"
+          },
+          "thinkingDefault": {
+            "type": "string",
+            "description": "模型默认思考深度；存在时必须属于 thinkingLevels"
+          },
+          "supportsFastMode": {
+            "type": "boolean",
+            "description": "当前模型和 provider 是否支持 OpenClaw 快速模式"
           }
         },
-        "required": ["model", "name", "price", "api", "input", "reasoning"]
+        "required": [
+          "model",
+          "name",
+          "price",
+          "api",
+          "input",
+          "reasoning",
+          "supportsFastMode"
+        ]
       },
       "AdminChatModelListResponse": {
         "type": "object",
@@ -483,6 +545,17 @@
           "reasoning": {
             "type": "boolean"
           },
+          "thinkingLevels": {
+            "$ref": "#/components/schemas/ThinkingLevels"
+          },
+          "thinkingDefault": {
+            "type": "string",
+            "description": "模型默认思考深度；存在时必须属于 thinkingLevels"
+          },
+          "supportsFastMode": {
+            "type": "boolean",
+            "description": "是否支持 OpenClaw 快速模式"
+          },
           "created_time": {
             "type": "integer",
             "format": "int64"
@@ -504,6 +577,8 @@
           "api",
           "input",
           "reasoning",
+          "thinkingLevels",
+          "supportsFastMode",
           "created_time",
           "updated_time"
         ]
@@ -593,7 +668,20 @@
           },
           "reasoning": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "未配置 thinkingLevels 时使用的兼容推理标志"
+          },
+          "thinkingLevels": {
+            "$ref": "#/components/schemas/ThinkingLevels"
+          },
+          "thinkingDefault": {
+            "type": "string",
+            "description": "可选；必须属于 thinkingLevels"
+          },
+          "supportsFastMode": {
+            "type": "boolean",
+            "default": false,
+            "description": "当前模型和 provider 是否支持 OpenClaw 快速模式"
           },
           "enabled": {
             "type": "boolean",
@@ -646,6 +734,17 @@
           "reasoning": {
             "type": "boolean"
           },
+          "thinkingLevels": {
+            "$ref": "#/components/schemas/ThinkingLevels"
+          },
+          "thinkingDefault": {
+            "type": "string",
+            "description": "可选；必须属于 thinkingLevels。thinkingLevels 传空数组时可一并清除"
+          },
+          "supportsFastMode": {
+            "type": "boolean",
+            "description": "当前模型和 provider 是否支持 OpenClaw 快速模式"
+          },
           "enabled": {
             "type": "boolean"
           },
@@ -656,6 +755,17 @@
             "type": "integer"
           }
         }
+      },
+      "ThinkingLevels": {
+        "type": "array",
+        "maxItems": 32,
+        "description": "当前模型与 provider 实际支持的思考深度 ID；后端不维护固定枚举，数组顺序会保留",
+        "items": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z0-9_-]+$"
+        },
+        "example": ["off", "low", "xhigh", "max"]
       }
     }
   }

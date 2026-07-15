@@ -330,6 +330,9 @@ export interface ChatModelOption {
   contextTokens?: number
   maxTokens?: number
   reasoning: boolean
+  thinkingLevels?: string[]
+  thinkingDefault?: string
+  supportsFastMode: boolean
   created_time: number
   updated_time: number
 }
@@ -372,6 +375,15 @@ export interface ListChatModelCandidatesResponse {
   }
 }
 
+export interface ListChatModelThinkingLevelsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    items?: string[]
+    total?: number
+  }
+}
+
 export interface BatchCreateChatModelsResponse {
   success: boolean
   message?: string
@@ -392,6 +404,9 @@ export interface UpsertChatModelPayload {
   contextTokens?: number
   maxTokens?: number
   reasoning?: boolean
+  thinkingLevels?: string[]
+  thinkingDefault?: string
+  supportsFastMode?: boolean
   enabled?: boolean
   is_auto?: boolean
   sort?: number

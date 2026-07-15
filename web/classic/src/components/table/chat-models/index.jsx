@@ -52,6 +52,14 @@ const CHAT_MODEL_API_FORMATS = [
   'anthropic-messages',
 ];
 const CHAT_MODEL_INPUT_TYPES = ['text', 'image', 'video', 'audio'];
+const COMMON_THINKING_LEVELS = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+];
 
 const emptyForm = {
   model: '',
@@ -62,6 +70,9 @@ const emptyForm = {
   contextTokens: 0,
   maxTokens: 0,
   reasoning: false,
+  thinkingLevels: [],
+  thinkingDefault: '',
+  supportsFastMode: false,
   enabled: true,
   is_auto: false,
   sort: 0,
@@ -83,6 +94,19 @@ function normalizeApiFormat(api) {
 
 function isValidTokenLimit(value) {
   return Number.isInteger(value) && value >= 0;
+}
+
+function normalizeThinkingLevels(values) {
+  const levels = [];
+  const seen = new Set();
+  for (const rawLevel of Array.isArray(values) ? values : []) {
+    const level = rawLevel.trim().toLowerCase();
+    if (level && !seen.has(level)) {
+      seen.add(level);
+      levels.push(level);
+    }
+  }
+  return levels;
 }
 
 function formatPrice(price) {
@@ -111,6 +135,7 @@ const ChatModelsTable = () => {
   const [formVersion, setFormVersion] = useState(0);
   const chatModelFormApiRef = useRef(null);
   const [candidates, setCandidates] = useState([]);
+  const [knownThinkingLevels, setKnownThinkingLevels] = useState([]);
   const [batchVisible, setBatchVisible] = useState(false);
   const [batchKeyword, setBatchKeyword] = useState('');
   const [selectedBatchModels, setSelectedBatchModels] = useState([]);
@@ -169,9 +194,22 @@ const ChatModelsTable = () => {
     } catch (_) {}
   };
 
+  const loadThinkingLevels = async () => {
+    try {
+      const res = await API.get('/api/chat-models/thinking-levels');
+      const { success, data } = res.data || {};
+      if (success) {
+        setKnownThinkingLevels(
+          normalizeThinkingLevels(Array.isArray(data?.items) ? data.items : []),
+        );
+      }
+    } catch (_) {}
+  };
+
   useEffect(() => {
     loadModels(1);
     loadCandidates();
+    loadThinkingLevels();
   }, []);
 
   const candidateOptions = useMemo(
@@ -230,6 +268,19 @@ const ChatModelsTable = () => {
     () => CHAT_MODEL_API_FORMATS.map((api) => ({ value: api, label: api })),
     [],
   );
+  const thinkingLevelOptions = useMemo(
+    () =>
+      normalizeThinkingLevels([
+        ...COMMON_THINKING_LEVELS,
+        ...knownThinkingLevels,
+        ...form.thinkingLevels,
+      ]).map((level) => ({ value: level, label: level })),
+    [form.thinkingLevels, knownThinkingLevels],
+  );
+  const thinkingDefaultOptions = useMemo(
+    () => form.thinkingLevels.map((level) => ({ value: level, label: level })),
+    [form.thinkingLevels],
+  );
   const recommendedContextTokens = useMemo(() => {
     const contextWindow = Number(form.contextWindow);
     if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
@@ -247,6 +298,7 @@ const ChatModelsTable = () => {
     setFormVersion((version) => version + 1);
     setModalVisible(true);
     loadCandidates();
+    loadThinkingLevels();
   };
 
   const openBatchCreate = () => {
@@ -267,6 +319,9 @@ const ChatModelsTable = () => {
       contextTokens: record.contextTokens ?? 0,
       maxTokens: record.maxTokens ?? 0,
       reasoning: Boolean(record.reasoning),
+      thinkingLevels: normalizeThinkingLevels(record.thinkingLevels),
+      thinkingDefault: record.thinkingDefault || '',
+      supportsFastMode: Boolean(record.supportsFastMode),
       enabled: Boolean(record.enabled),
       is_auto: Boolean(record.is_auto),
       sort: record.sort ?? 0,
@@ -274,6 +329,7 @@ const ChatModelsTable = () => {
     setFormVersion((version) => version + 1);
     setModalVisible(true);
     loadCandidates();
+    loadThinkingLevels();
   };
 
   const updateForm = (key, value) => {
@@ -308,6 +364,14 @@ const ChatModelsTable = () => {
       showError(t('最大输出 Token 不能大于上下文窗口'));
       return;
     }
+    const thinkingLevels = normalizeThinkingLevels(form.thinkingLevels);
+    const thinkingDefault = String(form.thinkingDefault || '')
+      .trim()
+      .toLowerCase();
+    if (thinkingDefault && !thinkingLevels.includes(thinkingDefault)) {
+      showError(t('默认思考深度必须包含在思考深度列表中'));
+      return;
+    }
 
     setSaving(true);
     try {
@@ -320,6 +384,9 @@ const ChatModelsTable = () => {
         contextTokens,
         maxTokens,
         reasoning: Boolean(form.reasoning),
+        thinkingLevels,
+        thinkingDefault,
+        supportsFastMode: Boolean(form.supportsFastMode),
         enabled: Boolean(form.enabled),
         is_auto: Boolean(form.is_auto),
         sort: Number.isFinite(Number(form.sort)) ? Number(form.sort) : 0,
@@ -336,6 +403,7 @@ const ChatModelsTable = () => {
       setModalVisible(false);
       await loadModels(editing ? page : 1);
       await loadCandidates();
+      await loadThinkingLevels();
     } catch (error) {
       showError(error.response?.data?.message || t('操作失败'));
     } finally {
@@ -707,6 +775,48 @@ const ChatModelsTable = () => {
             onChange={(value) => updateForm('maxTokens', Number(value))}
             extraText={t('建议按模型官方公布的最大输出填写；0 表示未配置')}
           />
+          <Form.Select
+            field='thinkingLevels'
+            label={t('思考深度')}
+            placeholder={t('请选择，或输入新档位后按 Enter')}
+            multiple
+            filter
+            allowCreate
+            optionList={thinkingLevelOptions}
+            onChange={(value) => {
+              const thinkingLevels = normalizeThinkingLevels(value);
+              const thinkingDefault = thinkingLevels.includes(
+                form.thinkingDefault,
+              )
+                ? form.thinkingDefault
+                : '';
+              setForm((current) => ({
+                ...current,
+                thinkingLevels,
+                thinkingDefault,
+              }));
+              chatModelFormApiRef.current?.setValue(
+                'thinkingLevels',
+                thinkingLevels,
+              );
+              if (!thinkingDefault) {
+                chatModelFormApiRef.current?.setValue('thinkingDefault', '');
+              }
+            }}
+            extraText={t(
+              '从常用档位或已有配置中多选；Provider 有新档位时可输入并按 Enter 添加。留空时沿用“推理模型”开关',
+            )}
+          />
+          <Form.Select
+            field='thinkingDefault'
+            label={t('默认思考深度')}
+            placeholder={t('请选择默认深度')}
+            optionList={thinkingDefaultOptions}
+            showClear
+            disabled={form.thinkingLevels.length === 0}
+            onChange={(value) => updateForm('thinkingDefault', value || '')}
+            extraText={t('默认值只能从已选择的思考深度中设置')}
+          />
           <Form.InputNumber
             field='sort'
             label={t('排序')}
@@ -726,6 +836,11 @@ const ChatModelsTable = () => {
             field='reasoning'
             label={t('推理模型')}
             onChange={(checked) => updateForm('reasoning', checked)}
+          />
+          <Form.Switch
+            field='supportsFastMode'
+            label={t('支持快速模式')}
+            onChange={(checked) => updateForm('supportsFastMode', checked)}
           />
         </Form>
       </Modal>

@@ -483,9 +483,7 @@ func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offs
 		return []*SkillHubSkill{}, 0, nil
 	}
 
-	db := DB.Model(&SkillHubSkill{}).
-		Joins("JOIN skill_hub_skill_tags ON skill_hub_skill_tags.skill_id = skill_hub_skills.id").
-		Where("skill_hub_skill_tags.tag_id IN ?", cleanTagIDs)
+	db := skillHubSkillsByTagIDsQuery(DB, cleanTagIDs)
 	if !admin {
 		db = db.Where("status = ?", SkillHubStatusPublished)
 	}
@@ -509,16 +507,24 @@ func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offs
 	}
 
 	var total int64
-	if err := db.Distinct("skill_hub_skills.id").Count(&total).Error; err != nil {
+	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var skills []*SkillHubSkill
-	err = db.Distinct("skill_hub_skills.*").
+	err = db.
 		Order(skillHubQualifiedSkillOrder).
 		Offset(offset).
 		Limit(limit).
 		Find(&skills).Error
 	return skills, total, err
+}
+
+func skillHubSkillsByTagIDsQuery(db *gorm.DB, tagIDs []int) *gorm.DB {
+	taggedSkillIDs := db.Model(&SkillHubSkillTag{}).
+		Select("skill_id").
+		Where("tag_id IN ?", tagIDs)
+	return db.Model(&SkillHubSkill{}).
+		Where("skill_hub_skills.id IN (?)", taggedSkillIDs)
 }
 
 func SkillHubSkillsToResponses(skills []*SkillHubSkill, admin bool) []SkillHubSkillResponse {
