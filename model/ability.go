@@ -149,7 +149,7 @@ func GetChannel(group string, model string, retry int, requestPath string, exclu
 
 func getSatisfiedChannelsFromDB(group string, modelName string, requestPath string, excludeIDs []int) ([]*Channel, error) {
 	var abilities []Ability
-	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, modelName, true).
+	err := DB.Where(&Ability{Group: group, Model: modelName, Enabled: true}).
 		Order("priority DESC").
 		Order("weight DESC").
 		Find(&abilities).Error

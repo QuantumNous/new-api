@@ -1,12 +1,35 @@
 package service
 
 import (
+	"errors"
 	"fmt"
+	"math"
+	"math/rand"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 )
+
+func leastLoadedChannels(channels []*model.Channel) []*model.Channel {
+	minimumUsed := math.MaxInt
+	leastLoaded := make([]*model.Channel, 0, len(channels))
+	for _, channel := range channels {
+		lim := GetChannelLimits(channel)
+		used, _ := GetConcurrencyStatus(channelGateKey(channel.Id, -1))
+		if lim.Enabled && lim.MaxConcurrency > 0 && used >= lim.MaxConcurrency {
+			continue
+		}
+		if used < minimumUsed {
+			minimumUsed = used
+			leastLoaded = leastLoaded[:0]
+		}
+		if used == minimumUsed {
+			leastLoaded = append(leastLoaded, channel)
+		}
+	}
+	return leastLoaded
+}
 
 // GateHandle tracks the semaphore slots acquired for one request so they can be
 // released together when the request completes (success or failure).
@@ -19,8 +42,8 @@ func (h *GateHandle) Release() {
 	if h == nil {
 		return
 	}
-	for _, k := range h.GateKeys {
-		ReleaseConcurrency(k)
+	for _, key := range h.GateKeys {
+		ReleaseConcurrency(key)
 	}
 	h.GateKeys = nil
 }
@@ -41,12 +64,8 @@ func channelGateKey(channelID, keyIdx int) string {
 	return fmt.Sprintf("channel:%d:key:%d", channelID, keyIdx)
 }
 
-// evaluateChannelForLimits checks the per-channel concurrency cap for one
-// candidate channel. Returns true (skip) when the channel is at its cap right
-// now; the caller adds it to `excluded` and re-selects.
-//
-// Does NOT acquire the concurrency slot — the caller (SelectChannelWithLimits)
-// does that explicitly via GateHandle.acquire so the slot ownership is traceable.
+// evaluateChannelForLimits atomically acquires the requested channel slot.
+// It returns true when the gate is full and adds the channel to excluded.
 func evaluateChannelForLimits(channelID, keyIdx int, lim ChannelLimits, excluded map[int]bool) bool {
 	if !lim.Enabled || lim.MaxConcurrency <= 0 {
 		return false
@@ -58,12 +77,6 @@ func evaluateChannelForLimits(channelID, keyIdx int, lim ChannelLimits, excluded
 	return false
 }
 
-// selectHealthyKey finds a key index whose per-key concurrency slot is
-// available. Returns (idx, true) on success. Tries up to len(keys)
-// alternatives via the excludeKeyIdx set passed to channel.GetNextEnabledKey.
-// The helper acquires and immediately releases the per-key semaphore slot
-// purely as a probe — the orchestrator re-acquires the slot through
-// GateHandle.acquire so ownership stays on the handle's release path.
 func selectHealthyKey(channel *model.Channel, lim ChannelLimits) (int, bool) {
 	keys := channel.GetKeys()
 	excluded := map[int]bool{}
@@ -76,100 +89,119 @@ func selectHealthyKey(channel *model.Channel, lim ChannelLimits) (int, bool) {
 			excluded[idx] = true
 			continue
 		}
-		// Release the slot — the orchestrator's handle will re-acquire it
-		// through the normal lifecycle so the slot is tracked there.
 		ReleaseConcurrency(channelGateKey(channel.Id, idx))
 		return idx, true
 	}
 	return 0, false
 }
 
-// SelectChannelWithLimits selects a channel honoring the per-channel
-// concurrency cap. On a usable hit it acquires the per-channel concurrency
-// slot (and per-key slot for multi-key channels when MaxConcurrency > 0) and
-// returns a non-nil GateHandle that the caller MUST Release() (typically via
-// defer). Channels at their cap are added to excluded (carried across retries
-// within one request without consuming the retry counter).
-//
-// For multi-key channels the orchestrator also runs the per-key selection
-// loop via selectHealthyKey: pick a key whose per-key semaphore slot is
-// available. The chosen index is stashed on the request context so
-// SetupContextForSelectedChannel (distributor.go) can use it without re-running
-// selection — otherwise the chosen key could be overridden by
-// GetNextEnabledKey's polling index move on the next call.
-//
-// Returns (channel, selectGroup, gateHandle, error). The handle is always
-// non-nil; Release() is safe even when no slot was acquired (empty slice or
-// error path). On a nil channel with a nil error, the orchestrator exhausted
-// maxReAttempts and the caller should treat it as "no channel available".
-//
-// Side effect: param.ExcludeIDs is rewritten on each iteration as the
-// exclude set grows. RetryParam is short-lived per request so this is safe;
-// callers must not rely on the pre-call value of ExcludeIDs after the call.
+// SelectChannelWithLimits chooses the least-loaded eligible channel in the
+// selected priority tier and atomically acquires its concurrency slots. When a
+// whole tier is full it falls through to the next lower priority.
 func SelectChannelWithLimits(param *RetryParam) (*model.Channel, string, *GateHandle, error) {
 	excluded := make(map[int]bool, len(param.ExcludeIDs))
 	for _, id := range param.ExcludeIDs {
 		excluded[id] = true
 	}
 	handle := &GateHandle{}
-	// maxReAttempts bounds the worst-case number of channels we will try in a
-	// single selection. Comfortably above typical channel-count-per-group and
-	// well under the loop's per-iteration cost; if all 8 candidates are unusable
-	// the orchestrator returns (nil, param.TokenGroup, handle, nil).
-	const maxReAttempts = 8
 
-	for attempt := 0; attempt < maxReAttempts; attempt++ {
+	groups := []string{param.TokenGroup}
+	if param.TokenGroup == "auto" {
+		userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+		groups = GetUserAutoGroup(userGroup)
+		if len(groups) == 0 {
+			return nil, param.TokenGroup, handle, errors.New("auto groups is not enabled")
+		}
+	}
+
+	for _, selectGroup := range groups {
 		param.ExcludeIDs = mapKeys(excluded)
-		channel, selectGroup, err := CacheGetRandomSatisfiedChannel(param)
+		candidates, err := model.GetSatisfiedChannels(selectGroup, param.ModelName, param.RequestPath, param.ExcludeIDs)
 		if err != nil {
 			return nil, selectGroup, handle, err
 		}
-		if channel == nil {
-			return nil, selectGroup, handle, nil
-		}
-		lim := GetChannelLimits(channel)
-		if evaluateChannelForLimits(channel.Id, -1, lim, excluded) {
+		if len(candidates) == 0 {
 			continue
 		}
-		// Per-key selection for multi-key channels.
-		if channel.ChannelInfo.IsMultiKey && lim.Enabled {
-			keyIdx, ok := selectHealthyKey(channel, lim)
-			if !ok {
-				// evaluateChannelForLimits already acquired the per-channel slot
-				// above; release it before excluding this channel so MaxConcurrency
-				// is not permanently leaked.
-				if lim.MaxConcurrency > 0 {
-					ReleaseConcurrency(channelGateKey(channel.Id, -1))
-				}
-				excluded[channel.Id] = true
+
+		priorityTiers := make([][]*model.Channel, 0)
+		for _, candidate := range candidates {
+			if len(priorityTiers) == 0 || priorityTiers[len(priorityTiers)-1][0].GetPriority() != candidate.GetPriority() {
+				priorityTiers = append(priorityTiers, []*model.Channel{candidate})
 				continue
 			}
-			common.SetContextKey(param.Ctx, constant.ContextKeyChannelPreSelectedKeyIdx, keyIdx)
-			if lim.MaxConcurrency > 0 {
-				k := channelGateKey(channel.Id, keyIdx)
-				if !handle.acquire(k, lim.MaxConcurrency) {
-					// same leak prevention: release the per-channel slot acquired
-					// by evaluateChannelForLimits before retrying on another channel.
-					ReleaseConcurrency(channelGateKey(channel.Id, -1))
-					excluded[channel.Id] = true
-					common.SetContextKey(param.Ctx, constant.ContextKeyChannelPreSelectedKeyIdx, nil)
+			priorityTiers[len(priorityTiers)-1] = append(priorityTiers[len(priorityTiers)-1], candidate)
+		}
+
+		startPriority := param.GetRetry()
+		if startPriority >= len(priorityTiers) {
+			startPriority = len(priorityTiers) - 1
+		}
+		for priorityIndex := startPriority; priorityIndex < len(priorityTiers); priorityIndex++ {
+			tier := priorityTiers[priorityIndex]
+			for len(tier) > 0 {
+				leastLoaded := leastLoadedChannels(tier)
+				if len(leastLoaded) == 0 {
+					break
+				}
+
+				channel := leastLoaded[rand.Intn(len(leastLoaded))]
+				lim := GetChannelLimits(channel)
+				if evaluateChannelForLimits(channel.Id, -1, lim, excluded) {
+					tier = excludeChannels(tier, channel.Id)
 					continue
 				}
+
+				if channel.ChannelInfo.IsMultiKey && lim.Enabled {
+					keyIdx, ok := selectHealthyKey(channel, lim)
+					if !ok {
+						if lim.MaxConcurrency > 0 {
+							ReleaseConcurrency(channelGateKey(channel.Id, -1))
+						}
+						excluded[channel.Id] = true
+						tier = excludeChannels(tier, channel.Id)
+						continue
+					}
+					common.SetContextKey(param.Ctx, constant.ContextKeyChannelPreSelectedKeyIdx, keyIdx)
+					if lim.MaxConcurrency > 0 {
+						keyGate := channelGateKey(channel.Id, keyIdx)
+						if !handle.acquire(keyGate, lim.MaxConcurrency) {
+							ReleaseConcurrency(channelGateKey(channel.Id, -1))
+							excluded[channel.Id] = true
+							tier = excludeChannels(tier, channel.Id)
+							common.SetContextKey(param.Ctx, constant.ContextKeyChannelPreSelectedKeyIdx, nil)
+							continue
+						}
+					}
+				}
+				if lim.Enabled && lim.MaxConcurrency > 0 {
+					handle.GateKeys = append(handle.GateKeys, channelGateKey(channel.Id, -1))
+				}
+				if param.TokenGroup == "auto" {
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, selectGroup)
+				}
+				param.ExcludeIDs = mapKeys(excluded)
+				return channel, selectGroup, handle, nil
 			}
 		}
-		// per-channel concurrency slot — record it on the handle so it is released later
-		if lim.Enabled && lim.MaxConcurrency > 0 {
-			handle.GateKeys = append(handle.GateKeys, channelGateKey(channel.Id, -1))
-		}
-		return channel, selectGroup, handle, nil
 	}
 	return nil, param.TokenGroup, handle, nil
 }
 
+func excludeChannels(channels []*model.Channel, channelID int) []*model.Channel {
+	filtered := make([]*model.Channel, 0, len(channels)-1)
+	for _, channel := range channels {
+		if channel.Id != channelID {
+			filtered = append(filtered, channel)
+		}
+	}
+	return filtered
+}
+
 func mapKeys(m map[int]bool) []int {
 	out := make([]int, 0, len(m))
-	for k := range m {
-		out = append(out, k)
+	for key := range m {
+		out = append(out, key)
 	}
 	return out
 }
