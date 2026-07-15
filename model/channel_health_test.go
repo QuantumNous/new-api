@@ -286,6 +286,116 @@ func TestChannelHealthIgnoresGenuineClientErrors(t *testing.T) {
 	}
 }
 
+func TestChannelHealthTripsOnSpreadOutIntermittentFailures(t *testing.T) {
+	// A volatile channel that times out intermittently, with the failures spread
+	// far enough apart (40s) that no 60s window ever holds three of them, must
+	// still trip on the rate-based window. Under the time-window-only rule this
+	// channel would never open and would keep being selected.
+	health, clock := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 42, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+
+	seq := []bool{true, false, true, false, true} // fail, ok, fail, ok, fail
+	for i, failed := range seq {
+		if failed {
+			health.Record(key, ChannelOutcome{StatusCode: http.StatusInternalServerError})
+		} else {
+			health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 500 * time.Millisecond})
+		}
+		if i < len(seq)-1 {
+			clock.Advance(40 * time.Second)
+		}
+	}
+
+	if got := health.Failures(key); got >= channelHealthFailureThreshold {
+		t.Fatalf("time-window failures = %d; test must exercise the rate window, not the 60s burst rule", got)
+	}
+	if got := health.State(key); got != ChannelHealthOpen {
+		t.Fatalf("state after 3-of-5 intermittent failures = %v, want %v (volatile channel must trip)", got, ChannelHealthOpen)
+	}
+}
+
+func TestChannelHealthBackoffEscalatesOnRepeatedOpens(t *testing.T) {
+	// A channel that fails again right after recovering must stay open longer the
+	// second time, so a flapping channel is not retried every base interval.
+	health, clock := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 42, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+	clock.Advance(channelHealthOpenDuration)
+	if !health.Acquire(key) {
+		t.Fatal("expected half-open probe after the base open interval")
+	}
+	// Probe fails -> reopen with escalated (2x) backoff.
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusBadGateway})
+	if got := health.State(key); got != ChannelHealthOpen {
+		t.Fatalf("state after failed probe = %v, want %v", got, ChannelHealthOpen)
+	}
+	// One base interval is no longer enough to release the escalated open.
+	clock.Advance(channelHealthOpenDuration)
+	if health.Acquire(key) {
+		t.Fatal("escalated backoff must keep the circuit open longer than the base interval")
+	}
+	// A second base interval (2x total) elapses -> a probe is allowed.
+	clock.Advance(channelHealthOpenDuration)
+	if !health.Acquire(key) {
+		t.Fatal("circuit should allow a probe once the escalated interval elapses")
+	}
+}
+
+func TestChannelHealthBackoffResetsAfterSustainedHealth(t *testing.T) {
+	health, clock := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 42, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+
+	// Trip and escalate the backoff once.
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+	clock.Advance(channelHealthOpenDuration)
+	if !health.Acquire(key) {
+		t.Fatal("expected first half-open probe")
+	}
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusBadGateway}) // reopen, escalated
+	clock.Advance(2 * channelHealthOpenDuration)
+	if !health.Acquire(key) {
+		t.Fatal("expected half-open probe after the escalated interval")
+	}
+	// Sustained health: enough fast successes (probe + closed-state) to reset.
+	for i := 0; i < channelHealthBackoffResetStreak; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 100 * time.Millisecond})
+	}
+	if got := health.State(key); got != ChannelHealthClosed {
+		t.Fatalf("state after sustained healthy successes = %v, want %v", got, ChannelHealthClosed)
+	}
+	// Trip again: the backoff must be back to the base interval, not escalated.
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+	clock.Advance(channelHealthOpenDuration)
+	if !health.Acquire(key) {
+		t.Fatal("after sustained health the backoff must reset to the base open interval")
+	}
+}
+
+func TestChannelHealthToleratesOccasionalBlip(t *testing.T) {
+	// A healthy channel with an isolated failure among many successes (well under
+	// the rate threshold) must not trip.
+	health, _ := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 28, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+
+	for i := 0; i < 4; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 300 * time.Millisecond})
+	}
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusInternalServerError})
+	for i := 0; i < 4; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 300 * time.Millisecond})
+	}
+	if got := health.State(key); got != ChannelHealthClosed {
+		t.Fatalf("state after a single blip among successes = %v, want %v", got, ChannelHealthClosed)
+	}
+}
+
 func TestChannelHealthIgnoresGatewayLocalErrors(t *testing.T) {
 	health, _ := newTestChannelHealth(t)
 	key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.5", Path: "/v1/responses"}

@@ -24,6 +24,23 @@ const (
 	channelHealthMaxEntries       = 10_000
 	minimumChannelHealthScore     = 0.1
 
+	// Rate-based tripping over a rolling window of recent attempts, independent
+	// of wall-clock. A low-traffic channel whose failures never fall inside one
+	// channelHealthFailureWindow still trips once channelHealthRecentFailTrip of
+	// its last channelHealthRecentWindow attempts have failed. This catches a
+	// volatile channel (intermittent timeouts spread over minutes) that the
+	// time-window burst rule misses because 3 failures never coincide in 60s.
+	channelHealthRecentWindow   = 5
+	channelHealthRecentFailTrip = 3
+
+	// Exponential backoff for a flapping channel: each successive open (without a
+	// sustained-healthy reset) doubles the open interval up to a cap, so a
+	// channel that keeps failing right after recovery is sidelined progressively
+	// longer instead of being retried every channelHealthOpenDuration.
+	channelHealthMaxBackoffShift    = 4 // 30s << 4 == 8m
+	channelHealthMaxOpenDuration    = 8 * time.Minute
+	channelHealthBackoffResetStreak = 3 // consecutive fast successes that clear the backoff
+
 	// channelHealthSlowThreshold consecutive slow successes (a fast success
 	// resets the count) trip the circuit, so a consistently-slow channel is
 	// evicted and re-probed like a failing one, while an occasional spike on an
@@ -60,13 +77,70 @@ type ChannelOutcome struct {
 }
 
 type channelHealthEntry struct {
-	state           ChannelHealthState
-	failures        []time.Time
-	slowSamples     []time.Time
-	openUntil       time.Time
-	probeLeaseUntil time.Time
-	latencyEWMA     float64
-	lastSeenAt      time.Time
+	state            ChannelHealthState
+	failures         []time.Time
+	slowSamples      []time.Time
+	recentOutcomes   []bool // rolling window of recent attempts; true = failure, most recent last
+	consecutiveOpens int    // opens since the last sustained-healthy reset; drives the backoff interval
+	healthyStreak    int    // consecutive fast closed-state successes; clears the backoff
+	openUntil        time.Time
+	probeLeaseUntil  time.Time
+	latencyEWMA      float64
+	lastSeenAt       time.Time
+}
+
+func (e *channelHealthEntry) pushRecentOutcome(failure bool) {
+	e.recentOutcomes = append(e.recentOutcomes, failure)
+	if len(e.recentOutcomes) > channelHealthRecentWindow {
+		e.recentOutcomes = e.recentOutcomes[len(e.recentOutcomes)-channelHealthRecentWindow:]
+	}
+}
+
+func (e *channelHealthEntry) recentFailureCount() int {
+	n := 0
+	for _, failed := range e.recentOutcomes {
+		if failed {
+			n++
+		}
+	}
+	return n
+}
+
+// openWithBackoff opens the circuit for an interval that grows with the number
+// of consecutive opens, so a persistently-flapping channel is sidelined longer
+// each time instead of being retried every base interval. It clears the
+// per-window failure/slow/outcome trackers, which are rebuilt from probe results
+// after recovery.
+func (e *channelHealthEntry) openWithBackoff(now time.Time) {
+	shift := e.consecutiveOpens
+	if shift > channelHealthMaxBackoffShift {
+		shift = channelHealthMaxBackoffShift
+	}
+	dur := channelHealthOpenDuration << uint(shift)
+	if dur > channelHealthMaxOpenDuration {
+		dur = channelHealthMaxOpenDuration
+	}
+	e.state = ChannelHealthOpen
+	e.openUntil = now.Add(dur)
+	e.probeLeaseUntil = time.Time{}
+	e.failures = nil
+	e.slowSamples = nil
+	e.recentOutcomes = nil
+	e.healthyStreak = 0
+	if e.consecutiveOpens <= channelHealthMaxBackoffShift {
+		e.consecutiveOpens++
+	}
+}
+
+// registerHealthySuccess advances the healthy streak on a fast success and
+// clears the flapping backoff once the channel has proven sustained health. A
+// slow (but successful) response is up-but-not-fast, so callers do not invoke
+// this for it — the slow circuit owns that axis.
+func (e *channelHealthEntry) registerHealthySuccess() {
+	e.healthyStreak++
+	if e.healthyStreak >= channelHealthBackoffResetStreak {
+		e.consecutiveOpens = 0
+	}
 }
 
 type channelHealthRegistry struct {
@@ -140,19 +214,23 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	if entry == nil {
 		return
 	}
+
 	if outcome.StatusCode >= http.StatusInternalServerError || outcome.StatusCode <= 0 || isChannelOverloadStatus(outcome.StatusCode) {
+		entry.healthyStreak = 0
+		entry.pushRecentOutcome(true)
 		if entry.state == ChannelHealthHalfOpen {
-			entry.state = ChannelHealthOpen
-			entry.openUntil = now.Add(channelHealthOpenDuration)
-			entry.probeLeaseUntil = time.Time{}
+			entry.openWithBackoff(now)
 			return
 		}
 		entry.failures = pruneChannelHealthFailures(entry.failures, now.Add(-channelHealthFailureWindow))
 		entry.failures = append(entry.failures, now)
-		if len(entry.failures) >= channelHealthFailureThreshold {
-			entry.state = ChannelHealthOpen
-			entry.openUntil = now.Add(channelHealthOpenDuration)
-			entry.probeLeaseUntil = time.Time{}
+		// Trip on either a burst inside the time window OR a high failure rate
+		// over the recent-attempt window. The rate window is traffic-independent,
+		// so a volatile channel whose failures never coincide in one 60s window
+		// still trips once enough of its recent attempts have failed.
+		if len(entry.failures) >= channelHealthFailureThreshold ||
+			entry.recentFailureCount() >= channelHealthRecentFailTrip {
+			entry.openWithBackoff(now)
 		}
 		return
 	}
@@ -174,33 +252,34 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 
 	if entry.state == ChannelHealthHalfOpen {
 		if slow {
-			entry.state = ChannelHealthOpen
-			entry.openUntil = now.Add(channelHealthOpenDuration)
-			entry.probeLeaseUntil = time.Time{}
+			entry.openWithBackoff(now)
 			return
 		}
 		entry.state = ChannelHealthClosed
 		entry.failures = nil
 		entry.slowSamples = nil
+		entry.recentOutcomes = nil
 		entry.openUntil = time.Time{}
 		entry.probeLeaseUntil = time.Time{}
+		entry.pushRecentOutcome(false)
+		entry.registerHealthySuccess()
 		return
 	}
+
+	entry.pushRecentOutcome(false)
 
 	if slow {
 		entry.slowSamples = pruneChannelHealthFailures(entry.slowSamples, now.Add(-channelHealthFailureWindow))
 		entry.slowSamples = append(entry.slowSamples, now)
 		if len(entry.slowSamples) >= channelHealthSlowThreshold {
-			entry.state = ChannelHealthOpen
-			entry.openUntil = now.Add(channelHealthOpenDuration)
-			entry.slowSamples = nil
-			entry.probeLeaseUntil = time.Time{}
+			entry.openWithBackoff(now)
 		}
 		return
 	}
-	// A fast success signals recovery: clear accumulated slowness so only
-	// sustained (un-interrupted) slowness trips the circuit.
+	// A fast success signals recovery: clear accumulated slowness and advance the
+	// healthy streak that eventually clears the flapping backoff.
 	entry.slowSamples = nil
+	entry.registerHealthySuccess()
 }
 
 func (r *channelHealthRegistry) Acquire(key ChannelHealthKey) bool {
