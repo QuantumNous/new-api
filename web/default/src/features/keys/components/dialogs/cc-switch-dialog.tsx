@@ -31,7 +31,6 @@ import { getUserModels } from '@/lib/api'
 const APP_CONFIGS = {
   claude: {
     label: 'Claude',
-    defaultName: 'My Claude',
     modelFields: [
       { key: 'model', labelKey: 'Primary Model', required: true },
       { key: 'haikuModel', labelKey: 'Haiku Model', required: false },
@@ -41,12 +40,10 @@ const APP_CONFIGS = {
   },
   codex: {
     label: 'Codex',
-    defaultName: 'My Codex',
     modelFields: [{ key: 'model', labelKey: 'Primary Model', required: true }],
   },
   gemini: {
     label: 'Gemini',
-    defaultName: 'My Gemini',
     modelFields: [{ key: 'model', labelKey: 'Primary Model', required: true }],
   },
 } as const
@@ -73,7 +70,7 @@ function buildCCSwitchURL(
   apiKey: string
 ): string {
   const serverAddress = getServerAddress()
-  const endpoint = app === 'codex' ? serverAddress + '/v1' : serverAddress
+  const endpoint = app === 'codex' ? `${serverAddress}/v1` : serverAddress
   const params = new URLSearchParams()
   params.set('resource', 'provider')
   params.set('app', app)
@@ -92,12 +89,13 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   tokenKey: string
+  keyName: string
 }
 
 export function CCSwitchDialog(props: Props) {
   const { t } = useTranslation()
   const [app, setApp] = useState<AppType>('claude')
-  const [name, setName] = useState<string>(APP_CONFIGS.claude.defaultName)
+  const [name, setName] = useState<string>('')
   const [models, setModels] = useState<Record<string, string>>({})
 
   const { data: modelsData } = useQuery({
@@ -119,16 +117,16 @@ export function CCSwitchDialog(props: Props) {
 
       setApp('claude')
 
-      setName(APP_CONFIGS.claude.defaultName)
+      setName(props.keyName)
     }
-  }, [props.open])
+  }, [props.keyName, props.open])
 
   const currentConfig = APP_CONFIGS[app]
 
   const handleAppChange = (val: string) => {
     const appVal = val as AppType
     setApp(appVal)
-    setName(APP_CONFIGS[appVal].defaultName)
+    setName(props.keyName)
     setModels({})
   }
 
@@ -194,9 +192,9 @@ export function CCSwitchDialog(props: Props) {
             options={[]}
             value={name}
             onValueChange={setName}
-            placeholder={currentConfig.defaultName}
+            placeholder={props.keyName}
             emptyText=''
-            allowCustomValue={true}
+            allowCustomValue
           />
         </div>
 
