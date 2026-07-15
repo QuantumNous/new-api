@@ -16,6 +16,7 @@ type enterpriseMemberResponse struct {
 	Nickname       string `json:"nickname"`
 	Remark         string `json:"remark"`
 	Quota          int    `json:"quota"`
+	ReceivedQuota  int    `json:"received_quota"`
 	Role           int    `json:"role"`
 	JoinedAt       int64  `json:"joined_at"`
 	InvitationId   int    `json:"invitation_id"`
@@ -41,7 +42,7 @@ type memberRecord struct {
 func (record memberRecord) response(tags []Tag) enterpriseMemberResponse {
 	return enterpriseMemberResponse{
 		Id: record.Id, UserId: record.UserId, Username: record.Username,
-		DisplayName: record.DisplayName, Nickname: record.Nickname, Remark: record.Remark, Quota: record.Quota, Role: record.Role,
+		DisplayName: record.DisplayName, Nickname: record.Nickname, Remark: record.Remark, Quota: record.Quota, ReceivedQuota: record.ReceivedQuota, Role: record.Role,
 		JoinedAt: record.JoinedAt, InvitationId: record.InvitationId, InvitationName: record.InvitationName,
 		InvitationCode: record.InvitationCode, ReviewedBy: record.ReviewedBy, ReviewedName: record.ReviewedName,
 		ReviewedAt: record.ReviewedAt, Tags: tags,
@@ -67,6 +68,32 @@ func (record joinRequestRecord) response() joinRequestResponse {
 	return joinRequestResponse{
 		Id: record.Id, UserId: record.UserId, Username: record.Username,
 		DisplayName: record.DisplayName, Remark: record.Remark, CreatedTime: record.CreatedTime,
+	}
+}
+
+type quotaRecordResponse struct {
+	Id                int    `json:"id"`
+	AdminUserId       int    `json:"admin_user_id"`
+	AdminName         string `json:"admin_name"`
+	MemberUserId      int    `json:"member_user_id"`
+	MemberName        string `json:"member_name"`
+	MemberDisplayName string `json:"member_display_name"`
+	Amount            int    `json:"amount"`
+	CreatedTime       int64  `json:"created_time"`
+}
+
+type quotaRecordRecord struct {
+	QuotaRecord
+	AdminName         string `gorm:"column:admin_name"`
+	MemberName        string `gorm:"column:member_name"`
+	MemberDisplayName string `gorm:"column:member_display_name"`
+}
+
+func (record quotaRecordRecord) response() quotaRecordResponse {
+	return quotaRecordResponse{
+		Id: record.Id, AdminUserId: record.AdminUserId, AdminName: record.AdminName,
+		MemberUserId: record.MemberUserId, MemberName: record.MemberName,
+		MemberDisplayName: record.MemberDisplayName, Amount: record.Amount, CreatedTime: record.CreatedTime,
 	}
 }
 

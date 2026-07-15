@@ -17,6 +17,7 @@ import type {
   EnterpriseTag,
   JoinRequest,
   PaginatedData,
+  QuotaRecord,
 } from "./types";
 
 export type MemberFilters = {
@@ -130,4 +131,24 @@ export const enterpriseApi = {
       member_ids: memberIds,
       amount,
     }),
+  listQuotaRecords: (params: {
+    memberUserId?: number;
+    page?: number;
+    pageSize?: number;
+  }) => {
+    const query: Record<string, number> = {};
+    if (params.memberUserId) {
+      query.member_user_id = params.memberUserId;
+    }
+    if (params.page) {
+      query.p = params.page;
+    }
+    if (params.pageSize) {
+      query.page_size = params.pageSize;
+    }
+    return getData<PaginatedData<QuotaRecord>>(
+      "/api/enterprise/me/quota/records",
+      Object.keys(query).length ? query : undefined,
+    );
+  },
 };

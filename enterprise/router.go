@@ -51,5 +51,6 @@ func RegisterRoutes(api *gin.RouterGroup) {
 		managerRoutes.GET("/tags", listTags)
 		managerRoutes.DELETE("/tags/:id", deleteTag)
 		managerRoutes.POST("/quota/distribute", distributeQuota)
+		managerRoutes.GET("/quota/records", listQuotaRecords)
 	}
 }

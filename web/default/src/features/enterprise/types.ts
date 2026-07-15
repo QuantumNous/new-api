@@ -40,6 +40,7 @@ export type EnterpriseMember = {
   nickname: string;
   remark: string;
   quota: number;
+  received_quota: number;
   role: number;
   joined_at: number;
   invitation_id: number;
@@ -71,6 +72,17 @@ export type JoinRequest = {
   username: string;
   display_name: string;
   remark: string;
+  created_time: number;
+};
+
+export type QuotaRecord = {
+  id: number;
+  admin_user_id: number;
+  admin_name: string;
+  member_user_id: number;
+  member_name: string;
+  member_display_name: string;
+  amount: number;
   created_time: number;
 };
 

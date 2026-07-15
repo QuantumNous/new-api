@@ -385,4 +385,5 @@ const (
 	MsgEnterpriseInvalidMember        = "enterprise.invalid_member"
 	MsgEnterpriseDuplicateMember      = "enterprise.duplicate_member"
 	MsgEnterpriseCannotDistributeToSelf = "enterprise.cannot_distribute_to_self"
+	MsgEnterpriseQuotaRecordListFailed  = "enterprise.quota_record_list_failed"
 )

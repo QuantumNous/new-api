@@ -7,11 +7,12 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/design-system/button";
+import { Dialog } from "@/components/dialog";
 import { Input } from "@/components/design-system/input";
 import {
   Pagination,
@@ -38,7 +39,7 @@ import {
   INVITATION_STATUS,
   INVITATION_STATUS_LABELS,
 } from "./constants";
-import type { EnterpriseMember } from "./types";
+import type { EnterpriseMember, QuotaRecord } from "./types";
 
 const ENTERPRISE_QUERY_KEY = ["enterprise"] as const;
 
@@ -275,6 +276,9 @@ function EnterpriseAdminPanel() {
   const [memberPage, setMemberPage] = useState(1);
   const [memberPageSize, setMemberPageSize] = useState(10);
   const [showRevoked, setShowRevoked] = useState(false);
+  const [allRecordsOpen, setAllRecordsOpen] = useState(false);
+  const [memberRecordsMember, setMemberRecordsMember] =
+    useState<EnterpriseMember | null>(null);
   const membersQuery = useQuery({
     queryKey: [
       ...ENTERPRISE_QUERY_KEY,
@@ -541,6 +545,13 @@ function EnterpriseAdminPanel() {
             >
               {t("Distribute quota")}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAllRecordsOpen(true)}
+            >
+              {t("All records")}
+            </Button>
           </form>
         </div>
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
@@ -615,6 +626,7 @@ function EnterpriseAdminPanel() {
                 </th>
                 <th className="py-2 font-medium">{t("User")}</th>
                 <th className="py-2 font-medium">{t("Quota")}</th>
+                <th className="py-2 font-medium">{t("Received total")}</th>
                 <th className="py-2 font-medium">{t("Tags")}</th>
                 <th className="py-2 font-medium">{t("Joined")}</th>
                 <th className="py-2 font-medium">{t("Invitation")}</th>
@@ -654,6 +666,19 @@ function EnterpriseAdminPanel() {
                   </td>
                   <td className="py-2 tabular-nums">
                     {formatQuota(member.quota)}
+                  </td>
+                  <td className="py-2 tabular-nums">
+                    {member.received_quota > 0 ? (
+                      <button
+                        type="button"
+                        className="text-primary hover:underline"
+                        onClick={() => setMemberRecordsMember(member)}
+                      >
+                        {formatQuota(member.received_quota)}
+                      </button>
+                    ) : (
+                      formatQuota(member.received_quota)
+                    )}
                   </td>
                   <td className="py-2">
                     {(member.tags ?? []).map((tag) => tag.name).join(", ") ||
@@ -1098,7 +1123,182 @@ function EnterpriseAdminPanel() {
           </div>
         </EnterprisePanel>
       </div>
+      <QuotaRecordsDialog
+        open={allRecordsOpen}
+        onOpenChange={setAllRecordsOpen}
+        title={t("All quota distribution records")}
+      />
+      {memberRecordsMember && (
+        <QuotaRecordsDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setMemberRecordsMember(null);
+          }}
+          memberUserId={memberRecordsMember.user_id}
+          title={t("Quota records for {{name}}", {
+            name:
+              memberRecordsMember.display_name || memberRecordsMember.username,
+          })}
+        />
+      )}
     </div>
+  );
+}
+
+function QuotaRecordsTable({ records }: { records: QuotaRecord[] }) {
+  const { t } = useTranslation();
+  const formatTime = (ts: number) =>
+    ts > 0 ? dayjs(ts * 1000).format("YYYY-MM-DD HH:mm") : "-";
+  if (records.length === 0) {
+    return (
+      <div className="text-muted-foreground py-6 text-center text-sm">
+        {t("No records")}
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="text-muted-foreground border-b">
+          <tr>
+            <th className="py-2 font-medium">{t("Time")}</th>
+            <th className="py-2 font-medium">{t("From")}</th>
+            <th className="py-2 font-medium">{t("To")}</th>
+            <th className="py-2 font-medium">{t("Amount")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr className="border-b last:border-0" key={record.id}>
+              <td className="py-2 whitespace-nowrap tabular-nums">
+                {formatTime(record.created_time)}
+              </td>
+              <td className="py-2">{record.admin_name}</td>
+              <td className="py-2">
+                {record.member_display_name || record.member_name}
+              </td>
+              <td className="py-2 tabular-nums">
+                {formatQuota(record.amount)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function QuotaRecordsDialog({
+  open,
+  onOpenChange,
+  memberUserId,
+  title,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  memberUserId?: number;
+  title: string;
+}) {
+  const { t } = useTranslation();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  useEffect(() => {
+    if (open) setPage(1);
+  }, [open, memberUserId]);
+  const recordsQuery = useQuery({
+    queryKey: [
+      ...ENTERPRISE_QUERY_KEY,
+      "quota-records",
+      memberUserId,
+      page,
+      pageSize,
+    ],
+    queryFn: () =>
+      enterpriseApi.listQuotaRecords({
+        memberUserId,
+        page,
+        pageSize,
+      }),
+    enabled: open,
+  });
+  const total = recordsQuery.data?.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const records = recordsQuery.data?.data?.items ?? [];
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      contentClassName="sm:max-w-3xl"
+      contentHeight="min(72vh, 640px)"
+    >
+      <div className="grid gap-3">
+        <QuotaRecordsTable records={records} />
+        {total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-muted-foreground text-xs">
+              {t("Total")}: {total}
+            </span>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className={
+                      page <= 1 ? "pointer-events-none opacity-50" : undefined
+                    }
+                  />
+                </PaginationItem>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(
+                    (p) =>
+                      p === 1 ||
+                      p === totalPages ||
+                      Math.abs(p - page) <= 1,
+                  )
+                  .map((p, idx, arr) => (
+                    <PaginationItem key={p}>
+                      {idx > 0 && arr[idx - 1] !== p - 1 ? (
+                        <span className="text-muted-foreground px-1">…</span>
+                      ) : null}
+                      <PaginationLink
+                        isActive={p === page}
+                        onClick={() => setPage(p)}
+                      >
+                        {p}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className={
+                      page >= totalPages
+                        ? "pointer-events-none opacity-50"
+                        : undefined
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+            <select
+              className="border-border bg-background rounded-md border px-2 py-1 text-xs"
+              value={pageSize}
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
+                setPage(1);
+              }}
+            >
+              {[10, 20, 50].map((size) => (
+                <option key={size} value={size}>
+                  {size} / {t("page")}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+    </Dialog>
   );
 }
 

@@ -12,6 +12,6 @@ import "github.com/QuantumNous/new-api/model"
 
 func AutoMigrate() error {
 	return model.DB.AutoMigrate(
-		&Enterprise{}, &Member{}, &Invitation{}, &JoinRequest{}, &Tag{}, &MemberTag{},
+		&Enterprise{}, &Member{}, &Invitation{}, &JoinRequest{}, &Tag{}, &MemberTag{}, &QuotaRecord{},
 	)
 }

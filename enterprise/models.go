@@ -42,17 +42,18 @@ type Enterprise struct {
 func (Enterprise) TableName() string { return "enterprises" }
 
 type Member struct {
-	Id           int    `json:"id"`
-	EnterpriseId int    `json:"enterprise_id" gorm:"uniqueIndex:idx_enterprise_member;index;not null"`
-	UserId       int    `json:"user_id" gorm:"uniqueIndex:idx_enterprise_member;index;not null"`
-	Role         int    `json:"role" gorm:"not null"`
-	Status       int    `json:"status" gorm:"index;not null"`
-	JoinedAt     int64  `json:"joined_at" gorm:"not null"`
-	RemovedAt    int64  `json:"removed_at" gorm:"not null"`
-	InvitationId int    `json:"invitation_id" gorm:"index"`
-	ReviewedBy   int    `json:"reviewed_by" gorm:"index"`
-	ReviewedAt   int64  `json:"reviewed_at"`
-	Nickname     string `json:"nickname" gorm:"size:32"`
+	Id            int    `json:"id"`
+	EnterpriseId  int    `json:"enterprise_id" gorm:"uniqueIndex:idx_enterprise_member;index;not null"`
+	UserId        int    `json:"user_id" gorm:"uniqueIndex:idx_enterprise_member;index;not null"`
+	Role          int    `json:"role" gorm:"not null"`
+	Status        int    `json:"status" gorm:"index;not null"`
+	JoinedAt      int64  `json:"joined_at" gorm:"not null"`
+	RemovedAt     int64  `json:"removed_at" gorm:"not null"`
+	InvitationId  int    `json:"invitation_id" gorm:"index"`
+	ReviewedBy    int    `json:"reviewed_by" gorm:"index"`
+	ReviewedAt    int64  `json:"reviewed_at"`
+	Nickname      string `json:"nickname" gorm:"size:32"`
+	ReceivedQuota int    `json:"received_quota" gorm:"default:0"`
 }
 
 func (Member) TableName() string { return "enterprise_members" }
@@ -104,3 +105,14 @@ type MemberTag struct {
 }
 
 func (MemberTag) TableName() string { return "enterprise_member_tags" }
+
+type QuotaRecord struct {
+	Id           int   `json:"id"`
+	EnterpriseId int   `json:"enterprise_id" gorm:"index;not null"`
+	AdminUserId  int   `json:"admin_user_id" gorm:"index;not null"`
+	MemberUserId int   `json:"member_user_id" gorm:"index;not null"`
+	Amount       int   `json:"amount" gorm:"not null"`
+	CreatedTime  int64 `json:"created_time" gorm:"index;not null"`
+}
+
+func (QuotaRecord) TableName() string { return "enterprise_quota_records" }
