@@ -17,6 +17,9 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+
+	// MaxConcurrency is the per-channel concurrency cap. 0 means "unlimited".
+	MaxConcurrency int `json:"max_concurrency,omitempty"`
 }
 
 type VertexKeyType string

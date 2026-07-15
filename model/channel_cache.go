@@ -111,10 +111,10 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string, excludeIDs []int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, requestPath)
+		return GetChannel(group, model, retry, requestPath, excludeIDs)
 	}
 
 	channelSyncLock.RLock()
@@ -128,6 +128,8 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
 		channels = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, model)
 	}
+
+	channels = excludeChannelIDs(channels, excludeIDs)
 
 	if len(channels) == 0 {
 		return nil, nil
@@ -326,4 +328,26 @@ func CacheUpdateChannel(channel *Channel) {
 	// updatePricingLock while holding channelSyncLock would be an AB-BA deadlock.
 	channelSyncLock.Unlock()
 	InvalidatePricingCache()
+}
+
+// excludeChannelIDs returns a new slice containing ids with any in exclude
+// removed. If exclude is empty it returns ids unchanged. Allocates a fresh
+// slice so the caller may continue to read the cached group2model2channels
+// slice without seeing this filter's writes — matches filterChannelsByRequestPath's
+// non-mutating contract.
+func excludeChannelIDs(ids []int, exclude []int) []int {
+	if len(exclude) == 0 {
+		return ids
+	}
+	excluded := make(map[int]bool, len(exclude))
+	for _, id := range exclude {
+		excluded[id] = true
+	}
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if !excluded[id] {
+			out = append(out, id)
+		}
+	}
+	return out
 }

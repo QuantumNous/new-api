@@ -132,13 +132,18 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+					rp := &service.RetryParam{
 						Ctx:         c,
 						ModelName:   modelRequest.Model,
 						TokenGroup:  usingGroup,
 						RequestPath: c.Request.URL.Path,
 						Retry:       common.GetPointer(0),
-					})
+					}
+					var handle *service.GateHandle
+					channel, selectGroup, handle, err = service.SelectChannelWithLimits(rp)
+					if handle != nil {
+						common.SetContextKey(c, constant.ContextKeyChannelLimitGate, handle)
+					}
 					if err != nil {
 						showGroup := usingGroup
 						if usingGroup == "auto" {
@@ -440,6 +445,29 @@ func getTaskOriginModelName(c *gin.Context) string {
 	return ""
 }
 
+// selectChannelKeyFromContext picks the active key for `channel`. If the
+// channel-limit orchestrator (service.SelectChannelWithLimits) recorded a
+// per-key pre-selection on the request context (because that key passed
+// per-key concurrency gating), honor it verbatim — re-running
+// GetNextEnabledKey could otherwise re-pick a previously rejected key.
+// Falls back to GetNextEnabledKey(nil) when no pre-selection was recorded
+// or the pre-selected index is out of range.
+func selectChannelKeyFromContext(c *gin.Context, channel *model.Channel) (string, int, error) {
+	if channel.ChannelInfo.IsMultiKey {
+		if pre, ok := common.GetContextKey(c, constant.ContextKeyChannelPreSelectedKeyIdx); ok {
+			if idx, ok := pre.(int); ok && idx >= 0 && idx < len(channel.GetKeys()) {
+				keys := channel.GetKeys()
+				return keys[idx], idx, nil
+			}
+		}
+	}
+	key, index, apiErr := channel.GetNextEnabledKey(nil)
+	if apiErr != nil {
+		return key, index, apiErr
+	}
+	return key, index, nil
+}
+
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
@@ -465,9 +493,9 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
+	key, index, newAPIError := selectChannelKeyFromContext(c, channel)
 	if newAPIError != nil {
-		return newAPIError
+		return newAPIError.(*types.NewAPIError)
 	}
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)

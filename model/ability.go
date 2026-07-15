@@ -105,7 +105,7 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+func GetChannel(group string, model string, retry int, requestPath string, excludeIDs []int) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
@@ -122,6 +122,7 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 		return nil, err
 	}
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+	abilities = excludeAbilities(abilities, excludeIDs)
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one
@@ -388,4 +389,26 @@ func FixAbility() (int, int, error) {
 	}
 	InitChannelCache()
 	return successCount, failCount, nil
+}
+
+// excludeAbilities returns a new slice with any Ability whose ChannelId is in
+// excludeIDs removed. If excludeIDs is empty it returns abilities unchanged.
+// Allocates a fresh slice so the caller does not need to worry about the
+// input slice's lifetime — matches filterAbilitiesByRequestPath's
+// non-mutating contract.
+func excludeAbilities(abilities []Ability, excludeIDs []int) []Ability {
+	if len(excludeIDs) == 0 {
+		return abilities
+	}
+	excluded := make(map[int]bool, len(excludeIDs))
+	for _, id := range excludeIDs {
+		excluded[id] = true
+	}
+	out := make([]Ability, 0, len(abilities))
+	for _, a := range abilities {
+		if !excluded[a.ChannelId] {
+			out = append(out, a)
+		}
+	}
+	return out
 }
