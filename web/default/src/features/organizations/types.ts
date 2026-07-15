@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export type OrganizationRole = 'owner' | 'admin' | 'billing' | 'member'
+export type OrganizationRole = 'admin' | 'member'
 export const ORGANIZATION_STATUS_ENABLED = 1
 export const ORGANIZATION_STATUS_DISABLED = 2
 export type OrganizationStatus =
@@ -40,7 +40,6 @@ export interface PaginatedResponse<T> {
 export interface Organization {
   id: number
   name: string
-  owner_id: number
   status: OrganizationStatus
   created_at: number
   updated_at: number
@@ -118,6 +117,12 @@ export interface OrganizationDimensionRow {
   prompt_tokens?: number
   completion_tokens?: number
   pricing?: OrganizationPricingSnapshot
+}
+
+export interface OrganizationBillingFilterOptions {
+  members: OrganizationMember[]
+  models: OrganizationDimensionRow[]
+  channels: OrganizationDimensionRow[]
 }
 
 export interface OrganizationListParams {

@@ -18,16 +18,13 @@ const (
 	OrganizationStatusEnabled  = 1
 	OrganizationStatusDisabled = 2
 
-	OrganizationRoleOwner   = "owner"
-	OrganizationRoleAdmin   = "admin"
-	OrganizationRoleMember  = "member"
-	OrganizationRoleBilling = "billing"
+	OrganizationRoleAdmin  = "admin"
+	OrganizationRoleMember = "member"
 )
 
 type Organization struct {
 	Id        int    `json:"id"`
 	Name      string `json:"name" gorm:"type:varchar(128);not null"`
-	OwnerId   int    `json:"owner_id" gorm:"index"`
 	Status    int    `json:"status" gorm:"type:int;default:1;index"`
 	CreatedAt int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	UpdatedAt int64  `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
@@ -106,11 +103,20 @@ func normalizeOrganizationRole(role string) (string, error) {
 		role = OrganizationRoleMember
 	}
 	switch role {
-	case OrganizationRoleOwner, OrganizationRoleAdmin, OrganizationRoleMember, OrganizationRoleBilling:
+	case OrganizationRoleAdmin, OrganizationRoleMember:
 		return role, nil
 	default:
 		return "", fmt.Errorf("invalid organization role: %s", role)
 	}
+}
+
+func migrateOrganizationRoles() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&OrganizationMember{}).Where("role = ?", "owner").Update("role", OrganizationRoleAdmin).Error; err != nil {
+			return err
+		}
+		return tx.Model(&OrganizationMember{}).Where("role = ?", "billing").Update("role", OrganizationRoleMember).Error
+	})
 }
 
 func activeOrganizationCurrentKey(userId int) *string {
@@ -148,6 +154,24 @@ func ensureUserHasNoActiveOrganization(tx *gorm.DB, userId int) error {
 	return nil
 }
 
+func lockOrganizationForMembershipChange(tx *gorm.DB, organizationId int) error {
+	var organization Organization
+	return lockForUpdate(tx).Select("id").First(&organization, "id = ?", organizationId).Error
+}
+
+func ensureOrganizationHasAnotherAdmin(tx *gorm.DB, organizationId int, excludedMemberId int) error {
+	var count int64
+	if err := tx.Model(&OrganizationMember{}).
+		Where("organization_id = ? AND role = ? AND left_at = 0 AND id <> ?", organizationId, OrganizationRoleAdmin, excludedMemberId).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return errors.New("cannot remove the last organization admin")
+	}
+	return nil
+}
+
 func GetOrganizationById(id int) (*Organization, error) {
 	if id <= 0 {
 		return nil, errors.New("invalid organization id")
@@ -178,17 +202,13 @@ func ListOrganizations(keyword string, status *int, startIdx int, num int) ([]Or
 		like := "%" + keyword + "%"
 		keywordClauses := []string{
 			"organizations.name LIKE ?",
-			"users.username LIKE ?",
-			"users.email LIKE ?",
-			"users.display_name LIKE ?",
 		}
-		keywordArgs := []interface{}{like, like, like, like}
+		keywordArgs := []interface{}{like}
 		if keywordId, err := strconv.Atoi(keyword); err == nil {
-			keywordClauses = append(keywordClauses, "organizations.id = ?", "organizations.owner_id = ?")
-			keywordArgs = append(keywordArgs, keywordId, keywordId)
+			keywordClauses = append(keywordClauses, "organizations.id = ?")
+			keywordArgs = append(keywordArgs, keywordId)
 		}
-		tx = tx.Joins("LEFT JOIN users ON users.id = organizations.owner_id").
-			Where("("+strings.Join(keywordClauses, " OR ")+")", keywordArgs...)
+		tx = tx.Where("("+strings.Join(keywordClauses, " OR ")+")", keywordArgs...)
 	}
 	if status != nil {
 		switch *status {
@@ -270,7 +290,7 @@ func fillOrganizationMemberUsers(members []OrganizationMember) {
 	}
 }
 
-func AddOrganizationMember(organizationId int, userId int, role string, allowOwner bool) (*OrganizationMember, error) {
+func AddOrganizationMember(organizationId int, userId int, role string) (*OrganizationMember, error) {
 	if organizationId <= 0 || userId <= 0 {
 		return nil, errors.New("invalid organization or user id")
 	}
@@ -278,15 +298,15 @@ func AddOrganizationMember(organizationId int, userId int, role string, allowOwn
 	if err != nil {
 		return nil, err
 	}
-	if normalizedRole == OrganizationRoleOwner && !allowOwner {
-		return nil, errors.New("owner role is assigned by system administrator")
-	}
 	user, err := GetUserById(userId, false)
 	if err != nil {
 		return nil, err
 	}
 	if user.Status != common.UserStatusEnabled {
 		return nil, errors.New("user is disabled")
+	}
+	if user.Role >= common.RoleAdminUser {
+		return nil, errors.New("system administrators cannot be added to organizations")
 	}
 	now := common.GetTimestamp()
 	member := OrganizationMember{
@@ -297,12 +317,8 @@ func AddOrganizationMember(organizationId int, userId int, role string, allowOwn
 		CurrentKey:     activeOrganizationCurrentKey(userId),
 	}
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		var org Organization
-		if err := tx.First(&org, "id = ?", organizationId).Error; err != nil {
+		if err := lockOrganizationForMembershipChange(tx, organizationId); err != nil {
 			return err
-		}
-		if normalizedRole == OrganizationRoleOwner && org.OwnerId > 0 {
-			return errors.New("organization owner already exists")
 		}
 		if err := ensureUserHasNoActiveOrganization(tx, userId); err != nil {
 			return err
@@ -310,9 +326,6 @@ func AddOrganizationMember(organizationId int, userId int, role string, allowOwn
 		if err := tx.Create(&member).Error; err != nil {
 			return err
 		}
-		if normalizedRole == OrganizationRoleOwner {
-			return tx.Model(&Organization{}).Where("id = ?", organizationId).Update("owner_id", userId).Error
-		}
 		return nil
 	})
 	if err != nil {
@@ -322,45 +335,30 @@ func AddOrganizationMember(organizationId int, userId int, role string, allowOwn
 	return &member, nil
 }
 
-func UpdateOrganizationMemberRole(organizationId int, userId int, role string, allowOwner bool) (*OrganizationMember, error) {
+func UpdateOrganizationMemberRole(organizationId int, userId int, role string) (*OrganizationMember, error) {
 	normalizedRole, err := normalizeOrganizationRole(role)
 	if err != nil {
 		return nil, err
 	}
-	if normalizedRole == OrganizationRoleOwner && !allowOwner {
-		return nil, errors.New("owner role is assigned by system administrator")
-	}
 	var member OrganizationMember
 	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockOrganizationForMembershipChange(tx, organizationId); err != nil {
+			return err
+		}
 		if err := tx.Where("organization_id = ? AND user_id = ? AND left_at = 0", organizationId, userId).First(&member).Error; err != nil {
 			return err
 		}
-		if member.Role == OrganizationRoleOwner {
-			return errors.New("owner role cannot be changed")
-		}
-		if normalizedRole == OrganizationRoleOwner {
-			var org Organization
-			if err := tx.First(&org, "id = ?", organizationId).Error; err != nil {
-				return err
-			}
-			if org.OwnerId > 0 {
-				return errors.New("organization owner already exists")
-			}
-		}
-		if err := tx.Model(&OrganizationMember{}).Where("id = ?", member.Id).Update("role", normalizedRole).Error; err != nil {
-			return err
-		}
-		if normalizedRole == OrganizationRoleOwner {
-			if err := tx.Model(&Organization{}).Where("id = ?", organizationId).Update("owner_id", userId).Error; err != nil {
+		if member.Role == OrganizationRoleAdmin && normalizedRole != OrganizationRoleAdmin {
+			if err := ensureOrganizationHasAnotherAdmin(tx, organizationId, member.Id); err != nil {
 				return err
 			}
 		}
-		member.Role = normalizedRole
-		return nil
+		return tx.Model(&OrganizationMember{}).Where("id = ?", member.Id).Update("role", normalizedRole).Error
 	})
 	if err != nil {
 		return nil, err
 	}
+	member.Role = normalizedRole
 	fillOrganizationMemberUsersInPlace(&member)
 	return &member, nil
 }
@@ -368,12 +366,17 @@ func UpdateOrganizationMemberRole(organizationId int, userId int, role string, a
 func RemoveOrganizationMember(organizationId int, userId int) error {
 	now := common.GetTimestamp()
 	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockOrganizationForMembershipChange(tx, organizationId); err != nil {
+			return err
+		}
 		var member OrganizationMember
 		if err := tx.Where("organization_id = ? AND user_id = ? AND left_at = 0", organizationId, userId).First(&member).Error; err != nil {
 			return err
 		}
-		if member.Role == OrganizationRoleOwner {
-			return errors.New("owner cannot be removed from organization")
+		if member.Role == OrganizationRoleAdmin {
+			if err := ensureOrganizationHasAnotherAdmin(tx, organizationId, member.Id); err != nil {
+				return err
+			}
 		}
 		return tx.Model(&OrganizationMember{}).Where("id = ?", member.Id).Updates(map[string]interface{}{
 			"left_at":     now,
@@ -383,11 +386,11 @@ func RemoveOrganizationMember(organizationId int, userId int) error {
 }
 
 func UserCanManageOrganization(userId int, organizationId int) (bool, error) {
-	return userHasOrganizationRoles(userId, organizationId, OrganizationRoleOwner, OrganizationRoleAdmin)
+	return userHasOrganizationRoles(userId, organizationId, OrganizationRoleAdmin)
 }
 
 func UserCanViewOrganizationBilling(userId int, organizationId int) (bool, error) {
-	return userHasOrganizationRoles(userId, organizationId, OrganizationRoleOwner, OrganizationRoleAdmin, OrganizationRoleBilling)
+	return userHasOrganizationRoles(userId, organizationId, OrganizationRoleAdmin)
 }
 
 func userHasOrganizationRoles(userId int, organizationId int, roles ...string) (bool, error) {
@@ -830,6 +833,9 @@ func GetOrganizationBillingLogs(organizationId int, filters OrganizationBillingF
 		if err := cursors[bestCursorIndex].advance(filters, batchSize); err != nil {
 			return nil, 0, err
 		}
+	}
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		assignDisplayLogIds(page, startIdx)
 	}
 	hydrateLogChannelNames(page)
 	return page, total, nil

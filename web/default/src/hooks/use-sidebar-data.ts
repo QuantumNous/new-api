@@ -70,7 +70,7 @@ export function useSidebarData(): SidebarData {
       url: '/organization/usage',
       icon: ReceiptText,
     },
-    ...(organizationRole === 'owner' || organizationRole === 'admin'
+    ...(organizationRole === 'admin'
       ? [
           {
             title: t('Organization members'),
@@ -79,9 +79,7 @@ export function useSidebarData(): SidebarData {
           },
         ]
       : []),
-    ...(organizationRole === 'owner' ||
-    organizationRole === 'admin' ||
-    organizationRole === 'billing'
+    ...(organizationRole === 'admin' || organizationRole === 'member'
       ? [
           {
             title: t('Organization billing logs'),

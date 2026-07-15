@@ -1,0 +1,203 @@
+{
+  "organization": {
+    "id": 7001,
+    "name": "Acme AI Lab",
+    "status": 1
+  },
+  "users": [
+    {
+      "id": 1000,
+      "username": "system-admin",
+      "role": 10,
+      "status": 1,
+      "quota": 50000,
+      "used_quota": 0,
+      "request_count": 0,
+      "billing_preference": "subscription_first",
+      "access_token": "e2e-system-admin-access-token"
+    },
+    {
+      "id": 1001,
+      "username": "org-admin",
+      "role": 1,
+      "status": 1,
+      "quota": 20000,
+      "used_quota": 120,
+      "request_count": 1,
+      "billing_preference": "subscription_first",
+      "access_token": "e2e-org-admin-access-token"
+    },
+    {
+      "id": 1002,
+      "username": "org-member",
+      "role": 1,
+      "status": 1,
+      "quota": 10000,
+      "used_quota": 300,
+      "request_count": 2,
+      "billing_preference": "wallet_first",
+      "access_token": "e2e-org-member-access-token"
+    },
+    {
+      "id": 1003,
+      "username": "outsider",
+      "role": 1,
+      "status": 1,
+      "quota": 7000,
+      "used_quota": 9999,
+      "request_count": 1,
+      "billing_preference": "wallet_only",
+      "access_token": "e2e-outsider-access-token"
+    },
+    {
+      "id": 1004,
+      "username": "disabled-user",
+      "role": 1,
+      "status": 2,
+      "quota": 5000,
+      "used_quota": 0,
+      "request_count": 0,
+      "billing_preference": "subscription_only",
+      "access_token": "e2e-disabled-user-access-token"
+    },
+    {
+      "id": 1005,
+      "username": "root",
+      "role": 100,
+      "status": 1,
+      "quota": 0,
+      "used_quota": 0,
+      "request_count": 0,
+      "billing_preference": "subscription_first",
+      "access_token": "e2e-root-access-token"
+    }
+  ],
+  "members": [
+    {
+      "user_id": 1001,
+      "role": "admin",
+      "joined_at": 1782864000
+    },
+    {
+      "user_id": 1002,
+      "role": "member",
+      "joined_at": 1783209600
+    }
+  ],
+  "tokens": [
+    {
+      "id": 8001,
+      "user_id": 1001,
+      "name": "admin-personal-key",
+      "key": "e2e-admin-personal-key",
+      "remain_quota": 19880,
+      "used_quota": 120
+    },
+    {
+      "id": 8002,
+      "user_id": 1002,
+      "name": "member-personal-key",
+      "key": "e2e-member-personal-key",
+      "remain_quota": 9700,
+      "used_quota": 300
+    }
+  ],
+  "channels": [
+    {
+      "id": 7,
+      "name": "primary-openai",
+      "key": "e2e-primary-channel-key"
+    },
+    {
+      "id": 8,
+      "name": "fallback-openai",
+      "key": "e2e-fallback-channel-key"
+    }
+  ],
+  "logs": [
+    {
+      "user_id": 1001,
+      "created_at": 1782820800,
+      "type": 2,
+      "model_name": "gpt-pro",
+      "channel_id": 7,
+      "quota": 9000,
+      "prompt_tokens": 900,
+      "completion_tokens": 90,
+      "request_id": "req-admin-before-membership"
+    },
+    {
+      "user_id": 1001,
+      "created_at": 1782986400,
+      "type": 2,
+      "model_name": "gpt-pro",
+      "channel_id": 7,
+      "quota": 120,
+      "prompt_tokens": 100,
+      "completion_tokens": 20,
+      "request_id": "req-admin-in-membership"
+    },
+    {
+      "user_id": 1002,
+      "created_at": 1783166400,
+      "type": 2,
+      "model_name": "gpt-lite",
+      "channel_id": 8,
+      "quota": 8000,
+      "prompt_tokens": 800,
+      "completion_tokens": 80,
+      "request_id": "req-member-before-membership"
+    },
+    {
+      "user_id": 1002,
+      "created_at": 1783242000,
+      "type": 2,
+      "model_name": "gpt-lite",
+      "channel_id": 8,
+      "quota": 230,
+      "prompt_tokens": 200,
+      "completion_tokens": 30,
+      "request_id": "req-member-in-membership-1"
+    },
+    {
+      "user_id": 1002,
+      "created_at": 1783332000,
+      "type": 2,
+      "model_name": "gpt-lite",
+      "channel_id": 8,
+      "quota": 70,
+      "prompt_tokens": 60,
+      "completion_tokens": 10,
+      "request_id": "req-member-in-membership-2"
+    },
+    {
+      "user_id": 1002,
+      "created_at": 1783335600,
+      "type": 6,
+      "model_name": "gpt-lite",
+      "channel_id": 8,
+      "quota": -30,
+      "request_id": "req-member-refund"
+    },
+    {
+      "user_id": 1002,
+      "created_at": 1783425600,
+      "type": 4,
+      "model_name": "",
+      "channel_id": 0,
+      "quota": 50,
+      "request_id": "req-member-adjustment"
+    },
+    {
+      "user_id": 1003,
+      "created_at": 1783332000,
+      "type": 2,
+      "model_name": "outsider-model",
+      "channel_id": 7,
+      "quota": 9999,
+      "prompt_tokens": 999,
+      "completion_tokens": 99,
+      "request_id": "req-outsider"
+    }
+  ]
+}

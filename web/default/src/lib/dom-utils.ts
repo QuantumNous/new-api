@@ -16,6 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { resolveSystemLogo } from '@/lib/branding'
+import { DEFAULT_FAVICON, DEFAULT_LOGO } from '@/lib/constants'
+
+export function resolveFaviconUrl(
+  logo: unknown,
+  pathname = typeof window === 'undefined' ? '' : window.location.pathname
+): string {
+  if (pathname === '/') return DEFAULT_FAVICON
+  const normalizedLogo = resolveSystemLogo(logo)
+  if (normalizedLogo === DEFAULT_LOGO) return DEFAULT_FAVICON
+
+  return normalizedLogo
+}
+
 export function applyFaviconToDom(url: string) {
   if (typeof document === 'undefined' || !url) return
   try {

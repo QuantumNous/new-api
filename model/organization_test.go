@@ -38,15 +38,14 @@ func createOrganizationBillingTestFixture(t *testing.T) int {
 	insertOrganizationTestUser(t, 11, "member")
 
 	require.NoError(t, DB.Create(&Organization{
-		Id:      100,
-		Name:    "usage org",
-		OwnerId: 10,
-		Status:  OrganizationStatusEnabled,
+		Id:     100,
+		Name:   "usage org",
+		Status: OrganizationStatusEnabled,
 	}).Error)
 	require.NoError(t, DB.Create(&OrganizationMember{
 		OrganizationId: 100,
 		UserId:         10,
-		Role:           OrganizationRoleOwner,
+		Role:           OrganizationRoleAdmin,
 		JoinedAt:       0,
 		CurrentKey:     activeOrganizationCurrentKey(10),
 	}).Error)
@@ -71,12 +70,41 @@ func TestAddOrganizationMemberRejectsSecondActiveOrganization(t *testing.T) {
 	orgTwo, err := CreateOrganization("org two")
 	require.NoError(t, err)
 
-	_, err = AddOrganizationMember(orgOne.Id, 3, OrganizationRoleMember, false)
+	_, err = AddOrganizationMember(orgOne.Id, 3, OrganizationRoleMember)
 	require.NoError(t, err)
 
-	_, err = AddOrganizationMember(orgTwo.Id, 3, OrganizationRoleBilling, false)
+	_, err = AddOrganizationMember(orgTwo.Id, 3, OrganizationRoleMember)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already belongs")
+}
+
+func TestAddOrganizationMemberRejectsSystemAdministrators(t *testing.T) {
+	setupOrganizationTestState(t)
+	require.NoError(t, DB.Create(&User{
+		Id:       1,
+		Username: "system-admin",
+		Password: "password",
+		Role:     common.RoleAdminUser,
+		Status:   common.UserStatusEnabled,
+		AffCode:  "system-admin-aff",
+	}).Error)
+	require.NoError(t, DB.Create(&User{
+		Id:       2,
+		Username: "root",
+		Password: "password",
+		Role:     common.RoleRootUser,
+		Status:   common.UserStatusEnabled,
+		AffCode:  "root-aff",
+	}).Error)
+
+	org, err := CreateOrganization("org")
+	require.NoError(t, err)
+
+	for _, userId := range []int{1, 2} {
+		_, err = AddOrganizationMember(org.Id, userId, OrganizationRoleMember)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "system administrators cannot be added")
+	}
 }
 
 func TestCreateOrganizationDoesNotCreateMember(t *testing.T) {
@@ -84,32 +112,122 @@ func TestCreateOrganizationDoesNotCreateMember(t *testing.T) {
 
 	org, err := CreateOrganization("empty org")
 	require.NoError(t, err)
-	assert.Equal(t, 0, org.OwnerId)
 
 	members, err := ListOrganizationMembers(org.Id, true)
 	require.NoError(t, err)
 	assert.Empty(t, members)
 }
 
-func TestAdminCanAssignInitialOrganizationOwner(t *testing.T) {
+func TestOrganizationMembersUseOnlyAdminAndMemberRoles(t *testing.T) {
 	setupOrganizationTestState(t)
-	insertOrganizationTestUser(t, 1, "owner-one")
-	insertOrganizationTestUser(t, 2, "owner-two")
+	insertOrganizationTestUser(t, 1, "admin")
+	insertOrganizationTestUser(t, 2, "member")
 
 	org, err := CreateOrganization("org")
 	require.NoError(t, err)
 
-	member, err := AddOrganizationMember(org.Id, 1, OrganizationRoleOwner, true)
+	member, err := AddOrganizationMember(org.Id, 1, OrganizationRoleAdmin)
 	require.NoError(t, err)
-	assert.Equal(t, OrganizationRoleOwner, member.Role)
+	assert.Equal(t, OrganizationRoleAdmin, member.Role)
 
-	updated, err := GetOrganizationById(org.Id)
+	member, err = AddOrganizationMember(org.Id, 2, OrganizationRoleMember)
 	require.NoError(t, err)
-	assert.Equal(t, 1, updated.OwnerId)
+	assert.Equal(t, OrganizationRoleMember, member.Role)
 
-	_, err = AddOrganizationMember(org.Id, 2, OrganizationRoleOwner, true)
+	canManage, err := UserCanManageOrganization(1, org.Id)
+	require.NoError(t, err)
+	assert.True(t, canManage)
+	canViewAllBilling, err := UserCanViewOrganizationBilling(1, org.Id)
+	require.NoError(t, err)
+	assert.True(t, canViewAllBilling)
+
+	canManage, err = UserCanManageOrganization(2, org.Id)
+	require.NoError(t, err)
+	assert.False(t, canManage)
+	canViewAllBilling, err = UserCanViewOrganizationBilling(2, org.Id)
+	require.NoError(t, err)
+	assert.False(t, canViewAllBilling)
+
+	for _, role := range []string{"owner", "billing"} {
+		_, err = AddOrganizationMember(org.Id, 2, role)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid organization role")
+	}
+}
+
+func TestMigrateOrganizationRolesNormalizesLegacyValues(t *testing.T) {
+	setupOrganizationTestState(t)
+	insertOrganizationTestUser(t, 1, "legacy-owner")
+	insertOrganizationTestUser(t, 2, "legacy-billing")
+
+	org, err := CreateOrganization("legacy org")
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&OrganizationMember{
+		OrganizationId: org.Id,
+		UserId:         1,
+		Role:           "owner",
+		CurrentKey:     activeOrganizationCurrentKey(1),
+	}).Error)
+	require.NoError(t, DB.Create(&OrganizationMember{
+		OrganizationId: org.Id,
+		UserId:         2,
+		Role:           "billing",
+		CurrentKey:     activeOrganizationCurrentKey(2),
+	}).Error)
+
+	require.NoError(t, migrateOrganizationRoles())
+
+	members, err := ListOrganizationMembers(org.Id, false)
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+	assert.ElementsMatch(t, []string{OrganizationRoleAdmin, OrganizationRoleMember}, []string{members[0].Role, members[1].Role})
+}
+
+func TestOrganizationMemberMutationsRetainAdmin(t *testing.T) {
+	setupOrganizationTestState(t)
+	insertOrganizationTestUser(t, 1, "admin-one")
+	insertOrganizationTestUser(t, 2, "admin-two")
+	insertOrganizationTestUser(t, 3, "member-one")
+
+	org, err := CreateOrganization("guard org")
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&OrganizationMember{
+		OrganizationId: org.Id,
+		UserId:         1,
+		Role:           OrganizationRoleAdmin,
+		CurrentKey:     activeOrganizationCurrentKey(1),
+	}).Error)
+	require.NoError(t, DB.Create(&OrganizationMember{
+		OrganizationId: org.Id,
+		UserId:         2,
+		Role:           OrganizationRoleAdmin,
+		CurrentKey:     activeOrganizationCurrentKey(2),
+	}).Error)
+	require.NoError(t, DB.Create(&OrganizationMember{
+		OrganizationId: org.Id,
+		UserId:         3,
+		Role:           OrganizationRoleMember,
+		CurrentKey:     activeOrganizationCurrentKey(3),
+	}).Error)
+
+	updated, err := UpdateOrganizationMemberRole(org.Id, 3, OrganizationRoleMember)
+	require.NoError(t, err)
+	assert.Equal(t, OrganizationRoleMember, updated.Role)
+
+	// 仍有多个 admin 时允许其中一个退出；退出后最后一个 admin 不能再退出或降级。
+	require.NoError(t, RemoveOrganizationMember(org.Id, 2))
+
+	err = RemoveOrganizationMember(org.Id, 1)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "owner already exists")
+	assert.Contains(t, err.Error(), "last organization admin")
+
+	_, err = UpdateOrganizationMemberRole(org.Id, 1, OrganizationRoleMember)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "last organization admin")
+
+	var remainingAdmin OrganizationMember
+	require.NoError(t, DB.Where("organization_id = ? AND user_id = ? AND left_at = 0", org.Id, 1).First(&remainingAdmin).Error)
+	assert.Equal(t, OrganizationRoleAdmin, remainingAdmin.Role)
 }
 
 func TestOrganizationBillingSummaryUsesMembershipWindow(t *testing.T) {
@@ -118,15 +236,14 @@ func TestOrganizationBillingSummaryUsesMembershipWindow(t *testing.T) {
 	insertOrganizationTestUser(t, 11, "member")
 
 	require.NoError(t, DB.Create(&Organization{
-		Id:      100,
-		Name:    "usage org",
-		OwnerId: 10,
-		Status:  OrganizationStatusEnabled,
+		Id:     100,
+		Name:   "usage org",
+		Status: OrganizationStatusEnabled,
 	}).Error)
 	require.NoError(t, DB.Create(&OrganizationMember{
 		OrganizationId: 100,
 		UserId:         10,
-		Role:           OrganizationRoleOwner,
+		Role:           OrganizationRoleAdmin,
 		JoinedAt:       50,
 		CurrentKey:     activeOrganizationCurrentKey(10),
 	}).Error)
@@ -293,17 +410,9 @@ func TestOrganizationBillingLogsPaginatesAcrossMembers(t *testing.T) {
 
 func TestListOrganizationsFiltersByKeywordAndStatus(t *testing.T) {
 	setupOrganizationTestState(t)
-	insertOrganizationTestUser(t, 20, "owner-alpha")
-	insertOrganizationTestUser(t, 21, "owner-beta")
-	insertOrganizationTestUser(t, 22, "owner-gamma")
-
 	alpha, err := CreateOrganization("alpha org")
 	require.NoError(t, err)
-	_, err = AddOrganizationMember(alpha.Id, 20, OrganizationRoleOwner, true)
-	require.NoError(t, err)
 	beta, err := CreateOrganization("beta org")
-	require.NoError(t, err)
-	_, err = AddOrganizationMember(beta.Id, 21, OrganizationRoleOwner, true)
 	require.NoError(t, err)
 	_, err = CreateOrganization("gamma org")
 	require.NoError(t, err)
@@ -311,14 +420,14 @@ func TestListOrganizationsFiltersByKeywordAndStatus(t *testing.T) {
 	_, err = UpdateOrganization(beta.Id, "", &disabledStatus)
 	require.NoError(t, err)
 
-	items, total, err := ListOrganizations("owner-beta", &disabledStatus, 0, 10)
+	items, total, err := ListOrganizations("beta org", &disabledStatus, 0, 10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	assert.Equal(t, int64(1), total)
 	assert.Equal(t, beta.Id, items[0].Id)
 
 	enabledStatus := OrganizationStatusEnabled
-	items, total, err = ListOrganizations("owner-beta", &enabledStatus, 0, 10)
+	items, total, err = ListOrganizations("beta org", &enabledStatus, 0, 10)
 	require.NoError(t, err)
 	assert.Empty(t, items)
 	assert.Equal(t, int64(0), total)

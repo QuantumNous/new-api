@@ -4,9 +4,10 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-BACKEND_PORT="${BACKEND_PORT:-3000}"
-FRONTEND_PORT="${FRONTEND_PORT:-3001}"
+BACKEND_PORT="${BACKEND_PORT:-3200}"
+FRONTEND_PORT="${FRONTEND_PORT:-3201}"
 FRONTEND_HOST="${FRONTEND_HOST:-0.0.0.0}"
+PORT_KILL_GRACE_SECONDS="${PORT_KILL_GRACE_SECONDS:-10}"
 LOG_ROOT="${LOG_ROOT:-${ROOT_DIR}/logs/dev}"
 BACKEND_APP_LOG_DIR="${BACKEND_APP_LOG_DIR:-${ROOT_DIR}/logs/backend}"
 BACKEND_LOG="${LOG_ROOT}/backend.log"
@@ -35,8 +36,9 @@ Usage:
   ./start.sh
 
 Environment:
-  BACKEND_PORT=3000              Backend port.
-  FRONTEND_PORT=3001             Frontend dev-server port.
+  BACKEND_PORT=3200              Backend port.
+  FRONTEND_PORT=3201             Frontend dev-server port.
+  PORT_KILL_GRACE_SECONDS=10     Seconds to wait before force-killing port listeners.
   LOG_ROOT=./logs/dev            Combined dev log directory.
   START_DEPS=1                   Start local Docker PostgreSQL and Redis once.
   POSTGRES_PORT=5432             Host port for START_DEPS PostgreSQL.
@@ -45,7 +47,7 @@ Environment:
 Examples:
   ./start.sh
   START_DEPS=1 ./start.sh
-  BACKEND_PORT=3002 FRONTEND_PORT=3003 ./start.sh
+  BACKEND_PORT=3202 FRONTEND_PORT=3203 ./start.sh
 EOF
 }
 
@@ -62,18 +64,106 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
+stop_port_listener() {
+  local port="$1"
+  local label="$2"
+  local -a pids=()
+
+  while IFS= read -r pid; do
+    if [[ -n "${pid}" ]]; then
+      pids+=("${pid}")
+    fi
+  done < <(lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true)
+
+  if (( ${#pids[@]} == 0 )); then
+    return
+  fi
+
+  log "stopping ${label} port ${port} listeners: ${pids[*]}"
+  kill "${pids[@]}" 2>/dev/null || true
+
+  for _ in $(seq 1 "${PORT_KILL_GRACE_SECONDS}"); do
+    local listener_running=0
+    for pid in "${pids[@]}"; do
+      if kill -0 "${pid}" 2>/dev/null; then
+        listener_running=1
+        break
+      fi
+    done
+    if (( listener_running == 0 )); then
+      return
+    fi
+    sleep 1
+  done
+
+  log "force stopping ${label} port ${port} listeners"
+  for pid in "${pids[@]}"; do
+    if kill -0 "${pid}" 2>/dev/null; then
+      kill -KILL "${pid}" 2>/dev/null || true
+    fi
+  done
+
+  for _ in $(seq 1 20); do
+    local listener_running=0
+    for pid in "${pids[@]}"; do
+      if kill -0 "${pid}" 2>/dev/null; then
+        listener_running=1
+        break
+      fi
+    done
+    if (( listener_running == 0 )); then
+      return
+    fi
+    sleep 0.1
+  done
+
+  fail "unable to release ${label} port ${port}"
+}
+
 ensure_embed_assets() {
   mkdir -p "${ROOT_DIR}/web/default/dist" "${ROOT_DIR}/web/classic/dist"
 
-  if [[ ! -f "${ROOT_DIR}/web/default/dist/index.html" ]]; then
-    cat >"${ROOT_DIR}/web/default/dist/index.html" <<'EOF'
-<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>
+  if [[ ! -f "${ROOT_DIR}/web/default/dist/index.html" ]] ||
+    grep -Eq '<body>use frontend dev server</body>|<!-- start.sh dev redirect -->' \
+      "${ROOT_DIR}/web/default/dist/index.html"; then
+    cat >"${ROOT_DIR}/web/default/dist/index.html" <<EOF
+<!doctype html>
+<!-- start.sh dev redirect -->
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Opening frontend dev server</title>
+    <script>
+      window.location.replace(
+        window.location.protocol + '//' + window.location.hostname + ':${FRONTEND_PORT}' +
+          window.location.pathname + window.location.search + window.location.hash
+      )
+    </script>
+  </head>
+  <body>Opening frontend dev server...</body>
+</html>
 EOF
   fi
 
-  if [[ ! -f "${ROOT_DIR}/web/classic/dist/index.html" ]]; then
-    cat >"${ROOT_DIR}/web/classic/dist/index.html" <<'EOF'
-<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>
+  if [[ ! -f "${ROOT_DIR}/web/classic/dist/index.html" ]] ||
+    grep -Eq '<body>use frontend dev server</body>|<!-- start.sh dev redirect -->' \
+      "${ROOT_DIR}/web/classic/dist/index.html"; then
+    cat >"${ROOT_DIR}/web/classic/dist/index.html" <<EOF
+<!doctype html>
+<!-- start.sh dev redirect -->
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Opening frontend dev server</title>
+    <script>
+      window.location.replace(
+        window.location.protocol + '//' + window.location.hostname + ':${FRONTEND_PORT}' +
+          window.location.pathname + window.location.search + window.location.hash
+      )
+    </script>
+  </head>
+  <body>Opening frontend dev server...</body>
+</html>
 EOF
   fi
 }
@@ -168,7 +258,7 @@ start_frontend() {
   (
     cd "${ROOT_DIR}/web/default"
     export VITE_REACT_APP_SERVER_URL="${VITE_REACT_APP_SERVER_URL:-http://localhost:${BACKEND_PORT}}"
-    exec bun run dev -- --host "${FRONTEND_HOST}" --port "${FRONTEND_PORT}"
+    exec bun run dev -- --host "${FRONTEND_HOST}" --port "${FRONTEND_PORT}" --strict-port
   ) >"${FRONTEND_LOG}" 2>&1 &
   FRONTEND_PID="$!"
 }
@@ -227,6 +317,10 @@ main() {
 
   require_command go
   require_command bun
+  require_command lsof
+
+  stop_port_listener "${BACKEND_PORT}" "backend"
+  stop_port_listener "${FRONTEND_PORT}" "frontend"
 
   mkdir -p "${LOG_ROOT}" "${BACKEND_APP_LOG_DIR}"
   ensure_embed_assets
@@ -244,8 +338,8 @@ main() {
   start_frontend
   start_log_monitor
 
-  log "backend:  http://localhost:${BACKEND_PORT}"
-  log "frontend: http://localhost:${FRONTEND_PORT}"
+  log "frontend UI: http://localhost:${FRONTEND_PORT}"
+  log "backend API: http://localhost:${BACKEND_PORT}"
   log "press Ctrl+C to stop backend/frontend"
 
   wait_for_processes

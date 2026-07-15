@@ -29,8 +29,9 @@ import ReactDOM from 'react-dom/client'
 import { toast } from 'sonner'
 
 import { getStatus } from '@/lib/api'
+import { resolveSystemName } from '@/lib/branding'
 import { installBuildMetadata } from '@/lib/build-metadata'
-import { applyFaviconToDom } from '@/lib/dom-utils'
+import { applyFaviconToDom, resolveFaviconUrl } from '@/lib/dom-utils'
 import '@/lib/dayjs'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -137,8 +138,8 @@ if (!rootElement) {
       const saved = localStorage.getItem('status')
       if (saved) {
         const s = JSON.parse(saved)
-        if (s?.system_name) apply(s.system_name)
-        if (s?.logo) applyFaviconToDom(s.logo)
+        apply(resolveSystemName(s?.system_name))
+        applyFaviconToDom(resolveFaviconUrl(s?.logo))
       }
     } catch {
       /* empty */
@@ -146,15 +147,15 @@ if (!rootElement) {
     // Background refresh
     getStatus()
       .then((s) => {
-        if (s?.system_name) {
-          apply(s.system_name as string)
+        if (s) {
+          apply(resolveSystemName(s.system_name))
           try {
             localStorage.setItem('status', JSON.stringify(s))
           } catch {
             /* empty */
           }
         }
-        if (s?.logo) applyFaviconToDom(s.logo as string)
+        applyFaviconToDom(resolveFaviconUrl(s?.logo))
       })
       .catch(() => {
         /* empty */

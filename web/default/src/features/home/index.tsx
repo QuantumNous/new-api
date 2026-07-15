@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { PublicLayout } from '@/components/layout'
 import { RichContent } from '@/components/rich-content'
 import { useTheme } from '@/context/theme-provider'
+import { DEFAULT_FAVICON } from '@/lib/constants'
 import { isLikelyHtml } from '@/lib/content-format'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -77,7 +78,7 @@ export function Home() {
       if (metaTitle) {
         metaTitle.setAttribute('content', 'Lighting')
       }
-      applyFaviconToDom('/lighting-favicon.png?v=20260710-2')
+      applyFaviconToDom(DEFAULT_FAVICON)
     }
   }, [content])
 

@@ -20,7 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
+  Activity,
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Building2,
+  Database,
   Download,
   Plus,
   RefreshCw,
@@ -28,6 +32,9 @@ import {
   Settings,
   Trash2,
   UserPlus,
+  Users,
+  Wallet,
+  type LucideIcon,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,8 +59,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -62,13 +72,23 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { searchUsers } from '@/features/users/api'
-import type { User } from '@/features/users/types'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { searchUsers } from '@/features/users/api'
+import { USER_ROLE } from '@/features/users/constants'
+import type { User } from '@/features/users/types'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import {
+  formatBillingAmountFromQuota,
   formatNumber,
   formatPercent,
-  formatQuota,
   formatTimestampToDate,
+  stringToColor,
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -76,9 +96,13 @@ import {
   addAdminOrganizationMember,
   addCurrentOrganizationMember,
   buildAdminOrganizationExportUrl,
+  buildAdminOrganizationLogsExportUrl,
   buildOrganizationExportUrl,
+  buildOrganizationLogsExportUrl,
+  downloadOrganizationExport,
   createAdminOrganization,
   getAdminOrganization,
+  getAdminOrganizationBillingFilterOptions,
   getAdminOrganizationBillingChannels,
   getAdminOrganizationBillingLogs,
   getAdminOrganizationBillingMembers,
@@ -89,6 +113,7 @@ import {
   getAdminOrganizations,
   getCurrentOrganizationMembers,
   getOrganizationBillingChannels,
+  getOrganizationBillingFilterOptions,
   getOrganizationBillingLogs,
   getOrganizationBillingModels,
   getOrganizationBillingSummary,
@@ -106,6 +131,7 @@ import {
   ORGANIZATION_STATUS_DISABLED,
   ORGANIZATION_STATUS_ENABLED,
   type Organization,
+  type OrganizationBillingFilterOptions,
   type OrganizationDimensionRow,
   type OrganizationMember,
   type OrganizationRole,
@@ -116,23 +142,30 @@ import {
   type OrganizationUsageRow,
 } from './types'
 
-const ROLE_OPTIONS: OrganizationRole[] = ['owner', 'admin', 'billing', 'member']
-const MANAGE_ROLES = new Set<OrganizationRole>(['owner', 'admin'])
-const BILLING_ROLES = new Set<OrganizationRole>(['owner', 'admin', 'billing'])
+const ROLE_OPTIONS: OrganizationRole[] = ['admin', 'member']
+type OrganizationDetailTab = 'members' | 'billing' | 'logs'
+
+// 摘要骨架屏占位槽位（稳定 key，避免使用数组 index 作为 key）。
+const SUMMARY_CARD_SKELETONS = [
+  'requests',
+  'amount',
+  'raw-quota',
+  'prompt',
+  'completion',
+  'members',
+] as const
 
 function canManageMembers(role?: OrganizationRole) {
-  return role ? MANAGE_ROLES.has(role) : false
+  return role === 'admin'
 }
 
 function canViewBilling(role?: OrganizationRole) {
-  return role ? BILLING_ROLES.has(role) : false
+  return role === 'admin' || role === 'member'
 }
 
 function roleLabel(role: OrganizationRole, t: (key: string) => string) {
   const labels: Record<OrganizationRole, string> = {
-    owner: t('Owner'),
     admin: t('Admin'),
-    billing: t('Billing'),
     member: t('Member'),
   }
   return labels[role]
@@ -143,16 +176,157 @@ function statusLabel(status: OrganizationStatus, t: (key: string) => string) {
 }
 
 function roleBadgeVariant(role: OrganizationRole) {
-  return role === 'owner' || role === 'admin' ? 'default' : 'outline'
+  return role === 'admin' ? 'default' : 'outline'
 }
 
 function organizationDetailTabLabel(
-  tab: 'members' | 'billing' | 'logs',
+  tab: OrganizationDetailTab,
   t: (key: string) => string
 ) {
   if (tab === 'members') return t('Members')
   if (tab === 'billing') return t('Billing')
   return t('Logs')
+}
+
+function orgStatusTone(status: OrganizationStatus): 'success' | 'warning' {
+  return status === ORGANIZATION_STATUS_ENABLED ? 'success' : 'warning'
+}
+
+const DOT_BADGE_TONE_CLASS = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+  muted: 'bg-muted-foreground',
+} as const
+
+// 状态/成员状态统一呈现：圆点 + 文字，避免仅靠颜色表达语义。
+function DotBadge({
+  tone,
+  children,
+}: {
+  tone: 'success' | 'warning' | 'muted'
+  children: React.ReactNode
+}) {
+  return (
+    <Badge variant='outline' className='gap-1.5'>
+      <span
+        className={cn('size-1.5 rounded-full', DOT_BADGE_TONE_CLASS[tone])}
+        aria-hidden='true'
+      />
+      {children}
+    </Badge>
+  )
+}
+
+// 表内功能性占比条：既有 Share / 趋势数值的可视化呈现，非装饰性图表。
+function ProportionBar({
+  value,
+  fillClassName = 'bg-primary',
+}: {
+  value: number
+  fillClassName?: string
+}) {
+  const pct = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))
+  return (
+    <div
+      className='bg-muted h-1 w-full overflow-hidden rounded-full'
+      role='presentation'
+    >
+      <div
+        className={cn(
+          'h-full rounded-full motion-safe:transition-all',
+          fillClassName
+        )}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  )
+}
+
+function EntityAvatar({
+  name,
+  size = 'md',
+}: {
+  name: string
+  size?: 'sm' | 'md'
+}) {
+  const label = (name || '?').trim()
+  const initial = label.charAt(0).toUpperCase() || '?'
+  const sizeClass = size === 'sm' ? 'size-8 text-xs' : 'size-9 text-sm'
+  return (
+    <span
+      className={cn(
+        'flex shrink-0 items-center justify-center rounded-full font-semibold text-white',
+        sizeClass
+      )}
+      style={{ backgroundColor: stringToColor(label) }}
+      aria-hidden='true'
+    >
+      {initial}
+    </span>
+  )
+}
+
+function FieldLabel({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <label className='block space-y-1'>
+      <span className='text-muted-foreground text-xs font-medium'>{label}</span>
+      {children}
+    </label>
+  )
+}
+
+// 摘要指标卡片：对齐仪表盘视觉语言（IconBadge + tabular-nums + 主指标强调）。
+function BillingStatCard({
+  label,
+  value,
+  description,
+  icon: Icon,
+  iconTone,
+  emphasis,
+}: {
+  label: string
+  value: string
+  description?: string
+  icon: LucideIcon
+  iconTone: IconBadgeTone
+  emphasis?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-4',
+        emphasis && 'border-primary/30 bg-primary/[0.04]'
+      )}
+    >
+      <div className='flex items-center gap-2'>
+        <IconBadge tone={iconTone} size='sm'>
+          <Icon />
+        </IconBadge>
+        <span className='text-muted-foreground truncate text-xs font-medium'>
+          {label}
+        </span>
+      </div>
+      <div
+        className={cn(
+          'mt-2 font-mono font-semibold tabular-nums',
+          emphasis ? 'text-primary text-2xl' : 'text-xl'
+        )}
+      >
+        {value}
+      </div>
+      {description ? (
+        <div className='text-muted-foreground/70 mt-1 truncate text-[11px]'>
+          {description}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function Panel({
@@ -209,42 +383,65 @@ function PageHeader({
 function OrganizationEmptyState() {
   const { t } = useTranslation()
   return (
-    <Empty className='min-h-[360px] border'>
-      <EmptyHeader>
-        <EmptyMedia variant='icon'>
-          <Building2 />
-        </EmptyMedia>
-        <EmptyTitle>{t('No organization')}</EmptyTitle>
-        <EmptyDescription>
-          {t('You are not a member of an organization yet.')}
-        </EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>{t('Ask an administrator to add you first.')}</EmptyContent>
-    </Empty>
+    <div className='p-4 sm:p-6'>
+      <Empty className='min-h-[360px] border'>
+        <EmptyHeader>
+          <EmptyMedia variant='icon'>
+            <Building2 />
+          </EmptyMedia>
+          <EmptyTitle>{t('No organization')}</EmptyTitle>
+          <EmptyDescription>
+            {t('You are not a member of an organization yet.')}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          {t('Ask an administrator to add you first.')}
+        </EmptyContent>
+      </Empty>
+    </div>
   )
 }
 
 function AccessDeniedState() {
   const { t } = useTranslation()
   return (
-    <Empty className='min-h-[320px] border'>
-      <EmptyHeader>
-        <EmptyMedia variant='icon'>
-          <Settings />
-        </EmptyMedia>
-        <EmptyTitle>{t('No permission')}</EmptyTitle>
-        <EmptyDescription>
-          {t('Your organization role cannot access this page.')}
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <div className='p-4 sm:p-6'>
+      <Empty className='min-h-[320px] border'>
+        <EmptyHeader>
+          <EmptyMedia variant='icon'>
+            <Settings />
+          </EmptyMedia>
+          <EmptyTitle>{t('No permission')}</EmptyTitle>
+          <EmptyDescription>
+            {t('Your organization role cannot access this page.')}
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    </div>
   )
 }
 
 function LoadingBlock({ label }: { label: string }) {
   return (
-    <div className='text-muted-foreground flex min-h-[180px] items-center justify-center rounded-lg border border-dashed text-sm'>
-      {label}
+    <div className='space-y-4 p-4 sm:p-6' role='status' aria-live='polite'>
+      <span className='sr-only'>{label}</span>
+      <div className='flex items-center justify-between gap-4'>
+        <div className='space-y-2'>
+          <Skeleton className='h-7 w-48' />
+          <Skeleton className='h-4 w-32' />
+        </div>
+        <Skeleton className='h-6 w-20 rounded-full' />
+      </div>
+      <Skeleton className='h-24 w-full rounded-lg' />
+      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-6'>
+        {SUMMARY_CARD_SKELETONS.map((slot) => (
+          <Skeleton key={slot} className='h-24 rounded-lg' />
+        ))}
+      </div>
+      <div className='grid gap-4 xl:grid-cols-2'>
+        <Skeleton className='h-64 rounded-lg' />
+        <Skeleton className='h-64 rounded-lg' />
+      </div>
     </div>
   )
 }
@@ -316,105 +513,217 @@ function useUsageFilters() {
 
 function UsageFilters({
   filters,
+  options,
   onRefresh,
   onExport,
   showMemberFilter,
 }: {
   filters: ReturnType<typeof useUsageFilters>
+  options?: OrganizationBillingFilterOptions
   onRefresh: () => void
   onExport?: () => void
   showMemberFilter: boolean
 }) {
   const { t } = useTranslation()
+  const memberOptions = useMemo(() => {
+    const membersByUserId = new Map<number, OrganizationMember>()
+    for (const member of options?.members ?? []) {
+      const existing = membersByUserId.get(member.user_id)
+      if (!existing || member.joined_at > existing.joined_at) {
+        membersByUserId.set(member.user_id, member)
+      }
+    }
+    return [...membersByUserId.values()].sort((a, b) =>
+      (a.username || String(a.user_id)).localeCompare(
+        b.username || String(b.user_id)
+      )
+    )
+  }, [options?.members])
+  const modelOptions = useMemo(
+    () =>
+      [...(options?.models ?? [])]
+        .filter((row) => Boolean(row.model_name))
+        .sort((a, b) => (a.model_name ?? '').localeCompare(b.model_name ?? '')),
+    [options?.models]
+  )
+  const channelOptions = useMemo(
+    () =>
+      [...(options?.channels ?? [])]
+        .filter((row) => row.channel_id != null)
+        .sort((a, b) =>
+          (a.channel_name || String(a.channel_id)).localeCompare(
+            b.channel_name || String(b.channel_id)
+          )
+        ),
+    [options?.channels]
+  )
   return (
-    <div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]'>
-      <Input
-        type='date'
-        value={filters.startDate}
-        onChange={(event) => {
-          filters.setStartDate(event.target.value)
-          filters.setPage(1)
-        }}
-        aria-label={t('Start date')}
-      />
-      <Input
-        type='date'
-        value={filters.endDate}
-        onChange={(event) => {
-          filters.setEndDate(event.target.value)
-          filters.setPage(1)
-        }}
-        aria-label={t('End date')}
-      />
-      {showMemberFilter ? (
-        <Input
-          value={filters.userId}
-          onChange={(event) => {
-            filters.setUserId(event.target.value)
-            filters.setPage(1)
-          }}
-          placeholder={t('User ID')}
-        />
-      ) : null}
-      <Input
-        value={filters.modelName}
-        onChange={(event) => {
-          filters.setModelName(event.target.value)
-          filters.setPage(1)
-        }}
-        placeholder={t('Model')}
-      />
-      <Input
-        value={filters.channelId}
-        onChange={(event) => {
-          filters.setChannelId(event.target.value)
-          filters.setPage(1)
-        }}
-        placeholder={t('Channel ID')}
-      />
-      <div className='flex gap-2'>
-        <Button variant='outline' size='icon' onClick={onRefresh}>
-          <RefreshCw />
-          <span className='sr-only'>{t('Refresh')}</span>
-        </Button>
-        {onExport ? (
-          <Button variant='outline' size='icon' onClick={onExport}>
-            <Download />
-            <span className='sr-only'>{t('Export')}</span>
-          </Button>
-        ) : null}
+    <section className='bg-background rounded-lg border p-4'>
+      <div className='text-muted-foreground mb-3 text-xs font-medium tracking-wide'>
+        {t('Filters')}
       </div>
-    </div>
+      <div className='grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]'>
+        <FieldLabel label={t('Start date')}>
+          <Input
+            type='date'
+            value={filters.startDate}
+            onChange={(event) => {
+              filters.setStartDate(event.target.value)
+              filters.setPage(1)
+            }}
+          />
+        </FieldLabel>
+        <FieldLabel label={t('End date')}>
+          <Input
+            type='date'
+            value={filters.endDate}
+            onChange={(event) => {
+              filters.setEndDate(event.target.value)
+              filters.setPage(1)
+            }}
+          />
+        </FieldLabel>
+        {showMemberFilter ? (
+          <FieldLabel label={t('User')}>
+            <NativeSelect
+              className='w-full'
+              value={filters.userId}
+              onChange={(event) => {
+                filters.setUserId(event.target.value)
+                filters.setPage(1)
+              }}
+            >
+              <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
+              {memberOptions.map((row) => (
+                <NativeSelectOption key={row.user_id} value={row.user_id}>
+                  {row.username || `${t('User')} ${row.user_id}`}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </FieldLabel>
+        ) : null}
+        <FieldLabel label={t('Model')}>
+          <NativeSelect
+            className='w-full'
+            value={filters.modelName}
+            onChange={(event) => {
+              filters.setModelName(event.target.value)
+              filters.setPage(1)
+            }}
+          >
+            <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
+            {modelOptions.map((row) => (
+              <NativeSelectOption key={row.model_name} value={row.model_name}>
+                {row.model_name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </FieldLabel>
+        <FieldLabel label={t('Channel')}>
+          <NativeSelect
+            className='w-full'
+            value={filters.channelId}
+            onChange={(event) => {
+              filters.setChannelId(event.target.value)
+              filters.setPage(1)
+            }}
+          >
+            <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
+            {channelOptions.map((row) => (
+              <NativeSelectOption key={row.channel_id} value={row.channel_id}>
+                {row.channel_name || `${t('Channel')} ${row.channel_id}`}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </FieldLabel>
+        <div className='flex gap-2'>
+          <Button variant='outline' size='sm' onClick={onRefresh}>
+            <RefreshCw />
+            {t('Refresh')}
+          </Button>
+          {onExport ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button variant='outline' size='sm' onClick={onExport}>
+                      <Download />
+                      {t('Export')}
+                    </Button>
+                  }
+                />
+                <TooltipContent className='max-w-xs'>
+                  {t('Export includes raw log content and request IDs')}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
+        </div>
+      </div>
+    </section>
   )
 }
 
 function SummaryGrid({ summary }: { summary?: OrganizationSummary }) {
   const { t } = useTranslation()
   const items = [
-    { label: t('Requests'), value: formatNumber(summary?.request_count) },
-    { label: t('Amount'), value: formatQuota(summary?.total_quota ?? 0) },
-    { label: t('Raw Quota'), value: formatNumber(summary?.total_quota) },
+    {
+      label: t('Requests'),
+      value: formatNumber(summary?.request_count),
+      description: t('Total requests'),
+      icon: Activity,
+      iconTone: 'chart-1' as IconBadgeTone,
+    },
+    {
+      label: t('Consumption amount'),
+      value: formatBillingAmountFromQuota(summary?.total_quota ?? 0),
+      description: t('Total billed amount'),
+      icon: Wallet,
+      iconTone: 'primary' as IconBadgeTone,
+      emphasis: true,
+    },
+    {
+      label: t('Raw Quota'),
+      value: formatNumber(summary?.total_quota),
+      description: t('Internal quota units'),
+      icon: Database,
+      iconTone: 'neutral' as IconBadgeTone,
+    },
     {
       label: t('Prompt tokens'),
       value: formatNumber(summary?.prompt_tokens),
+      description: t('Input tokens'),
+      icon: ArrowDownToLine,
+      iconTone: 'chart-3' as IconBadgeTone,
     },
     {
       label: t('Completion tokens'),
       value: formatNumber(summary?.completion_tokens),
+      description: t('Output tokens'),
+      icon: ArrowUpFromLine,
+      iconTone: 'chart-4' as IconBadgeTone,
     },
     {
       label: t('Active members'),
       value: formatNumber(summary?.active_member_count),
+      description: t('Active in range'),
+      icon: Users,
+      iconTone: 'success' as IconBadgeTone,
     },
   ]
 
   return (
-    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-6'>
+    <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6'>
       {items.map((item) => (
-        <div key={item.label} className='rounded-lg border p-4'>
-          <div className='text-muted-foreground text-xs'>{item.label}</div>
-          <div className='mt-2 text-xl font-semibold'>{item.value}</div>
-        </div>
+        <BillingStatCard
+          key={item.label}
+          label={item.label}
+          value={item.value}
+          description={item.description}
+          icon={item.icon}
+          iconTone={item.iconTone}
+          emphasis={item.emphasis}
+        />
       ))}
     </div>
   )
@@ -446,9 +755,13 @@ function dimensionTokenCount(row: OrganizationDimensionRow) {
   return (row.prompt_tokens ?? 0) + (row.completion_tokens ?? 0)
 }
 
+function sharePercentValue(rowQuota: number, totalQuota?: number) {
+  if (!totalQuota || totalQuota <= 0) return 0
+  return (rowQuota / totalQuota) * 100
+}
+
 function formatQuotaShare(rowQuota: number, totalQuota?: number) {
-  if (!totalQuota || totalQuota <= 0) return formatPercent(0)
-  return formatPercent((rowQuota / totalQuota) * 100)
+  return formatPercent(sharePercentValue(rowQuota, totalQuota))
 }
 
 function formatPricingSnapshot(
@@ -461,7 +774,7 @@ function formatPricingSnapshot(
     return t('Tiered')
   }
   if (pricing.quota_type === 1) {
-    return `${t('Fixed price')} ${formatNumber(pricing.model_price)}`
+    return `${t('Fixed price')} ${formatBillingCurrencyFromUSD(pricing.model_price)}`
   }
   return `${t('Ratio')} ${formatNumber(pricing.model_ratio)}`
 }
@@ -479,7 +792,9 @@ function DimensionTable(props: {
         <TableHeader>
           <TableRow>
             <TableHead>{props.nameLabel}</TableHead>
-            <TableHead className='text-right'>{t('Amount')}</TableHead>
+            <TableHead className='text-right'>
+              {t('Consumption amount')}
+            </TableHead>
             <TableHead className='text-right'>{t('Raw Quota')}</TableHead>
             <TableHead className='text-right'>{t('Share')}</TableHead>
             <TableHead className='text-right'>{t('Requests')}</TableHead>
@@ -488,7 +803,9 @@ function DimensionTable(props: {
               {t('Completion tokens')}
             </TableHead>
             <TableHead className='text-right'>{t('Tokens')}</TableHead>
-            {props.showPricing ? <TableHead>{t('Pricing')}</TableHead> : null}
+            {props.showPricing ? (
+              <TableHead>{t('Current pricing')}</TableHead>
+            ) : null}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -496,28 +813,41 @@ function DimensionTable(props: {
             const rowName = dimensionRowName(row)
             return (
               <TableRow key={String(dimensionRowKey(row, String(rowName)))}>
-                <TableCell className='min-w-36 max-w-72 truncate'>
+                <TableCell className='max-w-72 min-w-36 truncate'>
                   {rowName}
                 </TableCell>
-                <TableCell className='whitespace-nowrap text-right'>
-                  {formatQuota(row.total_quota)}
+                <TableCell className='text-right whitespace-nowrap tabular-nums'>
+                  {formatBillingAmountFromQuota(row.total_quota)}
                 </TableCell>
-                <TableCell className='whitespace-nowrap text-right'>
+                <TableCell className='text-right whitespace-nowrap tabular-nums'>
                   {formatNumber(row.total_quota)}
                 </TableCell>
-                <TableCell className='whitespace-nowrap text-right'>
-                  {formatQuotaShare(row.total_quota, props.totalQuota)}
+                <TableCell className='text-right whitespace-nowrap'>
+                  <div className='ml-auto w-16 lg:w-24'>
+                    <div className='tabular-nums'>
+                      {formatQuotaShare(row.total_quota, props.totalQuota)}
+                    </div>
+                    <div className='mt-1.5'>
+                      <ProportionBar
+                        value={sharePercentValue(
+                          row.total_quota,
+                          props.totalQuota
+                        )}
+                        fillClassName='bg-chart-2'
+                      />
+                    </div>
+                  </div>
                 </TableCell>
-                <TableCell className='whitespace-nowrap text-right'>
+                <TableCell className='text-right whitespace-nowrap tabular-nums'>
                   {formatNumber(row.request_count)}
                 </TableCell>
-                <TableCell className='whitespace-nowrap text-right'>
+                <TableCell className='text-right whitespace-nowrap tabular-nums'>
                   {formatNumber(row.prompt_tokens)}
                 </TableCell>
-                <TableCell className='whitespace-nowrap text-right'>
+                <TableCell className='text-right whitespace-nowrap tabular-nums'>
                   {formatNumber(row.completion_tokens)}
                 </TableCell>
-                <TableCell className='whitespace-nowrap text-right'>
+                <TableCell className='text-right whitespace-nowrap tabular-nums'>
                   {formatNumber(dimensionTokenCount(row))}
                 </TableCell>
                 {props.showPricing ? (
@@ -539,38 +869,56 @@ function DimensionTable(props: {
 
 function TrendTable({ rows }: { rows?: OrganizationTrendRow[] }) {
   const { t } = useTranslation()
+  const trendRows = rows ?? []
+  const maxQuota = trendRows.reduce(
+    (max, row) => Math.max(max, row.total_quota ?? 0),
+    0
+  )
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>{t('Date')}</TableHead>
-          <TableHead className='text-right'>{t('Amount')}</TableHead>
+          <TableHead className='text-right'>
+            {t('Consumption amount')}
+          </TableHead>
           <TableHead className='text-right'>{t('Raw Quota')}</TableHead>
           <TableHead className='text-right'>{t('Requests')}</TableHead>
           <TableHead className='text-right'>{t('Tokens')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {(rows ?? []).map((row) => (
-          <TableRow key={row.period}>
-            <TableCell>{row.period}</TableCell>
-            <TableCell className='whitespace-nowrap text-right'>
-              {formatQuota(row.total_quota)}
-            </TableCell>
-            <TableCell className='whitespace-nowrap text-right'>
-              {formatNumber(row.total_quota)}
-            </TableCell>
-            <TableCell className='whitespace-nowrap text-right'>
-              {formatNumber(row.request_count)}
-            </TableCell>
-            <TableCell className='whitespace-nowrap text-right'>
-              {formatNumber(
-                (row.prompt_tokens ?? 0) + (row.completion_tokens ?? 0)
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
-        {!rows?.length ? <EmptyTableRow colSpan={5} /> : null}
+        {trendRows.map((row) => {
+          const ratio =
+            maxQuota > 0 ? ((row.total_quota ?? 0) / maxQuota) * 100 : 0
+          return (
+            <TableRow key={row.period}>
+              <TableCell className='whitespace-nowrap'>{row.period}</TableCell>
+              <TableCell className='text-right whitespace-nowrap'>
+                <div className='ml-auto w-20 lg:w-28'>
+                  <div className='tabular-nums'>
+                    {formatBillingAmountFromQuota(row.total_quota)}
+                  </div>
+                  <div className='mt-1.5'>
+                    <ProportionBar value={ratio} fillClassName='bg-chart-1' />
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap tabular-nums'>
+                {formatNumber(row.total_quota)}
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap tabular-nums'>
+                {formatNumber(row.request_count)}
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap tabular-nums'>
+                {formatNumber(
+                  (row.prompt_tokens ?? 0) + (row.completion_tokens ?? 0)
+                )}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+        {!trendRows.length ? <EmptyTableRow colSpan={5} /> : null}
       </TableBody>
     </Table>
   )
@@ -586,7 +934,9 @@ function LogsTable({ rows }: { rows?: OrganizationUsageRow[] }) {
           <TableHead>{t('User')}</TableHead>
           <TableHead>{t('Model')}</TableHead>
           <TableHead>{t('Channel')}</TableHead>
-          <TableHead className='text-right'>{t('Amount')}</TableHead>
+          <TableHead className='text-right'>
+            {t('Consumption amount')}
+          </TableHead>
           <TableHead className='text-right'>{t('Raw Quota')}</TableHead>
           <TableHead className='text-right'>{t('Tokens')}</TableHead>
         </TableRow>
@@ -598,13 +948,13 @@ function LogsTable({ rows }: { rows?: OrganizationUsageRow[] }) {
             <TableCell>{row.username || row.user_id || '-'}</TableCell>
             <TableCell>{row.model_name || '-'}</TableCell>
             <TableCell>{row.channel_name || row.channel_id || '-'}</TableCell>
-            <TableCell className='whitespace-nowrap text-right'>
-              {formatQuota(row.quota ?? 0)}
+            <TableCell className='text-right whitespace-nowrap tabular-nums'>
+              {formatBillingAmountFromQuota(row.quota ?? 0)}
             </TableCell>
-            <TableCell className='whitespace-nowrap text-right'>
+            <TableCell className='text-right whitespace-nowrap tabular-nums'>
               {formatNumber(row.quota)}
             </TableCell>
-            <TableCell className='whitespace-nowrap text-right'>
+            <TableCell className='text-right whitespace-nowrap tabular-nums'>
               {formatNumber(
                 (row.prompt_tokens ?? 0) + (row.completion_tokens ?? 0)
               )}
@@ -680,7 +1030,12 @@ function UserSearchPicker({
   const [keyword, setKeyword] = useState('')
   const usersQuery = useQuery({
     queryKey: ['organization', 'user-search', keyword],
-    queryFn: () => searchUsers({ keyword, page_size: 8 }),
+    queryFn: () =>
+      searchUsers({
+        keyword,
+        role: String(USER_ROLE.USER),
+        page_size: 8,
+      }),
     enabled: keyword.trim().length > 0,
   })
   const users = usersQuery.data?.data?.items ?? []
@@ -742,20 +1097,15 @@ function MemberDialog({
   onOpenChange,
   onSubmit,
   isPending,
-  allowOwner,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (userId: number, role: OrganizationRole) => void
   isPending: boolean
-  allowOwner?: boolean
 }) {
   const { t } = useTranslation()
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [role, setRole] = useState<OrganizationRole>('member')
-  const roleOptions = allowOwner
-    ? ROLE_OPTIONS
-    : ROLE_OPTIONS.filter((item) => item !== 'owner')
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -775,7 +1125,7 @@ function MemberDialog({
           value={role}
           onChange={(event) => setRole(event.target.value as OrganizationRole)}
         >
-          {roleOptions.map((item) => (
+          {ROLE_OPTIONS.map((item) => (
             <NativeSelectOption key={item} value={item}>
               {roleLabel(item, t)}
             </NativeSelectOption>
@@ -869,24 +1219,15 @@ function MembersTable({
   onRoleChange,
   onRemove,
   isMutating,
-  allowOwnerRole,
-  ownerAssigned,
 }: {
   members?: OrganizationMember[]
   currentRole?: OrganizationRole
   onRoleChange: (userId: number, role: OrganizationRole) => void
   onRemove: (member: OrganizationMember) => void
   isMutating: boolean
-  allowOwnerRole?: boolean
-  ownerAssigned?: boolean
 }) {
   const { t } = useTranslation()
   const canEdit = canManageMembers(currentRole)
-  const canEditOwner = currentRole === 'owner'
-  const roleOptions =
-    allowOwnerRole && !ownerAssigned
-      ? ROLE_OPTIONS
-      : ROLE_OPTIONS.filter((item) => item !== 'owner')
 
   return (
     <Table>
@@ -909,21 +1250,22 @@ function MembersTable({
           const secondaryInfo = member.email
             ? `${secondaryName} · ${member.email}`
             : secondaryName
-          const disabled =
-            isMutating ||
-            !canEdit ||
-            member.role === 'owner' ||
-            (member.role === 'admin' && !canEditOwner)
+          const disabled = isMutating || !canEdit || Boolean(member.left_at)
           return (
             <TableRow key={`${member.user_id}-${member.left_at ?? 0}`}>
               <TableCell>
-                <div className='font-medium'>{displayName}</div>
-                <div className='text-muted-foreground text-xs'>
-                  {secondaryInfo}
+                <div className='flex items-center gap-3'>
+                  <EntityAvatar name={displayName} />
+                  <div className='min-w-0'>
+                    <div className='truncate font-medium'>{displayName}</div>
+                    <div className='text-muted-foreground truncate text-xs'>
+                      {secondaryInfo}
+                    </div>
+                  </div>
                 </div>
               </TableCell>
               <TableCell>
-                {canEdit && member.role !== 'owner' ? (
+                {canEdit ? (
                   <NativeSelect
                     size='sm'
                     value={member.role}
@@ -935,7 +1277,7 @@ function MembersTable({
                       )
                     }
                   >
-                    {roleOptions.map((item) => (
+                    {ROLE_OPTIONS.map((item) => (
                       <NativeSelectOption key={item} value={item}>
                         {roleLabel(item, t)}
                       </NativeSelectOption>
@@ -947,12 +1289,14 @@ function MembersTable({
                   </Badge>
                 )}
               </TableCell>
-              <TableCell>{formatTimestampToDate(member.joined_at)}</TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {formatTimestampToDate(member.joined_at)}
+              </TableCell>
               <TableCell>
                 {member.left_at ? (
-                  <Badge variant='outline'>{t('Removed')}</Badge>
+                  <DotBadge tone='muted'>{t('Removed')}</DotBadge>
                 ) : (
-                  <Badge variant='secondary'>{t('Active')}</Badge>
+                  <DotBadge tone='success'>{t('Active')}</DotBadge>
                 )}
               </TableCell>
               <TableCell className='text-right'>
@@ -983,6 +1327,12 @@ export function OrganizationUsagePage() {
   const role = self?.member.role
   const enabled = Boolean(self && canViewBilling(role))
 
+  const filterOptionsQuery = useQuery({
+    queryKey: organizationKeys.filterOptions,
+    queryFn: getOrganizationBillingFilterOptions,
+    enabled,
+  })
+
   const summaryQuery = useQuery({
     queryKey: organizationKeys.summary(filters.params),
     queryFn: () => getOrganizationBillingSummary(filters.params),
@@ -1009,6 +1359,7 @@ export function OrganizationUsagePage() {
   if (!canViewBilling(role)) return <AccessDeniedState />
 
   const refresh = () => {
+    void filterOptionsQuery.refetch()
     void summaryQuery.refetch()
     void trendQuery.refetch()
     void modelsQuery.refetch()
@@ -1016,28 +1367,25 @@ export function OrganizationUsagePage() {
   }
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 p-4 sm:p-6'>
       <PageHeader
         title={t('Organization billing')}
         description={self.organization.name}
         actions={
-          <Badge
-            variant={
-              self.organization.status === ORGANIZATION_STATUS_ENABLED
-                ? 'secondary'
-                : 'outline'
-            }
-          >
+          <DotBadge tone={orgStatusTone(self.organization.status)}>
             {statusLabel(self.organization.status, t)}
-          </Badge>
+          </DotBadge>
         }
       />
       <UsageFilters
         filters={filters}
-        showMemberFilter
+        options={filterOptionsQuery.data?.data}
+        showMemberFilter={role === 'admin'}
         onRefresh={refresh}
         onExport={() => {
-          window.location.href = buildOrganizationExportUrl(filters.params)
+          void downloadOrganizationExport(
+            buildOrganizationExportUrl(filters.params)
+          )
         }}
       />
       <SummaryGrid summary={summaryQuery.data?.data} />
@@ -1141,7 +1489,7 @@ export function OrganizationMembersPage() {
   if (!canManageMembers(role)) return <AccessDeniedState />
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 p-4 sm:p-6'>
       <PageHeader
         title={t('Organization members')}
         description={self.organization.name}
@@ -1230,6 +1578,12 @@ export function OrganizationLogsPage() {
   const role = self?.member.role
   const enabled = Boolean(self && canViewBilling(role))
 
+  const filterOptionsQuery = useQuery({
+    queryKey: organizationKeys.filterOptions,
+    queryFn: getOrganizationBillingFilterOptions,
+    enabled,
+  })
+
   const logsQuery = useQuery({
     queryKey: organizationKeys.logs(filters.params),
     queryFn: () => getOrganizationBillingLogs(filters.params),
@@ -1243,17 +1597,23 @@ export function OrganizationLogsPage() {
   const pageData = logsQuery.data?.data
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 p-4 sm:p-6'>
       <PageHeader
         title={t('Organization billing logs')}
         description={self.organization.name}
       />
       <UsageFilters
         filters={filters}
-        showMemberFilter
-        onRefresh={() => void logsQuery.refetch()}
+        options={filterOptionsQuery.data?.data}
+        showMemberFilter={role === 'admin'}
+        onRefresh={() => {
+          void filterOptionsQuery.refetch()
+          void logsQuery.refetch()
+        }}
         onExport={() => {
-          window.location.href = buildOrganizationExportUrl(filters.params)
+          void downloadOrganizationExport(
+            buildOrganizationLogsExportUrl(filters.params)
+          )
         }}
       />
       <Panel title={t('Billing logs')}>
@@ -1342,7 +1702,7 @@ export function AdminOrganizationsPage() {
   const pageData = organizationsQuery.data?.data
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 p-4 sm:p-6'>
       <PageHeader
         title={t('Organizations')}
         description={t('Manage organizations, owners, members, and billing.')}
@@ -1392,7 +1752,6 @@ export function AdminOrganizationsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t('Name')}</TableHead>
-              <TableHead>{t('Owner ID')}</TableHead>
               <TableHead>{t('Status')}</TableHead>
               <TableHead>{t('Updated at')}</TableHead>
               <TableHead className='text-right'>{t('Actions')}</TableHead>
@@ -1402,22 +1761,22 @@ export function AdminOrganizationsPage() {
             {(pageData?.items ?? []).map((organization) => (
               <TableRow key={organization.id}>
                 <TableCell>
-                  <div className='font-medium'>{organization.name}</div>
-                  <div className='text-muted-foreground text-xs'>
-                    ID {organization.id}
+                  <div className='flex items-center gap-3'>
+                    <EntityAvatar name={organization.name} size='sm' />
+                    <div className='min-w-0'>
+                      <div className='truncate font-medium'>
+                        {organization.name}
+                      </div>
+                      <div className='text-muted-foreground text-xs'>
+                        ID {organization.id}
+                      </div>
+                    </div>
                   </div>
                 </TableCell>
-                <TableCell>{organization.owner_id || '-'}</TableCell>
                 <TableCell>
-                  <Badge
-                    variant={
-                      organization.status === ORGANIZATION_STATUS_ENABLED
-                        ? 'secondary'
-                        : 'outline'
-                    }
-                  >
+                  <DotBadge tone={orgStatusTone(organization.status)}>
                     {statusLabel(organization.status, t)}
-                  </Badge>
+                  </DotBadge>
                 </TableCell>
                 <TableCell>
                   {formatTimestampToDate(organization.updated_at)}
@@ -1439,7 +1798,7 @@ export function AdminOrganizationsPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {!pageData?.items?.length ? <EmptyTableRow colSpan={5} /> : null}
+            {!pageData?.items?.length ? <EmptyTableRow colSpan={4} /> : null}
           </TableBody>
         </Table>
         <Pager
@@ -1462,13 +1821,19 @@ export function AdminOrganizationsPage() {
 export function AdminOrganizationDetailPage({ id }: { id: number }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<'members' | 'billing' | 'logs'>('members')
+  const [tab, setTab] = useState<OrganizationDetailTab>('members')
   const [memberDialogOpen, setMemberDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [removingMember, setRemovingMember] =
     useState<OrganizationMember | null>(null)
   const filters = useUsageFilters()
+
+  const filterOptionsQuery = useQuery({
+    queryKey: organizationKeys.adminFilterOptions(id),
+    queryFn: () => getAdminOrganizationBillingFilterOptions(id),
+    enabled: tab === 'billing' || tab === 'logs',
+  })
 
   const organizationQuery = useQuery({
     queryKey: organizationKeys.adminDetail(id),
@@ -1576,52 +1941,61 @@ export function AdminOrganizationDetailPage({ id }: { id: number }) {
   }
 
   return (
-    <div className='space-y-4'>
-      <PageHeader
-        title={organization.name}
-        description={`${t('Organization')} ID ${organization.id}`}
-        actions={
-          <>
-            <Badge
-              variant={
-                organization.status === ORGANIZATION_STATUS_ENABLED
-                  ? 'secondary'
-                  : 'outline'
-              }
-            >
+    <div className='flex flex-col gap-6 p-4 sm:p-6'>
+      <header className='border-b'>
+        <div className='flex flex-col gap-4 pb-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
+            <EntityAvatar name={organization.name} />
+            <h1 className='truncate text-2xl font-semibold tracking-tight'>
+              {organization.name}
+            </h1>
+            <Separator
+              orientation='vertical'
+              className='hidden h-6 self-center sm:block'
+            />
+            <p className='text-muted-foreground text-sm'>
+              {t('Organization')} ID {organization.id}
+            </p>
+          </div>
+          <div className='flex shrink-0 items-center gap-2'>
+            <DotBadge tone={orgStatusTone(organization.status)}>
               {statusLabel(organization.status, t)}
-            </Badge>
+            </DotBadge>
             <Button variant='outline' onClick={() => setSettingsOpen(true)}>
-              <Settings />
+              <Settings data-icon='inline-start' />
               {t('Settings')}
             </Button>
-          </>
-        }
-      />
-      <div className='flex flex-wrap gap-2 border-b'>
-        {(['members', 'billing', 'logs'] as const).map((item) => (
-          <button
-            key={item}
-            type='button'
-            className={cn(
-              'border-b-2 px-3 py-2 text-sm font-medium',
-              tab === item
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            )}
-            onClick={() => setTab(item)}
+          </div>
+        </div>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as OrganizationDetailTab)}
+          className='gap-0'
+        >
+          <TabsList
+            variant='line'
+            className='h-10 gap-6 p-0 group-data-horizontal/tabs:h-10'
           >
-            {organizationDetailTabLabel(item, t)}
-          </button>
-        ))}
-      </div>
+            {(['members', 'billing', 'logs'] as const).map((item) => (
+              <TabsTrigger
+                key={item}
+                value={item}
+                className='data-active:text-primary after:bg-primary min-w-14 px-0'
+              >
+                {organizationDetailTabLabel(item, t)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </header>
       {tab === 'members' ? (
-        <Panel
-          title={t('Members')}
-          actions={
-            <>
+        <section className='bg-background overflow-hidden rounded-xl border'>
+          <div className='bg-muted/30 flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5'>
+            <h2 className='text-lg font-semibold tracking-tight'>
+              {t('Members')}
+            </h2>
+            <div className='flex shrink-0 items-center gap-2'>
               <NativeSelect
-                size='sm'
                 value={showHistory ? 'history' : 'active'}
                 onChange={(event) =>
                   setShowHistory(event.target.value === 'history')
@@ -1634,36 +2008,37 @@ export function AdminOrganizationDetailPage({ id }: { id: number }) {
                   {t('Include removed')}
                 </NativeSelectOption>
               </NativeSelect>
-              <Button size='sm' onClick={() => setMemberDialogOpen(true)}>
-                <Plus />
+              <Button onClick={() => setMemberDialogOpen(true)}>
+                <Plus data-icon='inline-start' />
                 {t('Add member')}
               </Button>
-            </>
-          }
-        >
-          <MembersTable
-            members={membersQuery.data?.data}
-            currentRole='owner'
-            allowOwnerRole
-            ownerAssigned={Boolean(organization.owner_id)}
-            isMutating={
-              addMutation.isPending ||
-              roleMutation.isPending ||
-              removeMutation.isPending
-            }
-            onRoleChange={(userId, memberRole) =>
-              roleMutation.mutate({ userId, memberRole })
-            }
-            onRemove={setRemovingMember}
-          />
-        </Panel>
+            </div>
+          </div>
+          <div className='[&_[data-slot=table-header]]:bg-muted/20 [&_[data-slot=table-body]>tr]:h-20 [&_[data-slot=table-cell]]:px-5 [&_[data-slot=table-head]]:h-12 [&_[data-slot=table-head]]:px-5'>
+            <MembersTable
+              members={membersQuery.data?.data}
+              currentRole='admin'
+              isMutating={
+                addMutation.isPending ||
+                roleMutation.isPending ||
+                removeMutation.isPending
+              }
+              onRoleChange={(userId, memberRole) =>
+                roleMutation.mutate({ userId, memberRole })
+              }
+              onRemove={setRemovingMember}
+            />
+          </div>
+        </section>
       ) : null}
       {tab === 'billing' ? (
         <div className='space-y-4'>
           <UsageFilters
             filters={filters}
+            options={filterOptionsQuery.data?.data}
             showMemberFilter
             onRefresh={() => {
+              void filterOptionsQuery.refetch()
               void summaryQuery.refetch()
               void billingTrendQuery.refetch()
               void billingMembersQuery.refetch()
@@ -1671,9 +2046,8 @@ export function AdminOrganizationDetailPage({ id }: { id: number }) {
               void billingChannelsQuery.refetch()
             }}
             onExport={() => {
-              window.location.href = buildAdminOrganizationExportUrl(
-                id,
-                filters.params
+              void downloadOrganizationExport(
+                buildAdminOrganizationExportUrl(id, filters.params)
               )
             }}
           />
@@ -1711,12 +2085,15 @@ export function AdminOrganizationDetailPage({ id }: { id: number }) {
         <div className='space-y-4'>
           <UsageFilters
             filters={filters}
+            options={filterOptionsQuery.data?.data}
             showMemberFilter
-            onRefresh={() => void logsQuery.refetch()}
+            onRefresh={() => {
+              void filterOptionsQuery.refetch()
+              void logsQuery.refetch()
+            }}
             onExport={() => {
-              window.location.href = buildAdminOrganizationExportUrl(
-                id,
-                filters.params
+              void downloadOrganizationExport(
+                buildAdminOrganizationLogsExportUrl(id, filters.params)
               )
             }}
           />
@@ -1735,7 +2112,6 @@ export function AdminOrganizationDetailPage({ id }: { id: number }) {
         open={memberDialogOpen}
         onOpenChange={setMemberDialogOpen}
         isPending={addMutation.isPending}
-        allowOwner={!organization.owner_id}
         onSubmit={(userId, memberRole) =>
           addMutation.mutate({ userId, memberRole })
         }

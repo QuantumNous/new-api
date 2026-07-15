@@ -17,12 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { t } from 'i18next'
+import { toast } from 'sonner'
+
 import { api } from '@/lib/api'
 
 import type {
   ApiResponse,
   MemberPayload,
   Organization,
+  OrganizationBillingFilterOptions,
   OrganizationDimensionRow,
   OrganizationListParams,
   OrganizationMember,
@@ -75,6 +79,9 @@ export const organizationKeys = {
     ['admin', 'organizations', id, 'billing', 'trend', params] as const,
   adminLogs: (id: number, params: OrganizationUsageParams) =>
     ['admin', 'organizations', id, 'billing', 'logs', params] as const,
+  filterOptions: ['organization', 'billing', 'filter-options'] as const,
+  adminFilterOptions: (id: number) =>
+    ['admin', 'organizations', id, 'billing', 'filter-options'] as const,
 }
 
 export async function getOrganizationSelf(): Promise<
@@ -170,9 +177,92 @@ export async function getOrganizationBillingChannels(
   return res.data
 }
 
+export async function getOrganizationBillingFilterOptions(): Promise<
+  ApiResponse<OrganizationBillingFilterOptions>
+> {
+  const [members, models, channels] = await Promise.all([
+    getCurrentOrganizationMembers(true),
+    getOrganizationBillingModels({}),
+    getOrganizationBillingChannels({}),
+  ])
+  const failed = [members, models, channels].find(
+    (response) => !response.success
+  )
+  if (failed) return { success: false, message: failed.message }
+  return {
+    success: true,
+    data: {
+      members: members.data ?? [],
+      models: models.data ?? [],
+      channels: channels.data ?? [],
+    },
+  }
+}
+
 export function buildOrganizationExportUrl(params: OrganizationUsageParams) {
   const query = buildQuery(params)
+  return `/api/organization/current/billing/export?${query}`
+}
+
+export function buildOrganizationLogsExportUrl(
+  params: OrganizationUsageParams
+) {
+  const query = buildQuery(params)
   return `/api/organization/current/billing/logs/export?${query}`
+}
+
+// Exports must go through the shared axios instance so the request carries the
+// New-Api-User header required by authHelper. A plain window.location.href
+// navigation cannot attach that header and is rejected as unauthorized.
+export async function downloadOrganizationExport(url: string): Promise<void> {
+  try {
+    const res = await api.get(url, { responseType: 'blob' })
+    const blob = res.data as Blob
+    // The backend signals business errors as JSON; responseType:'blob' wraps
+    // that payload in a Blob, so decode it here instead of saving it as CSV.
+    if (blob.type?.includes('application/json')) {
+      toast.error(readExportErrorMessage(await blob.text()))
+      return
+    }
+    triggerBlobDownload(
+      blob,
+      readExportFilename(res.headers['content-disposition'], url)
+    )
+  } catch {
+    // Network and HTTP errors are surfaced by the global response interceptor.
+  }
+}
+
+function readExportErrorMessage(text: string): string {
+  try {
+    const payload = JSON.parse(text) as { message?: string }
+    return payload.message || t('Request failed')
+  } catch {
+    return t('Request failed')
+  }
+}
+
+function readExportFilename(
+  disposition: string | undefined,
+  url: string
+): string {
+  const fallback = url.includes('/billing/logs/export')
+    ? 'organization-billing-logs.csv'
+    : 'organization-billing.csv'
+  if (!disposition) return fallback
+  const match = disposition.match(/filename="?([^";]+)"?/i)
+  return match?.[1] ?? fallback
+}
+
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
 }
 
 export async function getAdminOrganizations(
@@ -312,7 +402,37 @@ export async function getAdminOrganizationBillingTrend(
   return res.data
 }
 
+export async function getAdminOrganizationBillingFilterOptions(
+  id: number
+): Promise<ApiResponse<OrganizationBillingFilterOptions>> {
+  const [members, models, channels] = await Promise.all([
+    getAdminOrganizationMembers(id, true),
+    getAdminOrganizationBillingModels(id, {}),
+    getAdminOrganizationBillingChannels(id, {}),
+  ])
+  const failed = [members, models, channels].find(
+    (response) => !response.success
+  )
+  if (failed) return { success: false, message: failed.message }
+  return {
+    success: true,
+    data: {
+      members: members.data ?? [],
+      models: models.data ?? [],
+      channels: channels.data ?? [],
+    },
+  }
+}
+
 export function buildAdminOrganizationExportUrl(
+  id: number,
+  params: OrganizationUsageParams
+) {
+  const query = buildQuery(params)
+  return `/api/admin/organizations/${id}/billing/export?${query}`
+}
+
+export function buildAdminOrganizationLogsExportUrl(
   id: number,
   params: OrganizationUsageParams
 ) {

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import dayjs from '@/lib/dayjs'
 
 import {
+  formatBillingCurrencyFromUSD,
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
   getCurrencyDisplay,
@@ -71,6 +72,18 @@ export function formatCurrencyUSD(value: number | null | undefined): string {
  */
 export function formatQuota(quota: number): string {
   return formatQuotaWithCurrency(quota, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: true,
+  })
+}
+
+/**
+ * Format billed quota as money, even when general quota display uses tokens.
+ */
+export function formatBillingAmountFromQuota(quota: number): string {
+  const { config } = getCurrencyDisplay()
+  return formatBillingCurrencyFromUSD(quota / config.quotaPerUnit, {
     digitsLarge: 2,
     digitsSmall: 4,
     abbreviate: true,

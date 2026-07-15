@@ -314,7 +314,7 @@ func migrateDB() error {
 			return err
 		}
 	}
-	return nil
+	return migrateOrganizationRoles()
 }
 
 func migrateDBFast() error {
@@ -387,6 +387,9 @@ func migrateDBFast() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := migrateOrganizationRoles(); err != nil {
+		return err
 	}
 	common.SysLog("database migrated")
 	return nil

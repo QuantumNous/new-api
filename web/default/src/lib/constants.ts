@@ -21,8 +21,13 @@ For commercial licensing, please contact support@quantumnous.com
  */
 
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = 'New API'
-export const DEFAULT_LOGO = '/logo.png'
+export const DEFAULT_SYSTEM_NAME = 'Lighting'
+export const DEFAULT_LOGO = '/lighting-mark.png'
+export const DEFAULT_FAVICON = '/lighting-favicon.png?v=20260715-1'
+export const LEGACY_DEFAULT_SYSTEM_NAME = 'New API'
+export const LEGACY_DEFAULT_LOGO = '/logo.png'
+export const LEGACY_SQUARE_LIGHTING_LOGO = '/lighting-favicon.png'
+export const LEGACY_WIDE_LIGHTING_LOGO = '/lighting-logo.png'
 
 // LocalStorage Keys
 export const STORAGE_KEYS = {

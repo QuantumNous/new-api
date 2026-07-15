@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+import { resolveSystemLogo, resolveSystemName } from '@/lib/branding'
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 
 export type CurrencyDisplayType = 'USD' | 'CNY' | 'TOKENS' | 'CUSTOM'
@@ -95,6 +96,26 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     }),
     {
       name: 'system-config-storage',
+      version: 2,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<{
+          config: Partial<SystemConfig>
+          loadedLogoUrl: string
+        }>
+
+        return {
+          config: {
+            ...state.config,
+            systemName: resolveSystemName(state.config?.systemName),
+            logo: resolveSystemLogo(state.config?.logo),
+            currency: {
+              ...DEFAULT_CURRENCY_CONFIG,
+              ...state.config?.currency,
+            },
+          },
+          loadedLogoUrl: resolveSystemLogo(state.loadedLogoUrl),
+        }
+      },
       partialize: (state) => ({
         config: state.config,
         loadedLogoUrl: state.loadedLogoUrl,
