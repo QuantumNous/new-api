@@ -132,6 +132,15 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 	if !snapshot.LastDataAt.IsZero() && !snapshot.StartedAt.IsZero() {
 		streamInfo["last_data_ms"] = snapshot.LastDataAt.Sub(snapshot.StartedAt).Milliseconds()
 	}
+	// chunks = upstream SSE data chunks received (RecordDataReceived count). With
+	// the first_data..last_data window this yields chunks/sec — an activity rate
+	// that stays high for actively-streaming reasoning (many deltas) and only
+	// falls for a channel genuinely trickling output. Observability only: used to
+	// tell "slow channel" apart from "heavy reasoning" before any throughput-based
+	// health action is enabled.
+	if relayInfo.ReceivedResponseCount > 0 {
+		streamInfo["chunks"] = relayInfo.ReceivedResponseCount
+	}
 	if snapshot.ErrorCount > 0 {
 		streamInfo["error_count"] = snapshot.ErrorCount
 		messages := make([]string, 0, len(snapshot.Errors))
