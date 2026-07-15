@@ -244,14 +244,23 @@ func CompletePendingAutoRenewTopUp(tradeNo string) error {
 
 // ExpirePendingAutoRenewTopUp marks a still-pending auto-renew bill as expired (checkout abandoned).
 func ExpirePendingAutoRenewTopUp(tradeNo string) error {
-	if strings.TrimSpace(tradeNo) == "" {
+	return expirePendingAutoRenewTopUpDB(DB, tradeNo)
+}
+
+// expirePendingAutoRenewTopUpDB updates within the caller's DB handle so it can run inside an
+// existing transaction (avoids nested TX deadlock on SQLite MaxOpenConns=1).
+func expirePendingAutoRenewTopUpDB(db *gorm.DB, tradeNo string) error {
+	if db == nil || strings.TrimSpace(tradeNo) == "" {
 		return nil
 	}
-	err := UpdatePendingTopUpStatus(tradeNo, "", common.TopUpStatusExpired)
-	if errors.Is(err, ErrTopUpNotFound) || errors.Is(err, ErrTopUpStatusInvalid) {
-		return nil
-	}
-	return err
+	now := common.GetTimestamp()
+	res := db.Model(&TopUp{}).
+		Where("trade_no = ? AND status = ?", tradeNo, common.TopUpStatusPending).
+		Updates(map[string]interface{}{
+			"status":        common.TopUpStatusExpired,
+			"complete_time": now,
+		})
+	return res.Error
 }
 
 // RecordAutoRenewTopUpPaid inserts or completes a bill row for a paid auto-renew invoice/period.

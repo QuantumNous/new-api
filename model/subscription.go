@@ -596,11 +596,11 @@ func CreateOrReusePendingAutoRenewSignup(provider string, userId int, planId int
 			}
 			for i := range stalePending {
 				if ref := strings.TrimSpace(stalePending[i].SignupReference); ref != "" {
-					_ = ExpirePendingAutoRenewTopUp(ref)
+					_ = expirePendingAutoRenewTopUpDB(tx, ref)
 				}
 				// Alipay first-period bill may use last_invoice_id as trade_no.
 				if inv := strings.TrimSpace(stalePending[i].LastInvoiceId); inv != "" {
-					_ = ExpirePendingAutoRenewTopUp(inv)
+					_ = expirePendingAutoRenewTopUpDB(tx, inv)
 				}
 			}
 		}
@@ -632,10 +632,10 @@ func CreateOrReusePendingAutoRenewSignup(provider string, userId int, planId int
 					return err
 				}
 				if ref := strings.TrimSpace(contract.SignupReference); ref != "" {
-					_ = ExpirePendingAutoRenewTopUp(ref)
+					_ = expirePendingAutoRenewTopUpDB(tx, ref)
 				}
 				if inv := strings.TrimSpace(contract.LastInvoiceId); inv != "" {
-					_ = ExpirePendingAutoRenewTopUp(inv)
+					_ = expirePendingAutoRenewTopUpDB(tx, inv)
 				}
 			default:
 				return errors.New("user already has a non-ended auto-renew subscription")
