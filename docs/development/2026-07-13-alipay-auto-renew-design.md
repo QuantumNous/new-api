@@ -230,6 +230,7 @@ https://<公网域名>/api/subscription/alipay/notify
 - [x] 设计文档整理（产品码 / 多套餐金额 / 商家扣款合规约束）
 - [x] 本地 Postgres `newapi-local`：`docker-compose.postgres.yml` + `.env.postgres` 部署最新镜像
 - [x] 代码提交：`217b1054e` fix: harden Alipay auto-renew claim lease and document merchant pay
+- [x] 点击 Checkout / 支付并签约即写入 `top_ups` **pending** 账单（`EnsurePendingAutoRenewTopUp`）；支付成功/过期更新状态
 
 ### 待办（商户开通与联调；支付宝配置先暂停时优先看这里）
 

@@ -614,7 +614,7 @@ func setupSubscriptionControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.SubscriptionPlan{}, &model.BillingSubscription{}, &model.RecurringChargeAttempt{}, &model.UserSubscription{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.SubscriptionPlan{}, &model.BillingSubscription{}, &model.RecurringChargeAttempt{}, &model.UserSubscription{}, &model.TopUp{}))
 
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()

@@ -115,6 +115,7 @@ func ChargeAlipayAutoRenewContract(ctx context.Context, contract *model.BillingS
 		}); err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("alipay auto-renew fulfill after pay failed out_trade_no=%s error=%v", outTradeNo, err))
 		} else {
+			model.CompleteAutoRenewBillingRecords(contract, outTradeNo, centAmount, "CNY")
 			_ = model.DeleteAlipayPendingTask(outTradeNo)
 			return nil
 		}
@@ -526,6 +527,10 @@ func FinalizeAlipayAutoRenewChargeFromQuery(ctx context.Context, outTradeNo stri
 			ProviderPayload:        payload,
 		}); err != nil {
 			return err
+		}
+		var bill model.BillingSubscription
+		if cErr := model.DB.First(&bill, attempt.BillingSubscriptionId).Error; cErr == nil {
+			model.CompleteAutoRenewBillingRecords(&bill, outTradeNo, attempt.Amount, attempt.Currency)
 		}
 		_ = model.DeleteAlipayPendingTask(outTradeNo)
 		return nil

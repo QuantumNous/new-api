@@ -143,12 +143,19 @@ func SubscriptionRequestAlipayAutoRenew(c *gin.Context) {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Alipay pay-and-sign enqueue pending query failed out_trade_no=%s error=%q", outTradeNo, err.Error()))
 	}
 
+	// Bill list: pending as soon as pay-and-sign is opened (trade_no = first-period out_trade_no).
+	snapshot := buildPaymentSnapshot(plan.PriceAmount, payMoney, "CNY")
+	if err := model.EnsurePendingAutoRenewTopUp(user.Id, outTradeNo, payMoney, snapshot, model.PaymentMethodAlipay, model.PaymentProviderAlipay); err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Alipay auto-renew pending topup failed user_id=%d out_trade_no=%s error=%q", userId, outTradeNo, err.Error()))
+	}
+
 	common.ApiSuccess(c, gin.H{
 		"pay_type":         "redirect",
 		"checkout_url":     payURL,
 		"pay_url":          payURL,
 		"signup_reference": signupReference,
 		"out_trade_no":     outTradeNo,
+		"trade_no":         outTradeNo,
 		"mode":             "pay_and_sign",
 	})
 }

@@ -331,20 +331,24 @@ func handleRecurringInvoicePaid(event stripe.Event) error {
 		return err
 	}
 	if err := model.FulfillRecurringInvoice(&model.RecurringChargeAttempt{
-		BillingSubscriptionId: contract.Id,
-		Provider:              "stripe",
-		ProviderInvoiceId:     payload.ID,
-		PeriodStart:           period.Start,
-		PeriodEnd:             period.End,
-		Amount:                payload.AmountPaid,
-		Currency:              payload.Currency,
-		PaymentStatus:         payload.Status,
-		ProviderCustomerId:    payload.Customer,
-		ProviderPayload:       string(event.Data.Raw),
+		BillingSubscriptionId:  contract.Id,
+		Provider:               "stripe",
+		ProviderInvoiceId:      payload.ID,
+		ProviderSubscriptionId: payload.Subscription,
+		PeriodStart:            period.Start,
+		PeriodEnd:              period.End,
+		Amount:                 payload.AmountPaid,
+		Currency:               payload.Currency,
+		PaymentStatus:          payload.Status,
+		ProviderCustomerId:     payload.Customer,
+		ProviderPayload:        string(event.Data.Raw),
 	}); err != nil {
 		return err
 	}
-
+	// Reload contract for signup_reference then write top_ups bill rows.
+	if refreshed, err := model.GetBillingSubscriptionByProviderSubscriptionID("stripe", payload.Subscription); err == nil {
+		model.CompleteAutoRenewBillingRecords(refreshed, payload.ID, payload.AmountPaid, payload.Currency)
+	}
 	return nil
 }
 

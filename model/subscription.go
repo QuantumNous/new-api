@@ -656,10 +656,23 @@ func MarkPendingAutoRenewSignupFailed(id int) error {
 	if id <= 0 {
 		return errors.New("invalid billing subscription id")
 	}
-	return DB.Model(&BillingSubscription{}).Where("id = ? AND status = ?", id, "pending_signup").Updates(map[string]interface{}{
+	var signupRef string
+	_ = DB.Model(&BillingSubscription{}).Select("signup_reference").Where("id = ?", id).Scan(&signupRef).Error
+	err := DB.Model(&BillingSubscription{}).Where("id = ? AND status = ?", id, "pending_signup").Updates(map[string]interface{}{
 		"status":     "signup_failed",
 		"updated_at": common.GetTimestamp(),
 	}).Error
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(signupRef) != "" {
+		if err := UpdatePendingTopUpStatus(signupRef, "", common.TopUpStatusFailed); err != nil &&
+			!errors.Is(err, ErrTopUpNotFound) && !errors.Is(err, ErrTopUpStatusInvalid) {
+			// best-effort bill update
+			_ = err
+		}
+	}
+	return nil
 }
 
 func MarkPendingStripeAutoRenewSignupExpired(signupReference string, checkoutID string) error {
@@ -677,9 +690,14 @@ func MarkPendingAutoRenewSignupExpired(provider string, signupReference string, 
 	if strings.TrimSpace(checkoutID) != "" {
 		updates["provider_checkout_id"] = checkoutID
 	}
-	return DB.Model(&BillingSubscription{}).
+	err := DB.Model(&BillingSubscription{}).
 		Where("provider = ? AND signup_reference = ? AND status = ?", provider, signupReference, "pending_signup").
 		Updates(updates).Error
+	if err != nil {
+		return err
+	}
+	_ = ExpirePendingAutoRenewTopUp(signupReference)
+	return nil
 }
 
 func CompleteStripeAutoRenewSignup(signupReference string, providerSubscriptionID string, providerCustomerID string, providerPayload string) error {
@@ -1138,8 +1156,54 @@ func FulfillRecurringInvoice(input *RecurringChargeAttempt) error {
 			return err
 		}
 
-		return createRecurringCycleSubscriptionFromInvoiceTx(tx, &contract, input.ProviderInvoiceId, input.PeriodStart, input.PeriodEnd)
+		if err := createRecurringCycleSubscriptionFromInvoiceTx(tx, &contract, input.ProviderInvoiceId, input.PeriodStart, input.PeriodEnd); err != nil {
+			return err
+		}
+		return nil
 	})
+}
+
+// After a successful recurring fulfill, sync bill rows in top_ups (outside the main TX to avoid
+// nested transaction coupling). Callers should invoke CompleteAutoRenewBillingRecords after FulfillRecurringInvoice.
+func CompleteAutoRenewBillingRecords(contract *BillingSubscription, invoiceID string, amountCents int64, currency string) {
+	if contract == nil {
+		return
+	}
+	money := float64(amountCents) / 100.0
+	if money <= 0 && contract.PlanId > 0 {
+		if plan, err := GetSubscriptionPlanById(contract.PlanId); err == nil && plan != nil {
+			money = plan.PriceAmount
+		}
+	}
+	cur := strings.ToUpper(strings.TrimSpace(currency))
+	if cur == "" {
+		cur = "USD"
+	}
+	snapshot := PaymentSnapshot{
+		DisplayAmount:        money,
+		DisplayCurrency:      cur,
+		SettlementAmount:     money,
+		SettlementCurrency:   cur,
+		ExchangeRateSnapshot: 1,
+	}
+	method := PaymentMethodStripe
+	provider := contract.Provider
+	if provider == PaymentProviderAlipay {
+		method = PaymentMethodAlipay
+	}
+	// First-period checkout bill uses signup_reference as trade_no.
+	if ref := strings.TrimSpace(contract.SignupReference); ref != "" {
+		_ = CompletePendingAutoRenewTopUp(ref)
+	}
+	// Always record the paid invoice period (renewals use invoice/out_trade_no as trade_no).
+	invoiceID = strings.TrimSpace(invoiceID)
+	if invoiceID == "" {
+		return
+	}
+	if ref := strings.TrimSpace(contract.SignupReference); ref != "" && invoiceID == ref {
+		return
+	}
+	_ = RecordAutoRenewTopUpPaid(contract.UserId, invoiceID, money, snapshot, method, provider)
 }
 
 func FulfillPendingStripeInvoices(providerSubscriptionID string) error {
@@ -1174,6 +1238,7 @@ func FulfillPendingInvoices(provider string, providerSubscriptionID string) erro
 		if err := FulfillRecurringInvoice(&attempt); err != nil {
 			return err
 		}
+		CompleteAutoRenewBillingRecords(contract, attempt.ProviderInvoiceId, attempt.Amount, attempt.Currency)
 	}
 	return nil
 }

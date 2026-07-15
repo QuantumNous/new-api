@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -157,7 +158,143 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 		}
 
 		topUp.Status = targetStatus
+		if targetStatus == common.TopUpStatusSuccess || targetStatus == common.TopUpStatusExpired || targetStatus == common.TopUpStatusFailed {
+			topUp.CompleteTime = common.GetTimestamp()
+		}
 		return tx.Save(topUp).Error
+	})
+}
+
+// EnsurePendingAutoRenewTopUp creates (or reuses) a pending top_ups bill row when the user
+// opens auto-renew checkout / pay-and-sign, even before payment succeeds.
+// tradeNo is typically signup_reference (Stripe) or first-period out_trade_no (Alipay).
+// Does not credit wallet quota — subscription entitlement is handled separately.
+func EnsurePendingAutoRenewTopUp(userId int, tradeNo string, money float64, snapshot PaymentSnapshot, paymentMethod, paymentProvider string) error {
+	if userId <= 0 || strings.TrimSpace(tradeNo) == "" {
+		return errors.New("invalid auto-renew topup")
+	}
+	now := common.GetTimestamp()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var topUp TopUp
+		err := tx.Where("trade_no = ?", tradeNo).First(&topUp).Error
+		if err == nil {
+			if topUp.UserId != userId {
+				return errors.New("topup belongs to another user")
+			}
+			// Keep existing terminal status; refresh pending amount/snapshot for retries.
+			if topUp.Status != common.TopUpStatusPending {
+				return nil
+			}
+			topUp.Money = money
+			topUp.ApplyPaymentSnapshot(snapshot)
+			if topUp.PaymentMethod == "" {
+				topUp.PaymentMethod = paymentMethod
+			}
+			if topUp.PaymentProvider == "" {
+				topUp.PaymentProvider = paymentProvider
+			}
+			return tx.Save(&topUp).Error
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		topUp = TopUp{
+			UserId:          userId,
+			Amount:          0,
+			Money:           money,
+			TradeNo:         tradeNo,
+			PaymentMethod:   paymentMethod,
+			PaymentProvider: paymentProvider,
+			CreateTime:      now,
+			Status:          common.TopUpStatusPending,
+		}
+		topUp.ApplyPaymentSnapshot(snapshot)
+		return tx.Create(&topUp).Error
+	})
+}
+
+// CompletePendingAutoRenewTopUp marks a pending auto-renew bill as paid without wallet credit.
+func CompletePendingAutoRenewTopUp(tradeNo string) error {
+	if strings.TrimSpace(tradeNo) == "" {
+		return nil
+	}
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var topUp TopUp
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&topUp).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return nil
+		}
+		topUp.Status = common.TopUpStatusSuccess
+		topUp.CompleteTime = common.GetTimestamp()
+		return tx.Save(&topUp).Error
+	})
+}
+
+// ExpirePendingAutoRenewTopUp marks a still-pending auto-renew bill as expired (checkout abandoned).
+func ExpirePendingAutoRenewTopUp(tradeNo string) error {
+	if strings.TrimSpace(tradeNo) == "" {
+		return nil
+	}
+	err := UpdatePendingTopUpStatus(tradeNo, "", common.TopUpStatusExpired)
+	if errors.Is(err, ErrTopUpNotFound) || errors.Is(err, ErrTopUpStatusInvalid) {
+		return nil
+	}
+	return err
+}
+
+// RecordAutoRenewTopUpPaid inserts or completes a bill row for a paid auto-renew invoice/period.
+func RecordAutoRenewTopUpPaid(userId int, tradeNo string, money float64, snapshot PaymentSnapshot, paymentMethod, paymentProvider string) error {
+	if userId <= 0 || strings.TrimSpace(tradeNo) == "" {
+		return errors.New("invalid auto-renew paid topup")
+	}
+	now := common.GetTimestamp()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var topUp TopUp
+		err := tx.Where("trade_no = ?", tradeNo).First(&topUp).Error
+		if err == nil {
+			if topUp.Status == common.TopUpStatusSuccess {
+				return nil
+			}
+			topUp.Money = money
+			topUp.ApplyPaymentSnapshot(snapshot)
+			topUp.Status = common.TopUpStatusSuccess
+			topUp.CompleteTime = now
+			if topUp.PaymentMethod == "" {
+				topUp.PaymentMethod = paymentMethod
+			}
+			if topUp.PaymentProvider == "" {
+				topUp.PaymentProvider = paymentProvider
+			}
+			return tx.Save(&topUp).Error
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		topUp = TopUp{
+			UserId:          userId,
+			Amount:          0,
+			Money:           money,
+			TradeNo:         tradeNo,
+			PaymentMethod:   paymentMethod,
+			PaymentProvider: paymentProvider,
+			CreateTime:      now,
+			CompleteTime:    now,
+			Status:          common.TopUpStatusSuccess,
+		}
+		topUp.ApplyPaymentSnapshot(snapshot)
+		return tx.Create(&topUp).Error
 	})
 }
 

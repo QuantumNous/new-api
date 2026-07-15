@@ -208,7 +208,16 @@ func SubscriptionRequestStripeAutoRenew(c *gin.Context) {
 	if err := model.SetBillingSubscriptionCheckoutID(contract.Id, checkoutID); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe recurring checkout persistence failed user_id=%d plan_id=%d checkout_id=%s error=%q", userId, plan.Id, checkoutID, err.Error()))
 	}
-	common.ApiSuccess(c, gin.H{"checkout_url": checkoutURL})
+	// Bill list (top_ups): show pending as soon as user opens checkout, before payment.
+	snapshot := buildPaymentSnapshot(plan.PriceAmount, plan.PriceAmount, "USD")
+	if err := model.EnsurePendingAutoRenewTopUp(user.Id, signupReference, plan.PriceAmount, snapshot, model.PaymentMethodStripe, model.PaymentProviderStripe); err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe recurring pending topup failed user_id=%d signup=%s error=%q", userId, signupReference, err.Error()))
+	}
+	common.ApiSuccess(c, gin.H{
+		"checkout_url":     checkoutURL,
+		"trade_no":         signupReference,
+		"signup_reference": signupReference,
+	})
 }
 
 func genStripeSubscriptionLink(referenceId string, customerId string, email string, plan *model.SubscriptionPlan) (string, error) {
