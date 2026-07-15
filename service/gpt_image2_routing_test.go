@@ -237,3 +237,23 @@ func TestPrepareGptImage2CapturesURLResponseFormat(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), "response_format")
 }
+
+func TestPrepareGptImage2AsyncIgnoresResponseFormat(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	body := `{"model":"gpt-image-2","prompt":"cat","size":"auto","n":1,"response_format":"url","quality":"medium"}`
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations/async", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	PrepareGptImage2ModelRequest(c, "gpt-image-2")
+
+	raw, err := readGptImage2RequestJSON(c)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "response_format")
+
+	req := gptImage2CapabilityRequestFromContext(c, "gpt-image-2")
+	require.True(t, req.AsyncPath)
+	require.Empty(t, req.ResponseFormat)
+	require.True(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 59}, req))
+}
