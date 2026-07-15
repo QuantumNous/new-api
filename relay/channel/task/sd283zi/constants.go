@@ -31,6 +31,8 @@ func resolveUpstreamModel(modelName string) string {
 		return "2.0"
 	case "xinghe-2.0":
 		return "xinghe-2.0"
+	case "xinghe-fast":
+		return "xinghe-fast"
 	default:
 		return strings.TrimSpace(modelName)
 	}

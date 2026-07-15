@@ -26,12 +26,32 @@ func TestResolveUpstreamModel(t *testing.T) {
 		{"mingiz", "xinghe-2.0"},
 		{"fast", "fast"},
 		{"2.0", "2.0"},
+		{"xinghe-fast", "xinghe-fast"},
 		{"custom", "custom"},
 	}
 	for _, tt := range tests {
 		if got := resolveUpstreamModel(tt.in); got != tt.want {
 			t.Fatalf("resolveUpstreamModel(%q) = %q, want %q", tt.in, got, tt.want)
 		}
+	}
+}
+
+func TestResolveCreateModelNamePrefersUpstreamMapping(t *testing.T) {
+	info := &common.RelayInfo{
+		OriginModelName: "sd2-fast",
+		ChannelMeta: &common.ChannelMeta{
+			UpstreamModelName: "xinghe-fast",
+		},
+	}
+	// Client form still sends sd2-fast; mapped upstream name must win.
+	if got := resolveCreateModelName(info, "sd2-fast"); got != "xinghe-fast" {
+		t.Fatalf("got %q, want xinghe-fast", got)
+	}
+	if got := resolveCreateModelName(&common.RelayInfo{OriginModelName: "mingiz-sd2"}, "ignored"); got != "xinghe-2.0" {
+		t.Fatalf("got %q, want xinghe-2.0", got)
+	}
+	if got := resolveCreateModelName(&common.RelayInfo{}, "sd2fast"); got != "fast" {
+		t.Fatalf("got %q, want fast", got)
 	}
 }
 

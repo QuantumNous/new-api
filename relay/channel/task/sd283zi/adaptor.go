@@ -68,6 +68,22 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
+// resolveCreateModelName picks the upstream model for create requests.
+// Priority: channel mapping (UpstreamModelName) > OriginModelName > client form/body model.
+func resolveCreateModelName(info *relaycommon.RelayInfo, clientModel string) string {
+	if info != nil {
+		if info.ChannelMeta != nil {
+			if m := strings.TrimSpace(info.UpstreamModelName); m != "" {
+				return resolveUpstreamModel(m)
+			}
+		}
+		if m := strings.TrimSpace(info.OriginModelName); m != "" {
+			return resolveUpstreamModel(m)
+		}
+	}
+	return resolveUpstreamModel(clientModel)
+}
+
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return a.baseURL + createPath, nil
 }
@@ -110,16 +126,13 @@ func (a *TaskAdaptor) buildMultipartRequestBody(c *gin.Context, info *relaycommo
 		return nil, errors.Wrap(err, "parse multipart form failed")
 	}
 
-	modelName := strings.TrimSpace(info.UpstreamModelName)
-	if modelName == "" {
-		modelName = strings.TrimSpace(info.OriginModelName)
-	}
+	formModel := ""
 	if vals := formData.Value["model"]; len(vals) > 0 {
-		if clientModel := strings.TrimSpace(vals[0]); clientModel != "" {
-			modelName = clientModel
-		}
+		formModel = vals[0]
 	}
-	modelName = resolveUpstreamModel(modelName)
+	// Prefer channel model mapping (UpstreamModelName) over the client form field.
+	// Overwriting with form "model" broke redirects like sd2-fast → xinghe-fast.
+	modelName := resolveCreateModelName(info, formModel)
 	if modelName == "" {
 		return nil, fmt.Errorf("upstream model is empty; use sd2fast, sd2, or mingiz-sd2")
 	}
@@ -258,11 +271,7 @@ func writeMultipartFile(writer *multipart.Writer, fieldName string, fh *multipar
 }
 
 func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (map[string]interface{}, error) {
-	modelName := strings.TrimSpace(info.UpstreamModelName)
-	if modelName == "" {
-		modelName = strings.TrimSpace(info.OriginModelName)
-	}
-	modelName = resolveUpstreamModel(modelName)
+	modelName := resolveCreateModelName(info, "")
 	if modelName == "" {
 		return nil, fmt.Errorf("upstream model is empty; use sd2fast, sd2, or mingiz-sd2")
 	}
