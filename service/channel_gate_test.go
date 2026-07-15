@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTryAcquireConcurrency_ZeroMaxIsUnlimited(t *testing.T) {
@@ -48,6 +49,21 @@ func TestTryAcquireConcurrency_ConcurrentInFlightNeverExceedsMax(t *testing.T) {
 	}
 	wg.Wait()
 	assert.LessOrEqual(t, int(peak), max, "in-flight must never exceed max")
+}
+
+func TestGetConcurrencyStatus(t *testing.T) {
+	const key = "test:concurrency-status"
+
+	used, maxConcurrency := GetConcurrencyStatus(key)
+	assert.Equal(t, 0, used)
+	assert.Equal(t, 0, maxConcurrency)
+
+	require.True(t, TryAcquireConcurrency(key, 2))
+	t.Cleanup(func() { ReleaseConcurrency(key) })
+
+	used, maxConcurrency = GetConcurrencyStatus(key)
+	assert.Equal(t, 1, used)
+	assert.Equal(t, 2, maxConcurrency)
 }
 
 func addInFlight(p *int32, delta int32) int32 { return atomic.AddInt32(p, delta) }

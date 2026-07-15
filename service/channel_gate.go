@@ -8,6 +8,17 @@ import "sync"
 // get MaxConcurrency per node (documented in the spec).
 var concurrencyGates sync.Map // map[string]chan struct{}
 
+// GetConcurrencyStatus returns the current occupancy and capacity of a tracked
+// gate. Unknown and unlimited gates are not tracked and report (0, 0).
+func GetConcurrencyStatus(gateKey string) (used int, max int) {
+	v, ok := concurrencyGates.Load(gateKey)
+	if !ok {
+		return 0, 0
+	}
+	gate := v.(chan struct{})
+	return len(gate), cap(gate)
+}
+
 // TryAcquireConcurrency acquires one slot non-blockingly. max<=0 means unlimited
 // and always succeeds without tracking. Returns false if the gate is full.
 func TryAcquireConcurrency(gateKey string, max int) bool {
