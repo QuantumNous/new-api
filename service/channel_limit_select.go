@@ -138,15 +138,22 @@ func SelectChannelWithLimits(param *RetryParam) (*model.Channel, string, *GateHa
 	handle := &GateHandle{}
 
 	groups := []string{param.TokenGroup}
+	startGroupIndex := 0
 	if param.TokenGroup == "auto" {
 		userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 		groups = GetUserAutoGroup(userGroup)
 		if len(groups) == 0 {
 			return nil, param.TokenGroup, handle, errors.New("auto groups is not enabled")
 		}
+		if index, exists := common.GetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex); exists {
+			if value, ok := index.(int); ok && value >= 0 && value < len(groups) {
+				startGroupIndex = value
+			}
+		}
 	}
 
-	for _, selectGroup := range groups {
+	for groupIndex := startGroupIndex; groupIndex < len(groups); groupIndex++ {
+		selectGroup := groups[groupIndex]
 		param.ExcludeIDs = mapKeys(excluded)
 		candidates, err := model.GetSatisfiedChannels(selectGroup, param.ModelName, param.RequestPath, param.ExcludeIDs)
 		if err != nil {
@@ -166,6 +173,9 @@ func SelectChannelWithLimits(param *RetryParam) (*model.Channel, string, *GateHa
 		}
 
 		startPriority := param.GetRetry()
+		if groupIndex > startGroupIndex {
+			startPriority = 0
+		}
 		if startPriority >= len(priorityTiers) {
 			startPriority = len(priorityTiers) - 1
 		}
@@ -211,10 +221,14 @@ func SelectChannelWithLimits(param *RetryParam) (*model.Channel, string, *GateHa
 				}
 				if param.TokenGroup == "auto" {
 					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, selectGroup)
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, groupIndex)
 				}
 				param.ExcludeIDs = mapKeys(excluded)
 				return channel, selectGroup, handle, nil
 			}
+		}
+		if param.TokenGroup == "auto" {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, groupIndex+1)
 		}
 	}
 	return nil, param.TokenGroup, handle, nil
