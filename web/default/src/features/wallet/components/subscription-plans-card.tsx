@@ -191,11 +191,11 @@ export function SubscriptionPlansCard({
   const hasAny = allSubscriptions.length > 0
   const isAvailable = loading || plans.length > 0 || hasAny
   const disablePref = !hasActive
-  const isSubPref =
-    billingPreference === 'subscription_first' ||
-    billingPreference === 'subscription_only'
-  const displayPref =
-    disablePref && isSubPref ? 'wallet_first' : billingPreference
+  const shouldFallbackToWallet =
+    disablePref && billingPreference === 'subscription_first'
+  const displayPref = shouldFallbackToWallet
+    ? 'wallet_first'
+    : billingPreference
 
   const planPurchaseCountMap = useMemo(() => {
     const map = new Map<number, number>()
@@ -379,15 +379,12 @@ export function SubscriptionPlansCard({
             </div>
           </div>
 
-          {disablePref && isSubPref && (
+          {shouldFallbackToWallet && (
             <p className='text-muted-foreground mt-2 text-xs'>
               {t(
                 'Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.',
                 {
-                  pref:
-                    billingPreference === 'subscription_only'
-                      ? t('Subscription Only')
-                      : t('Subscription First'),
+                  pref: t('Subscription First'),
                 }
               )}
             </p>

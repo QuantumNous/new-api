@@ -202,15 +202,11 @@ const SubscriptionPlansCard = ({
   const hasActiveSubscription = activeSubscriptions.length > 0;
   const hasAnySubscription = allSubscriptions.length > 0;
   const disableSubscriptionPreference = !hasActiveSubscription;
-  const isSubscriptionPreference =
-    billingPreference === 'subscription_first' ||
-    billingPreference === 'subscription_only';
-  const displayBillingPreference =
-    disableSubscriptionPreference && isSubscriptionPreference
-      ? 'wallet_first'
-      : billingPreference;
-  const subscriptionPreferenceLabel =
-    billingPreference === 'subscription_only' ? t('仅用订阅') : t('优先订阅');
+  const shouldFallbackToWallet =
+    disableSubscriptionPreference && billingPreference === 'subscription_first';
+  const displayBillingPreference = shouldFallbackToWallet
+    ? 'wallet_first'
+    : billingPreference;
 
   const planPurchaseCountMap = useMemo(() => {
     const map = new Map();
@@ -366,10 +362,10 @@ const SubscriptionPlansCard = ({
                 />
               </div>
             </div>
-            {disableSubscriptionPreference && isSubscriptionPreference && (
+            {shouldFallbackToWallet && (
               <Text type='tertiary' size='small'>
                 {t('已保存偏好为')}
-                {subscriptionPreferenceLabel}
+                {t('优先订阅')}
                 {t('，当前无生效订阅，将自动使用钱包')}
               </Text>
             )}
