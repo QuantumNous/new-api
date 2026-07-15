@@ -101,32 +101,42 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
+				var affinityExcludeIDs []int
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
-					affinityUsable := false
+					affinityCandidateValid := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled &&
 						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) {
+						preferredGroup := ""
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									affinityUsable = true
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
+									preferredGroup = g
 									break
 								}
 							}
 						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
-							selectGroup = usingGroup
-							affinityUsable = true
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+							preferredGroup = usingGroup
+						}
+						if preferredGroup != "" {
+							affinityCandidateValid = true
+							handle, acquired := service.AcquireChannelWithLimits(c, preferred)
+							if acquired {
+								channel = preferred
+								selectGroup = preferredGroup
+								common.SetContextKey(c, constant.ContextKeyChannelLimitGate, handle)
+								if usingGroup == "auto" {
+									common.SetContextKey(c, constant.ContextKeyAutoGroup, preferredGroup)
+								}
+								service.MarkChannelAffinityUsed(c, preferredGroup, preferred.Id)
+							} else {
+								affinityExcludeIDs = append(affinityExcludeIDs, preferred.Id)
+							}
 						}
 					}
-					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+					if !affinityCandidateValid && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
 						service.ClearCurrentChannelAffinityCache(c)
 					}
 				}
@@ -138,6 +148,7 @@ func Distribute() func(c *gin.Context) {
 						TokenGroup:  usingGroup,
 						RequestPath: c.Request.URL.Path,
 						Retry:       common.GetPointer(0),
+						ExcludeIDs:  affinityExcludeIDs,
 					}
 					var handle *service.GateHandle
 					channel, selectGroup, handle, err = service.SelectChannelWithLimits(rp)

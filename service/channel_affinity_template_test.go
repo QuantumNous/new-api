@@ -263,6 +263,34 @@ func TestClearCurrentChannelAffinityCache(t *testing.T) {
 	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
 }
 
+func TestRecordChannelAffinityHonorsUpdatePolicy(t *testing.T) {
+	cacheKeySuffix := fmt.Sprintf("codex cli trace:default:update-policy-%d", time.Now().UnixNano())
+	cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 111, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeyFull,
+		TTLSeconds: 60,
+	})
+	SetChannelAffinityUpdatePolicy(ctx, ChannelAffinityPolicyKeep)
+	RecordChannelAffinity(ctx, 222)
+	channelID, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, 111, channelID)
+
+	SetChannelAffinityUpdatePolicy(ctx, ChannelAffinityPolicyMigrate)
+	RecordChannelAffinity(ctx, 222)
+	channelID, found, err = cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, 222, channelID)
+}
+
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

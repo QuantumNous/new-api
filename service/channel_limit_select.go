@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
 )
 
 func leastLoadedChannels(channels []*model.Channel) []*model.Channel {
@@ -93,6 +94,37 @@ func selectHealthyKey(channel *model.Channel, lim ChannelLimits) (int, bool) {
 		return idx, true
 	}
 	return 0, false
+}
+
+// AcquireChannelWithLimits tries to reserve the concurrency slots for a
+// specific channel, such as an Affinity hit. A false result means the caller
+// should temporarily fall back to normal channel selection.
+func AcquireChannelWithLimits(ctx *gin.Context, channel *model.Channel) (*GateHandle, bool) {
+	handle := &GateHandle{}
+	lim := GetChannelLimits(channel)
+	if lim.Enabled && lim.MaxConcurrency > 0 && !handle.acquire(channelGateKey(channel.Id, -1), lim.MaxConcurrency) {
+		return handle, false
+	}
+
+	if !channel.ChannelInfo.IsMultiKey || !lim.Enabled {
+		return handle, true
+	}
+	keyIdx, ok := selectHealthyKey(channel, lim)
+	if !ok {
+		handle.Release()
+		return handle, false
+	}
+	if ctx != nil {
+		common.SetContextKey(ctx, constant.ContextKeyChannelPreSelectedKeyIdx, keyIdx)
+	}
+	if lim.MaxConcurrency > 0 && !handle.acquire(channelGateKey(channel.Id, keyIdx), lim.MaxConcurrency) {
+		handle.Release()
+		if ctx != nil {
+			common.SetContextKey(ctx, constant.ContextKeyChannelPreSelectedKeyIdx, nil)
+		}
+		return handle, false
+	}
+	return handle, true
 }
 
 // SelectChannelWithLimits chooses the least-loaded eligible channel in the

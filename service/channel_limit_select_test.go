@@ -172,3 +172,21 @@ func TestSelectChannelWithLimits_FallsThroughWhenTopPriorityIsFull(t *testing.T)
 	require.Equal(t, 9442, channel.Id)
 	handle.Release()
 }
+
+func TestAcquireChannelWithLimitsUsesSameChannelGate(t *testing.T) {
+	setting := `{"max_concurrency":1}`
+	channel := &model.Channel{Id: 9451, Setting: common.GetPointer(setting)}
+
+	handle, acquired := AcquireChannelWithLimits(&gin.Context{}, channel)
+	require.True(t, acquired)
+	require.NotNil(t, handle)
+
+	secondHandle, acquired := AcquireChannelWithLimits(&gin.Context{}, channel)
+	require.False(t, acquired)
+	require.NotNil(t, secondHandle)
+
+	handle.Release()
+	thirdHandle, acquired := AcquireChannelWithLimits(&gin.Context{}, channel)
+	require.True(t, acquired)
+	thirdHandle.Release()
+}
