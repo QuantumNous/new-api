@@ -185,4 +185,13 @@ func initConstantEnv() {
 		}
 	}
 	constant.TrustedRedirectDomains = trustedDomains
+
+	// Adaptive channel balance
+	constant.AdaptiveBalanceEnabled = GetEnvOrDefaultBool("ADAPTIVE_BALANCE_ENABLED", false)
+	constant.AdaptiveBalanceShadowMode = GetEnvOrDefaultBool("ADAPTIVE_BALANCE_SHADOW_MODE", false)
+	constant.ChannelCircuitBreakerEnabled = GetEnvOrDefaultBool("CHANNEL_CIRCUIT_BREAKER_ENABLED", false)
+	constant.MaxRetryChannels = GetEnvOrDefault("MAX_RETRY_CHANNELS", 3)
+	constant.ChannelCooldownSeconds = GetEnvOrDefault("CHANNEL_COOLDOWN_SECONDS", 30)
+	constant.EwmaAlpha = GetEnvOrDefaultFloat("EWMA_ALPHA", 0.1)
+	constant.MaxChannelConcurrency = GetEnvOrDefault("MAX_CHANNEL_CONCURRENCY", 10)
 }
