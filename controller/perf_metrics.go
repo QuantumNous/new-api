@@ -90,11 +90,11 @@ type ChannelPerfResponse struct {
 
 // ChannelPerfDetail represents per-channel metrics with nested model details.
 type ChannelPerfDetail struct {
-	ChannelID   int                   `json:"channel_id"`
-	RequestCount int64                `json:"request_count"`
-	SuccessCount int64                `json:"success_count"`
-	SuccessRate  *float64             `json:"success_rate"`
-	Models       []ModelPerfDetail    `json:"models"`
+	ChannelID    int               `json:"channel_id"`
+	RequestCount int64             `json:"request_count"`
+	SuccessCount int64             `json:"success_count"`
+	SuccessRate  *float64          `json:"success_rate"`
+	Models       []ModelPerfDetail `json:"models"`
 }
 
 // ModelPerfDetail represents per-model metrics within a channel.
@@ -250,5 +250,3 @@ func calculateSuccessRate(requests, successes int64) *float64 {
 	rate := float64(successes) / float64(requests) * 100
 	return &rate
 }
-
-

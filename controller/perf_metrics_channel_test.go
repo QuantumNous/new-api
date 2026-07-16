@@ -5,48 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
-
-func TestMain(m *testing.M) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		panic("failed to open test db: " + err.Error())
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		panic("failed to get sql.DB: " + err.Error())
-	}
-	sqlDB.SetMaxOpenConns(1)
-
-	model.DB = db
-	model.LOG_DB = db
-
-	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
-	common.RedisEnabled = false
-	common.BatchUpdateEnabled = false
-	common.LogConsumeEnabled = true
-
-	if err := db.AutoMigrate(
-		&model.Log{},
-		&model.Channel{},
-		&model.PerfMetric{},
-	); err != nil {
-		panic("failed to migrate: " + err.Error())
-	}
-
-	os.Exit(m.Run())
-}
 
 // TestGetChannelPerfMetrics_HappyPath validates channel aggregate with nested model details.
 func TestGetChannelPerfMetrics_HappyPath(t *testing.T) {
@@ -260,11 +228,6 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatal("model.DB not initialized; ensure test package has TestMain")
 	}
 
-	t.Cleanup(func() {
-		db.Exec("DELETE FROM channels WHERE id IN (5, 6, 7)")
-		db.Exec("DELETE FROM perf_metrics WHERE channel_id IN (5, 6, 7)")
-	})
-
 	return db
 }
 
@@ -347,8 +310,14 @@ func seedChannelFixture(t *testing.T, db *gorm.DB) *channelFixture {
 	return &channelFixture{
 		db: db,
 		cleanup: func() {
-			db.Exec("DELETE FROM channels WHERE id IN (5, 6)")
-			db.Exec("DELETE FROM perf_metrics WHERE channel_id IN (5, 6)")
+			tx := db.Exec("DELETE FROM perf_metrics WHERE channel_id IN (5, 6)")
+			if tx.Error != nil {
+				t.Logf("cleanup perf_metrics: %v", tx.Error)
+			}
+			tx = db.Exec("DELETE FROM channels WHERE id IN (5, 6)")
+			if tx.Error != nil {
+				t.Logf("cleanup channels: %v", tx.Error)
+			}
 		},
 	}
 }
