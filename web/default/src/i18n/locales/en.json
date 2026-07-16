@@ -2024,7 +2024,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -4245,6 +4245,9 @@
     "Status Code Mapping": "Status Code Mapping",
     "Status code mapping must use valid HTTP status codes": "Status code mapping must use valid HTTP status codes",
     "Status Page Slug": "Status Page Slug",
+    "Estimated (no live traffic yet)": "Estimated (no live traffic yet)",
+    "Live probe / relay metrics": "Live probe / relay metrics",
+    "Est. short": "Est.",
     "Status short": "Status",
     "Status:": "Status:",
     "Stay": "Stay",
@@ -5170,5 +5173,17 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Skip Auto Test": "Skip Auto Test",
+  "Exclude this channel from automatic batch tests; manual test still works": "Exclude this channel from automatic batch tests; manual test still works",
+  "Skip auto test for selected": "Skip auto test for selected",
+  "Join auto test for selected": "Join auto test for selected",
+  "{{count}} channel(s) will skip auto test": "{{count}} channel(s) will skip auto test",
+  "{{count}} channel(s) will join auto test": "{{count}} channel(s) will join auto test",
+  "Failed to update skip auto test": "Failed to update skip auto test",
+  "All metrics": "All metrics",
+  "Live only": "Live only",
+  "Show estimated badges when no live traffic": "Show estimated badges when no live traffic",
+  "Only show real probe / relay metrics": "Only show real probe / relay metrics",
+  "Metrics source filter": "Metrics source filter"
 }

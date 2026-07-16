@@ -2024,7 +2024,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Принудительно возвращать синтаксически корректный JSON",
@@ -4245,6 +4245,9 @@
     "Status Code Mapping": "Сопоставление кодов состояния",
     "Status code mapping must use valid HTTP status codes": "Сопоставление кодов состояния должно использовать допустимые HTTP-коды",
     "Status Page Slug": "Slug страницы статуса",
+    "Estimated (no live traffic yet)": "Оценка (нет живого трафика)",
+    "Live probe / relay metrics": "Живые метрики (зонд / релей)",
+    "Est. short": "Оцен.",
     "Status short": "Стат.",
     "Status:": "Статус:",
     "Stay": "Остаться",
@@ -5170,5 +5173,17 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Skip Auto Test": "Пропустить автотест",
+  "Exclude this channel from automatic batch tests; manual test still works": "Исключить канал из автоматических тестов; ручной тест доступен",
+  "Skip auto test for selected": "Пропустить автотест для выбранных",
+  "Join auto test for selected": "Включить автотест для выбранных",
+  "{{count}} channel(s) will skip auto test": "{{count}} канал(ов) пропустят автотест",
+  "{{count}} channel(s) will join auto test": "{{count}} канал(ов) войдут в автотест",
+  "Failed to update skip auto test": "Не удалось обновить skip auto test",
+  "All metrics": "Все метрики",
+  "Live only": "Только live",
+  "Show estimated badges when no live traffic": "Показывать оценки без живого трафика",
+  "Only show real probe / relay metrics": "Только реальные probe / relay метрики",
+  "Metrics source filter": "Фильтр источника метрик"
 }

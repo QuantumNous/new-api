@@ -2024,7 +2024,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Imposer une réponse JSON syntaxiquement valide",
@@ -4245,6 +4245,9 @@
     "Status Code Mapping": "Mappage des codes d'état",
     "Status code mapping must use valid HTTP status codes": "Le mappage des codes d'état doit utiliser des codes d'état HTTP valides",
     "Status Page Slug": "Slug de la page d'état",
+    "Estimated (no live traffic yet)": "Estimé (pas encore de trafic)",
+    "Live probe / relay metrics": "Mesures live (sonde / relais)",
+    "Est. short": "Est.",
     "Status short": "État",
     "Status:": "Statut :",
     "Stay": "Rester",
@@ -5170,5 +5173,17 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Skip Auto Test": "Ignorer le test auto",
+  "Exclude this channel from automatic batch tests; manual test still works": "Exclure ce canal des tests automatiques ; le test manuel reste disponible",
+  "Skip auto test for selected": "Ignorer le test auto pour la sélection",
+  "Join auto test for selected": "Inclure au test auto",
+  "{{count}} channel(s) will skip auto test": "{{count}} canal(aux) ignoreront le test auto",
+  "{{count}} channel(s) will join auto test": "{{count}} canal(aux) rejoindront le test auto",
+  "Failed to update skip auto test": "Échec de la mise à jour du test auto",
+  "All metrics": "Toutes",
+  "Live only": "Réel seul",
+  "Show estimated badges when no live traffic": "Afficher des badges estimés sans trafic réel",
+  "Only show real probe / relay metrics": "Afficher uniquement les métriques réelles",
+  "Metrics source filter": "Filtre source des métriques"
 }
