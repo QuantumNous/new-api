@@ -19,7 +19,17 @@ func GetPerfMetricsSummary(c *gin.Context) {
 		}
 	}
 
-	activeGroups := append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto")
+	// Prefer configured groups; always keep probe/auto/default so channel tests
+	// and the common default group are never filtered out. When no group ratio
+	// is configured at all, query every group rather than returning an empty set.
+	groupRatio := ratio_setting.GetGroupRatioCopy()
+	var activeGroups []string
+	if len(groupRatio) == 0 {
+		activeGroups = nil
+	} else {
+		activeGroups = append(lo.Keys(groupRatio), "auto", "probe", "default")
+		activeGroups = lo.Uniq(activeGroups)
+	}
 	result, err := perfmetrics.QuerySummaryAll(hours, activeGroups)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -75,8 +85,12 @@ func GetPerfMetrics(c *gin.Context) {
 
 func filterActiveGroups(groups []perfmetrics.GroupResult) []perfmetrics.GroupResult {
 	activeRatios := ratio_setting.GetGroupRatioCopy()
+	// Empty group ratio means "don't filter" — same policy as summary.
+	if len(activeRatios) == 0 {
+		return groups
+	}
 	return lo.Filter(groups, func(g perfmetrics.GroupResult, _ int) bool {
 		_, ok := activeRatios[g.Group]
-		return ok || g.Group == "auto"
+		return ok || g.Group == "auto" || g.Group == "probe" || g.Group == "default"
 	})
 }

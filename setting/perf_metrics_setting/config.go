@@ -13,7 +13,9 @@ var perfMetricsSetting = PerfMetricsSetting{
 	Enabled:       true,
 	FlushInterval: 5,
 	BucketTime:    "hour",
-	RetentionDays: 0,
+	// Default 1 day — SQLite probe traffic grows quickly; ops can raise via UI.
+	// 0 still means "keep forever" when explicitly set.
+	RetentionDays: 1,
 }
 
 func init() {
