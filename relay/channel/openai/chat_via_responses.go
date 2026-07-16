@@ -469,8 +469,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 						usage.PromptTokensDetails.ImageTokens = streamResp.Response.Usage.InputTokensDetails.ImageTokens
 						usage.PromptTokensDetails.AudioTokens = streamResp.Response.Usage.InputTokensDetails.AudioTokens
 					}
-					if streamResp.Response.Usage.CompletionTokenDetails.ReasoningTokens != 0 {
-						usage.CompletionTokenDetails.ReasoningTokens = streamResp.Response.Usage.CompletionTokenDetails.ReasoningTokens
+					if rt := streamResp.Response.Usage.ResolveReasoningTokens(); rt != 0 {
+						usage.CompletionTokenDetails.ReasoningTokens = rt
 					}
 				}
 			}
@@ -683,8 +683,8 @@ func OaiResponsesSSEToChatJSON(c *gin.Context, info *relaycommon.RelayInfo, resp
 						usage.PromptTokensDetails.ImageTokens = streamResp.Response.Usage.InputTokensDetails.ImageTokens
 						usage.PromptTokensDetails.AudioTokens = streamResp.Response.Usage.InputTokensDetails.AudioTokens
 					}
-					if streamResp.Response.Usage.CompletionTokenDetails.ReasoningTokens != 0 {
-						usage.CompletionTokenDetails.ReasoningTokens = streamResp.Response.Usage.CompletionTokenDetails.ReasoningTokens
+					if rt := streamResp.Response.Usage.ResolveReasoningTokens(); rt != 0 {
+						usage.CompletionTokenDetails.ReasoningTokens = rt
 					}
 				}
 			}

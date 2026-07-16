@@ -233,6 +233,11 @@ type Usage struct {
 	InputTokens            int                `json:"input_tokens"`
 	OutputTokens           int                `json:"output_tokens"`
 	InputTokensDetails     *InputTokenDetails `json:"input_tokens_details"`
+	// OutputTokensDetails is the Responses API's home for the reasoning-token
+	// breakdown (Chat Completions uses completion_tokens_details instead). Parsed
+	// so reasoning tokens from Responses upstreams are no longer dropped; use
+	// ResolveReasoningTokens to read regardless of schema.
+	OutputTokensDetails *OutputTokenDetails `json:"output_tokens_details"`
 
 	// claude cache 1h
 	ClaudeCacheCreation5mTokens int `json:"claude_cache_creation_5_m_tokens"`
@@ -240,6 +245,26 @@ type Usage struct {
 
 	// OpenRouter Params
 	Cost any `json:"cost,omitempty"`
+}
+
+// ResolveReasoningTokens returns the reasoning-token count regardless of which
+// usage schema the upstream used: Chat Completions reports it under
+// completion_tokens_details.reasoning_tokens, the Responses API under
+// output_tokens_details.reasoning_tokens. Only the former was read before, so
+// reasoning tokens from Responses upstreams (e.g. gpt-5.x on /v1/responses) were
+// silently dropped. Billing is unaffected — output_tokens already includes
+// reasoning — this only recovers the breakdown for display/observability.
+func (u *Usage) ResolveReasoningTokens() int {
+	if u == nil {
+		return 0
+	}
+	if u.CompletionTokenDetails.ReasoningTokens != 0 {
+		return u.CompletionTokenDetails.ReasoningTokens
+	}
+	if u.OutputTokensDetails != nil {
+		return u.OutputTokensDetails.ReasoningTokens
+	}
+	return 0
 }
 
 type OpenAIVideoResponse struct {

@@ -428,6 +428,14 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	} else {
 		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
+	if usage != nil && usage.CompletionTokenDetails.ReasoningTokens > 0 {
+		// Reasoning-token breakdown (now recovered on the Responses path). It is
+		// already inside completion/output tokens for billing; logged here as a
+		// throughput signal so a future slow-stream circuit can tell "heavy
+		// reasoning" apart from a genuine slow-trickle channel without penalizing
+		// reasoning-max traffic. Observability only.
+		other["reasoning_tokens"] = usage.CompletionTokenDetails.ReasoningTokens
+	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
 	}
