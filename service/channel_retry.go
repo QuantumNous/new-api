@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// InitializeChannelRetry starts or preserves retry state for a selected channel.
 func InitializeChannelRetry(c *gin.Context, channel *model.Channel) {
 	if channel == nil {
 		return
@@ -20,10 +21,12 @@ func InitializeChannelRetry(c *gin.Context, channel *model.Channel) {
 	common.SetContextKey(c, constant.ContextKeyChannelRetryMaxAttempts, channel.GetRetryAttempts())
 }
 
+// GetLockedRetryChannelID returns the channel currently pinned for request retries.
 func GetLockedRetryChannelID(c *gin.Context) int {
 	return common.GetContextKeyInt(c, constant.ContextKeyChannelRetryCurrentID)
 }
 
+// RecordChannelFailure records one retryable failure and reports whether the channel remains pinned.
 func RecordChannelFailure(c *gin.Context, channelID int) bool {
 	if channelID <= 0 || GetLockedRetryChannelID(c) != channelID {
 		return false
@@ -41,12 +44,14 @@ func RecordChannelFailure(c *gin.Context, channelID int) bool {
 	return false
 }
 
+// ClearLockedRetryChannel clears the pinned channel and its attempt counters.
 func ClearLockedRetryChannel(c *gin.Context) {
 	common.SetContextKey(c, constant.ContextKeyChannelRetryCurrentID, 0)
 	common.SetContextKey(c, constant.ContextKeyChannelRetryAttempts, 0)
 	common.SetContextKey(c, constant.ContextKeyChannelRetryMaxAttempts, 0)
 }
 
+// GetExcludedRetryChannelIDs returns channels exhausted by the current request.
 func GetExcludedRetryChannelIDs(c *gin.Context) map[int]struct{} {
 	value, exists := common.GetContextKey(c, constant.ContextKeyChannelRetryExcludedIDs)
 	if !exists {
