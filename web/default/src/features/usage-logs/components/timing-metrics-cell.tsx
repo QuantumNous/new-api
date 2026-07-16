@@ -164,8 +164,15 @@ interface StreamTpsCellProps {
 
 export function StreamTpsCell(props: StreamTpsCellProps) {
   const { t } = useTranslation()
-  const showStreamError =
-    props.isStream && props.streamStatus && props.streamStatus.status !== 'ok'
+  // 'canceled' means the connection ended with zero stream errors — ordinary
+  // traffic (and billed normally), not a failure. Only a real 'error' warrants
+  // the destructive treatment; canceled gets a muted marker so a disconnect is
+  // still visible without reading as an outage.
+  const streamStatus = props.isStream ? props.streamStatus : undefined
+  const isStreamError = streamStatus != null && streamStatus.status === 'error'
+  const isStreamCanceled =
+    streamStatus != null && streamStatus.status === 'canceled'
+  const showStreamMarker = isStreamError || isStreamCanceled
   const tpsLabel =
     props.tokensPerSecond != null
       ? `${Math.round(props.tokensPerSecond)} t/s`
@@ -186,21 +193,36 @@ export function StreamTpsCell(props: StreamTpsCellProps) {
         )}
       >
         {streamLabel}
-        {showStreamError && (
+        {showStreamMarker && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger
-                render={<CircleAlert className='text-destructive size-3' />}
+                render={
+                  <CircleAlert
+                    className={cn(
+                      'size-3',
+                      isStreamError ? 'text-destructive' : 'text-warning'
+                    )}
+                  />
+                }
               />
               <TooltipContent>
                 <div className='space-y-0.5 text-xs'>
                   <p>
-                    {t('Stream Status')}: {t('Error')}
+                    {t('Stream Status')}:{' '}
+                    {isStreamError ? t('Error') : t('Canceled')}
                   </p>
-                  <p>{props.streamStatus?.end_reason || 'unknown'}</p>
-                  {(props.streamStatus?.error_count ?? 0) > 0 && (
+                  <p>{streamStatus?.end_reason || 'unknown'}</p>
+                  {isStreamCanceled && (
+                    <p className='text-muted-foreground'>
+                      {t(
+                        'Connection ended without a stream error (the caller may have disconnected, or the connection was dropped in transit).'
+                      )}
+                    </p>
+                  )}
+                  {(streamStatus?.error_count ?? 0) > 0 && (
                     <p>
-                      {t('Soft Errors')}: {props.streamStatus?.error_count}
+                      {t('Soft Errors')}: {streamStatus?.error_count}
                     </p>
                   )}
                 </div>

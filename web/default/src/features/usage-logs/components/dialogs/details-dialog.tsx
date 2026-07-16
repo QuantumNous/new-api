@@ -1097,7 +1097,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 value={
                   <StatusBadge
                     label={other.stream_status.status || t('Error')}
-                    variant='red'
+                    /* 'canceled' means the stream ended with the connection gone
+                       and zero stream errors — ordinary traffic, not a failure.
+                       Painting it red made every disconnect look like an outage.
+                       Only a genuine error stays red. */
+                    variant={
+                      other.stream_status.status === 'canceled' ? 'amber' : 'red'
+                    }
                     size='sm'
                     copyable={false}
                   />

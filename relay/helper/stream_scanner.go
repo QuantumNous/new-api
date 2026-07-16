@@ -329,11 +329,61 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	streamSummary := fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary())
 	switch {
 	case info.StreamStatus.Snapshot().EndReason == relaycommon.StreamEndReasonClientGone:
-		// 客户端主动断开是正常流量，不是服务端错误。
-		logger.LogInfo(c, streamSummary)
+		// The request context died. That covers BOTH a real client cancel and an
+		// edge/proxy/network drop — from inside the server the two are
+		// indistinguishable, so "client_gone" must not be read as "the caller
+		// canceled". Leave the breadcrumbs needed to tell them apart next time:
+		// idle_before_cut_ms is how long the upstream had been silent when the
+		// connection died. Near zero means a healthy, actively-streaming response
+		// was severed underneath us (suspect the edge/network); a large value
+		// means the upstream had already stalled and the caller plausibly gave up.
+		logger.LogInfo(c, fmt.Sprintf("%s %s", streamSummary, clientDisconnectDiagnostics(c, info)))
 	case info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors():
 		logger.LogInfo(c, streamSummary)
 	default:
 		logger.LogError(c, fmt.Sprintf("%s, received=%d", streamSummary, info.ReceivedResponseCount))
 	}
+}
+
+// clientDisconnectDiagnostics renders the breadcrumbs that let a later
+// investigation attribute a client_gone stream end. The server only ever sees
+// "request context canceled", which a caller pressing cancel and an
+// edge/proxy/network drop produce identically, so record the surrounding facts
+// instead of guessing:
+//
+//   - idle_before_cut_ms: upstream silence at the moment the connection died.
+//     ~0 means data was still arriving and a healthy stream was severed (look at
+//     the edge/network); large means the upstream had stalled and the caller
+//     plausibly gave up on its own.
+//   - client_bytes / chunks: how much actually reached the caller, which
+//     separates "died instantly" from "died most of the way through".
+//   - proto / ua: HTTP/1.1 vs HTTP/2 and which client, since edge and client
+//     cancellation semantics differ between them.
+func clientDisconnectDiagnostics(c *gin.Context, info *relaycommon.RelayInfo) string {
+	if c == nil || info == nil || info.StreamStatus == nil {
+		return "client_disconnect_diag: unavailable"
+	}
+	snapshot := info.StreamStatus.Snapshot()
+
+	idleBeforeCutMs := int64(-1)
+	if !snapshot.LastDataAt.IsZero() && !snapshot.EndedAt.IsZero() {
+		idleBeforeCutMs = snapshot.EndedAt.Sub(snapshot.LastDataAt).Milliseconds()
+	}
+
+	proto, ua, writtenBytes := "-", "-", -1
+	if c.Request != nil {
+		proto = c.Request.Proto
+		if v := c.Request.UserAgent(); v != "" {
+			ua = v
+			if len(ua) > 64 {
+				ua = ua[:64]
+			}
+		}
+	}
+	if c.Writer != nil {
+		writtenBytes = c.Writer.Size()
+	}
+
+	return fmt.Sprintf("client_disconnect_diag: idle_before_cut_ms=%d client_bytes=%d chunks=%d proto=%s ua=%q",
+		idleBeforeCutMs, writtenBytes, info.ReceivedResponseCount, proto, ua)
 }
