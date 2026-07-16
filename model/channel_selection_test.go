@@ -224,6 +224,78 @@ func TestGetRandomSatisfiedChannelDoesNotReuseCoolingChannelOnRetry(t *testing.T
 	}
 }
 
+// TestGetRandomSatisfiedChannelUsesCoolingFallbackOnRetryWhenHealthyExhausted
+// covers the last-resort fallback (B1): on a retry where the only healthy
+// channel has already been tried (excluded) and the remaining candidate is
+// cooling, selection must reach for the cooling channel rather than return "no
+// available channel" — when cooling fallback is permitted.
+func TestGetRandomSatisfiedChannelUsesCoolingFallbackOnRetryWhenHealthyExhausted(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	t.Cleanup(func() {
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(0)
+	tried := &Channel{Id: 17, Type: 1, Key: "key-17", Status: common.ChannelStatusEnabled, Name: "tried", Weight: &weight, Priority: &priority, Models: "gpt-5.5", Group: "default"}
+	cooling := &Channel{Id: 29, Type: 1, Key: "key-29", Status: common.ChannelStatusEnabled, Name: "cooling", Weight: &weight, Priority: &priority, Models: "gpt-5.5", Group: "default"}
+	SetChannelCacheForTest(map[int]*Channel{17: tried, 29: cooling}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17, 29}},
+	})
+	CooldownChannel(29, "upstream timeout", time.Minute)
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 1, ChannelSelectionOptions{
+		ExcludedChannelIDs:   map[int]struct{}{17: {}},
+		AllowCoolingFallback: true,
+	})
+	if err != nil {
+		t.Fatalf("GetRandomSatisfiedChannelWithOptions returned error: %v", err)
+	}
+	if selected == nil || selected.Id != 29 {
+		t.Fatalf("expected cooling fallback channel 29, got %#v", selected)
+	}
+}
+
+// TestCoolingFallbackDoesNotReuseExcludedChannelOnRetry is B1's safety property:
+// even with cooling fallback permitted, a channel already tried this request
+// (in ExcludedChannelIDs) is never re-selected — so a channel that just failed
+// cannot be immediately retried under the guise of last-resort fallback.
+func TestCoolingFallbackDoesNotReuseExcludedChannelOnRetry(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	t.Cleanup(func() {
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(0)
+	channel := &Channel{Id: 17, Type: 1, Key: "key-17", Status: common.ChannelStatusEnabled, Name: "tried-and-cooling", Weight: &weight, Priority: &priority, Models: "gpt-5.5", Group: "default"}
+	SetChannelCacheForTest(map[int]*Channel{17: channel}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17}},
+	})
+	CooldownChannel(17, "upstream timeout", time.Minute)
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 1, ChannelSelectionOptions{
+		ExcludedChannelIDs:   map[int]struct{}{17: {}},
+		AllowCoolingFallback: true,
+	})
+	if err != nil {
+		t.Fatalf("GetRandomSatisfiedChannelWithOptions returned error: %v", err)
+	}
+	if selected != nil {
+		t.Fatalf("excluded channel must not be reused even under cooling fallback, got %#v", selected)
+	}
+}
+
 func TestGetRandomSatisfiedChannelReturnsCoolingChannelWhenAllCandidatesCoolingWithMemoryCache(t *testing.T) {
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = true
