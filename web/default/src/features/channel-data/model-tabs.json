@@ -15,6 +15,7 @@
   { "model_id": "deepseek-v4-pro", "label": "DeepSeek Pro", "accent": "#a78bfa" },
   { "model_id": "minimax-m3", "label": "MiniMax M3", "accent": "#f97316" },
   { "model_id": "kimi-k2.7-code", "label": "Kimi K2.7 Code", "accent": "#818cf8" },
+  { "model_id": "kimi-k3", "label": "Kimi K3", "accent": "#818cf8" },
   { "model_id": "mimo-v2.5-pro", "label": "MiMo v2.5 Pro", "accent": "#f97316" },
   { "model_id": "mimo-v2.5", "label": "MiMo v2.5", "accent": "#fb923c" },
   { "model_id": "qwen3.7-max", "label": "Qwen 3.7 Max", "accent": "#06b6d4" },
