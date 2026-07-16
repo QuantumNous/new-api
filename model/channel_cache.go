@@ -129,10 +129,10 @@ func GetSatisfiedChannels(group string, modelName string, requestPath string) ([
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
 
-	ids := filterChannelsByRequestPath(group2model2channels[group][modelName], requestPath)
+	ids := filterChannelsByRequestPathAndModel(group2model2channels[group][modelName], requestPath, modelName)
 	if len(ids) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
-		ids = filterChannelsByRequestPath(group2model2channels[group][normalizedModel], requestPath)
+		ids = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, normalizedModel)
 	}
 	if len(ids) == 0 {
 		return nil, nil
