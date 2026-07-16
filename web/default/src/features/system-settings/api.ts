@@ -23,8 +23,12 @@ import type {
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
   SystemOptionsResponse,
+  SystemRestartResponse,
   SystemTaskListResponse,
   SystemTaskResponse,
+  SystemUpdateCheckResponse,
+  SystemUpdatePerformResponse,
+  SystemUpdateStatusResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
   UpstreamChannelsResponse,
@@ -103,5 +107,32 @@ export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
     '/api/ratio_sync/fetch',
     request
   )
+  return res.data
+}
+
+export async function checkSystemUpdate(force = false) {
+  const res = await api.get<SystemUpdateCheckResponse>(
+    '/api/system/update/check',
+    {
+      params: force ? { force: 'true' } : undefined,
+    }
+  )
+  return res.data
+}
+
+export async function performSystemUpdate() {
+  const res = await api.post<SystemUpdatePerformResponse>('/api/system/update')
+  return res.data
+}
+
+export async function getSystemUpdateStatus() {
+  const res = await api.get<SystemUpdateStatusResponse>(
+    '/api/system/update/status'
+  )
+  return res.data
+}
+
+export async function restartSystem() {
+  const res = await api.post<SystemRestartResponse>('/api/system/restart')
   return res.data
 }
