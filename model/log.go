@@ -78,6 +78,10 @@ type Log struct {
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
+	// v1 治理审计扩展（T6）：调用元数据补充字段，relay 埋点为后续工作（详见研发任务卡 T6）。
+	// 仅新增列、不改既有写入路径，存量 Log 记录对应列为默认值（NULL / 空串）。
+	HitWhitelist *bool  `json:"hit_whitelist,omitempty" gorm:"type:tinyint(1)"`      // 是否命中模型白名单（白名单拒绝路径=false）
+	Department   string `json:"department,omitempty" gorm:"type:varchar(64);default:''"` // 调用者部门标签，P1 报表聚合预留
 }
 
 // don't use iota, avoid change log type value

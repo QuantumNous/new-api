@@ -304,8 +304,10 @@ func SetApiRouter(router *gin.Engine) {
 		quotaRoute := apiRouter.Group("/quota")
 		quotaRoute.Use(middleware.GovernanceAuth())
 		{
-			quotaRoute.POST("/approve", controller.ApproveQuota)
+		quotaRoute.POST("/approve", controller.ApproveQuota)
 		}
+		// v1 治理：审计检索（仅超管可见，详见研发任务卡 T8）
+		apiRouter.GET("/audit", middleware.SuperAdminAuth(), controller.GetAuditLogs)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{

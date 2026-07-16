@@ -59,3 +59,15 @@ func IsDeptAdmin(c *gin.Context) bool {
 func IsSuperAdmin(c *gin.Context) bool {
 	return c.GetInt("role_level") == model.RoleLevelSuperAdmin
 }
+
+// SuperAdminAuth 超管鉴权：先完成会话/令牌鉴权，再要求 RoleLevel=超级管理员。
+// 用于审计检索等仅超管可见的治理端点。
+func SuperAdminAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHelper(c, common.RoleCommonUser)
+		if c.IsAborted() {
+			return
+		}
+		RequireRole(model.RoleLevelSuperAdmin)(c)
+	}
+}
