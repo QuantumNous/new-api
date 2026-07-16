@@ -49,6 +49,22 @@ func TestNewOpenAIChatBillingUsageRequiresTokenContent(t *testing.T) {
 	assert.Equal(t, 1, billingUsage.OpenAIUsage.PromptTokens)
 }
 
+func TestOpenAIOutputTokensDetailsJSONAndClone(t *testing.T) {
+	usage := &Usage{OutputTokensDetails: &OutputTokenDetails{ImageTokens: 9}}
+	billingUsage := NewOpenAIChatBillingUsage(usage)
+	require.NotNil(t, billingUsage)
+
+	data, err := common.Marshal(usage)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":9,"reasoning_tokens":0}`)
+
+	clone := CloneBillingUsage(billingUsage)
+	require.NotNil(t, clone.OpenAIUsage.OutputTokensDetails)
+	assert.Equal(t, 9, clone.OpenAIUsage.OutputTokensDetails.ImageTokens)
+	clone.OpenAIUsage.OutputTokensDetails.ImageTokens = 3
+	assert.Equal(t, 9, billingUsage.OpenAIUsage.OutputTokensDetails.ImageTokens)
+}
+
 func TestNewEstimatedGeminiChatBillingUsage(t *testing.T) {
 	billingUsage := NewEstimatedGeminiChatBillingUsage(&Usage{
 		PromptTokens:     11,

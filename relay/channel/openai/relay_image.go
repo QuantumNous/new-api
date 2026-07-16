@@ -77,6 +77,9 @@ func normalizeOpenAIUsage(usage *dto.Usage) {
 	if usage.OutputTokens != 0 {
 		usage.CompletionTokens = usage.OutputTokens
 	}
+	if usage.OutputTokensDetails != nil {
+		usage.CompletionTokenDetails = *usage.OutputTokensDetails
+	}
 	if usage.InputTokensDetails != nil {
 		usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
 		usage.PromptTokensDetails.CachedCreationTokens = usage.InputTokensDetails.CachedCreationTokens

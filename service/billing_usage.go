@@ -186,10 +186,19 @@ func usageFromGeminiBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	} else if usage.CompletionTokens <= 0 {
 		usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+		if usage.CompletionTokens < 0 {
+			usage.CompletionTokens = 0
+		}
 	}
-	if usage.PromptTokens > 0 && usage.PromptTokensDetails.TextTokens == 0 && usage.PromptTokensDetails.AudioTokens == 0 {
-		usage.PromptTokensDetails.TextTokens = usage.PromptTokens
+	promptDetailTotal := usage.PromptTokensDetails.TextTokens + usage.PromptTokensDetails.AudioTokens + usage.PromptTokensDetails.ImageTokens
+	if remainder := usage.PromptTokens - promptDetailTotal; remainder > 0 {
+		usage.PromptTokensDetails.TextTokens += remainder
 	}
+	completionDetailTotal := usage.CompletionTokenDetails.TextTokens + usage.CompletionTokenDetails.AudioTokens + usage.CompletionTokenDetails.ImageTokens + usage.CompletionTokenDetails.ReasoningTokens
+	if remainder := usage.CompletionTokens - completionDetailTotal; remainder > 0 {
+		usage.CompletionTokenDetails.TextTokens += remainder
+	}
+
 	return usage
 }
 
