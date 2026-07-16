@@ -16,18 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
 import { Button } from '@/components/ui/button'
-import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
-
+import { usePerfBadgeMap } from '../hooks/use-perf-badge-map'
+import { normalizeModelName } from '../lib/model-name'
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
-import type { ModelPerfBadgeData } from './model-perf-badge'
 
 export interface ModelCardGridProps {
   models: PricingModel[]
@@ -36,7 +33,9 @@ export interface ModelCardGridProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+  /** When true, only show badges backed by real probe/relay samples (no mock fill). */
   selectedGroup?: string
+  liveMetricsOnly?: boolean
 }
 
 export function ModelCardGrid(props: ModelCardGridProps) {
@@ -44,28 +43,24 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   const [page, setPage] = useState(1)
   const pageSize = DEFAULT_PRICING_PAGE_SIZE
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
+  const liveMetricsOnly = props.liveMetricsOnly === true
   const totalPages = Math.max(1, Math.ceil(props.models.length / pageSize))
   const currentPage = Math.min(page, totalPages)
 
-  const perfQuery = useQuery({
-    queryKey: ['perf-metrics-summary', 24],
-    queryFn: () => getPerfMetricsSummary(24),
-    staleTime: 60 * 1000,
-    retry: false,
-  })
+  useEffect(() => {
+    setPage(1)
+  }, [props.models])
 
   const pagedModels = useMemo(() => {
     const start = (currentPage - 1) * pageSize
     return props.models.slice(start, start + pageSize)
   }, [currentPage, pageSize, props.models])
 
-  const perfMap = useMemo(() => {
-    const map = new Map<string, ModelPerfBadgeData>()
-    for (const model of perfQuery.data?.data?.models ?? []) {
-      map.set(model.model_name, model)
-    }
-    return map
-  }, [perfQuery.data])
+  // Only badge the visible page — avoids O(N) mock fill on large catalogs.
+  const { perfMap } = usePerfBadgeMap({
+    models: pagedModels,
+    liveMetricsOnly,
+  })
 
   if (props.models.length === 0) {
     return null
@@ -82,8 +77,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             priceRate={props.priceRate}
             usdExchangeRate={props.usdExchangeRate}
             showRechargePrice={props.showRechargePrice}
-            selectedGroup={props.selectedGroup}
-            perf={perfMap.get(model.model_name || '')}
+            perf={perfMap.get(normalizeModelName(model.model_name))}
             onClick={() => props.onModelClick(model.model_name || '')}
           />
         ))}

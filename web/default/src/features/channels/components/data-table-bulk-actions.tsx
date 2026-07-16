@@ -16,14 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
-import { Power, PowerOff, Tag, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { PauseCircle, PlayCircle, Power, PowerOff, Tag, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,19 +29,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  ADMIN_PERMISSION_ACTIONS,
-  ADMIN_PERMISSION_RESOURCES,
-  hasPermission,
-} from '@/lib/admin-permissions'
-import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/auth-store'
-
+import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import {
   handleBatchDelete,
   handleBatchDisable,
   handleBatchEnable,
   handleBatchSetTag,
+  handleBatchSkipAutoTest,
 } from '../lib'
 import type { Channel } from '../types'
 
@@ -59,13 +51,9 @@ export function DataTableBulkActions<TData>({
   const queryClient = useQueryClient()
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false)
+  const [showJoinConfirm, setShowJoinConfirm] = useState(false)
   const [tagValue, setTagValue] = useState('')
-  const currentUser = useAuthStore((s) => s.auth.user)
-  const canEditSensitive = hasPermission(
-    currentUser,
-    ADMIN_PERMISSION_RESOURCES.CHANNEL,
-    ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
-  )
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedIds = selectedRows.reduce<number[]>((ids, row) => {
@@ -91,7 +79,6 @@ export function DataTableBulkActions<TData>({
   }
 
   const handleDeleteAll = () => {
-    if (!canEditSensitive) return
     handleBatchDelete(selectedIds, queryClient, () => {
       setShowDeleteConfirm(false)
       handleClearSelection()
@@ -102,6 +89,20 @@ export function DataTableBulkActions<TData>({
     handleBatchSetTag(selectedIds, tagValue || null, queryClient, () => {
       setShowTagDialog(false)
       setTagValue('')
+      handleClearSelection()
+    })
+  }
+
+  const handleSkipAutoTest = () => {
+    handleBatchSkipAutoTest(selectedIds, true, queryClient, () => {
+      setShowSkipConfirm(false)
+      handleClearSelection()
+    })
+  }
+
+  const handleJoinAutoTest = () => {
+    handleBatchSkipAutoTest(selectedIds, false, queryClient, () => {
+      setShowJoinConfirm(false)
       handleClearSelection()
     })
   }
@@ -127,6 +128,48 @@ export function DataTableBulkActions<TData>({
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Enable selected channels')}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={() => setShowSkipConfirm(true)}
+                className='size-8'
+                aria-label={t('Skip auto test for selected')}
+                title={t('Skip auto test for selected')}
+              />
+            }
+          >
+            <PauseCircle />
+            <span className='sr-only'>{t('Skip auto test for selected')}</span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('Skip auto test for selected')}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={() => setShowJoinConfirm(true)}
+                className='size-8'
+                aria-label={t('Join auto test for selected')}
+                title={t('Join auto test for selected')}
+              />
+            }
+          >
+            <PlayCircle />
+            <span className='sr-only'>{t('Join auto test for selected')}</span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('Join auto test for selected')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -180,21 +223,10 @@ export function DataTableBulkActions<TData>({
               <Button
                 variant='destructive'
                 size='icon'
-                onClick={() => {
-                  if (!canEditSensitive) return
-                  setShowDeleteConfirm(true)
-                }}
-                aria-disabled={!canEditSensitive}
-                className={cn(
-                  'size-8',
-                  !canEditSensitive && 'cursor-not-allowed opacity-50'
-                )}
+                onClick={() => setShowDeleteConfirm(true)}
+                className='size-8'
                 aria-label={t('Delete selected channels')}
-                title={
-                  canEditSensitive
-                    ? t('Delete selected channels')
-                    : t('No permission to perform this action')
-                }
+                title={t('Delete selected channels')}
               />
             }
           >
@@ -202,11 +234,7 @@ export function DataTableBulkActions<TData>({
             <span className='sr-only'>{t('Delete selected channels')}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>
-              {canEditSensitive
-                ? t('Delete selected channels')
-                : t('No permission to perform this action')}
-            </p>
+            <p>{t('Delete selected channels')}</p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>
@@ -274,13 +302,53 @@ export function DataTableBulkActions<TData>({
             >
               {t('Cancel')}
             </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDeleteAll}
-              disabled={!canEditSensitive}
-            >
+            <Button variant='destructive' onClick={handleDeleteAll}>
               {t('Delete')}
             </Button>
+          </>
+        }
+      >
+        {' '}
+      </Dialog>
+
+      <Dialog
+        open={showSkipConfirm}
+        onOpenChange={setShowSkipConfirm}
+        title={t('Skip auto test for selected')}
+        description={
+          <>
+            {t('Skip auto test for selected')}: {selectedIds.length}
+          </>
+        }
+        contentHeight='auto'
+        footer={
+          <>
+            <Button variant='outline' onClick={() => setShowSkipConfirm(false)}>
+              {t('Cancel')}
+            </Button>
+            <Button onClick={handleSkipAutoTest}>{t('Confirm')}</Button>
+          </>
+        }
+      >
+        {' '}
+      </Dialog>
+
+      <Dialog
+        open={showJoinConfirm}
+        onOpenChange={setShowJoinConfirm}
+        title={t('Join auto test for selected')}
+        description={
+          <>
+            {t('Join auto test for selected')}: {selectedIds.length}
+          </>
+        }
+        contentHeight='auto'
+        footer={
+          <>
+            <Button variant='outline' onClick={() => setShowJoinConfirm(false)}>
+              {t('Cancel')}
+            </Button>
+            <Button onClick={handleJoinAutoTest}>{t('Confirm')}</Button>
           </>
         }
       >

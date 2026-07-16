@@ -16,17 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { Row, PaginationState } from '@tanstack/react-table'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
+import { type Row, type PaginationState } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-
 import {
   DataTablePagination,
   DataTableRow,
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
-
+import { usePerfBadgeMap } from '../hooks/use-perf-badge-map'
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { usePricingColumns } from './pricing-columns'
@@ -38,7 +37,9 @@ export interface PricingTableProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+  /** When true, only show badges backed by real probe/relay samples (no mock fill). */
   selectedGroup?: string
+  liveMetricsOnly?: boolean
   onModelClick?: (modelName: string) => void
 }
 
@@ -51,7 +52,7 @@ export function PricingTable(props: PricingTableProps) {
     usdExchangeRate = 1,
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
-    selectedGroup,
+    liveMetricsOnly = false,
     onModelClick,
   } = props
 
@@ -60,12 +61,28 @@ export function PricingTable(props: PricingTableProps) {
     pageSize: DEFAULT_PRICING_PAGE_SIZE,
   })
 
+  // Match card grid: filters that change `models` should snap back to page 1.
+  useEffect(() => {
+    setPagination((p) => (p.pageIndex === 0 ? p : { ...p, pageIndex: 0 }))
+  }, [models])
+
+  // Badge only the current page to avoid O(N) work on large catalogs.
+  const pageModels = useMemo(() => {
+    const start = pagination.pageIndex * pagination.pageSize
+    return models.slice(start, start + pagination.pageSize)
+  }, [models, pagination.pageIndex, pagination.pageSize])
+
+  const { perfMap } = usePerfBadgeMap({
+    models: pageModels,
+    liveMetricsOnly,
+  })
+
   const columns = usePricingColumns({
     tokenUnit,
     priceRate,
     usdExchangeRate,
     showRechargePrice,
-    selectedGroup,
+    perfMap,
   })
 
   const { table } = useDataTable({

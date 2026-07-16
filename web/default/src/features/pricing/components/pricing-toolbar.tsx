@@ -72,6 +72,8 @@ export interface PricingToolbarProps {
   onTokenUnitChange: (value: TokenUnit) => void
   showRechargePrice: boolean
   onRechargePriceChange: (value: boolean) => void
+  liveMetricsOnly: boolean
+  onLiveMetricsOnlyChange: (value: boolean) => void
   viewMode: ViewMode
   onViewModeChange: (value: ViewMode) => void
   quotaTypeFilter: string
@@ -165,6 +167,11 @@ export function PricingToolbar(props: PricingToolbarProps) {
     [props]
   )
 
+  const handleLiveMetricsOnlyChange = useCallback(
+    (value: string) => props.onLiveMetricsOnlyChange(value === 'live'),
+    [props]
+  )
+
   return (
     <div className='rounded-xl border p-3'>
       <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
@@ -208,6 +215,23 @@ export function PricingToolbar(props: PricingToolbarProps) {
               value={props.showRechargePrice ? 'recharge' : 'standard'}
               onChange={handleRechargePriceChange}
               ariaLabel={t('Price display mode')}
+            />
+            <SegmentedControl
+              options={[
+                {
+                  value: 'all',
+                  label: t('All metrics'),
+                  tooltip: t('Show estimated badges when no live traffic'),
+                },
+                {
+                  value: 'live',
+                  label: t('Live only'),
+                  tooltip: t('Only show real probe / relay metrics'),
+                },
+              ]}
+              value={props.liveMetricsOnly ? 'live' : 'all'}
+              onChange={handleLiveMetricsOnlyChange}
+              ariaLabel={t('Metrics source filter')}
             />
             <SegmentedControl
               options={[
