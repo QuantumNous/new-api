@@ -181,8 +181,8 @@ import {
 import { ParamOverrideEditorDialog } from '../dialogs/param-override-editor-dialog'
 import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
-import {
 import { ChannelSkipAutoTestField } from './channel-skip-auto-test-field'
+import {
   ChannelAdvancedSection,
   ChannelApiAccessSection,
   ChannelAuthSection,
