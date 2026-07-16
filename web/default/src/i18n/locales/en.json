@@ -2025,7 +2025,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -5178,6 +5178,18 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Pull update": "Pull update",
+    "Pulling update...": "Pulling update...",
+    "Confirm update": "Confirm update",
+    "Update from {{from}} to {{to}} ({{mode}})?": "Update from {{from}} to {{to}} ({{mode}})?",
+    "Update completed. Restarting...": "Update completed. Restarting...",
+    "Update completed.": "Update completed.",
+    "Update completed. Please restart the service manually.": "Update completed. Please restart the service manually.",
+    "Docker socket unavailable. Mount /var/run/docker.sock to enable one-click updates.": "Docker socket unavailable. Mount /var/run/docker.sock to enable one-click updates.",
+    "Self-update is disabled.": "Self-update is disabled.",
+    "Waiting for service to come back...": "Waiting for service to come back...",
+    "Service did not come back in time. Refresh manually.": "Service did not come back in time. Refresh manually.",
+    "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases.": "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases."
   }
 }

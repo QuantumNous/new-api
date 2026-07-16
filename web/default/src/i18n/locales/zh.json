@@ -2025,7 +2025,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -5178,6 +5178,18 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Pull update": "拉取更新",
+    "Pulling update...": "正在拉取更新...",
+    "Confirm update": "确认更新",
+    "Update from {{from}} to {{to}} ({{mode}})?": "将从 {{from}} 更新到 {{to}}（模式：{{mode}}）？",
+    "Update completed. Restarting...": "更新完成，正在重启...",
+    "Update completed.": "更新完成。",
+    "Update completed. Please restart the service manually.": "更新完成，请手动重启服务。",
+    "Docker socket unavailable. Mount /var/run/docker.sock to enable one-click updates.": "Docker socket 不可用。请挂载 /var/run/docker.sock 以启用一键更新。",
+    "Self-update is disabled.": "自更新已禁用。",
+    "Waiting for service to come back...": "等待服务恢复...",
+    "Service did not come back in time. Refresh manually.": "服务未在时限内恢复，请手动刷新。",
+    "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases.": "部署源：{{repo}}。请先将上游合入 fork 再发版。"
   }
 }

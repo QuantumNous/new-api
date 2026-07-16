@@ -445,3 +445,75 @@ export type UpstreamRatiosResponse = {
     test_results: TestResult[]
   }
 }
+
+export type SystemUpdateReleaseInfo = {
+  tag_name: string
+  name?: string
+  body?: string
+  html_url?: string
+  published_at?: string
+}
+
+export type SystemUpdateCheckData = {
+  deploy_mode: 'binary' | 'docker'
+  current_version: string
+  latest_version: string
+  has_update: boolean
+  release_info?: SystemUpdateReleaseInfo
+  docker?: {
+    image?: string
+    socket_available: boolean
+    container_id?: string
+    reason?: string
+  }
+  binary?: {
+    platform?: string
+    asset_found: boolean
+    reason?: string
+  }
+  update_source: string
+  enabled: boolean
+  cached: boolean
+  warning?: string
+}
+
+export type SystemUpdateCheckResponse = {
+  success: boolean
+  message: string
+  data: SystemUpdateCheckData
+}
+
+export type SystemUpdatePerformData = {
+  message: string
+  need_restart: boolean
+  already_up_to_date?: boolean
+  deploy_mode: 'binary' | 'docker'
+  from_version?: string
+  to_version?: string
+}
+
+export type SystemUpdatePerformResponse = {
+  success: boolean
+  message: string
+  data: SystemUpdatePerformData
+}
+
+export type SystemUpdateStatusData = {
+  phase: string
+  message: string
+  updating: boolean
+  error?: string
+  updated_at: number
+}
+
+export type SystemUpdateStatusResponse = {
+  success: boolean
+  message: string
+  data: SystemUpdateStatusData
+}
+
+export type SystemRestartResponse = {
+  success: boolean
+  message: string
+  data: { message: string }
+}

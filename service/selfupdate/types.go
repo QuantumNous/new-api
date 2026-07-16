@@ -41,7 +41,7 @@ type Info struct {
 	CurrentVersion string            `json:"current_version"`
 	LatestVersion  string            `json:"latest_version,omitempty"`
 	HasUpdate      bool              `json:"has_update"`
-	Release        *ReleaseInfo      `json:"release,omitempty"`
+	Release        *ReleaseInfo      `json:"release_info,omitempty"`
 	Docker         *DockerCapability `json:"docker,omitempty"`
 	Binary         *BinaryCapability `json:"binary,omitempty"`
 	UpdateSource   string            `json:"update_source,omitempty"`
