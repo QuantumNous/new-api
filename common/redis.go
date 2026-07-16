@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -22,9 +23,9 @@ func RedisKeyCacheSeconds() int {
 
 // InitRedisClient This function is called after init()
 func InitRedisClient() (err error) {
-	if os.Getenv("REDIS_CONN_STRING") == "" {
+	if os.Getenv("REDIS_CONN_STRING") == "" && os.Getenv("REDIS_SENTINEL_ADDRS") == "" {
 		RedisEnabled = false
-		SysLog("REDIS_CONN_STRING not set, Redis is not enabled")
+		SysLog("REDIS_CONN_STRING and REDIS_SENTINEL_ADDRS not set, Redis is not enabled")
 		return nil
 	}
 	if os.Getenv("SYNC_FREQUENCY") == "" {
@@ -32,12 +33,25 @@ func InitRedisClient() (err error) {
 		SyncFrequency = 60
 	}
 	SysLog("Redis is enabled")
-	opt, err := redis.ParseURL(os.Getenv("REDIS_CONN_STRING"))
-	if err != nil {
-		FatalLog("failed to parse Redis connection string: " + err.Error())
+
+	sentinelAddrs := os.Getenv("REDIS_SENTINEL_ADDRS")
+	if sentinelAddrs != "" {
+		// Sentinel mode
+		RDB = initRedisSentinel(sentinelAddrs)
+	} else {
+		// Standalone mode
+		opt, err := redis.ParseURL(os.Getenv("REDIS_CONN_STRING"))
+		if err != nil {
+			FatalLog("failed to parse Redis connection string: " + err.Error())
+		}
+		opt.PoolSize = GetEnvOrDefault("REDIS_POOL_SIZE", 10)
+		RDB = redis.NewClient(opt)
+
+		if DebugEnabled {
+			SysLog(fmt.Sprintf("Redis connected to %s", opt.Addr))
+			SysLog(fmt.Sprintf("Redis database: %d", opt.DB))
+		}
 	}
-	opt.PoolSize = GetEnvOrDefault("REDIS_POOL_SIZE", 10)
-	RDB = redis.NewClient(opt)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -46,11 +60,45 @@ func InitRedisClient() (err error) {
 	if err != nil {
 		FatalLog("Redis ping test failed: " + err.Error())
 	}
-	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis connected to %s", opt.Addr))
-		SysLog(fmt.Sprintf("Redis database: %d", opt.DB))
-	}
 	return err
+}
+
+// initRedisSentinel initializes a Redis client in Sentinel mode
+// REDIS_SENTINEL_ADDRS: comma-separated sentinel addresses, e.g. "sentinel1:26379,sentinel2:26379,sentinel3:26379"
+// REDIS_SENTINEL_MASTER_NAME: master name, default "mymaster"
+// REDIS_SENTINEL_USERNAME: username for sentinel (if any, Redis 6.0+ ACL)
+// REDIS_SENTINEL_PASSWORD: password for sentinel (if any)
+// REDIS_USERNAME: username for redis master (if any, Redis 6.0+ ACL)
+// REDIS_PASSWORD: password for redis master (if any)
+// REDIS_DB: redis database number, default 0
+func initRedisSentinel(sentinelAddrs string) *redis.Client {
+	addrs := strings.Split(sentinelAddrs, ",")
+	for i, addr := range addrs {
+		addrs[i] = strings.TrimSpace(addr)
+	}
+
+	masterName := GetEnvOrDefaultString("REDIS_SENTINEL_MASTER_NAME", "mymaster")
+	sentinelUsername := os.Getenv("REDIS_SENTINEL_USERNAME")
+	sentinelPassword := os.Getenv("REDIS_SENTINEL_PASSWORD")
+	masterUsername := os.Getenv("REDIS_USERNAME")
+	masterPassword := os.Getenv("REDIS_PASSWORD")
+	db := GetEnvOrDefault("REDIS_DB", 0)
+	poolSize := GetEnvOrDefault("REDIS_POOL_SIZE", 10)
+
+	SysLog(fmt.Sprintf("Redis Sentinel mode: master=%s, sentinels=%v, db=%d", masterName, addrs, db))
+
+	failoverOpt := &redis.FailoverOptions{
+		MasterName:       masterName,
+		SentinelAddrs:    addrs,
+		SentinelUsername: sentinelUsername,
+		SentinelPassword: sentinelPassword,
+		Username:         masterUsername,
+		Password:         masterPassword,
+		DB:               db,
+		PoolSize:         poolSize,
+	}
+
+	return redis.NewFailoverClient(failoverOpt)
 }
 
 func ParseRedisOption() *redis.Options {
