@@ -31,6 +31,7 @@ import {
   batchUpdateChannelStatus,
   batchDeleteChannels,
   batchSetChannelTag,
+  batchSetChannelSkipAutoTest,
   enableTagChannels,
   disableTagChannels,
   deleteDisabledChannels,
@@ -41,7 +42,7 @@ import {
   updateChannelBalance,
 } from '../api'
 import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
-import type { ChannelTestResponse, CopyChannelParams } from '../types'
+import type { CopyChannelParams } from '../types'
 
 // ============================================================================
 // Query Keys
@@ -54,60 +55,6 @@ export const channelsQueryKeys = {
     [...channelsQueryKeys.lists(), params] as const,
   details: () => [...channelsQueryKeys.all, 'detail'] as const,
   detail: (id: number) => [...channelsQueryKeys.details(), id] as const,
-}
-
-function getChannelTestResponseTime(
-  response: ChannelTestResponse
-): number | undefined {
-  const responseTime = response.data?.response_time
-  if (typeof responseTime === 'number' && Number.isFinite(responseTime)) {
-    return responseTime
-  }
-
-  if (
-    typeof response.time === 'number' &&
-    Number.isFinite(response.time) &&
-    response.time > 0
-  ) {
-    return Math.round(response.time * 1000)
-  }
-
-  return undefined
-}
-
-function formatChannelTestDuration(responseTime?: number): string | undefined {
-  if (responseTime === undefined) return undefined
-
-  if (responseTime >= 1000) {
-    return `${(responseTime / 1000).toFixed(2)} s`
-  }
-
-  return `${Math.max(1, Math.round(responseTime))} ms`
-}
-
-function getChannelTestLabel(options?: {
-  channelName?: string
-  testModel?: string
-}): string {
-  const channelName = options?.channelName?.trim()
-  const testModel = options?.testModel?.trim()
-
-  if (channelName && testModel) {
-    return i18next.t('Channel {{name}} model {{model}}', {
-      name: channelName,
-      model: testModel,
-    })
-  }
-
-  if (channelName) {
-    return i18next.t('Channel {{name}}', { name: channelName })
-  }
-
-  if (testModel) {
-    return i18next.t('Model {{model}}', { model: testModel })
-  }
-
-  return i18next.t('Channel')
 }
 
 // ============================================================================
@@ -271,7 +218,6 @@ export async function handleUpdateTagField(
 export async function handleTestChannel(
   id: number,
   options?: {
-    channelName?: string
     testModel?: string
     endpointType?: string
     stream?: boolean
@@ -297,43 +243,23 @@ export async function handleTestChannel(
 
   try {
     const response = await testChannel(id, payload)
-    const responseTime = getChannelTestResponseTime(response)
-    const duration = formatChannelTestDuration(responseTime)
-    const target = getChannelTestLabel(options)
     if (response.success) {
       if (!options?.silent) {
-        toast.success(
-          i18next.t('{{target}} test succeeded', { target }),
-          duration
-            ? {
-                description: i18next.t('Response time: {{duration}}', {
-                  duration,
-                }),
-              }
-            : undefined
-        )
+        toast.success(i18next.t(SUCCESS_MESSAGES.TESTED))
       }
-      onTestComplete?.(true, responseTime)
+      onTestComplete?.(true, response.time)
     } else {
-      const errorMsg = response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED)
       if (!options?.silent) {
-        toast.error(i18next.t('{{target}} test failed', { target }), {
-          description: response.error_code
-            ? `${errorMsg} (${response.error_code})`
-            : errorMsg,
-        })
+        toast.error(response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED))
       }
-      onTestComplete?.(false, responseTime, errorMsg, response.error_code)
+      onTestComplete?.(false, undefined, response.message, response.error_code)
     }
   } catch (_error: unknown) {
     const err = _error as { response?: { data?: { message?: string } } }
     const errorMsg =
       err?.response?.data?.message || i18next.t(ERROR_MESSAGES.TEST_FAILED)
-    const target = getChannelTestLabel(options)
     if (!options?.silent) {
-      toast.error(i18next.t('{{target}} test failed', { target }), {
-        description: errorMsg,
-      })
+      toast.error(errorMsg)
     }
     onTestComplete?.(false, undefined, errorMsg)
   }
@@ -538,6 +464,44 @@ export async function handleBatchSetTag(
     }
   } catch {
     toast.error(i18next.t('Failed to set tag'))
+  }
+}
+
+/**
+ * Batch set skip_auto_test on selected channels.
+ */
+export async function handleBatchSkipAutoTest(
+  ids: number[],
+  skip: boolean,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  if (ids.length === 0) {
+    toast.error(i18next.t('No channels selected'))
+    return
+  }
+
+  try {
+    const response = await batchSetChannelSkipAutoTest({ ids, skip })
+    if (response.success) {
+      toast.success(
+        skip
+          ? i18next.t('{{count}} channel(s) will skip auto test', {
+              count: response.data || ids.length,
+            })
+          : i18next.t('{{count}} channel(s) will join auto test', {
+              count: response.data || ids.length,
+            })
+      )
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(
+        response.message || i18next.t('Failed to update skip auto test')
+      )
+    }
+  } catch (_error) {
+    toast.error(i18next.t('Failed to update skip auto test'))
   }
 }
 

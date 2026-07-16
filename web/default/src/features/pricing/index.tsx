@@ -18,10 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
-
 import {
   LoadingSkeleton,
   EmptyState,
@@ -42,8 +40,7 @@ export function Pricing() {
     null
   )
 
-  const {
-    models,
+  const { models,
     vendors,
     groupRatio,
     usableGroup,
@@ -51,8 +48,7 @@ export function Pricing() {
     autoGroups,
     isLoading,
     priceRate,
-    usdExchangeRate,
-  } = usePricingData()
+    usdExchangeRate, error: pricingError, refetch: refetchPricing } = usePricingData()
 
   const {
     searchInput,
@@ -65,6 +61,7 @@ export function Pricing() {
     tokenUnit,
     viewMode,
     showRechargePrice,
+    liveMetricsOnly,
     setSearchInput,
     setSortBy,
     setVendorFilter,
@@ -75,6 +72,7 @@ export function Pricing() {
     setTokenUnit,
     setViewMode,
     setShowRechargePrice,
+    setLiveMetricsOnly,
     filteredModels,
     hasActiveFilters,
     activeFilterCount,
@@ -131,6 +129,7 @@ export function Pricing() {
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
+          liveMetricsOnly={liveMetricsOnly}
         />
       )
     }
@@ -143,8 +142,28 @@ export function Pricing() {
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
         selectedGroup={groupFilter}
+          liveMetricsOnly={liveMetricsOnly}
         onModelClick={handleModelClick}
       />
+    )
+  }
+
+  if (pricingError) {
+    return (
+      <PublicLayout showMainContainer={false}>
+        <div className='mx-auto flex w-full max-w-[1800px] flex-col items-center gap-4 px-3 pt-24 pb-8 sm:px-6'>
+          <p className='text-muted-foreground text-sm'>
+            {t('Failed to load pricing data')}
+          </p>
+          <button
+            type='button'
+            className='bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm'
+            onClick={() => void refetchPricing()}
+          >
+            {t('Retry')}
+          </button>
+        </div>
+      </PublicLayout>
     )
   }
 
@@ -234,6 +253,9 @@ export function Pricing() {
                 onTokenUnitChange={setTokenUnit}
                 showRechargePrice={showRechargePrice}
                 onRechargePriceChange={setShowRechargePrice}
+                selectedGroup={groupFilter}
+          liveMetricsOnly={liveMetricsOnly}
+                onLiveMetricsOnlyChange={setLiveMetricsOnly}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
                 quotaTypeFilter={quotaTypeFilter}

@@ -27,6 +27,8 @@ export type ModelPerfBadgeData = {
   success_rate: number
   avg_tps: number
   recent_success_rates?: number[]
+  /** True when values come from cold-start mock, not real probe/relay samples. */
+  is_mock?: boolean
 }
 
 export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -60,6 +62,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
   }
 
   const { avg_latency_ms, avg_tps, success_rate } = props.perf
+  const isMock = Boolean(props.perf.is_mock)
 
   const recentRates =
     props.perf.recent_success_rates?.filter((rate) => Number.isFinite(rate)) ??
@@ -71,22 +74,33 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
     ...statusRates,
   ].slice(-3)
 
+  const sourceHint = isMock
+    ? t('Estimated (no live traffic yet)')
+    : t('Live probe / relay metrics')
+
   return (
     <div
+      title={sourceHint}
       className={cn(
         'hidden w-[132px] grid-cols-[38px_48px_30px] gap-x-2 text-right tabular-nums min-[460px]:grid',
+        isMock && 'opacity-55',
         props.className
       )}
     >
-      <div title={t('Average latency')} className='min-w-0'>
+      <div title={`${t('Average latency')} · ${sourceHint}`} className='min-w-0'>
         <div className='text-muted-foreground/55 text-[10px] leading-4'>
           {t('Latency short')}
+          {isMock && (
+            <span className='text-muted-foreground/40 ml-0.5 normal-case'>
+              ~
+            </span>
+          )}
         </div>
         <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
           {formatCompactLatency(avg_latency_ms)}
         </div>
       </div>
-      <div title={t('Throughput')} className='min-w-0'>
+      <div title={`${t('Throughput')} · ${sourceHint}`} className='min-w-0'>
         <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
           {t('Throughput short')}
         </div>
@@ -95,11 +109,11 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         </div>
       </div>
       <div
-        title={`${t('Success rate')}: ${success_rate.toFixed(1)}%`}
+        title={`${t('Success rate')}: ${success_rate.toFixed(1)}% · ${sourceHint}`}
         className='min-w-0'
       >
         <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
-          {t('Status short')}
+          {isMock ? t('Est. short') : t('Status short')}
         </div>
         <div className='flex h-4 items-center justify-end gap-0.5'>
           {statusBars.map((rate, index) => (
@@ -114,7 +128,9 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
                   ? index === 0
                     ? 'bg-muted-foreground/10'
                     : 'bg-muted-foreground/15'
-                  : getSuccessRateDotClass(rate)
+                  : isMock
+                    ? 'bg-muted-foreground/35'
+                    : getSuccessRateDotClass(rate)
               )}
             />
           ))}

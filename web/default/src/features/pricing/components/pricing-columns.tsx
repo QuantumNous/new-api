@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ColumnDef } from '@tanstack/react-table'
+import { useMemo } from 'react'
+import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-
+import { getLobeIcon } from '@/lib/lobe-icon'
 import {
   BadgeCell,
   BadgeListCell,
@@ -26,22 +27,24 @@ import {
 } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
-import { getLobeIcon } from '@/lib/lobe-icon'
-
-import { DEFAULT_TOKEN_UNIT } from '../constants'
+import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
+import { normalizeModelName } from '../lib/model-name'
 import {
   formatPrice,
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
-import { ModelBillingModeBadge } from './model-billing-mode-badge'
+import {
+  ModelPerfBadge,
+  type ModelPerfBadgeData,
+} from './model-perf-badge'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
@@ -52,7 +55,8 @@ export interface PricingColumnsOptions {
   priceRate?: number
   usdExchangeRate?: number
   showRechargePrice?: boolean
-  selectedGroup?: string
+  /** Shared with card grid; case-folded model keys. */
+  perfMap?: Map<string, ModelPerfBadgeData>
 }
 
 export function usePricingColumns(
@@ -64,12 +68,12 @@ export function usePricingColumns(
     priceRate = 1,
     usdExchangeRate = 1,
     showRechargePrice = false,
-    selectedGroup,
+    perfMap,
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
-  return [
+  return useMemo(() => [
     // Model column
     {
       accessorKey: 'model_name',
@@ -94,14 +98,41 @@ export function usePricingColumns(
       minSize: 200,
     },
 
+    // Health / live metrics (same badge as card grid; respects liveMetricsOnly via map)
+    {
+      id: 'health',
+      meta: { label: t('Health') },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Health')} />
+      ),
+      cell: ({ row }) => {
+        const key = normalizeModelName(row.original.model_name)
+        const perf = key ? perfMap?.get(key) : undefined
+        if (!perf) {
+          return <span className='text-muted-foreground/30 text-xs'>—</span>
+        }
+        return <ModelPerfBadge perf={perf} />
+      },
+      size: 160,
+      enableSorting: false,
+    },
+
     // Type column
     {
       accessorKey: 'quota_type',
       header: t('Type'),
-      cell: ({ row }) => (
-        <ModelBillingModeBadge model={row.original} className='-ml-1.5' />
-      ),
-      size: 110,
+      cell: ({ row }) => {
+        const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
+        return (
+          <StatusBadge
+            label={isTokenBased ? t('Token') : t('Request')}
+            variant={isTokenBased ? 'info' : 'neutral'}
+            copyable={false}
+            className='-ml-1.5'
+          />
+        )
+      },
+      size: 80,
       enableSorting: false,
     },
 
@@ -119,10 +150,7 @@ export function usePricingColumns(
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(
-            model,
-            selectedGroup
-          ),
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(model),
         })
 
         if (dynamicSummary) {
@@ -184,8 +212,7 @@ export function usePricingColumns(
               tokenUnit,
               showRechargePrice,
               priceRate,
-              usdExchangeRate,
-              selectedGroup
+              usdExchangeRate
             )
           )
           const outputPrice = stripTrailingZeros(
@@ -195,8 +222,7 @@ export function usePricingColumns(
               tokenUnit,
               showRechargePrice,
               priceRate,
-              usdExchangeRate,
-              selectedGroup
+              usdExchangeRate
             )
           )
 
@@ -219,8 +245,7 @@ export function usePricingColumns(
             model,
             showRechargePrice,
             priceRate,
-            usdExchangeRate,
-            selectedGroup
+            usdExchangeRate
           )
         )
 
@@ -248,10 +273,7 @@ export function usePricingColumns(
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(
-            model,
-            selectedGroup
-          ),
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(model),
         })
 
         if (dynamicSummary) {
@@ -295,8 +317,7 @@ export function usePricingColumns(
             tokenUnit,
             showRechargePrice,
             priceRate,
-            usdExchangeRate,
-            selectedGroup
+            usdExchangeRate
           )
         )
 
@@ -409,5 +430,13 @@ export function usePricingColumns(
       size: 130,
       enableSorting: false,
     },
-  ]
+  ], [
+    t,
+    tokenUnit,
+    tokenUnitLabel,
+    priceRate,
+    usdExchangeRate,
+    showRechargePrice,
+    perfMap,
+  ])
 }

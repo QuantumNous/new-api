@@ -226,7 +226,7 @@ const APP_TEMPLATES: Array<
   },
 ]
 
-const PROFILE_BY_NAME = (name: string) => {
+export const PROFILE_BY_NAME = (name: string) => {
   const n = name.toLowerCase()
   if (/embed|rerank/.test(n)) return 'embedding'
   if (/image|sora|veo|kling|pika|jimeng|dalle|imagen/.test(n)) return 'image'
@@ -237,13 +237,13 @@ const PROFILE_BY_NAME = (name: string) => {
   return 'standard'
 }
 
-type ProfileSpec = {
+export type ProfileSpec = {
   ttftRange: [number, number]
   throughputRange: [number, number]
   uptimeRange: [number, number]
 }
 
-const PROFILE_SPECS: Record<string, ProfileSpec> = {
+export const PROFILE_SPECS: Record<string, ProfileSpec> = {
   embedding: {
     ttftRange: [40, 120],
     throughputRange: [0, 0],

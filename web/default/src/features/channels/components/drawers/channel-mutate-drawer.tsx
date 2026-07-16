@@ -182,6 +182,7 @@ import { ParamOverrideEditorDialog } from '../dialogs/param-override-editor-dial
 import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
 import {
+import { ChannelSkipAutoTestField } from './channel-skip-auto-test-field'
   ChannelAdvancedSection,
   ChannelApiAccessSection,
   ChannelAuthSection,
@@ -4626,7 +4627,8 @@ export function ChannelMutateDrawer({
                   </div>
                 </div>
               )}
-            </form>
+                          <ChannelSkipAutoTestField control={form.control} />
+</form>
           </Form>
 
           <SheetFooter className={sideDrawerFooterClassName()}>

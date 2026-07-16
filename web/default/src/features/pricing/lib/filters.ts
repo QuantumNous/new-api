@@ -23,6 +23,11 @@ import {
   QUOTA_TYPE_VALUES,
   ENDPOINT_TYPES,
 } from '../constants'
+import {
+  displayModelBaseName,
+  isPricingDisplayVariant,
+  normalizeModelName,
+} from './model-name'
 import type { PricingModel } from '../types'
 
 // ----------------------------------------------------------------------------
@@ -132,6 +137,70 @@ export function sortModels(
 }
 
 /**
+ * Collapse case-only duplicates and hide free/path display variants when a
+ * base model card already exists. Routing identities stay on each model;
+ * this only affects the pricing square list.
+ *
+ * Preference order for a casefold group:
+ *  1. non-variant name
+ *  2. lower model_ratio / model_price (cheaper canonical)
+ *  3. shorter model_name
+ *  4. stable localeCompare
+ */
+export function dedupePricingModels(models: PricingModel[]): PricingModel[] {
+  if (models.length <= 1) return models
+
+  const bases = new Set<string>()
+  for (const m of models) {
+    const name = m.model_name ?? ''
+    if (!isPricingDisplayVariant(name)) {
+      bases.add(displayModelBaseName(name) || normalizeModelName(name))
+    }
+  }
+
+  // Drop free/path variants when a base card exists for the same display base.
+  const withoutRedundantVariants = models.filter((m) => {
+    const name = m.model_name ?? ''
+    if (!isPricingDisplayVariant(name)) return true
+    const base = displayModelBaseName(name)
+    return !bases.has(base)
+  })
+
+  // Casefold collapse: GPT-4o vs gpt-4o → keep one.
+  const byCase = new Map<string, PricingModel>()
+  for (const m of withoutRedundantVariants) {
+    const key = normalizeModelName(m.model_name)
+    if (!key) continue
+    const existing = byCase.get(key)
+    if (!existing) {
+      byCase.set(key, m)
+      continue
+    }
+    byCase.set(key, preferPricingModel(existing, m))
+  }
+  return Array.from(byCase.values())
+}
+
+function modelSortPrice(model: PricingModel): number {
+  if (model.quota_type === 0) return model.model_ratio ?? Number.POSITIVE_INFINITY
+  return model.model_price ?? Number.POSITIVE_INFINITY
+}
+
+function preferPricingModel(a: PricingModel, b: PricingModel): PricingModel {
+  const aVariant = isPricingDisplayVariant(a.model_name) ? 1 : 0
+  const bVariant = isPricingDisplayVariant(b.model_name) ? 1 : 0
+  if (aVariant !== bVariant) return aVariant < bVariant ? a : b
+
+  const priceDiff = modelSortPrice(a) - modelSortPrice(b)
+  if (priceDiff !== 0) return priceDiff < 0 ? a : b
+
+  const lenDiff = (a.model_name?.length ?? 0) - (b.model_name?.length ?? 0)
+  if (lenDiff !== 0) return lenDiff < 0 ? a : b
+
+  return (a.model_name || '').localeCompare(b.model_name || '') <= 0 ? a : b
+}
+
+/**
  * Apply all filters and sorting to models
  */
 export function filterAndSortModels(
@@ -146,7 +215,8 @@ export function filterAndSortModels(
     sortBy: string
   }
 ): PricingModel[] {
-  let result = filterBySearch(models, filters.search)
+  let result = dedupePricingModels(models)
+  result = filterBySearch(result, filters.search)
   result = filterByVendor(result, filters.vendor)
   result = filterByGroup(result, filters.group)
   result = filterByQuotaType(result, filters.quotaType)

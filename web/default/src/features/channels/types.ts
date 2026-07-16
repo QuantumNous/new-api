@@ -86,6 +86,7 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  skip_auto_test?: boolean
 }
 
 export interface ChannelOtherSettings {

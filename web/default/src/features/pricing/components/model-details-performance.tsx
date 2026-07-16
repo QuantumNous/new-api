@@ -37,6 +37,7 @@ import type { PerformanceGroup } from '@/features/performance-metrics/types'
 import { cn } from '@/lib/utils'
 
 import { type UptimeDayPoint } from '../lib/mock-stats'
+import { normalizeModelName } from '../lib/model-name'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
@@ -163,10 +164,14 @@ function average(
 
 export function ModelDetailsPerformance(props: { model: PricingModel }) {
   const { t } = useTranslation()
+  // Backend Query also normalizes; pass folded name so cache keys collapse
+  // Deepseek-V4-Flash / deepseek-v4-flash onto one entry.
+  const modelKey = normalizeModelName(props.model.model_name)
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics', props.model.model_name],
-    queryFn: () => getPerfMetrics(props.model.model_name, 24),
+    queryKey: ['perf-metrics', modelKey],
+    queryFn: () => getPerfMetrics(modelKey || props.model.model_name, 24),
     staleTime: 60 * 1000,
+    enabled: Boolean(modelKey || props.model.model_name),
   })
   const groups = useMemo(
     () => metricsQuery.data?.data.groups ?? [],
