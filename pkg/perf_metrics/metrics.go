@@ -261,75 +261,9 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	return SummaryAllResult{Models: models}, nil
 }
 
-func QueryChannelSummary(params ChannelQueryParams) (ChannelSummaryResult, error) {
-	if params.ChannelID != nil && *params.ChannelID <= 0 {
-		return ChannelSummaryResult{}, nil
-	}
-	startTs, endTs := queryWindow(params.Hours)
-
-	totals := map[int]counters{}
-	details := map[string]counters{}
-
-	totalRows, err := model.GetPerfMetricChannelTotals(startTs, endTs, params.Group)
-	if err != nil {
-		return ChannelSummaryResult{}, err
-	}
-	for _, row := range totalRows {
-		if params.ChannelID != nil && row.ChannelID != *params.ChannelID {
-			continue
-		}
-		mergeChannelTotal(totals, row.ChannelID, counters{
-			requestCount: row.RequestCount,
-			successCount: row.SuccessCount,
-		})
-	}
-
-	detailRows, err := model.GetPerfMetricChannelModelDetails(params.ChannelID, params.Model, params.Group, startTs, endTs)
-	if err != nil {
-		return ChannelSummaryResult{}, err
-	}
-	for _, row := range detailRows {
-		value := counters{requestCount: row.RequestCount, successCount: row.SuccessCount}
-		mergeChannelDetail(details, row.ChannelID, row.ModelName, value)
-	}
-
-	mergeChannelHotBuckets(totals, details, params, startTs, endTs)
-	return buildChannelSummaryResult(totals, details), nil
-}
-
-func QueryChannelDetails(params ChannelQueryParams) (ChannelDetailResult, error) {
-	if params.ChannelID != nil && *params.ChannelID <= 0 {
-		return ChannelDetailResult{}, nil
-	}
-	startTs, endTs := queryWindow(params.Hours)
-	details := map[string]counters{}
-
-	rows, err := model.GetPerfMetricChannelModelDetails(params.ChannelID, params.Model, params.Group, startTs, endTs)
-	if err != nil {
-		return ChannelDetailResult{}, err
-	}
-	for _, row := range rows {
-		mergeChannelDetail(details, row.ChannelID, row.ModelName, counters{
-			requestCount: row.RequestCount,
-			successCount: row.SuccessCount,
-		})
-	}
-
-	hotBuckets.Range(func(key, value any) bool {
-		k := key.(bucketKey)
-		if !matchesChannelQuery(k, params, startTs, endTs) {
-			return true
-		}
-		mergeChannelDetail(details, k.channel, k.model, value.(*atomicBucket).snapshot())
-		return true
-	})
-
-	result := buildChannelDetailResult(details)
-	if len(result.Details) == 0 && params.ChannelID != nil && params.Model != "" {
-		result.Details = append(result.Details, channelModelDetail(*params.ChannelID, params.Model, counters{}))
-	}
-	return result, nil
-}
+// Note: Channel query functions were removed as controller layer directly uses
+// model.GetPerfMetricChannelTotals and model.GetPerfMetricChannelModelDetails.
+// If hot-bucket merging is needed in the future, implement it in the controller.
 
 func mergeModelTotals(totals map[string]counters, modelName string, channel int, value counters) {
 	if value.requestCount == 0 {
