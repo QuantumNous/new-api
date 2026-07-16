@@ -16,21 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect, useState } from 'react'
+import type { AxiosRequestConfig } from 'axios'
 import {
   createFileRoute,
   useNavigate,
   useParams,
   useSearch,
 } from '@tanstack/react-router'
-import type { AxiosRequestConfig } from 'axios'
 import i18next from 'i18next'
-import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import { api, getSelf } from '@/lib/api'
+import { safeRedirect } from '@/features/auth/lib/safe-redirect'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
-import { api, getSelf } from '@/lib/api'
-import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
@@ -60,19 +60,18 @@ function OAuthCallback() {
   useEffect(() => {
     ;(async () => {
       const safeNavigate = (target: string) => {
-        navigate({ to: target as never, replace: true })
+        const to = safeRedirect(target, '/dashboard')
+        navigate({ to: to as never, replace: true })
         if (typeof window !== 'undefined') {
           setTimeout(() => {
-            const normalizedTarget = target.startsWith('/')
-              ? target
-              : `/${target}`
             const currentPath =
               window.location.pathname + window.location.search
             if (
-              currentPath !== normalizedTarget &&
-              currentPath !== `${normalizedTarget}/`
+              currentPath !== to &&
+              currentPath !== `${to}/`
             ) {
-              window.location.replace(target)
+              // Only same-app relative paths survive safeRedirect.
+              window.location.replace(to)
             }
           }, 100)
         }
@@ -144,7 +143,7 @@ function OAuthCallback() {
       }
 
       const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
+        const to = safeRedirect(target || search?.redirect, '/dashboard')
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }

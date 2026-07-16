@@ -21,6 +21,7 @@ import { t } from 'i18next'
 import { toast } from 'sonner'
 
 import { useAuthStore } from '@/stores/auth-store'
+import { resetSessionVerified } from '@/features/auth/lib/session-verification'
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -103,6 +104,7 @@ api.interceptors.response.use(
 
     if (status === 401) {
       try {
+        resetSessionVerified()
         useAuthStore.getState().auth.reset()
       } catch {
         /* empty */

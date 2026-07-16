@@ -59,15 +59,17 @@ import type { User } from '@/features/users/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
-type OtpFormProps = React.HTMLAttributes<HTMLFormElement>
+type OtpFormProps = React.HTMLAttributes<HTMLFormElement> & {
+  redirectTo?: string
+}
 
-export function OtpForm({ className, ...props }: OtpFormProps) {
+export function OtpForm({ className, redirectTo, ...props }: OtpFormProps) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [useBackupCode, setUseBackupCode] = useState(false)
 
   const { auth } = useAuthStore()
-  const { redirectToLogin } = useAuthRedirect()
+  const { handleLoginSuccess, redirectToLogin } = useAuthRedirect()
 
   const form = useForm<z.infer<typeof otpFormSchema>>({
     resolver: zodResolver(otpFormSchema),
@@ -116,7 +118,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
       }
 
       toast.success(t('Signed in'))
-      redirectToLogin() // This will redirect to dashboard via the redirect logic
+      await handleLoginSuccess(userData, redirectTo)
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('2FA verification error:', error)
@@ -134,7 +136,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
   }
 
   function handleBackToLogin() {
-    redirectToLogin()
+    redirectToLogin(redirectTo)
   }
 
   const isFormValid = useBackupCode
