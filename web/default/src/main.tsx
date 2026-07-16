@@ -16,33 +16,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { StrictMode } from 'react'
+import ReactDOM from 'react-dom/client'
+import { AxiosError } from 'axios'
 import {
   QueryCache,
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
-import { AxiosError } from 'axios'
 import i18next from 'i18next'
-import { StrictMode } from 'react'
-import ReactDOM from 'react-dom/client'
 import { toast } from 'sonner'
-
+import { useAuthStore } from '@/stores/auth-store'
 import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
-import { applyFaviconToDom } from '@/lib/dom-utils'
 import '@/lib/dayjs'
+import { applyFaviconToDom } from '@/lib/dom-utils'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { handleServerError } from '@/lib/handle-server-error'
-import { useAuthStore } from '@/stores/auth-store'
-
+import { safeRedirect } from '@/features/auth/lib/safe-redirect'
+import { resetSessionVerified } from '@/features/auth/lib/session-verification'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
 import './i18n/config'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
-
 // Styles
 import './styles/index.css'
 
@@ -88,12 +87,17 @@ const queryClient = new QueryClient({
         if (error.response?.status === 401) {
           toast.error(i18next.t('Session expired!'))
           useAuthStore.getState().auth.reset()
-          const redirect = `${router.history.location.href}`
+          resetSessionVerified()
+          const loc = router.history.location
+          const redirect = safeRedirect(
+            `${loc.pathname}${loc.search ?? ''}${loc.hash ?? ''}`,
+            '/dashboard'
+          )
           router.navigate({ to: '/sign-in', search: { redirect } })
         }
         if (error.response?.status === 500) {
+          // Stay on page; local error UI / toast is enough. Avoid global eject.
           toast.error(i18next.t('Internal Server Error!'))
-          router.navigate({ to: '/500' })
         }
       }
     },
