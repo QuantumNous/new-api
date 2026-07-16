@@ -27,6 +27,13 @@ func GetUserGroups(c *gin.Context) {
 	usableGroups := make(map[string]map[string]interface{})
 	userGroup := ""
 	userId := c.GetInt("id")
+	if userId <= 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "登录后查看可用分组",
+		})
+		return
+	}
 	userGroup, _ = model.GetUserGroup(userId, false)
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
 	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {

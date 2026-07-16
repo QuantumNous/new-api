@@ -1,8 +1,8 @@
 package ratio_setting
 
 import (
-	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -73,7 +73,37 @@ func GroupRatio2JSONString() string {
 }
 
 func UpdateGroupRatioByJSONString(jsonStr string) error {
-	return types.LoadFromJsonString(groupRatioMap, jsonStr)
+	// Empty object would wipe defaults and break pricing + perf-metrics group
+	// filters (summary only returns groups present in this map). Keep defaults.
+	trimmed := strings.TrimSpace(jsonStr)
+	if trimmed == "" || trimmed == "{}" || trimmed == "null" {
+		groupRatioMap.Clear()
+		groupRatioMap.AddAll(defaultGroupRatio)
+		return nil
+	}
+	tmp := make(map[string]float64)
+	if err := common.Unmarshal([]byte(trimmed), &tmp); err != nil {
+		return err
+	}
+	if len(tmp) == 0 {
+		groupRatioMap.Clear()
+		groupRatioMap.AddAll(defaultGroupRatio)
+		return nil
+	}
+	// Reject negative ratios before load (same rule as CheckGroupRatio).
+	for name, ratio := range tmp {
+		if ratio < 0 {
+			return errors.New("group ratio must be not less than 0: " + name)
+		}
+	}
+	if err := types.LoadFromJsonString(groupRatioMap, trimmed); err != nil {
+		return err
+	}
+	// Always keep a usable default group so pricing/perf never filter to empty.
+	if _, ok := groupRatioMap.Get("default"); !ok {
+		groupRatioMap.Set("default", 1)
+	}
+	return nil
 }
 
 func GetGroupRatio(name string) float64 {
@@ -102,18 +132,62 @@ func GroupGroupRatio2JSONString() string {
 }
 
 func UpdateGroupGroupRatioByJSONString(jsonStr string) error {
-	return types.LoadFromJsonString(groupGroupRatioMap, jsonStr)
+	// Empty / null should not wipe nested group-group overrides to a broken state.
+	// Unlike GroupRatio, empty here means "no nested overrides" (valid), but still
+	// reject null-ish wipe of malformed payloads and negative ratios.
+	trimmed := strings.TrimSpace(jsonStr)
+	if trimmed == "" || trimmed == "null" {
+		groupGroupRatioMap.Clear()
+		return nil
+	}
+	tmp := make(map[string]map[string]float64)
+	if err := common.Unmarshal([]byte(trimmed), &tmp); err != nil {
+		return err
+	}
+	for userGroup, nested := range tmp {
+		for usingGroup, ratio := range nested {
+			if ratio < 0 {
+				return errors.New("group_group_ratio must be not less than 0: " + userGroup + " -> " + usingGroup)
+			}
+		}
+	}
+	return types.LoadFromJsonString(groupGroupRatioMap, trimmed)
 }
 
 func CheckGroupRatio(jsonStr string) error {
+	trimmed := strings.TrimSpace(jsonStr)
+	if trimmed == "" || trimmed == "{}" || trimmed == "null" {
+		// Empty is accepted; UpdateGroupRatioByJSONString restores defaults.
+		return nil
+	}
 	checkGroupRatio := make(map[string]float64)
-	err := json.Unmarshal([]byte(jsonStr), &checkGroupRatio)
+	err := common.Unmarshal([]byte(trimmed), &checkGroupRatio)
 	if err != nil {
 		return err
 	}
 	for name, ratio := range checkGroupRatio {
 		if ratio < 0 {
 			return errors.New("group ratio must be not less than 0: " + name)
+		}
+	}
+	return nil
+}
+
+// CheckGroupGroupRatio validates nested user→using group ratio maps.
+func CheckGroupGroupRatio(jsonStr string) error {
+	trimmed := strings.TrimSpace(jsonStr)
+	if trimmed == "" || trimmed == "{}" || trimmed == "null" {
+		return nil
+	}
+	check := make(map[string]map[string]float64)
+	if err := common.Unmarshal([]byte(trimmed), &check); err != nil {
+		return err
+	}
+	for userGroup, nested := range check {
+		for usingGroup, ratio := range nested {
+			if ratio < 0 {
+				return errors.New("group_group_ratio must be not less than 0: " + userGroup + " -> " + usingGroup)
+			}
 		}
 	}
 	return nil

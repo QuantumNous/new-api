@@ -17,6 +17,9 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	// SkipAutoTest excludes this channel from AutomaticallyTestChannels / testAllChannels.
+	// Manual single-channel tests still work. Upstream discussion: #5205.
+	SkipAutoTest bool `json:"skip_auto_test,omitempty"`
 }
 
 type VertexKeyType string
