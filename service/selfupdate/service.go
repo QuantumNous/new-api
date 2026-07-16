@@ -19,12 +19,12 @@ var (
 
 // PerformResult is returned by Service.Perform.
 type PerformResult struct {
-	Message         string
-	NeedRestart     bool
-	AlreadyUpToDate bool
-	DeployMode      DeployMode
-	FromVersion     string
-	ToVersion       string
+	Message         string     `json:"message"`
+	NeedRestart     bool       `json:"need_restart"`
+	AlreadyUpToDate bool       `json:"already_up_to_date"`
+	DeployMode      DeployMode `json:"deploy_mode"`
+	FromVersion     string     `json:"from_version,omitempty"`
+	ToVersion       string     `json:"to_version,omitempty"`
 }
 
 // Phase constants for Status.Phase.

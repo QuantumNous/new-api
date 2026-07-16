@@ -37,15 +37,15 @@ type ReleaseInfo struct {
 
 // Info is the full update-check result returned to callers.
 type Info struct {
-	DeployMode     DeployMode
-	CurrentVersion string
-	LatestVersion  string
-	HasUpdate      bool
-	Release        *ReleaseInfo
-	Docker         *DockerCapability
-	Binary         *BinaryCapability
-	UpdateSource   string
-	Enabled        bool
-	Cached         bool
-	Warning        string
+	DeployMode     DeployMode        `json:"deploy_mode"`
+	CurrentVersion string            `json:"current_version"`
+	LatestVersion  string            `json:"latest_version,omitempty"`
+	HasUpdate      bool              `json:"has_update"`
+	Release        *ReleaseInfo      `json:"release,omitempty"`
+	Docker         *DockerCapability `json:"docker,omitempty"`
+	Binary         *BinaryCapability `json:"binary,omitempty"`
+	UpdateSource   string            `json:"update_source,omitempty"`
+	Enabled        bool              `json:"enabled"`
+	Cached         bool              `json:"cached"`
+	Warning        string            `json:"warning,omitempty"`
 }
