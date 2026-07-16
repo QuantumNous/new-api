@@ -171,10 +171,6 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	totals := map[string]counters{}
 	modelBuckets := map[string]map[int64]counters{}
 	for _, row := range rows {
-		channel := 0
-		if row.ChannelId != nil {
-			channel = *row.ChannelId
-		}
 		value := counters{
 			requestCount:   row.RequestCount,
 			successCount:   row.SuccessCount,
@@ -182,8 +178,8 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			outputTokens:   row.OutputTokens,
 			generationMs:   row.GenerationMs,
 		}
-		mergeModelTotals(totals, row.ModelName, channel, value)
-		mergeModelBucket(modelBuckets, row.ModelName, channel, row.BucketTs, value)
+		mergeModelTotals(totals, row.ModelName, 0, value)
+		mergeModelBucket(modelBuckets, row.ModelName, 0, row.BucketTs, value)
 	}
 
 	hotBuckets.Range(func(key, value any) bool {
@@ -200,8 +196,8 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		if snap.requestCount == 0 {
 			return true
 		}
-		mergeModelTotals(totals, k.model, k.channel, snap)
-		mergeModelBucket(modelBuckets, k.model, k.channel, k.bucketTs, snap)
+		mergeModelTotals(totals, k.model, 0, snap)
+		mergeModelBucket(modelBuckets, k.model, 0, k.bucketTs, snap)
 		return true
 	})
 
@@ -219,7 +215,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		}
 		models = append(models, ModelSummary{
 			ModelName:          key.model,
-			ChannelID:          key.channel,
+			ChannelID:          0,
 			AvgLatencyMs:       avgLatency,
 			SuccessRate:        math.Round(successRate*100) / 100,
 			AvgTps:             math.Round(avgTps*100) / 100,

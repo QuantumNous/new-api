@@ -74,7 +74,6 @@ func GetPerfMetrics(modelName string, group string, channelID *int, startTs int6
 
 type PerfMetricSummary struct {
 	ModelName      string `json:"model_name"`
-	ChannelId      *int   `json:"channel_id"`
 	RequestCount   int64  `json:"request_count"`
 	SuccessCount   int64  `json:"success_count"`
 	TotalLatencyMs int64  `json:"total_latency_ms"`
@@ -84,7 +83,6 @@ type PerfMetricSummary struct {
 
 type PerfMetricSummaryBucket struct {
 	ModelName      string `json:"model_name"`
-	ChannelId      *int   `json:"channel_id"`
 	BucketTs       int64  `json:"bucket_ts"`
 	RequestCount   int64  `json:"request_count"`
 	SuccessCount   int64  `json:"success_count"`
@@ -96,7 +94,7 @@ type PerfMetricSummaryBucket struct {
 func GetPerfMetricsSummaryAll(startTs int64, endTs int64, groups []string) ([]PerfMetricSummary, error) {
 	var summaries []PerfMetricSummary
 	query := DB.Model(&PerfMetric{}).
-		Select("model_name, channel_id, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
+		Select("model_name, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
 		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs)
 	if groups != nil {
 		if len(groups) == 0 {
@@ -105,7 +103,7 @@ func GetPerfMetricsSummaryAll(startTs int64, endTs int64, groups []string) ([]Pe
 		query = query.Where(commonGroupCol+" IN ?", groups)
 	}
 	err := query.
-		Group("model_name, channel_id").
+		Group("model_name").
 		Having("SUM(request_count) > 0").
 		Find(&summaries).Error
 	return summaries, err
@@ -114,7 +112,7 @@ func GetPerfMetricsSummaryAll(startTs int64, endTs int64, groups []string) ([]Pe
 func GetPerfMetricsSummaryBucketsAll(startTs int64, endTs int64, groups []string) ([]PerfMetricSummaryBucket, error) {
 	var summaries []PerfMetricSummaryBucket
 	query := DB.Model(&PerfMetric{}).
-		Select("model_name, channel_id, bucket_ts, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
+		Select("model_name, bucket_ts, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
 		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs)
 	if groups != nil {
 		if len(groups) == 0 {
@@ -123,7 +121,7 @@ func GetPerfMetricsSummaryBucketsAll(startTs int64, endTs int64, groups []string
 		query = query.Where(commonGroupCol+" IN ?", groups)
 	}
 	err := query.
-		Group("model_name, channel_id, bucket_ts").
+		Group("model_name, bucket_ts").
 		Having("SUM(request_count) > 0").
 		Order("bucket_ts ASC").
 		Find(&summaries).Error

@@ -38,8 +38,8 @@ func TestPerfMetricChannelIdMigration(t *testing.T) {
 		GenerationMs   int64  `gorm:"default:0"`
 	}
 
-	OldPerfMetric := OldPerfMetric{}
-	err = db.Table("perf_metrics").AutoMigrate(&OldPerfMetric)
+	oldMetric := OldPerfMetric{}
+	err = db.Table("perf_metrics").AutoMigrate(&oldMetric)
 	require.NoError(t, err)
 
 	// Insert legacy data (no channel_id)
