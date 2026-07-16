@@ -28,7 +28,7 @@ import { useTranslation } from 'react-i18next';
 const NotFound = () => {
   const { t } = useTranslation();
   return (
-    <div className='flex justify-center items-center h-screen p-8'>
+    <div className='classic-page-fill flex justify-center items-center p-8'>
       <Empty
         image={<IllustrationNotFound style={{ width: 250, height: 250 }} />}
         darkModeImage={

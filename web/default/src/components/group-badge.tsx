@@ -17,7 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
+
 import { cn } from '@/lib/utils'
+
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 
 type GroupBadgeProps = Omit<
@@ -31,12 +33,12 @@ type GroupBadgeProps = Omit<
 
 function getGroupRatioClassName(ratio: number): string {
   if (ratio > 1) {
-    return 'border-warning/25 bg-warning/10 text-warning'
+    return 'bg-warning/10 text-warning'
   }
   if (ratio < 1) {
-    return 'border-info/25 bg-info/10 text-info'
+    return 'bg-info/10 text-info'
   }
-  return 'border-border bg-muted text-muted-foreground'
+  return 'bg-muted text-muted-foreground'
 }
 
 function getGroupLabel(params: {
@@ -60,6 +62,7 @@ export function GroupBadge(props: GroupBadgeProps) {
     ratio,
     copyable = false,
     showDot,
+    className,
     ...badgeProps
   } = props
   const groupName = group?.trim()
@@ -82,6 +85,7 @@ export function GroupBadge(props: GroupBadgeProps) {
       showDot={showDot ?? (isSpecialGroup ? false : undefined)}
       variant={isSpecialGroup ? 'neutral' : undefined}
       autoColor={isSpecialGroup ? undefined : groupName}
+      className={cn('min-w-0 shrink overflow-hidden', className)}
     />
   )
 
@@ -90,15 +94,14 @@ export function GroupBadge(props: GroupBadgeProps) {
   }
 
   return (
-    <span className='inline-flex items-center gap-2 text-xs'>
-      {badge}
+    <span className='inline-flex max-w-full min-w-0 items-center gap-2 text-xs'>
+      <span className='max-w-full min-w-0 overflow-hidden'>{badge}</span>
       <span
         className={cn(
-          'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[11px] leading-none tabular-nums',
+          'inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-mono text-xs leading-none font-medium tabular-nums',
           getGroupRatioClassName(ratio)
         )}
       >
-        <span className='size-1 rounded-full bg-current opacity-60' />
         <span>{ratio}x</span>
       </span>
     </span>

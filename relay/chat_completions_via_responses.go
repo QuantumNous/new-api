@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -92,11 +93,14 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 	}
 
-	responsesReq, err := service.ChatCompletionsRequestToResponsesRequest(&overriddenChatReq)
+	result, err := service.ConvertRequestVia(c, info, &overriddenChatReq, types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses)
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
-	info.AppendRequestConversion(types.RelayFormatOpenAIResponses)
+	responsesReq, ok := result.Value.(*dto.OpenAIResponsesRequest)
+	if !ok {
+		return nil, types.NewError(fmt.Errorf("expected OpenAI responses request, got %T", result.Value), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
 
 	savedRelayMode := info.RelayMode
 	savedRequestURLPath := info.RequestURLPath
@@ -145,17 +149,16 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
 	httpResp = resp.(*http.Response)
-	clientWantsStream := info.IsStream
-	upstreamIsSSE := strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
-	info.IsStream = clientWantsStream || upstreamIsSSE
+	clientStream := info.IsStream
+	upstreamStream := isResponsesEventStreamContentType(httpResp.Header.Get("Content-Type"))
+	info.IsStream = clientStream || upstreamStream
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 		return nil, newApiErr
 	}
 
-	if clientWantsStream {
-		// Client requested stream — forward as SSE regardless of upstream format.
+	if upstreamStream && clientStream {
 		usage, newApiErr := openaichannel.OaiResponsesToChatStreamHandler(c, info, httpResp)
 		if newApiErr != nil {
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
@@ -163,13 +166,9 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		}
 		return usage, nil
 	}
-
-	if upstreamIsSSE {
-		// Client wants non-stream JSON, but upstream returned SSE (common for
-		// reasoning models). Buffer and aggregate the SSE stream into a full
-		// chat.completion JSON before writing to the client.
+	if upstreamStream {
 		info.IsStream = false
-		usage, newApiErr := openaichannel.OaiResponsesSSEToChatJSON(c, info, httpResp)
+		usage, newApiErr := openaichannel.OaiResponsesToChatBufferedStreamHandler(c, info, httpResp)
 		if newApiErr != nil {
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 			return nil, newApiErr
@@ -183,4 +182,8 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, newApiErr
 	}
 	return usage, nil
+}
+
+func isResponsesEventStreamContentType(contentType string) bool {
+	return strings.Contains(strings.ToLower(contentType), "text/event-stream")
 }

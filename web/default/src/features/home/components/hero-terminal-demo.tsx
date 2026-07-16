@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useRef, type ReactNode } from 'react'
+
 import { cn } from '@/lib/utils'
 
 type AccentTone = 'emerald' | 'amber' | 'blue' | 'violet'
@@ -163,7 +164,11 @@ const API_DEMOS: ApiDemoConfig[] = [
 const CYCLE_INTERVAL = 4500
 const TRANSITION_MS = 220
 
-export function HeroTerminalDemo() {
+interface HeroTerminalDemoProps {
+  className?: string
+}
+
+export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined)
@@ -202,7 +207,7 @@ export function HeroTerminalDemo() {
   const accent = ACCENT_CLASSES[demo.accent]
 
   return (
-    <div className='mx-auto mt-16 w-full max-w-2xl'>
+    <div className={cn('mx-auto w-full max-w-2xl', props.className)}>
       <div
         className={cn(
           'overflow-hidden rounded-2xl border backdrop-blur-sm',

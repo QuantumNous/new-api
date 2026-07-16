@@ -18,16 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
+
+import { MaskedValueDisplay } from '@/components/masked-value-display'
+import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableColumnHeader } from '@/components/data-table'
-import { MaskedValueDisplay } from '@/components/masked-value-display'
-import { StatusBadge } from '@/components/status-badge'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
+
 import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
 import { type Redemption } from '../types'
@@ -38,7 +40,6 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
   return [
     {
       id: 'select',
-      meta: { label: t('Select') },
       header: ({ table }) => (
         <Checkbox
           checked={table.getIsAllPageRowsSelected()}
@@ -58,37 +59,32 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       ),
       enableSorting: false,
       enableHiding: false,
+      size: 40,
     },
     {
       accessorKey: 'id',
-      meta: { label: t('ID'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('ID')} />
-      ),
+      header: t('ID'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
-        return <div className='w-[60px]'>{row.getValue('id')}</div>
+        return (
+          <TableId value={row.getValue('id') as number} className='w-[60px]' />
+        )
       },
+      size: 80,
     },
     {
       accessorKey: 'name',
-      meta: { label: t('Name'), mobileTitle: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
+      header: t('Name'),
+      meta: { mobileTitle: true },
+      cell: ({ row }) => (
+        <span className='font-medium'>{row.getValue('name')}</span>
       ),
-      cell: ({ row }) => {
-        return (
-          <div className='max-w-[150px] truncate font-medium'>
-            {row.getValue('name')}
-          </div>
-        )
-      },
+      size: 180,
     },
     {
       accessorKey: 'status',
-      meta: { label: t('Status'), mobileBadge: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Status')} />
-      ),
+      header: t('Status'),
+      meta: { mobileBadge: true },
       cell: ({ row }) => {
         const redemption = row.original
         const statusValue = row.getValue('status') as number
@@ -99,8 +95,8 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             <StatusBadge
               label={t('Expired')}
               variant='warning'
-              showDot={true}
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -115,8 +111,8 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           <StatusBadge
             label={t(statusConfig.labelKey)}
             variant={statusConfig.variant}
-            showDot={statusConfig.showDot}
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -134,14 +130,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         // Check regular status
         return value.includes(String(statusValue))
       },
+      size: 120,
     },
     {
       id: 'code',
       accessorKey: 'key',
-      meta: { label: t('Code') },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Code')} />
-      ),
+      header: t('Code'),
       cell: function CodeCell({ row }) {
         const redemption = row.original
         const key = redemption.key
@@ -158,13 +152,11 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         )
       },
       enableSorting: false,
+      size: 320,
     },
     {
       accessorKey: 'quota',
-      meta: { label: t('Quota') },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Quota')} />
-      ),
+      header: t('Quota'),
       cell: ({ row }) => {
         const quota = row.getValue('quota') as number
         return (
@@ -172,30 +164,29 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             label={formatQuota(quota)}
             variant='neutral'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
+      size: 120,
     },
     {
       accessorKey: 'created_time',
-      meta: { label: t('Created'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created')} />
-      ),
+      header: t('Created'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         return (
-          <div className='min-w-[140px] font-mono text-sm'>
+          <div className='min-w-[160px] font-mono text-sm'>
             {formatTimestampToDate(row.getValue('created_time'))}
           </div>
         )
       },
+      size: 180,
     },
     {
       accessorKey: 'expired_time',
-      meta: { label: t('Expires'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Expires')} />
-      ),
+      header: t('Expires'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number
         if (expiredTime === 0) {
@@ -204,25 +195,25 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
               label={t('Never')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
         const isExpired = isTimestampExpired(expiredTime)
         return (
           <div
-            className={`min-w-[140px] font-mono text-sm ${isExpired ? 'text-destructive' : ''}`}
+            className={`min-w-[160px] font-mono text-sm ${isExpired ? 'text-destructive' : ''}`}
           >
             {formatTimestampToDate(expiredTime)}
           </div>
         )
       },
+      size: 180,
     },
     {
       accessorKey: 'used_user_id',
-      meta: { label: t('Redeemed By'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Redeemed By')} />
-      ),
+      header: t('Redeemed By'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const userId = row.getValue('used_user_id') as number
         const redemption = row.original
@@ -259,10 +250,13 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           </Tooltip>
         )
       },
+      size: 140,
     },
     {
       id: 'actions',
+      header: () => t('Actions'),
       cell: ({ row }) => <DataTableRowActions row={row} />,
+      meta: { pinned: 'right' as const },
     },
   ]
 }

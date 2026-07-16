@@ -11,6 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// MaxImageN caps the image generation count. Without this bound a huge or
+// wrapped-negative n overflows quota calculation into a negative charge.
+const MaxImageN = 128
+
 type ImageRequest struct {
 	Model             string          `json:"model"`
 	Prompt            string          `json:"prompt" binding:"required"`
@@ -26,11 +30,11 @@ type ImageRequest struct {
 	OutputFormat      json.RawMessage `json:"output_format,omitempty"`
 	OutputCompression json.RawMessage `json:"output_compression,omitempty"`
 	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
-	// Stream            bool            `json:"stream,omitempty"`
-	Images        json.RawMessage `json:"images,omitempty"`
-	Mask          json.RawMessage `json:"mask,omitempty"`
-	InputFidelity json.RawMessage `json:"input_fidelity,omitempty"`
-	Watermark     *bool           `json:"watermark,omitempty"`
+	Stream            *bool           `json:"stream,omitempty"`
+	Images            json.RawMessage `json:"images,omitempty"`
+	Mask              json.RawMessage `json:"mask,omitempty"`
+	InputFidelity     json.RawMessage `json:"input_fidelity,omitempty"`
+	Watermark         *bool           `json:"watermark,omitempty"`
 	// zhipu 4v
 	WatermarkEnabled json.RawMessage `json:"watermark_enabled,omitempty"`
 	UserId           json.RawMessage `json:"user_id,omitempty"`
@@ -151,19 +155,24 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		}
 	}
 
-	// n is NOT included here; it is handled via OtherRatio("n") in
-	// image_handler.go (default) or channel adaptors (actual count).
-	// Including n here caused double-counting for channels that also
-	// set OtherRatio("n") (e.g. Ali/Bailian).
+	imageN := uint(1)
+	if i.N != nil && *i.N > 0 {
+		imageN = *i.N
+	}
+
+	// Keep n separate from ImagePriceRatio so size/quality and count remain
+	// independent billing dimensions. Fixed-price pre-consume stores this on
+	// PriceData, and image settlement reuses or replaces the same "n" ratio.
 	return &types.TokenCountMeta{
 		CombineText:     i.Prompt,
 		MaxTokens:       1584,
 		ImagePriceRatio: sizeRatio * qualityRatio,
+		BillingRatios:   map[string]float64{"n": float64(imageN)},
 	}
 }
 
 func (i *ImageRequest) IsStream(c *gin.Context) bool {
-	return false
+	return i.Stream != nil && *i.Stream
 }
 
 func (i *ImageRequest) SetModelName(modelName string) {

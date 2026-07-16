@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useRef } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect, useMemo, useRef } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+import * as z from 'zod'
+
 import {
   Form,
   FormControl,
@@ -43,6 +43,13 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -198,34 +205,32 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
   const ipFilterMode = form.watch('fetch_setting.ip_filter_mode')
 
   return (
-    <SettingsSection
-      title={t('SSRF Protection')}
-      description={t(
-        'Prevent server-side request forgery attacks by controlling outbound requests.'
-      )}
-    >
+    <SettingsSection title={t('SSRF Protection')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+            saveLabel='Save SSRF settings'
+          />
           <FormField
             control={form.control}
             name='fetch_setting.enable_ssrf_protection'
             render={({ field }) => (
-              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>
-                    {t('Enable SSRF Protection')}
-                  </FormLabel>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable SSRF Protection')}</FormLabel>
                   <FormDescription>
                     {t('Prevent server-side request forgery attacks')}
                   </FormDescription>
-                </div>
+                </SettingsSwitchContent>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </FormItem>
+              </SettingsSwitchItem>
             )}
           />
 
@@ -233,24 +238,22 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             control={form.control}
             name='fetch_setting.allow_private_ip'
             render={({ field }) => (
-              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>
-                    {t('Allow Private IPs')}
-                  </FormLabel>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Allow Private IPs')}</FormLabel>
                   <FormDescription>
                     {t(
                       'Allow requests to private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)'
                     )}
                   </FormDescription>
-                </div>
+                </SettingsSwitchContent>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </FormItem>
+              </SettingsSwitchItem>
             )}
           />
 
@@ -408,9 +411,9 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             control={form.control}
             name='fetch_setting.apply_ip_filter_for_domain'
             render={({ field }) => (
-              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>
                     {t('Apply IP Filter to Resolved Domains')}
                   </FormLabel>
                   <FormDescription>
@@ -418,21 +421,17 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                       'Check resolved IPs against IP filters even when accessing by domain'
                     )}
                   </FormDescription>
-                </div>
+                </SettingsSwitchContent>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </FormItem>
+              </SettingsSwitchItem>
             )}
           />
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save SSRF settings')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )

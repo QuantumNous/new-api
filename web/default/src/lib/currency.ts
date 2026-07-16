@@ -94,6 +94,22 @@ export interface CurrencyFormatOptions {
   abbreviate?: boolean
   /** Minimal absolute value to display when rounding would produce zero */
   minimumNonZero?: number
+  /**
+   * Use locale-aware compact notation for large values (e.g. "$28万" in zh,
+   * "$280K" in en). The currency symbol is preserved.
+   */
+  compact?: boolean
+  /** Whether to include the currency/custom symbol. Token displays are unchanged. */
+  showSymbol?: boolean
+  /** Locale used for number formatting (defaults to the runtime locale) */
+  locale?: Intl.LocalesArgument | undefined
+}
+
+type ResolvedCurrencyFormatOptions = Omit<
+  Required<CurrencyFormatOptions>,
+  'locale'
+> & {
+  locale: Intl.LocalesArgument | undefined
 }
 
 type DisplayMeta =
@@ -114,11 +130,14 @@ type DisplayMeta =
       quotaPerUnit: number
     }
 
-const DEFAULT_FORMAT_OPTIONS: Required<CurrencyFormatOptions> = {
+const DEFAULT_FORMAT_OPTIONS: ResolvedCurrencyFormatOptions = {
   digitsLarge: 2,
   digitsSmall: 4,
   abbreviate: true,
   minimumNonZero: 0,
+  compact: false,
+  showSymbol: true,
+  locale: undefined,
 }
 
 const DISPLAY_TYPE_VALUES = ['USD', 'CNY', 'TOKENS', 'CUSTOM'] as const
@@ -211,7 +230,7 @@ function getBillingDisplayMeta(config: CurrencyConfig): DisplayMeta {
 
 function mergeOptions(
   options?: CurrencyFormatOptions
-): Required<CurrencyFormatOptions> {
+): ResolvedCurrencyFormatOptions {
   if (!options) return DEFAULT_FORMAT_OPTIONS
   return {
     digitsLarge: options.digitsLarge ?? DEFAULT_FORMAT_OPTIONS.digitsLarge,
@@ -219,6 +238,9 @@ function mergeOptions(
     abbreviate: options.abbreviate ?? DEFAULT_FORMAT_OPTIONS.abbreviate,
     minimumNonZero:
       options.minimumNonZero ?? DEFAULT_FORMAT_OPTIONS.minimumNonZero,
+    compact: options.compact ?? DEFAULT_FORMAT_OPTIONS.compact,
+    showSymbol: options.showSymbol ?? DEFAULT_FORMAT_OPTIONS.showSymbol,
+    locale: options.locale ?? DEFAULT_FORMAT_OPTIONS.locale,
   }
 }
 
@@ -236,7 +258,7 @@ function formatNumberWithSuffix(
   const abs = Math.abs(value)
   if (abbreviate && abs >= 1000) {
     const result = value / 1000
-    return removeTrailingZeros(result.toFixed(1)) + 'k'
+    return `${removeTrailingZeros(result.toFixed(1))}k`
   }
 
   const digits = abs >= 1 ? digitsLarge : digitsSmall
@@ -260,10 +282,16 @@ function adjustForMinimum(
 
 function formatCurrencyValue(
   value: number,
-  options: Required<CurrencyFormatOptions>,
+  options: ResolvedCurrencyFormatOptions,
   meta: DisplayMeta
 ): string {
   if (meta.kind === 'tokens') {
+    if (options.compact) {
+      return new Intl.NumberFormat(options.locale, {
+        notation: 'compact',
+        maximumFractionDigits: 1,
+      }).format(value)
+    }
     return formatNumberWithSuffix(
       value,
       options.digitsLarge,
@@ -277,22 +305,32 @@ function formatCurrencyValue(
   const adjustedValue = adjustForMinimum(value, digits, options.minimumNonZero)
 
   if (meta.kind === 'currency') {
-    const formatted = new Intl.NumberFormat(undefined, {
+    if (!options.showSymbol) {
+      return new Intl.NumberFormat(options.locale, {
+        notation: options.compact ? 'compact' : 'standard',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: options.compact ? 1 : digits,
+      }).format(adjustedValue)
+    }
+
+    const formatted = new Intl.NumberFormat(options.locale, {
       style: 'currency',
       currency: meta.currencyCode,
       currencyDisplay: 'narrowSymbol',
+      notation: options.compact ? 'compact' : 'standard',
       minimumFractionDigits: 0,
-      maximumFractionDigits: digits,
+      maximumFractionDigits: options.compact ? 1 : digits,
     }).format(adjustedValue)
     return formatted
   }
 
-  const decimal = new Intl.NumberFormat(undefined, {
+  const decimal = new Intl.NumberFormat(options.locale, {
+    notation: options.compact ? 'compact' : 'standard',
     minimumFractionDigits: 0,
-    maximumFractionDigits: digits,
+    maximumFractionDigits: options.compact ? 1 : digits,
   }).format(adjustedValue)
 
-  return `${meta.symbol}${decimal}`
+  return options.showSymbol ? `${meta.symbol} ${decimal}` : decimal
 }
 
 /**
@@ -358,6 +396,12 @@ export function formatCurrencyFromUSD(
 
   if (meta.kind === 'tokens') {
     const tokens = amountUSD * config.quotaPerUnit
+    if (merged.compact) {
+      return new Intl.NumberFormat(merged.locale, {
+        notation: 'compact',
+        maximumFractionDigits: 1,
+      }).format(tokens)
+    }
     return formatNumberWithSuffix(
       tokens,
       0,

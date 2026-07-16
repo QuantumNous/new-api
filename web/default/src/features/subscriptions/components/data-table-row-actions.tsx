@@ -16,16 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Row } from '@tanstack/react-table'
-import { MoreHorizontal, Pencil, Power, PowerOff } from 'lucide-react'
+import type { Row } from '@tanstack/react-table'
+import { Pencil, Power, PowerOff, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+
 import type { PlanRecord } from '../types'
 import { useSubscriptions } from './subscriptions-provider'
 
@@ -36,45 +37,81 @@ interface DataTableRowActionsProps {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow, complianceConfirmed } = useSubscriptions()
+  const isEnabled = row.original.plan.enabled
+  const toggleLabel = isEnabled ? t('Disable') : t('Enable')
+
+  const handleEdit = () => {
+    setCurrentRow(row.original)
+    setOpen('update')
+  }
+
+  const handleToggleStatus = () => {
+    setCurrentRow(row.original)
+    setOpen('toggle-status')
+  }
+
+  const handleResetSubscriptions = () => {
+    setCurrentRow(row.original)
+    setOpen('reset-subscriptions')
+  }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant='ghost' className='h-8 w-8 p-0' />}
-      >
-        <MoreHorizontal className='h-4 w-4' />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        <DropdownMenuItem
-          disabled={!complianceConfirmed}
-          onClick={() => {
-            setCurrentRow(row.original)
-            setOpen('update')
-          }}
+    <div className='-ml-1.5 flex items-center gap-1'>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              disabled={!complianceConfirmed}
+              onClick={handleEdit}
+              aria-label={t('Edit')}
+            />
+          }
         >
-          <Pencil className='mr-2 h-4 w-4' />
-          {t('Edit')}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={!complianceConfirmed}
-          onClick={() => {
-            setCurrentRow(row.original)
-            setOpen('toggle-status')
-          }}
+          <Pencil />
+        </TooltipTrigger>
+        <TooltipContent>{t('Edit')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              disabled={!complianceConfirmed}
+              onClick={handleResetSubscriptions}
+              aria-label={t('Reset subscription quota')}
+            />
+          }
         >
-          {row.original.plan.enabled ? (
-            <>
-              <PowerOff className='mr-2 h-4 w-4' />
-              {t('Disable')}
-            </>
-          ) : (
-            <>
-              <Power className='mr-2 h-4 w-4' />
-              {t('Enable')}
-            </>
-          )}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <RotateCcw />
+        </TooltipTrigger>
+        <TooltipContent>{t('Reset subscription quota')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              disabled={!complianceConfirmed}
+              onClick={handleToggleStatus}
+              aria-label={toggleLabel}
+              className={
+                isEnabled
+                  ? 'text-destructive hover:text-destructive'
+                  : 'text-success hover:text-success'
+              }
+            />
+          }
+        >
+          {isEnabled ? <PowerOff /> : <Power />}
+        </TooltipTrigger>
+        <TooltipContent>{toggleLabel}</TooltipContent>
+      </Tooltip>
+    </div>
   )
 }

@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
-import dayjs from '@/lib/dayjs'
+import * as z from 'zod'
+
+import { StatusBadge } from '@/components/status-badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -44,70 +44,111 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { StatusBadge } from '@/components/status-badge'
-import { SettingsSection } from '../components/settings-section'
-import { useResetForm } from '../hooks/use-reset-form'
-import { useUpdateOption } from '../hooks/use-update-option'
+import { api } from '@/lib/api'
 
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
+import { SettingsSection } from '../components/settings-section'
+import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
+
+/**
+ * IMPORTANT: react-hook-form 7 interprets dotted `name` strings as nested
+ * paths. If we declare the schema with literal flat keys like
+ * `'performance_setting.disk_cache_enabled'`, the form state diverges from
+ * what zod validates and saves silently turn into no-ops. So we model the
+ * form internally with proper nested objects and only flatten back to the
+ * server-side key format right before persisting.
+ */
 const perfSchema = z.object({
-  'performance_setting.disk_cache_enabled': z.boolean(),
-  'performance_setting.disk_cache_threshold_mb': z.coerce.number().min(1),
-  'performance_setting.disk_cache_max_size_mb': z.coerce.number().min(100),
-  'performance_setting.disk_cache_path': z.string().optional(),
-  'performance_setting.monitor_enabled': z.boolean(),
-  'performance_setting.monitor_cpu_threshold': z.coerce.number().min(0),
-  'performance_setting.monitor_memory_threshold': z.coerce
-    .number()
-    .min(0)
-    .max(100),
-  'performance_setting.monitor_disk_threshold': z.coerce
-    .number()
-    .min(0)
-    .max(100),
-  'perf_metrics_setting.enabled': z.boolean(),
-  'perf_metrics_setting.flush_interval': z.coerce.number().min(1),
-  'perf_metrics_setting.bucket_time': z.enum(['minute', '5min', 'hour']),
-  'perf_metrics_setting.retention_days': z.coerce.number().min(0),
+  performance_setting: z.object({
+    disk_cache_enabled: z.boolean(),
+    disk_cache_threshold_mb: z.coerce.number().min(1),
+    disk_cache_max_size_mb: z.coerce.number().min(100),
+    disk_cache_path: z.string(),
+    monitor_enabled: z.boolean(),
+    monitor_cpu_threshold: z.coerce.number().min(0),
+    monitor_memory_threshold: z.coerce.number().min(0).max(100),
+    monitor_disk_threshold: z.coerce.number().min(0).max(100),
+  }),
 })
 
-type PerfFormValues = z.infer<typeof perfSchema>
+type PerfFormInput = z.input<typeof perfSchema>
+type PerfFormValues = z.output<typeof perfSchema>
+
+type FlatPerfDefaults = {
+  'performance_setting.disk_cache_enabled': boolean
+  'performance_setting.disk_cache_threshold_mb': number
+  'performance_setting.disk_cache_max_size_mb': number
+  'performance_setting.disk_cache_path': string
+  'performance_setting.monitor_enabled': boolean
+  'performance_setting.monitor_cpu_threshold': number
+  'performance_setting.monitor_memory_threshold': number
+  'performance_setting.monitor_disk_threshold': number
+}
+
+const buildFormDefaults = (defaults: FlatPerfDefaults): PerfFormInput => ({
+  performance_setting: {
+    disk_cache_enabled: defaults['performance_setting.disk_cache_enabled'],
+    disk_cache_threshold_mb:
+      defaults['performance_setting.disk_cache_threshold_mb'],
+    disk_cache_max_size_mb:
+      defaults['performance_setting.disk_cache_max_size_mb'],
+    disk_cache_path: defaults['performance_setting.disk_cache_path'] ?? '',
+    monitor_enabled: defaults['performance_setting.monitor_enabled'],
+    monitor_cpu_threshold:
+      defaults['performance_setting.monitor_cpu_threshold'],
+    monitor_memory_threshold:
+      defaults['performance_setting.monitor_memory_threshold'],
+    monitor_disk_threshold:
+      defaults['performance_setting.monitor_disk_threshold'],
+  },
+})
+
+const normalizeFormValues = (values: PerfFormValues): FlatPerfDefaults => ({
+  'performance_setting.disk_cache_enabled':
+    values.performance_setting.disk_cache_enabled,
+  'performance_setting.disk_cache_threshold_mb':
+    values.performance_setting.disk_cache_threshold_mb,
+  'performance_setting.disk_cache_max_size_mb':
+    values.performance_setting.disk_cache_max_size_mb,
+  'performance_setting.disk_cache_path':
+    values.performance_setting.disk_cache_path ?? '',
+  'performance_setting.monitor_enabled':
+    values.performance_setting.monitor_enabled,
+  'performance_setting.monitor_cpu_threshold':
+    values.performance_setting.monitor_cpu_threshold,
+  'performance_setting.monitor_memory_threshold':
+    values.performance_setting.monitor_memory_threshold,
+  'performance_setting.monitor_disk_threshold':
+    values.performance_setting.monitor_disk_threshold,
+})
 
 function formatBytes(bytes: number, decimals = 2): string {
-  if (!bytes || isNaN(bytes)) return '0 Bytes'
+  if (!bytes || Number.isNaN(bytes)) return '0 Bytes'
   if (bytes === 0) return '0 Bytes'
-  if (bytes < 0) return '-' + formatBytes(-bytes, decimals)
+  if (bytes < 0) return `-${formatBytes(-bytes, decimals)}`
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(Math.abs(bytes)) / Math.log(k))
-  if (i < 0 || i >= sizes.length) return bytes + ' Bytes'
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i]
+  if (i < 0 || i >= sizes.length) return `${bytes} Bytes`
+  return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${
+    sizes[i]
+  }`
 }
 
 interface Props {
-  defaultValues: PerfFormValues
-}
-
-type LogInfo = {
-  enabled: boolean
-  log_dir: string
-  file_count: number
-  total_size: number
-  oldest_time?: string
-  newest_time?: string
+  defaultValues: FlatPerfDefaults
 }
 
 type PerformanceStats = {
@@ -147,19 +188,29 @@ export function PerformanceSection(props: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [stats, setStats] = useState<PerformanceStats | null>(null)
-  const [logInfo, setLogInfo] = useState<LogInfo | null>(null)
-  const [logCleanupMode, setLogCleanupMode] = useState('by_count')
-  const [logCleanupValue, setLogCleanupValue] = useState(10)
-  const [logCleanupLoading, setLogCleanupLoading] = useState(false)
 
-  const form = useForm<PerfFormValues>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(perfSchema) as any,
-    defaultValues: props.defaultValues,
+  const formDefaults = useMemo(
+    () => buildFormDefaults(props.defaultValues),
+    [props.defaultValues]
+  )
+
+  const form = useForm<PerfFormInput, unknown, PerfFormValues>({
+    resolver: zodResolver(perfSchema),
+    defaultValues: formDefaults,
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useResetForm(form as any, props.defaultValues)
+  const baselineRef = useRef<FlatPerfDefaults>(props.defaultValues)
+  const baselineSerializedRef = useRef<string>(
+    JSON.stringify(props.defaultValues)
+  )
+
+  useEffect(() => {
+    const serialized = JSON.stringify(props.defaultValues)
+    if (serialized === baselineSerializedRef.current) return
+    baselineRef.current = props.defaultValues
+    baselineSerializedRef.current = serialized
+    form.reset(buildFormDefaults(props.defaultValues))
+  }, [props.defaultValues, form])
 
   const fetchStats = useCallback(async () => {
     try {
@@ -170,37 +221,31 @@ export function PerformanceSection(props: Props) {
     }
   }, [])
 
-  const fetchLogInfo = useCallback(async () => {
-    try {
-      const res = await api.get('/api/performance/logs')
-      if (res.data.success) setLogInfo(res.data.data)
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
   useEffect(() => {
     fetchStats()
-    fetchLogInfo()
-  }, [fetchStats, fetchLogInfo])
+  }, [fetchStats])
 
-  const onSubmit = async (data: PerfFormValues) => {
-    const entries = Object.entries(data) as [string, unknown][]
-    const updates = entries.filter(
-      ([key, value]) =>
-        value !== (props.defaultValues[key as keyof PerfFormValues] as unknown)
-    )
-    if (updates.length === 0) {
+  const onSubmit = async (values: PerfFormValues) => {
+    const normalized = normalizeFormValues(values)
+    const changedKeys = (
+      Object.keys(normalized) as Array<keyof FlatPerfDefaults>
+    ).filter((key) => normalized[key] !== baselineRef.current[key])
+
+    if (changedKeys.length === 0) {
       toast.info(t('No changes to save'))
       return
     }
-    for (const [key, value] of updates) {
+
+    for (const key of changedKeys) {
       await updateOption.mutateAsync({
         key,
-        value: value as string | number | boolean,
+        value: normalized[key],
       })
     }
-    toast.success(t('Saved successfully'))
+
+    baselineRef.current = normalized
+    baselineSerializedRef.current = JSON.stringify(normalized)
+    form.reset(buildFormDefaults(normalized))
     fetchStats()
   }
 
@@ -240,41 +285,15 @@ export function PerformanceSection(props: Props) {
     }
   }
 
-  const cleanupLogFiles = async () => {
-    if (!logCleanupValue || isNaN(logCleanupValue) || logCleanupValue < 1) {
-      toast.error(t('Please enter a valid number'))
-      return
-    }
-    setLogCleanupLoading(true)
-    try {
-      const res = await api.delete(
-        `/api/performance/logs?mode=${logCleanupMode}&value=${logCleanupValue}`
-      )
-      if (res.data.success) {
-        const { deleted_count, freed_bytes } = res.data.data
-        toast.success(
-          t('Cleaned up {{count}} log files, freed {{size}}', {
-            count: deleted_count,
-            size: formatBytes(freed_bytes),
-          })
-        )
-      } else {
-        toast.error(res.data.message || t('Cleanup failed'))
-      }
-      fetchLogInfo()
-    } catch {
-      toast.error(t('Cleanup failed'))
-    } finally {
-      setLogCleanupLoading(false)
-    }
-  }
-
   const diskEnabled = form.watch('performance_setting.disk_cache_enabled')
   const monitorEnabled = form.watch('performance_setting.monitor_enabled')
-  const perfMetricsEnabled = form.watch('perf_metrics_setting.enabled')
-  const maxCacheSizeMb = form.watch(
+  const maxCacheSizeRaw = form.watch(
     'performance_setting.disk_cache_max_size_mb'
   )
+  const maxCacheSizeMb =
+    typeof maxCacheSizeRaw === 'number'
+      ? maxCacheSizeRaw
+      : Number(maxCacheSizeRaw) || 0
 
   const lowDiskSpace =
     diskEnabled &&
@@ -294,14 +313,13 @@ export function PerformanceSection(props: Props) {
       : 0
 
   return (
-    <SettingsSection
-      title={t('Performance Settings')}
-      description={t(
-        'Disk cache, system performance monitoring, and operation statistics'
-      )}
-    >
+    <SettingsSection title={t('Performance Settings')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+          />
           {/* Disk Cache Settings */}
           <div>
             <h4 className='font-medium'>{t('Disk Cache Settings')}</h4>
@@ -317,15 +335,17 @@ export function PerformanceSection(props: Props) {
               control={form.control}
               name='performance_setting.disk_cache_enabled'
               render={({ field }) => (
-                <FormItem className='flex items-center gap-2'>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable Disk Cache')}</FormLabel>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                  <FormLabel>{t('Enable Disk Cache')}</FormLabel>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
             <FormField
@@ -335,11 +355,18 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Disk Cache Threshold (MB)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!diskEnabled} />
+                    <Input
+                      type='number'
+                      min={1}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                      disabled={!diskEnabled}
+                    />
                   </FormControl>
                   <FormDescription>
                     {t('Use disk cache when request body exceeds this size')}
                   </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -350,7 +377,13 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Max Disk Cache Size (MB)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!diskEnabled} />
+                    <Input
+                      type='number'
+                      min={100}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                      disabled={!diskEnabled}
+                    />
                   </FormControl>
                   {stats?.disk_space_info &&
                     stats.disk_space_info.total > 0 && (
@@ -361,6 +394,7 @@ export function PerformanceSection(props: Props) {
                         })}
                       </FormDescription>
                     )}
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -386,11 +420,15 @@ export function PerformanceSection(props: Props) {
                       placeholder={t(
                         'Leave empty to use system temp directory'
                       )}
-                      {...field}
                       value={field.value ?? ''}
+                      onChange={(event) => field.onChange(event.target.value)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!diskEnabled}
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -415,15 +453,17 @@ export function PerformanceSection(props: Props) {
               control={form.control}
               name='performance_setting.monitor_enabled'
               render={({ field }) => (
-                <FormItem className='flex items-center gap-2'>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable Performance Monitoring')}</FormLabel>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                  <FormLabel>{t('Enable Performance Monitoring')}</FormLabel>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
             <FormField
@@ -435,10 +475,13 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      min={0}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -451,10 +494,14 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      min={0}
+                      max={100}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -467,262 +514,20 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      min={0}
+                      max={100}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
           </div>
-
-          <Separator />
-
-          <div>
-            <h4 className='font-medium'>{t('Model performance metrics')}</h4>
-            <p className='text-muted-foreground mt-1 text-xs'>
-              {t(
-                'Collect relay latency and success-rate metrics for the model square.'
-              )}
-            </p>
-          </div>
-
-          <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
-            <FormField
-              control={form.control}
-              name='perf_metrics_setting.enabled'
-              render={({ field }) => (
-                <FormItem className='flex items-center gap-2'>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormLabel>{t('Enable model performance metrics')}</FormLabel>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name='perf_metrics_setting.flush_interval'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Flush interval (minutes)')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      min={1}
-                      {...field}
-                      disabled={!perfMetricsEnabled}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name='perf_metrics_setting.bucket_time'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Aggregation bucket')}</FormLabel>
-                  <Select
-                    items={[
-                      { value: 'minute', label: t('1 minute') },
-                      { value: '5min', label: t('5 minutes') },
-                      { value: 'hour', label: t('1 hour') },
-                    ]}
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={!perfMetricsEnabled}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent alignItemWithTrigger={false}>
-                      <SelectGroup>
-                        <SelectItem value='minute'>{t('1 minute')}</SelectItem>
-                        <SelectItem value='5min'>{t('5 minutes')}</SelectItem>
-                        <SelectItem value='hour'>{t('1 hour')}</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name='perf_metrics_setting.retention_days'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Retention days')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      min={0}
-                      {...field}
-                      disabled={!perfMetricsEnabled}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t('0 means data is kept permanently')}
-                  </FormDescription>
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
-
-      <Separator />
-
-      {/* Server Log Management */}
-      <div className='space-y-4'>
-        <div>
-          <h4 className='font-medium'>{t('Server Log Management')}</h4>
-          <p className='text-muted-foreground mt-1 text-xs'>
-            {t(
-              'Manage server log files. Log files accumulate over time; regular cleanup is recommended to free disk space.'
-            )}
-          </p>
-        </div>
-
-        {logInfo === null ? null : logInfo.enabled ? (
-          <div className='space-y-4'>
-            <div className='rounded-lg border p-4'>
-              <div className='grid grid-cols-2 gap-2 text-sm md:grid-cols-4'>
-                <div>
-                  <span className='text-muted-foreground'>
-                    {t('Log Directory')}:
-                  </span>{' '}
-                  <span className='font-mono text-xs'>{logInfo.log_dir}</span>
-                </div>
-                <div>
-                  <span className='text-muted-foreground'>
-                    {t('Log File Count')}:
-                  </span>{' '}
-                  {logInfo.file_count}
-                </div>
-                <div>
-                  <span className='text-muted-foreground'>
-                    {t('Total Log Size')}:
-                  </span>{' '}
-                  {formatBytes(logInfo.total_size)}
-                </div>
-                {logInfo.oldest_time && logInfo.newest_time && (
-                  <div>
-                    <span className='text-muted-foreground'>
-                      {t('Date Range')}:
-                    </span>{' '}
-                    {dayjs(logInfo.oldest_time).format('YYYY-MM-DD')} ~{' '}
-                    {dayjs(logInfo.newest_time).format('YYYY-MM-DD')}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className='flex flex-wrap items-end gap-3'>
-              <div className='grid gap-1.5'>
-                <Label className='text-xs'>{t('Cleanup Mode')}</Label>
-                <Select
-                  items={[
-                    { value: 'by_count', label: t('Retain last N files') },
-                    { value: 'by_days', label: t('Retain last N days') },
-                  ]}
-                  value={logCleanupMode}
-                  onValueChange={(v) => v !== null && setLogCleanupMode(v)}
-                >
-                  <SelectTrigger className='w-[160px]'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      <SelectItem value='by_count'>
-                        {t('Retain last N files')}
-                      </SelectItem>
-                      <SelectItem value='by_days'>
-                        {t('Retain last N days')}
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className='grid gap-1.5'>
-                <Label className='text-xs'>
-                  {logCleanupMode === 'by_count'
-                    ? t('Files to Retain')
-                    : t('Days to Retain')}
-                </Label>
-                <Input
-                  type='number'
-                  min={1}
-                  max={logCleanupMode === 'by_count' ? 1000 : 3650}
-                  value={logCleanupValue}
-                  onChange={(e) => setLogCleanupValue(Number(e.target.value))}
-                  className='w-[120px]'
-                />
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger
-                  render={
-                    <Button
-                      variant='destructive'
-                      size='sm'
-                      disabled={logCleanupLoading}
-                    />
-                  }
-                >
-                  {logCleanupLoading
-                    ? t('Cleaning...')
-                    : t('Clean Up Log Files')}
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {t('Confirm log file cleanup?')}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {logCleanupMode === 'by_count'
-                        ? t(
-                            'Only the last {{value}} log files will be retained; the rest will be deleted.',
-                            {
-                              value: logCleanupValue,
-                            }
-                          )
-                        : t(
-                            'Log files older than {{value}} days will be deleted.',
-                            {
-                              value: logCleanupValue,
-                            }
-                          )}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-                    <AlertDialogAction onClick={cleanupLogFiles}>
-                      {t('Confirm Cleanup')}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
-        ) : (
-          <Alert>
-            <AlertDescription>
-              {t(
-                'Server logging is not enabled (log directory not configured)'
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-      </div>
 
       <Separator />
 
@@ -750,7 +555,10 @@ export function PerformanceSection(props: Props) {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-                <AlertDialogAction onClick={clearDiskCache}>
+                <AlertDialogAction
+                  variant='destructive'
+                  onClick={clearDiskCache}
+                >
                   {t('Confirm')}
                 </AlertDialogAction>
               </AlertDialogFooter>

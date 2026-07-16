@@ -1,5 +1,7 @@
 package billingexpr
 
+import "github.com/QuantumNous/new-api/common"
+
 // quotaConversion converts raw expression output to quota based on the
 // expression version. This is the central dispatch point for future versions
 // that may use a different conversion formula.
@@ -23,14 +25,14 @@ func ComputeTieredQuotaWithRequest(snap *BillingSnapshot, params TokenParams, re
 	}
 
 	quotaBeforeGroup := quotaConversion(cost, snap)
-	afterGroup, clamp := QuotaRoundChecked(quotaBeforeGroup * snap.GroupRatio)
+	afterGroup, clamp := common.QuotaRoundChecked(quotaBeforeGroup * snap.GroupRatio)
 	crossed := trace.MatchedTier != snap.EstimatedTier
 
 	return TieredResult{
 		ActualQuotaBeforeGroup: quotaBeforeGroup,
 		ActualQuotaAfterGroup:  afterGroup,
-		QuotaClamp:             clamp,
 		MatchedTier:            trace.MatchedTier,
 		CrossedTier:            crossed,
+		Clamp:                  clamp,
 	}, nil
 }

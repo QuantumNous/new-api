@@ -19,34 +19,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - name: Determine Version
         run: |
           VERSION=$(git describe --tags)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
       - name: Build Frontend (default)
         env:
           CI: ""
         run: |
-          cd web/default
-          bun install
+          cd web
+          bun install --frozen-lockfile
+          cd default
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
       - name: Build Frontend (classic)
         env:
           CI: ""
         run: |
-          cd web/classic
-          bun install
+          cd web
+          bun install --filter ./classic --frozen-lockfile
+          cd classic
           VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend (amd64)
@@ -62,7 +64,7 @@ jobs:
         run: sha256sum new-api-* > checksums-linux.txt
 
       - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -76,14 +78,14 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - name: Determine Version
         run: |
           VERSION=$(git describe --tags)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
       - name: Build Frontend (default)
@@ -91,20 +93,22 @@ jobs:
           CI: ""
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
-          cd web/default
-          bun install
+          cd web
+          bun install --frozen-lockfile
+          cd default
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
       - name: Build Frontend (classic)
         env:
           CI: ""
         run: |
-          cd web/classic
-          bun install
+          cd web
+          bun install --filter ./classic --frozen-lockfile
+          cd classic
           VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend
@@ -115,7 +119,7 @@ jobs:
         run: shasum -a 256 new-api-macos-* > checksums-macos.txt
 
       - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -132,34 +136,36 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - name: Determine Version
         run: |
           VERSION=$(git describe --tags)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
       - name: Build Frontend (default)
         env:
           CI: ""
         run: |
-          cd web/default
-          bun install
+          cd web
+          bun install --frozen-lockfile
+          cd default
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
       - name: Build Frontend (classic)
         env:
           CI: ""
         run: |
-          cd web/classic
-          bun install
+          cd web
+          bun install --filter ./classic --frozen-lockfile
+          cd classic
           VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend
@@ -170,7 +176,7 @@ jobs:
         run: sha256sum new-api-*.exe > checksums-windows.txt
 
       - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |

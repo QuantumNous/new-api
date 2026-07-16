@@ -16,23 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo } from 'react'
 import { Search } from 'lucide-react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { StatusBadge } from '@/components/status-badge'
 
 interface UpstreamUpdateDialogProps {
   open: boolean
@@ -107,7 +102,7 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
     const anyAdd = selectedAddArr.length > 0
     const anyRemove = selectedRemoveArr.length > 0
 
-    if (hasAdd && hasRemove && (!anyAdd || !anyRemove)) {
+    if (hasAdd && hasRemove && anyAdd !== anyRemove) {
       setPartialConfirmOpen(true)
       return
     }
@@ -120,157 +115,15 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
 
   return (
     <>
-      <Dialog open={props.open} onOpenChange={(v) => !v && props.onCancel()}>
-        <DialogContent className='sm:max-w-lg'>
-          <DialogHeader>
-            <DialogTitle>{t('Upstream Model Updates')}</DialogTitle>
-          </DialogHeader>
-
-          <p className='text-muted-foreground text-sm'>
-            {t(
-              'Select models to process. Unselected "add" models will be ignored.'
-            )}
-          </p>
-
-          <Tabs
-            value={activeTab}
-            onValueChange={(v) => setActiveTab(v as 'add' | 'remove')}
-          >
-            <TabsList className='grid w-full grid-cols-2'>
-              <TabsTrigger value='add' className='gap-1'>
-                {t('Add Models')}
-                <StatusBadge
-                  variant='neutral'
-                  className='ml-1'
-                  copyable={false}
-                >
-                  {selectedAdd.size}/{props.addModels.length}
-                </StatusBadge>
-              </TabsTrigger>
-              <TabsTrigger value='remove' className='gap-1'>
-                {t('Remove Models')}
-                <StatusBadge
-                  variant='neutral'
-                  className='ml-1'
-                  copyable={false}
-                >
-                  {selectedRemove.size}/{props.removeModels.length}
-                </StatusBadge>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value='add' className='space-y-3'>
-              <div className='relative'>
-                <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
-                <Input
-                  placeholder={t('Search models...')}
-                  className='pl-8'
-                  value={searchAdd}
-                  onChange={(e) => setSearchAdd(e.target.value)}
-                />
-              </div>
-              {filteredAdd.length > 0 && (
-                <div className='flex items-center gap-2'>
-                  <Checkbox
-                    checked={filteredAdd.every((m) => selectedAdd.has(m))}
-                    onCheckedChange={() =>
-                      toggleAllVisible(filteredAdd, selectedAdd, setSelectedAdd)
-                    }
-                  />
-                  <span className='text-muted-foreground text-xs'>
-                    {t('Select All Visible')}
-                  </span>
-                </div>
-              )}
-              <ScrollArea className='h-[280px] rounded-md border p-2'>
-                {filteredAdd.length > 0 ? (
-                  <div className='space-y-1'>
-                    {filteredAdd.map((model) => (
-                      <label
-                        key={model}
-                        className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5'
-                      >
-                        <Checkbox
-                          checked={selectedAdd.has(model)}
-                          onCheckedChange={() =>
-                            toggleModel(model, selectedAdd, setSelectedAdd)
-                          }
-                        />
-                        <span className='truncate text-sm'>{model}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className='text-muted-foreground py-8 text-center text-sm'>
-                    {props.addModels.length === 0
-                      ? t('No models to add')
-                      : t('No matching results')}
-                  </p>
-                )}
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value='remove' className='space-y-3'>
-              <div className='relative'>
-                <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
-                <Input
-                  placeholder={t('Search models...')}
-                  className='pl-8'
-                  value={searchRemove}
-                  onChange={(e) => setSearchRemove(e.target.value)}
-                />
-              </div>
-              {filteredRemove.length > 0 && (
-                <div className='flex items-center gap-2'>
-                  <Checkbox
-                    checked={filteredRemove.every((m) => selectedRemove.has(m))}
-                    onCheckedChange={() =>
-                      toggleAllVisible(
-                        filteredRemove,
-                        selectedRemove,
-                        setSelectedRemove
-                      )
-                    }
-                  />
-                  <span className='text-muted-foreground text-xs'>
-                    {t('Select All Visible')}
-                  </span>
-                </div>
-              )}
-              <ScrollArea className='h-[280px] rounded-md border p-2'>
-                {filteredRemove.length > 0 ? (
-                  <div className='space-y-1'>
-                    {filteredRemove.map((model) => (
-                      <label
-                        key={model}
-                        className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5'
-                      >
-                        <Checkbox
-                          checked={selectedRemove.has(model)}
-                          onCheckedChange={() =>
-                            toggleModel(
-                              model,
-                              selectedRemove,
-                              setSelectedRemove
-                            )
-                          }
-                        />
-                        <span className='truncate text-sm'>{model}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className='text-muted-foreground py-8 text-center text-sm'>
-                    {props.removeModels.length === 0
-                      ? t('No models to remove')
-                      : t('No matching results')}
-                  </p>
-                )}
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
-
-          <DialogFooter>
+      <Dialog
+        open={props.open}
+        onOpenChange={(v) => !v && props.onCancel()}
+        title={t('Upstream Model Updates')}
+        contentClassName='sm:max-w-lg'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button variant='outline' onClick={props.onCancel}>
               {t('Cancel')}
             </Button>
@@ -278,13 +131,145 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
               onClick={handleConfirm}
               disabled={
                 props.confirmLoading ||
-                (selectedAdd.size === 0 && selectedRemove.size === 0)
+                (props.addModels.length === 0 &&
+                  props.removeModels.length === 0)
               }
             >
               {t('Confirm')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <p className='text-muted-foreground text-sm'>
+          {t(
+            'Select models to process. Unselected "add" models will be ignored.'
+          )}
+        </p>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as 'add' | 'remove')}
+        >
+          <TabsList className='grid w-full grid-cols-2'>
+            <TabsTrigger value='add' className='gap-1'>
+              {t('Add Models')}
+              <StatusBadge variant='neutral' className='ml-1' copyable={false}>
+                {selectedAdd.size}/{props.addModels.length}
+              </StatusBadge>
+            </TabsTrigger>
+            <TabsTrigger value='remove' className='gap-1'>
+              {t('Remove Models')}
+              <StatusBadge variant='neutral' className='ml-1' copyable={false}>
+                {selectedRemove.size}/{props.removeModels.length}
+              </StatusBadge>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value='add' className='space-y-3'>
+            <div className='relative'>
+              <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
+              <Input
+                placeholder={t('Search models...')}
+                className='pl-8'
+                value={searchAdd}
+                onChange={(e) => setSearchAdd(e.target.value)}
+              />
+            </div>
+            {filteredAdd.length > 0 && (
+              <div className='flex items-center gap-2'>
+                <Checkbox
+                  checked={filteredAdd.every((m) => selectedAdd.has(m))}
+                  onCheckedChange={() =>
+                    toggleAllVisible(filteredAdd, selectedAdd, setSelectedAdd)
+                  }
+                />
+                <span className='text-muted-foreground text-xs'>
+                  {t('Select All Visible')}
+                </span>
+              </div>
+            )}
+            <ScrollArea className='h-[280px] rounded-md border p-2'>
+              {filteredAdd.length > 0 ? (
+                <div className='space-y-1'>
+                  {filteredAdd.map((model) => (
+                    <label
+                      key={model}
+                      className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5'
+                    >
+                      <Checkbox
+                        checked={selectedAdd.has(model)}
+                        onCheckedChange={() =>
+                          toggleModel(model, selectedAdd, setSelectedAdd)
+                        }
+                      />
+                      <span className='truncate text-sm'>{model}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className='text-muted-foreground py-8 text-center text-sm'>
+                  {props.addModels.length === 0
+                    ? t('No models to add')
+                    : t('No matching results')}
+                </p>
+              )}
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value='remove' className='space-y-3'>
+            <div className='relative'>
+              <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
+              <Input
+                placeholder={t('Search models...')}
+                className='pl-8'
+                value={searchRemove}
+                onChange={(e) => setSearchRemove(e.target.value)}
+              />
+            </div>
+            {filteredRemove.length > 0 && (
+              <div className='flex items-center gap-2'>
+                <Checkbox
+                  checked={filteredRemove.every((m) => selectedRemove.has(m))}
+                  onCheckedChange={() =>
+                    toggleAllVisible(
+                      filteredRemove,
+                      selectedRemove,
+                      setSelectedRemove
+                    )
+                  }
+                />
+                <span className='text-muted-foreground text-xs'>
+                  {t('Select All Visible')}
+                </span>
+              </div>
+            )}
+            <ScrollArea className='h-[280px] rounded-md border p-2'>
+              {filteredRemove.length > 0 ? (
+                <div className='space-y-1'>
+                  {filteredRemove.map((model) => (
+                    <label
+                      key={model}
+                      className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5'
+                    >
+                      <Checkbox
+                        checked={selectedRemove.has(model)}
+                        onCheckedChange={() =>
+                          toggleModel(model, selectedRemove, setSelectedRemove)
+                        }
+                      />
+                      <span className='truncate text-sm'>{model}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className='text-muted-foreground py-8 text-center text-sm'>
+                  {props.removeModels.length === 0
+                    ? t('No models to remove')
+                    : t('No matching results')}
+                </p>
+              )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
       </Dialog>
 
       <ConfirmDialog

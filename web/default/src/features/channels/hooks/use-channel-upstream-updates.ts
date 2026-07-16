@@ -16,11 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
+
+import { api, type ApiRequestConfig } from '@/lib/api'
+
 import { normalizeModelList } from '../lib/upstream-update-utils'
+
+const upstreamUpdateRequestConfig = {
+  skipBusinessError: true,
+  skipErrorHandler: true,
+} satisfies ApiRequestConfig
 
 function getManualIgnoredModelCount(settings: unknown): number {
   let parsed: Record<string, unknown> | null = null
@@ -117,7 +124,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
             ignore_models: ignoreModels,
             remove_models: normalizeModelList(selectedRemove),
           },
-          { skipErrorHandler: true } as Record<string, unknown>
+          upstreamUpdateRequestConfig
         )
         const { success, message, data } = res.data || {}
         if (!success) {
@@ -162,7 +169,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const res = await api.post(
         '/api/channel/upstream_updates/apply_all',
         {},
-        { skipErrorHandler: true } as Record<string, unknown>
+        upstreamUpdateRequestConfig
       )
       const { success, message, data } = res.data || {}
       if (!success) {
@@ -206,7 +213,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         const res = await api.post(
           '/api/channel/upstream_updates/detect',
           { id: ch.id },
-          { skipErrorHandler: true } as Record<string, unknown>
+          upstreamUpdateRequestConfig
         )
         const { success, message, data } = res.data || {}
         if (!success) {
@@ -244,9 +251,9 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const res = await api.post(
         '/api/channel/upstream_updates/detect_all',
         {},
-        { skipErrorHandler: true } as Record<string, unknown>
+        upstreamUpdateRequestConfig
       )
-      const { success, message, data } = res.data || {}
+      const { success, message } = res.data || {}
       if (!success) {
         toast.error(message || t('Batch detection failed'))
         return
@@ -254,13 +261,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
 
       toast.success(
         t(
-          'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
-          {
-            channels: data?.processed_channels || 0,
-            add: data?.detected_add_models || 0,
-            remove: data?.detected_remove_models || 0,
-            fails: (data?.failed_channel_ids || []).length,
-          }
+          'Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.'
         )
       )
       await refresh()
@@ -280,20 +281,41 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
     }
   }, [refresh, t])
 
-  return {
-    showModal,
-    channel,
-    addModels,
-    removeModels,
-    preferredTab,
-    applyLoading,
-    detectAllLoading,
-    applyAllLoading,
-    openModal,
-    closeModal,
-    applyUpdates,
-    applyAllUpdates,
-    detectChannelUpdates,
-    detectAllUpdates,
-  }
+  // Memoized so consumers (and the channels context value built from this) get
+  // a stable reference unless an actual field changes. Callbacks above are all
+  // useCallback-stable, so this only changes when relevant state changes.
+  return useMemo(
+    () => ({
+      showModal,
+      channel,
+      addModels,
+      removeModels,
+      preferredTab,
+      applyLoading,
+      detectAllLoading,
+      applyAllLoading,
+      openModal,
+      closeModal,
+      applyUpdates,
+      applyAllUpdates,
+      detectChannelUpdates,
+      detectAllUpdates,
+    }),
+    [
+      showModal,
+      channel,
+      addModels,
+      removeModels,
+      preferredTab,
+      applyLoading,
+      detectAllLoading,
+      applyAllLoading,
+      openModal,
+      closeModal,
+      applyUpdates,
+      applyAllUpdates,
+      detectChannelUpdates,
+      detectAllUpdates,
+    ]
+  )
 }

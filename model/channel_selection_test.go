@@ -15,14 +15,10 @@ func setupChannelSelectionTestDB(t *testing.T) {
 
 	oldDB := DB
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
-	oldUsingSQLite := common.UsingSQLite
-	oldUsingPostgreSQL := common.UsingPostgreSQL
-	oldUsingMySQL := common.UsingMySQL
+	oldMainDatabaseType := common.MainDatabaseType()
 
 	common.MemoryCacheEnabled = false
-	common.UsingSQLite = true
-	common.UsingPostgreSQL = false
-	common.UsingMySQL = false
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	initCol()
 
 	dsn := fmt.Sprintf("file:channel-selection-%d?mode=memory&cache=shared", time.Now().UnixNano())
@@ -40,9 +36,7 @@ func setupChannelSelectionTestDB(t *testing.T) {
 		clearChannelCooldownsForTest()
 		DB = oldDB
 		common.MemoryCacheEnabled = oldMemoryCacheEnabled
-		common.UsingSQLite = oldUsingSQLite
-		common.UsingPostgreSQL = oldUsingPostgreSQL
-		common.UsingMySQL = oldUsingMySQL
+		common.SetMainDatabaseType(oldMainDatabaseType)
 		initCol()
 	})
 }
@@ -69,7 +63,7 @@ func TestGetChannelSkipsCoolingChannelWithoutMemoryCache(t *testing.T) {
 
 	CooldownChannel(17, "Insufficient account balance", time.Minute)
 
-	channel, err := GetChannel("default", "gpt-5.5", 0)
+	channel, err := GetChannel("default", "gpt-5.5", 0, "/v1/chat/completions")
 	if err != nil {
 		t.Fatalf("GetChannel returned error: %v", err)
 	}
@@ -315,7 +309,7 @@ func TestGetRandomSatisfiedChannelReturnsCoolingChannelWhenAllCandidatesCoolingW
 	})
 	CooldownChannel(17, "Insufficient account balance", time.Minute)
 
-	selected, err := GetRandomSatisfiedChannel("default", "gpt-5.5", 0)
+	selected, err := GetRandomSatisfiedChannel("default", "gpt-5.5", 0, "/v1/chat/completions")
 	if err != nil {
 		t.Fatalf("GetRandomSatisfiedChannel returned error: %v", err)
 	}
@@ -381,7 +375,7 @@ func TestGetChannelReturnsCoolingChannelWhenAllCandidatesCoolingWithoutMemoryCac
 
 	CooldownChannel(17, "Insufficient account balance", time.Minute)
 
-	selected, err := GetChannel("default", "gpt-5.5", 0)
+	selected, err := GetChannel("default", "gpt-5.5", 0, "/v1/chat/completions")
 	if err != nil {
 		t.Fatalf("GetChannel returned error: %v", err)
 	}

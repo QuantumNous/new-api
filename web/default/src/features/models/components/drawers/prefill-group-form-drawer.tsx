@@ -16,13 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import { JsonEditor } from '@/components/json-editor'
+import { StatusBadge } from '@/components/status-badge'
+import { TagInput } from '@/components/tag-input'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -42,7 +53,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
   SheetClose,
@@ -53,9 +63,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { JsonEditor } from '@/components/json-editor'
-import { StatusBadge } from '@/components/status-badge'
-import { TagInput } from '@/components/tag-input'
+
 import { createPrefillGroup, updatePrefillGroup } from '../../api'
 import { ENDPOINT_TEMPLATES } from '../../constants'
 import { prefillGroupsQueryKeys } from '../../lib'
@@ -180,8 +188,8 @@ export function PrefillGroupFormDrawer({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl'>
-        <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
+      <SheetContent className={sideDrawerContentClassName('sm:max-w-2xl')}>
+        <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>
             {isEdit ? t('Edit Prefill Group') : t('Create Prefill Group')}
           </SheetTitle>
@@ -196,10 +204,10 @@ export function PrefillGroupFormDrawer({
           <form
             id='prefill-group-form'
             onSubmit={form.handleSubmit(handleSubmit)}
-            className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
+            className={sideDrawerFormClassName()}
           >
-            <div className='space-y-4'>
-              <div className='space-y-1'>
+            <SideDrawerSection>
+              <div className='flex flex-col gap-1'>
                 <h3 className='text-sm font-semibold'>{t('Group details')}</h3>
                 <p className='text-muted-foreground text-sm'>
                   {t(
@@ -252,12 +260,10 @@ export function PrefillGroupFormDrawer({
                   </FormItem>
                 )}
               />
-            </div>
+            </SideDrawerSection>
 
-            <Separator />
-
-            <div className='space-y-4'>
-              <div className='space-y-1'>
+            <SideDrawerSection>
+              <div className='flex flex-col gap-1'>
                 <h3 className='text-sm font-semibold'>{t('Configuration')}</h3>
                 <p className='text-muted-foreground text-sm'>
                   {t('Choose the bundle type and define the items inside it.')}
@@ -326,7 +332,7 @@ export function PrefillGroupFormDrawer({
                 )}
               />
 
-              <div className='space-y-2 rounded-lg border p-3 sm:p-4'>
+              <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                 <div className='flex items-center gap-2'>
                   <h4 className='text-sm font-medium'>{t('Project')}</h4>
                   <StatusBadge
@@ -379,11 +385,11 @@ export function PrefillGroupFormDrawer({
                   )}
                 />
               </div>
-            </div>
+            </SideDrawerSection>
           </form>
         </Form>
 
-        <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
+        <SheetFooter className={sideDrawerFooterClassName()}>
           <SheetClose
             render={
               <Button type='button' variant='outline' disabled={isSaving} />

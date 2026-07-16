@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   CalendarDays,
@@ -26,18 +25,15 @@ import {
   ChevronUp,
   Sparkles,
 } from 'lucide-react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuotaWithCurrency } from '@/lib/currency'
-import dayjs from '@/lib/dayjs'
-import { cn } from '@/lib/utils'
+
+import { Dialog } from '@/components/dialog'
+import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Card } from '@/components/ui/card'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
@@ -45,7 +41,10 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
-import { Turnstile } from '@/components/turnstile'
+import { formatQuotaWithCurrency } from '@/lib/currency'
+import dayjs from '@/lib/dayjs'
+import { cn } from '@/lib/utils'
+
 import { getCheckinStatus, performCheckin } from '../api'
 import type { CheckinRecord } from '../types'
 
@@ -164,7 +163,7 @@ export function CheckinCalendarCard({
           }
           toast.error(res.message || t('Check-in failed'))
         }
-      } catch (_error) {
+      } catch {
         toast.error(t('Check-in failed'))
       } finally {
         setCheckinLoading(false)
@@ -226,7 +225,7 @@ export function CheckinCalendarCard({
 
   if (isLoading) {
     return (
-      <div className='bg-card overflow-hidden rounded-2xl border'>
+      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         <div className='p-6'>
           <div className='flex items-start justify-between gap-4'>
             <div className='flex items-center gap-3'>
@@ -239,8 +238,15 @@ export function CheckinCalendarCard({
             <Skeleton className='h-9 w-28 rounded-md' />
           </div>
         </div>
-      </div>
+      </Card>
     )
+  }
+
+  let checkinButtonLabel = t('Check in now')
+  if (checkinLoading) {
+    checkinButtonLabel = t('Loading...')
+  } else if (checkedToday) {
+    checkinButtonLabel = t('Checked in')
   }
 
   return (
@@ -253,45 +259,43 @@ export function CheckinCalendarCard({
             setTurnstileWidgetKey((v) => v + 1)
           }
         }}
+        title={t('Security Check')}
+        contentClassName='sm:max-w-md'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
       >
-        <DialogContent className='sm:max-w-md'>
-          <DialogHeader>
-            <DialogTitle>{t('Security Check')}</DialogTitle>
-          </DialogHeader>
-          <div className='text-muted-foreground text-sm'>
-            {t('Please complete the security check to continue.')}
-          </div>
-          <div className='flex justify-center py-4'>
-            <Turnstile
-              key={turnstileWidgetKey}
-              siteKey={turnstileSiteKey}
-              onVerify={(token) => {
-                doCheckin(token)
-              }}
-              onExpire={() => {
-                setTurnstileWidgetKey((v) => v + 1)
-              }}
-            />
-          </div>
-        </DialogContent>
+        <div className='text-muted-foreground text-sm'>
+          {t('Please complete the security check to continue.')}
+        </div>
+        <div className='flex justify-center py-4'>
+          <Turnstile
+            key={turnstileWidgetKey}
+            siteKey={turnstileSiteKey}
+            onVerify={(token) => {
+              doCheckin(token)
+            }}
+            onExpire={() => {
+              setTurnstileWidgetKey((v) => v + 1)
+            }}
+          />
+        </div>
       </Dialog>
 
-      <div className='bg-card overflow-hidden rounded-2xl border'>
+      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         {/* Header */}
         <div className='border-b p-4 sm:p-6'>
           <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
-            <Button
+            <button
               type='button'
-              variant='ghost'
-              className='flex h-auto min-w-0 flex-1 items-start gap-3 p-0 text-left whitespace-normal hover:bg-transparent'
+              className='flex min-w-0 flex-1 items-start gap-3 rounded-lg text-left whitespace-normal outline-none'
               onClick={() => setCollapsed((v) => !v)}
             >
-              <div className='bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11'>
+              <IconBadge tone='neutral' size='lg' className='sm:size-11'>
                 <CalendarDays
                   className='h-4 w-4 sm:h-5 sm:w-5'
                   strokeWidth={2}
                 />
-              </div>
+              </IconBadge>
               <div className='min-w-0 flex-1'>
                 <div className='flex flex-wrap items-center gap-1.5 sm:gap-2'>
                   <h3 className='text-base font-semibold tracking-tight sm:text-lg'>
@@ -317,18 +321,14 @@ export function CheckinCalendarCard({
                     : t('Check in daily to receive random quota rewards')}
                 </p>
               </div>
-            </Button>
+            </button>
             <Button
               onClick={() => doCheckin()}
               disabled={checkinLoading || checkedToday}
               size='sm'
               className='w-full shrink-0 sm:w-auto'
             >
-              {checkinLoading
-                ? t('Loading...')
-                : checkedToday
-                  ? t('Checked in')
-                  : t('Check in now')}
+              {checkinButtonLabel}
             </Button>
           </div>
         </div>
@@ -409,7 +409,7 @@ export function CheckinCalendarCard({
                   ))}
 
                   {/* Calendar days */}
-                  {calendarDays.map((dayObj, idx) => {
+                  {calendarDays.map((dayObj) => {
                     const dateStr = `${dayObj.date.getFullYear()}-${String(
                       dayObj.date.getMonth() + 1
                     ).padStart(2, '0')}-${String(
@@ -422,28 +422,27 @@ export function CheckinCalendarCard({
 
                     const dayButton = (
                       <Button
-                        key={idx}
+                        key={dateStr}
                         variant={isToday ? 'default' : 'ghost'}
                         disabled={!dayObj.isCurrentMonth}
                         className={cn(
                           'relative flex h-9 w-full flex-col items-center justify-center rounded-lg px-0 text-xs font-medium sm:h-10 sm:text-sm',
                           !dayObj.isCurrentMonth &&
                             'text-muted-foreground/40 cursor-default',
-                          isToday && 'hover:bg-primary/90',
                           !isToday && isCheckedIn && 'font-semibold'
                         )}
                       >
                         <span className='tabular-nums'>{dayNum}</span>
                         {isCheckedIn && !isToday && (
-                          <span className='absolute bottom-0.5 h-1 w-1 rounded-full bg-emerald-500 sm:bottom-1' />
+                          <span className='bg-success absolute bottom-0.5 size-1 rounded-full sm:bottom-1' />
                         )}
                       </Button>
                     )
 
                     if (isCheckedIn && dayObj.isCurrentMonth) {
                       return (
-                        <Tooltip key={idx}>
-                          <TooltipTrigger render={dayButton}></TooltipTrigger>
+                        <Tooltip key={dateStr}>
+                          <TooltipTrigger render={dayButton} />
                           <TooltipContent>
                             <div className='text-xs'>
                               <div className='font-medium'>
@@ -482,7 +481,7 @@ export function CheckinCalendarCard({
             </div>
           </>
         ) : null}
-      </div>
+      </Card>
     </TooltipProvider>
   )
 }

@@ -17,8 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD } from '@/lib/currency'
+
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
+import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
 
 // ----------------------------------------------------------------------------
 // Price Calculation Utilities
@@ -35,11 +37,11 @@ export function stripTrailingZeros(formatted: string): string {
   const [, symbol, number, suffix] = match
 
   // Remove commas for processing
-  const cleanNumber = number.replace(/,/g, '')
+  const cleanNumber = number.replaceAll(',', '')
 
   // Convert to number and back to remove trailing zeros
-  const parsed = parseFloat(cleanNumber)
-  if (isNaN(parsed)) return formatted
+  const parsed = Number.parseFloat(cleanNumber)
+  if (Number.isNaN(parsed)) return formatted
 
   // Convert to string, which automatically removes trailing zeros
   let result = parsed.toString()
@@ -50,126 +52,6 @@ export function stripTrailingZeros(formatted: string): string {
   }
 
   return `${symbol}${result}${suffix}`
-}
-
-/**
- * Find minimum group ratio from enabled groups
- */
-function getMinGroupRatio(
-  enableGroups: string[],
-  groupRatio: Record<string, number>
-): number {
-  if (enableGroups.length === 0) return 1
-
-  let minRatio = Number.POSITIVE_INFINITY
-
-  for (const group of enableGroups) {
-    const ratio = groupRatio[group]
-    if (ratio !== undefined && ratio < minRatio) {
-      minRatio = ratio
-    }
-  }
-
-  return minRatio === Number.POSITIVE_INFINITY ? 1 : minRatio
-}
-
-type CheapestGroupRatio = {
-  group: string
-  ratio: number
-}
-
-export type OfficialSavings = {
-  percent: number
-  group: string
-  groupRatio: number
-}
-
-export type OfficialSavingsOptions = {
-  priceRate?: number
-  usdExchangeRate?: number
-  officialUsdExchangeRate?: number
-}
-
-function getCheapestEnabledGroupRatio(
-  enableGroups: string[],
-  groupRatio: Record<string, number>
-): CheapestGroupRatio | null {
-  if (enableGroups.length === 0) return null
-
-  let cheapest: CheapestGroupRatio | null = null
-
-  for (const group of enableGroups) {
-    const rawRatio = groupRatio[group]
-    const ratio = rawRatio === undefined ? 1 : Number(rawRatio)
-    if (!Number.isFinite(ratio) || ratio <= 0) continue
-
-    if (!cheapest || ratio < cheapest.ratio) {
-      cheapest = { group, ratio }
-    }
-  }
-
-  return cheapest
-}
-
-function getPositiveNumber(value: number | null | undefined): number | null {
-  if (value == null) return null
-  const number = Number(value)
-  return Number.isFinite(number) && number > 0 ? number : null
-}
-
-function hasComparablePrice(model: PricingModel): boolean {
-  if (model.billing_mode === 'tiered_expr') {
-    return false
-  }
-
-  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
-    return getPositiveNumber(model.model_price) !== null
-  }
-
-  return (
-    model.quota_type === QUOTA_TYPE_VALUES.TOKEN &&
-    getPositiveNumber(model.model_ratio) !== null
-  )
-}
-
-export function calculateOfficialSavings(
-  model: PricingModel,
-  options: OfficialSavingsOptions = {}
-): OfficialSavings | null {
-  if (!hasComparablePrice(model)) return null
-
-  const enableGroups = Array.isArray(model.enable_groups)
-    ? model.enable_groups
-    : []
-  const groupRatio = model.group_ratio || {}
-  const cheapestGroup = getCheapestEnabledGroupRatio(enableGroups, groupRatio)
-  if (!cheapestGroup) return null
-
-  const localUsdPriceRate =
-    getPositiveNumber(options.priceRate) ??
-    getPositiveNumber(options.usdExchangeRate) ??
-    1
-  const officialUsdExchangeRate =
-    getPositiveNumber(options.officialUsdExchangeRate) ??
-    getPositiveNumber(options.usdExchangeRate) ??
-    localUsdPriceRate
-
-  const relativePrice =
-    (cheapestGroup.ratio * localUsdPriceRate) / officialUsdExchangeRate
-  const percent = (1 - relativePrice) * 100
-
-  if (!Number.isFinite(percent) || percent <= 0) return null
-
-  return {
-    percent: Math.min(percent, 100),
-    group: cheapestGroup.group,
-    groupRatio: cheapestGroup.ratio,
-  }
-}
-
-export function formatSavingsPercent(percent: number): string {
-  if (!Number.isFinite(percent)) return ''
-  return percent.toFixed(2).replace(/\.?0+$/, '')
 }
 
 /**
@@ -193,26 +75,26 @@ function calculateTokenPrice(
     case 'cache':
       return hasRatio(model.cache_ratio)
         ? base * Number(model.cache_ratio)
-        : NaN
+        : Number.NaN
     case 'create_cache':
       return hasRatio(model.create_cache_ratio)
         ? base * Number(model.create_cache_ratio)
-        : NaN
+        : Number.NaN
     case 'image':
       return hasRatio(model.image_ratio)
         ? base * Number(model.image_ratio)
-        : NaN
+        : Number.NaN
     case 'audio_input':
       return hasRatio(model.audio_ratio)
         ? base * Number(model.audio_ratio)
-        : NaN
+        : Number.NaN
     case 'audio_output':
       return hasRatio(model.audio_ratio) &&
         hasRatio(model.audio_completion_ratio)
         ? base *
             Number(model.audio_ratio) *
             Number(model.audio_completion_ratio)
-        : NaN
+        : Number.NaN
   }
 }
 
@@ -265,19 +147,16 @@ export function formatPrice(
   tokenUnit: TokenUnit,
   showWithRecharge = false,
   priceRate = 1,
-  usdExchangeRate = 1
+  usdExchangeRate = 1,
+  selectedGroup?: string
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
-  const enableGroups = Array.isArray(model.enable_groups)
-    ? model.enable_groups
-    : []
-  const groupRatio = model.group_ratio || {}
-  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+  const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
-  let priceInUSD = calculateTokenPrice(model, type, minRatio)
+  let priceInUSD = calculateTokenPrice(model, type, displayGroupRatio)
   priceInUSD = applyRechargeRate(
     priceInUSD,
     showWithRecharge,
@@ -310,7 +189,7 @@ export function formatGroupPrice(
     return '-'
   }
 
-  const ratio = groupRatio[group] || 1
+  const ratio = getConfiguredGroupRatio(groupRatio, group)
   let priceInUSD = calculateTokenPrice(model, type, ratio)
 
   priceInUSD = applyRechargeRate(
@@ -343,7 +222,7 @@ export function formatFixedPrice(
     return '-'
   }
 
-  const ratio = groupRatio[group] || 1
+  const ratio = getConfiguredGroupRatio(groupRatio, group)
   let priceInUSD = (model.model_price || 0) * ratio
 
   priceInUSD = applyRechargeRate(
@@ -367,19 +246,16 @@ export function formatRequestPrice(
   model: PricingModel,
   showWithRecharge = false,
   priceRate = 1,
-  usdExchangeRate = 1
+  usdExchangeRate = 1,
+  selectedGroup?: string
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
-  const enableGroups = Array.isArray(model.enable_groups)
-    ? model.enable_groups
-    : []
-  const groupRatio = model.group_ratio || {}
-  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+  const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
-  let priceInUSD = (model.model_price || 0) * minRatio
+  let priceInUSD = (model.model_price || 0) * displayGroupRatio
 
   priceInUSD = applyRechargeRate(
     priceInUSD,

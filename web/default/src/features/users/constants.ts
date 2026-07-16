@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Shield, User, Users } from 'lucide-react'
+
 import type { User as UserType } from './types'
 
 // ============================================================================
@@ -34,6 +35,7 @@ export const isUserDeleted = (user: UserType): boolean => {
 export const USER_STATUS = {
   ENABLED: 1,
   DISABLED: 2,
+  DELETED: -1,
 } as const
 
 export const USER_STATUSES = {
@@ -41,25 +43,23 @@ export const USER_STATUSES = {
     labelKey: 'Enabled',
     variant: 'success' as const,
     value: USER_STATUS.ENABLED,
-    showDot: true,
   },
   [USER_STATUS.DISABLED]: {
     labelKey: 'Disabled',
     variant: 'neutral' as const,
     value: USER_STATUS.DISABLED,
-    showDot: true,
   },
-  DELETED: {
+  [USER_STATUS.DELETED]: {
     labelKey: 'Deleted',
     variant: 'danger' as const,
-    value: -1,
-    showDot: false,
+    value: USER_STATUS.DELETED,
   },
 } as const
 
 export const getUserStatusOptions = (t: (key: string) => string) => [
   { label: t('Enabled'), value: String(USER_STATUS.ENABLED) },
   { label: t('Disabled'), value: String(USER_STATUS.DISABLED) },
+  { label: t('Deleted'), value: String(USER_STATUS.DELETED) },
 ]
 
 // ============================================================================

@@ -396,3 +396,33 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
 	require.False(t, exists)
 }
+
+func TestClearCurrentChannelAffinityCache(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cacheKeySuffix := fmt.Sprintf("codex cli trace:default:clear-current-%d", time.Now().UnixNano())
+	cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9527, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeyFull,
+		TTLSeconds: 60,
+		RuleName:   "codex cli trace",
+		SkipRetry:  true,
+	})
+	// 本 fork 不从 meta 兜底推断 skip-retry（见 07175433e：亲和失败要允许 failover）。
+	// skip-retry 只有在渠道真正被标记使用时才由 MarkChannelAffinityUsed 写入该 gin key。
+	ctx.Set(ginKeyChannelAffinitySkipRetry, true)
+	require.True(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+
+	deleted := ClearCurrentChannelAffinityCache(ctx)
+	require.True(t, deleted)
+	_, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.False(t, found)
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+}

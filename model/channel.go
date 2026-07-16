@@ -143,7 +143,7 @@ func NormalizeChannelGroupFilter(group string) string {
 }
 
 func channelGroupFilterCondition() string {
-	if common.UsingMySQL {
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
 		return `CONCAT(',', ` + commonGroupCol + `, ',') LIKE ? ESCAPE '!'`
 	}
 	return `(',' || ` + commonGroupCol + ` || ',') LIKE ? ESCAPE '!'`
@@ -386,13 +386,13 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 	modelsCol := "`models`"
 
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		modelsCol = `"models"`
 	}
 
 	baseURLCol := "`base_url`"
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		baseURLCol = `"base_url"`
 	}
 
@@ -648,12 +648,24 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 	if len(keys) == 0 {
 		channel.Status = status
 	} else {
-		var keyIndex int
+		keyIndex := -1
 		for i, key := range keys {
 			if key == usingKey {
 				keyIndex = i
 				break
 			}
+		}
+		if keyIndex < 0 {
+			if usingKey != "" {
+				common.SysLog(fmt.Sprintf("failed to update multi-key status: channel_id=%d, using key not found", channel.Id))
+				return
+			}
+			channel.Status = status
+			info := channel.GetOtherInfo()
+			info["status_reason"] = reason
+			info["status_time"] = common.GetTimestamp()
+			channel.SetOtherInfo(info)
+			return
 		}
 		if channel.ChannelInfo.MultiKeyStatusList == nil {
 			channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
@@ -671,14 +683,29 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 			channel.ChannelInfo.MultiKeyDisabledReason[keyIndex] = reason
 			channel.ChannelInfo.MultiKeyDisabledTime[keyIndex] = common.GetTimestamp()
 		}
-		if len(channel.ChannelInfo.MultiKeyStatusList) >= channel.ChannelInfo.MultiKeySize {
+		if !hasEnabledMultiKey(keys, channel.ChannelInfo.MultiKeyStatusList) {
 			channel.Status = common.ChannelStatusAutoDisabled
 			info := channel.GetOtherInfo()
 			info["status_reason"] = "All keys are disabled"
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
+		} else if status == common.ChannelStatusEnabled {
+			channel.Status = common.ChannelStatusEnabled
 		}
 	}
+}
+
+func hasEnabledMultiKey(keys []string, statusList map[int]int) bool {
+	for i := range keys {
+		if statusList == nil {
+			return true
+		}
+		status, ok := statusList[i]
+		if !ok || status == common.ChannelStatusEnabled {
+			return true
+		}
+	}
+	return false
 }
 
 func UpdateChannelStatus(channelId int, usingKey string, status int, reason string) bool {
@@ -692,11 +719,15 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 		}
 		if channelCache.ChannelInfo.IsMultiKey {
 			// Use per-channel lock to prevent concurrent map read/write with GetNextEnabledKey
+			beforeStatus := channelCache.Status
 			pollingLock := GetChannelPollingLock(channelId)
 			pollingLock.Lock()
 			// 如果是多Key模式，更新缓存中的状态
 			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
 			pollingLock.Unlock()
+			if beforeStatus != channelCache.Status {
+				CacheUpdateChannelStatus(channelId, channelCache.Status)
+			}
 			//CacheUpdateChannel(channelCache)
 			//return true
 		} else {
@@ -872,13 +903,13 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 	modelsCol := "`models`"
 
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		modelsCol = `"models"`
 	}
 
 	baseURLCol := "`base_url`"
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		baseURLCol = `"base_url"`
 	}
 
@@ -916,6 +947,23 @@ func (channel *Channel) ValidateSettings() error {
 	if channel.Setting != nil && *channel.Setting != "" {
 		err := common.Unmarshal([]byte(*channel.Setting), channelParams)
 		if err != nil {
+			return err
+		}
+	}
+	channelOtherSettings := &dto.ChannelOtherSettings{}
+	if channel.OtherSettings != "" {
+		err := common.UnmarshalJsonStr(channel.OtherSettings, channelOtherSettings)
+		if err != nil {
+			return err
+		}
+	}
+	if channel.Type == constant.ChannelTypeAdvancedCustom {
+		if channelOtherSettings.AdvancedCustom == nil {
+			return fmt.Errorf("advanced_custom is required")
+		}
+	}
+	if channelOtherSettings.AdvancedCustom != nil {
+		if err := channelOtherSettings.AdvancedCustom.Validate(); err != nil {
 			return err
 		}
 	}

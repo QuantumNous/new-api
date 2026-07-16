@@ -17,17 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type LinkProps } from '@tanstack/react-router'
-
-/**
- * Workspace type
- * Used for top switcher to display different workspaces
- */
-export type Workspace = {
-  id: string
-  name: string
-  logo: React.ElementType
-  plan: string
-}
+import { type TFunction } from 'i18next'
 
 /**
  * Base navigation item type
@@ -38,6 +28,12 @@ type BaseNavItem = {
   icon?: React.ElementType
   activeUrls?: (LinkProps['to'] | (string & {}))[]
   configUrls?: (LinkProps['to'] | (string & {}))[]
+  /**
+   * Minimum role required to see this item in the sidebar. When set, the item
+   * is hidden for users whose role is below this threshold (see
+   * `useSidebarView`). Route-level guards still enforce access independently.
+   */
+  requiredRole?: number
 }
 
 /**
@@ -82,10 +78,12 @@ export type NavGroup = {
 }
 
 /**
- * Sidebar data type
+ * Root sidebar data type
+ *
+ * Used by the default (top-level) sidebar view that lists primary
+ * application navigation (chat, dashboard, admin, etc).
  */
 export type SidebarData = {
-  workspaces: Workspace[]
   navGroups: NavGroup[]
 }
 
@@ -99,4 +97,46 @@ export type TopNavLink = {
   disabled?: boolean
   requiresAuth?: boolean
   external?: boolean
+}
+
+/**
+ * Back-navigation descriptor for a nested sidebar view
+ */
+export type SidebarViewParent = {
+  /** Destination URL for the back button */
+  to: LinkProps['to'] | (string & {})
+  /** Visible label, e.g. "Back to Dashboard" — already localized */
+  label: string
+}
+
+/**
+ * Nested sidebar view configuration
+ *
+ * A nested view replaces the root navigation when the user enters a
+ * dedicated workspace (e.g. System Settings). It models the modern
+ * Vercel / Cloudflare "drill-in" sidebar UX: clicking a top-level entry
+ * swaps the sidebar to a contextual view with a "Back" affordance.
+ */
+export type SidebarView = {
+  /** Stable identifier (also drives transition animation keys) */
+  id: string
+  /** Path matcher that activates this view */
+  pathPattern: RegExp
+  /** Back-navigation descriptor; required for nested views */
+  parent: SidebarViewParent
+  /** Nav group builder, called per render with the active translator */
+  getNavGroups: (t: TFunction) => NavGroup[]
+}
+
+/**
+ * Resolved sidebar view returned by `useSidebarView()`
+ *
+ * - `view === null`: root navigation (default sidebar)
+ * - `view !== null`: nested workspace view (renders header + back button)
+ */
+export type ResolvedSidebarView = {
+  /** Animation/identity key — falls back to a sentinel for the root view */
+  key: string
+  view: SidebarView | null
+  navGroups: NavGroup[]
 }

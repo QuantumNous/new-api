@@ -244,14 +244,14 @@ func writeError(c *gin.Context, status int, msg string) {
 // (output_format, size, quality, background, model, usage). Clients depend
 // on output_format to know whether webp was honoured or silently demoted.
 type imageEnvelope struct {
-	Created       int64           `json:"created"`
-	Data          []dto.ImageData `json:"data"`
-	Background    string          `json:"background,omitempty"`
-	OutputFormat  string          `json:"output_format,omitempty"`
-	Quality       string          `json:"quality,omitempty"`
-	Size          string          `json:"size,omitempty"`
-	Model         string          `json:"model,omitempty"`
-	Usage         *dto.Usage      `json:"usage,omitempty"`
+	Created      int64           `json:"created"`
+	Data         []dto.ImageData `json:"data"`
+	Background   string          `json:"background,omitempty"`
+	OutputFormat string          `json:"output_format,omitempty"`
+	Quality      string          `json:"quality,omitempty"`
+	Size         string          `json:"size,omitempty"`
+	Model        string          `json:"model,omitempty"`
+	Usage        *dto.Usage      `json:"usage,omitempty"`
 }
 
 // buildImagesResponse turns the aggregated /v1/responses payload into the
@@ -329,6 +329,7 @@ func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.Im
 // cost across two fields:
 //   - response.usage          — LLM reasoning only (40-200 tokens)
 //   - tool_usage.image_gen.*  — image cost (often thousands of tokens)
+//
 // Forwarding only response.usage means logs show prompt/completion tokens
 // near 0 even when an actual high-res image was rendered. We merge both.
 func mergeUsage(agg *UpstreamResponse) *dto.Usage {
@@ -384,7 +385,7 @@ func applyBilling(c *gin.Context, info *relaycommon.RelayInfo, agg *UpstreamResp
 		imageN = *req.N
 	}
 	if info.PriceData.UsePrice {
-		if _, hasN := info.PriceData.OtherRatios["n"]; !hasN {
+		if !info.PriceData.HasOtherRatio("n") {
 			info.PriceData.AddOtherRatio("n", float64(imageN))
 		}
 	}
@@ -407,4 +408,3 @@ func applyBilling(c *gin.Context, info *relaycommon.RelayInfo, agg *UpstreamResp
 
 	service.PostTextConsumeQuota(c, info, usage, logContent)
 }
-

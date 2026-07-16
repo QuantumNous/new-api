@@ -55,11 +55,15 @@ type BillingSnapshot struct {
 
 // TieredResult holds everything needed after running tiered settlement.
 type TieredResult struct {
-	ActualQuotaBeforeGroup float64            `json:"actual_quota_before_group"`
-	ActualQuotaAfterGroup  int                `json:"actual_quota_after_group"`
-	QuotaClamp             *common.QuotaClamp `json:"quota_clamp,omitempty"`
-	MatchedTier            string             `json:"matched_tier"`
-	CrossedTier            bool               `json:"crossed_tier"`
+	ActualQuotaBeforeGroup float64 `json:"actual_quota_before_group"`
+	ActualQuotaAfterGroup  int     `json:"actual_quota_after_group"`
+	MatchedTier            string  `json:"matched_tier"`
+	CrossedTier            bool    `json:"crossed_tier"`
+	// Clamp records an int32 saturation event during quota conversion so the
+	// caller can surface it on the consume log for admin auditing. Nil when no
+	// clamping occurred. Not serialized: the marker is attached separately via
+	// the shared quota-saturation audit path.
+	Clamp *common.QuotaClamp `json:"-"`
 }
 
 // ExprHashString returns the SHA-256 hex digest of an expression string.

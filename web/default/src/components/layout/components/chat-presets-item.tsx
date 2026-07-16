@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { ExternalLink, Loader2, ChevronRight } from 'lucide-react'
+import { useMemo, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
 import {
   Collapsible,
   CollapsibleContent,
@@ -47,6 +48,7 @@ import {
   resolveChatUrl,
   type ChatPreset,
 } from '@/features/chat/lib/chat-links'
+
 import { normalizeHref } from '../lib/url-utils'
 import type { NavChatPresets } from '../types'
 
@@ -231,9 +233,9 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
           <DropdownMenuTrigger
             render={<SidebarMenuButton tooltip={item.title} />}
           >
-            {item.icon && <item.icon className='h-4 w-4' />}
-            <span>{item.title}</span>
-            <ChevronRight className='ms-auto h-4 w-4 opacity-70' />
+            {item.icon && <item.icon className='h-4 w-4 shrink-0' />}
+            <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+            <ChevronRight className='ms-auto h-4 w-4 shrink-0 opacity-70' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
             {visiblePresets.map((preset) => (
@@ -261,9 +263,9 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
         className='group/collapsible-trigger'
         render={<SidebarMenuButton />}
       >
-        {item.icon && <item.icon />}
-        <span>{item.title}</span>
-        <ChevronRight className='ms-auto transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
+        {item.icon && <item.icon className='shrink-0' />}
+        <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+        <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
       </CollapsibleTrigger>
       <CollapsibleContent className='CollapsibleContent'>
         <SidebarMenuSub>

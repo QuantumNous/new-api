@@ -70,7 +70,8 @@ func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
 	return nil
 }
 
-func renderCustomEvent(c *gin.Context, event common.CustomEvent) error {
+// event 以指针传递：common.CustomEvent 内含 sync.Mutex，按值传会复制锁。
+func renderCustomEvent(c *gin.Context, event *common.CustomEvent) error {
 	return event.Render(c.Writer)
 }
 
@@ -78,10 +79,10 @@ func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) error
 	if requestContextDone(c) {
 		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
-	if err := renderCustomEvent(c, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)}); err != nil {
+	if err := renderCustomEvent(c, &common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)}); err != nil {
 		return err
 	}
-	if err := renderCustomEvent(c, common.CustomEvent{Data: fmt.Sprintf("data: %s\n", data)}); err != nil {
+	if err := renderCustomEvent(c, &common.CustomEvent{Data: fmt.Sprintf("data: %s\n", data)}); err != nil {
 		return err
 	}
 	return FlushWriter(c)
@@ -92,10 +93,10 @@ func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data st
 		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
-	if err := renderCustomEvent(c, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)}); err != nil {
+	if err := renderCustomEvent(c, &common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)}); err != nil {
 		return err
 	}
-	if err := renderCustomEvent(c, common.CustomEvent{Data: fmt.Sprintf("data: %s", data)}); err != nil {
+	if err := renderCustomEvent(c, &common.CustomEvent{Data: fmt.Sprintf("data: %s", data)}); err != nil {
 		return err
 	}
 	return FlushWriter(c)

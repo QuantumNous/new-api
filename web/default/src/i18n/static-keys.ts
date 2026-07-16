@@ -27,9 +27,12 @@ export const STATIC_I18N_KEYS = [
   'Docs',
   'About',
 
-  // Workspace
+  // Sidebar views (drill-in workspaces)
   'System Settings',
-  'Manage and configure',
+  'Back to Dashboard',
+  'Auto-disable rules',
+  'Channel health checks',
+  'Request retry',
 
   // System settings sidebar
   'System Administration',
@@ -39,7 +42,15 @@ export const STATIC_I18N_KEYS = [
   'Content',
   'Integrations',
   'Models',
+  'Routing Reliability',
   'Maintenance',
+
+  // System info
+  'online',
+  'stale',
+  'Master instances run scheduled background tasks.',
+  'Worker instances do not run master-only background tasks.',
+  'Drawing task polling',
 
   // Pricing constants
   'Name',
@@ -89,6 +100,7 @@ export const STATIC_I18N_KEYS = [
   'Failed to delete API key',
   'Failed to delete API keys',
   'Failed to update API key status',
+  'Expected a JSON array of group identifiers',
   'Successfully created {{count}} API Key(s)',
   'Successfully deleted {{count}} API key(s)',
   'Enter API key for this channel',
@@ -203,7 +215,6 @@ export const STATIC_I18N_KEYS = [
 
   // Channel Affinity section
   'Channel Affinity',
-  'Configure channel affinity (sticky routing) rules',
 
   // Models constants
   'Exact Match',
@@ -218,6 +229,20 @@ export const STATIC_I18N_KEYS = [
   'Match models starting with this name',
   'Match models containing this name',
   'Match models ending with this name',
+
+  // Playground parameter controls
+  'Temperature',
+  'Top P',
+  'Frequency Penalty',
+  'Presence Penalty',
+  'Max Tokens',
+  'Seed',
+  'Controls randomness and creativity',
+  'Limits token selection to a probability mass',
+  'Reduces repeated wording',
+  'Encourages new topics',
+  'Caps the response length',
+  'Keeps compatible responses more repeatable',
   'All Status',
   'All Sync Status',
   'Official Sync',
@@ -317,6 +342,7 @@ export const STATIC_I18N_KEYS = [
   'Regex Replace',
   'Return Error',
   'Param Override',
+  'Override request parameters',
 
   // Profile / 2FA
   'Backed up',
@@ -341,7 +367,7 @@ export const STATIC_I18N_KEYS = [
 
   // Subscription management
   'Subscription Management',
-  'Manage subscription plan creation, pricing and status',
+  'Subscriptions',
   'Stripe/Creem requires creating products on the third-party platform and entering the ID',
   'Create Plan',
   'Active',
@@ -351,6 +377,10 @@ export const STATIC_I18N_KEYS = [
   'Priority',
   'Payment Channel',
   'No Upgrade',
+  'Downgrade to pre-purchase group',
+  'Downgrade Group',
+  'Downgrade to this group after the subscription expires',
+  'Allow wallet balance after quota used up',
   'Unlimited',
   'Update plan info',
   'Create new subscription plan',
@@ -362,6 +392,10 @@ export const STATIC_I18N_KEYS = [
   'Plan Subtitle',
   'e.g. Suitable for light usage',
   'Actual Amount',
+  'Plan Price',
+  'Amount the user pays to purchase this plan; the actual currency depends on the payment gateway.',
+  'Plan Quota',
+  'Total quota included in the plan, usable per billing period. 0 means unlimited.',
   'Total Quota',
   '0 means unlimited',
   'Sort Order',
@@ -420,10 +454,28 @@ export const STATIC_I18N_KEYS = [
   'Playground',
   'AI model testing environment',
   'Chat session management',
+  'No content to copy',
+  'Please wait for the current generation to complete',
+  'An unknown error occurred',
+  'Request error occurred',
+  'Network connection failed or server not responding',
+  'Error parsing response data',
+  'Error establishing connection',
+  'Connection closed',
+  'Generation was interrupted',
+  'Note',
+  'Tip',
+  'Important',
+  'Image not available',
+  'Back to footnote {{id}} reference',
   'Console Area',
   'Data management and log viewing',
   'Dashboard',
   'System data statistics',
+  'Flow',
+  'Flow Filters',
+  'Filter the traffic flow view by time range and user.',
+  'Requests',
   'Token Management',
   'API token management',
   'Usage Logs',
@@ -458,7 +510,6 @@ export const STATIC_I18N_KEYS = [
 
   // Grok settings
   'Grok Settings',
-  'Configure xAI Grok model specific settings',
   'Enable violation deduction',
   'When enabled, violation requests will incur additional charges.',
   'Official documentation',
@@ -479,6 +530,20 @@ export const STATIC_I18N_KEYS = [
   'Detection complete: {{add}} to add, {{remove}} to remove',
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
+
+  // Dashboard flow stages (labels/descriptions passed to t at runtime)
+  'User',
+  'Node',
+  'Token',
+  'Group',
+  'Model',
+  'Channel',
+  'The user who made the requests',
+  'The deployment node that handled the requests',
+  'The API key used for the requests',
+  'The user group applied to the requests',
+  'The model that was requested',
+  'The upstream channel that served the requests',
 
   // Misc
   'Cancel',

@@ -11,25 +11,28 @@ import (
 func withRelayTimeoutConfig(t *testing.T) {
 	t.Helper()
 	old := struct {
-		hdr, streamHdr, dial, tls, relay int
+		hdr, streamHdr, dial, tls, relay, idle int
 	}{
 		common.RelayResponseHeaderTimeout,
 		common.RelayStreamResponseHeaderTimeout,
 		common.RelayDialTimeout,
 		common.RelayTLSHandshakeTimeout,
 		common.RelayTimeout,
+		common.RelayIdleConnTimeout,
 	}
 	common.RelayResponseHeaderTimeout = 60
 	common.RelayStreamResponseHeaderTimeout = 30
 	common.RelayDialTimeout = 10
 	common.RelayTLSHandshakeTimeout = 10
 	common.RelayTimeout = 0
+	common.RelayIdleConnTimeout = 90
 	t.Cleanup(func() {
 		common.RelayResponseHeaderTimeout = old.hdr
 		common.RelayStreamResponseHeaderTimeout = old.streamHdr
 		common.RelayDialTimeout = old.dial
 		common.RelayTLSHandshakeTimeout = old.tls
 		common.RelayTimeout = old.relay
+		common.RelayIdleConnTimeout = old.idle
 		InitHttpClient()
 	})
 }

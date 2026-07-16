@@ -16,15 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo, useState } from 'react'
-import {
-  flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
 import { Loader2, Search } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  DataTablePagination,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -34,24 +34,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { DataTablePagination } from '@/components/data-table/pagination'
+
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 import { useUpstreamRatioSyncColumns } from './upstream-ratio-sync-columns'
 import {
+  getAlignedRatioTypes,
+  getEffectiveResolutionSelections,
   getOrderedRatioTypes,
-  getPreferredSyncField,
+  getUpstreamDisplayName,
+  isSelectedResolutionValue,
   isSelectableUpstreamValue,
   RATIO_SYNC_FIELDS,
   type ModelRow,
+  type ResolutionRemovalPlan,
+  type ResolutionSelection,
   type ResolutionsMap,
 } from './upstream-ratio-sync-helpers'
 
@@ -66,7 +63,17 @@ type UpstreamRatioSyncTableProps = {
     value: number | string,
     sourceName: string
   ) => void
+  onSelectValues: (selections: ResolutionSelection[]) => void
   onUnselectValue: (model: string, ratioType: RatioType) => void
+  onUnselectValues: (plan: ResolutionRemovalPlan) => void
+}
+
+export type UpstreamBulkSelectState = {
+  displayName: string
+  selections: ResolutionSelection[]
+  removalPlan: ResolutionRemovalPlan
+  selectableCount: number
+  selectedCount: number
 }
 
 export function UpstreamRatioSyncTable({
@@ -75,7 +82,9 @@ export function UpstreamRatioSyncTable({
   isDisabled,
   isSyncing,
   onSelectValue,
+  onSelectValues,
   onUnselectValue,
+  onUnselectValues,
 }: UpstreamRatioSyncTableProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
@@ -120,57 +129,88 @@ export function UpstreamRatioSyncTable({
         }
       )
     })
-    return Array.from(set)
+    return [...set]
   }, [filteredData, ratioTypeFilter])
 
-  const handleBulkSelect = useCallback(
-    (upstream: string, rows: ModelRow[]) => {
-      rows.forEach((row) => {
-        getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
-          (ratioType) => {
-            const upstreamVal = row.ratioTypes[ratioType]?.upstreams?.[upstream]
-            const preferredField = getPreferredSyncField(
-              row.ratioTypes,
-              ratioType,
-              upstream
-            )
-            if (
-              preferredField === ratioType &&
-              isSelectableUpstreamValue(upstreamVal)
-            ) {
-              onSelectValue(
-                row.model,
+  const bulkSelectStateByUpstream = useMemo<
+    Record<string, UpstreamBulkSelectState>
+  >(() => {
+    return upstreamNames.reduce<Record<string, UpstreamBulkSelectState>>(
+      (states, upstreamName) => {
+        const selections: ResolutionSelection[] = []
+        const removalPlan: ResolutionRemovalPlan = new Map()
+
+        filteredData.forEach((row) => {
+          getAlignedRatioTypes(
+            row.ratioTypes,
+            [upstreamName],
+            ratioTypeFilter
+          ).forEach((ratioType) => {
+            const upstreamVal =
+              row.ratioTypes[ratioType]?.upstreams?.[upstreamName]
+            if (isSelectableUpstreamValue(upstreamVal)) {
+              selections.push({
+                model: row.model,
                 ratioType,
-                upstreamVal as number | string,
-                upstream
-              )
+                value: upstreamVal as number | string,
+                sourceName: upstreamName,
+              })
+              const removalRatioTypes = removalPlan.get(row.model)
+              if (removalRatioTypes) {
+                removalRatioTypes.add(ratioType)
+              } else {
+                removalPlan.set(row.model, new Set([ratioType]))
+              }
             }
-          }
+          })
+        })
+
+        const effectiveSelections = getEffectiveResolutionSelections(
+          differences,
+          selections
         )
-      })
+        const selectedCount = effectiveSelections.filter((selection) =>
+          isSelectedResolutionValue(
+            resolutions,
+            selection.model,
+            selection.ratioType,
+            selection.value
+          )
+        ).length
+
+        states[upstreamName] = {
+          displayName: getUpstreamDisplayName(upstreamName),
+          selections: effectiveSelections,
+          removalPlan,
+          selectableCount: effectiveSelections.length,
+          selectedCount,
+        }
+        return states
+      },
+      {}
+    )
+  }, [differences, filteredData, ratioTypeFilter, resolutions, upstreamNames])
+
+  const handleBulkSelect = useCallback(
+    (upstream: string) => {
+      const selections = bulkSelectStateByUpstream[upstream]?.selections ?? []
+      onSelectValues(selections)
     },
-    [ratioTypeFilter, onSelectValue]
+    [bulkSelectStateByUpstream, onSelectValues]
   )
 
   const handleBulkUnselect = useCallback(
-    (upstream: string, rows: ModelRow[]) => {
-      rows.forEach((row) => {
-        getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
-          (ratioType) => {
-            if (
-              row.ratioTypes[ratioType]?.upstreams?.[upstream] !== undefined
-            ) {
-              onUnselectValue(row.model, ratioType)
-            }
-          }
-        )
-      })
+    (upstream: string) => {
+      const removalPlan =
+        bulkSelectStateByUpstream[upstream]?.removalPlan ?? new Map()
+      onUnselectValues(removalPlan)
     },
-    [ratioTypeFilter, onUnselectValue]
+    [bulkSelectStateByUpstream, onUnselectValues]
   )
 
   const columns = useUpstreamRatioSyncColumns(
     upstreamNames,
+    bulkSelectStateByUpstream,
     resolutions,
     ratioTypeFilter,
     isDisabled,
@@ -180,15 +220,14 @@ export function UpstreamRatioSyncTable({
     handleBulkUnselect
   )
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: filteredData,
     columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.key,
-    initialState: {
-      pagination: { pageSize: 10 },
-    },
+    initialPagination: { pageIndex: 0, pageSize: 10 },
+    withFilteredRowModel: false,
+    withSortedRowModel: false,
+    withFacetedRowModel: false,
   })
 
   if (dataSource.length === 0) {
@@ -218,8 +257,8 @@ export function UpstreamRatioSyncTable({
   }
 
   return (
-    <div className='space-y-4'>
-      <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+    <div className='flex h-full min-h-[520px] flex-col gap-4'>
+      <div className='flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center'>
         <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2' />
           <Input
@@ -258,55 +297,25 @@ export function UpstreamRatioSyncTable({
         </Select>
       </div>
 
-      <div className='overflow-hidden rounded-md border'>
-        <div className='overflow-x-auto'>
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className='align-top'>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} className='align-top'>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className='align-top'>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className='h-24 text-center'
-                  >
-                    {t('No results found')}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+      <DataTableView
+        table={table}
+        containerClassName='min-h-0 flex-1 rounded-md'
+        tableContainerClassName='h-full min-h-0'
+        tableHeaderClassName='[background-color:var(--table-header)]'
+        splitHeaderScrollClassName='h-full'
+        bodyContainerClassName='[scrollbar-gutter:stable]'
+        splitHeader
+        getColumnClassName={(_, part) =>
+          part === 'header' ? 'h-11 align-middle' : 'align-top'
+        }
+        getRowClassName={() => 'align-top'}
+        emptyContent={t('No results found')}
+        emptyCellClassName='h-24 text-center'
+      />
 
-      <DataTablePagination table={table} />
+      <div className='shrink-0'>
+        <DataTablePagination table={table} />
+      </div>
     </div>
   )
 }

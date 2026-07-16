@@ -96,20 +96,12 @@ func getWaffoPancakeBuyerEmail(user *model.User) string {
 	if user != nil && strings.TrimSpace(user.Email) != "" {
 		return user.Email
 	}
-	if user != nil {
-		return fmt.Sprintf("%d@new-api.local", user.Id)
-	}
 	return ""
 }
 
 // The admin config endpoints below accept typed-but-not-yet-saved creds in
 // the body and fall back to persisted creds when the body is blank (see
 // resolveWaffoPancakeAdminCreds). Only SaveWaffoPancake writes to OptionMap.
-
-type waffoPancakeCredsRequest struct {
-	MerchantID string `json:"merchant_id"`
-	PrivateKey string `json:"private_key"`
-}
 
 type saveWaffoPancakeRequest struct {
 	MerchantID string `json:"merchant_id"`
@@ -224,15 +216,11 @@ func CreateWaffoPancakePair(c *gin.Context) {
 // Doubles as a credential probe (a successful 200 proves the resolved creds
 // authenticate). See resolveWaffoPancakeAdminCreds for credential resolution.
 func ListWaffoPancakeCatalog(c *gin.Context) {
-	var req waffoPancakeCredsRequest
-	// An empty body means "use persisted creds"; only fail on malformed JSON.
-	if c.Request.ContentLength > 0 {
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
-			return
-		}
-	}
-	merchantID, privateKey := resolveWaffoPancakeAdminCreds(req.MerchantID, req.PrivateKey)
+	// Missing query creds mean "use persisted creds".
+	merchantID, privateKey := resolveWaffoPancakeAdminCreds(
+		strings.TrimSpace(c.Query("merchant_id")),
+		strings.TrimSpace(c.Query("private_key")),
+	)
 	if merchantID == "" || privateKey == "" {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 凭证未配置"})
 		return
@@ -408,8 +396,9 @@ func RequestWaffoPancakePay(c *gin.Context) {
 			Amount:      formatWaffoPancakeAmount(payMoney),
 			TaxCategory: "saas",
 		},
-		BuyerEmail:       getWaffoPancakeBuyerEmail(user),
-		ExpiresInSeconds: &expiresInSeconds,
+		BuyerEmail:              getWaffoPancakeBuyerEmail(user),
+		ExpiresInSeconds:        &expiresInSeconds,
+		OrderMerchantExternalID: tradeNo,
 	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 创建结账会话失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
@@ -485,9 +474,9 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		return
 	}
 
-	// Subscription vs top-up dispatch by trade_no prefix (written at
-	// session-creation time): WAFFO_PANCAKE_SUB- vs WAFFO_PANCAKE-.
-	rawTradeNo := strings.TrimSpace(event.Data.OrderID)
+	// Dispatch by trade_no prefix. OrderMerchantExternalID = our trade_no;
+	// OrderID is Pancake's internal ORD_* (logs only).
+	rawTradeNo := strings.TrimSpace(event.Data.OrderMerchantExternalID)
 	isSubscription := strings.HasPrefix(rawTradeNo, "WAFFO_PANCAKE_SUB-")
 
 	if isSubscription {

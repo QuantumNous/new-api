@@ -20,12 +20,25 @@ For commercial licensing, please contact support@quantumnous.com
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/public-sans';
+/* Editorial serif (Lora) backing the `serif` font axis and the Anthropic
+ * preset's default typography. See `--font-serif` in theme.css for the
+ * full Latin + CJK fallback stack and `theme-presets.css` for the cascade
+ * that activates it. Loaded globally so font-switching is instantaneous
+ * with no FOUT once the variable is fetched. */
+@import '@fontsource-variable/lora';
 
 @import './theme.css';
 @import './theme-presets.css';
 
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {
+  .shiki span {
+    color: var(--shiki-light) !important;
+    font-style: var(--shiki-light-font-style) !important;
+    font-weight: var(--shiki-light-font-weight) !important;
+    text-decoration: var(--shiki-light-text-decoration) !important;
+  }
+
   .dark .shiki span {
     color: var(--shiki-dark) !important;
     font-style: var(--shiki-dark-font-style) !important;
@@ -44,7 +57,11 @@ For commercial licensing, please contact support@quantumnous.com
     @apply overflow-x-hidden font-sans;
   }
   body {
-    @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full font-sans;
+    @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full;
+    /* Font is driven by the theme's font axis via `--font-body`
+     * (defined in theme.css, swapped by `[data-theme-font='...']` blocks
+     * in theme-presets.css). Defaults to the project's humanist sans. */
+    font-family: var(--font-body);
   }
 
   /* Keep sticky headers stable while primitives lock body scrolling. */
@@ -134,6 +151,18 @@ For commercial licensing, please contact support@quantumnous.com
   /* Hide scrollbar for IE, Edge and Firefox */
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
+}
+
+/* Tooltip content can still scroll, but should not show a distracting axis. */
+[data-slot='tooltip-content'],
+[data-slot='tooltip-content'] * {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+[data-slot='tooltip-content']::-webkit-scrollbar,
+[data-slot='tooltip-content'] *::-webkit-scrollbar {
+  display: none;
 }
 
 @utility hover-scrollbar {
@@ -455,19 +484,19 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* Micro-interactions — Vercel-style subtle hover/active feedback */
 @media (prefers-reduced-motion: no-preference) {
-  [data-slot='card'] {
+  [data-slot='card']:not([data-card-hover='false']) {
     transition:
       transform 150ms ease,
       box-shadow 150ms ease;
   }
 
   @media (min-width: 641px) {
-    [data-slot='card']:hover {
+    [data-slot='card']:not([data-card-hover='false']):hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
     }
 
-    .dark [data-slot='card']:hover {
+    .dark [data-slot='card']:not([data-card-hover='false']):hover {
       box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
     }
   }

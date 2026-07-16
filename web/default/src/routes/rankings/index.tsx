@@ -16,15 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useAuthStore } from '@/stores/auth-store'
-import { getFreshModuleAccess } from '@/lib/nav-modules'
+import z from 'zod'
+
 import { Rankings } from '@/features/rankings'
+import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { useAuthStore } from '@/stores/auth-store'
 
 const rankingsSearchSchema = z.object({
   period: z
-    .enum(['today', 'week', 'month', 'year', 'all'])
+    .enum(['today', 'week', 'month', 'year'])
     .optional()
     .catch(undefined),
 })

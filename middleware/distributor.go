@@ -102,14 +102,20 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					affinityKey := model.ChannelHealthKey{ChannelID: preferredChannelID, Model: modelRequest.Model, Path: service.ChannelHealthPath(c.Request.URL.Path)}
 					// Keep prompt-cache affinity only while the sticky channel is fast
-					// enough. A sustained-slow sticky yields to normal health-weighted
-					// selection so a cache-locked user is moved to a faster available
-					// channel (IsChannelFastEnoughForAffinity is checked before Acquire
-					// so we never strand a half-open probe lease on a channel we skip).
-					if err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) && model.IsChannelFastEnoughForAffinity(affinityKey) && model.AcquireChannelHealth(affinityKey) {
+					// enough and actually serves this request path. A sustained-slow
+					// sticky yields to normal health-weighted selection so a cache-locked
+					// user is moved to a faster available channel
+					// (IsChannelFastEnoughForAffinity is checked before Acquire so we
+					// never strand a half-open probe lease on a channel we skip); an
+					// Advanced Custom channel whose routes do not cover this path must
+					// not be pinned either.
+					if err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) &&
+						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) &&
+						model.IsChannelFastEnoughForAffinity(affinityKey) && model.AcquireChannelHealth(affinityKey) {
 						if preferred.Status != common.ChannelStatusEnabled {
 							// Affinity channel is disabled, fall back to random selection
 							// Skip retry only applies if we actually used the affinity channel
@@ -121,6 +127,7 @@ func Distribute() func(c *gin.Context) {
 									selectGroup = g
 									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
 									channel = preferred
+									affinityUsable = true
 									service.MarkChannelAffinityUsed(c, g, preferred.Id)
 									break
 								}
@@ -128,8 +135,12 @@ func Distribute() func(c *gin.Context) {
 						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
 							channel = preferred
 							selectGroup = usingGroup
+							affinityUsable = true
 							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
+					}
+					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+						service.ClearCurrentChannelAffinityCache(c)
 					}
 				}
 
@@ -138,7 +149,7 @@ func Distribute() func(c *gin.Context) {
 						Ctx:         c,
 						ModelName:   modelRequest.Model,
 						TokenGroup:  usingGroup,
-						RequestPath: service.ChannelHealthPath(c.Request.URL.Path),
+						RequestPath: c.Request.URL.Path,
 						Retry:       common.GetPointer(0),
 					})
 					if err != nil {
@@ -169,6 +180,20 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+// channelSupportsRequestPath reports whether a channel can serve the request path.
+// Only Advanced Custom (type 58) channels are path-checked; all other channel types
+// always pass. A type-58 channel is usable only when one of its routes matches.
+func channelSupportsRequestPath(channel *model.Channel, requestPath string, requestModel string) bool {
+	if channel == nil {
+		return false
+	}
+	if channel.Type != constant.ChannelTypeAdvancedCustom {
+		return true
+	}
+	config := channel.GetOtherSettings().AdvancedCustom
+	return config != nil && config.SupportsPathForModel(requestPath, requestModel)
 }
 
 // getModelFromRequest 从请求中读取模型信息
@@ -303,6 +328,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
 			shouldSelectChannel = false
+			modelRequest.Model = getTaskOriginModelName(c)
 		}
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
@@ -317,6 +343,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
 			shouldSelectChannel = false
+			modelRequest.Model = getTaskOriginModelName(c)
 		}
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
@@ -409,6 +436,31 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 	}
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+// 修复 #4834: GET /v1/video/generations/:task_id && /v1/video/:task_id 此前不解析 model，
+// 当 token 启用「可用模型限制」时，下游 modelLimitEnable 校验会因
+// modelRequest.Model 为空而误报 "This token has no access to model"。
+// 从已存储的任务记录中回填 OriginModelName 即可让校验走在正确的模型上。
+func getTaskOriginModelName(c *gin.Context) string {
+	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+		return ""
+	}
+
+	taskId := c.Param("task_id")
+	if taskId == "" {
+		// jimeng adapter
+		taskId = c.GetString("task_id")
+	}
+	if taskId == "" {
+		return ""
+	}
+
+	userId := c.GetInt("id")
+	if task, exist, err := model.GetByTaskId(userId, taskId); err == nil && exist && task != nil {
+		return task.Properties.OriginModelName
+	}
+	return ""
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {

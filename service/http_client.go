@@ -18,22 +18,42 @@ import (
 )
 
 var (
-	httpClient       *http.Client // non-streaming relay + general use
-	httpClientStream *http.Client // streaming relay: shorter response-header timeout
-	proxyClientLock  sync.Mutex
-	proxyClients     = make(map[string]*http.Client)
+	httpClient              *http.Client // non-streaming relay + general use
+	httpClientStream        *http.Client // streaming relay: shorter response-header timeout
+	ssrfProtectedHTTPClient *http.Client // arbitrary user-controlled URL fetches
+	proxyClientLock         sync.Mutex
+	proxyClients            = make(map[string]*http.Client)
 )
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
-	fetchSetting := system_setting.GetFetchSetting()
 	urlStr := req.URL.String()
-	if err := common.ValidateURLWithFetchSetting(urlStr, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
+	if err := validateURLWithCurrentFetchSetting(urlStr, true); err != nil {
 		return fmt.Errorf("redirect to %s blocked: %v", urlStr, err)
 	}
 	if len(via) >= 10 {
 		return fmt.Errorf("stopped after 10 redirects")
 	}
 	return nil
+}
+
+func checkProtectedFetchRedirect(req *http.Request, via []*http.Request) error {
+	urlStr := req.URL.String()
+	if err := ValidateSSRFProtectedFetchURL(urlStr); err != nil {
+		return fmt.Errorf("redirect to %s blocked: %v", urlStr, err)
+	}
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after 10 redirects")
+	}
+	return nil
+}
+
+func validateURLWithCurrentFetchSetting(urlStr string, applyDomainIPFilter bool) error {
+	fetchSetting := system_setting.GetFetchSetting()
+	return common.ValidateURLWithFetchSetting(urlStr, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, applyDomainIPFilter && fetchSetting.ApplyIPFilterForDomain)
+}
+
+func ValidateSSRFProtectedFetchURL(urlStr string) error {
+	return validateURLWithCurrentFetchSetting(urlStr, true)
 }
 
 // relayResponseHeaderTimeout returns the response-header timeout for the given
@@ -71,7 +91,7 @@ func newRelayTransport(
 		MaxIdleConns:          common.RelayMaxIdleConns,
 		MaxIdleConnsPerHost:   common.RelayMaxIdleConnsPerHost,
 		ForceAttemptHTTP2:     true,
-		IdleConnTimeout:       90 * time.Second,
+		IdleConnTimeout:       time.Duration(common.RelayIdleConnTimeout) * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSHandshakeTimeout:   time.Duration(common.RelayTLSHandshakeTimeout) * time.Second,
 		ResponseHeaderTimeout: relayResponseHeaderTimeout(streaming),
@@ -127,12 +147,27 @@ func newRelayClient(transport *http.Transport) *http.Client {
 func InitHttpClient() {
 	httpClient = newRelayClient(newRelayTransport(false, http.ProxyFromEnvironment, nil))
 	httpClientStream = newRelayClient(newRelayTransport(true, http.ProxyFromEnvironment, nil))
+	ssrfProtectedHTTPClient = newProtectedFetchHTTPClient()
 }
 
-// GetHttpClient returns the shared non-streaming relay client (also used for
-// general-purpose upstream calls).
+// GetHttpClient returns the shared non-streaming relay client, also used as the
+// general outbound client by relay/provider integrations. Do not attach the
+// SSRF-protected dialer here: provider base URLs are root/operator-managed
+// deployment targets, not arbitrary user-controlled input, and may legitimately
+// point at private networks, private-link endpoints, self-hosted services, or
+// local proxies. Code paths that fetch arbitrary user-controlled URLs must use
+// GetSSRFProtectedHTTPClient or ValidateSSRFProtectedFetchURL instead.
 func GetHttpClient() *http.Client {
 	return httpClient
+}
+
+// GetSSRFProtectedHTTPClient 返回带拨号时 SSRF 校验的客户端。
+// ssrfProtectedHTTPClient 由 InitHttpClient 在启动时初始化，运行期只读。
+func GetSSRFProtectedHTTPClient() *http.Client {
+	if fetchSetting := system_setting.GetFetchSetting(); fetchSetting != nil && !fetchSetting.EnableSSRFProtection {
+		return GetHttpClient()
+	}
+	return ssrfProtectedHTTPClient
 }
 
 // GetRelayHttpClient returns the shared relay client tuned for the request's

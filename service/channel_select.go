@@ -119,12 +119,15 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			channel, _ = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
 				ExcludedChannelIDs: param.ExcludedChannelIDs,
+				// Raw path matches Advanced Custom routes; normalized path keys the
+				// bounded channel-health registry.
+				RequestPath: param.RequestPath,
 				// Last-resort fallback to a cooling channel when no healthy one is
 				// available: on the first pass (nothing excluded yet) or on the final
 				// group of the walk, where there is no further group whose healthy
 				// channels we would rather try first.
 				AllowCoolingFallback: len(param.ExcludedChannelIDs) == 0 || i == len(autoGroups)-1,
-				Path:                 param.RequestPath,
+				Path:                 ChannelHealthPath(param.RequestPath),
 			})
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
@@ -165,13 +168,16 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	} else {
 		channel, err = model.GetRandomSatisfiedChannelWithOptions(param.TokenGroup, param.ModelName, param.GetRetry(), model.ChannelSelectionOptions{
 			ExcludedChannelIDs: param.ExcludedChannelIDs,
+			// Raw path matches Advanced Custom routes; normalized path keys the
+			// bounded channel-health registry.
+			RequestPath: param.RequestPath,
 			// Single group has no other group to fall back to, so always permit a
 			// last-resort cooling channel. It only ever activates when no healthy,
 			// non-excluded channel remains, and never re-selects an already-tried
 			// channel (those are in ExcludedChannelIDs) — so retries reach for a
 			// cooling channel instead of failing with "no available channel".
 			AllowCoolingFallback: true,
-			Path:                 param.RequestPath,
+			Path:                 ChannelHealthPath(param.RequestPath),
 		})
 		if err != nil {
 			return nil, param.TokenGroup, err
