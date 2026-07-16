@@ -75,8 +75,10 @@ export function isPerCallBilling(modelPrice?: number): boolean {
 /**
  * Get default time range (today 00:00:00 to now + 1 hour)
  */
-export function getDefaultTimeRange(): { start: Date; end: Date } {
-  const now = new Date()
+export function getDefaultTimeRange(now: Date = new Date()): {
+  start: Date
+  end: Date
+} {
   const start = new Date(now)
   start.setHours(0, 0, 0, 0)
   const end = new Date(now.getTime() + 3600 * 1000) // +1 hour
@@ -92,24 +94,6 @@ function timestampToSeconds(ms: number): number {
 }
 
 /**
- * Build query parameters from filters
- */
-export function buildQueryParams(
-  params: Record<string, unknown>
-): URLSearchParams {
-  const queryParams = new URLSearchParams()
-
-  Object.entries(params).forEach(([key, value]) => {
-    // Keep 0 as a valid value, only filter out undefined, null, and empty string
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, String(value))
-    }
-  })
-
-  return queryParams
-}
-
-/**
  * Build time range parameters with default values
  * Shared logic for all log types
  */
@@ -117,15 +101,17 @@ function buildTimeRangeParams(
   searchParams: Record<string, unknown>,
   useMilliseconds: boolean
 ): { start_timestamp?: number; end_timestamp?: number } {
-  const hasTimeParams = searchParams.startTime ?? searchParams.endTime
+  const hasTimeParams =
+    searchParams.startTime !== undefined || searchParams.endTime !== undefined
   const defaultTimeRange = !hasTimeParams ? getDefaultTimeRange() : null
 
   const convertTimestamp = (timestamp: number) =>
     useMilliseconds ? timestamp : timestampToSeconds(timestamp)
 
   const getTimestamp = (paramTime?: unknown, defaultTime?: Date) => {
-    const time = (paramTime as number) || defaultTime?.getTime()
-    return time ? convertTimestamp(time) : undefined
+    const time =
+      typeof paramTime === 'number' ? paramTime : defaultTime?.getTime()
+    return time !== undefined ? convertTimestamp(time) : undefined
   }
 
   return {
