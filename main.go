@@ -79,6 +79,14 @@ func main() {
 	if common.RedisEnabled {
 		// for compatibility with old versions
 		common.MemoryCacheEnabled = true
+		// Multi-instance adaptive metrics snapshot (best-effort, 2m TTL).
+		gopool.Go(func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				service.SyncAdaptiveMetricsToRedis()
+			}
+		})
 	}
 	if common.MemoryCacheEnabled {
 		common.SysLog("memory cache enabled")
@@ -160,10 +168,10 @@ func main() {
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
+			log.Println(http.ListenAndServe("127.0.0.1:8005", nil))
 		})
 		go common.Monitor()
-		common.SysLog("pprof enabled")
+		common.SysLog("pprof enabled on 127.0.0.1:8005")
 	}
 
 	err = common.StartPyroScope()
@@ -174,10 +182,15 @@ func main() {
 	// Initialize HTTP server
 	server := gin.New()
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
-		common.SysLog(fmt.Sprintf("panic detected: %v", err))
+		reqID := c.GetString(common.RequestIdKey)
+		common.SysLog(fmt.Sprintf("panic detected request_id=%s: %v", reqID, err))
+		msg := "Internal server error"
+		if reqID != "" {
+			msg = fmt.Sprintf("Internal server error (request_id=%s)", reqID)
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
-				"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
+				"message": msg,
 				"type":    "new_api_panic",
 			},
 		})
@@ -186,6 +199,7 @@ func main() {
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
 	server.Use(middleware.Version())
+	server.Use(middleware.TraceContext())
 	server.Use(middleware.I18n())
 	middleware.SetUpLogger(server)
 	// Initialize session store
