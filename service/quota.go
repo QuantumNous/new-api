@@ -469,7 +469,12 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 			quotaTooLow = true
 		}
 		if quotaTooLow {
+			// 根据用户语言偏好选择通知语言，未设置时保持默认中文
+			useEnglish := strings.HasPrefix(strings.ToLower(userSetting.Language), "en")
 			prompt := "您的额度即将用尽"
+			if useEnglish {
+				prompt = "Your quota is running low"
+			}
 			topUpLink := PaymentReturnURL("/console/topup")
 
 			// 根据通知方式生成不同的内容格式
@@ -484,13 +489,22 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 			if notifyType == dto.NotifyTypeBark {
 				// Bark推送使用简短文本，不支持HTML
 				content = "{{value}}，剩余额度：{{value}}，请及时充值"
+				if useEnglish {
+					content = "{{value}}, remaining quota: {{value}}, please top up in time"
+				}
 				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota)}
 			} else if notifyType == dto.NotifyTypeGotify {
 				content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
+				if useEnglish {
+					content = "{{value}}, your current remaining quota is {{value}}, please top up in time."
+				}
 				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota)}
 			} else {
 				// 默认内容格式，适用于Email和Webhook（支持HTML）
 				content = "{{value}}，当前剩余额度为 {{value}}，为了不影响您的使用，请及时充值。<br/>充值链接：<a href='{{value}}'>{{value}}</a>"
+				if useEnglish {
+					content = "{{value}}, your current remaining quota is {{value}}. To avoid service interruption, please top up in time.<br/>Top-up link: <a href='{{value}}'>{{value}}</a>"
+				}
 				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota), topUpLink, topUpLink}
 			}
 
