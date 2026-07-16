@@ -1144,9 +1144,13 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		// gpt-image-2 strips response_format upstream (no enabled channel accepts it),
 		// so honor the client's requested format here by transforming the payload.
 		if clientFmt := service.GptImage2ClientResponseFormat(c); clientFmt == "b64_json" {
-			// Client wants base64: convert url→b64 and skip URL rewrite (which would
-			// otherwise turn any base64 back into a cached url).
-			responseBody = service.ConvertImageResponseFormat(responseBody, "b64_json", imageCacheAuthHeaders(c))
+			// Keep a cached URL for the usage-log preview while returning the image
+			// as base64 to the client.
+			var previewURL string
+			responseBody, previewURL = service.ConvertImageResponseToB64WithPreview(responseBody, imageCacheAuthHeaders(c))
+			if previewURL != "" {
+				c.Set("image_result_url", previewURL)
+			}
 		} else {
 			responseBody = service.RewriteImageResponseBodyWithHeaders(responseBody, imageCacheAuthHeaders(c))
 			if resultURL := service.ExtractFirstImageURLFromResponse(responseBody); resultURL != "" {

@@ -63,3 +63,35 @@ func TestConvertImageResponseFormatB64AlreadySatisfied(t *testing.T) {
 		t.Fatalf("b64_json should be preserved: %s", out)
 	}
 }
+
+func TestConvertImageResponseToB64WithPreviewPersistsImage(t *testing.T) {
+	oldDir := imageCacheDir
+	oldBase := imageCachePublicBase
+	tmp := t.TempDir()
+	imageCacheDir = tmp
+	imageCachePublicBase = "https://apimaster.ai/imgs/"
+	defer func() {
+		imageCacheDir = oldDir
+		imageCachePublicBase = oldBase
+	}()
+
+	body := []byte(`{"data":[{"b64_json":"aGVsbG8="}]}`)
+	out, previewURL := ConvertImageResponseToB64WithPreview(body, nil)
+
+	if !strings.HasPrefix(previewURL, imageCachePublicBase) {
+		t.Fatalf("expected cached preview URL, got %q", previewURL)
+	}
+	if !strings.Contains(string(out), `"b64_json":"aGVsbG8="`) {
+		t.Fatalf("client response should remain b64_json: %s", out)
+	}
+	if strings.Contains(string(out), `"url"`) {
+		t.Fatalf("client response must not expose preview URL: %s", out)
+	}
+	entries, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("cached file count = %d, want 1", len(entries))
+	}
+}

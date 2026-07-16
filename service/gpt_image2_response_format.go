@@ -3,6 +3,8 @@ package service
 import (
 	"encoding/base64"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -51,6 +53,18 @@ func ConvertImageResponseFormat(body []byte, format string, headers map[string]s
 		return body
 	}
 	return out
+}
+
+// ConvertImageResponseToB64WithPreview returns a b64_json response while also
+// retaining a locally cached URL for usage-log previews. It first normalizes
+// either an upstream URL or b64_json payload to a cached URL, then converts that
+// local copy back to b64_json for the client. This avoids losing the only image
+// reference when the requested response format is b64_json.
+func ConvertImageResponseToB64WithPreview(body []byte, headers map[string]string) ([]byte, string) {
+	urlBody := ConvertImageResponseFormat(body, "url", headers)
+	urlBody = RewriteImageResponseBodyWithHeaders(urlBody, headers)
+	previewURL := ExtractFirstImageURLFromResponse(urlBody)
+	return ConvertImageResponseFormat(urlBody, "b64_json", nil), previewURL
 }
 
 // convertImageItemFormat converts a single data[] item in place, reporting whether
@@ -102,6 +116,12 @@ func hasNonEmptyString(m map[string]interface{}, key string) bool {
 // downloadImageAsBase64 fetches an image URL and returns its standard base64
 // encoding (no data: prefix, matching OpenAI's b64_json). Returns "" on any error.
 func downloadImageAsBase64(imageURL string, headers map[string]string) string {
+	if name, ok := localCachedImageName(imageURL); ok {
+		data, err := os.ReadFile(filepath.Join(imageCacheDir, name))
+		if err == nil && len(data) > 0 {
+			return base64.StdEncoding.EncodeToString(data)
+		}
+	}
 	resp, err := DoDownloadRequestWithHeaders(imageURL, headers, "response_format_b64")
 	if err != nil {
 		return ""
@@ -115,4 +135,15 @@ func downloadImageAsBase64(imageURL string, headers map[string]string) string {
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(data)
+}
+
+func localCachedImageName(imageURL string) (string, bool) {
+	if imageCachePublicBase == "" || !strings.HasPrefix(imageURL, imageCachePublicBase) {
+		return "", false
+	}
+	name := strings.TrimPrefix(imageURL, imageCachePublicBase)
+	if name == "" || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) {
+		return "", false
+	}
+	return name, true
 }

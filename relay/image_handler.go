@@ -144,9 +144,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		usage.(*dto.Usage).PromptTokens = 1
 	}
 
-	quality := "standard"
-	if request.Quality == "hd" {
-		quality = "hd"
+	quality := strings.ToLower(strings.TrimSpace(request.Quality))
+	if quality == "" {
+		quality = "standard"
 	}
 	isGeminiFlashImage := strings.Contains(strings.ToLower(info.OriginModelName), "flash-image")
 
