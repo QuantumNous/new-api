@@ -241,6 +241,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+		service.RecordChannelFailure(c, channel.Id)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -299,6 +300,11 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
+		channelID := c.GetInt("channel_id")
+		if channel, err := model.CacheGetChannel(channelID); err == nil {
+			service.InitializeChannelRetry(c, channel)
+			return channel, nil
+		}
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
@@ -311,6 +317,19 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
+
+	if lockedChannelID := service.GetLockedRetryChannelID(c); lockedChannelID > 0 {
+		channel, err := model.CacheGetChannel(lockedChannelID)
+		if err == nil {
+			newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
+			if newAPIError == nil {
+				return channel, nil
+			}
+		}
+		service.ClearLockedRetryChannel(c)
+	}
+
+	retryParam.ExcludedChannelIDs = service.GetExcludedRetryChannelIDs(c)
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
@@ -325,6 +344,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	if newAPIError != nil {
 		return nil, newAPIError
 	}
+	service.InitializeChannelRetry(c, channel)
 	return channel, nil
 }
 
@@ -335,6 +355,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false
 	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
 	if types.IsChannelError(openaiErr) {
 		return true
 	}
@@ -342,9 +365,6 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	if retryTimes <= 0 {
-		return false
-	}
-	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
 	code := openaiErr.StatusCode
@@ -568,6 +588,9 @@ func RelayTask(c *gin.Context) {
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
 			break
+		}
+		if relayInfo.LockedChannel == nil {
+			service.RecordChannelFailure(c, channel.Id)
 		}
 	}
 
