@@ -128,9 +128,30 @@ func (s *Service) check(ctx context.Context, force bool, dockerEng DockerEngine)
 		}
 	}
 
+	// Docker capability (always probe so UI can show sock status even when
+	// GitHub has no releases).
+	dockerCap := s.probeDockerCap(ctx, dockerEng)
+
 	rel, err := s.gh.FetchLatestRelease(ctx, s.cfg.Repo)
 	if err != nil {
-		return nil, err
+		// No releases published on the fork → treat as already up to date.
+		if errors.Is(err, ErrNoReleases) {
+			info := s.upToDateInfo(mode, &dockerCap, "")
+			globalCache.set(info)
+			return info, nil
+		}
+		// Prefer stale cache with a warning over hard failure.
+		if cached := globalCache.get(s.cfg.CacheTTL * 24); cached != nil {
+			info := *cached
+			info.Cached = true
+			info.Warning = err.Error()
+			info.DeployMode = mode
+			info.Docker = &dockerCap
+			return &info, nil
+		}
+		// Soft-fail: do not break the maintenance page; report no update.
+		info := s.upToDateInfo(mode, &dockerCap, err.Error())
+		return info, nil
 	}
 
 	hasUpdate := CompareVersions(s.currentVersion, rel.TagName) < 0
@@ -146,10 +167,45 @@ func (s *Service) check(ctx context.Context, force bool, dockerEng DockerEngine)
 		binCap.Reason = assetErr.Error()
 	}
 
-	// Docker capability.
+	info := &Info{
+		Enabled:        true,
+		DeployMode:     mode,
+		CurrentVersion: s.currentVersion,
+		LatestVersion:  rel.TagName,
+		HasUpdate:      hasUpdate,
+		Release:        rel,
+		Binary:         binCap,
+		Docker:         &dockerCap,
+		UpdateSource:   s.cfg.Repo,
+		Cached:         false,
+	}
+
+	globalCache.set(info)
+	return info, nil
+}
+
+// upToDateInfo builds a successful Check payload with has_update=false.
+func (s *Service) upToDateInfo(mode DeployMode, dockerCap *DockerCapability, warning string) *Info {
+	binCap := &BinaryCapability{
+		Platform: runtime.GOOS + "/" + runtime.GOARCH,
+	}
+	return &Info{
+		Enabled:        true,
+		DeployMode:     mode,
+		CurrentVersion: s.currentVersion,
+		LatestVersion:  s.currentVersion,
+		HasUpdate:      false,
+		Binary:         binCap,
+		Docker:         dockerCap,
+		UpdateSource:   s.cfg.Repo,
+		Cached:         false,
+		Warning:        warning,
+	}
+}
+
+func (s *Service) probeDockerCap(ctx context.Context, dockerEng DockerEngine) DockerCapability {
 	var dockerCap DockerCapability
 	if dockerEng != nil {
-		// Injected engine: probe via Ping + InspectSelf.
 		if pingErr := dockerEng.Ping(ctx); pingErr != nil {
 			dockerCap.Reason = "socket unavailable: " + pingErr.Error()
 		} else {
@@ -163,25 +219,9 @@ func (s *Service) check(ctx context.Context, force bool, dockerEng DockerEngine)
 				}
 			}
 		}
-	} else {
-		// Production path: dial real socket.
-		dockerCap = ProbeDocker(ctx, s.cfg.DockerHost, s.cfg.DockerImage)
+		return dockerCap
 	}
-
-	info := &Info{
-		Enabled:        true,
-		DeployMode:     mode,
-		CurrentVersion: s.currentVersion,
-		LatestVersion:  rel.TagName,
-		HasUpdate:      hasUpdate,
-		Release:        rel,
-		Binary:         binCap,
-		Docker:         &dockerCap,
-		Cached:         false,
-	}
-
-	globalCache.set(info)
-	return info, nil
+	return ProbeDocker(ctx, s.cfg.DockerHost, s.cfg.DockerImage)
 }
 
 // Perform runs the update. It acquires a single-flight lock; a second

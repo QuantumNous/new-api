@@ -97,7 +97,7 @@ export function UpdateCheckerSection({
       }
       if (!data.has_update) {
         toast.success(
-          t('You are running the latest version ({{version}}).', {
+          t('Already up to date. No update needed ({{version}}).', {
             version: data.latest_version || data.current_version,
           })
         )
@@ -151,7 +151,7 @@ export function UpdateCheckerSection({
       }
       if (!data.has_update) {
         toast.success(
-          t('You are running the latest version ({{version}}).', {
+          t('Already up to date. No update needed ({{version}}).', {
             version: data.latest_version || data.current_version,
           })
         )

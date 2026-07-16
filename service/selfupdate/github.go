@@ -2,6 +2,7 @@ package selfupdate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,10 @@ import (
 
 const defaultAPIBase = "https://api.github.com"
 const defaultMaxDownload = 500 << 20 // 500 MiB
+
+// ErrNoReleases is returned when the repo has no published GitHub releases
+// (GitHub API /releases/latest responds 404).
+var ErrNoReleases = errors.New("no releases found for repository")
 
 // GitHubClient is the interface for interacting with GitHub releases.
 type GitHubClient interface {
@@ -65,6 +70,10 @@ func (c *HTTPGitHubClient) FetchLatestRelease(ctx context.Context, repo string) 
 		return nil, err
 	}
 
+	if resp.StatusCode == http.StatusNotFound {
+		// Empty release list / no "latest" release published yet.
+		return nil, ErrNoReleases
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		snippet := string(body)
 		if len(snippet) > 200 {

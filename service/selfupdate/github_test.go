@@ -44,7 +44,22 @@ func TestHTTPGitHubClient_FetchLatestRelease_NonOK(t *testing.T) {
 	c.APIBase = srv.URL
 	_, err := c.FetchLatestRelease(context.Background(), "ChinaToyHunter/new-api")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "404")
+	assert.ErrorIs(t, err, ErrNoReleases)
+}
+
+func TestHTTPGitHubClient_FetchLatestRelease_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"boom"}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPGitHubClient("", srv.Client())
+	c.APIBase = srv.URL
+	_, err := c.FetchLatestRelease(context.Background(), "ChinaToyHunter/new-api")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.NotErrorIs(t, err, ErrNoReleases)
 }
 
 func TestHTTPGitHubClient_FetchBytes(t *testing.T) {

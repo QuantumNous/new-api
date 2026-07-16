@@ -5190,6 +5190,7 @@
     "Self-update is disabled.": "Self-update is disabled.",
     "Waiting for service to come back...": "Waiting for service to come back...",
     "Service did not come back in time. Refresh manually.": "Service did not come back in time. Refresh manually.",
-    "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases.": "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases."
+    "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases.": "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases.",
+    "Already up to date. No update needed ({{version}}).": "Already up to date. No update needed ({{version}})."
   }
 }

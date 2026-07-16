@@ -102,6 +102,25 @@ func TestService_Check_Disabled(t *testing.T) {
 	assert.Equal(t, "v1.0.0", info.CurrentVersion)
 }
 
+func TestService_Check_NoReleases_AlreadyUpToDate(t *testing.T) {
+	globalCache.mu.Lock()
+	globalCache.info = nil
+	globalCache.mu.Unlock()
+
+	gh := &fakeGitHubClient{err: ErrNoReleases}
+	svc := newService(testConfig(), gh, nil, "v1.0.0-rc.20-oneclick.1")
+
+	info, err := svc.Check(context.Background(), true)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+	assert.True(t, info.Enabled)
+	assert.False(t, info.HasUpdate)
+	assert.Equal(t, "v1.0.0-rc.20-oneclick.1", info.CurrentVersion)
+	assert.Equal(t, "v1.0.0-rc.20-oneclick.1", info.LatestVersion)
+	assert.Equal(t, "owner/repo", info.UpdateSource)
+	assert.Empty(t, info.Warning)
+}
+
 // ----------------------------------------------------------------------------
 // TestService_Check_HasUpdate
 // ----------------------------------------------------------------------------
@@ -339,7 +358,7 @@ func TestService_Restart_DockerMode(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
-// TestService_Check_GHError propagates
+// TestService_Check_GHError soft-fails as already up to date
 // ----------------------------------------------------------------------------
 
 func TestService_Check_GHError(t *testing.T) {
@@ -350,9 +369,13 @@ func TestService_Check_GHError(t *testing.T) {
 	gh := &fakeGitHubClient{err: errors.New("network error")}
 	svc := newService(testConfig(), gh, nil, "v1.0.0")
 
-	_, err := svc.Check(context.Background(), true)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "network error")
+	info, err := svc.Check(context.Background(), true)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+	assert.False(t, info.HasUpdate)
+	assert.Equal(t, "v1.0.0", info.CurrentVersion)
+	assert.Equal(t, "v1.0.0", info.LatestVersion)
+	assert.Contains(t, info.Warning, "network error")
 }
 
 // ----------------------------------------------------------------------------

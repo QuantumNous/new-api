@@ -5190,6 +5190,7 @@
     "Self-update is disabled.": "自更新已禁用。",
     "Waiting for service to come back...": "等待服务恢复...",
     "Service did not come back in time. Refresh manually.": "服务未在时限内恢复，请手动刷新。",
-    "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases.": "部署源：{{repo}}。请先将上游合入 fork 再发版。"
+    "Deploy source: {{repo}}. Merge upstream into your fork before publishing releases.": "部署源：{{repo}}。请先将上游合入 fork 再发版。",
+    "Already up to date. No update needed ({{version}}).": "当前是最新版本，无需更新（{{version}}）。"
   }
 }
