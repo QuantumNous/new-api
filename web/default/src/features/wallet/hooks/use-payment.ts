@@ -28,6 +28,7 @@ import {
   requestStripePayment,
   isApiSuccess,
 } from '../api'
+import { isSafeHttpCheckoutUrl } from '../lib/payment'
 import {
   isStripePayment,
   isWaffoPancakePayment,
@@ -102,6 +103,10 @@ export function usePayment() {
 
         // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
+          if (!isSafeHttpCheckoutUrl(response.data.pay_link as string)) {
+            toast.error(i18next.t('Invalid payment URL'))
+            return false
+          }
           window.open(response.data.pay_link as string, '_blank')
           toast.success(i18next.t('Redirecting to payment page...'))
           return true

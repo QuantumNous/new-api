@@ -28,6 +28,18 @@ import type { PresetAmount, TopupInfo } from '../types'
 // Payment Processing Functions
 // ============================================================================
 
+/** Only allow http(s) absolute URLs for checkout redirects. */
+export function isSafeHttpCheckoutUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false
+  try {
+    const u = new URL(url.trim())
+    return u.protocol === 'https:' || u.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
+
 /**
  * Check if browser is Safari
  */
@@ -45,6 +57,9 @@ export function submitPaymentForm(
   url: string,
   params: Record<string, unknown>
 ): void {
+  if (!isSafeHttpCheckoutUrl(url)) {
+    throw new Error('Invalid payment URL')
+  }
   const form = document.createElement('form')
   form.action = url
   form.method = 'POST'

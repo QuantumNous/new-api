@@ -2025,7 +2025,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "構文的に有効な JSON 応答を強制",
@@ -4255,6 +4255,9 @@
     "Status Code Mapping": "ステータスコードマッピング",
     "Status code mapping must use valid HTTP status codes": "ステータスコードマッピングには有効な HTTP ステータスコードを使用する必要があります",
     "Status Page Slug": "ステータスページスラッグ",
+    "Estimated (no live traffic yet)": "推定（実測なし）",
+    "Live probe / relay metrics": "実測（プローブ/中継）",
+    "Est. short": "推定",
     "Status short": "状態",
     "Status:": "ステータス：",
     "Stay": "残る",
@@ -5179,5 +5182,17 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム"
-  }
+  },
+  "Skip Auto Test": "自動テストをスキップ",
+  "Exclude this channel from automatic batch tests; manual test still works": "自動一括テストから除外（手動テストは可能）",
+  "Skip auto test for selected": "選択チャネルの自動テストをスキップ",
+  "Join auto test for selected": "選択チャネルを自動テストに含める",
+  "{{count}} channel(s) will skip auto test": "{{count}} チャネルが自動テストをスキップします",
+  "{{count}} channel(s) will join auto test": "{{count}} チャネルが自動テストに参加します",
+  "Failed to update skip auto test": "自動テスト設定の更新に失敗しました",
+  "All metrics": "すべて",
+  "Live only": "実測のみ",
+  "Show estimated badges when no live traffic": "実測がない場合は推定バッジを表示",
+  "Only show real probe / relay metrics": "実測の probe / relay 指標のみ表示",
+  "Metrics source filter": "指標ソースフィルタ"
 }
