@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Mail,
   Globe,
@@ -28,18 +27,15 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiDiscord } from 'react-icons/si'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -48,8 +44,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { api } from '@/lib/api'
+
 import {
   getUser,
   getUserOAuthBindings,
@@ -318,121 +314,124 @@ export function UserBindingDialog(props: Props) {
 
   return (
     <>
-      <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-        <DialogContent className='sm:max-w-lg'>
-          <DialogHeader>
-            <DialogTitle className='flex items-center gap-2'>
-              <Link2 className='h-5 w-5' />
-              {t('Account Binding Management')}
-            </DialogTitle>
-            <DialogDescription className='sr-only'>
-              {t('Manage account bindings for this user')}
-            </DialogDescription>
-          </DialogHeader>
-
-          {loading ? (
-            <div className='flex items-center justify-center py-8'>
-              <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
+      <Dialog
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        title={
+          <>
+            <Link2 className='h-5 w-5' />
+            {t('Account Binding Management')}
+          </>
+        }
+        description={t('Manage account bindings for this user')}
+        contentClassName='sm:max-w-lg'
+        titleClassName='flex items-center gap-2'
+        descriptionClassName='sr-only'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+      >
+        {loading ? (
+          <div className='flex items-center justify-center py-8'>
+            <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
+          </div>
+        ) : (
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between'>
+              {user && (
+                <p className='text-muted-foreground text-sm'>
+                  {user.username} (ID: {user.id})
+                </p>
+              )}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-7 gap-1.5 px-2 text-xs'
+                        onClick={() => setShowBoundOnly((v) => !v)}
+                      />
+                    }
+                  >
+                    {showBoundOnly ? (
+                      <Eye className='h-3.5 w-3.5' />
+                    ) : (
+                      <EyeOff className='h-3.5 w-3.5' />
+                    )}
+                    {showBoundOnly ? t('Show All') : t('Bound Only')}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {showBoundOnly
+                      ? t('Show all providers including unbound')
+                      : t('Show only bound providers')}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-          ) : (
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between'>
-                {user && (
-                  <p className='text-muted-foreground text-sm'>
-                    {user.username} (ID: {user.id})
-                  </p>
-                )}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
+
+            <Separator />
+
+            <ScrollArea className='max-h-[50vh]'>
+              {displayedBindings.length === 0 ? (
+                <p className='text-muted-foreground py-4 text-center text-sm'>
+                  {showBoundOnly
+                    ? t('This user has no bindings')
+                    : t('No providers available')}
+                </p>
+              ) : (
+                <div className='grid grid-cols-1 gap-2 pr-3 lg:grid-cols-2'>
+                  {displayedBindings.map((binding) => (
+                    <div
+                      key={binding.key}
+                      className={`flex items-center justify-between rounded-md border px-3 py-2.5 ${
+                        !binding.isBound ? 'opacity-50' : ''
+                      }`}
+                    >
+                      <div className='flex min-w-0 items-center gap-2.5'>
+                        <div className='text-muted-foreground shrink-0'>
+                          {binding.icon}
+                        </div>
+                        <div className='min-w-0'>
+                          <div className='flex items-center gap-1.5'>
+                            <span className='text-sm font-medium'>
+                              {binding.label}
+                            </span>
+                            {!binding.isEnabled && (
+                              <StatusBadge
+                                variant='neutral'
+                                label={t('Disabled')}
+                                copyable={false}
+                                size='sm'
+                              />
+                            )}
+                          </div>
+                          <p className='text-muted-foreground max-w-[140px] truncate text-xs'>
+                            {binding.isBound ? binding.value : t('Not bound')}
+                          </p>
+                        </div>
+                      </div>
+                      {binding.isBound && (
                         <Button
                           variant='ghost'
                           size='sm'
-                          className='h-7 gap-1.5 px-2 text-xs'
-                          onClick={() => setShowBoundOnly((v) => !v)}
-                        />
-                      }
-                    >
-                      {showBoundOnly ? (
-                        <Eye className='h-3.5 w-3.5' />
-                      ) : (
-                        <EyeOff className='h-3.5 w-3.5' />
+                          className='text-destructive hover:text-destructive h-7 w-7 shrink-0 p-0'
+                          onClick={() => setUnbindTarget(binding)}
+                        >
+                          <Unlink className='h-3.5 w-3.5' />
+                        </Button>
                       )}
-                      {showBoundOnly ? t('Show All') : t('Bound Only')}
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {showBoundOnly
-                        ? t('Show all providers including unbound')
-                        : t('Show only bound providers')}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
 
-              <Separator />
-
-              <ScrollArea className='max-h-[50vh]'>
-                {displayedBindings.length === 0 ? (
-                  <p className='text-muted-foreground py-4 text-center text-sm'>
-                    {showBoundOnly
-                      ? t('This user has no bindings')
-                      : t('No providers available')}
-                  </p>
-                ) : (
-                  <div className='grid grid-cols-1 gap-2 pr-3 lg:grid-cols-2'>
-                    {displayedBindings.map((binding) => (
-                      <div
-                        key={binding.key}
-                        className={`flex items-center justify-between rounded-md border px-3 py-2.5 ${
-                          !binding.isBound ? 'opacity-50' : ''
-                        }`}
-                      >
-                        <div className='flex min-w-0 items-center gap-2.5'>
-                          <div className='text-muted-foreground shrink-0'>
-                            {binding.icon}
-                          </div>
-                          <div className='min-w-0'>
-                            <div className='flex items-center gap-1.5'>
-                              <span className='text-sm font-medium'>
-                                {binding.label}
-                              </span>
-                              {!binding.isEnabled && (
-                                <StatusBadge
-                                  variant='neutral'
-                                  label={t('Disabled')}
-                                  copyable={false}
-                                  size='sm'
-                                />
-                              )}
-                            </div>
-                            <p className='text-muted-foreground max-w-[140px] truncate text-xs'>
-                              {binding.isBound ? binding.value : t('Not bound')}
-                            </p>
-                          </div>
-                        </div>
-                        {binding.isBound && (
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            className='text-destructive hover:text-destructive h-7 w-7 shrink-0 p-0'
-                            onClick={() => setUnbindTarget(binding)}
-                          >
-                            <Unlink className='h-3.5 w-3.5' />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-
-              <p className='text-muted-foreground text-xs'>
-                {t('Bound')}: {boundCount} / {allBindings.length}
-              </p>
-            </div>
-          )}
-        </DialogContent>
+            <p className='text-muted-foreground text-xs'>
+              {t('Bound')}: {boundCount} / {allBindings.length}
+            </p>
+          </div>
+        )}
       </Dialog>
 
       <ConfirmDialog

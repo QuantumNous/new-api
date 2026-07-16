@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createContext, useContext, useEffect, useState } from 'react'
+
 import { CommandMenu } from '@/components/command-menu'
 
 type SearchContextType = {

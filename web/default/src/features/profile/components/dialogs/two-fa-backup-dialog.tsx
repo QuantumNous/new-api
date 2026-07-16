@@ -16,24 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { RefreshCw, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { regenerate2FABackupCodes } from '@/lib/api'
+
+import { CopyButton } from '@/components/copy-button'
+import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CopyButton } from '@/components/copy-button'
+import { regenerate2FABackupCodes } from '@/lib/api'
 
 // ============================================================================
 // Two-FA Backup Codes Dialog Component
@@ -94,82 +88,26 @@ export function TwoFABackupDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className='sm:max-w-md'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <RefreshCw className='h-5 w-5' />
-            {t('Regenerate Backup Codes')}
-          </DialogTitle>
-          <DialogDescription>
-            {backupCodes.length > 0
-              ? t('Your new backup codes are ready')
-              : t('Generate new backup codes for account recovery')}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className='space-y-4 py-4'>
-          {backupCodes.length === 0 ? (
-            <>
-              <Alert>
-                <AlertDescription>
-                  {t(
-                    'Generating new codes will invalidate all existing backup codes.'
-                  )}
-                </AlertDescription>
-              </Alert>
-
-              <div className='space-y-2'>
-                <Label htmlFor='code'>{t('Verification Code')}</Label>
-                <Input
-                  id='code'
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder={t('Enter authenticator code')}
-                  maxLength={6}
-                  disabled={loading}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <Alert>
-                <AlertDescription>
-                  {t(
-                    'Save these codes in a safe place. Each code can only be used once.'
-                  )}
-                </AlertDescription>
-              </Alert>
-
-              <div className='rounded-lg border p-4'>
-                <div className='grid grid-cols-2 gap-2'>
-                  {backupCodes.map((code, index) => (
-                    <div
-                      key={index}
-                      className='bg-muted rounded-md p-2 text-center font-mono text-sm'
-                    >
-                      {code}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <CopyButton
-                value={backupCodes.join('\n')}
-                variant='outline'
-                size='default'
-                className='w-full'
-                iconClassName='mr-2 size-4'
-                tooltip={t('Copy all backup codes')}
-                aria-label={t('Copy all backup codes')}
-              >
-                {t('Copy All Codes')}
-              </CopyButton>
-            </>
-          )}
-        </div>
-
-        <DialogFooter>
+    <Dialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={
+        <>
+          <RefreshCw className='h-5 w-5' />
+          {t('Regenerate Backup Codes')}
+        </>
+      }
+      description={
+        backupCodes.length > 0
+          ? t('Your new backup codes are ready')
+          : t('Generate new backup codes for account recovery')
+      }
+      contentClassName='sm:max-w-md'
+      titleClassName='flex items-center gap-2'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           {backupCodes.length === 0 ? (
             <>
               <Button
@@ -187,8 +125,69 @@ export function TwoFABackupDialog({
           ) : (
             <Button onClick={handleDone}>{t('Done')}</Button>
           )}
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='space-y-4 py-4'>
+        {backupCodes.length === 0 ? (
+          <>
+            <Alert>
+              <AlertDescription>
+                {t(
+                  'Generating new codes will invalidate all existing backup codes.'
+                )}
+              </AlertDescription>
+            </Alert>
+
+            <div className='space-y-2'>
+              <Label htmlFor='code'>{t('Verification Code')}</Label>
+              <Input
+                id='code'
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder={t('Enter authenticator code')}
+                maxLength={6}
+                disabled={loading}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <Alert>
+              <AlertDescription>
+                {t(
+                  'Save these codes in a safe place. Each code can only be used once.'
+                )}
+              </AlertDescription>
+            </Alert>
+
+            <div className='rounded-lg border p-4'>
+              <div className='grid grid-cols-2 gap-2'>
+                {backupCodes.map((code, index) => (
+                  <div
+                    key={index}
+                    className='bg-muted rounded-md p-2 text-center font-mono text-sm'
+                  >
+                    {code}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <CopyButton
+              value={backupCodes.join('\n')}
+              variant='outline'
+              size='default'
+              className='w-full'
+              iconClassName='mr-2 size-4'
+              tooltip={t('Copy all backup codes')}
+              aria-label={t('Copy all backup codes')}
+            >
+              {t('Copy All Codes')}
+            </CopyButton>
+          </>
+        )}
+      </div>
     </Dialog>
   )
 }

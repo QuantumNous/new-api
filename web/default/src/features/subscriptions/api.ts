@@ -17,12 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+
 import type {
   ApiResponse,
   PlanRecord,
   PlanPayload,
   UserSubscriptionRecord,
   CreateUserSubscriptionRequest,
+  ResetUserSubscriptionsRequest,
+  ResetPlanSubscriptionsRequest,
+  SubscriptionResetResult,
   SubscriptionPayResponse,
   SubscriptionPayRequest,
   SelfSubscriptionData,
@@ -104,6 +108,28 @@ export async function deleteUserSubscription(
   return res.data
 }
 
+export async function resetUserSubscriptionsByPlan(
+  userId: number,
+  data: ResetUserSubscriptionsRequest
+): Promise<ApiResponse<SubscriptionResetResult>> {
+  const res = await api.post(
+    `/api/subscription/admin/users/${userId}/subscriptions/reset`,
+    data
+  )
+  return res.data
+}
+
+export async function resetPlanSubscriptions(
+  planId: number,
+  data: ResetPlanSubscriptionsRequest
+): Promise<ApiResponse<SubscriptionResetResult>> {
+  const res = await api.post(
+    `/api/subscription/admin/plans/${planId}/subscriptions/reset`,
+    data
+  )
+  return res.data
+}
+
 // ============================================================================
 // User-facing Subscription Payment
 // ============================================================================
@@ -159,7 +185,7 @@ export async function listWaffoPancakeSubscriptionProductOptions(): Promise<
     products: { id: string; name: string; status: string }[]
   }>
 > {
-  const res = await api.post(
+  const res = await api.get(
     '/api/option/waffo-pancake/subscription-product-options'
   )
   return res.data

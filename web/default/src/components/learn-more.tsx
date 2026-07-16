@@ -18,13 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { CircleQuestionMark } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 type LearnMoreProps = Omit<React.ComponentProps<typeof Popover>, 'children'> & {
   children?: React.ReactNode

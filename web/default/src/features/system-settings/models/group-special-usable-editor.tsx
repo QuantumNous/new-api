@@ -16,9 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -41,21 +49,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { StatusBadge } from '@/components/status-badge'
 
-const OP_ADD = 'add' as const
-const OP_REMOVE = 'remove' as const
-const OP_APPEND = 'append' as const
 const sectionCardClassName =
   'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
 const sectionHeaderClassName = 'border-b bg-muted/20'
 
-type OpType = typeof OP_ADD | typeof OP_REMOVE | typeof OP_APPEND
-
 type Rule = {
   _id: string
   userGroup: string
-  op: OpType
+  visible: boolean
   targetGroup: string
   description: string
 }
@@ -65,17 +67,21 @@ function uid() {
   return `gsu_${++_idCounter}`
 }
 
-function parsePrefix(rawKey: string): { op: OpType; groupName: string } {
-  if (rawKey.startsWith('+:')) return { op: OP_ADD, groupName: rawKey.slice(2) }
-  if (rawKey.startsWith('-:'))
-    return { op: OP_REMOVE, groupName: rawKey.slice(2) }
-  return { op: OP_APPEND, groupName: rawKey }
+// Raw keys use +: (add), -: (remove), or no prefix (also add).
+// The UI collapses this to visible/hidden and serializes visible rules
+// with the +: prefix, which the backend treats identically to no prefix.
+function parseRawKey(rawKey: string): { visible: boolean; groupName: string } {
+  if (rawKey.startsWith('-:')) {
+    return { visible: false, groupName: rawKey.slice(2) }
+  }
+  if (rawKey.startsWith('+:')) {
+    return { visible: true, groupName: rawKey.slice(2) }
+  }
+  return { visible: true, groupName: rawKey }
 }
 
-function toRawKey(op: OpType, groupName: string): string {
-  if (op === OP_ADD) return `+:${groupName}`
-  if (op === OP_REMOVE) return `-:${groupName}`
-  return groupName
+function toRawKey(visible: boolean, groupName: string): string {
+  return visible ? `+:${groupName}` : `-:${groupName}`
 }
 
 function safeParseJson(str: string): Record<string, Record<string, string>> {
@@ -92,55 +98,87 @@ function flattenRules(nested: Record<string, Record<string, string>>): Rule[] {
   for (const [userGroup, inner] of Object.entries(nested)) {
     if (typeof inner !== 'object' || inner === null) continue
     for (const [rawKey, desc] of Object.entries(inner)) {
-      const { op, groupName } = parsePrefix(rawKey)
+      const { visible, groupName } = parseRawKey(rawKey)
+      let description = ''
+      if (!visible) {
+        description = 'remove'
+      } else if (typeof desc === 'string') {
+        description = desc
+      }
       rules.push({
         _id: uid(),
         userGroup,
-        op,
+        visible,
         targetGroup: groupName,
-        description:
-          op === OP_REMOVE ? 'remove' : typeof desc === 'string' ? desc : '',
+        description,
       })
     }
   }
   return rules
 }
 
-function nestRules(rules: Rule[]): Record<string, Record<string, string>> {
+function serializeRules(rules: Rule[]): string {
   const result: Record<string, Record<string, string>> = {}
-  for (const { userGroup, op, targetGroup, description } of rules) {
+  for (const { userGroup, visible, targetGroup, description } of rules) {
     if (!userGroup || !targetGroup) continue
     if (!result[userGroup]) result[userGroup] = {}
-    result[userGroup][toRawKey(op, targetGroup)] = description
+    result[userGroup][toRawKey(visible, targetGroup)] = description
   }
-  return result
-}
-
-function serializeRules(rules: Rule[]): string {
-  const nested = nestRules(rules)
-  return Object.keys(nested).length === 0
+  return Object.keys(result).length === 0
     ? '{}'
-    : JSON.stringify(nested, null, 2)
+    : JSON.stringify(result, null, 2)
 }
 
-const OP_BADGE_MAP: Record<
-  OpType,
-  { variant: 'info' | 'danger' | 'neutral'; label: string }
-> = {
-  [OP_ADD]: { variant: 'info', label: 'Add (+:)' },
-  [OP_REMOVE]: { variant: 'danger', label: 'Remove (-:)' },
-  [OP_APPEND]: { variant: 'neutral', label: 'Append' },
+type GroupSelectProps = {
+  options: string[]
+  value: string
+  placeholder: string
+  onValueChange: (value: string) => void
+  className?: string
+}
+
+function GroupSelect(props: GroupSelectProps) {
+  const knownOptions = useMemo(() => {
+    if (props.value && !props.options.includes(props.value)) {
+      return [props.value, ...props.options]
+    }
+    return props.options
+  }, [props.options, props.value])
+
+  return (
+    <Select
+      value={props.value === '' ? null : props.value}
+      onValueChange={(v) => {
+        if (typeof v === 'string' && v !== '') props.onValueChange(v)
+      }}
+    >
+      <SelectTrigger className={props.className}>
+        <SelectValue placeholder={props.placeholder} />
+      </SelectTrigger>
+      <SelectContent alignItemWithTrigger={false}>
+        <SelectGroup>
+          {knownOptions.map((name) => (
+            <SelectItem key={name} value={name}>
+              {name}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
 }
 
 type GroupSpecialUsableRulesEditorProps = {
   value: string
+  groupOptions: string[]
   onChange: (value: string) => void
 }
 
 type GroupSectionProps = {
   groupName: string
   items: Rule[]
-  onUpdate: (id: string, field: keyof Rule, val: string) => void
+  groupOptions: string[]
+  onUpdate: (id: string, field: keyof Rule, val: string | boolean) => void
   onRemove: (id: string) => void
   onAdd: (groupName: string) => void
   onRemoveGroup: (groupName: string) => void
@@ -149,6 +187,7 @@ type GroupSectionProps = {
 function GroupSection(props: GroupSectionProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const isKnownGroup = props.groupOptions.includes(props.groupName)
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -167,6 +206,12 @@ function GroupSection(props: GroupSectionProps) {
               )}
             </CollapsibleTrigger>
             <span className='font-semibold'>{props.groupName}</span>
+            {!isKnownGroup && (
+              <StatusBadge variant='danger' copyable={false}>
+                <AlertTriangle className='mr-1 h-3 w-3' />
+                {t('Not in pricing table')}
+              </StatusBadge>
+            )}
             <StatusBadge variant='neutral' copyable={false}>
               {props.items.length} {t('rules')}
             </StatusBadge>
@@ -195,87 +240,59 @@ function GroupSection(props: GroupSectionProps) {
             {props.items.map((rule) => (
               <div key={rule._id} className='flex items-center gap-2'>
                 <Select
-                  items={[
-                    {
-                      value: OP_ADD,
-                      label: (
-                        <StatusBadge
-                          label={t(OP_BADGE_MAP[OP_ADD].label)}
-                          variant={OP_BADGE_MAP[OP_ADD].variant}
-                          copyable={false}
-                        />
-                      ),
-                    },
-                    {
-                      value: OP_REMOVE,
-                      label: (
-                        <StatusBadge
-                          label={t(OP_BADGE_MAP[OP_REMOVE].label)}
-                          variant={OP_BADGE_MAP[OP_REMOVE].variant}
-                          copyable={false}
-                        />
-                      ),
-                    },
-                    {
-                      value: OP_APPEND,
-                      label: (
-                        <StatusBadge
-                          label={t(OP_BADGE_MAP[OP_APPEND].label)}
-                          variant={OP_BADGE_MAP[OP_APPEND].variant}
-                          copyable={false}
-                        />
-                      ),
-                    },
-                  ]}
-                  value={rule.op}
+                  value={rule.visible ? 'visible' : 'hidden'}
                   onValueChange={(v) =>
-                    v !== null && props.onUpdate(rule._id, 'op', v)
+                    v !== null &&
+                    props.onUpdate(rule._id, 'visible', v === 'visible')
                   }
                 >
                   <SelectTrigger className='w-[130px]'>
                     <SelectValue>
                       <StatusBadge
-                        label={t(OP_BADGE_MAP[rule.op].label)}
-                        variant={OP_BADGE_MAP[rule.op].variant}
+                        label={rule.visible ? t('Extra visible') : t('Hidden')}
+                        variant={rule.visible ? 'info' : 'danger'}
                         copyable={false}
                       />
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
                     <SelectGroup>
-                      <SelectItem value={OP_ADD}>
+                      <SelectItem value='visible'>
                         <StatusBadge
-                          label={t(OP_BADGE_MAP[OP_ADD].label)}
-                          variant={OP_BADGE_MAP[OP_ADD].variant}
+                          label={t('Extra visible')}
+                          variant='info'
                           copyable={false}
                         />
                       </SelectItem>
-                      <SelectItem value={OP_REMOVE}>
+                      <SelectItem value='hidden'>
                         <StatusBadge
-                          label={t(OP_BADGE_MAP[OP_REMOVE].label)}
-                          variant={OP_BADGE_MAP[OP_REMOVE].variant}
-                          copyable={false}
-                        />
-                      </SelectItem>
-                      <SelectItem value={OP_APPEND}>
-                        <StatusBadge
-                          label={t(OP_BADGE_MAP[OP_APPEND].label)}
-                          variant={OP_BADGE_MAP[OP_APPEND].variant}
+                          label={t('Hidden')}
+                          variant='danger'
                           copyable={false}
                         />
                       </SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <Input
-                  className='flex-1'
-                  value={rule.targetGroup}
-                  placeholder={t('Group name')}
-                  onChange={(e) =>
-                    props.onUpdate(rule._id, 'targetGroup', e.target.value)
-                  }
-                />
-                {rule.op !== OP_REMOVE ? (
+                <div className='flex flex-1 items-center gap-1.5'>
+                  <GroupSelect
+                    className='flex-1'
+                    options={props.groupOptions}
+                    value={rule.targetGroup}
+                    placeholder={t('Group name')}
+                    onValueChange={(v) =>
+                      props.onUpdate(rule._id, 'targetGroup', v)
+                    }
+                  />
+                  {rule.targetGroup &&
+                    !props.groupOptions.includes(rule.targetGroup) && (
+                      <AlertTriangle
+                        className='text-destructive h-4 w-4 shrink-0'
+                        aria-label={t('Not in pricing table')}
+                      />
+                    )}
+                </div>
+                {rule.visible ? (
                   <Input
                     className='flex-1'
                     value={rule.description}
@@ -313,7 +330,6 @@ export function GroupSpecialUsableRulesEditor(
   const [rules, setRules] = useState<Rule[]>(() =>
     flattenRules(safeParseJson(props.value))
   )
-  const [newGroupName, setNewGroupName] = useState('')
 
   const { onChange } = props
   const emitChange = useCallback(
@@ -325,14 +341,14 @@ export function GroupSpecialUsableRulesEditor(
   )
 
   const updateRule = useCallback(
-    (id: string, field: keyof Rule, val: string) => {
+    (id: string, field: keyof Rule, val: string | boolean) => {
       emitChange(
         rules.map((r) => {
           if (r._id !== id) return r
           const updated = { ...r, [field]: val }
-          if (field === 'op' && val === OP_REMOVE)
+          if (field === 'visible' && val === false) {
             updated.description = 'remove'
-          else if (field === 'op' && r.op === OP_REMOVE && val !== OP_REMOVE) {
+          } else if (field === 'visible' && val === true && !r.visible) {
             if (updated.description === 'remove') updated.description = ''
           }
           return updated
@@ -360,7 +376,7 @@ export function GroupSpecialUsableRulesEditor(
         {
           _id: uid(),
           userGroup: groupName,
-          op: OP_APPEND,
+          visible: true,
           targetGroup: '',
           description: '',
         },
@@ -368,22 +384,6 @@ export function GroupSpecialUsableRulesEditor(
     },
     [rules, emitChange]
   )
-
-  const addNewGroup = useCallback(() => {
-    const name = newGroupName.trim()
-    if (!name) return
-    emitChange([
-      ...rules,
-      {
-        _id: uid(),
-        userGroup: name,
-        op: OP_APPEND,
-        targetGroup: '',
-        description: '',
-      },
-    ])
-    setNewGroupName('')
-  }, [rules, emitChange, newGroupName])
 
   const grouped = useMemo(() => {
     const map: Record<string, Rule[]> = {}
@@ -399,13 +399,18 @@ export function GroupSpecialUsableRulesEditor(
     return order.map((name) => ({ name, items: map[name] }))
   }, [rules])
 
+  const newGroupCandidates = useMemo(() => {
+    const used = new Set(grouped.map((g) => g.name))
+    return props.groupOptions.filter((name) => !used.has(name))
+  }, [grouped, props.groupOptions])
+
   return (
     <Card className={sectionCardClassName}>
       <CardHeader className={sectionHeaderClassName}>
         <CardTitle>{t('Special usable group rules')}</CardTitle>
         <CardDescription>
           {t(
-            'Define per-group rules to add, remove, or append selectable groups for specific user groups.'
+            'Make extra groups visible to, or hide default groups from, users of a specific group.'
           )}
         </CardDescription>
       </CardHeader>
@@ -421,6 +426,7 @@ export function GroupSpecialUsableRulesEditor(
                 key={group.name}
                 groupName={group.name}
                 items={group.items}
+                groupOptions={props.groupOptions}
                 onUpdate={updateRule}
                 onRemove={removeRule}
                 onAdd={addRuleToGroup}
@@ -429,23 +435,14 @@ export function GroupSpecialUsableRulesEditor(
             ))
           )}
 
-          <div className='flex items-center justify-center gap-2 pt-2'>
-            <Input
-              className='w-[200px]'
-              value={newGroupName}
-              placeholder={t('User group name')}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addNewGroup()
-                }
-              }}
+          <div className='flex items-center justify-center pt-2'>
+            <GroupSelect
+              className='w-[240px]'
+              options={newGroupCandidates}
+              value=''
+              placeholder={t('Add rules for a user group')}
+              onValueChange={addRuleToGroup}
             />
-            <Button variant='outline' size='sm' onClick={addNewGroup}>
-              <Plus className='mr-1 h-4 w-4' />
-              {t('Add group rules')}
-            </Button>
           </div>
         </div>
       </CardContent>

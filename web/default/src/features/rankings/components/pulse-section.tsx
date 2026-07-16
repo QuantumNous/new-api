@@ -23,8 +23,10 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
+
 import type { RankingMover } from '../types'
 import { ModelLink, VendorLink } from './entity-links'
 

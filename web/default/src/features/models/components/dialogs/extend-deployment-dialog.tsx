@@ -16,21 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+
 import { estimatePrice, extendDeployment, getDeployment } from '../../api'
 import { deploymentsQueryKeys } from '../../lib'
 
@@ -164,62 +160,16 @@ export function ExtendDeploymentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-lg'>
-        <DialogHeader>
-          <DialogTitle>{t('Extend deployment')}</DialogTitle>
-        </DialogHeader>
-
-        {isLoadingDetails ? (
-          <div className='flex items-center justify-center py-10'>
-            <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
-          </div>
-        ) : (
-          <div className='space-y-4'>
-            <div className='text-muted-foreground text-sm'>
-              {t('Deployment ID')}:{' '}
-              <span className='font-mono'>{deploymentId}</span>
-            </div>
-
-            <div className='space-y-2'>
-              <div className='text-sm font-medium'>{t('Duration (hours)')}</div>
-              <Input
-                type='number'
-                min={1}
-                value={hours}
-                onChange={(e) => setHours(toInt(e.target.value, 1))}
-              />
-              <div className='text-muted-foreground text-xs'>
-                {t('This will extend the deployment by the specified hours.')}
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className='space-y-1'>
-              <div className='text-sm font-medium'>{t('Estimated cost')}</div>
-              <div className='text-muted-foreground text-sm'>
-                {isLoadingPrice || isFetchingPrice ? (
-                  <span className='inline-flex items-center gap-2'>
-                    <Loader2 className='h-4 w-4 animate-spin' />
-                    {t('Calculating...')}
-                  </span>
-                ) : priceParams ? (
-                  priceSummary || t('Not available')
-                ) : (
-                  t('Not available')
-                )}
-              </div>
-              {!priceParams ? (
-                <div className='text-muted-foreground text-xs'>
-                  {t('Unable to estimate price for this deployment.')}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        )}
-
-        <DialogFooter className='mt-4'>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('Extend deployment')}
+      contentClassName='sm:max-w-lg'
+      footerClassName='mt-4'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
@@ -229,8 +179,57 @@ export function ExtendDeploymentDialog({
             ) : null}
             {t('Extend')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      {isLoadingDetails ? (
+        <div className='flex items-center justify-center py-10'>
+          <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
+        </div>
+      ) : (
+        <div className='space-y-4'>
+          <div className='text-muted-foreground text-sm'>
+            {t('Deployment ID')}:{' '}
+            <span className='font-mono'>{deploymentId}</span>
+          </div>
+
+          <div className='space-y-2'>
+            <div className='text-sm font-medium'>{t('Duration (hours)')}</div>
+            <Input
+              type='number'
+              min={1}
+              value={hours}
+              onChange={(e) => setHours(toInt(e.target.value, 1))}
+            />
+            <div className='text-muted-foreground text-xs'>
+              {t('This will extend the deployment by the specified hours.')}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className='space-y-1'>
+            <div className='text-sm font-medium'>{t('Estimated cost')}</div>
+            <div className='text-muted-foreground text-sm'>
+              {isLoadingPrice || isFetchingPrice ? (
+                <span className='inline-flex items-center gap-2'>
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                  {t('Calculating...')}
+                </span>
+              ) : priceParams ? (
+                priceSummary || t('Not available')
+              ) : (
+                t('Not available')
+              )}
+            </div>
+            {!priceParams ? (
+              <div className='text-muted-foreground text-xs'>
+                {t('Unable to estimate price for this deployment.')}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </Dialog>
   )
 }

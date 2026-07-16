@@ -133,9 +133,9 @@ const About = () => {
   );
 
   return (
-    <div className='mt-[60px] px-2'>
+    <div className='classic-page-fill flex flex-col pt-[60px] px-2'>
       {aboutLoaded && about === '' ? (
-        <div className='flex justify-center items-center h-screen p-8'>
+        <div className='flex flex-1 justify-center items-center p-8'>
           <Empty
             image={
               <IllustrationConstruction style={{ width: 150, height: 150 }} />
@@ -156,7 +156,12 @@ const About = () => {
           {about.startsWith('https://') ? (
             <iframe
               src={about}
-              style={{ width: '100%', height: '100vh', border: 'none' }}
+              style={{
+                width: '100%',
+                flex: '1 1 auto',
+                minHeight: 0,
+                border: 'none',
+              }}
             />
           ) : (
             <div

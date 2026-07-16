@@ -25,13 +25,27 @@ import {
   Typography,
   Spin,
   Tag,
-  Descriptions,
   Collapse,
 } from '@douyinfe/semi-ui';
 import { API, showError } from '../../../../helpers';
 import { MOBILE_BREAKPOINT } from '../../../../hooks/common/useIsMobile';
 
 const { Text } = Typography;
+
+const CODEX_USAGE_MODAL_CLASS_NAME = 'codex-usage-modal';
+
+const CodexUsageModalStyles = () => (
+  <style>
+    {`
+@media (max-width: ${MOBILE_BREAKPOINT - 1}px) {
+  .${CODEX_USAGE_MODAL_CLASS_NAME} .semi-modal-body.semi-modal-withIcon {
+    margin-left: 0 !important;
+    width: auto !important;
+  }
+}
+`}
+  </style>
+);
 
 const clampPercent = (value) => {
   const v = Number(value);
@@ -146,12 +160,12 @@ const getCodexUsageModalLayout = () => {
     return {
       width: 'calc(100vw - 16px)',
       style: {
-        top: 8,
+        top: 0,
         maxWidth: 'calc(100vw - 16px)',
-        margin: '0 auto',
+        margin: '8px auto',
       },
       bodyStyle: {
-        maxHeight: 'calc(100vh - 148px)',
+        maxHeight: 'calc(100vh - 164px)',
         overflowY: 'auto',
         padding: '16px 16px 12px',
       },
@@ -161,11 +175,12 @@ const getCodexUsageModalLayout = () => {
   return {
     width: 900,
     style: {
-      top: 24,
+      top: 0,
+      margin: '16px auto',
       maxWidth: 'min(900px, 92vw)',
     },
     bodyStyle: {
-      maxHeight: 'calc(100vh - 172px)',
+      maxHeight: 'calc(100vh - 188px)',
       overflowY: 'auto',
       padding: '20px 24px 16px',
     },
@@ -220,33 +235,69 @@ const resolveUsageStatusTag = (t, rateLimit) => {
   return <Tag color='red'>{tt('受限')}</Tag>;
 };
 
-const AccountInfoValue = ({ t, value, onCopy, monospace = false }) => {
+const InfoField = ({
+  t,
+  label,
+  value,
+  onCopy,
+  monospace = false,
+  className = '',
+}) => {
   const tt = typeof t === 'function' ? t : (v) => v;
   const text = getDisplayText(value);
   const hasValue = text !== '';
 
   return (
-    <div className='flex min-w-0 items-start justify-between gap-2'>
-      <div
-        className={`min-w-0 flex-1 break-all text-xs leading-5 text-semi-color-text-1 ${
-          monospace ? 'font-mono' : ''
-        }`}
-      >
-        {hasValue ? text : '-'}
+    <div
+      className={`min-w-0 rounded-lg bg-semi-color-bg-0 px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] ${className}`}
+    >
+      <div className='text-[11px] font-medium text-semi-color-text-2'>
+        {label}
       </div>
-      <Button
-        size='small'
-        type='tertiary'
-        theme='borderless'
-        className='shrink-0 px-1 text-xs'
-        disabled={!hasValue}
-        onClick={() => onCopy?.(text)}
-      >
-        {tt('复制')}
-      </Button>
+      <div className='mt-1 flex min-w-0 items-start justify-between gap-2'>
+        <div
+          className={`min-w-0 flex-1 break-all text-xs leading-5 text-semi-color-text-0 ${
+            monospace ? 'font-mono [font-variant-numeric:tabular-nums]' : ''
+          }`}
+        >
+          {hasValue ? text : '-'}
+        </div>
+        {onCopy ? (
+          <Button
+            size='small'
+            type='tertiary'
+            theme='borderless'
+            className='h-6 shrink-0 px-1 text-xs'
+            disabled={!hasValue}
+            onClick={() => onCopy(text)}
+          >
+            {tt('复制')}
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 };
+
+const SectionHeading = ({ title, description, children }) => (
+  <div className='flex flex-wrap items-start justify-between gap-3'>
+    <div className='min-w-0'>
+      <div className='text-sm font-semibold text-semi-color-text-0'>
+        {title}
+      </div>
+      {description ? (
+        <div className='mt-1 text-xs leading-5 text-semi-color-text-2'>
+          {description}
+        </div>
+      ) : null}
+    </div>
+    {children ? (
+      <div className='flex shrink-0 flex-wrap items-center gap-2'>
+        {children}
+      </div>
+    ) : null}
+  </div>
+);
 
 const RateLimitWindowCard = ({ t, title, windowData }) => {
   const tt = typeof t === 'function' ? t : (v) => v;
@@ -260,13 +311,30 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
   const limitWindowSeconds = windowData?.limit_window_seconds;
 
   return (
-    <div className='rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3'>
-      <div className='flex flex-wrap items-start justify-between gap-x-3 gap-y-1'>
-        <div className='font-medium'>{title}</div>
-        <Text type='tertiary' size='small'>
-          {tt('重置时间：')}
-          {formatUnixSeconds(resetAt)}
-        </Text>
+    <div className='rounded-lg bg-semi-color-bg-0 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]'>
+      <div className='flex items-start justify-between gap-3'>
+        <div className='min-w-0'>
+          <div className='text-sm font-semibold text-semi-color-text-0'>
+            {title}
+          </div>
+          <div className='mt-1 text-xs text-semi-color-text-2'>
+            {tt('窗口：')}
+            {hasWindowData
+              ? formatDurationSeconds(limitWindowSeconds, tt)
+              : '-'}
+          </div>
+        </div>
+        <div className='shrink-0 text-right'>
+          <div
+            className='text-xl font-semibold leading-none [font-variant-numeric:tabular-nums]'
+            style={{ color: pickStrokeColor(percent) }}
+          >
+            {hasWindowData ? `${percent}%` : '-'}
+          </div>
+          <div className='mt-1 text-[11px] text-semi-color-text-2'>
+            {tt('已使用')}
+          </div>
+        </div>
       </div>
 
       {hasWindowData ? (
@@ -274,25 +342,25 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
           <Progress
             percent={percent}
             stroke={pickStrokeColor(percent)}
-            showInfo={true}
+            showInfo={false}
           />
         </div>
       ) : (
         <div className='mt-3 text-sm text-semi-color-text-2'>-</div>
       )}
 
-      <div className='mt-1 flex flex-wrap items-center gap-2 text-xs text-semi-color-text-2'>
-        <div>
-          {tt('已使用：')}
-          {hasWindowData ? `${percent}%` : '-'}
+      <div className='mt-3 grid grid-cols-1 gap-2 text-xs text-semi-color-text-2 sm:grid-cols-2'>
+        <div className='min-w-0'>
+          <div className='text-[11px]'>{tt('重置时间')}</div>
+          <div className='break-all text-semi-color-text-0 [font-variant-numeric:tabular-nums]'>
+            {hasWindowData ? formatUnixSeconds(resetAt) : '-'}
+          </div>
         </div>
-        <div>
-          {tt('距离重置：')}
-          {hasWindowData ? formatDurationSeconds(resetAfterSeconds, tt) : '-'}
-        </div>
-        <div>
-          {tt('窗口：')}
-          {hasWindowData ? formatDurationSeconds(limitWindowSeconds, tt) : '-'}
+        <div className='min-w-0 sm:text-right'>
+          <div className='text-[11px]'>{tt('距离重置')}</div>
+          <div className='text-semi-color-text-0 [font-variant-numeric:tabular-nums]'>
+            {hasWindowData ? formatDurationSeconds(resetAfterSeconds, tt) : '-'}
+          </div>
         </div>
       </div>
     </div>
@@ -332,32 +400,20 @@ const RateLimitGroupSection = ({
   const featureText = getDisplayText(meteredFeature);
 
   return (
-    <section className='space-y-3'>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div className='min-w-0 space-y-2'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <div className='text-sm font-semibold text-semi-color-text-0'>
-              {title}
-            </div>
-            {statusTag}
-          </div>
-          {(description || featureText) && (
-            <div className='flex flex-wrap items-center gap-2 text-xs text-semi-color-text-2'>
-              {description ? <span>{description}</span> : null}
-              {featureText ? (
-                <div className='inline-flex max-w-full items-center gap-2 rounded-full bg-semi-color-fill-0 px-2 py-1'>
-                  <span className='text-[11px] text-semi-color-text-2'>
-                    metered_feature
-                  </span>
-                  <span className='min-w-0 break-all font-mono text-xs text-semi-color-text-0'>
-                    {featureText}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          )}
+    <section className='space-y-3 rounded-lg bg-semi-color-fill-0 p-3'>
+      <SectionHeading title={title} description={description}>
+        {statusTag}
+      </SectionHeading>
+      {featureText ? (
+        <div className='inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-semi-color-bg-0 px-2 py-1 shadow-[0_1px_2px_rgba(0,0,0,0.04)]'>
+          <span className='text-[11px] text-semi-color-text-2'>
+            metered_feature
+          </span>
+          <span className='min-w-0 break-all font-mono text-xs text-semi-color-text-0'>
+            {featureText}
+          </span>
         </div>
-      </div>
+      ) : null}
 
       <RateLimitWindowGrid
         t={tt}
@@ -386,7 +442,8 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
   const statusTag = resolveUsageStatusTag(tt, rateLimit);
   const userId = data?.user_id;
   const email = data?.email;
-  const accountId = data?.account_id;
+  const channelLabel = `${record?.name || '-'} (#${record?.id || '-'})`;
+  const resetCredits = data?.rate_limit_reset_credits?.available_count;
   const errorMessage =
     payload?.success === false
       ? getDisplayText(payload?.message) || tt('获取用量失败')
@@ -398,32 +455,16 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
   return (
     <div className='flex flex-col gap-4'>
       {errorMessage && (
-        <div className='rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
+        <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
           {errorMessage}
         </div>
       )}
 
-      <div className='rounded-xl border border-semi-color-border bg-semi-color-bg-0 p-3'>
-        <div className='flex flex-wrap items-start justify-between gap-2'>
+      <div className='rounded-lg bg-semi-color-fill-0 p-4'>
+        <div className='flex items-start justify-between gap-3'>
           <div className='min-w-0'>
             <div className='text-xs font-medium text-semi-color-text-2'>
-              {tt('Codex 帐号')}
-            </div>
-            <div className='mt-2 flex flex-wrap items-center gap-2'>
-              <Tag
-                color={accountTypeTagColor}
-                type='light'
-                shape='circle'
-                size='large'
-                className='font-semibold'
-              >
-                {accountTypeLabel}
-              </Tag>
-              {statusTag}
-              <Tag color='grey' type='light' shape='circle'>
-                {tt('上游状态码：')}
-                {upstreamStatus ?? '-'}
-              </Tag>
+              {tt('Codex 帐号状态')}
             </div>
           </div>
           <Button
@@ -431,104 +472,97 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
             type='tertiary'
             theme='outline'
             onClick={onRefresh}
+            className='shrink-0'
           >
             {tt('刷新')}
           </Button>
         </div>
-
-        <div className='mt-2 rounded-lg bg-semi-color-fill-0 px-3 py-2'>
-          <Descriptions>
-            <Descriptions.Item itemKey='User ID'>
-              <AccountInfoValue
-                t={tt}
-                value={userId}
-                onCopy={onCopy}
-                monospace={true}
-              />
-            </Descriptions.Item>
-            <Descriptions.Item itemKey={tt('邮箱')}>
-              <AccountInfoValue t={tt} value={email} onCopy={onCopy} />
-            </Descriptions.Item>
-            <Descriptions.Item itemKey='Account ID'>
-              <AccountInfoValue
-                t={tt}
-                value={accountId}
-                onCopy={onCopy}
-                monospace={true}
-              />
-            </Descriptions.Item>
-          </Descriptions>
+        <div className='mt-2 flex flex-wrap items-center gap-2'>
+          <Tag
+            color={accountTypeTagColor}
+            type='light'
+            shape='circle'
+            size='large'
+            className='font-semibold'
+          >
+            {accountTypeLabel}
+          </Tag>
+          {statusTag}
+          <Tag color='grey' type='light' shape='circle'>
+            HTTP {upstreamStatus ?? '-'}
+          </Tag>
+          <Tag
+            color={Number(resetCredits) > 0 ? 'blue' : 'grey'}
+            type='light'
+            shape='circle'
+          >
+            {tt('重置次数：')}
+            {Number.isFinite(Number(resetCredits)) ? String(resetCredits) : '-'}
+          </Tag>
+          {data?.credits?.overage_limit_reached ? (
+            <Tag color='red' type='light' shape='circle'>
+              {tt('超额受限')}
+            </Tag>
+          ) : null}
+          {data?.spend_control?.reached ? (
+            <Tag color='red' type='light' shape='circle'>
+              {tt('消费受限')}
+            </Tag>
+          ) : null}
         </div>
 
-        <div className='mt-2 text-xs text-semi-color-text-2'>
-          {tt('渠道：')}
-          {record?.name || '-'} ({tt('编号：')}
-          {record?.id || '-'})
+        <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
+          <InfoField t={tt} label={tt('邮箱')} value={email} onCopy={onCopy} />
+          <InfoField t={tt} label={tt('渠道')} value={channelLabel} />
+          <InfoField
+            t={tt}
+            label='User ID'
+            value={userId}
+            onCopy={onCopy}
+            monospace={true}
+            className='md:col-span-2'
+          />
         </div>
       </div>
 
-      <div>
-        <div className='mb-2'>
-          <div className='text-sm font-semibold text-semi-color-text-0'>
-            {tt('额度窗口')}
-          </div>
-          <Text type='tertiary' size='small'>
-            {tt(
-              '用于观察当前帐号在 Codex 上游的基础限额与附加计费能力使用情况',
-            )}
-          </Text>
-        </div>
-      </div>
-
-      <div className='space-y-5'>
-        <RateLimitGroupSection
-          t={tt}
+      <div className='space-y-3'>
+        <SectionHeading
           title={tt('基础额度')}
           description={tt('当前帐号的基础额度窗口')}
-          rateLimitSource={data}
-          statusTag={statusTag}
-        />
-
-        {additionalRateLimits.length > 0 ? (
-          <div className='space-y-4 border-t border-semi-color-border pt-4'>
-            <div>
-              <div className='text-sm font-semibold text-semi-color-text-0'>
-                {tt('附加额度')}
-              </div>
-              <Text type='tertiary' size='small'>
-                {tt('按模型或能力拆分的附加计费能力窗口')}
-              </Text>
-            </div>
-
-            <div className='space-y-4'>
-              {additionalRateLimits.map((item, index) => {
-                const limitName =
-                  getDisplayText(item?.limit_name) ||
-                  getDisplayText(item?.metered_feature) ||
-                  `${tt('附加额度')} ${index + 1}`;
-
-                return (
-                  <div
-                    key={`${limitName}-${getDisplayText(item?.metered_feature)}-${index}`}
-                    className={
-                      index > 0 ? 'border-t border-semi-color-border pt-4' : ''
-                    }
-                  >
-                    <RateLimitGroupSection
-                      t={tt}
-                      title={limitName}
-                      description={tt('附加计费能力')}
-                      rateLimitSource={item}
-                      statusTag={resolveUsageStatusTag(tt, item?.rate_limit)}
-                      meteredFeature={item?.metered_feature}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
+        >
+          {statusTag}
+        </SectionHeading>
+        <RateLimitWindowGrid t={tt} {...resolveRateLimitWindows(data)} />
       </div>
+
+      {additionalRateLimits.length > 0 ? (
+        <div className='space-y-3'>
+          <SectionHeading
+            title={tt('附加额度')}
+            description={tt('按模型或能力拆分的附加计费能力窗口')}
+          />
+          <div className='space-y-3'>
+            {additionalRateLimits.map((item, index) => {
+              const limitName =
+                getDisplayText(item?.limit_name) ||
+                getDisplayText(item?.metered_feature) ||
+                `${tt('附加额度')} ${index + 1}`;
+
+              return (
+                <RateLimitGroupSection
+                  key={`${limitName}-${getDisplayText(item?.metered_feature)}-${index}`}
+                  t={tt}
+                  title={limitName}
+                  description={tt('附加计费能力')}
+                  rateLimitSource={item}
+                  statusTag={resolveUsageStatusTag(tt, item?.rate_limit)}
+                  meteredFeature={item?.metered_feature}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <Collapse
         activeKey={showRawJson ? ['raw-json'] : []}
@@ -536,6 +570,7 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
           const keys = Array.isArray(activeKey) ? activeKey : [activeKey];
           setShowRawJson(keys.includes('raw-json'));
         }}
+        className='rounded-lg border border-semi-color-border bg-semi-color-bg-0'
       >
         <Collapse.Panel header={tt('原始 JSON')} itemKey='raw-json'>
           <div className='mb-2 flex justify-end'>
@@ -549,7 +584,7 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
               {tt('复制')}
             </Button>
           </div>
-          <pre className='max-h-[50vh] overflow-y-auto rounded-lg bg-semi-color-fill-0 p-3 text-xs text-semi-color-text-0'>
+          <pre className='max-h-[44vh] overflow-y-auto rounded-lg bg-semi-color-fill-0 p-3 text-xs text-semi-color-text-0 [font-variant-numeric:tabular-nums]'>
             {rawText}
           </pre>
         </Collapse.Panel>
@@ -609,38 +644,47 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
 
   if (loading) {
     return (
-      <div className='flex items-center justify-center py-10'>
-        <Spin spinning={true} size='large' tip={tt('加载中...')} />
-      </div>
+      <>
+        <CodexUsageModalStyles />
+        <div className='flex items-center justify-center py-10'>
+          <Spin spinning={true} size='large' tip={tt('加载中...')} />
+        </div>
+      </>
     );
   }
 
   if (!payload) {
     return (
-      <div className='flex flex-col gap-3'>
-        <Text type='danger'>{tt('获取用量失败')}</Text>
-        <div className='flex justify-end'>
-          <Button
-            size='small'
-            type='primary'
-            theme='outline'
-            onClick={fetchUsage}
-          >
-            {tt('刷新')}
-          </Button>
+      <>
+        <CodexUsageModalStyles />
+        <div className='flex flex-col gap-3'>
+          <Text type='danger'>{tt('获取用量失败')}</Text>
+          <div className='flex justify-end'>
+            <Button
+              size='small'
+              type='primary'
+              theme='outline'
+              onClick={fetchUsage}
+            >
+              {tt('刷新')}
+            </Button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <CodexUsageView
-      t={tt}
-      record={record}
-      payload={payload}
-      onCopy={onCopy}
-      onRefresh={fetchUsage}
-    />
+    <>
+      <CodexUsageModalStyles />
+      <CodexUsageView
+        t={tt}
+        record={record}
+        payload={payload}
+        onCopy={onCopy}
+        onRefresh={fetchUsage}
+      />
+    </>
   );
 };
 
@@ -650,6 +694,7 @@ export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
 
   Modal.info({
     title: tt('Codex 帐号与用量'),
+    className: CODEX_USAGE_MODAL_CLASS_NAME,
     centered: false,
     width: layout.width,
     style: layout.style,

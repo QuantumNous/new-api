@@ -3094,6 +3094,12 @@
       },
       "SubscriptionPlan": {
         "properties": {
+          "allow_balance_pay": {
+            "type": "boolean"
+          },
+          "allow_wallet_overflow": {
+            "type": "boolean"
+          },
           "created_at": {
             "type": "integer"
           },
@@ -3105,6 +3111,9 @@
           },
           "custom_seconds": {
             "type": "integer"
+          },
+          "downgrade_group": {
+            "type": "string"
           },
           "duration_unit": {
             "type": "string"
@@ -3675,6 +3684,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "admin_permissions": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "type": "object"
+            },
+            "type": "object"
+          },
           "aff_code": {
             "type": "string"
           },
@@ -3787,6 +3805,9 @@
       },
       "UserSubscription": {
         "properties": {
+          "allow_wallet_overflow": {
+            "type": "boolean"
+          },
           "amount_total": {
             "type": "integer"
           },
@@ -3795,6 +3816,9 @@
           },
           "created_at": {
             "type": "integer"
+          },
+          "downgrade_group": {
+            "type": "string"
           },
           "end_time": {
             "type": "integer"
@@ -3956,35 +3980,6 @@
               "type": "string"
             },
             "type": "array"
-          },
-          "remove_models": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "detectChannelUpstreamModelUpdatesResult": {
-        "properties": {
-          "add_models": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "auto_added_models": {
-            "type": "integer"
-          },
-          "channel_id": {
-            "type": "integer"
-          },
-          "channel_name": {
-            "type": "string"
-          },
-          "last_check_time": {
-            "type": "integer"
           },
           "remove_models": {
             "items": {
@@ -7074,43 +7069,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "channel_validation_failed": {
-                    "summary": "channel_validation_failed",
-                    "value": {
-                      "code": "channel_validation_failed",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  },
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  },
-                  "mode_unsupported": {
-                    "summary": "mode_unsupported",
-                    "value": {
-                      "code": "mode_unsupported",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad request — invalid_params, validation failed, or other client error",
-            "x-error-codes": [
-              "invalid_params",
-              "channel_validation_failed",
-              "mode_unsupported"
-            ]
+            "description": "Bad request — invalid_params, validation failed, or other client error"
           },
           "401": {
             "content": {
@@ -7165,25 +7129,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
@@ -7237,34 +7188,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "channel_validation_failed": {
-                    "summary": "channel_validation_failed",
-                    "value": {
-                      "code": "channel_validation_failed",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  },
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad request — invalid_params, validation failed, or other client error",
-            "x-error-codes": [
-              "invalid_params",
-              "channel_validation_failed"
-            ]
+            "description": "Bad request — invalid_params, validation failed, or other client error"
           },
           "401": {
             "content": {
@@ -7289,25 +7218,12 @@
           "404": {
             "content": {
               "application/json": {
-                "examples": {
-                  "channel_not_found": {
-                    "summary": "channel_not_found",
-                    "value": {
-                      "code": "channel_not_found",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Not found — referenced resource does not exist",
-            "x-error-codes": [
-              "channel_not_found"
-            ]
+            "description": "Not found — referenced resource does not exist"
           },
           "409": {
             "content": {
@@ -7332,25 +7248,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
@@ -7396,18 +7299,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "type": "integer"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -7528,18 +7420,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "type": "integer"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             },
@@ -7904,21 +7785,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "id": {}
-                      },
-                      "type": "object"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             },
@@ -8030,18 +7897,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "type": "integer"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             },
@@ -8172,25 +8028,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad request — invalid_params, validation failed, or other client error",
-            "x-error-codes": [
-              "invalid_params"
-            ]
+            "description": "Bad request — invalid_params, validation failed, or other client error"
           },
           "401": {
             "content": {
@@ -8245,48 +8088,22 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
               "application/json": {
-                "examples": {
-                  "fetch_models_failed": {
-                    "summary": "fetch_models_failed",
-                    "value": {
-                      "code": "fetch_models_failed",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad gateway — upstream provider (LLM API, model registry) failed",
-            "x-error-codes": [
-              "fetch_models_failed"
-            ]
+            "description": "Bad gateway — upstream provider (LLM API, model registry) failed"
           }
         },
         "security": [
@@ -8334,25 +8151,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad request — invalid_params, validation failed, or other client error",
-            "x-error-codes": [
-              "invalid_params"
-            ]
+            "description": "Bad request — invalid_params, validation failed, or other client error"
           },
           "401": {
             "content": {
@@ -8377,25 +8181,12 @@
           "404": {
             "content": {
               "application/json": {
-                "examples": {
-                  "channel_not_found": {
-                    "summary": "channel_not_found",
-                    "value": {
-                      "code": "channel_not_found",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Not found — referenced resource does not exist",
-            "x-error-codes": [
-              "channel_not_found"
-            ]
+            "description": "Not found — referenced resource does not exist"
           },
           "409": {
             "content": {
@@ -8420,48 +8211,22 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
               "application/json": {
-                "examples": {
-                  "fetch_models_failed": {
-                    "summary": "fetch_models_failed",
-                    "value": {
-                      "code": "fetch_models_failed",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad gateway — upstream provider (LLM API, model registry) failed",
-            "x-error-codes": [
-              "fetch_models_failed"
-            ]
+            "description": "Bad gateway — upstream provider (LLM API, model registry) failed"
           }
         },
         "security": [
@@ -8488,24 +8253,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "fails": {},
-                        "success": {
-                          "type": "integer"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -8850,15 +8598,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -8970,13 +8710,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {},
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             },
@@ -9105,13 +8839,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {},
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -9240,15 +8968,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -9370,21 +9090,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "version": {}
-                      },
-                      "type": "object"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -9666,25 +9372,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
@@ -9730,15 +9423,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             },
@@ -9859,15 +9544,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             },
@@ -9988,15 +9665,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             },
@@ -10118,18 +9787,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -10401,25 +10059,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad request — invalid_params, validation failed, or other client error",
-            "x-error-codes": [
-              "invalid_params"
-            ]
+            "description": "Bad request — invalid_params, validation failed, or other client error"
           },
           "401": {
             "content": {
@@ -10444,25 +10089,12 @@
           "404": {
             "content": {
               "application/json": {
-                "examples": {
-                  "channel_not_found": {
-                    "summary": "channel_not_found",
-                    "value": {
-                      "code": "channel_not_found",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Not found — referenced resource does not exist",
-            "x-error-codes": [
-              "channel_not_found"
-            ]
+            "description": "Not found — referenced resource does not exist"
           },
           "409": {
             "content": {
@@ -10487,25 +10119,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
@@ -10542,15 +10161,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -10673,18 +10284,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "balance": {
-                      "type": "number"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -10805,38 +10405,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "added_models": {
-                          "type": "string"
-                        },
-                        "id": {
-                          "type": "integer"
-                        },
-                        "ignored_models": {
-                          "type": "string"
-                        },
-                        "models": {
-                          "type": "string"
-                        },
-                        "remaining_models": {},
-                        "remaining_remove_models": {},
-                        "removed_models": {},
-                        "settings": {
-                          "type": "string"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -10948,31 +10517,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "added_models": {
-                          "type": "integer"
-                        },
-                        "failed_channel_ids": {},
-                        "processed_channels": {
-                          "type": "integer"
-                        },
-                        "removed_models": {
-                          "type": "integer"
-                        },
-                        "results": {}
-                      },
-                      "type": "object"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -11093,18 +10638,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/detectChannelUpstreamModelUpdatesResult"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -11216,31 +10750,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "channel_detected_results": {},
-                        "detected_add_models": {
-                          "type": "integer"
-                        },
-                        "detected_remove_models": {
-                          "type": "integer"
-                        },
-                        "failed_channel_ids": {},
-                        "processed_channels": {
-                          "type": "integer"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -11373,25 +10883,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad request — invalid_params, validation failed, or other client error",
-            "x-error-codes": [
-              "invalid_params"
-            ]
+            "description": "Bad request — invalid_params, validation failed, or other client error"
           },
           "401": {
             "content": {
@@ -11416,25 +10913,12 @@
           "404": {
             "content": {
               "application/json": {
-                "examples": {
-                  "channel_not_found": {
-                    "summary": "channel_not_found",
-                    "value": {
-                      "code": "channel_not_found",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Not found — referenced resource does not exist",
-            "x-error-codes": [
-              "channel_not_found"
-            ]
+            "description": "Not found — referenced resource does not exist"
           },
           "409": {
             "content": {
@@ -11459,25 +10943,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
@@ -11533,25 +11004,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad request — invalid_params, validation failed, or other client error",
-            "x-error-codes": [
-              "invalid_params"
-            ]
+            "description": "Bad request — invalid_params, validation failed, or other client error"
           },
           "401": {
             "content": {
@@ -11576,25 +11034,12 @@
           "404": {
             "content": {
               "application/json": {
-                "examples": {
-                  "channel_not_found": {
-                    "summary": "channel_not_found",
-                    "value": {
-                      "code": "channel_not_found",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Not found — referenced resource does not exist",
-            "x-error-codes": [
-              "channel_not_found"
-            ]
+            "description": "Not found — referenced resource does not exist"
           },
           "409": {
             "content": {
@@ -11619,25 +11064,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
@@ -11928,35 +11360,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "account_id": {
-                          "type": "string"
-                        },
-                        "channel_id": {},
-                        "channel_name": {},
-                        "channel_type": {},
-                        "email": {
-                          "type": "string"
-                        },
-                        "expires_at": {
-                          "type": "string"
-                        },
-                        "last_refresh": {
-                          "type": "string"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -12078,15 +11482,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiResponseOfObject"
                 }
               }
             },
@@ -12219,25 +11615,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Bad request — invalid_params, validation failed, or other client error",
-            "x-error-codes": [
-              "invalid_params"
-            ]
+            "description": "Bad request — invalid_params, validation failed, or other client error"
           },
           "401": {
             "content": {
@@ -12262,25 +11645,12 @@
           "404": {
             "content": {
               "application/json": {
-                "examples": {
-                  "channel_not_found": {
-                    "summary": "channel_not_found",
-                    "value": {
-                      "code": "channel_not_found",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Not found — referenced resource does not exist",
-            "x-error-codes": [
-              "channel_not_found"
-            ]
+            "description": "Not found — referenced resource does not exist"
           },
           "409": {
             "content": {
@@ -12305,25 +11675,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
@@ -18318,6 +17675,24 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "sync_official",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -18948,6 +18323,24 @@
             "required": false,
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "sync_official",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -24794,6 +24187,15 @@
             "description": "",
             "in": "query",
             "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
             "required": false,
             "schema": {
               "type": "integer"
@@ -30908,25 +30310,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Internal server error — DB transaction failure or unhandled exception",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "Internal server error — DB transaction failure or unhandled exception"
           },
           "502": {
             "content": {
@@ -31014,14 +30403,6 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "cannot_create_higher_level": {
-                    "summary": "cannot_create_higher_level",
-                    "value": {
-                      "code": "cannot_create_higher_level",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  },
                   "permission_denied": {
                     "summary": "permission_denied",
                     "value": {
@@ -31038,8 +30419,7 @@
             },
             "description": "Forbidden — insufficient role/permission or feature disabled",
             "x-error-codes": [
-              "permission_denied",
-              "cannot_create_higher_level"
+              "permission_denied"
             ]
           },
           "404": {
@@ -33720,7 +33100,17 @@
       "get": {
         "deprecated": false,
         "description": "🔐 需要登录（User权限）",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

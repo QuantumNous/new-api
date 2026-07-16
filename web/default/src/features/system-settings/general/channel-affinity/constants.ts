@@ -18,12 +18,29 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { AffinityRule } from './types'
 
+// Keep in sync with upstream Codex request headers:
+// https://github.com/openai/codex/commit/7c7b4861d88960f7e3bd5b7f30f8351be666dd84
+// https://github.com/openai/codex/commit/14df0e8833aad0d6d78287954b61ffac67af936c
+// https://github.com/openai/codex/commit/ebdd8795e924a8149b616e46ca2ed7848c207a4b
 const CODEX_CLI_HEADER_PASSTHROUGH_HEADERS = [
   'Originator',
   'Session_id',
+  'Thread_id',
+  'Session-Id',
+  'Thread-Id',
+  'X-Client-Request-Id',
   'User-Agent',
   'X-Codex-Beta-Features',
+  'X-Codex-Turn-State',
   'X-Codex-Turn-Metadata',
+  'X-Codex-Window-Id',
+  'X-Codex-Parent-Thread-Id',
+  // 'X-Codex-Installation-Id',
+  'X-OpenAI-Subagent',
+  'X-OpenAI-Memgen-Request',
+  // 'X-OAI-Attestation',
+  'X-ResponsesAPI-Include-Timing-Metrics',
+  'X-OpenAI-Internal-Codex-Responses-Lite',
 ]
 
 const CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS = [
@@ -54,6 +71,18 @@ function buildPassHeadersTemplate(headers: string[]) {
   }
 }
 
+function buildCodexPassHeadersTemplate() {
+  return {
+    operations: [
+      {
+        mode: 'pass_headers',
+        value: [...CODEX_CLI_HEADER_PASSTHROUGH_HEADERS],
+        keep_origin: true,
+      },
+    ],
+  }
+}
+
 export type RuleTemplate = Omit<AffinityRule, 'id'>
 
 export const RULE_TEMPLATES: Record<string, RuleTemplate> = {
@@ -62,9 +91,7 @@ export const RULE_TEMPLATES: Record<string, RuleTemplate> = {
     model_regex: ['^gpt-.*$'],
     path_regex: ['/v1/responses'],
     key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
-    param_override_template: buildPassHeadersTemplate(
-      CODEX_CLI_HEADER_PASSTHROUGH_HEADERS
-    ),
+    param_override_template: buildCodexPassHeadersTemplate(),
     value_regex: '',
     ttl_seconds: 0,
     skip_retry_on_failure: true,

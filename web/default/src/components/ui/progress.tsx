@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 'use client'
 
 import { Progress as ProgressPrimitive } from '@base-ui/react/progress'
+
 import { cn } from '@/lib/utils'
 
 function Progress({

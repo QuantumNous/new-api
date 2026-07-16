@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
+
 import {
   Popover,
   PopoverContent,
@@ -29,6 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 type LongTextProps = {
   children: React.ReactNode
@@ -46,7 +47,6 @@ export function LongText({
 
   useEffect(() => {
     if (checkOverflow(ref.current)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsOverflown(true)
       return
     }

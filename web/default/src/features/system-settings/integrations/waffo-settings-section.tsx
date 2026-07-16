@@ -16,31 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Plus } from 'lucide-react'
 import { type ChangeEvent, useRef, type SetStateAction, useState } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+
 import { SettingsSwitchField } from '../components/settings-form-layout'
 
 export interface WaffoSettingsValues {
@@ -110,8 +100,9 @@ export function WaffoSettingsSection({
   }
 
   const saveMethod = () => {
-    if (!methodForm.name.trim())
+    if (!methodForm.name.trim()) {
       return toast.error(t('Payment method name is required'))
+    }
     if (editingIdx === -1) {
       onPayMethodsChange((prev) => [...prev, methodForm])
     } else {
@@ -138,15 +129,12 @@ export function WaffoSettingsSection({
     }
 
     const reader = new FileReader()
-    reader.onload = (loadEvent) => {
+    reader.addEventListener('load', () => {
       setMethodForm((previous) => ({
         ...previous,
-        icon:
-          typeof loadEvent.target?.result === 'string'
-            ? loadEvent.target.result
-            : '',
+        icon: typeof reader.result === 'string' ? reader.result : '',
       }))
-    }
+    })
     reader.readAsDataURL(file)
     event.target.value = ''
   }
@@ -177,13 +165,13 @@ export function WaffoSettingsSection({
             checked={values.WaffoEnabled}
             onCheckedChange={(v) => onValueChange('WaffoEnabled', v)}
             label={t('Enable Waffo')}
-            className='border-b-0 py-0'
+            className='py-0'
           />
           <SettingsSwitchField
             checked={values.WaffoSandbox}
             onCheckedChange={(v) => onValueChange('WaffoSandbox', v)}
             label={t('Sandbox mode')}
-            className='border-b-0 py-0'
+            className='py-0'
           />
         </div>
 
@@ -339,173 +327,73 @@ export function WaffoSettingsSection({
           </Button>
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Display name')}</TableHead>
-                <TableHead>{t('Icon')}</TableHead>
-                <TableHead>{t('Payment method type')}</TableHead>
-                <TableHead>{t('Payment method name')}</TableHead>
-                <TableHead className='text-right'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payMethods.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className='text-muted-foreground py-8 text-center'
-                  >
-                    {t('No payment methods configured')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                payMethods.map((m, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{m.name}</TableCell>
-                    <TableCell>
-                      {m.icon ? (
-                        <img
-                          src={m.icon}
-                          alt={m.name}
-                          className='h-6 w-6 rounded object-contain'
-                        />
-                      ) : (
-                        <span className='text-muted-foreground'>-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{m.payMethodType || '-'}</TableCell>
-                    <TableCell>{m.payMethodName || '-'}</TableCell>
-                    <TableCell className='text-right'>
-                      <div className='flex justify-end gap-1'>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='icon'
-                          className='h-7 w-7'
-                          onClick={() => openEdit(idx)}
-                        >
-                          <Pencil className='h-3 w-3' />
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='icon'
-                          className='h-7 w-7'
-                          onClick={() =>
-                            onPayMethodsChange((prev) =>
-                              prev.filter((_, i) => i !== idx)
-                            )
-                          }
-                        >
-                          <Trash2 className='h-3 w-3' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      <Dialog open={methodDialogOpen} onOpenChange={setMethodDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingIdx === -1
-                ? t('Add payment method')
-                : t('Edit payment method')}
-            </DialogTitle>
-          </DialogHeader>
-          <div className='space-y-3'>
-            <div className='grid gap-1.5'>
-              <Label>{t('Display name')} *</Label>
-              <Input
-                value={methodForm.name}
-                onChange={(e) =>
-                  setMethodForm((p) => ({ ...p, name: e.target.value }))
-                }
-              />
-            </div>
-            <div className='grid gap-2'>
-              <Label>{t('Icon')}</Label>
-              <div className='flex items-center gap-3'>
-                {methodForm.icon ? (
+        <StaticDataTable
+          data={payMethods}
+          emptyClassName='text-muted-foreground py-8'
+          emptyContent={t('No payment methods configured')}
+          columns={[
+            {
+              id: 'name',
+              header: t('Display name'),
+              cell: (m) => m.name,
+            },
+            {
+              id: 'icon',
+              header: t('Icon'),
+              cell: (m) =>
+                m.icon ? (
                   <img
-                    src={methodForm.icon}
-                    alt={methodForm.name || t('Icon')}
-                    className='h-10 w-10 rounded border object-contain p-1'
+                    src={m.icon}
+                    alt={m.name}
+                    className='h-6 w-6 rounded object-contain'
                   />
                 ) : (
-                  <div className='bg-muted text-muted-foreground flex h-10 w-10 items-center justify-center rounded border text-xs'>
-                    {t('Icon')}
-                  </div>
-                )}
-                <input
-                  ref={iconFileInputRef}
-                  type='file'
-                  accept='image/png,image/jpeg,image/svg+xml,image/webp'
-                  className='hidden'
-                  onChange={handleIconFileChange}
+                  <span className='text-muted-foreground'>-</span>
+                ),
+            },
+            {
+              id: 'type',
+              header: t('Payment method type'),
+              cell: (m) => m.payMethodType || '-',
+            },
+            {
+              id: 'method',
+              header: t('Payment method name'),
+              cell: (m) => m.payMethodName || '-',
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'text-right',
+              cellClassName: 'text-right',
+              cell: (_m, idx) => (
+                <StaticRowActions
+                  editLabel={t('Edit')}
+                  deleteLabel={t('Delete')}
+                  menuLabel={t('Open menu')}
+                  onEdit={() => openEdit(idx)}
+                  onDelete={() =>
+                    onPayMethodsChange((prev) =>
+                      prev.filter((_, i) => i !== idx)
+                    )
+                  }
                 />
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => iconFileInputRef.current?.click()}
-                >
-                  {t('Upload')}
-                </Button>
-                {methodForm.icon ? (
-                  <Button
-                    type='button'
-                    variant='outline'
-                    onClick={() =>
-                      setMethodForm((previous) => ({
-                        ...previous,
-                        icon: '',
-                      }))
-                    }
-                  >
-                    {t('Clear')}
-                  </Button>
-                ) : null}
-              </div>
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'Supports PNG, JPG, SVG, or WebP. Recommended size: 128×128 or smaller.'
-                )}
-              </p>
-            </div>
-            <div className='grid gap-1.5'>
-              <Label>{t('Payment method type')}</Label>
-              <Input
-                value={methodForm.payMethodType}
-                onChange={(e) =>
-                  setMethodForm((p) => ({
-                    ...p,
-                    payMethodType: e.target.value,
-                  }))
-                }
-                placeholder='CREDITCARD,DEBITCARD'
-              />
-            </div>
-            <div className='grid gap-1.5'>
-              <Label>{t('Payment method name')}</Label>
-              <Input
-                value={methodForm.payMethodName}
-                onChange={(e) =>
-                  setMethodForm((p) => ({
-                    ...p,
-                    payMethodName: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
+              ),
+            },
+          ]}
+        />
+      </div>
+
+      <Dialog
+        open={methodDialogOpen}
+        onOpenChange={setMethodDialogOpen}
+        title={
+          editingIdx === -1 ? t('Add payment method') : t('Edit payment method')
+        }
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button
               type='button'
               variant='outline'
@@ -516,8 +404,94 @@ export function WaffoSettingsSection({
             <Button type='button' onClick={saveMethod}>
               {t('Confirm')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className='space-y-3'>
+          <div className='grid gap-1.5'>
+            <Label>{t('Display name')} *</Label>
+            <Input
+              value={methodForm.name}
+              onChange={(e) =>
+                setMethodForm((p) => ({ ...p, name: e.target.value }))
+              }
+            />
+          </div>
+          <div className='grid gap-2'>
+            <Label>{t('Icon')}</Label>
+            <div className='flex items-center gap-3'>
+              {methodForm.icon ? (
+                <img
+                  src={methodForm.icon}
+                  alt={methodForm.name || t('Icon')}
+                  className='h-10 w-10 rounded border object-contain p-1'
+                />
+              ) : (
+                <div className='bg-muted text-muted-foreground flex h-10 w-10 items-center justify-center rounded border text-xs'>
+                  {t('Icon')}
+                </div>
+              )}
+              <input
+                ref={iconFileInputRef}
+                type='file'
+                accept='image/png,image/jpeg,image/svg+xml,image/webp'
+                className='hidden'
+                onChange={handleIconFileChange}
+              />
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => iconFileInputRef.current?.click()}
+              >
+                {t('Upload')}
+              </Button>
+              {methodForm.icon ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() =>
+                    setMethodForm((previous) => ({
+                      ...previous,
+                      icon: '',
+                    }))
+                  }
+                >
+                  {t('Clear')}
+                </Button>
+              ) : null}
+            </div>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Supports PNG, JPG, SVG, or WebP. Recommended size: 128×128 or smaller.'
+              )}
+            </p>
+          </div>
+          <div className='grid gap-1.5'>
+            <Label>{t('Payment method type')}</Label>
+            <Input
+              value={methodForm.payMethodType}
+              onChange={(e) =>
+                setMethodForm((p) => ({
+                  ...p,
+                  payMethodType: e.target.value,
+                }))
+              }
+              placeholder='CREDITCARD,DEBITCARD'
+            />
+          </div>
+          <div className='grid gap-1.5'>
+            <Label>{t('Payment method name')}</Label>
+            <Input
+              value={methodForm.payMethodName}
+              onChange={(e) =>
+                setMethodForm((p) => ({
+                  ...p,
+                  payMethodName: e.target.value,
+                }))
+              }
+            />
+          </div>
+        </div>
       </Dialog>
     </>
   )
