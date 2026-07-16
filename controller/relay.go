@@ -233,7 +233,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
-			cooldownSlowChannelIfNeeded(c, relayInfo, channel)
+			cooldownSlowChannelIfNeeded(c, relayInfo, channel, attemptStart)
 			return
 		}
 
@@ -387,22 +387,35 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 // first-response-time exceeded SlowChannelFRTThreshold. FRT is only meaningful
 // when the handler actually recorded a first response; pinned (specific) channel
 // requests are skipped since they bypass selection anyway.
-func cooldownSlowChannelIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, channel *model.Channel) {
+func cooldownSlowChannelIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, channel *model.Channel, attemptStart time.Time) {
 	if info == nil || channel == nil {
 		return
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return
 	}
-	if !info.HasSendResponse() {
-		return
-	}
-	frt := info.FirstResponseTime.Sub(info.StartTime)
-	if frt < service.SlowChannelFRTThreshold {
+	frt, slow := shouldCooldownSlowChannel(info, attemptStart)
+	if !slow {
 		return
 	}
 	channelError := types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan())
 	service.CooldownSlowChannel(*channelError, frt)
+}
+
+// shouldCooldownSlowChannel decides whether the channel that just served a
+// successful response was slow to first token. Latency is measured from
+// attemptStart (the start of the SUCCESSFUL attempt), not info.StartTime: on a
+// request that failed over across dead channels, info.StartTime includes the
+// time wasted on those earlier attempts, which would inflate the measured first
+// token latency and wrongly cool the fast channel that actually served. If no
+// response was sent, or the first response predates this attempt (so it is not
+// attributable to it), the channel is not cooled.
+func shouldCooldownSlowChannel(info *relaycommon.RelayInfo, attemptStart time.Time) (time.Duration, bool) {
+	if info == nil || !info.HasSendResponse() || !info.FirstResponseTime.After(attemptStart) {
+		return 0, false
+	}
+	frt := info.FirstResponseTime.Sub(attemptStart)
+	return frt, frt >= service.SlowChannelFRTThreshold
 }
 
 // isRetryableChannelError reports whether the error would cause the relay loop
