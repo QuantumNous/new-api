@@ -182,6 +182,14 @@ type RelayInfo struct {
 
 	StreamStatus *StreamStatus
 
+	// UpstreamEmptyResponse marks a request where the upstream returned HTTP 200
+	// but produced no billable usage and no output (TotalTokens == 0) for a
+	// reason other than the client disconnecting. The channel accepted the
+	// request and then truncated/emptied the stream — a soft failure the HTTP
+	// status alone cannot reveal. It is fed into the adaptive channel-health
+	// circuit so traffic steers away from channels that silently return nothing.
+	UpstreamEmptyResponse bool
+
 	ThinkingContentInfo
 	TokenCountMeta
 	*ClaudeConvertInfo

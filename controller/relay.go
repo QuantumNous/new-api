@@ -214,6 +214,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		// Reset per-attempt so an empty-response flag from a prior attempt cannot
+		// leak into this attempt's health outcome.
+		relayInfo.UpstreamEmptyResponse = false
 		attemptStart := time.Now()
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:

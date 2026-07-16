@@ -387,6 +387,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		if relayInfo.StreamStatus != nil && relayInfo.StreamStatus.Snapshot().EndReason == relaycommon.StreamEndReasonClientGone {
 			logger.LogInfo(ctx, message)
 		} else {
+			// Upstream returned 200 but nothing billable and no output, and the
+			// client did not disconnect — the channel truncated/emptied the
+			// response. Flag it so the adaptive health circuit counts it as a
+			// channel failure (RecordChannelHealthOutcome maps this to 502).
+			relayInfo.UpstreamEmptyResponse = true
 			logger.LogError(ctx, message)
 		}
 	}

@@ -86,6 +86,21 @@ func isChannelAttributableError(apiErr *types.NewAPIError) bool {
 	return channelAttributableErrorCodes[apiErr.GetErrorCode()]
 }
 
+// channelHealthOutcomeStatus derives the status a channel attempt should be
+// scored with. A real upstream error uses its own status. Otherwise the attempt
+// nominally succeeded (200) — except when the upstream returned 200 but emptied
+// the stream (no usage, no output): that is scored as 502 so a channel that
+// silently returns nothing is treated as failing rather than healthy.
+func channelHealthOutcomeStatus(apiErr *types.NewAPIError, relayInfo *relaycommon.RelayInfo) (statusCode int, localError bool) {
+	if apiErr != nil {
+		return apiErr.StatusCode, !isChannelAttributableError(apiErr)
+	}
+	if relayInfo != nil && relayInfo.UpstreamEmptyResponse {
+		return http.StatusBadGateway, false
+	}
+	return http.StatusOK, false
+}
+
 // RecordChannelHealthOutcome records the outcome of a single channel attempt.
 // attemptStart must be the time this specific attempt (not the overall
 // request) began, so retries on other channels don't inherit latency spent on
@@ -94,11 +109,8 @@ func RecordChannelHealthOutcome(channelID int, modelName, requestPath string, re
 	if channelID == 0 || modelName == "" {
 		return
 	}
-	outcome := model.ChannelOutcome{StatusCode: http.StatusOK, SemanticError: semanticError}
-	if apiErr != nil {
-		outcome.StatusCode = apiErr.StatusCode
-		outcome.LocalError = !isChannelAttributableError(apiErr)
-	}
+	statusCode, localError := channelHealthOutcomeStatus(apiErr, relayInfo)
+	outcome := model.ChannelOutcome{StatusCode: statusCode, SemanticError: semanticError, LocalError: localError}
 	if relayInfo != nil && relayInfo.HasSendResponse() && relayInfo.FirstResponseTime.After(attemptStart) {
 		outcome.Latency = relayInfo.FirstResponseTime.Sub(attemptStart)
 	} else if !attemptStart.IsZero() {

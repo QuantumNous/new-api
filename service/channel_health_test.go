@@ -7,8 +7,91 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 )
+
+// TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure covers the pure
+// status-mapping helper: a real upstream error keeps its own status, a clean
+// success is 200, and a 200-but-empty upstream response (UpstreamEmptyResponse)
+// is scored 502 so the circuit treats a channel that silently returns nothing
+// as failing rather than healthy.
+func TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure(t *testing.T) {
+	upstreamErr := types.NewErrorWithStatusCode(errors.New("do request failed"), types.ErrorCodeDoRequestFailed, http.StatusBadGateway)
+	localErr := types.NewErrorWithStatusCode(errors.New("convert request failed"), types.ErrorCodeConvertRequestFailed, http.StatusInternalServerError)
+
+	tests := []struct {
+		name         string
+		apiErr       *types.NewAPIError
+		relayInfo    *relaycommon.RelayInfo
+		wantStatus   int
+		wantLocalErr bool
+	}{
+		{name: "clean success", apiErr: nil, relayInfo: &relaycommon.RelayInfo{}, wantStatus: http.StatusOK, wantLocalErr: false},
+		{name: "nil relay info", apiErr: nil, relayInfo: nil, wantStatus: http.StatusOK, wantLocalErr: false},
+		{name: "empty upstream response", apiErr: nil, relayInfo: &relaycommon.RelayInfo{UpstreamEmptyResponse: true}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
+		{name: "upstream error wins over empty flag", apiErr: upstreamErr, relayInfo: &relaycommon.RelayInfo{UpstreamEmptyResponse: true}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
+		{name: "gateway-local error", apiErr: localErr, relayInfo: &relaycommon.RelayInfo{}, wantStatus: http.StatusInternalServerError, wantLocalErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, localErr := channelHealthOutcomeStatus(tt.apiErr, tt.relayInfo)
+			if status != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", status, tt.wantStatus)
+			}
+			if localErr != tt.wantLocalErr {
+				t.Fatalf("localError = %v, want %v", localErr, tt.wantLocalErr)
+			}
+		})
+	}
+}
+
+// TestRecordChannelHealthOutcomeCountsEmptyUpstreamResponse verifies the
+// end-to-end effect: repeated 200-but-empty upstream responses (no apiErr, only
+// the UpstreamEmptyResponse flag) open the channel circuit, so a channel that
+// keeps truncating streams is routed away from instead of staying "healthy".
+func TestRecordChannelHealthOutcomeCountsEmptyUpstreamResponse(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001426
+	const modelName = "test-empty-upstream-response"
+	const requestPath = "/v1/responses"
+
+	emptyInfo := &relaycommon.RelayInfo{UpstreamEmptyResponse: true}
+
+	for i := 0; i < 5; i++ {
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, emptyInfo, time.Now(), nil, false)
+	}
+
+	if IsChannelHealthAvailable(channelID, modelName, requestPath) {
+		t.Fatal("expected repeated empty upstream responses to open the channel circuit")
+	}
+}
+
+// TestRecordChannelHealthOutcomeHealthySuccessStaysAvailable is the contrast:
+// a normal 200 with real output (no empty flag) must not open the circuit.
+func TestRecordChannelHealthOutcomeHealthySuccessStaysAvailable(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001427
+	const modelName = "test-healthy-success"
+	const requestPath = "/v1/responses"
+
+	healthyInfo := &relaycommon.RelayInfo{}
+
+	for i := 0; i < 5; i++ {
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, healthyInfo, time.Now(), nil, false)
+	}
+
+	if !IsChannelHealthAvailable(channelID, modelName, requestPath) {
+		t.Fatal("expected healthy successes to keep the channel available")
+	}
+}
 
 func TestChannelHealthPathNormalizesBoundedRouteFamilies(t *testing.T) {
 	tests := []struct {
