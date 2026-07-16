@@ -26,6 +26,72 @@
 2. 在 fork 上打 tag / 发布 Release（含二进制 + checksum），或构建/推送 Docker 镜像
 3. 在线上管理后台点「检查更新」→「拉取更新」
 
+## 版本号规范（fork 自建）
+
+**格式（固定）：**
+
+```text
+v{上游ReleaseTag}-th.{x}
+```
+
+示例：
+
+- `v1.0.0-rc.21-th.1`
+- `v1.0.0-rc.21-th.2`
+- `v1.0.0-rc.22-th.1`
+
+| 段 | 含义 | 何时变 |
+|----|------|--------|
+| `v{上游ReleaseTag}` | 与 **QuantumNous/new-api** 最新（或你已合入的）**Release tag** 对齐，如 `v1.0.0-rc.21` | 上游打了新 Release，且你已把对应代码合进 fork 后再发版 |
+| `-th` | ToyHunter fork 自建标记（含一键更新等自改） | 固定，不要改成 `oneclick` 等其它后缀 |
+| `.{x}` | 同一上游基线之下的自建序号，从 **1** 起 | 仅自改 / 修 bug / 重发时 **x+1**；换上游基线时 **x 归 1** |
+
+### 硬性约定
+
+1. **四者一致：** 仓库 `VERSION` 文件 = git tag = GitHub Release tag = 线上 `common.Version` / `X-New-Api-Version`（Docker 镜像 tag 建议同名，如 `local/new-api:v1.0.0-rc.21-th.2`）。
+2. **不要**在已合入上游 rc.21 代码后仍使用 `v1.0.0-rc.20-th.*` 或历史 `*-oneclick.*` 标记。
+3. **一键更新只认 fork Release**（`NEWAPI_UPDATE_REPO=ChinaToyHunter/new-api`）。不要把更新源改成上游官方仓，否则会装上**没有自改**的官方包。
+4. 上游 `main` 有 commit 但尚未打新 Release 时：基线仍用**最近已合入的上游 Release tag**；等上游发 tag 并合入后再升基线。
+5. GitHub 显示 fork「not behind upstream main」只说明 **git 提交**同步情况，**不等于** Release 号或线上版本号。
+
+### 只改 x（同基线重发）
+
+```bash
+UP=$(gh api repos/QuantumNous/new-api/releases/latest --jq -r .tag_name)   # e.g. v1.0.0-rc.21
+BASE="${UP}-th"
+MAX=$(gh api repos/ChinaToyHunter/new-api/releases --jq '.[].tag_name' \
+  | sed -n "s/^${BASE}\\.\\([0-9]\\+\\)$/\\1/p" | sort -n | tail -1)
+NEXT=$(( ${MAX:-0} + 1 ))
+NEW="${BASE}.${NEXT}"
+echo "$NEW" > VERSION
+# 构建 → git tag → gh release create → 部署
+```
+
+### 上游新 Release 后（换基线）
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main   # 解决冲突，保留 selfupdate 等自改
+UP=$(gh api repos/QuantumNous/new-api/releases/latest --jq -r .tag_name)
+NEW="${UP}-th.1"
+echo "$NEW" > VERSION
+# 构建 → tag → Release → 部署
+```
+
+### 与「检查更新 / 拉取更新」的关系
+
+| 步骤 | 作用 |
+|------|------|
+| 合上游到 fork | 代码与自改并存 |
+| `VERSION` + 构建 | 二进制/镜像带正确版本字符串 |
+| fork 上 **打 tag + 创建 GitHub Release** | `releases/latest` 有内容，「检查更新」才能看到新版本 |
+| 线上「拉取更新」 | 按部署模式装上 fork 产物 |
+
+fork **没有任何 Release** 时：检查更新会提示「当前是最新版本，无需更新」（无 404 硬错误），因为没有可部署的更新包。
+
+---
+
 ## 部署模式
 
 启动时自动探测（可用 `NEWAPI_DEPLOY_MODE` 强制）：
