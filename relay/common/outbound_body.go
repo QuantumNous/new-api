@@ -23,24 +23,21 @@ import (
 // size is meant to be propagated to http.Request.ContentLength because the
 // type-erased io.Reader prevents net/http from auto-detecting it.
 //
-// The returned getBody rewinds the storage and hands out a fresh reader over
-// the full body. It is meant to be propagated to http.Request.GetBody (which
-// net/http likewise cannot derive from a type-erased io.Reader) so the HTTP/2
-// transport can transparently retry the request when the upstream resets the
-// stream after the body was already written ("http2: Transport: cannot retry
-// err ... after Request.Body was written"). The transport only invokes GetBody
-// after the previous attempt's body has been closed and abandoned, so rewinding
-// the shared storage cannot race with an in-flight read of the original body.
+// The returned getBody hands out a new, independent reader over the full body
+// on every call, per the http.Request.GetBody contract of returning a fresh
+// copy of the body. It is meant to be propagated to http.Request.GetBody
+// (which net/http likewise cannot derive from a type-erased io.Reader) so the
+// HTTP/2 transport can transparently retry the request when the upstream
+// resets the stream after the body was already written ("http2: Transport:
+// cannot retry err ... after Request.Body was written"). Each reader has its
+// own cursor — in memory mode a fresh bytes.Reader over the shared immutable
+// backing array, in disk mode a separate file descriptor — so replays never
+// share seek state with the primary body or with each other, and closing a
+// replayed reader never releases the underlying storage.
 func NewOutboundJSONBody(data []byte) (body io.Reader, size int64, getBody func() (io.ReadCloser, error), closer io.Closer, err error) {
 	storage, err := common.CreateBodyStorage(data)
 	if err != nil {
 		return nil, 0, nil, nil, err
 	}
-	getBody = func() (io.ReadCloser, error) {
-		if _, err := storage.Seek(0, io.SeekStart); err != nil {
-			return nil, err
-		}
-		return io.NopCloser(common.ReaderOnly(storage)), nil
-	}
-	return common.ReaderOnly(storage), storage.Size(), getBody, storage, nil
+	return common.ReaderOnly(storage), storage.Size(), storage.NewReader, storage, nil
 }
