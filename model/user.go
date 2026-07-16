@@ -1105,25 +1105,33 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
+	// Always apply DB floor first so concurrent pre-consume cannot overdraft.
+	// BatchUpdate only accelerates non-critical increments; debit stays synchronous.
+	if err = decreaseUserQuota(id, quota); err != nil {
+		return err
+	}
+	// Cache after successful DB debit only (avoids optimistic under-read on floor fail).
 	gopool.Go(func() {
-		err := cacheDecrUserQuota(id, int64(quota))
-		if err != nil {
-			common.SysLog("failed to decrease user quota: " + err.Error())
+		if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog("failed to decrease user quota cache: " + err.Error())
 		}
 	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
-		return nil
-	}
-	return decreaseUserQuota(id, quota)
+	_ = db // retained for API compatibility with callers
+	return nil
 }
 
 func decreaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
-	if err != nil {
-		return err
+	// Floor guard: refuse to drive balance negative under concurrent pre-consume.
+	result := DB.Model(&User{}).
+		Where("id = ? AND quota >= ?", id, quota).
+		Update("quota", gorm.Expr("quota - ?", quota))
+	if result.Error != nil {
+		return result.Error
 	}
-	return err
+	if result.RowsAffected == 0 {
+		return errors.New("用户额度不足")
+	}
+	return nil
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {
@@ -1185,15 +1193,31 @@ func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, r
 		return
 	}
 
-	err := DB.Model(&User{}).Where("id = ?", id).Updates(
+	// Debit (quota < 0) must refuse to drive balance negative under concurrent settle.
+	query := DB.Model(&User{}).Where("id = ?", id)
+	if quota < 0 {
+		query = query.Where("quota >= ?", -quota)
+	}
+	result := query.Updates(
 		map[string]interface{}{
 			"quota":         gorm.Expr("quota + ?", quota),
 			"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
 			"request_count": gorm.Expr("request_count + ?", requestCount),
 		},
-	).Error
-	if err != nil {
-		common.SysLog("failed to batch update user quota, used quota and request count: " + err.Error())
+	)
+	if result.Error != nil {
+		common.SysLog("failed to batch update user quota, used quota and request count: " + result.Error.Error())
+		return
+	}
+	if quota < 0 && result.RowsAffected == 0 {
+		common.SysLog(fmt.Sprintf("batch user quota debit skipped (insufficient balance): user=%d delta=%d", id, quota))
+		// Still apply used_quota/request_count so usage stats are not lost when balance is already zero.
+		_ = DB.Model(&User{}).Where("id = ?", id).Updates(
+			map[string]interface{}{
+				"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
+				"request_count": gorm.Expr("request_count + ?", requestCount),
+			},
+		).Error
 	}
 }
 

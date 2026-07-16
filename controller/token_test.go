@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -415,6 +416,32 @@ func TestGetAllTokensMasksKeyInResponse(t *testing.T) {
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("list response leaked raw token key: %s", recorder.Body.String())
 	}
+}
+
+func TestGetTokenUsageUsesAuthenticatedTokenID(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 7, "usage-token", "usage-key-with-suffix")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/usage/token/", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer sk-wrong-key-wrong-suffix")
+	ctx.Set("token_id", token.Id)
+
+	GetTokenUsage(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Code bool `json:"code"`
+		Data struct {
+			Name         string `json:"name"`
+			TotalGranted int    `json:"total_granted"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Code)
+	require.Equal(t, token.Name, response.Data.Name)
+	require.Equal(t, token.RemainQuota+token.UsedQuota, response.Data.TotalGranted)
 }
 
 func TestSearchTokensMasksKeyInResponse(t *testing.T) {
