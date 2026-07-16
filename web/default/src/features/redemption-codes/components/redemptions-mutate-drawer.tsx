@@ -30,6 +30,16 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -72,6 +82,27 @@ type RedemptionsMutateDrawerProps = {
   currentRow?: Redemption
 }
 
+type RedemptionExportDialogState = {
+  open: boolean
+  keys: string[]
+  filename: string
+}
+
+function sanitizeDownloadFilename(name: string) {
+  const sanitized = name.replace(/[/\\?%*:|"<>]/g, '_').trim()
+  return sanitized || 'redemption-codes'
+}
+
+function downloadRedemptionCodes(keys: string[], filename: string) {
+  const blob = new Blob([keys.join('\n')], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
 export function RedemptionsMutateDrawer({
   open,
   onOpenChange,
@@ -81,6 +112,11 @@ export function RedemptionsMutateDrawer({
   const isUpdate = !!currentRow
   const { triggerRefresh } = useRedemptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [exportDialog, setExportDialog] = useState<RedemptionExportDialogState>({
+    open: false,
+    keys: [],
+    filename: 'redemption-codes.txt',
+  })
 
   const form = useForm<RedemptionFormValues>({
     resolver: zodResolver(getRedemptionFormSchema(t)),
@@ -131,6 +167,15 @@ export function RedemptionsMutateDrawer({
           )
           onOpenChange(false)
           triggerRefresh()
+          if (result.data && result.data.length > 0) {
+            const redemptionName =
+              basePayload.name?.trim() || formatQuota(basePayload.quota)
+            setExportDialog({
+              open: true,
+              keys: result.data,
+              filename: `${sanitizeDownloadFilename(redemptionName)}.txt`,
+            })
+          }
         }
       }
     } finally {
@@ -164,7 +209,8 @@ export function RedemptionsMutateDrawer({
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
 
   return (
-    <Sheet
+    <>
+      <Sheet
       open={open}
       onOpenChange={(v) => {
         onOpenChange(v)
@@ -339,5 +385,44 @@ export function RedemptionsMutateDrawer({
         </SheetFooter>
       </SheetContent>
     </Sheet>
+
+      <AlertDialog
+        open={exportDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setExportDialog((previous) => ({ ...previous, open: false }))
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('Redemption code(s) created successfully')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'Do you want to download the created redemption codes as a text file?'
+              )}
+              <br />
+              {t('The download will use the redemption name as the filename.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                downloadRedemptionCodes(
+                  exportDialog.keys,
+                  exportDialog.filename
+                )
+                setExportDialog((previous) => ({ ...previous, open: false }))
+              }}
+            >
+              {t('Download')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
