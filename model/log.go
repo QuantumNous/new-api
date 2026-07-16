@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -279,6 +280,31 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
+
+// mergeTraceIntoOther injects thread_id/trace_id from gin context into Other JSON.
+func mergeTraceIntoOther(c *gin.Context, otherStr string) string {
+	other, _ := common.StrToMap(otherStr)
+	if other == nil {
+		other = map[string]interface{}{}
+	}
+	if c != nil {
+		if v := strings.TrimSpace(c.GetString("thread_id")); v != "" {
+			other["thread_id"] = v
+		}
+		if v := strings.TrimSpace(c.GetString("trace_id")); v != "" {
+			other["trace_id"] = v
+		}
+		// Also try constant keys if set under typed names
+		if v := strings.TrimSpace(c.GetString(string(constant.ContextKeyThreadId))); v != "" {
+			other["thread_id"] = v
+		}
+		if v := strings.TrimSpace(c.GetString(string(constant.ContextKeyTraceId))); v != "" {
+			other["trace_id"] = v
+		}
+	}
+	return common.MapToJsonStr(other)
+}
+
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
@@ -317,7 +343,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		}(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
-		Other:             otherStr,
+		Other:             mergeTraceIntoOther(c, otherStr),
 	}
 	err := createLog(log)
 	if err != nil {
@@ -350,6 +376,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	otherStr := common.MapToJsonStr(params.Other)
+	otherStr = mergeTraceIntoOther(c, otherStr)
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -761,4 +788,27 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 	}
 
 	return total, nil
+}
+
+
+// GetLogsByTraceId returns consume/error logs that carry other.trace_id (JSON contains).
+// Admin-oriented; used for AxonHub-style trace tree reconstruction.
+func GetLogsByTraceId(traceId string, limit int) ([]*Log, error) {
+	traceId = strings.TrimSpace(traceId)
+	if traceId == "" {
+		return nil, errors.New("trace_id empty")
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	// Escape LIKE wildcards; strip quotes so pattern stays valid JSON substring.
+	safe := strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_", "\"", "").Replace(traceId)
+	var logs []*Log
+	pattern := "%\"trace_id\":\"" + safe + "\"%"
+	err := LOG_DB.Model(&Log{}).
+		Where("other LIKE ? ESCAPE ?", pattern, "\\").
+		Order("id asc").
+		Limit(limit).
+		Find(&logs).Error
+	return logs, err
 }

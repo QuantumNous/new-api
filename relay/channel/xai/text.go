@@ -21,6 +21,8 @@ func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage 
 		return nil
 	}
 	if xAIResp.Usage != nil {
+		// Keep provider usage intact for the client stream; billing uses the
+		// separately accumulated `usage` (see xAIStreamHandler).
 		xAIResp.Usage.CompletionTokens = usage.CompletionTokens
 	}
 	openAIResp := &dto.ChatCompletionsStreamResponse{
@@ -33,6 +35,70 @@ func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage 
 	}
 
 	return openAIResp
+}
+
+// mergeXAIStreamUsage copies stream chunk usage into the accumulated billing usage.
+// xAI may place cached tokens on prompt_tokens_details, input_tokens_details, or
+// top-level prompt_cache_hit_tokens; previously only prompt/total were kept (#6144).
+func mergeXAIStreamUsage(dst *dto.Usage, src *dto.Usage) {
+	if dst == nil || src == nil {
+		return
+	}
+	if src.PromptTokens > 0 {
+		dst.PromptTokens = src.PromptTokens
+	}
+	if src.TotalTokens > 0 {
+		dst.TotalTokens = src.TotalTokens
+	}
+	if src.CompletionTokens > 0 {
+		dst.CompletionTokens = src.CompletionTokens
+	} else if dst.TotalTokens > 0 && dst.PromptTokens > 0 {
+		dst.CompletionTokens = dst.TotalTokens - dst.PromptTokens
+	}
+	if src.InputTokens > 0 {
+		dst.InputTokens = src.InputTokens
+	}
+	if src.OutputTokens > 0 {
+		dst.OutputTokens = src.OutputTokens
+	}
+	if src.PromptCacheHitTokens > 0 {
+		dst.PromptCacheHitTokens = src.PromptCacheHitTokens
+	}
+
+	// Prefer standard prompt_tokens_details.cached_tokens.
+	if src.PromptTokensDetails.CachedTokens > 0 {
+		dst.PromptTokensDetails.CachedTokens = src.PromptTokensDetails.CachedTokens
+	}
+	if src.PromptTokensDetails.CachedCreationTokens > 0 {
+		dst.PromptTokensDetails.CachedCreationTokens = src.PromptTokensDetails.CachedCreationTokens
+	}
+	if src.PromptTokensDetails.TextTokens > 0 {
+		dst.PromptTokensDetails.TextTokens = src.PromptTokensDetails.TextTokens
+	}
+	if src.PromptTokensDetails.AudioTokens > 0 {
+		dst.PromptTokensDetails.AudioTokens = src.PromptTokensDetails.AudioTokens
+	}
+	if src.PromptTokensDetails.ImageTokens > 0 {
+		dst.PromptTokensDetails.ImageTokens = src.PromptTokensDetails.ImageTokens
+	}
+
+	// Fallbacks used by some OpenAI-compatible providers.
+	if dst.PromptTokensDetails.CachedTokens == 0 && src.InputTokensDetails != nil && src.InputTokensDetails.CachedTokens > 0 {
+		dst.PromptTokensDetails.CachedTokens = src.InputTokensDetails.CachedTokens
+	}
+	if dst.PromptTokensDetails.CachedTokens == 0 && src.PromptCacheHitTokens > 0 {
+		dst.PromptTokensDetails.CachedTokens = src.PromptCacheHitTokens
+	}
+
+	if src.CompletionTokenDetails.ReasoningTokens > 0 {
+		dst.CompletionTokenDetails.ReasoningTokens = src.CompletionTokenDetails.ReasoningTokens
+	}
+	if src.CompletionTokenDetails.TextTokens > 0 {
+		dst.CompletionTokenDetails.TextTokens = src.CompletionTokenDetails.TextTokens
+	}
+	if src.CompletionTokenDetails.AudioTokens > 0 {
+		dst.CompletionTokenDetails.AudioTokens = src.CompletionTokenDetails.AudioTokens
+	}
 }
 
 func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -51,12 +117,10 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			return
 		}
 
-		// 把 xAI 的usage转换为 OpenAI 的usage
+		// Preserve full usage for billing — not only prompt/total (#6144).
 		if xAIResp.Usage != nil {
 			containStreamUsage = true
-			usage.PromptTokens = xAIResp.Usage.PromptTokens
-			usage.TotalTokens = xAIResp.Usage.TotalTokens
-			usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+			mergeXAIStreamUsage(usage, xAIResp.Usage)
 		}
 
 		openaiResponse := streamResponseXAI2OpenAI(xAIResp, usage)
@@ -71,6 +135,9 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
 	}
+
+	// Align with OpenAI stream path: recover any remaining cache fields.
+	openai.ApplyUsagePostProcessing(info, usage, nil)
 
 	helper.Done(c)
 	service.CloseResponseBodyGracefully(resp)
@@ -92,6 +159,14 @@ func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response
 	if xaiResponse.Usage != nil {
 		xaiResponse.Usage.CompletionTokens = xaiResponse.Usage.TotalTokens - xaiResponse.Usage.PromptTokens
 		xaiResponse.Usage.CompletionTokenDetails.TextTokens = xaiResponse.Usage.CompletionTokens - xaiResponse.Usage.CompletionTokenDetails.ReasoningTokens
+		// Normalize cache fields for quota settlement.
+		if xaiResponse.Usage.PromptTokensDetails.CachedTokens == 0 {
+			if xaiResponse.Usage.InputTokensDetails != nil && xaiResponse.Usage.InputTokensDetails.CachedTokens > 0 {
+				xaiResponse.Usage.PromptTokensDetails.CachedTokens = xaiResponse.Usage.InputTokensDetails.CachedTokens
+			} else if xaiResponse.Usage.PromptCacheHitTokens > 0 {
+				xaiResponse.Usage.PromptTokensDetails.CachedTokens = xaiResponse.Usage.PromptCacheHitTokens
+			}
+		}
 	}
 
 	// new body
@@ -101,6 +176,10 @@ func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response
 	}
 
 	service.IOCopyBytesGracefully(c, resp, encodeJson)
+
+	if xaiResponse.Usage != nil {
+		openai.ApplyUsagePostProcessing(info, xaiResponse.Usage, responseBody)
+	}
 
 	return xaiResponse.Usage, nil
 }
