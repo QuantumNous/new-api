@@ -82,10 +82,16 @@ func batchUpdate() {
 		for key, value := range store {
 			switch i {
 			case BatchUpdateTypeTokenQuota:
-				err := increaseTokenQuota(key, value)
-				if err != nil {
-					common.SysLog("failed to batch update token quota: " + err.Error())
-				}
+					// Negative delta must use floor path (remain_quota >= debit).
+					var err error
+					if value < 0 {
+						err = decreaseTokenQuota(key, -value)
+					} else if value > 0 {
+						err = increaseTokenQuota(key, value)
+					}
+					if err != nil {
+						common.SysLog("failed to batch update token quota: " + err.Error())
+					}
 			case BatchUpdateTypeChannelUsedQuota:
 				updateChannelUsedQuota(key, value)
 			}
