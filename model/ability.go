@@ -91,8 +91,27 @@ func getPriority(group string, model string, retry int) (int, error) {
 }
 
 func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
-	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
+	return getChannelQueryWithExclusions(group, model, retry, nil)
+}
+
+func getChannelQueryWithExclusions(group string, model string, retry int, excluded map[int]struct{}) (*gorm.DB, error) {
+	baseQuery := DB.Model(&Ability{}).Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
+	if len(excluded) > 0 {
+		excludedIDs := make([]int, 0, len(excluded))
+		for channelID := range excluded {
+			excludedIDs = append(excludedIDs, channelID)
+		}
+		baseQuery = baseQuery.Where("channel_id NOT IN ?", excludedIDs)
+	}
+	maxPrioritySubQuery := baseQuery.Select("MAX(priority)")
 	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
+	if len(excluded) > 0 {
+		excludedIDs := make([]int, 0, len(excluded))
+		for channelID := range excluded {
+			excludedIDs = append(excludedIDs, channelID)
+		}
+		channelQuery = channelQuery.Where("channel_id NOT IN ?", excludedIDs)
+	}
 	if retry != 0 {
 		priority, err := getPriority(group, model, retry)
 		if err != nil {
@@ -106,10 +125,14 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 }
 
 func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetChannelWithExclusions(group, model, retry, requestPath, nil)
+}
+
+func GetChannelWithExclusions(group string, model string, retry int, requestPath string, excluded map[int]struct{}) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	channelQuery, err := getChannelQueryWithExclusions(group, model, retry, excluded)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +143,15 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 	}
 	if err != nil {
 		return nil, err
+	}
+	if len(excluded) > 0 {
+		filtered := make([]Ability, 0, len(abilities))
+		for _, ability := range abilities {
+			if _, ok := excluded[ability.ChannelId]; !ok {
+				filtered = append(filtered, ability)
+			}
+		}
+		abilities = filtered
 	}
 	abilities = filterAbilitiesByRequestPath(abilities, requestPath)
 	channel := Channel{}

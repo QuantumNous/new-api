@@ -3689,6 +3689,39 @@ export function ChannelMutateDrawer({
                                 </FormItem>
                               )}
                             />
+
+                            <FormField
+                              control={form.control}
+                              name='retry_attempts'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Channel Attempts')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='number'
+                                      min={1}
+                                      max={10}
+                                      {...field}
+                                      onChange={(event) =>
+                                        field.onChange(
+                                          event.target.value === ''
+                                            ? 1
+                                            : Number.parseInt(
+                                                event.target.value,
+                                                10
+                                              ) || 1
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormDescription>
+                                    {t(
+                                      'Maximum attempts on this channel per request, including the first attempt. After exhaustion, routing continues by channel priority.'
+                                    )}
+                                  </FormDescription>
+                                </FormItem>
+                              )}
+                            />
                           </div>
 
                           <div

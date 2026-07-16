@@ -186,6 +186,7 @@ const EditChannelModal = (props) => {
     priority: 0,
     weight: 0,
     tag: '',
+	retry_attempts: 1,
     multi_key_mode: 'random',
     // 渠道额外设置的默认值
     force_format: false,
@@ -2481,6 +2482,17 @@ const EditChannelModal = (props) => {
                       />
                     </Col>
                   </Row>
+
+				  <Form.InputNumber
+					field='retry_attempts'
+					label={t('渠道总尝试次数')}
+					placeholder='1'
+					min={1}
+					max={10}
+					onNumberChange={(value) => handleInputChange('retry_attempts', value || 1)}
+					style={{ width: '100%' }}
+					extraText={t('单个请求在本渠道上的总尝试次数，包含首次请求；耗尽后按渠道优先级继续路由')}
+				  />
 
                   {(inputs.type === 1 || inputs.type === 57) && (
                     <>

@@ -148,6 +148,7 @@ export const channelFormSchema = z
     weight: z.number().optional(),
     test_model: z.string().optional(),
     auto_ban: z.number().optional(),
+    retry_attempts: z.number().int().min(1).max(10).optional(),
     status: z.number(),
     status_code_mapping: z
       .string()
@@ -311,6 +312,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   weight: 0,
   test_model: '',
   auto_ban: 1,
+  retry_attempts: 1,
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
   tag: '',
@@ -452,6 +454,7 @@ export function transformChannelToFormDefaults(
     weight: channel.weight || 0,
     test_model: channel.test_model || '',
     auto_ban: channel.auto_ban ?? 1,
+    retry_attempts: channel.retry_attempts ?? 1,
     status: channel.status,
     status_code_mapping: channel.status_code_mapping || '',
     tag: channel.tag || '',
@@ -563,13 +566,18 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       formData.allow_include_obfuscation === true
     settingsObj.allow_inference_geo = formData.allow_inference_geo === true
   } else {
-    if ('disable_store' in settingsObj) delete settingsObj.disable_store
-    if ('allow_safety_identifier' in settingsObj)
+    if ('disable_store' in settingsObj) {
+      delete settingsObj.disable_store
+    }
+    if ('allow_safety_identifier' in settingsObj) {
       delete settingsObj.allow_safety_identifier
-    if ('allow_include_obfuscation' in settingsObj)
+    }
+    if ('allow_include_obfuscation' in settingsObj) {
       delete settingsObj.allow_include_obfuscation
-    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
+    }
+    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj) {
       delete settingsObj.allow_inference_geo
+    }
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
@@ -592,14 +600,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.upstream_model_update_auto_sync_enabled =
       settingsObj.upstream_model_update_check_enabled === true &&
       formData.upstream_model_update_auto_sync_enabled === true
-    settingsObj.upstream_model_update_ignored_models = Array.from(
-      new Set(
+    settingsObj.upstream_model_update_ignored_models = [
+      ...new Set(
         String(formData.upstream_model_update_ignored_models || '')
           .split(',')
           .map((model) => model.trim())
           .filter(Boolean)
-      )
-    )
+      ),
+    ]
     if (
       !Array.isArray(settingsObj.upstream_model_update_last_detected_models) ||
       settingsObj.upstream_model_update_check_enabled !== true
@@ -655,6 +663,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     weight: formData.weight || null,
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
+    retry_attempts: formData.retry_attempts ?? 1,
     status: formData.status,
     status_code_mapping: formData.status_code_mapping || null,
     tag: formData.tag || null,
@@ -703,6 +712,7 @@ export function transformFormDataToUpdatePayload(
     weight: formData.weight ?? 0,
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
+    retry_attempts: formData.retry_attempts ?? 1,
     status_code_mapping: formData.status_code_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',

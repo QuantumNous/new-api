@@ -520,6 +520,10 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	if channel.RetryAttempts != nil && (*channel.RetryAttempts < 1 || *channel.RetryAttempts > 10) {
+		return fmt.Errorf("渠道总尝试次数必须在 1 到 10 之间")
+	}
+
 	return nil
 }
 
