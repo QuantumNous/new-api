@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +16,8 @@ import (
 )
 
 var group2model2channels map[string]map[string][]int // enabled channel
-var channelsIDM map[int]*Channel                     // all channels include disabled
+var group2model2channelPriorities map[string]map[string]map[int]int64
+var channelsIDM map[int]*Channel // all channels include disabled
 // channel2advancedCustomConfig caches parsed Advanced Custom (type 58) configs so
 // path-aware selection avoids re-parsing JSON per request. Refreshed on full sync.
 var channel2advancedCustomConfig map[int]*dto.AdvancedCustomConfig
@@ -42,35 +42,36 @@ func InitChannelCache() {
 	}
 	var abilities []*Ability
 	DB.Find(&abilities)
-	groups := make(map[string]bool)
-	for _, ability := range abilities {
-		groups[ability.Group] = true
-	}
 	newGroup2model2channels := make(map[string]map[string][]int)
-	for group := range groups {
-		newGroup2model2channels[group] = make(map[string][]int)
-	}
-	for _, channel := range channels {
-		if channel.Status != common.ChannelStatusEnabled {
-			continue // skip disabled channels
+	newGroup2model2channelPriorities := make(map[string]map[string]map[int]int64)
+	for _, ability := range abilities {
+		if !ability.Enabled {
+			continue
 		}
-		groups := strings.Split(channel.Group, ",")
-		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
-			for _, model := range models {
-				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]int, 0)
-				}
-				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
-			}
+		channel, ok := newChannelId2channel[ability.ChannelId]
+		if !ok || channel.Status != common.ChannelStatusEnabled {
+			continue
 		}
+		if _, ok := newGroup2model2channels[ability.Group]; !ok {
+			newGroup2model2channels[ability.Group] = make(map[string][]int)
+			newGroup2model2channelPriorities[ability.Group] = make(map[string]map[int]int64)
+		}
+		if _, ok := newGroup2model2channelPriorities[ability.Group][ability.Model]; !ok {
+			newGroup2model2channelPriorities[ability.Group][ability.Model] = make(map[int]int64)
+		}
+		newGroup2model2channels[ability.Group][ability.Model] = append(
+			newGroup2model2channels[ability.Group][ability.Model],
+			ability.ChannelId,
+		)
+		newGroup2model2channelPriorities[ability.Group][ability.Model][ability.ChannelId] = abilityPriority(*ability)
 	}
 
 	// sort by priority
 	for group, model2channels := range newGroup2model2channels {
 		for model, channels := range model2channels {
+			priorities := newGroup2model2channelPriorities[group][model]
 			sort.Slice(channels, func(i, j int) bool {
-				return newChannelId2channel[channels[i]].GetPriority() > newChannelId2channel[channels[j]].GetPriority()
+				return priorities[channels[i]] > priorities[channels[j]]
 			})
 			newGroup2model2channels[group][model] = channels
 		}
@@ -78,6 +79,7 @@ func InitChannelCache() {
 
 	channelSyncLock.Lock()
 	group2model2channels = newGroup2model2channels
+	group2model2channelPriorities = newGroup2model2channelPriorities
 	//channelsIDM = newChannelId2channel
 	for i, channel := range newChannelId2channel {
 		if channel.ChannelInfo.IsMultiKey {
@@ -140,31 +142,43 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
 	}
 
-	uniquePriorities := make(map[int]bool)
+	channelPriorities := group2model2channelPriorities[group][model]
+	if len(channelPriorities) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		channelPriorities = group2model2channelPriorities[group][normalizedModel]
+	}
+	uniquePriorities := make(map[int64]struct{})
 	for _, channelId := range channels {
-		if channel, ok := channelsIDM[channelId]; ok {
-			uniquePriorities[int(channel.GetPriority())] = true
-		} else {
+		if _, ok := channelsIDM[channelId]; !ok {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
+		priority, ok := channelPriorities[channelId]
+		if !ok {
+			priority = channelsIDM[channelId].GetPriority()
+		}
+		uniquePriorities[priority] = struct{}{}
 	}
-	var sortedUniquePriorities []int
+	sortedUniquePriorities := make([]int64, 0, len(uniquePriorities))
 	for priority := range uniquePriorities {
 		sortedUniquePriorities = append(sortedUniquePriorities, priority)
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
+	sort.Slice(sortedUniquePriorities, func(i, j int) bool { return sortedUniquePriorities[i] > sortedUniquePriorities[j] })
 
-	if retry >= len(uniquePriorities) {
-		retry = len(uniquePriorities) - 1
+	if retry >= len(sortedUniquePriorities) {
+		retry = len(sortedUniquePriorities) - 1
 	}
-	targetPriority := int64(sortedUniquePriorities[retry])
+	targetPriority := sortedUniquePriorities[retry]
 
 	// get the priority for the given retry number
 	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
-			if channel.GetPriority() == targetPriority {
+			priority, exists := channelPriorities[channelId]
+			if !exists {
+				priority = channel.GetPriority()
+			}
+			if priority == targetPriority {
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
