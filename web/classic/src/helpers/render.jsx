@@ -1636,6 +1636,7 @@ export function renderModelPrice(opts) {
     image = false,
     image_ratio: imageRatio = 1.0,
     image_input: imageInputTokenCount = 0,
+    image_output: imageOutputTokens = 0,
     web_search: webSearch = false,
     web_search_call_count: webSearchCallCount = 0,
     web_search_price: webSearchPrice = 0,
@@ -1818,6 +1819,9 @@ export function renderModelPrice(opts) {
         rate,
         amountKey: 'total',
       }),
+      imageOutputTokens > 0
+          ? `${i18next.t('图片输出 Token 数')}: ${imageOutputTokens}`
+          : null,
       cacheTokens > 0
           ? buildBillingPriceText(
               '缓存读取价格：{{symbol}}{{total}} / 1M tokens',
@@ -2034,6 +2038,9 @@ export function renderModelPrice(opts) {
           amount: renderDisplayAmountFromUsd(completionAmount),
         },
     ),
+    imageOutputTokens > 0
+        ? `${i18next.t('图片输出 Token 数')}: ${imageOutputTokens}`
+        : null,
     webSearch && webSearchCallCount > 0
         ? buildBillingText(
             'Web 搜索：{{count}} / 1K * 单价 {{price}} * {{ratioType}} {{ratio}} = {{amount}}',
