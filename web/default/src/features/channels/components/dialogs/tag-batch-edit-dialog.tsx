@@ -16,26 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { Dialog } from '@/components/dialog'
+import { MultiSelect } from '@/components/multi-select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { MultiSelect } from '@/components/multi-select'
+
 import {
   getTagModels,
   editTagChannels,
@@ -190,115 +185,118 @@ export function TagBatchEditDialog({
   if (!currentTag) return null
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
-        <DialogHeader>
-          <DialogTitle>{t('Batch Edit by Tag')}</DialogTitle>
-          <DialogDescription>
-            {t('Edit all channels with tag:')} <strong>{currentTag}</strong>
-          </DialogDescription>
-        </DialogHeader>
-
-        {isLoading ? (
-          <div className='flex items-center justify-center py-12'>
-            <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
-          </div>
-        ) : (
+    <Dialog
+      open={open}
+      onOpenChange={handleClose}
+      title={t('Batch Edit by Tag')}
+      description={
+        <>
+          {t('Edit all channels with tag:')}
+          <strong>{currentTag}</strong>
+        </>
+      }
+      contentClassName='max-w-2xl'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        !isLoading ? (
           <>
-            <div className='space-y-4 py-4'>
-              <Alert>
-                <AlertCircle className='h-4 w-4' />
-                <AlertDescription>
-                  {t(
-                    'All edits are overwrite operations. Leave fields empty to keep current values unchanged.'
-                  )}
-                </AlertDescription>
-              </Alert>
-
-              {/* Tag Name */}
-              <div className='space-y-2'>
-                <Label htmlFor='new-tag'>{t('Tag Name')}</Label>
-                <Input
-                  id='new-tag'
-                  placeholder={t(
-                    'Enter new tag name (leave empty to disband tag)'
-                  )}
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  disabled={isSaving}
-                />
-                <p className='text-muted-foreground text-xs'>
-                  {t('Leave empty to disband the tag')}
-                </p>
-              </div>
-
-              {/* Models */}
-              <div className='space-y-2'>
-                <Label htmlFor='models'>{t('Models')}</Label>
-                <Textarea
-                  id='models'
-                  placeholder={t(
-                    'Comma-separated model names (leave empty to keep current)'
-                  )}
-                  value={models}
-                  onChange={(e) => setModels(e.target.value)}
-                  disabled={isSaving}
-                  rows={3}
-                />
-                <p className='text-muted-foreground text-xs'>
-                  {t(
-                    'Current models for the longest channel in this tag. May not include all models from all channels.'
-                  )}
-                </p>
-              </div>
-
-              {/* Model Mapping */}
-              <div className='space-y-2'>
-                <Label htmlFor='model-mapping'>{t('Model Mapping')}</Label>
-                <ModelMappingEditor
-                  value={modelMapping}
-                  onChange={setModelMapping}
-                  disabled={isSaving}
-                />
-              </div>
-
-              {/* Groups */}
-              <div className='space-y-2'>
-                <Label htmlFor='groups'>{t('Groups')}</Label>
-                {isLoadingGroups ? (
-                  <Skeleton className='h-10 w-full' />
-                ) : (
-                  <MultiSelect
-                    options={groupOptions}
-                    selected={groups}
-                    onChange={setGroups}
-                    placeholder={t(
-                      'Select groups (leave empty to keep current)'
-                    )}
-                  />
+            <Button variant='outline' onClick={handleClose} disabled={isSaving}>
+              {t('Cancel')}
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? (
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              ) : null}
+              {isSaving ? t('Saving...') : t('Save Changes')}
+            </Button>
+          </>
+        ) : null
+      }
+    >
+      {isLoading ? (
+        <div className='flex items-center justify-center py-12'>
+          <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
+        </div>
+      ) : (
+        <>
+          <div className='space-y-4 py-4'>
+            <Alert>
+              <AlertCircle className='h-4 w-4' />
+              <AlertDescription>
+                {t(
+                  'All edits are overwrite operations. Leave fields empty to keep current values unchanged.'
                 )}
-                <p className='text-muted-foreground text-xs'>
-                  {t('User groups that can access channels with this tag')}
-                </p>
-              </div>
+              </AlertDescription>
+            </Alert>
+
+            {/* Tag Name */}
+            <div className='space-y-2'>
+              <Label htmlFor='new-tag'>{t('Tag Name')}</Label>
+              <Input
+                id='new-tag'
+                placeholder={t(
+                  'Enter new tag name (leave empty to disband tag)'
+                )}
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                disabled={isSaving}
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t('Leave empty to disband the tag')}
+              </p>
             </div>
 
-            <DialogFooter>
-              <Button
-                variant='outline'
-                onClick={handleClose}
+            {/* Models */}
+            <div className='space-y-2'>
+              <Label htmlFor='models'>{t('Models')}</Label>
+              <Textarea
+                id='models'
+                placeholder={t(
+                  'Comma-separated model names (leave empty to keep current)'
+                )}
+                value={models}
+                onChange={(e) => setModels(e.target.value)}
                 disabled={isSaving}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {isSaving ? t('Saving...') : t('Save Changes')}
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-      </DialogContent>
+                rows={3}
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Current models for the longest channel in this tag. May not include all models from all channels.'
+                )}
+              </p>
+            </div>
+
+            {/* Model Mapping */}
+            <div className='space-y-2'>
+              <Label htmlFor='model-mapping'>{t('Model Mapping')}</Label>
+              <ModelMappingEditor
+                value={modelMapping}
+                onChange={setModelMapping}
+                disabled={isSaving}
+              />
+            </div>
+
+            {/* Groups */}
+            <div className='space-y-2'>
+              <Label htmlFor='groups'>{t('Groups')}</Label>
+              {isLoadingGroups ? (
+                <Skeleton className='h-10 w-full' />
+              ) : (
+                <MultiSelect
+                  options={groupOptions}
+                  selected={groups}
+                  onChange={setGroups}
+                  placeholder={t('Select groups (leave empty to keep current)')}
+                />
+              )}
+              <p className='text-muted-foreground text-xs'>
+                {t('User groups that can access channels with this tag')}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
     </Dialog>
   )
 }

@@ -1,9 +1,12 @@
 package common
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateRedirectURL(t *testing.T) {
@@ -107,7 +110,7 @@ func TestValidateRedirectURL(t *testing.T) {
 					t.Errorf("ValidateRedirectURL(%q) expected error containing %q, got nil", tt.url, tt.errContains)
 					return
 				}
-				if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
 					t.Errorf("ValidateRedirectURL(%q) error = %q, want error containing %q", tt.url, err.Error(), tt.errContains)
 				}
 			} else {
@@ -119,16 +122,74 @@ func TestValidateRedirectURL(t *testing.T) {
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
+func resetSessionCookieSettingsAfterTest(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		SessionCookieSecure = false
+		SessionCookieTrustedURLs = nil
+	})
 }
 
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+func TestInitSessionCookieSettingsDefaultsToInsecure(t *testing.T) {
+	resetSessionCookieSettingsAfterTest(t)
+	t.Setenv("SESSION_COOKIE_SECURE", "")
+	t.Setenv("SESSION_COOKIE_TRUSTED_URL", "")
+
+	require.NoError(t, InitSessionCookieSettings())
+	assert.False(t, SessionCookieSecure)
+	assert.Empty(t, SessionCookieTrustedURLs)
+}
+
+func TestInitSessionCookieSettingsRequiresBothEnvVars(t *testing.T) {
+	t.Run("secure without trusted url", func(t *testing.T) {
+		resetSessionCookieSettingsAfterTest(t)
+		t.Setenv("SESSION_COOKIE_SECURE", "true")
+		t.Setenv("SESSION_COOKIE_TRUSTED_URL", "")
+
+		require.Error(t, InitSessionCookieSettings())
+	})
+
+	t.Run("trusted url without secure", func(t *testing.T) {
+		resetSessionCookieSettingsAfterTest(t)
+		t.Setenv("SESSION_COOKIE_SECURE", "")
+		t.Setenv("SESSION_COOKIE_TRUSTED_URL", "https://example.com")
+
+		require.Error(t, InitSessionCookieSettings())
+	})
+}
+
+func TestInitSessionCookieSettingsRequiresHTTPSURL(t *testing.T) {
+	resetSessionCookieSettingsAfterTest(t)
+	t.Setenv("SESSION_COOKIE_SECURE", "true")
+	t.Setenv("SESSION_COOKIE_TRUSTED_URL", "http://example.com")
+
+	require.Error(t, InitSessionCookieSettings())
+}
+
+func TestInitSessionCookieSettingsEnablesSecureCookie(t *testing.T) {
+	resetSessionCookieSettingsAfterTest(t)
+	t.Setenv("SESSION_COOKIE_SECURE", "true")
+	t.Setenv("SESSION_COOKIE_TRUSTED_URL", "https://example.com")
+
+	require.NoError(t, InitSessionCookieSettings())
+	assert.True(t, SessionCookieSecure)
+	assert.Equal(t, []string{"https://example.com"}, SessionCookieTrustedURLs)
+}
+
+func TestInitSessionCookieSettingsAllowsMultipleTrustedURLs(t *testing.T) {
+	resetSessionCookieSettingsAfterTest(t)
+	t.Setenv("SESSION_COOKIE_SECURE", "true")
+	t.Setenv("SESSION_COOKIE_TRUSTED_URL", "https://example.com, https://admin.example.com")
+
+	require.NoError(t, InitSessionCookieSettings())
+	assert.True(t, SessionCookieSecure)
+	assert.Equal(t, []string{"https://example.com", "https://admin.example.com"}, SessionCookieTrustedURLs)
+}
+
+func TestInitSessionCookieSettingsRejectsEmptyTrustedURLInList(t *testing.T) {
+	resetSessionCookieSettingsAfterTest(t)
+	t.Setenv("SESSION_COOKIE_SECURE", "true")
+	t.Setenv("SESSION_COOKIE_TRUSTED_URL", "https://example.com,")
+
+	require.Error(t, InitSessionCookieSettings())
 }

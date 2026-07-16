@@ -16,18 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import {
-  getCoreRowModel,
-  useReactTable,
-  type VisibilityState,
-} from '@tanstack/react-table'
-import { useMediaQuery } from '@/hooks'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
+import { DataTablePage, useDataTable } from '@/components/data-table'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +33,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { DataTablePage } from '@/components/data-table'
+import { useMediaQuery } from '@/hooks'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+
 import { deleteDeployment, listDeployments, searchDeployments } from '../api'
 import { getDeploymentStatusOptions } from '../constants'
 import { deploymentsQueryKeys } from '../lib'
@@ -167,8 +164,6 @@ export function DeploymentsTable() {
     }
   }
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-
   const columns = useDeploymentsColumns({
     onViewLogs: (id) => {
       setLogsDeploymentId(id)
@@ -197,29 +192,21 @@ export function DeploymentsTable() {
     },
   })
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: deployments,
     columns,
-    pageCount: Math.ceil(totalCount / pagination.pageSize),
-    state: {
-      columnFilters,
-      columnVisibility,
-      pagination,
-      globalFilter,
-    },
+    totalCount,
+    columnFilters,
+    pagination,
+    globalFilter,
     onColumnFiltersChange,
-    onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange,
     onGlobalFilterChange,
-    getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
     manualFiltering: true,
+    withSortedRowModel: false,
+    ensurePageInRange,
   })
-
-  const pageCount = table.getPageCount()
-  useEffect(() => {
-    ensurePageInRange(pageCount)
-  }, [ensurePageInRange, pageCount])
 
   const statusFilterOptions = useMemo(() => {
     return [...getDeploymentStatusOptions(t)].map((opt) => ({
@@ -323,7 +310,7 @@ export function DeploymentsTable() {
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              variant='destructive'
             >
               {isDeleting ? t('Deleting...') : t('Delete')}
             </AlertDialogAction>

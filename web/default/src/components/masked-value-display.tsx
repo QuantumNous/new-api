@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { CopyButton } from '@/components/copy-button'
 
 interface MaskedValueDisplayProps {
   /** 弹层内标题，如 "Full API Key" / "Full Code" */
@@ -42,14 +42,18 @@ interface MaskedValueDisplayProps {
  */
 export function MaskedValueDisplay(props: MaskedValueDisplayProps) {
   return (
-    <div className='flex items-center'>
+    <div className='flex max-w-full min-w-0 items-center'>
       <Popover>
         <PopoverTrigger
           render={
-            <Button variant='ghost' size='sm' className='h-7 font-mono' />
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-7 max-w-full min-w-0 justify-start truncate px-0 font-mono hover:bg-transparent aria-expanded:bg-transparent'
+            />
           }
         >
-          {props.maskedValue}
+          <span className='truncate'>{props.maskedValue}</span>
         </PopoverTrigger>
         <PopoverContent
           className='w-auto max-w-[min(90vw,28rem)]'

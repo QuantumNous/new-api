@@ -16,24 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { AlertTriangle, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { disable2FA } from '@/lib/api'
+
+import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { disable2FA } from '@/lib/api'
 
 // ============================================================================
 // Two-FA Disable Dialog Component
@@ -98,60 +92,24 @@ export function TwoFADisableDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className='sm:max-w-md'>
-        <DialogHeader>
-          <DialogTitle className='text-destructive flex items-center gap-2'>
-            <AlertTriangle className='h-5 w-5' />
-            {t('Disable Two-Factor Authentication')}
-          </DialogTitle>
-          <DialogDescription>
-            {t(
-              'This action will permanently remove 2FA protection from your account.'
-            )}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className='space-y-4 py-4'>
-          <Alert variant='destructive'>
-            <AlertTriangle className='h-4 w-4' />
-            <AlertDescription>
-              {t('Warning: Disabling 2FA will make your account less secure.')}
-            </AlertDescription>
-          </Alert>
-
-          <div className='space-y-2'>
-            <Label htmlFor='code'>{t('Verification Code')}</Label>
-            <Input
-              id='code'
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder={t('Enter code or backup code')}
-              disabled={loading}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Enter your authenticator code or a backup code')}
-            </p>
-          </div>
-
-          <div className='flex items-start space-x-2'>
-            <Checkbox
-              id='confirm'
-              checked={confirmed}
-              onCheckedChange={(checked) => setConfirmed(checked as boolean)}
-            />
-            <Label
-              htmlFor='confirm'
-              className='text-sm leading-tight font-normal'
-            >
-              {t(
-                'I understand that disabling 2FA will remove all protection and backup codes'
-              )}
-            </Label>
-          </div>
-        </div>
-
-        <DialogFooter>
+    <Dialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={
+        <>
+          <AlertTriangle className='h-5 w-5' />
+          {t('Disable Two-Factor Authentication')}
+        </>
+      }
+      description={t(
+        'This action will permanently remove 2FA protection from your account.'
+      )}
+      contentClassName='sm:max-w-md'
+      titleClassName='text-destructive flex items-center gap-2'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           <Button
             variant='outline'
             onClick={() => handleOpenChange(false)}
@@ -167,8 +125,47 @@ export function TwoFADisableDialog({
             {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {loading ? t('Disabling...') : t('Disable 2FA')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='space-y-4 py-4'>
+        <Alert variant='destructive'>
+          <AlertTriangle className='h-4 w-4' />
+          <AlertDescription>
+            {t('Warning: Disabling 2FA will make your account less secure.')}
+          </AlertDescription>
+        </Alert>
+
+        <div className='space-y-2'>
+          <Label htmlFor='code'>{t('Verification Code')}</Label>
+          <Input
+            id='code'
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={t('Enter code or backup code')}
+            disabled={loading}
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Enter your authenticator code or a backup code')}
+          </p>
+        </div>
+
+        <div className='flex items-start space-x-2'>
+          <Checkbox
+            id='confirm'
+            checked={confirmed}
+            onCheckedChange={(checked) => setConfirmed(checked as boolean)}
+          />
+          <Label
+            htmlFor='confirm'
+            className='text-sm leading-tight font-normal'
+          >
+            {t(
+              'I understand that disabling 2FA will remove all protection and backup codes'
+            )}
+          </Label>
+        </div>
+      </div>
     </Dialog>
   )
 }

@@ -16,27 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo } from 'react'
-import { z } from 'zod'
-import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
+
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   Form,
   FormControl,
@@ -47,6 +42,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+
 import { getDeployment, updateDeployment } from '../../api'
 import { deploymentsQueryKeys } from '../../lib'
 
@@ -63,6 +59,8 @@ const schema = z.object({
 })
 
 type Values = z.input<typeof schema>
+
+const UPDATE_CONFIG_FORM_ID = 'update-config-form'
 
 function normalizeJsonObject(input?: string) {
   if (!input || !input.trim()) return undefined
@@ -212,226 +210,228 @@ export function UpdateConfigDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-hidden max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-3xl'>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-
-        {isLoading ? (
-          <div className='flex items-center justify-center py-10'>
-            <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
-          </div>
-        ) : (
-          <div className='max-h-[calc(100dvh-8.5rem)] overflow-y-auto py-2 pr-1 sm:max-h-[72vh]'>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                autoComplete='off'
-                className='space-y-4'
-              >
-                <div className='grid gap-3 md:grid-cols-2 md:gap-4'>
-                  <FormField
-                    control={form.control}
-                    name='image_url'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Image')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder='ollama/ollama:latest'
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name='traffic_port'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Port')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type='number'
-                            min={1}
-                            max={65535}
-                            value={
-                              typeof field.value === 'number' ||
-                              typeof field.value === 'string'
-                                ? field.value
-                                : ''
-                            }
-                            onChange={(e) => {
-                              const v = e.target.value
-                              field.onChange(v === '' ? undefined : Number(v))
-                            }}
-                            onBlur={field.onBlur}
-                            name={field.name}
-                            ref={field.ref}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className='grid gap-3 md:grid-cols-2 md:gap-4'>
-                  <FormField
-                    control={form.control}
-                    name='entrypoint'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {t('Entrypoint (space separated)')}
-                        </FormLabel>
-                        <FormControl>
-                          <Input placeholder='bash -lc' {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name='args'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Args (space separated)')}</FormLabel>
-                        <FormControl>
-                          <Input placeholder='--foo bar' {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      contentClassName='max-h-[calc(100dvh-2rem)] overflow-hidden max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-3xl'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        isLoading ? null : (
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => onOpenChange(false)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              type='submit'
+              form={UPDATE_CONFIG_FORM_ID}
+              disabled={form.formState.isSubmitting}
+            >
+              {form.formState.isSubmitting ? (
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              ) : null}
+              {t('Update')}
+            </Button>
+          </>
+        )
+      }
+    >
+      {isLoading ? (
+        <div className='flex items-center justify-center py-10'>
+          <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
+        </div>
+      ) : (
+        <div className='max-h-[calc(100dvh-8.5rem)] overflow-y-auto py-2 pr-1 sm:max-h-[72vh]'>
+          <Form {...form}>
+            <form
+              id={UPDATE_CONFIG_FORM_ID}
+              onSubmit={form.handleSubmit(onSubmit)}
+              autoComplete='off'
+              className='space-y-4'
+            >
+              <div className='grid gap-3 md:grid-cols-2 md:gap-4'>
                 <FormField
                   control={form.control}
-                  name='command'
+                  name='image_url'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Command')}</FormLabel>
+                      <FormLabel>{t('Image')}</FormLabel>
                       <FormControl>
-                        <Input placeholder='Optional' {...field} />
+                        <Input placeholder='ollama/ollama:latest' {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <Collapsible className='rounded-md border p-3'>
-                  <CollapsibleTrigger className='cursor-pointer text-sm'>
-                    {t('Registry (optional)')}
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className='mt-3 grid gap-3 md:grid-cols-2 md:gap-4'>
-                      <FormField
-                        control={form.control}
-                        name='registry_username'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('Registry username')}</FormLabel>
-                            <FormControl>
-                              <Input autoComplete='off' {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name='registry_secret'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('Registry secret')}</FormLabel>
-                            <FormControl>
-                              <Input
-                                type='password'
-                                autoComplete='off'
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                <FormField
+                  control={form.control}
+                  name='traffic_port'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Port')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          min={1}
+                          max={65535}
+                          value={
+                            typeof field.value === 'number' ||
+                            typeof field.value === 'string'
+                              ? field.value
+                              : ''
+                          }
+                          onChange={(e) => {
+                            const v = e.target.value
+                            field.onChange(v === '' ? undefined : Number(v))
+                          }}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-                <Collapsible className='rounded-md border p-3'>
-                  <CollapsibleTrigger className='cursor-pointer text-sm'>
-                    {t('Environment variables')}
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className='mt-3 grid gap-3 md:grid-cols-2 md:gap-4'>
-                      <FormField
-                        control={form.control}
-                        name='env_json'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('Env (JSON object)')}</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                className='min-h-40 font-mono text-xs'
-                                placeholder='{"KEY":"VALUE"}'
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name='secret_env_json'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              {t('Secret env (JSON object)')}
-                            </FormLabel>
-                            <FormControl>
-                              <Textarea
-                                className='min-h-40 font-mono text-xs'
-                                placeholder='{"SECRET":"VALUE"}'
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
+              <div className='grid gap-3 md:grid-cols-2 md:gap-4'>
+                <FormField
+                  control={form.control}
+                  name='entrypoint'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Entrypoint (space separated)')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='bash -lc' {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                <DialogFooter className='grid grid-cols-2 gap-2 pt-2 sm:flex'>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    onClick={() => onOpenChange(false)}
-                  >
-                    {t('Cancel')}
-                  </Button>
-                  <Button type='submit' disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? (
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                    ) : null}
-                    {t('Update')}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </div>
-        )}
-      </DialogContent>
+                <FormField
+                  control={form.control}
+                  name='args'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Args (space separated)')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='--foo bar' {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='command'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Command')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='Optional' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Collapsible className='rounded-md border p-3'>
+                <CollapsibleTrigger className='cursor-pointer text-sm'>
+                  {t('Registry (optional)')}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className='mt-3 grid gap-3 md:grid-cols-2 md:gap-4'>
+                    <FormField
+                      control={form.control}
+                      name='registry_username'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Registry username')}</FormLabel>
+                          <FormControl>
+                            <Input autoComplete='off' {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='registry_secret'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Registry secret')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type='password'
+                              autoComplete='off'
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Collapsible className='rounded-md border p-3'>
+                <CollapsibleTrigger className='cursor-pointer text-sm'>
+                  {t('Environment variables')}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className='mt-3 grid gap-3 md:grid-cols-2 md:gap-4'>
+                    <FormField
+                      control={form.control}
+                      name='env_json'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Env (JSON object)')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              className='min-h-40 font-mono text-xs'
+                              placeholder='{"KEY":"VALUE"}'
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='secret_env_json'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Secret env (JSON object)')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              className='min-h-40 font-mono text-xs'
+                              placeholder='{"SECRET":"VALUE"}'
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </form>
+          </Form>
+        </div>
+      )}
     </Dialog>
   )
 }

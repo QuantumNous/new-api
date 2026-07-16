@@ -304,6 +304,7 @@ docker run --name new-api -d --restart always \
 | **本地数据库** | SQLite（Docker 需挂载 `/data` 目录）|
 | **远程数据库** | MySQL ≥ 5.7.8 或 PostgreSQL ≥ 9.6 |
 | **容器引擎** | Docker / Docker Compose |
+| **系统架构** | 仅支持 64 位系统（amd64 / arm64），不支持 32 位系统 |
 
 ### ⚙️ 环境变量配置
 

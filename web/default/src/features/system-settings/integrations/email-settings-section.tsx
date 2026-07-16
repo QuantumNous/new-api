@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
 import {
   Form,
   FormControl,
@@ -30,7 +31,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -57,6 +61,8 @@ const createEmailSchema = (t: (key: string) => string) =>
     }, t('Enter a valid email or leave blank')),
     SMTPToken: z.string(),
     SMTPSSLEnabled: z.boolean(),
+    SMTPStartTLSEnabled: z.boolean(),
+    SMTPInsecureSkipVerify: z.boolean(),
     SMTPForceAuthLogin: z.boolean(),
   })
 
@@ -64,6 +70,17 @@ type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
 
 type EmailSettingsSectionProps = {
   defaultValues: EmailFormValues
+}
+
+type SmtpSecurityMode = 'none' | 'ssl_tls' | 'starttls'
+
+function getSmtpSecurityMode(values: {
+  SMTPSSLEnabled: boolean
+  SMTPStartTLSEnabled: boolean
+}): SmtpSecurityMode {
+  if (values.SMTPSSLEnabled) return 'ssl_tls'
+  if (values.SMTPStartTLSEnabled) return 'starttls'
+  return 'none'
 }
 
 export function EmailSettingsSection({
@@ -81,13 +98,16 @@ export function EmailSettingsSection({
   useResetForm(form, defaultValues)
 
   const onSubmit = async (values: EmailFormValues) => {
+    const securityMode = getSmtpSecurityMode(values)
     const sanitized = {
       SMTPServer: values.SMTPServer.trim(),
       SMTPPort: values.SMTPPort.trim(),
       SMTPAccount: values.SMTPAccount.trim(),
       SMTPFrom: values.SMTPFrom.trim(),
       SMTPToken: values.SMTPToken.trim(),
-      SMTPSSLEnabled: values.SMTPSSLEnabled,
+      SMTPSSLEnabled: securityMode === 'ssl_tls',
+      SMTPStartTLSEnabled: securityMode === 'starttls',
+      SMTPInsecureSkipVerify: values.SMTPInsecureSkipVerify,
       SMTPForceAuthLogin: values.SMTPForceAuthLogin,
     }
 
@@ -98,6 +118,8 @@ export function EmailSettingsSection({
       SMTPFrom: defaultValues.SMTPFrom.trim(),
       SMTPToken: defaultValues.SMTPToken.trim(),
       SMTPSSLEnabled: defaultValues.SMTPSSLEnabled,
+      SMTPStartTLSEnabled: defaultValues.SMTPStartTLSEnabled,
+      SMTPInsecureSkipVerify: defaultValues.SMTPInsecureSkipVerify,
       SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
     }
 
@@ -127,6 +149,20 @@ export function EmailSettingsSection({
       updates.push({
         key: 'SMTPSSLEnabled',
         value: sanitized.SMTPSSLEnabled,
+      })
+    }
+
+    if (sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled) {
+      updates.push({
+        key: 'SMTPStartTLSEnabled',
+        value: sanitized.SMTPStartTLSEnabled,
+      })
+    }
+
+    if (sanitized.SMTPInsecureSkipVerify !== initial.SMTPInsecureSkipVerify) {
+      updates.push({
+        key: 'SMTPInsecureSkipVerify',
+        value: sanitized.SMTPInsecureSkipVerify,
       })
     }
 
@@ -197,15 +233,78 @@ export function EmailSettingsSection({
               )}
             />
 
+            <FormItem>
+              <FormLabel>{t('SMTP encryption')}</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  value={getSmtpSecurityMode({
+                    SMTPSSLEnabled: form.watch('SMTPSSLEnabled'),
+                    SMTPStartTLSEnabled: form.watch('SMTPStartTLSEnabled'),
+                  })}
+                  onValueChange={(value) => {
+                    const mode = value as SmtpSecurityMode
+                    form.setValue('SMTPSSLEnabled', mode === 'ssl_tls', {
+                      shouldDirty: true,
+                    })
+                    form.setValue('SMTPStartTLSEnabled', mode === 'starttls', {
+                      shouldDirty: true,
+                    })
+                  }}
+                  className='gap-3'
+                >
+                  <div className='flex items-center gap-2'>
+                    <RadioGroupItem value='none' id='smtp-security-none' />
+                    <Label
+                      htmlFor='smtp-security-none'
+                      className='cursor-pointer font-normal'
+                    >
+                      {t('No encryption')}
+                    </Label>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <RadioGroupItem
+                      value='ssl_tls'
+                      id='smtp-security-ssl-tls'
+                    />
+                    <Label
+                      htmlFor='smtp-security-ssl-tls'
+                      className='cursor-pointer font-normal'
+                    >
+                      {t('SSL/TLS')}
+                    </Label>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <RadioGroupItem
+                      value='starttls'
+                      id='smtp-security-starttls'
+                    />
+                    <Label
+                      htmlFor='smtp-security-starttls'
+                      className='cursor-pointer font-normal'
+                    >
+                      {t('STARTTLS')}
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </FormControl>
+              <FormDescription>
+                {t('Choose one SMTP transport security mode')}
+              </FormDescription>
+            </FormItem>
+
             <FormField
               control={form.control}
-              name='SMTPSSLEnabled'
+              name='SMTPInsecureSkipVerify'
               render={({ field }) => (
                 <SettingsSwitchItem>
                   <SettingsSwitchContent>
-                    <FormLabel>{t('Enable SSL/TLS')}</FormLabel>
+                    <FormLabel>
+                      {t('Skip SMTP TLS certificate verification')}
+                    </FormLabel>
                     <FormDescription>
-                      {t('Use secure connection when sending emails')}
+                      {t(
+                        'Allow self-signed or hostname-mismatched SMTP certificates'
+                      )}
                     </FormDescription>
                   </SettingsSwitchContent>
                   <FormControl>

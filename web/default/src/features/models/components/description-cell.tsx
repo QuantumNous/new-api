@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Button } from '@/components/ui/button'
+
 import { useModels } from './models-provider'
 
 type DescriptionCellProps = {

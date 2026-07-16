@@ -324,6 +324,8 @@ func buildSchemas() map[string]interface{} {
 
 	// Generic primitive wrappers.
 	out["ApiResponseOfString"] = wrapResponse(map[string]interface{}{"type": "string"})
+	out["ApiResponseOfInt"] = wrapResponse(map[string]interface{}{"type": "integer"})
+	out["ApiResponseOfBool"] = wrapResponse(map[string]interface{}{"type": "boolean"})
 	out["ApiResponseOfStringList"] = wrapResponse(map[string]interface{}{
 		"type":  "array",
 		"items": map[string]interface{}{"type": "string"},
@@ -398,14 +400,14 @@ func buildSchemas() map[string]interface{} {
 	out["QuotaDataRow"] = map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"user_id":     map[string]interface{}{"type": "integer"},
-			"username":    map[string]interface{}{"type": "string"},
-			"created_at":  map[string]interface{}{"type": "integer"},
-			"token_name":  map[string]interface{}{"type": "string"},
-			"model_name":  map[string]interface{}{"type": "string"},
-			"quota":       map[string]interface{}{"type": "integer"},
-			"token_used":  map[string]interface{}{"type": "integer"},
-			"count":       map[string]interface{}{"type": "integer"},
+			"user_id":    map[string]interface{}{"type": "integer"},
+			"username":   map[string]interface{}{"type": "string"},
+			"created_at": map[string]interface{}{"type": "integer"},
+			"token_name": map[string]interface{}{"type": "string"},
+			"model_name": map[string]interface{}{"type": "string"},
+			"quota":      map[string]interface{}{"type": "integer"},
+			"token_used": map[string]interface{}{"type": "integer"},
+			"count":      map[string]interface{}{"type": "integer"},
 		},
 	}
 	out["ApiResponseListOfQuotaDataRow"] = wrapResponse(map[string]interface{}{
@@ -448,10 +450,131 @@ func buildSchemas() map[string]interface{} {
 		"$ref": "#/components/schemas/TokenKeyResult",
 	})
 
+	// Codex usage proxy endpoints (/api/channel/{id}/codex/usage*) return a
+	// non-standard envelope: {success, message, upstream_status, data} where
+	// data is the upstream Wham payload passed through verbatim.
+	out["CodexUpstreamProxyResponse"] = map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"success":         map[string]interface{}{"type": "boolean"},
+			"message":         map[string]interface{}{"type": "string"},
+			"upstream_status": map[string]interface{}{"type": "integer"},
+			"data": map[string]interface{}{
+				"description": "Upstream payload, passed through verbatim (JSON object or raw string).",
+			},
+		},
+		"required": []interface{}{"success", "message"},
+	}
+
+	// Waffo Pancake handlers reply with {message, data} and no `success` key.
+	// perf-metrics summary replies with {success, data} and no `message`.
+	// Both need envelopes distinct from wrapResponse.
+	for name, ref := range map[string]string{
+		"WaffoEnvelopeOfCatalog":             "WaffoPancakeCatalogResponse",
+		"WaffoEnvelopeOfProductOptions":      "WaffoPancakeProductOptionsResponse",
+		"WaffoEnvelopeOfPair":                "WaffoPancakePairResponse",
+		"WaffoEnvelopeOfSave":                "WaffoPancakeSaveResponse",
+		"WaffoEnvelopeOfSubscriptionProduct": "WaffoPancakeSubscriptionProductResponse",
+		"WaffoEnvelopeOfCheckout":            "WaffoPancakeCheckoutResponse",
+	} {
+		referencedTypes[ref] = true
+		out[name] = wrapWaffoResponse(map[string]interface{}{
+			"$ref": "#/components/schemas/" + ref,
+		})
+	}
+	// {message, data: string} — shared by waffo/waffo-pancake/epay amount
+	// endpoints (no `success` key).
+	out["MessageEnvelopeOfString"] = wrapWaffoResponse(map[string]interface{}{"type": "string"})
+
+	// Epay checkout endpoints (/api/user/pay, /api/subscription/epay/pay):
+	// {message, data: map[string]string form params, url}.
+	out["EpayCheckoutEnvelope"] = map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"message": map[string]interface{}{"type": "string"},
+			"data": map[string]interface{}{
+				"type":                 "object",
+				"additionalProperties": map[string]interface{}{"type": "string"},
+				"description":          "Payment gateway form parameters.",
+			},
+			"url": map[string]interface{}{"type": "string"},
+		},
+		"required": []interface{}{"message"},
+	}
+
+	// /api/channel/update_balance/{id} extends the envelope with a top-level
+	// `balance` key instead of using `data`.
+	out["ChannelBalanceEnvelope"] = map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"success": map[string]interface{}{"type": "boolean"},
+			"message": map[string]interface{}{"type": "string"},
+			"balance": map[string]interface{}{"type": "number"},
+		},
+		"required": []interface{}{"success"},
+	}
+
+	// /api/channel/multi_key/manage returns different data per action:
+	// get_key_status → MultiKeyStatusResponse, delete_disabled_keys → int,
+	// mutations → null.
+	referencedTypes["MultiKeyStatusResponse"] = true
+	out["ApiResponseOfMultiKeyManageResult"] = wrapResponse(map[string]interface{}{
+		"oneOf": []interface{}{
+			map[string]interface{}{"$ref": "#/components/schemas/MultiKeyStatusResponse"},
+			map[string]interface{}{"type": "integer"},
+		},
+		"description": "MultiKeyStatusResponse for get_key_status, deleted count for delete_disabled_keys, null for mutations.",
+	})
+	referencedTypes["PerfMetricsSummaryResponse"] = true
+	out["SuccessEnvelopeOfPerfMetricsSummary"] = map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"success": map[string]interface{}{"type": "boolean"},
+			"data":    map[string]interface{}{"$ref": "#/components/schemas/PerfMetricsSummaryResponse"},
+		},
+		"required": []interface{}{"success"},
+	}
+
+	// Second transitive pass: referencedTypes added above (custom envelopes)
+	// need their struct schemas materialized too.
+	for {
+		added := false
+		for name := range referencedTypes {
+			if _, done := out[name]; done {
+				continue
+			}
+			st, ok := modelTypes[name]
+			if !ok {
+				continue
+			}
+			out[name] = structToSchema(st)
+			added = true
+		}
+		if !added {
+			break
+		}
+	}
+
 	return out
 }
 
+// wrapWaffoResponse builds the {message, data} envelope used by the Waffo
+// Pancake controllers (no `success` field).
+func wrapWaffoResponse(dataSchema map[string]interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"message": map[string]interface{}{"type": "string"},
+			"data":    dataSchema,
+		},
+		"required": []interface{}{"message"},
+	}
+}
+
 func wrapResponse(dataSchema map[string]interface{}) map[string]interface{} {
+	// `message` stays optional: a handful of handlers (ollama version, perf
+	// summary) emit {success, data} without it, and clients treat it as
+	// best-effort text anyway.
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -459,7 +582,7 @@ func wrapResponse(dataSchema map[string]interface{}) map[string]interface{} {
 			"message": map[string]interface{}{"type": "string"},
 			"data":    dataSchema,
 		},
-		"required": []interface{}{"success", "message"},
+		"required": []interface{}{"success"},
 	}
 }
 
@@ -627,7 +750,15 @@ func qualifiedToSchema(qname string) map[string]interface{} {
 	case "decimal.Decimal":
 		return map[string]interface{}{"type": "string"}
 	}
+	// Cross-package reference to a parsed struct (e.g. dto fields typed as
+	// ionet.HardwareType) — emit a $ref instead of an opaque scalar.
+	if dot := strings.Index(qname, "."); dot >= 0 {
+		if bare := qname[dot+1:]; bare != "" {
+			if _, ok := modelTypes[bare]; ok {
+				return identToSchema(bare)
+			}
+		}
+	}
 	// constant.* and other typed strings/ints — opaque scalar.
 	return map[string]interface{}{"type": "string"}
 }
-

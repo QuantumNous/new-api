@@ -31,6 +31,7 @@ export type PricingModel = {
   id: number
   model_name: string
   description?: string
+  icon?: string
   vendor_id?: number
   vendor_name?: string
   vendor_icon?: string
@@ -56,10 +57,8 @@ export type PricingModel = {
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
-   * Optional model metadata fields. These are not yet returned by the backend
-   * and are populated client-side from {@link inferModelMetadata}.
-   * When the backend ships these fields, the inference layer becomes a
-   * fallback rather than the source of truth.
+   * Optional model metadata fields reserved for backend-provided catalog data.
+   * Keep them data-driven; do not synthesize display values on the client.
    */
   context_length?: number
   max_output_tokens?: number

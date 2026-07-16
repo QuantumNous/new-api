@@ -16,21 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { ExternalLinkIcon, RefreshCcwIcon } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatTimestamp, formatTimestampToDate } from '@/lib/format'
+
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Markdown } from '@/components/ui/markdown'
+import { formatTimestamp, formatTimestampToDate } from '@/lib/format'
+
 import { SettingsSection } from '../components/settings-section'
 
 type ReleaseInfo = {
@@ -140,38 +135,29 @@ export function UpdateCheckerSection({
         </div>
       </SettingsSection>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className='max-h-[80vh] overflow-y-auto'>
-          <DialogHeader>
-            <DialogTitle>
-              {release?.tag_name
-                ? t('New version available: {{version}}', {
-                    version: release.tag_name,
-                  })
-                : t('Release details')}
-            </DialogTitle>
-            {release?.published_at && (
-              <DialogDescription>
-                {t('Published')}{' '}
-                {formatTimestampToDate(
-                  new Date(release.published_at).getTime(),
-                  'milliseconds'
-                )}
-              </DialogDescription>
-            )}
-          </DialogHeader>
-
-          <div className='space-y-4'>
-            {release?.body ? (
-              <Markdown>{release.body}</Markdown>
-            ) : (
-              <p className='text-muted-foreground text-sm'>
-                {t('No release notes provided.')}
-              </p>
-            )}
-          </div>
-
-          <DialogFooter>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={
+          release?.tag_name
+            ? t('New version available: {{version}}', {
+                version: release.tag_name,
+              })
+            : t('Release details')
+        }
+        description={
+          release?.published_at
+            ? `${t('Published')} ${formatTimestampToDate(
+                new Date(release.published_at).getTime(),
+                'milliseconds'
+              )}`
+            : undefined
+        }
+        contentClassName='max-h-[80vh] overflow-y-auto'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button
               type='button'
               variant='secondary'
@@ -185,8 +171,18 @@ export function UpdateCheckerSection({
                 {t('Open release')}
               </Button>
             )}
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className='space-y-4'>
+          {release?.body ? (
+            <Markdown>{release.body}</Markdown>
+          ) : (
+            <p className='text-muted-foreground text-sm'>
+              {t('No release notes provided.')}
+            </p>
+          )}
+        </div>
       </Dialog>
     </>
   )

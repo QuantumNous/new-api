@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -165,9 +166,11 @@ func resolveValidateChannel(c *gin.Context, req *ValidateModelsRequest) (*model.
 // slow upstream never marks a real model dead.
 func validateOneModel(channel *model.Channel, testUserID int, modelName, endpointType string) ModelValidationResult {
 	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), validateModelsPerModelTimeout)
+	defer cancel()
 	done := make(chan testResult, 1)
 	gopool.Go(func() {
-		done <- testChannel(channel, testUserID, modelName, endpointType, false)
+		done <- testChannel(ctx, channel, testUserID, modelName, endpointType, false)
 	})
 
 	out := ModelValidationResult{Model: modelName}

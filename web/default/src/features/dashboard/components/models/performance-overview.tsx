@@ -16,22 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Gauge, HeartPulse, Timer } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
+  getSuccessRateDotClass,
+  getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
+import { cn } from '@/lib/utils'
 
 const PERFORMANCE_WINDOW_HOURS = 24
-const TOP_MODEL_LIMIT = 5
+const TOP_MODEL_LIMIT = 6
 
 type WeightedMetric = 'avg_latency_ms' | 'avg_tps' | 'success_rate'
 
@@ -57,7 +61,7 @@ function simpleAverage(
     count++
   }
 
-  return count > 0 ? total / count : NaN
+  return count > 0 ? total / count : Number.NaN
 }
 
 function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
@@ -77,20 +81,6 @@ function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
     ),
     successRate: simpleAverage(rows, 'success_rate', Number.isFinite),
   }
-}
-
-function successRateClassName(successRate: number): string {
-  if (!Number.isFinite(successRate)) return 'text-muted-foreground'
-  if (successRate >= 99.9) return 'text-success'
-  if (successRate >= 99) return 'text-warning'
-  return 'text-destructive'
-}
-
-function successDotClassName(successRate: number): string {
-  if (!Number.isFinite(successRate)) return 'bg-muted-foreground'
-  if (successRate >= 99.9) return 'bg-success'
-  if (successRate >= 99) return 'bg-warning'
-  return 'bg-destructive'
 }
 
 export function PerformanceOverview() {
@@ -124,10 +114,9 @@ export function PerformanceOverview() {
       <div className='flex flex-wrap items-center gap-x-5 gap-y-2.5 px-4 py-2.5 sm:px-5 sm:py-3'>
         {/* Title */}
         <div className='flex items-center gap-1.5'>
-          <HeartPulse
-            className='text-muted-foreground/60 size-3.5 shrink-0'
-            aria-hidden='true'
-          />
+          <IconBadge tone='success' size='xs'>
+            <HeartPulse />
+          </IconBadge>
           <span className='text-xs font-semibold whitespace-nowrap'>
             {t('Performance health')}
           </span>
@@ -139,8 +128,8 @@ export function PerformanceOverview() {
         {/* 3 KPI inline metrics */}
         {loading ? (
           <div className='flex flex-wrap items-center gap-x-5 gap-y-2'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className='flex items-center gap-1.5'>
+            {['success', 'latency', 'throughput'].map((key) => (
+              <div key={key} className='flex items-center gap-1.5'>
                 <Skeleton className='h-3 w-14' />
                 <Skeleton className='h-4 w-16' />
               </div>
@@ -152,17 +141,20 @@ export function PerformanceOverview() {
               icon={HeartPulse}
               label={t('Success rate')}
               value={formatUptimePct(summary.successRate)}
-              valueClassName={successRateClassName(summary.successRate)}
+              valueClassName={getSuccessRateTextClass(summary.successRate)}
+              tone='success'
             />
             <InlineMetric
               icon={Timer}
               label={t('Average latency')}
               value={formatLatency(summary.avgLatencyMs)}
+              tone='warning'
             />
             <InlineMetric
               icon={Gauge}
               label={t('Throughput')}
               value={formatThroughput(summary.avgTps)}
+              tone='info'
             />
           </div>
         )}
@@ -188,15 +180,15 @@ function InlineMetric(props: {
   label: string
   value: string
   valueClassName?: string
+  tone: IconBadgeTone
 }) {
   const Icon = props.icon
 
   return (
     <div className='flex items-center gap-1.5'>
-      <Icon
-        className='text-muted-foreground/50 size-3 shrink-0'
-        aria-hidden='true'
-      />
+      <IconBadge tone={props.tone} size='xs'>
+        <Icon />
+      </IconBadge>
       <span className='text-muted-foreground text-[11px]'>{props.label}</span>
       <span
         className={cn(
@@ -221,14 +213,14 @@ function ModelBadge(props: { model: PerfModelSummary }) {
       <span
         className={cn(
           'size-1.5 rounded-full',
-          successDotClassName(model.success_rate)
+          getSuccessRateDotClass(model.success_rate)
         )}
         aria-hidden='true'
       />
       <span
         className={cn(
           'font-mono text-[11px] font-semibold tabular-nums',
-          successRateClassName(model.success_rate)
+          getSuccessRateTextClass(model.success_rate)
         )}
       >
         {formatUptimePct(model.success_rate)}

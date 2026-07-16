@@ -16,19 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useRef, useEffect } from 'react'
 import { ExternalLink, Copy, Music } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
+import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
+import { IconBadge } from '@/components/ui/icon-badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export interface AudioClip {
   clip_id?: string
@@ -152,32 +149,35 @@ export function AudioPreviewDialog(props: AudioPreviewDialogProps) {
   const clips = Array.isArray(props.clips) ? props.clips : []
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='sm:max-w-lg'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <Music className='h-5 w-5' />
-            {t('Audio Preview')}
-          </DialogTitle>
-        </DialogHeader>
-
-        {clips.length === 0 ? (
-          <p className='text-muted-foreground py-4 text-center text-sm'>
-            {t('None')}
-          </p>
-        ) : (
-          <ScrollArea className='max-h-[60vh]'>
-            <div className='space-y-3 pr-2'>
-              {clips.map((clip, idx) => (
-                <AudioClipCard
-                  key={clip.clip_id || clip.id || idx}
-                  clip={clip}
-                />
-              ))}
-            </div>
-          </ScrollArea>
-        )}
-      </DialogContent>
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={
+        <>
+          <IconBadge tone='chart-4' size='sm'>
+            <Music />
+          </IconBadge>
+          {t('Audio Preview')}
+        </>
+      }
+      contentClassName='sm:max-w-lg'
+      titleClassName='flex items-center gap-2'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+    >
+      {clips.length === 0 ? (
+        <p className='text-muted-foreground py-4 text-center text-sm'>
+          {t('None')}
+        </p>
+      ) : (
+        <ScrollArea className='max-h-[60vh]'>
+          <div className='space-y-3 pr-2'>
+            {clips.map((clip, idx) => (
+              <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
+            ))}
+          </div>
+        </ScrollArea>
+      )}
     </Dialog>
   )
 }
