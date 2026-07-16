@@ -113,13 +113,10 @@ export function UsersTable() {
   }, [sorting])
 
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
-    setSorting((previous) => {
-      const next = typeof updater === 'function' ? updater(previous) : updater
-      if (pagination.pageIndex > 0) {
-        onPaginationChange({ ...pagination, pageIndex: 0 })
-      }
-      return next
-    })
+    setSorting(updater)
+    if (pagination.pageIndex > 0) {
+      onPaginationChange({ ...pagination, pageIndex: 0 })
+    }
   }
 
   // Fetch data with React Query

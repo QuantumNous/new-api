@@ -54,10 +54,17 @@ func (options UserSortOptions) Apply(query *gorm.DB) *gorm.DB {
 	if !ok {
 		columnName = "id"
 	}
-	return query.Order(clause.OrderByColumn{
+	q := query.Order(clause.OrderByColumn{
 		Column: clause.Column{Name: columnName},
 		Desc:   options.SortOrder != "asc",
 	})
+	if columnName != "id" {
+		q = q.Order(clause.OrderByColumn{
+			Column: clause.Column{Name: "id"},
+			Desc:   true,
+		})
+	}
+	return q
 }
 
 func resolveUserSortOptions(sortOptions []UserSortOptions) UserSortOptions {
