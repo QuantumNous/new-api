@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -210,15 +211,46 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
-		switch relayFormat {
-		case types.RelayFormatOpenAIRealtime:
-			newAPIError = relay.WssHelper(c, relayInfo)
-		case types.RelayFormatClaude:
-			newAPIError = relay.ClaudeHelper(c, relayInfo)
-		case types.RelayFormatGemini:
-			newAPIError = geminiRelayHandler(c, relayInfo)
-		default:
-			newAPIError = relayHandler(c, relayInfo)
+		attemptStart := time.Now()
+		service.IncChannelConcurrency(channel.Id)
+		// Always dec even if helper panics (CustomRecovery still runs after).
+		func() {
+			defer service.DecChannelConcurrency(channel.Id)
+			switch relayFormat {
+			case types.RelayFormatOpenAIRealtime:
+				newAPIError = relay.WssHelper(c, relayInfo)
+			case types.RelayFormatClaude:
+				newAPIError = relay.ClaudeHelper(c, relayInfo)
+			case types.RelayFormatGemini:
+				newAPIError = geminiRelayHandler(c, relayInfo)
+			default:
+				newAPIError = relayHandler(c, relayInfo)
+			}
+		}()
+		{
+			statusCode := http.StatusOK
+			var recErr error
+			if newAPIError != nil {
+				statusCode = newAPIError.StatusCode
+				if statusCode == 0 {
+					statusCode = http.StatusInternalServerError
+				}
+				recErr = newAPIError
+			}
+			// Prefer UsingGroup (resolved auto group) so score buckets match selection.
+			metricGroup := relayInfo.UsingGroup
+			if metricGroup == "" {
+				metricGroup = relayInfo.TokenGroup
+			}
+			service.RecordAdaptiveResult(
+				c,
+				channel.Id,
+				metricGroup,
+				relayInfo.OriginModelName,
+				statusCode,
+				time.Since(attemptStart),
+				recErr,
+			)
 		}
 
 		if newAPIError == nil {
@@ -250,9 +282,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 var upgrader = websocket.Upgrader{
 	Subprotocols: []string{"realtime"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol TODO add other protocol
-	CheckOrigin: func(r *http.Request) bool {
-		return true // 允许跨域
-	},
+	CheckOrigin:  isRealtimeWebSocketOriginAllowed,
+}
+
+func isRealtimeWebSocketOriginAllowed(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	originValue := strings.TrimSpace(r.Header.Get("Origin"))
+	if originValue == "" {
+		return true
+	}
+
+	origin, err := url.Parse(originValue)
+	if err != nil || origin.Host == "" || (origin.Scheme != "http" && origin.Scheme != "https") {
+		return false
+	}
+	if strings.EqualFold(origin.Host, r.Host) {
+		return true
+	}
+	return common.ValidateRedirectURL(originValue) == nil
 }
 
 func addUsedChannel(c *gin.Context, channelId int) {
