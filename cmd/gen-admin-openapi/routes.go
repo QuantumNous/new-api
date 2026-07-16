@@ -33,12 +33,18 @@ func dedupeRoutes() {
 	routes = out
 }
 
+// permissionTableBase maps a []permissionRoute table var name to the group
+// prefix it is mounted under (resolved from `for _, route := range table {
+// group.Handle(...) }` loops).
+var permissionTableBase = map[string]string{}
+
 func parseRoutes(dir string) error {
 	fset := token.NewFileSet()
 	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
 		return err
 	}
+	parsed := []*ast.File{}
 	for _, path := range files {
 		if strings.HasSuffix(path, "_test.go") {
 			continue
@@ -47,6 +53,10 @@ func parseRoutes(dir string) error {
 		if err != nil {
 			continue
 		}
+		parsed = append(parsed, f)
+	}
+	// Pass 1: functions — direct .GET/.POST routes + table→prefix bindings.
+	for _, f := range parsed {
 		for _, decl := range f.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Body == nil {
@@ -55,7 +65,102 @@ func parseRoutes(dir string) error {
 			processRouterFunc(fn)
 		}
 	}
+	// Pass 2: package-level []permissionRoute tables, mounted per pass 1.
+	for _, f := range parsed {
+		for _, decl := range f.Decls {
+			gd, ok := decl.(*ast.GenDecl)
+			if !ok || gd.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gd.Specs {
+				vs, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				processPermissionTable(vs)
+			}
+		}
+	}
 	return nil
+}
+
+// processPermissionTable emits routes from a
+// `var xRoutes = []permissionRoute{{method: http.MethodGet, path: "/", handler: controller.X}, ...}`
+// declaration, provided pass 1 resolved its mount prefix.
+func processPermissionTable(vs *ast.ValueSpec) {
+	for i, name := range vs.Names {
+		base, mounted := permissionTableBase[name.Name]
+		if !mounted || i >= len(vs.Values) {
+			continue
+		}
+		cl, ok := vs.Values[i].(*ast.CompositeLit)
+		if !ok {
+			continue
+		}
+		for _, elt := range cl.Elts {
+			entry, ok := elt.(*ast.CompositeLit)
+			if !ok {
+				continue
+			}
+			var method, path, handler string
+			for _, field := range entry.Elts {
+				kv, ok := field.(*ast.KeyValueExpr)
+				if !ok {
+					continue
+				}
+				key, _ := kv.Key.(*ast.Ident)
+				if key == nil {
+					continue
+				}
+				switch key.Name {
+				case "method":
+					if sel, ok := kv.Value.(*ast.SelectorExpr); ok {
+						// http.MethodGet → GET
+						method = strings.ToUpper(strings.TrimPrefix(sel.Sel.Name, "Method"))
+					}
+				case "path":
+					if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
+						path = strings.Trim(bl.Value, "\"`")
+					}
+				case "handler":
+					if sel, ok := kv.Value.(*ast.SelectorExpr); ok {
+						if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "controller" {
+							handler = sel.Sel.Name
+						}
+					}
+				}
+			}
+			if method == "" || path == "" || !isGinMethod(method) {
+				continue
+			}
+			routes = append(routes, RouteEntry{
+				Method:      method,
+				Path:        joinRoutePath(base, path),
+				HandlerName: handler,
+			})
+		}
+	}
+}
+
+// joinRoutePath joins a group prefix and a route suffix, normalizing slashes
+// and converting :param segments to {param} placeholders.
+func joinRoutePath(base, suffix string) string {
+	b := strings.TrimRight(base, "/")
+	s := suffix
+	if !strings.HasPrefix(s, "/") {
+		s = "/" + s
+	}
+	full := strings.ReplaceAll(b+s, "//", "/")
+	if full == "" {
+		full = "/"
+	}
+	segs := strings.Split(full, "/")
+	for i, seg := range segs {
+		if strings.HasPrefix(seg, ":") {
+			segs[i] = "{" + seg[1:] + "}"
+		}
+	}
+	return strings.Join(segs, "/")
 }
 
 // processRouterFunc walks a Set*Router function body, tracks group prefixes
@@ -70,11 +175,23 @@ func processRouterFunc(fn *ast.FuncDecl) {
 				continue
 			}
 			sel, _ := star.X.(*ast.SelectorExpr)
-			if sel == nil || sel.Sel.Name != "Engine" {
+			if sel == nil {
 				continue
 			}
-			for _, name := range p.Names {
-				groups[name.Name] = ""
+			switch sel.Sel.Name {
+			case "Engine":
+				for _, name := range p.Names {
+					groups[name.Name] = ""
+				}
+			case "RouterGroup":
+				// register*(apiRouter *gin.RouterGroup) helpers extracted from
+				// SetApiRouter. Convention: a group param named apiRouter is
+				// mounted at /api (single call site in api-router.go).
+				for _, name := range p.Names {
+					if name.Name == "apiRouter" {
+						groups[name.Name] = "/api"
+					}
+				}
 			}
 		}
 	}
@@ -121,6 +238,38 @@ func processRouterFunc(fn *ast.FuncDecl) {
 			return true
 		})
 	}
+
+	// Bind permission tables to their mount prefix:
+	// for _, route := range xRoutes { group.Handle(route.method, route.path, ...) }
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		rs, ok := n.(*ast.RangeStmt)
+		if !ok {
+			return true
+		}
+		table, _ := rs.X.(*ast.Ident)
+		if table == nil {
+			return true
+		}
+		ast.Inspect(rs.Body, func(inner ast.Node) bool {
+			call, ok := inner.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, _ := call.Fun.(*ast.SelectorExpr)
+			if sel == nil || sel.Sel.Name != "Handle" {
+				return true
+			}
+			recv, _ := sel.X.(*ast.Ident)
+			if recv == nil {
+				return true
+			}
+			if base, ok := groups[recv.Name]; ok {
+				permissionTableBase[table.Name] = base
+			}
+			return true
+		})
+		return true
+	})
 
 	// Now extract all method calls.
 	ast.Inspect(fn.Body, func(n ast.Node) bool {

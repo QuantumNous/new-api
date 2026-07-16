@@ -46,7 +46,7 @@ var manifest = map[string]map[string]respSpec{
 	"/api/setup":             {"get": {Wrap: "ApiResponseOfObject"}, "post": {Empty: true}},
 	"/api/status":            {"get": {Wrap: "ApiResponseOfObject"}},
 	"/api/status/test":       {"get": {Empty: true}},
-	"/api/uptime/status":     {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/uptime/status":     {"get": {Type: "UptimeGroupResult", List: true}},
 	"/api/ratio_config":      {"get": {Wrap: "ApiResponseOfRatioConfig"}},
 	"/api/verification":      {"get": {Empty: true}},
 	"/api/verify":            {"post": {Empty: true}},
@@ -70,30 +70,26 @@ var manifest = map[string]map[string]respSpec{
 	"/api/oauth/telegram/login": {"get": {Empty: true}},
 	"/api/oauth/telegram/bind":  {"get": {Empty: true}},
 	"/api/oauth/{provider}":     {"get": {Empty: true}},
-	"/api/oauth/github":         {"get": {Empty: true}},
-	"/api/oauth/discord":        {"get": {Empty: true}},
-	"/api/oauth/oidc":           {"get": {Empty: true}},
-	"/api/oauth/linuxdo":        {"get": {Empty: true}},
 
 	// === User management ===
-	"/api/user/":         {"get": {Type: "User", Paged: true}, "post": {Type: "User"}, "put": {Type: "User"}},
-	"/api/user/{id}":     {"get": {Type: "User"}, "delete": {Empty: true}},
-	"/api/user/search":   {"get": {Type: "User", Paged: true}},
-	"/api/user/manage":   {"post": {Type: "ManageUserResponse"}},
+	"/api/user/":            {"get": {Type: "User", Paged: true}, "post": {Type: "User"}, "put": {Type: "User"}},
+	"/api/user/{id}":        {"get": {Type: "User"}, "delete": {Empty: true}},
+	"/api/user/search":      {"get": {Type: "User", Paged: true}},
+	"/api/user/manage":      {"post": {Type: "ManageUserResponse"}},
 	"/api/user/group/batch": {"post": {Type: "BulkUpdateUserGroupResponse", Body: "BulkUpdateUserGroupRequest"}},
 
 	// === Pricing admin ===
 	"/api/option/pricing/models/{channel_type}": {"get": {Type: "ListProviderModelsResponse"}},
 	"/api/option/pricing/adjust":                {"post": {Type: "AdjustModelPricingResponse", Body: "AdjustModelPricingRequest"}},
-	"/api/user/self":     {"get": {Type: "User"}},
-	"/api/user/aff":      {"get": {Wrap: "ApiResponseOfString"}},
-	"/api/user/groups":   {"get": {Wrap: "ApiResponseOfStringList"}},
-	"/api/user/self/groups": {"get": {Wrap: "ApiResponseOfStringList"}},
-	"/api/user/aff_transfer": {"post": {Empty: true}},
-	"/api/user/amount":   {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/setting":  {"put": {Empty: true}},
-	"/api/user/token":    {"get": {Wrap: "ApiResponseOfString"}},
-	"/api/user/models":   {"get": {Wrap: "ApiResponseOfStringList"}},
+	"/api/user/self":                            {"get": {Type: "User"}},
+	"/api/user/aff":                             {"get": {Wrap: "ApiResponseOfString"}},
+	"/api/user/groups":                          {"get": {Wrap: "ApiResponseOfStringList"}},
+	"/api/user/self/groups":                     {"get": {Wrap: "ApiResponseOfStringList"}},
+	"/api/user/aff_transfer":                    {"post": {Empty: true}},
+	"/api/user/amount":                          {"post": {Custom: "MessageEnvelopeOfString"}},
+	"/api/user/setting":                         {"put": {Empty: true}},
+	"/api/user/token":                           {"get": {Wrap: "ApiResponseOfString"}},
+	"/api/user/models":                          {"get": {Wrap: "ApiResponseOfStringList"}},
 
 	// === Passkey ===
 	"/api/user/passkey":                 {"get": {Wrap: "ApiResponseOfObject"}},
@@ -110,22 +106,22 @@ var manifest = map[string]map[string]respSpec{
 	"/api/user/2fa/setup":        {"post": {Wrap: "ApiResponseOfObject"}},
 	"/api/user/2fa/enable":       {"post": {Empty: true}},
 	"/api/user/2fa/disable":      {"post": {Empty: true}},
-	"/api/user/2fa/status":       {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/user/2fa/status":       {"get": {Type: "TwoFAStatusResponse"}},
 	"/api/user/2fa/backup_codes": {"post": {Wrap: "ApiResponseOfStringList"}},
-	"/api/user/2fa/stats":        {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/user/2fa/stats":        {"get": {Type: "TwoFAStatsResponse"}},
 
 	// === Topup / Payment ===
-	"/api/user/epay/notify":   {"get": {Empty: true}, "post": {Empty: true}},
-	"/api/user/topup":         {"post": {Empty: true}},
-	"/api/user/topup/info":    {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/user/epay/notify":    {"get": {Empty: true}, "post": {Empty: true}},
+	"/api/user/topup":          {"post": {Empty: true}},
+	"/api/user/topup/info":     {"get": {Type: "TopUpInfoResponse"}},
 	"/api/user/topup/complete": {"post": {Empty: true}},
-	"/api/user/topup/self":    {"get": {Type: "TopUp", Paged: true}},
-	"/api/user/pay":           {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/stripe/pay":    {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/creem/pay":     {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/stripe/amount": {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/stripe/webhook":     {"post": {Empty: true}},
-	"/api/creem/webhook":      {"post": {Empty: true}},
+	"/api/user/topup/self":     {"get": {Type: "TopUp", Paged: true}},
+	"/api/user/pay":            {"post": {Custom: "EpayCheckoutEnvelope"}},
+	"/api/user/stripe/pay":     {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/user/creem/pay":      {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/user/stripe/amount":  {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/stripe/webhook":      {"post": {Empty: true}},
+	"/api/creem/webhook":       {"post": {Empty: true}},
 
 	// === Channel ===
 	"/api/channel/":                    {"get": {Type: "Channel", Paged: true}, "post": {Empty: true}, "put": {Type: "Channel"}},
@@ -134,22 +130,23 @@ var manifest = map[string]map[string]respSpec{
 	"/api/channel/search":              {"get": {Type: "SearchChannelsResponse"}},
 	"/api/channel/test":                {"get": {Type: "ChannelTestResponse"}},
 	"/api/channel/test/{id}":           {"get": {Type: "ChannelTestResponse"}},
-	"/api/channel/update_balance":      {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/update_balance/{id}": {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/channel/update_balance":      {"get": {Empty: true}},
+	"/api/channel/update_balance/{id}": {"get": {Custom: "ChannelBalanceEnvelope"}},
 	"/api/channel/disabled":            {"delete": {Empty: true}},
-	"/api/channel/fix":                 {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/channel/fix":                 {"post": {Type: "FixAbilityResponse"}},
 	"/api/channel/copy/{id}":           {"post": {Empty: true}},
-	"/api/channel/batch":               {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/channel/batch":               {"post": {Wrap: "ApiResponseOfInt"}},
 	"/api/channel/batch/tag":           {"post": {Empty: true}},
-	"/api/channel/multi_key/manage":    {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/channel/multi_key/manage":    {"post": {Custom: "ApiResponseOfMultiKeyManageResult"}},
 	"/api/channel/tag":                 {"put": {Empty: true}},
 	"/api/channel/tag/disabled":        {"post": {Empty: true}},
 	"/api/channel/tag/enabled":         {"post": {Empty: true}},
-	"/api/channel/tag/models":          {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/channel/tag/models":          {"get": {Wrap: "ApiResponseOfString"}},
 	"/api/channel/models":              {"get": {Wrap: "ApiResponseOfStringList"}},
 	"/api/channel/models_enabled":      {"get": {Wrap: "ApiResponseOfStringList"}},
 	"/api/channel/fetch_models":        {"post": {Wrap: "ApiResponseOfStringList", Body: "FetchModelsRequest"}},
 	"/api/channel/fetch_models/{id}":   {"get": {Wrap: "ApiResponseOfStringList"}},
+	"/api/channel/validate_models":     {"post": {Type: "ValidateModelsResponse"}},
 
 	// === Token ===
 	"/api/token/":       {"get": {Type: "Token", Paged: true}, "post": {Type: "Token"}, "put": {Type: "Token"}},
@@ -158,19 +155,19 @@ var manifest = map[string]map[string]respSpec{
 	"/api/token/batch":  {"post": {Wrap: "ApiResponseOfObject"}},
 
 	// === Logs ===
-	"/api/log/":           {"get": {Type: "Log", Paged: true}},
-	"/api/log/search":     {"get": {Type: "Log", Paged: true}},
-	"/api/log/self":       {"get": {Type: "Log", Paged: true}},
+	"/api/log/":            {"get": {Type: "Log", Paged: true}},
+	"/api/log/search":      {"get": {Type: "Log", Paged: true}},
+	"/api/log/self":        {"get": {Type: "Log", Paged: true}},
 	"/api/log/self/search": {"get": {Type: "Log", Paged: true}},
-	"/api/log/self/stat":  {"get": {Type: "Stat"}},
-	"/api/log/stat":       {"get": {Type: "Stat"}},
-	"/api/log/token":      {"get": {Type: "Log", Paged: true}},
+	"/api/log/self/stat":   {"get": {Type: "Stat"}},
+	"/api/log/stat":        {"get": {Type: "Stat"}},
+	"/api/log/token":       {"get": {Type: "Log", Paged: true}},
 
 	// === Redemption ===
-	"/api/redemption/":         {"get": {Type: "Redemption", Paged: true}, "post": {Empty: true}, "put": {Empty: true}},
-	"/api/redemption/{id}":     {"get": {Type: "Redemption"}, "delete": {Empty: true}},
-	"/api/redemption/search":   {"get": {Type: "Redemption", Paged: true}},
-	"/api/redemption/invalid":  {"delete": {Empty: true}},
+	"/api/redemption/":        {"get": {Type: "Redemption", Paged: true}, "post": {Empty: true}, "put": {Empty: true}},
+	"/api/redemption/{id}":    {"get": {Type: "Redemption"}, "delete": {Empty: true}},
+	"/api/redemption/search":  {"get": {Type: "Redemption", Paged: true}},
+	"/api/redemption/invalid": {"delete": {Empty: true}},
 
 	// === Models ===
 	"/api/models":                       {"get": {Wrap: "ApiResponseOfStringList"}},
@@ -197,17 +194,17 @@ var manifest = map[string]map[string]respSpec{
 	"/api/mj/self":   {"get": {Type: "Midjourney", Paged: true}},
 
 	// === Data stats ===
-	"/api/data/":         {"get": {Wrap: "ApiResponseListOfQuotaDataRow"}},
-	"/api/data/self":     {"get": {Wrap: "ApiResponseListOfQuotaDataRow"}},
-	"/api/data/users":    {"get": {Wrap: "ApiResponseListOfQuotaDataRow"}},
+	"/api/data/":      {"get": {Wrap: "ApiResponseListOfQuotaDataRow"}},
+	"/api/data/self":  {"get": {Wrap: "ApiResponseListOfQuotaDataRow"}},
+	"/api/data/users": {"get": {Wrap: "ApiResponseListOfQuotaDataRow"}},
 
 	// === Group ===
 	"/api/group/": {"get": {Wrap: "ApiResponseOfStringList"}},
 
 	// === Option ===
-	"/api/option/":                       {"get": {Type: "Option", List: true}, "put": {Empty: true}},
+	"/api/option/":                        {"get": {Type: "Option", List: true}, "put": {Empty: true}},
 	"/api/option/migrate_console_setting": {"post": {Empty: true}},
-	"/api/option/rest_model_ratio":       {"post": {Empty: true}},
+	"/api/option/rest_model_ratio":        {"post": {Empty: true}},
 
 	// === Ratio sync ===
 	"/api/ratio_sync/channels": {"get": {Wrap: "ApiResponseOfObject"}},
@@ -220,19 +217,19 @@ var manifest = map[string]map[string]respSpec{
 	"/api/subscription/plans":           {"get": {Type: "SubscriptionPlan", List: true}},
 	"/api/subscription/self":            {"get": {Type: "UserSubscription"}},
 	"/api/subscription/self/preference": {"put": {Empty: true}},
-	"/api/subscription/epay/pay":        {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/subscription/epay/pay":        {"post": {Custom: "EpayCheckoutEnvelope"}},
 	"/api/subscription/stripe/pay":      {"post": {Wrap: "ApiResponseOfObject"}},
 	"/api/subscription/creem/pay":       {"post": {Wrap: "ApiResponseOfObject"}},
 	"/api/subscription/epay/notify":     {"get": {Empty: true}, "post": {Empty: true}},
 	"/api/subscription/epay/return":     {"get": {Empty: true}, "post": {Empty: true}},
 
 	// === Subscription admin ===
-	"/api/subscription/admin/plans":          {"get": {Type: "SubscriptionPlan", List: true}, "post": {Empty: true}},
-	"/api/subscription/admin/plans/{id}":     {"put": {Empty: true}, "patch": {Empty: true}},
-	"/api/subscription/admin/bind":           {"post": {Empty: true}},
-	"/api/subscription/admin/users/{id}/subscriptions":          {"get": {Type: "UserSubscription", List: true}, "post": {Empty: true}},
+	"/api/subscription/admin/plans":                              {"get": {Type: "SubscriptionPlan", List: true}, "post": {Empty: true}},
+	"/api/subscription/admin/plans/{id}":                         {"put": {Empty: true}, "patch": {Empty: true}},
+	"/api/subscription/admin/bind":                               {"post": {Empty: true}},
+	"/api/subscription/admin/users/{id}/subscriptions":           {"get": {Type: "UserSubscription", List: true}, "post": {Empty: true}},
 	"/api/subscription/admin/user_subscriptions/{id}/invalidate": {"post": {Empty: true}},
-	"/api/subscription/admin/user_subscriptions/{id}":           {"delete": {Empty: true}},
+	"/api/subscription/admin/user_subscriptions/{id}":            {"delete": {Empty: true}},
 
 	// === Custom OAuth providers ===
 	"/api/custom-oauth-provider/":          {"get": {Type: "CustomOAuthProvider", List: true}, "post": {Empty: true}},
@@ -240,62 +237,88 @@ var manifest = map[string]map[string]respSpec{
 	"/api/custom-oauth-provider/discovery": {"post": {Wrap: "ApiResponseOfObject"}},
 
 	// === Performance ===
-	"/api/performance/stats":        {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/performance/disk_cache":   {"delete": {Empty: true}},
-	"/api/performance/reset_stats":  {"post": {Empty: true}},
-	"/api/performance/gc":           {"post": {Empty: true}},
-	"/api/performance/logs":         {"get": {Wrap: "ApiResponseOfObject"}, "delete": {Empty: true}},
-	"/api/perf-metrics":             {"get": {Type: "PerfMetric", List: true}},
-	"/api/rankings":                 {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/performance/stats":       {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/performance/disk_cache":  {"delete": {Empty: true}},
+	"/api/performance/reset_stats": {"post": {Empty: true}},
+	"/api/performance/gc":          {"post": {Empty: true}},
+	"/api/performance/logs":        {"get": {Wrap: "ApiResponseOfObject"}, "delete": {Empty: true}},
+	"/api/perf-metrics/summary":    {"get": {Custom: "SuccessEnvelopeOfPerfMetricsSummary"}},
+	"/api/rankings":                {"get": {Wrap: "ApiResponseOfObject"}},
 
 	// === Channel — codex / ollama / upstream-updates ===
-	"/api/channel/codex/oauth/start":               {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/codex/oauth/complete":            {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/{id}/codex/oauth/start":          {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/{id}/codex/oauth/complete":       {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/{id}/codex/refresh":              {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/{id}/codex/usage":                {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/ollama/pull":                     {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/ollama/pull/stream":              {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/ollama/delete":                   {"delete": {Empty: true}},
-	"/api/channel/ollama/version/{id}":             {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/upstream_updates/apply":          {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/upstream_updates/apply_all":      {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/upstream_updates/detect":         {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/channel/upstream_updates/detect_all":     {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/channel/{id}/codex/refresh": {"post": {Type: "CodexCredentialRefreshResponse"}},
+
+	// === Upstream v1.0.0-rc.11..rc.21 additions ===
+	"/api/authz/catalog":                                     {"get": {Type: "AuthzCatalogResponse"}},
+	"/api/channel/ops":                                       {"get": {Type: "ChannelOpsResponse"}},
+	"/api/channel/status/batch":                              {"post": {Wrap: "ApiResponseOfInt"}},
+	"/api/channel/{id}/status":                               {"post": {Wrap: "ApiResponseOfBool"}},
+	"/api/channel/{id}/codex/usage/reset-credits":            {"get": {Custom: "CodexUpstreamProxyResponse"}},
+	"/api/channel/{id}/codex/usage/reset":                    {"post": {Custom: "CodexUpstreamProxyResponse"}},
+	"/api/data/flow":                                         {"get": {Type: "FlowQuotaData", List: true}},
+	"/api/data/flow/self":                                    {"get": {Type: "FlowQuotaData", List: true}},
+	"/api/system-info/instances":                             {"get": {Type: "SystemInstanceResponse", List: true}},
+	"/api/system-info/instances/{node_name}":                 {"delete": {Type: "DeletedCountResponse"}},
+	"/api/system-info/stale-instances":                       {"delete": {Type: "DeletedCountResponse"}},
+	"/api/system-task/current":                               {"get": {Type: "SystemTaskResponse"}},
+	"/api/system-task/list":                                  {"get": {Type: "SystemTaskResponse", List: true}},
+	"/api/system-task/{task_id}":                             {"get": {Type: "SystemTaskResponse"}},
+	"/api/system-task/log-cleanup":                           {"post": {Type: "SystemTaskResponse"}},
+	"/api/option/payment_compliance":                         {"post": {Type: "PaymentComplianceResponse"}},
+	"/api/option/waffo-pancake/catalog":                      {"get": {Custom: "WaffoEnvelopeOfCatalog"}},
+	"/api/option/waffo-pancake/subscription-product-options": {"get": {Custom: "WaffoEnvelopeOfProductOptions"}},
+	"/api/option/waffo-pancake/pair":                         {"post": {Custom: "WaffoEnvelopeOfPair"}},
+	"/api/option/waffo-pancake/save":                         {"post": {Custom: "WaffoEnvelopeOfSave"}},
+	"/api/option/waffo-pancake/subscription-product":         {"post": {Custom: "WaffoEnvelopeOfSubscriptionProduct"}},
+	"/api/subscription/admin/plans/{id}/subscriptions/reset": {"post": {Type: "SubscriptionResetResult"}},
+	"/api/subscription/admin/users/{id}/subscriptions/reset": {"post": {Type: "SubscriptionResetResult"}},
+	"/api/subscription/balance/pay":                          {"post": {Empty: true}},
+	"/api/subscription/waffo-pancake/pay":                    {"post": {Custom: "WaffoEnvelopeOfCheckout"}},
+	"/api/user/waffo-pancake/amount":                         {"post": {Custom: "MessageEnvelopeOfString"}},
+	"/api/user/waffo-pancake/pay":                            {"post": {Custom: "WaffoEnvelopeOfCheckout"}},
+	"/api/waffo-pancake/webhook/{env}":                       {"post": {Empty: true}},
+	"/api/channel/{id}/codex/usage":                          {"get": {Custom: "CodexUpstreamProxyResponse"}},
+	"/api/channel/ollama/pull":                               {"post": {Empty: true}},
+	"/api/channel/ollama/pull/stream":                        {"post": {Empty: true}}, // SSE stream, not a JSON envelope
+	"/api/channel/ollama/delete":                             {"delete": {Empty: true}},
+	"/api/channel/ollama/version/{id}":                       {"get": {Type: "OllamaVersionResponse"}},
+	"/api/channel/upstream_updates/apply":                    {"post": {Type: "ApplyChannelUpstreamModelUpdatesResponse"}},
+	"/api/channel/upstream_updates/apply_all":                {"post": {Type: "ApplyAllChannelUpstreamModelUpdatesResponse"}},
+	"/api/channel/upstream_updates/detect":                   {"post": {Type: "DetectChannelUpstreamModelUpdatesResponse"}},
+	"/api/channel/upstream_updates/detect_all":               {"post": {Type: "SystemTaskRefResponse"}},
 
 	// === Deployments (ionet) ===
-	"/api/deployments/":                                {"get": {Wrap: "ApiResponseOfObject"}, "post": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/search":                          {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/settings":                        {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/settings/test-connection":        {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/test-connection":                 {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/hardware-types":                  {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/locations":                       {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/available-replicas":              {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/check-name":                      {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/price-estimation":                {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/{id}":                            {"get": {Wrap: "ApiResponseOfObject"}, "put": {Empty: true}, "delete": {Empty: true}},
-	"/api/deployments/{id}/name":                       {"put": {Empty: true}},
-	"/api/deployments/{id}/extend":                     {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/{id}/logs":                       {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/{id}/containers":                 {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/deployments/{id}/containers/{container_id}":  {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/deployments/":                               {"get": {Type: "DeploymentListResponse"}, "post": {Type: "DeploymentCreateResponse"}},
+	"/api/deployments/search":                         {"get": {Type: "DeploymentSearchResponse"}},
+	"/api/deployments/settings":                       {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/deployments/settings/test-connection":       {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/deployments/test-connection":                {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/deployments/hardware-types":                 {"get": {Type: "DeploymentHardwareTypesResponse"}},
+	"/api/deployments/locations":                      {"get": {Type: "DeploymentLocationsResponse"}},
+	"/api/deployments/available-replicas":             {"get": {Type: "AvailableReplicasResponse"}},
+	"/api/deployments/check-name":                     {"get": {Type: "ClusterNameAvailabilityResponse"}},
+	"/api/deployments/price-estimation":               {"post": {Type: "PriceEstimationResponse"}},
+	"/api/deployments/{id}":                           {"get": {Type: "DeploymentDetailResponse"}, "put": {Empty: true}, "delete": {Empty: true}},
+	"/api/deployments/{id}/name":                      {"put": {Empty: true}},
+	"/api/deployments/{id}/extend":                    {"post": {Type: "DeploymentSummary"}},
+	"/api/deployments/{id}/logs":                      {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/deployments/{id}/containers":                {"get": {Type: "DeploymentContainersResponse"}},
+	"/api/deployments/{id}/containers/{container_id}": {"get": {Type: "ContainerDetailsResponse"}},
 
 	// === Misc admin ===
-	"/api/option/channel_affinity_cache":         {"get": {Wrap: "ApiResponseOfObject"}, "delete": {Empty: true}},
-	"/api/log/channel_affinity_usage_cache":      {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/checkin":                          {"get": {Wrap: "ApiResponseOfObject"}, "post": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/oauth/bindings":                   {"get": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/oauth/bindings/{provider_id}":     {"delete": {Empty: true}},
-	"/api/user/{id}/oauth/bindings":              {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/option/channel_affinity_cache":          {"get": {Wrap: "ApiResponseOfObject"}, "delete": {Empty: true}},
+	"/api/log/channel_affinity_usage_cache":       {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/user/checkin":                           {"get": {Wrap: "ApiResponseOfObject"}, "post": {Wrap: "ApiResponseOfObject"}},
+	"/api/user/oauth/bindings":                    {"get": {Wrap: "ApiResponseOfObject"}},
+	"/api/user/oauth/bindings/{provider_id}":      {"delete": {Empty: true}},
+	"/api/user/{id}/oauth/bindings":               {"get": {Wrap: "ApiResponseOfObject"}},
 	"/api/user/{id}/oauth/bindings/{provider_id}": {"delete": {Empty: true}},
-	"/api/user/{id}/bindings/{binding_type}":     {"delete": {Empty: true}},
-	"/api/user/waffo/amount":                     {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/waffo/pay":                        {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/waffo/webhook":                         {"post": {Empty: true}},
-	"/api/token/{id}/key":                        {"post": {Type: "TokenKeyResponse"}},
-	"/api/token/batch/keys":                      {"post": {Wrap: "ApiResponseOfStringList"}},
+	"/api/user/{id}/bindings/{binding_type}":      {"delete": {Empty: true}},
+	"/api/user/waffo/amount":                      {"post": {Custom: "MessageEnvelopeOfString"}},
+	"/api/user/waffo/pay":                         {"post": {Wrap: "ApiResponseOfObject"}},
+	"/api/waffo/webhook":                          {"post": {Empty: true}},
+	"/api/token/{id}/key":                         {"post": {Type: "TokenKeyResponse"}},
+	"/api/token/batch/keys":                       {"post": {Wrap: "ApiResponseOfStringList"}},
 }
 
 // applyManifest sets responses["200"] for every (path, method) listed in the manifest,
@@ -540,17 +563,17 @@ func removeFakePaths(paths map[string]interface{}) {
 		// Phantom path — no router declaration.
 		"/api/verify/status": {"get"},
 		// Method mismatches: spec used wrong HTTP verb. Real verbs are in manifest.
-		"/api/channel/batch":           {"delete"},               // real: POST
-		"/api/channel/batch/tag":       {"put"},                  // real: POST
-		"/api/channel/disabled":        {"get"},                  // real: DELETE
-		"/api/channel/tag/disabled":    {"put"},                  // real: POST
-		"/api/channel/tag/enabled":     {"put"},                  // real: POST
-		"/api/channel/tag/models":      {"put"},                  // real: GET
-		"/api/token/batch":             {"delete"},               // real: POST
-		"/api/redemption/invalid":      {"get"},                  // real: DELETE
-		"/api/models/sync_upstream/preview": {"post"},            // real: GET
-		"/api/user/{id}/reset_passkey":     {"post"},             // real: DELETE
-		"/api/models/{id}":                 {"put"},              // real: PUT on /api/models/ (not by id)
+		"/api/channel/batch":                {"delete"}, // real: POST
+		"/api/channel/batch/tag":            {"put"},    // real: POST
+		"/api/channel/disabled":             {"get"},    // real: DELETE
+		"/api/channel/tag/disabled":         {"put"},    // real: POST
+		"/api/channel/tag/enabled":          {"put"},    // real: POST
+		"/api/channel/tag/models":           {"put"},    // real: GET
+		"/api/token/batch":                  {"delete"}, // real: POST
+		"/api/redemption/invalid":           {"get"},    // real: DELETE
+		"/api/models/sync_upstream/preview": {"post"},   // real: GET
+		"/api/user/{id}/reset_passkey":      {"post"},   // real: DELETE
+		"/api/models/{id}":                  {"put"},    // real: PUT on /api/models/ (not by id)
 	}
 	for path, methods := range fakes {
 		pathObj, _ := paths[path].(map[string]interface{})
@@ -655,6 +678,7 @@ func isHTTPMethod(s string) bool {
 //     model type, upgrade ApiResponse → ApiResponseOf<X>.
 //   - Add typed requestBody when controller calls ShouldBindJSON(&model.X{}).
 //   - Add query parameters from c.Query("name") and common.GetPageQuery(c).
+//
 // clearPlaceholderBodies wipes requestBody on POST/PUT/PATCH operations whose
 // schema matches a known placeholder template. Runs BEFORE enrichFromHandlers
 // so the handler-derived schema unconditionally replaces stale placeholders

@@ -12,8 +12,9 @@
 // Pass -check to validate without writing the file (CI hook).
 //
 // Usage:
-//   go run ./cmd/gen-admin-openapi/         (regenerate + write)
-//   go run ./cmd/gen-admin-openapi/ -check  (validate only, exit 1 on errors)
+//
+//	go run ./cmd/gen-admin-openapi/         (regenerate + write)
+//	go run ./cmd/gen-admin-openapi/ -check  (validate only, exit 1 on errors)
 package main
 
 import (
@@ -203,6 +204,12 @@ func run(locale string) error {
 	errCount := printIssues(issues)
 	if errCount > 0 {
 		return fmt.Errorf("spec validation failed: %d errors", errCount)
+	}
+	// Route↔spec coverage. Gaps fail the run: a route absent from the spec is
+	// an undocumented endpoint, a spec path absent from the router is a 404.
+	missingRoutes, stalePaths := reportRouteCoverage(paths)
+	if missingRoutes > 0 || stalePaths > 0 {
+		return fmt.Errorf("route coverage failed: %d routes not in spec, %d spec paths not routed", missingRoutes, stalePaths)
 	}
 	return nil
 }
