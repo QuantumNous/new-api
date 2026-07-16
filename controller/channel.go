@@ -870,6 +870,12 @@ type ChannelBatch struct {
 	Tag *string `json:"tag"`
 }
 
+// ChannelSkipAutoTestBatch toggles skip_auto_test on channel settings.
+type ChannelSkipAutoTestBatch struct {
+	Ids  []int `json:"ids"`
+	Skip bool  `json:"skip"`
+}
+
 func DeleteChannelBatch(c *gin.Context) {
 	channelBatch := ChannelBatch{}
 	err := c.ShouldBindJSON(&channelBatch)
@@ -1301,6 +1307,48 @@ func BatchSetChannelTag(c *gin.Context) {
 		"data":    len(channelBatch.Ids),
 	})
 	return
+}
+
+// BatchSetChannelSkipAutoTest sets skip_auto_test on selected channels.
+// Manual channel tests remain available; only AutomaticallyTestChannels is gated.
+func BatchSetChannelSkipAutoTest(c *gin.Context) {
+	req := ChannelSkipAutoTestBatch{}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "invalid parameters",
+		})
+		return
+	}
+	updated := 0
+	for _, id := range req.Ids {
+		channel, err := model.GetChannelById(id, true)
+		if err != nil || channel == nil {
+			continue
+		}
+		setting := channel.GetSetting()
+		if setting.SkipAutoTest == req.Skip {
+			updated++
+			continue
+		}
+		setting.SkipAutoTest = req.Skip
+		channel.SetSetting(setting)
+		if err := channel.Update(); err != nil {
+			common.SysLog(fmt.Sprintf("batch skip_auto_test update failed id=%d: %v", id, err))
+			continue
+		}
+		updated++
+	}
+	model.InitChannelCache()
+	recordManageAudit(c, "channel.skip_auto_test_batch", map[string]interface{}{
+		"count": updated,
+		"skip":  req.Skip,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    updated,
+	})
 }
 
 func GetTagModels(c *gin.Context) {

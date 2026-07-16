@@ -82,6 +82,18 @@ func (p *RetryParam) ResetRetryNextTry() {
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	// Adaptive entry. AdaptiveSelectChannel must only call
+	// cacheGetRandomSatisfiedChannelLegacy — never this function — or flags
+	// cause infinite recursion / stack overflow.
+	if constant.AdaptiveBalanceEnabled || constant.AdaptiveBalanceShadowMode {
+		return AdaptiveSelectChannel(param)
+	}
+	return cacheGetRandomSatisfiedChannelLegacy(param)
+}
+
+// cacheGetRandomSatisfiedChannelLegacy is the original random / auto-group picker.
+// Safe to call from adaptive fallbacks and candidate collection.
+func cacheGetRandomSatisfiedChannelLegacy(param *RetryParam) (*model.Channel, string, error) {
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
