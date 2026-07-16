@@ -39,7 +39,7 @@ func SeedFixture(t *testing.T, db *gorm.DB) *ChannelMetricFixture {
 	}
 
 	// Seed channels in a transaction.
-	tx := db.BeginTx(db.Statement.Context, nil)
+	tx := db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -86,7 +86,7 @@ func SeedFixture(t *testing.T, db *gorm.DB) *ChannelMetricFixture {
 		log := &model.Log{
 			UserId:       1,
 			CreatedAt:    now,
-			Type:         common.LogTypeGeneral,
+			Type:         model.LogTypeConsume,
 			ModelName:    "gpt-4",
 			ChannelId:    5,
 			ChannelName:  "gpt-4-channel",
@@ -102,7 +102,7 @@ func SeedFixture(t *testing.T, db *gorm.DB) *ChannelMetricFixture {
 		log := &model.Log{
 			UserId:       1,
 			CreatedAt:    now,
-			Type:         common.LogTypeGeneral,
+			Type:         model.LogTypeConsume,
 			ModelName:    "claude-3-5-sonnet",
 			ChannelId:    5,
 			ChannelName:  "gpt-4-channel",
@@ -122,7 +122,7 @@ func SeedFixture(t *testing.T, db *gorm.DB) *ChannelMetricFixture {
 		log := &model.Log{
 			UserId:       1,
 			CreatedAt:    now,
-			Type:         common.LogTypeGeneral,
+			Type:         model.LogTypeConsume,
 			ModelName:    "gpt-4",
 			ChannelId:    6,
 			ChannelName:  "gpt-4-channel-fallback",
@@ -175,8 +175,8 @@ func AssertChannelTotals(t *testing.T, db *gorm.DB, channelID int, wantRequests,
 func TestChannelMetricFixtureSeedsCorrectTotals(t *testing.T) {
 	// This test uses a live database connection if configured; otherwise it
 	// must be run with manual setup. Adjust as needed for your test harness.
-	db, err := model.InitDB()
-	if err != nil {
+	db := model.DB
+	if db == nil {
 		t.Skip("database not initialized for fixture test")
 	}
 

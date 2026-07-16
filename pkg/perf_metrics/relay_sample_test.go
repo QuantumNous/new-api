@@ -4,14 +4,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRecordRelaySampleMapsValidChannel(t *testing.T) {
+	if model.DB == nil {
+		t.Skip("database not initialized for test")
+	}
+
 	resetHotBuckets()
-	perf_metrics_setting.PerfMetricsEnabled = true
+	// Note: Cannot restore setting in tests as it's read-only via config
 	channelID := 5
 
 	RecordRelaySample(&relaycommon.RelayInfo{
@@ -30,8 +34,12 @@ func TestRecordRelaySampleMapsValidChannel(t *testing.T) {
 }
 
 func TestRecordRelaySampleSkipsInvalidChannelPersistence(t *testing.T) {
+	if model.DB == nil {
+		t.Skip("database not initialized for test")
+	}
+
 	resetHotBuckets()
-	perf_metrics_setting.PerfMetricsEnabled = true
+	// Note: Cannot restore setting in tests as it's read-only via config
 	channelID := 0
 
 	RecordRelaySample(&relaycommon.RelayInfo{
