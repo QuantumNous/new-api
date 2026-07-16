@@ -14,6 +14,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,9 +44,9 @@ func TestNormalizeOpenAIImageUsagePreservesProvidedOutputDetails(t *testing.T) {
 
 	normalizeOpenAIUsage(&usage)
 
-	require.Equal(t, 10, usage.CompletionTokens)
-	require.Equal(t, 8, usage.CompletionTokenDetails.ImageTokens)
-	require.Equal(t, 2, usage.CompletionTokenDetails.TextTokens)
+	assert.Equal(t, 10, usage.CompletionTokens)
+	assert.Equal(t, 8, usage.CompletionTokenDetails.ImageTokens)
+	assert.Equal(t, 2, usage.CompletionTokenDetails.TextTokens)
 }
 
 func TestNormalizeOpenAIImageUsageCopiesNativeOutputDetails(t *testing.T) {
@@ -53,7 +54,7 @@ func TestNormalizeOpenAIImageUsageCopiesNativeOutputDetails(t *testing.T) {
 
 	normalizeOpenAIUsage(&usage)
 
-	require.Equal(t, dto.OutputTokenDetails{ImageTokens: 7, TextTokens: 3}, usage.CompletionTokenDetails)
+	assert.Equal(t, dto.OutputTokenDetails{ImageTokens: 7, TextTokens: 3}, usage.CompletionTokenDetails)
 }
 
 func TestOpenaiImageDoResponseUsesInfoIsStream(t *testing.T) {
