@@ -91,6 +91,19 @@ type PerfMetricSummaryBucket struct {
 	GenerationMs   int64  `json:"generation_ms"`
 }
 
+type PerfMetricChannelTotal struct {
+	ChannelID    int   `json:"channel_id" gorm:"column:channel_id"`
+	RequestCount int64 `json:"request_count"`
+	SuccessCount int64 `json:"success_count"`
+}
+
+type PerfMetricChannelModelDetail struct {
+	ChannelID    int    `json:"channel_id" gorm:"column:channel_id"`
+	ModelName    string `json:"model_name"`
+	RequestCount int64  `json:"request_count"`
+	SuccessCount int64  `json:"success_count"`
+}
+
 func GetPerfMetricsSummaryAll(startTs int64, endTs int64, groups []string) ([]PerfMetricSummary, error) {
 	var summaries []PerfMetricSummary
 	query := DB.Model(&PerfMetric{}).
@@ -126,6 +139,45 @@ func GetPerfMetricsSummaryBucketsAll(startTs int64, endTs int64, groups []string
 		Order("bucket_ts ASC").
 		Find(&summaries).Error
 	return summaries, err
+}
+
+func GetPerfMetricChannelTotals(startTs int64, endTs int64, group string) ([]PerfMetricChannelTotal, error) {
+	var totals []PerfMetricChannelTotal
+	query := DB.Model(&PerfMetric{}).
+		Select("channel_id, SUM(request_count) as request_count, SUM(success_count) as success_count").
+		Where("bucket_ts >= ? AND bucket_ts <= ? AND channel_id IS NOT NULL", startTs, endTs)
+	if group != "" {
+		query = query.Where(commonGroupCol+" = ?", group)
+	}
+	err := query.
+		Group("channel_id").
+		Order("channel_id ASC").
+		Find(&totals).Error
+	return totals, err
+}
+
+func GetPerfMetricChannelModelDetails(channelID *int, modelName string, group string, startTs int64, endTs int64) ([]PerfMetricChannelModelDetail, error) {
+	var details []PerfMetricChannelModelDetail
+	if channelID != nil && *channelID <= 0 {
+		return details, nil
+	}
+	query := DB.Model(&PerfMetric{}).
+		Select("channel_id, model_name, SUM(request_count) as request_count, SUM(success_count) as success_count").
+		Where("bucket_ts >= ? AND bucket_ts <= ? AND channel_id IS NOT NULL", startTs, endTs)
+	if channelID != nil {
+		query = query.Where("channel_id = ?", *channelID)
+	}
+	if modelName != "" {
+		query = query.Where("model_name = ?", modelName)
+	}
+	if group != "" {
+		query = query.Where(commonGroupCol+" = ?", group)
+	}
+	err := query.
+		Group("channel_id, model_name").
+		Order("channel_id ASC, model_name ASC").
+		Find(&details).Error
+	return details, err
 }
 
 func DeletePerfMetricsBefore(cutoffTs int64) error {

@@ -20,6 +20,37 @@ var hotBuckets sync.Map
 // hiding fields or making response-only privacy hardening changes.
 const seriesSchema = "dbcd0a3c01b55203"
 
+type ChannelQueryParams struct {
+	ChannelID *int
+	Model     string
+	Group     string
+	Hours     int
+}
+
+type ChannelModelDetail struct {
+	ChannelID    int      `json:"channel_id"`
+	ModelName    string   `json:"model_name"`
+	RequestCount int64    `json:"request_count"`
+	SuccessCount int64    `json:"success_count"`
+	SuccessRate  *float64 `json:"success_rate"`
+}
+
+type ChannelTotal struct {
+	ChannelID    int                  `json:"channel_id"`
+	RequestCount int64                `json:"request_count"`
+	SuccessCount int64                `json:"success_count"`
+	SuccessRate  *float64             `json:"success_rate"`
+	Models       []ChannelModelDetail `json:"models,omitempty"`
+}
+
+type ChannelSummaryResult struct {
+	Channels []ChannelTotal `json:"channels"`
+}
+
+type ChannelDetailResult struct {
+	Details []ChannelModelDetail `json:"details"`
+}
+
 func Init() {
 	go flushLoop()
 }
@@ -228,6 +259,76 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	})
 
 	return SummaryAllResult{Models: models}, nil
+}
+
+func QueryChannelSummary(params ChannelQueryParams) (ChannelSummaryResult, error) {
+	if params.ChannelID != nil && *params.ChannelID <= 0 {
+		return ChannelSummaryResult{}, nil
+	}
+	startTs, endTs := queryWindow(params.Hours)
+
+	totals := map[int]counters{}
+	details := map[string]counters{}
+
+	totalRows, err := model.GetPerfMetricChannelTotals(startTs, endTs, params.Group)
+	if err != nil {
+		return ChannelSummaryResult{}, err
+	}
+	for _, row := range totalRows {
+		if params.ChannelID != nil && row.ChannelID != *params.ChannelID {
+			continue
+		}
+		mergeChannelTotal(totals, row.ChannelID, counters{
+			requestCount: row.RequestCount,
+			successCount: row.SuccessCount,
+		})
+	}
+
+	detailRows, err := model.GetPerfMetricChannelModelDetails(params.ChannelID, params.Model, params.Group, startTs, endTs)
+	if err != nil {
+		return ChannelSummaryResult{}, err
+	}
+	for _, row := range detailRows {
+		value := counters{requestCount: row.RequestCount, successCount: row.SuccessCount}
+		mergeChannelDetail(details, row.ChannelID, row.ModelName, value)
+	}
+
+	mergeChannelHotBuckets(totals, details, params, startTs, endTs)
+	return buildChannelSummaryResult(totals, details), nil
+}
+
+func QueryChannelDetails(params ChannelQueryParams) (ChannelDetailResult, error) {
+	if params.ChannelID != nil && *params.ChannelID <= 0 {
+		return ChannelDetailResult{}, nil
+	}
+	startTs, endTs := queryWindow(params.Hours)
+	details := map[string]counters{}
+
+	rows, err := model.GetPerfMetricChannelModelDetails(params.ChannelID, params.Model, params.Group, startTs, endTs)
+	if err != nil {
+		return ChannelDetailResult{}, err
+	}
+	for _, row := range rows {
+		mergeChannelDetail(details, row.ChannelID, row.ModelName, counters{
+			requestCount: row.RequestCount,
+			successCount: row.SuccessCount,
+		})
+	}
+
+	hotBuckets.Range(func(key, value any) bool {
+		k := key.(bucketKey)
+		if !matchesChannelQuery(k, params, startTs, endTs) {
+			return true
+		}
+		mergeChannelDetail(details, k.channel, k.model, value.(*atomicBucket).snapshot())
+		return true
+	})
+
+	result := buildChannelDetailResult(details)
+	if len(result.Details) == 0 && params.ChannelID != nil && params.Model != "" {
+		result.Details = append(result.Details, channelModelDetail(*params.ChannelID, params.Model, counters{}))
+	}
+	return result, nil
 }
 
 func mergeModelTotals(totals map[string]counters, modelName string, channel int, value counters) {
