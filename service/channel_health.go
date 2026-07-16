@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -82,6 +84,15 @@ var channelAttributableErrorCodes = map[types.ErrorCode]bool{
 func isChannelAttributableError(apiErr *types.NewAPIError) bool {
 	if apiErr == nil {
 		return true
+	}
+	// A request the client aborted (context canceled) fails on whichever channel
+	// happened to be in flight, but the channel did nothing wrong. Without this
+	// the in-flight failure is reported as ErrorCodeDoRequestFailed and a single
+	// client cancellation penalizes every channel the retry loop touches.
+	// context.DeadlineExceeded is deliberately NOT matched here: that is our own
+	// timeout firing and does indicate a slow/dead channel.
+	if errors.Is(apiErr, context.Canceled) {
+		return false
 	}
 	return channelAttributableErrorCodes[apiErr.GetErrorCode()]
 }

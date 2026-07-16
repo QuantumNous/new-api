@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -90,6 +92,60 @@ func TestRecordChannelHealthOutcomeHealthySuccessStaysAvailable(t *testing.T) {
 
 	if !IsChannelHealthAvailable(channelID, modelName, requestPath) {
 		t.Fatal("expected healthy successes to keep the channel available")
+	}
+}
+
+// TestClientCanceledIsNotAttributedToChannel guards the mis-attribution bug seen
+// in prod: a client aborting mid-request makes the in-flight upstream call fail
+// with context.Canceled, surfaced as ErrorCodeDoRequestFailed. Since the retry
+// loop touches several channels, one cancellation was recording a failure — and
+// a 5m cooldown — against every channel it tried, all of them healthy.
+func TestClientCanceledIsNotAttributedToChannel(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001428
+	const modelName = "test-client-canceled"
+	const requestPath = "/v1/messages"
+
+	// Exactly how doRequest surfaces a client abort: context.Canceled wrapped as
+	// a do-request-failed channel error.
+	canceledErr := types.NewErrorWithStatusCode(
+		fmt.Errorf("do request failed: %w", context.Canceled),
+		types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+
+	for i := 0; i < 5; i++ {
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, nil, time.Now(), canceledErr, false)
+	}
+
+	if !IsChannelHealthAvailable(channelID, modelName, requestPath) {
+		t.Fatal("a client-canceled request must not open a healthy channel's circuit")
+	}
+}
+
+// TestDeadlineExceededStillCountsAgainstChannel is the contrast that keeps the
+// fix narrow: our own timeout firing (context.DeadlineExceeded) does mean the
+// channel is slow or dead, so it must still be attributed.
+func TestDeadlineExceededStillCountsAgainstChannel(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001429
+	const modelName = "test-deadline-exceeded"
+	const requestPath = "/v1/messages"
+
+	timeoutErr := types.NewErrorWithStatusCode(
+		fmt.Errorf("do request failed: %w", context.DeadlineExceeded),
+		types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+
+	for i := 0; i < 5; i++ {
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, nil, time.Now(), timeoutErr, false)
+	}
+
+	if IsChannelHealthAvailable(channelID, modelName, requestPath) {
+		t.Fatal("repeated upstream timeouts must still open the channel circuit")
 	}
 }
 

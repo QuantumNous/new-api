@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -240,6 +241,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
+		// The client aborted: the in-flight upstream call fails on whichever
+		// channel was selected, so every remaining attempt fails the same way in
+		// milliseconds. Retrying burns healthy channels and cooling them blames
+		// them for the client's cancellation. Stop here without penalizing.
+		if isClientCanceledError(newAPIError) {
+			logger.LogInfo(c, "client canceled the request; skipping retry and channel attribution")
+			break
+		}
+
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
 		// Bound total retry wall-clock so a request cannot spend minutes cycling
@@ -351,8 +361,21 @@ func isSemanticClientError(openaiErr *types.NewAPIError) bool {
 		strings.Contains(message, "maximum context length")
 }
 
+// isClientCanceledError reports whether the attempt failed because the client
+// aborted the request rather than because the channel misbehaved. Only
+// context.Canceled counts: context.DeadlineExceeded is our own timeout firing,
+// which does indicate a slow/dead channel and must still be attributed.
+func isClientCanceledError(apiErr *types.NewAPIError) bool {
+	return apiErr != nil && errors.Is(apiErr, context.Canceled)
+}
+
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
+		return false
+	}
+	// Checked before IsChannelError below, which returns true unconditionally and
+	// would otherwise send a client-canceled request through every channel.
+	if isClientCanceledError(openaiErr) {
 		return false
 	}
 	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
