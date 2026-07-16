@@ -1635,7 +1635,7 @@ export function renderModelPrice(opts) {
     cache_ratio: cacheRatio = 1.0,
     image = false,
     image_ratio: imageRatio = 1.0,
-    image_output: imageOutputTokens = 0,
+    image_input: imageInputTokenCount = 0,
     web_search: webSearch = false,
     web_search_call_count: webSearchCallCount = 0,
     web_search_price: webSearchPrice = 0,
@@ -1687,9 +1687,9 @@ export function renderModelPrice(opts) {
     const imageRatioPrice = modelRatio * 2.0 * imageRatio;
     let effectiveInputTokens =
         inputTokens - cacheTokens + cacheTokens * cacheRatio;
-    if (image && imageOutputTokens > 0) {
+    if (image && imageInputTokenCount > 0) {
       effectiveInputTokens =
-          inputTokens - imageOutputTokens + imageOutputTokens * imageRatio;
+          inputTokens - imageInputTokenCount + imageInputTokenCount * imageRatio;
     }
     if (audioInputTokens > 0) {
       effectiveInputTokens -= audioInputTokens;
@@ -1703,12 +1703,12 @@ export function renderModelPrice(opts) {
         imageGenerationCallPrice * groupRatio;
 
     let inputDesc = '';
-    if (image && imageOutputTokens > 0) {
+    if (image && imageInputTokenCount > 0) {
       inputDesc = buildBillingPriceText(
           '(输入 {{nonImageInput}} tokens + 图片输入 {{imageInput}} tokens / 1M tokens * {{symbol}}{{price}}',
           {
-            nonImageInput: inputTokens - imageOutputTokens,
-            imageInput: imageOutputTokens,
+            nonImageInput: inputTokens - imageInputTokenCount,
+            imageInput: imageInputTokenCount,
             symbol,
             usdAmount: inputRatioPrice,
             rate,
@@ -1829,7 +1829,7 @@ export function renderModelPrice(opts) {
               },
           )
           : null,
-      image && imageOutputTokens > 0
+      image && imageInputTokenCount > 0
           ? buildBillingPriceText(
               '图片输入价格：{{symbol}}{{total}} / 1M tokens',
               {
@@ -1907,7 +1907,7 @@ export function renderModelPrice(opts) {
       0,
   );
   const imageInputTokens =
-      image && imageOutputTokens > 0 ? imageOutputTokens : 0;
+      image && imageInputTokenCount > 0 ? imageInputTokenCount : 0;
   const cacheInputTokens = cacheTokens;
 
   const textInputAmount =

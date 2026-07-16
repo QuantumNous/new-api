@@ -17,6 +17,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAppendImageUsageLogFieldsSeparatesInputOutput(t *testing.T) {
+	other := map[string]interface{}{}
+	appendImageUsageLogFields(other, textQuotaSummary{ImageTokens: 1508, ImageOutputTokens: 196})
+	require.Equal(t, true, other["image"])
+	require.Equal(t, 1508, other["image_input"])
+	require.Equal(t, 196, other["image_output"])
+}
+
+func TestAppendImageUsageLogFieldsOutputOnly(t *testing.T) {
+	other := map[string]interface{}{}
+	appendImageUsageLogFields(other, textQuotaSummary{ImageOutputTokens: 196, ImageRatio: 2})
+	require.Equal(t, true, other["image"])
+	require.Equal(t, 196, other["image_output"])
+	_, ok := other["image_input"]
+	require.False(t, ok)
+	_, ok = other["image_ratio"]
+	require.False(t, ok)
+}
+
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
