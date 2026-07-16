@@ -26,6 +26,9 @@ var (
 	feishuEnableDedupe    sync.Map // channelId -> time.Time
 	feishuProbePassDedupe sync.Map // channelId -> time.Time
 	feishuRechargeDedupe  sync.Map // channelId -> time.Time
+
+	channelNotifyTimeOnce sync.Once
+	channelNotifyTimeLoc  *time.Location
 )
 
 func formatNotifyType(channelId int, status int) string {
@@ -75,6 +78,21 @@ func channelNotifyServerName() string {
 	return name
 }
 
+func channelNotifyTimeLocation() *time.Location {
+	channelNotifyTimeOnce.Do(func() {
+		loc, err := time.LoadLocation("Asia/Shanghai")
+		if err != nil {
+			loc = time.FixedZone("Asia/Shanghai", 8*60*60)
+		}
+		channelNotifyTimeLoc = loc
+	})
+	return channelNotifyTimeLoc
+}
+
+func channelNotifyTimeString(t time.Time) string {
+	return t.In(channelNotifyTimeLocation()).Format("2006-01-02 15:04:05")
+}
+
 func channelModelNotifyLines(channelName string, channelID int, modelName string) []string {
 	lines := []string{
 		fmt.Sprintf("服务器：%s", channelNotifyServerName()),
@@ -101,7 +119,7 @@ func notifyFeishuChannelDisabled(channelError types.ChannelError, modelName stri
 	}
 	lines = append(lines,
 		fmt.Sprintf("原因：%s", reason),
-		fmt.Sprintf("时间：%s", time.Now().Format("2006-01-02 15:04:05")),
+		fmt.Sprintf("时间：%s", channelNotifyTimeString(time.Now())),
 	)
 	if strings.TrimSpace(modelName) != "" {
 		lines = append(lines, "已自动禁用该渠道下的这个模型")
@@ -130,7 +148,7 @@ func notifyFeishuChannelEnabled(channelID int, channelName string, modelName str
 	}
 	lines = append(lines,
 		"原因：自动恢复探针测试通过",
-		fmt.Sprintf("时间：%s", time.Now().Format("2006-01-02 15:04:05")),
+		fmt.Sprintf("时间：%s", channelNotifyTimeString(time.Now())),
 	)
 	if strings.TrimSpace(modelName) != "" {
 		lines = append(lines, "已重新启用该渠道下的这个模型")
@@ -162,7 +180,7 @@ func NotifyChannelDisableProbePassed(channelError types.ChannelError, modelName 
 	}
 	lines = append(lines,
 		fmt.Sprintf("探针耗时：%.2fs", float64(latencyMs)/1000.0),
-		fmt.Sprintf("时间：%s", time.Now().Format("2006-01-02 15:04:05")),
+		fmt.Sprintf("时间：%s", channelNotifyTimeString(time.Now())),
 		"探针测试通过，已跳过本次自动封禁",
 	)
 	gopool.Go(func() {
