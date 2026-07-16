@@ -115,3 +115,49 @@ func TestProxyClientCacheSeparatesStreamModes(t *testing.T) {
 		t.Fatalf("non-stream proxy ResponseHeaderTimeout = %v, want 60s", got)
 	}
 }
+
+// TestRelayHTTP2KeepaliveConfigured verifies the transport gets proactive HTTP/2
+// keepalive pings so a silently-dropped pooled upstream connection is reaped
+// instead of stalling the next request until the response-header timeout.
+func TestRelayHTTP2KeepaliveConfigured(t *testing.T) {
+	oldIdle, oldPing := common.RelayH2ReadIdleTimeout, common.RelayH2PingTimeout
+	t.Cleanup(func() {
+		common.RelayH2ReadIdleTimeout = oldIdle
+		common.RelayH2PingTimeout = oldPing
+	})
+
+	common.RelayH2ReadIdleTimeout = 15
+	common.RelayH2PingTimeout = 5
+
+	tr := &http.Transport{ForceAttemptHTTP2: true}
+	h2 := configureRelayHTTP2Keepalive(tr)
+	if h2 == nil {
+		t.Fatal("expected HTTP/2 transport to be configured")
+	}
+	if h2.ReadIdleTimeout != 15*time.Second {
+		t.Fatalf("ReadIdleTimeout = %v, want 15s", h2.ReadIdleTimeout)
+	}
+	if h2.PingTimeout != 5*time.Second {
+		t.Fatalf("PingTimeout = %v, want 5s", h2.PingTimeout)
+	}
+	if tr.TLSNextProto["h2"] == nil {
+		t.Fatal("expected h2 registered in transport.TLSNextProto")
+	}
+}
+
+// TestRelayHTTP2KeepaliveDisabled verifies RELAY_H2_READ_IDLE_TIMEOUT=0 turns
+// the keepalive off entirely (no h2 override registered).
+func TestRelayHTTP2KeepaliveDisabled(t *testing.T) {
+	old := common.RelayH2ReadIdleTimeout
+	t.Cleanup(func() { common.RelayH2ReadIdleTimeout = old })
+
+	common.RelayH2ReadIdleTimeout = 0
+
+	tr := &http.Transport{ForceAttemptHTTP2: true}
+	if h2 := configureRelayHTTP2Keepalive(tr); h2 != nil {
+		t.Fatal("expected no HTTP/2 keepalive transport when disabled (0)")
+	}
+	if tr.TLSNextProto["h2"] != nil {
+		t.Fatal("expected h2 not registered when keepalive disabled")
+	}
+}

@@ -204,6 +204,20 @@ var RelayMaxRetryDuration int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 
+// RelayH2ReadIdleTimeout: after an HTTP/2 upstream connection has been idle this
+// long, the relay transport sends a keepalive PING to detect a silently-dropped
+// connection before the next request is dispatched over it. Without this, a dead
+// pooled connection is only discovered when a request stalls the full
+// response-header timeout, delaying failover. PINGs are answered at the HTTP/2
+// transport layer, so a legitimately slow-but-alive reasoning stream (silent
+// upstream while "thinking") is not affected — only a truly dead connection
+// fails to ack. 0 disables HTTP/2 keepalive pings.
+var RelayH2ReadIdleTimeout int // unit is second
+
+// RelayH2PingTimeout: how long to wait for a keepalive PING ack before closing
+// the HTTP/2 connection as dead. Only applies when RelayH2ReadIdleTimeout > 0.
+var RelayH2PingTimeout int // unit is second
+
 var GeminiSafetySetting string
 
 // https://docs.cohere.com/docs/safety-modes Type; NONE/CONTEXTUAL/STRICT

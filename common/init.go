@@ -123,6 +123,13 @@ func InitEnv() {
 	ChannelHealthSlowLatencySeconds = GetEnvOrDefault("CHANNEL_HEALTH_SLOW_LATENCY_SECONDS", 9)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
+	// HTTP/2 keepalive: ping idle pooled upstream connections so a silently-dropped
+	// one is reaped proactively instead of stalling the next request until the
+	// response-header timeout. 15s idle before a ping, 5s to ack — well below the
+	// 15s streaming header timeout, so a dead connection fails over faster. Set
+	// RELAY_H2_READ_IDLE_TIMEOUT=0 to disable.
+	RelayH2ReadIdleTimeout = GetEnvOrDefault("RELAY_H2_READ_IDLE_TIMEOUT", 15)
+	RelayH2PingTimeout = GetEnvOrDefault("RELAY_H2_PING_TIMEOUT", 5)
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")

@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
+	"golang.org/x/net/http2"
 	"golang.org/x/net/proxy"
 )
 
@@ -80,7 +81,36 @@ func newRelayTransport(
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig
 	}
+	_ = configureRelayHTTP2Keepalive(transport)
 	return transport
+}
+
+// configureRelayHTTP2Keepalive enables proactive HTTP/2 keepalive pings on the
+// relay transport so a silently-dropped upstream connection sitting idle in the
+// pool is detected and reaped, instead of stalling the next request until the
+// response-header timeout (which delays failover from a dead channel).
+// ReadIdleTimeout sends a PING once a connection has been idle that long; if no
+// ack arrives within PingTimeout the connection is closed. Because PING frames
+// are answered by the peer's HTTP/2 stack independently of application data, a
+// legitimately slow-but-alive reasoning stream (upstream silent while
+// "thinking") keeps its connection — only a truly dead connection fails to ack.
+// Applies to HTTP/2 (TLS/ALPN) upstreams only; h1 connections are unaffected.
+func configureRelayHTTP2Keepalive(transport *http.Transport) *http2.Transport {
+	if common.RelayH2ReadIdleTimeout <= 0 {
+		return nil
+	}
+	h2Transport, err := http2.ConfigureTransports(transport)
+	if err != nil || h2Transport == nil {
+		// Non-fatal: the transport still negotiates HTTP/2 via ForceAttemptHTTP2,
+		// just without proactive keepalive pings.
+		common.SysError(fmt.Sprintf("relay HTTP/2 keepalive not configured: %v", err))
+		return nil
+	}
+	h2Transport.ReadIdleTimeout = time.Duration(common.RelayH2ReadIdleTimeout) * time.Second
+	if common.RelayH2PingTimeout > 0 {
+		h2Transport.PingTimeout = time.Duration(common.RelayH2PingTimeout) * time.Second
+	}
+	return h2Transport
 }
 
 func newRelayClient(transport *http.Transport) *http.Client {
