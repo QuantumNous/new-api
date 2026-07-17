@@ -106,6 +106,7 @@ type LogCleanupResult struct {
 var (
 	systemTaskWorkerOnce    sync.Once
 	systemTaskSchedulerOnce sync.Once
+	systemTaskWG            sync.WaitGroup
 	// systemTaskWakeup signals the runner to check for runnable tasks
 	// immediately instead of waiting for the idle poll. Buffered so a signal
 	// raised while the runner is busy is not lost and is handled on the next loop.
@@ -122,56 +123,120 @@ func notifySystemTaskRunner() {
 }
 
 func StartSystemTaskRunner() {
-	StartSystemTaskScheduler()
-	StartSystemTaskWorker()
+	StartSystemTaskRunnerContext(context.Background())
+}
+
+func StartSystemTaskRunnerContext(ctx context.Context) {
+	StartSystemTaskSchedulerContext(ctx)
+	StartSystemTaskWorkerContext(ctx)
 }
 
 func StartSystemTaskWorker() {
+	StartSystemTaskWorkerContext(context.Background())
+}
+
+func StartSystemTaskWorkerContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	systemTaskWorkerOnce.Do(func() {
 		if !common.IsMasterNode {
 			return
 		}
 
 		runnerID := fmt.Sprintf("%s-%s", common.NodeName, common.GetRandomString(8))
+		systemTaskWG.Add(1)
 		gopool.Go(func() {
-			logger.LogInfo(context.Background(), fmt.Sprintf("system task runner started: runner=%s idle_interval=%s", runnerID, systemTaskRunnerIdleInterval))
-
-			ticker := time.NewTicker(systemTaskRunnerIdleInterval)
-			defer ticker.Stop()
-
-			runSystemTaskClaimPass(runnerID)
-			for {
-				select {
-				case <-ticker.C:
-				case <-systemTaskWakeup:
-				}
-				runSystemTaskClaimPass(runnerID)
-			}
+			defer systemTaskWG.Done()
+			runSystemTaskWorkerLoop(ctx, runnerID)
 		})
 	})
 }
 
 func StartSystemTaskScheduler() {
+	StartSystemTaskSchedulerContext(context.Background())
+}
+
+func StartSystemTaskSchedulerContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	systemTaskSchedulerOnce.Do(func() {
 		if !common.IsMasterNode {
 			return
 		}
+		systemTaskWG.Add(1)
 		gopool.Go(func() {
-			logger.LogInfo(context.Background(), fmt.Sprintf("system task scheduler started: interval=%s", systemTaskSchedulerInterval))
-			ticker := time.NewTicker(systemTaskSchedulerInterval)
-			defer ticker.Stop()
-			runPass := func() {
-				if err := model.ExpireStaleSystemTaskLocks(common.GetTimestamp()); err != nil {
-					logger.LogWarn(context.Background(), fmt.Sprintf("system task stale lock cleanup failed: %v", err))
-				}
-				runSystemTaskScheduler()
-			}
-			runPass()
-			for range ticker.C {
-				runPass()
-			}
+			defer systemTaskWG.Done()
+			runSystemTaskSchedulerLoop(ctx)
 		})
 	})
+}
+
+func runSystemTaskWorkerLoop(ctx context.Context, runnerID string) {
+	logger.LogInfo(ctx, fmt.Sprintf("system task runner started: runner=%s idle_interval=%s", runnerID, systemTaskRunnerIdleInterval))
+	ticker := time.NewTicker(systemTaskRunnerIdleInterval)
+	defer ticker.Stop()
+
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+	runSystemTaskClaimPassContext(ctx, runnerID)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		case <-systemTaskWakeup:
+		}
+		runSystemTaskClaimPassContext(ctx, runnerID)
+	}
+}
+
+func runSystemTaskSchedulerLoop(ctx context.Context) {
+	logger.LogInfo(ctx, fmt.Sprintf("system task scheduler started: interval=%s", systemTaskSchedulerInterval))
+	ticker := time.NewTicker(systemTaskSchedulerInterval)
+	defer ticker.Stop()
+	runPass := func() {
+		if err := model.ExpireStaleSystemTaskLocks(common.GetTimestamp()); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("system task stale lock cleanup failed: %v", err))
+		}
+		runSystemTaskScheduler()
+	}
+
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+	runPass()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runPass()
+		}
+	}
+}
+
+func WaitForSystemTasks(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	done := make(chan struct{})
+	go func() {
+		systemTaskWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func StartLogCleanupTask(targetTimestamp int64) (*model.SystemTask, error) {
@@ -232,6 +297,16 @@ func EnqueueSystemTask(taskType string, payload any) (*model.SystemTask, bool, e
 // and dispatches each claimed task in its own goroutine so a long-running
 // handler (e.g. channel test) never blocks another type (e.g. log cleanup).
 func runSystemTaskClaimPass(runnerID string) {
+	runSystemTaskClaimPassContext(context.Background(), runnerID)
+}
+
+func runSystemTaskClaimPassContext(ctx context.Context, runnerID string) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
+		return
+	}
 	handlers := registeredSystemTaskHandlers()
 	taskTypes := make([]string, 0, len(handlers))
 	for _, handler := range handlers {
@@ -243,6 +318,9 @@ func runSystemTaskClaimPass(runnerID string) {
 		return
 	}
 	for _, handler := range handlers {
+		if ctx.Err() != nil {
+			return
+		}
 		task := pendingTasks[handler.Type()]
 		if task == nil {
 			continue
@@ -257,9 +335,11 @@ func runSystemTaskClaimPass(runnerID string) {
 		}
 		dispatchHandler := handler
 		dispatchTask := claimedTask
+		systemTaskWG.Add(1)
 		gopool.Go(func() {
-			runWithLeaseHeartbeat(dispatchTask, runnerID, func(ctx context.Context) {
-				dispatchHandler.Run(ctx, dispatchTask, runnerID)
+			defer systemTaskWG.Done()
+			runWithLeaseHeartbeat(ctx, dispatchTask, runnerID, func(handlerCtx context.Context) {
+				dispatchHandler.Run(handlerCtx, dispatchTask, runnerID)
 			})
 		})
 	}
@@ -314,8 +394,11 @@ func runSystemTaskScheduler() {
 // runWithLeaseHeartbeat renews the per-type lock on a background ticker while
 // fn runs. The TTL is a crash-detection window, not a task time limit: an
 // arbitrarily long handler stays alive as long as the heartbeat succeeds.
-func runWithLeaseHeartbeat(task *model.SystemTask, runnerID string, fn func(ctx context.Context)) {
-	ctx, cancel := context.WithCancel(context.Background())
+func runWithLeaseHeartbeat(parent context.Context, task *model.SystemTask, runnerID string, fn func(ctx context.Context)) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
 	interval := systemTaskLockTTL / 3

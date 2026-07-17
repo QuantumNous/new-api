@@ -39,6 +39,8 @@ func TestSetRouterForPlaneIsolatesRelayAndManagementRoutes(t *testing.T) {
 	relayEngine := gin.New()
 	require.NoError(t, SetRouterForPlane(relayEngine, ThemeAssets{}, PlaneRelay))
 	require.True(t, hasRoute(relayEngine, "GET", "/healthz"))
+	require.True(t, hasRoute(relayEngine, "GET", "/livez"))
+	require.True(t, hasRoute(relayEngine, "GET", "/readyz"))
 	require.True(t, hasRoute(relayEngine, "POST", "/v1/chat/completions"))
 	require.False(t, hasRoute(relayEngine, "GET", "/api/status"))
 
@@ -49,6 +51,8 @@ func TestSetRouterForPlaneIsolatesRelayAndManagementRoutes(t *testing.T) {
 	managementEngine := gin.New()
 	require.NoError(t, SetRouterForPlane(managementEngine, ThemeAssets{}, PlaneManagement))
 	require.True(t, hasRoute(managementEngine, "GET", "/healthz"))
+	require.True(t, hasRoute(managementEngine, "GET", "/livez"))
+	require.True(t, hasRoute(managementEngine, "GET", "/readyz"))
 	require.True(t, hasRoute(managementEngine, "GET", "/api/status"))
 	require.False(t, hasRoute(managementEngine, "POST", "/v1/chat/completions"))
 }
