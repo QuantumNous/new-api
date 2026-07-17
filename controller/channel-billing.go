@@ -427,6 +427,9 @@ func UpdateChannelBalance(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !ensureChannelVisible(c, id) {
+		return
+	}
 	channel, err := model.CacheGetChannel(id)
 	if err != nil {
 		common.ApiError(c, err)
@@ -482,6 +485,9 @@ func updateAllChannelsBalance() error {
 }
 
 func UpdateAllChannelsBalance(c *gin.Context) {
+	if !requireAllChannelScope(c) {
+		return
+	}
 	// TODO: make it async
 	err := updateAllChannelsBalance()
 	if err != nil {

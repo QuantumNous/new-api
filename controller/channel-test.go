@@ -831,6 +831,9 @@ func TestChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !ensureChannelVisible(c, channelId) {
+		return
+	}
 	channel, err := model.CacheGetChannel(channelId)
 	if err != nil {
 		channel, err = model.GetChannelById(channelId, true)
@@ -1033,6 +1036,9 @@ func selectChannelsForAutomaticTest(channels []*model.Channel, mode string) []*m
 // test loop inline. If any channel_test task is already active, the manual run is
 // rejected so the caller does not mistake a scheduled run for this manual one.
 func TestAllChannels(c *gin.Context) {
+	if !requireAllChannelScope(c) {
+		return
+	}
 	task, created, err := service.EnqueueSystemTask(model.SystemTaskTypeChannelTest, channelTestTaskPayload{
 		Mode:   operation_setting.ChannelTestModeScheduledAll,
 		Notify: true,

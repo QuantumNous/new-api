@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
-import { useIsAdmin } from '@/hooks/use-admin'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
+import { useAuthStore } from '@/stores/auth-store'
 
 import type { ChannelAffinityInfo } from '../types'
 
@@ -92,11 +97,24 @@ export function useUsageLogsContext() {
  * mine" is treated exactly like a regular user for that view.
  */
 export function useLogsViewScope() {
-  const canManageScope = useIsAdmin()
+  const user = useAuthStore((state) => state.auth.user)
+  const canViewChannelLogs = hasPermission(
+    user,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.READ
+  )
+  const canReadUsers = hasPermission(
+    user,
+    ADMIN_PERMISSION_RESOURCES.USER,
+    ADMIN_PERMISSION_ACTIONS.READ
+  )
+  const canManageScope = canViewChannelLogs || canReadUsers
   const { viewScope, setViewScope } = useUsageLogsContext()
 
   return {
     canManageScope,
+    canViewChannelLogs,
+    canReadUsers,
     viewScope,
     setViewScope,
     isAdminView: canManageScope && viewScope === 'all',

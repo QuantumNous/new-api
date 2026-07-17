@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { resolveSidebarView } from '@/components/layout/lib/sidebar-view-registry'
 import type { NavGroup, ResolvedSidebarView } from '@/components/layout/types'
+import { hasPermission } from '@/lib/admin-permissions'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -47,7 +48,8 @@ const ROOT_VIEW_KEY = '__root'
 export function useSidebarView(): ResolvedSidebarView {
   const { t } = useTranslation()
   const pathname = useLocation({ select: (l) => l.pathname })
-  const userRole = useAuthStore((s) => s.auth.user?.role)
+  const user = useAuthStore((s) => s.auth.user)
+  const userRole = user?.role
   const rootSidebarData = useSidebarData()
   const configFilteredRoot = useSidebarConfig(rootSidebarData.navGroups)
 
@@ -57,12 +59,21 @@ export function useSidebarView(): ResolvedSidebarView {
     return configFilteredRoot
       .filter((group) => (group.id === 'admin' ? isAdmin : true))
       .map((group) => {
-        const items = group.items.filter(
-          (item) => item.requiredRole === undefined || role >= item.requiredRole
-        )
+        const items = group.items.filter((item) => {
+          const roleAllowed =
+            item.requiredRole === undefined || role >= item.requiredRole
+          const permissionAllowed =
+            item.requiredPermission === undefined ||
+            hasPermission(
+              user,
+              item.requiredPermission.resource,
+              item.requiredPermission.action
+            )
+          return roleAllowed && permissionAllowed
+        })
         return items.length === group.items.length ? group : { ...group, items }
       })
-  }, [configFilteredRoot, userRole])
+  }, [configFilteredRoot, user, userRole])
 
   const view = resolveSidebarView(pathname)
 

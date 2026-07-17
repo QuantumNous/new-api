@@ -304,8 +304,13 @@ func GetAllMidjourney(c *gin.Context) {
 		EndTimestamp:   c.Query("end_timestamp"),
 	}
 
-	items := model.GetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
-	total := model.CountAllTasks(queryParams)
+	scope, err := adminTaskVisibilityScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	items := model.GetAllTasksScoped(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams, scope)
+	total := model.CountAllTasksScoped(queryParams, scope)
 
 	if setting.MjForwardUrlEnabled {
 		for i, midjourney := range items {

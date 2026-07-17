@@ -10,6 +10,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func adminLogVisibilityScope(c *gin.Context) (*model.LogVisibilityScope, error) {
+	channelIDs, unrestricted, err := visibleChannelIDs(c)
+	if err != nil {
+		return nil, err
+	}
+	return &model.LogVisibilityScope{
+		UserID:                      c.GetInt("id"),
+		ChannelIDs:                  channelIDs,
+		AllChannels:                 unrestricted,
+		IncludeOtherUsersNonChannel: canReadUsers(c),
+	}, nil
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -22,7 +35,12 @@ func GetAllLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId)
+	scope, err := adminLogVisibilityScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	logs, total, err := model.GetAllLogsScoped(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, scope)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -104,7 +122,12 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	scope, err := adminLogVisibilityScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	stat, err := model.SumUsedQuotaScoped(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, scope)
 	if err != nil {
 		common.ApiError(c, err)
 		return

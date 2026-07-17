@@ -30,6 +30,7 @@ type Channel struct {
 	Name               string  `json:"name" gorm:"index"`
 	Weight             *uint   `json:"weight" gorm:"default:0"`
 	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
+	CreatorId          int     `json:"creator_id" gorm:"index;default:0"`
 	TestTime           int64   `json:"test_time" gorm:"bigint"`
 	ResponseTime       int     `json:"response_time"` // in milliseconds
 	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
@@ -377,6 +378,10 @@ func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...Ch
 }
 
 func SearchChannels(keyword string, group string, model string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+	return SearchChannelsScoped(keyword, group, model, idSort, nil, sortOptions...)
+}
+
+func SearchChannelsScoped(keyword string, group string, model string, idSort bool, scope func(*gorm.DB) *gorm.DB, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
 	modelsCol := "`models`"
 
@@ -395,6 +400,9 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 
 	// 构造基础查询
 	baseQuery := DB.Model(&Channel{}).Omit("key")
+	if scope != nil {
+		baseQuery = scope(baseQuery)
+	}
 
 	// 构造WHERE子句
 	whereClause := "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"

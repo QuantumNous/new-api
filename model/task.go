@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -170,6 +172,31 @@ type SyncTaskQueryParams struct {
 	UserIDs        []int
 }
 
+type TaskVisibilityScope struct {
+	UserID      int
+	ChannelIDs  []int
+	AllChannels bool
+}
+
+func (scope TaskVisibilityScope) Apply(query *gorm.DB) *gorm.DB {
+	conditions := make([]string, 0, 2)
+	args := make([]any, 0, 2)
+	if scope.UserID > 0 {
+		conditions = append(conditions, "user_id = ?")
+		args = append(args, scope.UserID)
+	}
+	if scope.AllChannels {
+		conditions = append(conditions, "channel_id <> 0")
+	} else if len(scope.ChannelIDs) > 0 {
+		conditions = append(conditions, "channel_id IN ?")
+		args = append(args, scope.ChannelIDs)
+	}
+	if len(conditions) == 0 {
+		return query.Where("1 = 0")
+	}
+	return query.Where("("+strings.Join(conditions, " OR ")+")", args...)
+}
+
 func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) *Task {
 	properties := Properties{}
 	privateData := TaskPrivateData{}
@@ -246,11 +273,18 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 }
 
 func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*Task {
+	return TaskGetAllTasksScoped(startIdx, num, queryParams, nil)
+}
+
+func TaskGetAllTasksScoped(startIdx int, num int, queryParams SyncTaskQueryParams, scope *TaskVisibilityScope) []*Task {
 	var tasks []*Task
 	var err error
 
 	// 初始化查询构建器
 	query := DB
+	if scope != nil {
+		query = scope.Apply(query)
+	}
 
 	// 添加过滤条件
 	if queryParams.ChannelID != "" {
@@ -468,8 +502,15 @@ type TaskQuotaUsage struct {
 
 // TaskCountAllTasks returns total tasks that match the given query params (admin usage)
 func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
+	return TaskCountAllTasksScoped(queryParams, nil)
+}
+
+func TaskCountAllTasksScoped(queryParams SyncTaskQueryParams, scope *TaskVisibilityScope) int64 {
 	var total int64
 	query := DB.Model(&Task{})
+	if scope != nil {
+		query = scope.Apply(query)
+	}
 	if queryParams.ChannelID != "" {
 		query = query.Where("channel_id = ?", queryParams.ChannelID)
 	}

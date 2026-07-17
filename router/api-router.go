@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/service/authz"
 
 	// Import oauth package to register providers via init()
 	_ "github.com/QuantumNous/new-api/oauth"
@@ -127,23 +128,23 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute := userRoute.Group("/")
 			adminRoute.Use(middleware.AdminAuth())
 			{
-				adminRoute.GET("/", controller.GetAllUsers)
-				adminRoute.GET("/topup", controller.GetAllTopUps)
-				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
-				adminRoute.GET("/search", controller.SearchUsers)
-				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
-				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
-				adminRoute.DELETE("/:id/bindings/:binding_type", controller.AdminClearUserBinding)
-				adminRoute.GET("/:id", controller.GetUser)
-				adminRoute.POST("/", controller.CreateUser)
-				adminRoute.POST("/manage", controller.ManageUser)
-				adminRoute.PUT("/", controller.UpdateUser)
-				adminRoute.DELETE("/:id", controller.DeleteUser)
-				adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
+				adminRoute.GET("/", middleware.RequirePermission(authz.UserRead), controller.GetAllUsers)
+				adminRoute.GET("/topup", middleware.RequirePermission(authz.UserRead), controller.GetAllTopUps)
+				adminRoute.POST("/topup/complete", middleware.RequirePermission(authz.UserWrite), controller.AdminCompleteTopUp)
+				adminRoute.GET("/search", middleware.RequirePermission(authz.UserRead), controller.SearchUsers)
+				adminRoute.GET("/:id/oauth/bindings", middleware.RequirePermission(authz.UserRead), controller.GetUserOAuthBindingsByAdmin)
+				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", middleware.RequirePermission(authz.UserWrite), controller.UnbindCustomOAuthByAdmin)
+				adminRoute.DELETE("/:id/bindings/:binding_type", middleware.RequirePermission(authz.UserWrite), controller.AdminClearUserBinding)
+				adminRoute.GET("/:id", middleware.RequirePermission(authz.UserRead), controller.GetUser)
+				adminRoute.POST("/", middleware.RequirePermission(authz.UserWrite), controller.CreateUser)
+				adminRoute.POST("/manage", middleware.RequirePermission(authz.UserWrite), controller.ManageUser)
+				adminRoute.PUT("/", middleware.RequirePermission(authz.UserWrite), controller.UpdateUser)
+				adminRoute.DELETE("/:id", middleware.RequirePermission(authz.UserWrite), controller.DeleteUser)
+				adminRoute.DELETE("/:id/reset_passkey", middleware.RequirePermission(authz.UserWrite), controller.AdminResetPasskey)
 
 				// Admin 2FA routes
-				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
-				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+				adminRoute.GET("/2fa/stats", middleware.RequirePermission(authz.UserRead), controller.Admin2FAStats)
+				adminRoute.DELETE("/:id/2fa", middleware.RequirePermission(authz.UserWrite), controller.AdminDisable2FA)
 			}
 		}
 

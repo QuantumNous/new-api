@@ -61,11 +61,18 @@ func GetAllUserTask(userId int, startIdx int, num int, queryParams TaskQueryPara
 }
 
 func GetAllTasks(startIdx int, num int, queryParams TaskQueryParams) []*Midjourney {
+	return GetAllTasksScoped(startIdx, num, queryParams, nil)
+}
+
+func GetAllTasksScoped(startIdx int, num int, queryParams TaskQueryParams, scope *TaskVisibilityScope) []*Midjourney {
 	var tasks []*Midjourney
 	var err error
 
 	// 初始化查询构建器
 	query := DB
+	if scope != nil {
+		query = scope.Apply(query)
+	}
 
 	// 添加过滤条件
 	if queryParams.ChannelID != "" {
@@ -197,8 +204,15 @@ func MjBulkUpdateByTaskIds(taskIDs []int, params map[string]any) error {
 
 // CountAllTasks returns total midjourney tasks for admin query
 func CountAllTasks(queryParams TaskQueryParams) int64 {
+	return CountAllTasksScoped(queryParams, nil)
+}
+
+func CountAllTasksScoped(queryParams TaskQueryParams, scope *TaskVisibilityScope) int64 {
 	var total int64
 	query := DB.Model(&Midjourney{})
+	if scope != nil {
+		query = scope.Apply(query)
+	}
 	if queryParams.ChannelID != "" {
 		query = query.Where("channel_id = ?", queryParams.ChannelID)
 	}

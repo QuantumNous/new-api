@@ -4,6 +4,7 @@ const (
 	ResourceChannel = "channel"
 
 	ActionRead           = "read"
+	ActionReadAll        = "read_all"
 	ActionOperate        = "operate"
 	ActionWrite          = "write"
 	ActionSensitiveWrite = "sensitive_write"
@@ -12,6 +13,7 @@ const (
 
 var (
 	ChannelRead           = Permission{Resource: ResourceChannel, Action: ActionRead}
+	ChannelReadAll        = Permission{Resource: ResourceChannel, Action: ActionReadAll}
 	ChannelOperate        = Permission{Resource: ResourceChannel, Action: ActionOperate}
 	ChannelWrite          = Permission{Resource: ResourceChannel, Action: ActionWrite}
 	ChannelSensitiveWrite = Permission{Resource: ResourceChannel, Action: ActionSensitiveWrite}
@@ -27,6 +29,12 @@ func init() {
 				Action:         ActionRead,
 				LabelKey:       "Read channels",
 				DescriptionKey: "View channel lists and details without secrets.",
+				DefaultRoles:   []string{BuiltInRoleAdmin},
+			},
+			{
+				Action:         ActionReadAll,
+				LabelKey:       "View all channels",
+				DescriptionKey: "View every channel, including channels created by other administrators.",
 				DefaultRoles:   []string{BuiltInRoleAdmin},
 			},
 			{

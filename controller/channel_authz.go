@@ -83,6 +83,7 @@ var channelOperationalFields = map[string]struct{}{
 // channel edit endpoint must ignore even if a client sends them.
 var channelReadOnlyFields = map[string]struct{}{
 	"created_time":         {},
+	"creator_id":           {},
 	"test_time":            {},
 	"response_time":        {},
 	"balance":              {},
@@ -93,6 +94,9 @@ var channelReadOnlyFields = map[string]struct{}{
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
 	if _, ok := requestData["created_time"]; ok {
 		channel.CreatedTime = 0
+	}
+	if _, ok := requestData["creator_id"]; ok {
+		channel.CreatorId = 0
 	}
 	if _, ok := requestData["test_time"]; ok {
 		channel.TestTime = 0

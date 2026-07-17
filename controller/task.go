@@ -13,6 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func adminTaskVisibilityScope(c *gin.Context) (*model.TaskVisibilityScope, error) {
+	channelIDs, unrestricted, err := visibleChannelIDs(c)
+	if err != nil {
+		return nil, err
+	}
+	return &model.TaskVisibilityScope{
+		UserID:      c.GetInt("id"),
+		ChannelIDs:  channelIDs,
+		AllChannels: unrestricted,
+	}, nil
+}
+
 func GetAllTask(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 
@@ -29,8 +41,13 @@ func GetAllTask(c *gin.Context) {
 		ChannelID:      c.Query("channel_id"),
 	}
 
-	items := model.TaskGetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
-	total := model.TaskCountAllTasks(queryParams)
+	scope, err := adminTaskVisibilityScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	items := model.TaskGetAllTasksScoped(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams, scope)
+	total := model.TaskCountAllTasksScoped(queryParams, scope)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(tasksToDto(items, true))
 	common.ApiSuccess(c, pageInfo)

@@ -99,6 +99,7 @@ func TestChannelHasSensitiveChanges(t *testing.T) {
 func TestClearChannelReadOnlyFields(t *testing.T) {
 	channel := PatchChannel{Channel: model.Channel{
 		CreatedTime:        11,
+		CreatorId:          7,
 		TestTime:           22,
 		ResponseTime:       33,
 		Balance:            44.5,
@@ -110,6 +111,7 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 
 	clearChannelReadOnlyFields(&channel, map[string]any{
 		"created_time":         channel.CreatedTime,
+		"creator_id":           channel.CreatorId,
 		"test_time":            channel.TestTime,
 		"response_time":        channel.ResponseTime,
 		"balance":              channel.Balance,
@@ -120,6 +122,7 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 	})
 
 	assert.Zero(t, channel.CreatedTime)
+	assert.Zero(t, channel.CreatorId)
 	assert.Zero(t, channel.TestTime)
 	assert.Zero(t, channel.ResponseTime)
 	assert.Zero(t, channel.Balance)

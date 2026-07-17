@@ -120,6 +120,7 @@ func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("role", common.RoleRootUser)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/test", nil)
 
 	TestAllChannels(ctx)

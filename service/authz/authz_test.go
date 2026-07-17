@@ -100,10 +100,15 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 	assert.Equal(t, PermissionsMap{
 		ResourceChannel: {
 			ActionRead:           true,
+			ActionReadAll:        true,
 			ActionOperate:        true,
 			ActionWrite:          false,
 			ActionSensitiveWrite: true,
 			ActionSecretView:     false,
+		},
+		ResourceUser: {
+			ActionRead:  true,
+			ActionWrite: true,
 		},
 	}, ExplicitUserPermissions(42))
 	assert.Equal(t, PermissionsMap{
@@ -128,10 +133,15 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 	assert.Equal(t, PermissionsMap{
 		ResourceChannel: {
 			ActionRead:           true,
+			ActionReadAll:        true,
 			ActionOperate:        true,
 			ActionWrite:          true,
 			ActionSensitiveWrite: false,
 			ActionSecretView:     false,
+		},
+		ResourceUser: {
+			ActionRead:  true,
+			ActionWrite: true,
 		},
 	}, ExplicitUserPermissions(42))
 	assert.Empty(t, ExplicitUserOverrides(42))
@@ -222,8 +232,60 @@ func TestCapabilitiesUseCatalogShape(t *testing.T) {
 	capabilities := Capabilities(7, common.RoleAdminUser)
 
 	assert.True(t, capabilities[ResourceChannel][ActionRead])
+	assert.True(t, capabilities[ResourceChannel][ActionReadAll])
 	assert.True(t, capabilities[ResourceChannel][ActionOperate])
 	assert.True(t, capabilities[ResourceChannel][ActionWrite])
 	assert.False(t, capabilities[ResourceChannel][ActionSensitiveWrite])
 	assert.False(t, capabilities[ResourceChannel][ActionSecretView])
+}
+
+// TestGranularPermissions covers the admin-permission-granularity additions:
+// the catalog exposes channel.read_all, user.read, and user.write; root is
+// granted everything; the built-in admin role keeps the compatibility grants;
+// and an explicit deny overrides the role baseline.
+func TestGranularPermissions(t *testing.T) {
+	db := newAuthzTestDB(t)
+	require.NoError(t, Init(db))
+
+	// Catalog surface: the new actions must be registered on their resources.
+	assert.Contains(t, actionsFor(ResourceChannel), ActionReadAll)
+	assert.Contains(t, actionsFor(ResourceUser), ActionRead)
+	assert.Contains(t, actionsFor(ResourceUser), ActionWrite)
+
+	// root is a superuser and short-circuits to allow every permission.
+	assert.True(t, Can(1, common.RoleRootUser, ChannelReadAll))
+	assert.True(t, Can(1, common.RoleRootUser, UserRead))
+	assert.True(t, Can(1, common.RoleRootUser, UserWrite))
+
+	// Built-in admin baseline keeps the compatibility grants.
+	assert.True(t, Can(2, common.RoleAdminUser, ChannelReadAll))
+	assert.True(t, Can(2, common.RoleAdminUser, UserRead))
+	assert.True(t, Can(2, common.RoleAdminUser, UserWrite))
+
+	// A common user has no baseline grants for these resources.
+	assert.False(t, Can(3, common.RoleCommonUser, ChannelReadAll))
+	assert.False(t, Can(3, common.RoleCommonUser, UserRead))
+
+	// An explicit deny on channel.read_all overrides the admin baseline.
+	require.NoError(t, SetUserPermissions(2, PermissionsMap{
+		ResourceChannel: {ActionReadAll: false},
+	}))
+	assert.False(t, Can(2, common.RoleAdminUser, ChannelReadAll))
+	// Other channel grants remain unaffected.
+	assert.True(t, Can(2, common.RoleAdminUser, ChannelRead))
+	assert.True(t, Can(2, common.RoleAdminUser, UserRead))
+}
+
+func actionsFor(resource string) []string {
+	for _, def := range registry {
+		if def.Resource != resource {
+			continue
+		}
+		actions := make([]string, 0, len(def.Actions))
+		for _, action := range def.Actions {
+			actions = append(actions, action.Action)
+		}
+		return actions
+	}
+	return nil
 }
