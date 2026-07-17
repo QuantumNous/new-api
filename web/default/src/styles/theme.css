@@ -138,6 +138,12 @@ For commercial licensing, please contact support@quantumnous.com
   --overview-accent-1: oklch(0.72 0.18 250);
   --overview-accent-2: oklch(0.65 0.15 200);
   --overview-accent-3: oklch(0.7 0.12 280);
+  --landing-code: oklch(0.22 0.018 255);
+  --landing-code-panel: oklch(0.27 0.02 255);
+  --landing-code-active: oklch(0.42 0.08 250 / 45%);
+  --landing-code-foreground: oklch(0.96 0.005 250);
+  --landing-code-muted: oklch(0.76 0.025 250);
+  --landing-code-border: oklch(1 0 0 / 12%);
   --sidebar: color-mix(in oklch, var(--foreground) 0.5%, var(--background));
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.64 0.197 253.892);
@@ -161,7 +167,11 @@ For commercial licensing, please contact support@quantumnous.com
   );
   /* Disabled rows: kept subtle so they read as "quiet", not as a colored
      alert state. */
-  --table-disabled: color-mix(in oklch, var(--foreground) 3%, var(--background));
+  --table-disabled: color-mix(
+    in oklch,
+    var(--foreground) 3%,
+    var(--background)
+  );
   --table-disabled-hover: color-mix(
     in oklch,
     var(--foreground) 4.5%,
@@ -208,6 +218,12 @@ For commercial licensing, please contact support@quantumnous.com
   --chart-3: oklch(0.76 0.13 285);
   --chart-4: oklch(0.75 0.16 325);
   --chart-5: oklch(0.76 0.14 155);
+  --landing-code: oklch(0.19 0.012 255);
+  --landing-code-panel: oklch(0.24 0.016 255);
+  --landing-code-active: oklch(0.46 0.08 250 / 45%);
+  --landing-code-foreground: oklch(0.96 0.005 250);
+  --landing-code-muted: oklch(0.78 0.025 250);
+  --landing-code-border: oklch(1 0 0 / 14%);
   --sidebar: oklch(0.225 0 0);
   --sidebar-foreground: oklch(0.95 0 0);
   --sidebar-primary: oklch(0.588 0.123 246.488);
@@ -225,7 +241,11 @@ For commercial licensing, please contact support@quantumnous.com
     var(--foreground) 9%,
     var(--background)
   );
-  --table-disabled: color-mix(in oklch, var(--foreground) 7%, var(--background));
+  --table-disabled: color-mix(
+    in oklch,
+    var(--foreground) 7%,
+    var(--background)
+  );
   --table-disabled-hover: color-mix(
     in oklch,
     var(--foreground) 9.5%,

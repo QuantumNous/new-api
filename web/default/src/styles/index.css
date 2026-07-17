@@ -385,6 +385,20 @@ For commercial licensing, please contact support@quantumnous.com
     will-change: transform;
   }
 
+  @keyframes home-provider-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .home-provider-marquee-track {
+    animation: home-provider-marquee 36s linear infinite;
+    will-change: transform;
+  }
+
   /* Pause animation on hover */
   .scroll-container:hover .animate-scroll-up,
   .scroll-container:hover .animate-scroll-down {
@@ -397,10 +411,19 @@ For commercial licensing, please contact support@quantumnous.com
   .animate-appear-zoom,
   .animate-scroll-up,
   .animate-scroll-down,
+  .home-provider-marquee-track,
   [data-slot='table'] tbody tr {
     animation: none !important;
     opacity: 1;
     transform: none;
+  }
+
+  .home-provider-marquee {
+    overflow-x: auto;
+  }
+
+  .home-provider-marquee-track > [aria-hidden='true'] {
+    display: none;
   }
 }
 
