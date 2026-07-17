@@ -130,3 +130,95 @@ func TestTokenOrUserAuthRefreshesSessionContextFromDB(t *testing.T) {
 
 	require.Equal(t, http.StatusNoContent, recorder.Code)
 }
+
+func TestTokenOrUserAuthRejectsMissingSessionUser(t *testing.T) {
+	setupTokenOrUserAuthTestDB(t)
+	const missingUserID = 103
+
+	handlerCalled := false
+	router := newTokenOrUserAuthTestRouter(t, missingUserID, func(c *gin.Context) {
+		handlerCalled = true
+		c.Status(http.StatusNoContent)
+	})
+	cookies := tokenOrUserAuthSessionCookies(t, router, missingUserID)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	for _, sessionCookie := range cookies {
+		request.AddCookie(sessionCookie)
+	}
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	require.False(t, handlerCalled)
+}
+
+func TestTokenOrUserAuthFailsClosedOnDatabaseError(t *testing.T) {
+	db := setupTokenOrUserAuthTestDB(t)
+	user := &model.User{
+		Id:       104,
+		Username: "db-error-user",
+		Password: "not-used-in-test",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	handlerCalled := false
+	router := newTokenOrUserAuthTestRouter(t, user.Id, func(c *gin.Context) {
+		handlerCalled = true
+		c.Status(http.StatusNoContent)
+	})
+	cookies := tokenOrUserAuthSessionCookies(t, router, user.Id)
+
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	for _, sessionCookie := range cookies {
+		request.AddCookie(sessionCookie)
+	}
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	require.False(t, handlerCalled)
+}
+
+func TestAdminAuthRejectsDeletedSessionUser(t *testing.T) {
+	setupTokenOrUserAuthTestDB(t)
+	const missingUserID = 105
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("admin-auth-test"))))
+	router.GET("/login", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("id", missingUserID)
+		session.Set("username", "deleted-admin")
+		session.Set("role", common.RoleAdminUser)
+		session.Set("status", common.UserStatusEnabled)
+		session.Set("group", "default")
+		require.NoError(t, session.Save())
+		c.Status(http.StatusNoContent)
+	})
+	handlerCalled := false
+	router.GET("/admin", AdminAuth(), func(c *gin.Context) {
+		handlerCalled = true
+		c.Status(http.StatusNoContent)
+	})
+
+	cookies := tokenOrUserAuthSessionCookies(t, router, missingUserID)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	request.Header.Set("New-Api-User", fmt.Sprintf("%d", missingUserID))
+	for _, sessionCookie := range cookies {
+		request.AddCookie(sessionCookie)
+	}
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	require.False(t, handlerCalled)
+}

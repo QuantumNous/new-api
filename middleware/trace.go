@@ -9,15 +9,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// firstNonEmptyHeader returns the first non-empty request header value among names.
-func firstNonEmptyHeader(c *gin.Context, names ...string) string {
+const maxClientTraceIDBytes = 256
+
+func normalizeClientTraceID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > maxClientTraceIDBytes {
+		return ""
+	}
+	for _, r := range value {
+		if r < 0x21 || r > 0x7e {
+			return ""
+		}
+	}
+	return value
+}
+
+func firstValidTraceHeader(c *gin.Context, names ...string) string {
 	if c == nil || c.Request == nil {
 		return ""
 	}
 	for _, name := range names {
-		v := strings.TrimSpace(c.GetHeader(name))
-		if v != "" {
-			return v
+		if value := normalizeClientTraceID(c.GetHeader(name)); value != "" {
+			return value
 		}
 	}
 	return ""
@@ -30,14 +43,14 @@ func firstNonEmptyHeader(c *gin.Context, names ...string) string {
 // auto-generated per-request IDs do not pollute the channel affinity LRU.
 func TraceContext() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		clientThread := firstNonEmptyHeader(c,
+		clientThread := firstValidTraceHeader(c,
 			"AH-Thread-Id", "Ah-Thread-Id", "X-Thread-Id", "X-Ah-Thread-Id")
-		clientTrace := firstNonEmptyHeader(c,
+		clientTrace := firstValidTraceHeader(c,
 			"AH-Trace-Id", "Ah-Trace-Id", "X-Trace-Id", "X-Ah-Trace-Id")
 
 		// Optional coding-tool fallbacks count as client-provided.
 		if clientTrace == "" {
-			clientTrace = firstNonEmptyHeader(c, "Session_id", "Session-Id", "X-Session-Id")
+			clientTrace = firstValidTraceHeader(c, "Session_id", "Session-Id", "X-Session-Id")
 		}
 
 		threadID := clientThread

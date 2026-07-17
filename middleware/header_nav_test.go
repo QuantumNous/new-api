@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -36,6 +37,17 @@ func withHeaderNavModules(t *testing.T, raw string) {
 
 func performHeaderNavRequest(t *testing.T, handler gin.HandlerFunc, authenticated bool) *httptest.ResponseRecorder {
 	t.Helper()
+	if authenticated {
+		db := setupTokenOrUserAuthTestDB(t)
+		require.NoError(t, db.Create(&model.User{
+			Id:       1,
+			Username: "tester",
+			Password: "not-used-in-test",
+			Role:     common.RoleCommonUser,
+			Status:   common.UserStatusEnabled,
+			Group:    "default",
+		}).Error)
+	}
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
