@@ -88,6 +88,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   const { t } = useTranslation()
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [mobilePanelCollapsed, setMobilePanelCollapsed] = useState(false)
   const isMobile = useMediaQuery('(max-width: 640px)')
 
   const hasAdvancedFilters = props.advancedFilters != null
@@ -139,11 +140,36 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
         <div
           className={cn('bg-card/50 rounded-lg border p-2.5', props.className)}
         >
-          <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
+          {!mobilePanelCollapsed && (
+            <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
+          )}
 
-          <div className='mt-2 flex flex-col gap-2'>
-            {props.stats}
+          <div
+            className={cn(
+              'flex flex-col gap-2',
+              !mobilePanelCollapsed && 'mt-2'
+            )}
+          >
+            {!mobilePanelCollapsed && props.stats}
             <div className='flex items-center justify-end gap-1.5'>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                onClick={() => setMobilePanelCollapsed((collapsed) => !collapsed)}
+                aria-expanded={!mobilePanelCollapsed}
+                aria-label={
+                  mobilePanelCollapsed ? t('Expand') : t('Collapse')
+                }
+                className='text-muted-foreground hover:text-foreground mr-auto size-7'
+              >
+                <ChevronDown
+                  className={cn(
+                    'size-3.5 transition-transform duration-200',
+                    !mobilePanelCollapsed && 'rotate-180'
+                  )}
+                />
+              </Button>
               {props.actionStart}
               <DrawerTrigger asChild>
                 <Button

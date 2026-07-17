@@ -25,6 +25,7 @@ import {
   textColorMap,
   type StatusVariant,
 } from '@/components/status-badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Empty,
   EmptyDescription,
@@ -33,12 +34,21 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { LOG_TYPE_ENUM } from '../constants'
-import { getLogTypeConfig } from '../lib/utils'
+import type { UsageLog } from '../data/schema'
+import { parseLogOther } from '../lib/format'
+import {
+  getLogTypeConfig,
+  isDisplayableLogType,
+  isTimingLogType,
+} from '../lib/utils'
 import type { LogCategory } from '../types'
+import { StreamTpsCell, TimingMetricsCell } from './timing-metrics-cell'
+import { useUsageLogsContext } from './usage-logs-provider'
 
 const logTypeRowTint: Record<number, string> = {
   [LOG_TYPE_ENUM.ERROR]:
@@ -117,7 +127,7 @@ function SummaryField<TData>({
   valueClassName,
   primaryOnly = false,
 }: {
-  label: string
+  label?: string
   cell?: Cell<TData, unknown>
   className?: string
   valueClassName?: string
@@ -129,9 +139,11 @@ function SummaryField<TData>({
     <div
       className={cn('bg-muted/20 min-w-0 rounded-md px-2 py-1.5', className)}
     >
-      <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
-        {label}
-      </div>
+      {label != null && label !== '' && (
+        <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
+          {label}
+        </div>
+      )}
       <CompactCell
         cell={cell}
         primaryOnly={primaryOnly}
@@ -175,6 +187,127 @@ function MobileLogTimeStatus({
   )
 }
 
+/** Mobile-only Tokens block: always show cache ↓/↑ when present (no label). */
+function MobileTokensField({ log }: { log: UsageLog }) {
+  const { t } = useTranslation()
+
+  if (!isDisplayableLogType(log.type)) return null
+
+  const promptTokens = log.prompt_tokens || 0
+  const completionTokens = log.completion_tokens || 0
+  if (promptTokens === 0 && completionTokens === 0) {
+    return (
+      <div className='bg-muted/20 min-w-0 rounded-md px-2 py-1.5'>
+        <span className='text-muted-foreground text-xs'>-</span>
+      </div>
+    )
+  }
+
+  const other = parseLogOther(log.other)
+  const cacheReadTokens = other?.cache_tokens || 0
+  const cacheWrite5m = other?.cache_creation_tokens_5m || 0
+  const cacheWrite1h = other?.cache_creation_tokens_1h || 0
+  const hasSplitCache = cacheWrite5m > 0 || cacheWrite1h > 0
+  const cacheWriteTokens = hasSplitCache
+    ? cacheWrite5m + cacheWrite1h
+    : other?.cache_creation_tokens || 0
+  const showCache = cacheReadTokens > 0 || cacheWriteTokens > 0
+
+  return (
+    <div className='bg-muted/20 min-w-0 rounded-md px-2 py-1.5'>
+      <div className='flex flex-col gap-0.5'>
+        <span className='font-mono text-xs font-medium tabular-nums'>
+          {promptTokens.toLocaleString()} / {completionTokens.toLocaleString()}
+        </span>
+        {showCache ? (
+          <div className='text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-none'>
+            {cacheReadTokens > 0 && (
+              <span>
+                {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
+              </span>
+            )}
+            {cacheWriteTokens > 0 && (
+              <span>↑ {cacheWriteTokens.toLocaleString()}</span>
+            )}
+          </div>
+        ) : (
+          <span className='text-muted-foreground/50 text-[11px] leading-none'>
+            —
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Mobile-only User block: own layout so avatar/name always line up on the same baseline. */
+function MobileUserField({ log }: { log: UsageLog }) {
+  const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
+    useUsageLogsContext()
+
+  if (!log.username) return null
+
+  return (
+    <button
+      type='button'
+      className='bg-muted/20 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-left'
+      onClick={(e) => {
+        e.stopPropagation()
+        setSelectedUserId(log.user_id)
+        setUserInfoDialogOpen(true)
+      }}
+    >
+      <Avatar className='ring-border/60 size-6 shrink-0 ring-1'>
+        <AvatarFallback
+          className={cn(
+            'text-[11px] font-semibold',
+            !sensitiveVisible && 'bg-muted text-muted-foreground'
+          )}
+          style={
+            sensitiveVisible ? getUserAvatarStyle(log.username) : undefined
+          }
+        >
+          {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
+        </AvatarFallback>
+      </Avatar>
+      <span className='text-foreground min-w-0 truncate text-sm'>
+        {sensitiveVisible ? log.username : '••••'}
+      </span>
+    </button>
+  )
+}
+
+/** Merge stream badge + TPS with first-token / duration on one row. */
+function MobileStreamTimingField({ log }: { log: UsageLog }) {
+  if (!isTimingLogType(log.type)) return null
+
+  const other = parseLogOther(log.other)
+  const useTime = log.use_time || 0
+  const tokensPerSecond =
+    useTime > 0 && log.completion_tokens > 0
+      ? log.completion_tokens / useTime
+      : null
+
+  return (
+    <div className='bg-muted/20 flex min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5'>
+      <TimingMetricsCell
+        useTimeSec={useTime}
+        completionTokens={log.completion_tokens}
+        frtMs={other?.frt}
+        isStream={log.is_stream}
+        indicator='dot'
+        className='min-w-0 flex-1'
+      />
+      <StreamTpsCell
+        isStream={log.is_stream}
+        tokensPerSecond={tokensPerSecond}
+        streamStatus={other?.stream_status}
+        className='shrink-0'
+      />
+    </div>
+  )
+}
+
 function CommonLogsCard<TData>({
   cells,
 }: {
@@ -184,9 +317,7 @@ function CommonLogsCard<TData>({
 
   const modelCell = cells.get('model_name')
   const quotaCell = cells.get('quota')
-  const rowData = cells.get('created_at')?.row.original as
-    | Record<string, unknown>
-    | undefined
+  const rowData = cells.get('created_at')?.row.original as UsageLog | undefined
 
   return (
     <div className='space-y-2.5'>
@@ -198,37 +329,36 @@ function CommonLogsCard<TData>({
         />
       </div>
 
-      <div className='grid grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-1.5'>
+      <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)] gap-1.5'>
         <div className='bg-muted/20 min-w-0 rounded-md px-2 py-1.5'>
-          <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
-            {t('Time')}
-          </div>
           <MobileLogTimeStatus
             createdAt={rowData?.created_at}
             type={rowData?.type}
           />
         </div>
         <SummaryField
-          label={t('Channel')}
           cell={cells.get('channel')}
           valueClassName='[&_.flex-col]:max-w-none'
         />
-        <SummaryField label={t('User')} cell={cells.get('user')} primaryOnly />
+        {rowData && cells.has('user') ? (
+          <MobileUserField log={rowData} />
+        ) : (
+          <SummaryField cell={cells.get('user')} />
+        )}
         <SummaryField
-          label={t('Token')}
           cell={cells.get('token_name')}
           valueClassName='[&_.flex-col]:max-w-none [&_.flex-col>*:not(:first-child)]:text-[11px] [&_.flex-col>*:not(:first-child)]:leading-none'
         />
-        <SummaryField
-          label={t('Timing')}
-          cell={cells.get('use_time')}
-          primaryOnly
-        />
-        <SummaryField
-          label={t('Tokens')}
-          cell={cells.get('prompt_tokens')}
-          primaryOnly
-        />
+        {rowData ? (
+          <MobileStreamTimingField log={rowData} />
+        ) : (
+          <SummaryField cell={cells.get('use_time')} />
+        )}
+        {rowData ? (
+          <MobileTokensField log={rowData} />
+        ) : (
+          <SummaryField cell={cells.get('prompt_tokens')} />
+        )}
         <SummaryField
           label={t('Details')}
           cell={cells.get('content')}

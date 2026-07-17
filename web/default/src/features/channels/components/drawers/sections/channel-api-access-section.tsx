@@ -38,6 +38,7 @@ export function ChannelApiAccessSection(props: ChannelApiAccessSectionProps) {
         title={t('Credentials')}
         description={t('Authentication')}
         icon={<KeyRound className='h-4 w-4' aria-hidden='true' />}
+        iconTone='success'
       />
       {props.children}
     </SideDrawerSection>

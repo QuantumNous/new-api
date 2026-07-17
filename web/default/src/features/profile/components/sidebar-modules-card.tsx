@@ -29,6 +29,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
@@ -204,9 +205,9 @@ export function SidebarModulesCard() {
     <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
       <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
         <div className='flex items-center gap-3'>
-          <div className='bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9'>
-            <LayoutDashboard className='h-4 w-4' />
-          </div>
+          <IconBadge tone='info' size='title'>
+            <LayoutDashboard />
+          </IconBadge>
           <div className='min-w-0'>
             <CardTitle className='text-lg tracking-tight sm:text-xl'>
               {t('Sidebar Personal Settings')}
