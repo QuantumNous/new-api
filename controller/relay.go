@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/openai/image_stream"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -123,6 +124,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	asyncImageRequest := false
+	if _, ok := request.(*dto.ImageRequest); ok &&
+		relayInfo.RelayMode == relayconstant.RelayModeImagesGenerations {
+		asyncImageRequest = true
+		relayInfo.ForcePreConsume = true
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -161,7 +168,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	if priceData.FreeModel {
 		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
+	} else if !asyncImageRequest {
 		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
 		if newAPIError != nil {
 			return
@@ -230,11 +237,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = relayHandler(c, relayInfo)
 		}
 
-		service.RecordChannelHealthOutcome(channel.Id, relayInfo.OriginModelName, c.Request.URL.Path, relayInfo, attemptStart, newAPIError, isSemanticClientError(newAPIError))
+		asyncImageSubmitted := c.GetBool(image_stream.ContextKeyAsyncImageSubmitted)
+		if !asyncImageSubmitted {
+			service.RecordChannelHealthOutcome(channel.Id, relayInfo.OriginModelName, c.Request.URL.Path, relayInfo, attemptStart, newAPIError, isSemanticClientError(newAPIError))
+		}
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
-			cooldownSlowChannelIfNeeded(c, relayInfo, channel, attemptStart)
+			if !asyncImageSubmitted {
+				cooldownSlowChannelIfNeeded(c, relayInfo, channel, attemptStart)
+			}
 			return
 		}
 
@@ -275,6 +287,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+// ReplayAsyncImageGeneration resolves accepted idempotent image requests before
+// strict quota checks and channel selection. It is only mounted on the image
+// generation POST route after read-only token identity has been established.
+func ReplayAsyncImageGeneration(c *gin.Context) {
+	request := &dto.ImageRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		c.Next()
+		return
+	}
+	handled, apiErr := image_stream.TryReplayAsyncImageTask(c, c.GetInt("id"), request)
+	if !handled {
+		c.Next()
+		return
+	}
+	if apiErr != nil {
+		c.JSON(apiErr.StatusCode, gin.H{"error": apiErr.ToOpenAIError()})
+	}
+	c.Abort()
 }
 
 var upgrader = websocket.Upgrader{

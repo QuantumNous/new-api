@@ -301,6 +301,47 @@ func TestProtectedFetchRoundTripperNoProxyUsesProtectedDialer(t *testing.T) {
 	require.Empty(t, dialed)
 }
 
+func TestDirectProtectedFetchClientNeverUsesEnvironmentProxy(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "http://127.0.0.1:3128")
+	client := newDirectProtectedFetchHTTPClient()
+	roundTripper, ok := client.Transport.(*ssrfProtectedRoundTripper)
+	require.True(t, ok)
+
+	req, err := http.NewRequest(http.MethodGet, "https://example.com/webhook", nil)
+	require.NoError(t, err)
+	proxyURL, err := roundTripper.proxy(req)
+	require.NoError(t, err)
+	require.Nil(t, proxyURL)
+}
+
+func TestWebhookProtectedDialerRejectsPrivateRebindWhenGeneralProtectionDisabled(t *testing.T) {
+	fetchSetting := system_setting.GetFetchSetting()
+	original := *fetchSetting
+	fetchSetting.EnableSSRFProtection = false
+	fetchSetting.AllowPrivateIp = true
+	fetchSetting.DomainFilterMode = false
+	fetchSetting.IpFilterMode = false
+	fetchSetting.AllowedPorts = []string{"80", "443"}
+	fetchSetting.ApplyIPFilterForDomain = false
+	t.Cleanup(func() { *fetchSetting = original })
+
+	dialer := &protectedFetchDialer{
+		resolver: staticSSRFResolver{
+			"public.example": {{IP: net.ParseIP("127.0.0.1")}},
+		},
+		dialContext: func(_ context.Context, _, address string) (net.Conn, error) {
+			t.Fatalf("private rebound address must not be dialed: %s", address)
+			return nil, nil
+		},
+		getProtection: currentWebhookFetchProtection,
+	}
+
+	conn, err := dialer.DialContext(context.Background(), "tcp", "public.example:443")
+	require.Error(t, err)
+	require.Nil(t, conn)
+	require.Contains(t, err.Error(), "private IP address not allowed")
+}
+
 func TestProtectedFetchRoundTripperReusesTransportPerProxy(t *testing.T) {
 	client := newProtectedFetchHTTPClientWithDialer(nil, nil, nil)
 	roundTripper, ok := client.Transport.(*ssrfProtectedRoundTripper)

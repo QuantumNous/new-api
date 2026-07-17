@@ -55,8 +55,50 @@ func currentFetchProtection() (*common.SSRFProtection, bool, error) {
 	return protection, true, nil
 }
 
+// currentWebhookFetchProtection keeps user-controlled callbacks protected even
+// when the general-purpose fetch SSRF switch is disabled. Webhooks never need
+// access to loopback, link-local, or private deployment networks.
+func currentWebhookFetchProtection() (*common.SSRFProtection, bool, error) {
+	fetchSetting := system_setting.GetFetchSetting()
+	allowedPorts := fetchSetting.AllowedPorts
+	if len(allowedPorts) == 0 {
+		allowedPorts = []string{"80", "443"}
+	}
+	protection, err := common.NewSSRFProtectionFromFetchSetting(
+		false,
+		fetchSetting.DomainFilterMode,
+		fetchSetting.IpFilterMode,
+		fetchSetting.DomainList,
+		fetchSetting.IpList,
+		allowedPorts,
+		true,
+	)
+	return protection, true, err
+}
+
+func validateWebhookFetchURL(urlStr string) error {
+	protection, _, err := currentWebhookFetchProtection()
+	if err != nil {
+		return err
+	}
+	return protection.ValidateURL(urlStr)
+}
+
 func newProtectedFetchHTTPClient() *http.Client {
 	return newProtectedFetchHTTPClientWithDialer(nil, nil, nil)
+}
+
+// newDirectProtectedFetchHTTPClient intentionally ignores environment proxies.
+// User-controlled webhook URLs must be resolved and validated by the protected
+// dialer that opens the connection; a remote proxy would resolve the hostname
+// again and reintroduce a DNS-rebinding window.
+func newDirectProtectedFetchHTTPClient() *http.Client {
+	return newProtectedFetchHTTPClientWithProxy(
+		nil,
+		nil,
+		currentWebhookFetchProtection,
+		func(*http.Request) (*url.URL, error) { return nil, nil },
+	)
 }
 
 func newProtectedFetchHTTPClientWithDialer(resolver ssrfResolver, dialContext func(ctx context.Context, network, address string) (net.Conn, error), getProtection func() (*common.SSRFProtection, bool, error)) *http.Client {

@@ -974,16 +974,6 @@ func ValidateAccessToken(token string) (*User, error) {
 
 // GetUserQuota gets quota from Redis first, falls back to DB if needed
 func GetUserQuota(id int, fromDB bool) (quota int, err error) {
-	defer func() {
-		// Update Redis cache asynchronously on successful DB read
-		if shouldUpdateRedis(fromDB, err) {
-			gopool.Go(func() {
-				if err := updateUserQuotaCache(id, quota); err != nil {
-					common.SysLog("failed to update user quota cache: " + err.Error())
-				}
-			})
-		}
-	}()
 	if !fromDB && common.RedisEnabled {
 		quota, err := getUserQuotaCache(id)
 		if err == nil {
@@ -1080,17 +1070,47 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
+	if !db && common.BatchUpdateEnabled {
+		batchUpdateLocks[BatchUpdateTypeUserQuota].Lock()
+		defer batchUpdateLocks[BatchUpdateTypeUserQuota].Unlock()
+		if common.RedisEnabled {
+			if err := ensureUserQuotaCache(id); err != nil {
+				return err
+			}
+			if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
+				return err
+			}
+		}
+		batchUpdateStores[BatchUpdateTypeUserQuota][id] += quota
+		return nil
+	}
 	gopool.Go(func() {
 		err := cacheIncrUserQuota(id, int64(quota))
 		if err != nil {
 			common.SysLog("failed to increase user quota: " + err.Error())
 		}
 	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
-		return nil
-	}
 	return increaseUserQuota(id, quota)
+}
+
+// IncreaseUserQuotaDirect bypasses the in-memory batch accumulator and makes
+// the durable DB value authoritative before invalidating Redis.
+func IncreaseUserQuotaDirect(id int, quota int) error {
+	if quota < 0 {
+		return errors.New("quota 不能为负数！")
+	}
+	return withFlushedBatchQuota(BatchUpdateTypeUserQuota, id, increaseUserQuota, func() error {
+		if err := ensureUserQuotaCache(id); err != nil {
+			return err
+		}
+		if err := increaseUserQuota(id, quota); err != nil {
+			return err
+		}
+		if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog("failed to increase user quota cache after direct DB credit: " + err.Error())
+		}
+		return nil
+	})
 }
 
 func increaseUserQuota(id int, quota int) (err error) {
@@ -1105,17 +1125,66 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
+	if !db && common.BatchUpdateEnabled {
+		batchUpdateLocks[BatchUpdateTypeUserQuota].Lock()
+		defer batchUpdateLocks[BatchUpdateTypeUserQuota].Unlock()
+		if common.RedisEnabled {
+			if err := ensureUserQuotaCache(id); err != nil {
+				return err
+			}
+			if err := cacheTryDecrUserQuota(id, int64(quota)); err != nil {
+				return err
+			}
+		} else {
+			return decreaseUserQuotaIfEnough(id, quota)
+		}
+		batchUpdateStores[BatchUpdateTypeUserQuota][id] -= quota
+		return nil
+	}
 	gopool.Go(func() {
 		err := cacheDecrUserQuota(id, int64(quota))
 		if err != nil {
 			common.SysLog("failed to decrease user quota: " + err.Error())
 		}
 	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
-		return nil
-	}
 	return decreaseUserQuota(id, quota)
+}
+
+// DecreaseUserQuotaDirect bypasses the in-memory batch accumulator and makes
+// the durable DB value authoritative before invalidating Redis.
+func DecreaseUserQuotaDirect(id int, quota int) error {
+	if quota < 0 {
+		return errors.New("quota 不能为负数！")
+	}
+	return withFlushedBatchQuota(BatchUpdateTypeUserQuota, id, increaseUserQuota, func() error {
+		if err := ensureUserQuotaCache(id); err != nil {
+			return err
+		}
+		if err := cacheTryDecrUserQuota(id, int64(quota)); err != nil {
+			return err
+		}
+		if err := decreaseUserQuotaIfEnough(id, quota); err == nil {
+			return nil
+		} else {
+			if cacheErr := cacheIncrUserQuota(id, int64(quota)); cacheErr != nil {
+				common.SysLog("failed to compensate user quota cache after direct DB debit failure: " + cacheErr.Error())
+			}
+			return err
+		}
+	})
+}
+
+func decreaseUserQuotaIfEnough(id int, quota int) error {
+	result := DB.Model(&User{}).
+		Where("id = ? AND quota >= ?", id, quota).
+		Update("quota", gorm.Expr("quota - ?", quota))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errors.New("user quota is not enough")
+	}
+	return nil
 }
 
 func decreaseUserQuota(id int, quota int) (err error) {

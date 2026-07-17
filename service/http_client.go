@@ -18,11 +18,12 @@ import (
 )
 
 var (
-	httpClient              *http.Client // non-streaming relay + general use
-	httpClientStream        *http.Client // streaming relay: shorter response-header timeout
-	ssrfProtectedHTTPClient *http.Client // arbitrary user-controlled URL fetches
-	proxyClientLock         sync.Mutex
-	proxyClients            = make(map[string]*http.Client)
+	httpClient                    *http.Client // non-streaming relay + general use
+	httpClientStream              *http.Client // streaming relay: shorter response-header timeout
+	ssrfProtectedHTTPClient       *http.Client // arbitrary user-controlled URL fetches
+	ssrfProtectedDirectHTTPClient *http.Client // user-controlled callbacks that must not use remote DNS
+	proxyClientLock               sync.Mutex
+	proxyClients                  = make(map[string]*http.Client)
 )
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
@@ -148,6 +149,7 @@ func InitHttpClient() {
 	httpClient = newRelayClient(newRelayTransport(false, http.ProxyFromEnvironment, nil))
 	httpClientStream = newRelayClient(newRelayTransport(true, http.ProxyFromEnvironment, nil))
 	ssrfProtectedHTTPClient = newProtectedFetchHTTPClient()
+	ssrfProtectedDirectHTTPClient = newDirectProtectedFetchHTTPClient()
 }
 
 // GetHttpClient returns the shared non-streaming relay client, also used as the
@@ -168,6 +170,18 @@ func GetSSRFProtectedHTTPClient() *http.Client {
 		return GetHttpClient()
 	}
 	return ssrfProtectedHTTPClient
+}
+
+// GetDirectSSRFProtectedHTTPClient returns an SSRF-protected client that never
+// delegates target resolution to an environment proxy. This binds validation
+// to the exact IP dialed and is required for user-controlled callback URLs.
+func GetDirectSSRFProtectedHTTPClient() *http.Client {
+	proxyClientLock.Lock()
+	defer proxyClientLock.Unlock()
+	if ssrfProtectedDirectHTTPClient == nil {
+		ssrfProtectedDirectHTTPClient = newDirectProtectedFetchHTTPClient()
+	}
+	return ssrfProtectedDirectHTTPClient
 }
 
 // GetRelayHttpClient returns the shared relay client tuned for the request's

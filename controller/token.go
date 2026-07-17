@@ -300,7 +300,11 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 	}
-	err = cleanToken.Update()
+	if statusOnly != "" {
+		err = cleanToken.SelectUpdate()
+	} else {
+		err = cleanToken.Update()
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return

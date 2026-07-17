@@ -281,6 +281,11 @@ func migrateDB() error {
 		&TopUp{},
 		&QuotaData{},
 		&Task{},
+		&TaskWebhook{},
+		&ImageBillingReservation{},
+		&ImageTaskArtifactChunk{},
+		&ImageTaskBillingLogOutbox{},
+		&ImageTaskBillingLogReceipt{},
 		&Model{},
 		&Vendor{},
 		&PrefillGroup{},
@@ -335,6 +340,11 @@ func migrateDBFast() error {
 		{&TopUp{}, "TopUp"},
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
+		{&TaskWebhook{}, "TaskWebhook"},
+		{&ImageBillingReservation{}, "ImageBillingReservation"},
+		{&ImageTaskArtifactChunk{}, "ImageTaskArtifactChunk"},
+		{&ImageTaskBillingLogOutbox{}, "ImageTaskBillingLogOutbox"},
+		{&ImageTaskBillingLogReceipt{}, "ImageTaskBillingLogReceipt"},
 		{&Model{}, "Model"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},
@@ -392,7 +402,7 @@ func migrateLOGDB() error {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return migrateClickHouseLogDB()
 	}
-	return LOG_DB.AutoMigrate(&Log{})
+	return LOG_DB.AutoMigrate(&Log{}, &ImageTaskBillingLogReceipt{})
 }
 
 func migrateClickHouseLogDB() error {

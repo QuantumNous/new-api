@@ -284,6 +284,9 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			c.Abort()
 			return
 		}
+		if !validateTokenIP(c, token) {
+			return
+		}
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
@@ -386,20 +389,8 @@ func TokenAuth() func(c *gin.Context) {
 			return
 		}
 
-		allowIps := token.GetIpLimits()
-		if len(allowIps) > 0 {
-			clientIp := c.ClientIP()
-			logger.LogDebug(c, "Token has IP restrictions, checking client IP %s", clientIp)
-			ip := net.ParseIP(clientIp)
-			if ip == nil {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "无法解析客户端 IP 地址")
-				return
-			}
-			if common.IsIpInCIDRList(ip, allowIps) == false {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中", types.ErrorCodeAccessDenied)
-				return
-			}
-			logger.LogDebug(c, "Client IP %s passed the token IP restrictions check", clientIp)
+		if !validateTokenIP(c, token) {
+			return
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)
@@ -442,6 +433,30 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		c.Next()
 	}
+}
+
+func validateTokenIP(c *gin.Context, token *model.Token) bool {
+	if token == nil {
+		abortWithOpenAiMessage(c, http.StatusUnauthorized, common.TranslateMessage(c, i18n.MsgTokenInvalid))
+		return false
+	}
+	allowIps := token.GetIpLimits()
+	if len(allowIps) == 0 {
+		return true
+	}
+	clientIp := c.ClientIP()
+	logger.LogDebug(c, "Token has IP restrictions, checking client IP %s", clientIp)
+	ip := net.ParseIP(clientIp)
+	if ip == nil {
+		abortWithOpenAiMessage(c, http.StatusForbidden, "无法解析客户端 IP 地址")
+		return false
+	}
+	if !common.IsIpInCIDRList(ip, allowIps) {
+		abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中", types.ErrorCodeAccessDenied)
+		return false
+	}
+	logger.LogDebug(c, "Client IP %s passed the token IP restrictions check", clientIp)
+	return true
 }
 
 func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {

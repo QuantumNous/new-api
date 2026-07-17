@@ -37,6 +37,11 @@ const (
 
 type ErrorCode string
 
+// ErrProviderTaskPollingRetryable marks a transient failure while continuing
+// an already accepted upstream task. Async workers must retry from their
+// stored provider response instead of submitting a new generation.
+var ErrProviderTaskPollingRetryable = errors.New("provider task polling is retryable")
+
 const (
 	ErrorCodeInvalidRequest         ErrorCode = "invalid_request"
 	ErrorCodeSensitiveWordsDetected ErrorCode = "sensitive_words_detected"

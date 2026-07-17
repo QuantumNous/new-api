@@ -327,111 +327,84 @@
     },
     "/v1/images/generations": {
       "post": {
-        "summary": "生成图像(qwen-image)",
+        "summary": "异步生成图像",
         "deprecated": false,
-        "description": " 百炼qwen-image系列图片生成",
-        "operationId": "createImage",
+        "description": "所有图像生成请求都会创建异步任务。使用响应中的 Location 或 task_id 轮询任务；也可以提供 webhook_url 接收相同的终态任务对象。Webhook 采用至少一次投递语义，X-Webhook-Delivery-Id 在同一任务的所有重试中保持不变，接收方应据此去重；webhook_secret 非空时，X-Webhook-Signature 是请求体的 HMAC-SHA256 十六进制签名。最终图片统一上传到对象存储，result.data 只返回持久 URL。",
+        "operationId": "createAsyncImageGeneration",
         "tags": [
-          "图片生成/Qwen千问"
+          "图片生成"
         ],
         "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "model": {
-                    "type": "string"
-                  },
-                  "input": {
-                    "type": "object",
-                    "properties": {
-                      "messages": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "role": {
-                              "type": "string"
-                            },
-                            "content": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "text": {
-                                    "type": "string"
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "required": [
-                      "messages"
-                    ]
-                  },
-                  "parameters": {
-                    "type": "object",
-                    "properties": {
-                      "negative_prompt": {
-                        "type": "string"
-                      },
-                      "prompt_extend": {
-                        "type": "boolean"
-                      },
-                      "watermark": {
-                        "type": "boolean"
-                      },
-                      "size": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                },
-                "required": [
-                  "model",
-                  "input"
-                ]
-              },
-              "example": {
-                "model": "qwen-image-plus",
-                "input": {
-                  "messages": [
-                    {
-                      "role": "user",
-                      "content": [
-                        {
-                          "text": "一副典雅庄重的对联悬挂于厅堂之中，房间是个安静古典的中式布置，桌子上放着一些青花瓷，对联上左书“义本生知人机同道善思新”，右书“通云赋智乾坤启数高志远”， 横批“智启通义”，字体飘逸，在中间挂着一幅中国风的画作，内容是岳阳楼。"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "parameters": {
-                  "negative_prompt": "",
-                  "prompt_extend": true,
-                  "watermark": false,
-                  "size": "1328*1328"
-                }
+                "$ref": "#/components/schemas/ImageGenerationRequest"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "成功生成图像",
+          "202": {
+            "description": "任务已创建",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImageResponse"
+                  "$ref": "#/components/schemas/AsyncImageTask"
                 }
               }
             },
-            "headers": {}
+            "headers": {
+              "Location": {
+                "description": "任务轮询地址",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "建议的轮询间隔（秒）",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/images/generations/{task_id}": {
+      "get": {
+        "summary": "查询异步图像任务",
+        "deprecated": false,
+        "operationId": "getAsyncImageGeneration",
+        "tags": [
+          "图片生成"
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsyncImageTask"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3659,7 +3632,7 @@
           "n": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 10,
+            "maximum": 128,
             "default": 1
           },
           "size": {
@@ -3695,10 +3668,30 @@
               "url",
               "b64_json"
             ],
-            "default": "url"
+            "default": "url",
+            "description": "兼容字段；异步任务最终结果始终返回对象存储 URL"
           },
           "user": {
             "type": "string"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "异步图像任务不支持流式响应；传 true 返回 400"
+          },
+          "async": {
+            "type": "boolean",
+            "deprecated": true,
+            "description": "兼容字段；无论取值为何，图像生成都使用异步任务"
+          },
+          "webhook_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选的任务终态回调地址"
+          },
+          "webhook_secret": {
+            "type": "string",
+            "description": "可选的 HMAC-SHA256 签名密钥，需要同时提供 webhook_url"
           }
         }
       },
@@ -3754,6 +3747,61 @@
                 "revised_prompt": {
                   "type": "string"
                 }
+              }
+            }
+          }
+        }
+      },
+      "AsyncImageTask": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "object",
+          "status",
+          "progress",
+          "created_at"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "image.generation.task"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "in_progress",
+              "completed",
+              "failed"
+            ]
+          },
+          "progress": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "completed_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ImageResponse"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
               }
             }
           }

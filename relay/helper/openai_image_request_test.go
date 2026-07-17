@@ -114,9 +114,9 @@ func TestGetAndValidOpenAIImageRequestNBounds(t *testing.T) {
 			wantN: 3,
 		},
 		{
-			name:  "zero n defaults to 1",
-			body:  `{"model":"gpt-image-1","prompt":"a cat","n":0}`,
-			wantN: 1,
+			name:    "zero n is rejected",
+			body:    `{"model":"gpt-image-1","prompt":"a cat","n":0}`,
+			wantErr: boundErr,
 		},
 		{
 			name:  "absent n defaults to 1",

@@ -81,6 +81,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if info.RelayMode != constant.RelayModeImagesGenerations {
 		return nil, fmt.Errorf("unsupported image relay mode: %d", info.RelayMode)
 	}
+	if request.N != nil && (*request.N == 0 || *request.N > dto.MaxImageN) {
+		return nil, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageN)
+	}
 	return oaiImage2MiniMaxImageRequest(request), nil
 }
 

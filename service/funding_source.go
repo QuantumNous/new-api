@@ -27,8 +27,10 @@ type FundingSource interface {
 // ---------------------------------------------------------------------------
 
 type WalletFunding struct {
-	userId   int
-	consumed int // 实际预扣的用户额度
+	userId            int
+	consumed          int  // 实际预扣的用户额度
+	direct            bool // async reservations must survive process restarts
+	reservationTaskID string
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
@@ -37,7 +39,15 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
+	var err error
+	if w.reservationTaskID != "" {
+		err = model.ReserveImageTaskWalletQuota(w.reservationTaskID, w.userId, amount)
+	} else if w.direct {
+		err = model.DecreaseUserQuotaDirect(w.userId, amount)
+	} else {
+		err = model.DecreaseUserQuota(w.userId, amount, false)
+	}
+	if err != nil {
 		return err
 	}
 	w.consumed = amount
@@ -49,7 +59,13 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
+		if w.direct {
+			return model.DecreaseUserQuotaDirect(w.userId, delta)
+		}
 		return model.DecreaseUserQuota(w.userId, delta, false)
+	}
+	if w.direct {
+		return model.IncreaseUserQuotaDirect(w.userId, -delta)
 	}
 	return model.IncreaseUserQuota(w.userId, -delta, false)
 }
@@ -60,6 +76,12 @@ func (w *WalletFunding) Refund() error {
 	}
 	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
+	if w.reservationTaskID != "" {
+		return model.RefundImageTaskWalletQuota(w.reservationTaskID, w.userId)
+	}
+	if w.direct {
+		return model.IncreaseUserQuotaDirect(w.userId, w.consumed)
+	}
 	return model.IncreaseUserQuota(w.userId, w.consumed, false)
 }
 
@@ -75,17 +97,24 @@ type SubscriptionFunding struct {
 	subscriptionId int
 	preConsumed    int64
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
-	AmountTotal     int64
-	AmountUsedAfter int64
-	PlanId          int
-	PlanTitle       string
+	AmountTotal       int64
+	AmountUsedAfter   int64
+	PlanId            int
+	PlanTitle         string
+	reservationTaskID string
 }
 
 func (s *SubscriptionFunding) Source() string { return BillingSourceSubscription }
 
 func (s *SubscriptionFunding) PreConsume(_ int) error {
 	// amount 参数被忽略，使用内部 s.amount（已在构造时根据 preConsumedQuota 计算）
-	res, err := model.PreConsumeUserSubscription(s.requestId, s.userId, s.modelName, 0, s.amount)
+	var res *model.SubscriptionPreConsumeResult
+	var err error
+	if s.reservationTaskID != "" {
+		res, err = model.PreConsumeImageTaskSubscription(s.reservationTaskID, s.requestId, s.userId, s.modelName, 0, s.amount)
+	} else {
+		res, err = model.PreConsumeUserSubscription(s.requestId, s.userId, s.modelName, 0, s.amount)
+	}
 	if err != nil {
 		return err
 	}
@@ -113,6 +142,9 @@ func (s *SubscriptionFunding) Refund() error {
 		return nil
 	}
 	return refundWithRetry(func() error {
+		if s.reservationTaskID != "" {
+			return model.RefundImageTaskSubscriptionQuota(s.reservationTaskID, s.requestId)
+		}
 		return model.RefundSubscriptionPreConsume(s.requestId)
 	})
 }

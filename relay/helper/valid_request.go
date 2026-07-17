@@ -174,7 +174,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			imageRequest.Model = formData.Get("model")
 			if nValue := strings.TrimSpace(formData.Get("n")); nValue != "" {
 				n, err := strconv.Atoi(nValue)
-				if err != nil || n < 0 || n > dto.MaxImageN {
+				if err != nil || n <= 0 || n > dto.MaxImageN {
 					return nil, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageN)
 				}
 				imageRequest.N = common.GetPointer(uint(n))
@@ -197,7 +197,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 					imageRequest.Quality = "standard"
 				}
 			}
-			if imageRequest.N == nil || *imageRequest.N == 0 {
+			if imageRequest.N == nil {
 				imageRequest.N = common.GetPointer(uint(1))
 			}
 
@@ -224,7 +224,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			return nil, errors.New("size an unexpected error occurred in the parameter, please use 'x' instead of the multiplication sign '×'")
 		}
 
-		if imageRequest.N != nil && *imageRequest.N > dto.MaxImageN {
+		if imageRequest.N != nil && (*imageRequest.N == 0 || *imageRequest.N > dto.MaxImageN) {
 			return nil, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageN)
 		}
 
@@ -256,7 +256,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		//	return nil, errors.New("prompt is required")
 		//}
 
-		if imageRequest.N == nil || *imageRequest.N == 0 {
+		if imageRequest.N == nil {
 			imageRequest.N = common.GetPointer(uint(1))
 		}
 	}

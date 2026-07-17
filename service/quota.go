@@ -401,7 +401,13 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if !relayInfo.TokenUnlimited && token.RemainQuota < quota {
 		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
 	}
-	err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
+	if relayInfo.BillingReservationTaskID != "" {
+		err = model.ReserveImageTaskTokenQuota(relayInfo.BillingReservationTaskID, relayInfo.TokenId, relayInfo.TokenKey, quota)
+	} else if relayInfo.ForcePreConsume {
+		err = model.DecreaseTokenQuotaDirect(relayInfo.TokenId, relayInfo.TokenKey, quota)
+	} else {
+		err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
+	}
 	if err != nil {
 		return err
 	}

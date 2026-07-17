@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,6 +23,10 @@ type WorkerRequest struct {
 
 // DoWorkerRequest 通过Worker发送请求
 func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
+	return DoWorkerRequestWithContext(context.Background(), req)
+}
+
+func DoWorkerRequestWithContext(ctx context.Context, req *WorkerRequest) (*http.Response, error) {
 	if !system_setting.EnableWorker() {
 		return nil, fmt.Errorf("worker not enabled")
 	}
@@ -46,7 +51,12 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 		return nil, fmt.Errorf("failed to marshal worker payload: %v", err)
 	}
 
-	return GetHttpClient().Post(workerUrl, "application/json", bytes.NewBuffer(workerPayload))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, workerUrl, bytes.NewBuffer(workerPayload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create worker request: %v", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	return GetHttpClient().Do(httpReq)
 }
 
 func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response, err error) {

@@ -90,6 +90,16 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
+	a.IsSyncImageModel = false
+	if info == nil {
+		return
+	}
+	switch info.RelayMode {
+	case constant.RelayModeImagesGenerations:
+		a.IsSyncImageModel = isSyncImageModel(info.OriginModelName)
+	case constant.RelayModeImagesEdits:
+		a.IsSyncImageModel = isSyncImageModel(info.OriginModelName) && !isWanModel(info.OriginModelName)
+	}
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {

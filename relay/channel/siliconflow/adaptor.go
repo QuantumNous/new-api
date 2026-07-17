@@ -37,6 +37,13 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if rawBatchSize, ok := request.Extra["batch_size"]; ok {
+		var batchSize int
+		if err := common.Unmarshal(rawBatchSize, &batchSize); err != nil || batchSize <= 0 || batchSize > dto.MaxImageN {
+			return nil, fmt.Errorf("batch_size must be an integer between 1 and %d", dto.MaxImageN)
+		}
+	}
+
 	// 解析extra到SFImageRequest里，以填入SiliconFlow特殊字段。若失败重建一个空的。
 	sfRequest := &SFImageRequest{}
 	extra, err := common.Marshal(request.Extra)
@@ -55,8 +62,17 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 	if sfRequest.BatchSize == 0 {
 		if request.N != nil {
+			if *request.N == 0 || *request.N > dto.MaxImageN {
+				return nil, fmt.Errorf("batch_size must be an integer between 1 and %d", dto.MaxImageN)
+			}
 			sfRequest.BatchSize = lo.FromPtr(request.N)
 		}
+	}
+	if sfRequest.BatchSize > dto.MaxImageN {
+		return nil, fmt.Errorf("batch_size must be an integer between 1 and %d", dto.MaxImageN)
+	}
+	if sfRequest.BatchSize > 0 {
+		info.PriceData.AddOtherRatio("n", float64(sfRequest.BatchSize))
 	}
 
 	return sfRequest, nil

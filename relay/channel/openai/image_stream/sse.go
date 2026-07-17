@@ -6,11 +6,12 @@ package image_stream
 // don't need) and capture only the events that contain final state:
 //   - response.output_item.done : the actual image_generation_call result
 //   - response.completed        : usage + final response shell
-// in_progress / created snapshots are kept as a fallback for usage data when
-// completed never arrives.
+// in_progress / created snapshots are kept only to supplement the completed
+// response; they are never accepted as terminal billing data.
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -42,13 +43,13 @@ type UpstreamItem struct {
 // Merging the two is what makes billing reflect actual cost.
 type UpstreamToolUsage struct {
 	ImageGen *struct {
-		InputTokens         int `json:"input_tokens"`
-		InputTokensDetails  struct {
+		InputTokens        int `json:"input_tokens"`
+		InputTokensDetails struct {
 			ImageTokens int `json:"image_tokens"`
 			TextTokens  int `json:"text_tokens"`
 		} `json:"input_tokens_details"`
-		OutputTokens         int `json:"output_tokens"`
-		OutputTokensDetails  struct {
+		OutputTokens        int `json:"output_tokens"`
+		OutputTokensDetails struct {
 			ImageTokens int `json:"image_tokens"`
 			TextTokens  int `json:"text_tokens"`
 		} `json:"output_tokens_details"`
@@ -104,7 +105,7 @@ func AggregateResponseStream(body io.Reader) (*UpstreamResponse, error) {
 			continue
 		}
 		if probe.Type == "response.completed" || probe.Type == "response.failed" || probe.Type == "error" {
-			common.SysLog(fmt.Sprintf("image_stream sse event: type=%s data_len=%d head=%s", probe.Type, len(data), data[:min(len(data), 200)]))
+			common.SysLog(fmt.Sprintf("image_stream sse event: type=%s data_len=%d", probe.Type, len(data)))
 		}
 
 		switch probe.Type {
@@ -120,8 +121,7 @@ func AggregateResponseStream(body io.Reader) (*UpstreamResponse, error) {
 				Response *UpstreamResponse `json:"response"`
 			}
 			if err := common.UnmarshalJsonStr(data, &ev); err != nil {
-				common.SysError(fmt.Sprintf("image_stream completed unmarshal err: %s data_len=%d data_head=%s",
-					err.Error(), len(data), data[:min(len(data), 200)]))
+				common.SysError(fmt.Sprintf("image_stream completed unmarshal err: %s data_len=%d", err.Error(), len(data)))
 			} else if ev.Response == nil {
 				common.SysError("image_stream completed: ev.Response is nil after unmarshal")
 			} else {
@@ -170,6 +170,9 @@ func AggregateResponseStream(body io.Reader) (*UpstreamResponse, error) {
 		seenCompleted, len(collected), snapshot == nil, scanErr))
 	if scanErr != nil {
 		return nil, fmt.Errorf("SSE scan: %w", scanErr)
+	}
+	if !seenCompleted {
+		return nil, errors.New("upstream image stream ended before response.completed")
 	}
 
 	if snapshot == nil {

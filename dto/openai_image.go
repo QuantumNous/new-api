@@ -39,6 +39,11 @@ type ImageRequest struct {
 	WatermarkEnabled json.RawMessage `json:"watermark_enabled,omitempty"`
 	UserId           json.RawMessage `json:"user_id,omitempty"`
 	Image            json.RawMessage `json:"image,omitempty"`
+	// Gateway-only async controls. They are parsed explicitly in UnmarshalJSON
+	// and excluded from MarshalJSON so they are never forwarded to providers.
+	Async         *bool  `json:"-"`
+	WebhookURL    string `json:"-"`
+	WebhookSecret string `json:"-"`
 	// 用匿名参数接收额外参数
 	Extra map[string]json.RawMessage `json:"-"`
 }
@@ -60,10 +65,29 @@ func (i *ImageRequest) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*i = ImageRequest(known)
+	if raw, ok := rawMap["async"]; ok {
+		if err := common.Unmarshal(raw, &i.Async); err != nil {
+			return err
+		}
+	}
+	if raw, ok := rawMap["webhook_url"]; ok {
+		if err := common.Unmarshal(raw, &i.WebhookURL); err != nil {
+			return err
+		}
+	}
+	if raw, ok := rawMap["webhook_secret"]; ok {
+		if err := common.Unmarshal(raw, &i.WebhookSecret); err != nil {
+			return err
+		}
+	}
 
 	// 提取多余字段
 	i.Extra = make(map[string]json.RawMessage)
 	for k, v := range rawMap {
+		switch k {
+		case "async", "webhook_url", "webhook_secret":
+			continue
+		}
 		if _, ok := knownFields[k]; !ok {
 			i.Extra[k] = v
 		}
