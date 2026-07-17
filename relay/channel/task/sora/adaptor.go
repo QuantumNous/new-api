@@ -2,6 +2,7 @@ package sora
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -160,6 +161,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
+			syncVideoDurationFields(bodyMap)
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}
@@ -175,12 +177,31 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)
 		writer.WriteField("model", info.UpstreamModelName)
+		hasSeconds := len(formData.Value["seconds"]) > 0
+		durationVal := ""
+		if vals := formData.Value["duration"]; len(vals) > 0 {
+			durationVal = strings.TrimSpace(vals[0])
+		}
+		if !hasSeconds && durationVal == "" {
+			if vals := formData.Value["seconds"]; len(vals) > 0 {
+				durationVal = strings.TrimSpace(vals[0])
+			}
+		}
 		for key, values := range formData.Value {
 			if key == "model" {
 				continue
 			}
 			for _, v := range values {
 				writer.WriteField(key, v)
+			}
+		}
+		// OpenAI Videos uses `seconds`; many Seedance-compatible APIs use `duration`.
+		if !hasSeconds && durationVal != "" {
+			_ = writer.WriteField("seconds", durationVal)
+		}
+		if len(formData.Value["duration"]) == 0 {
+			if secs := formData.Value["seconds"]; len(secs) > 0 && strings.TrimSpace(secs[0]) != "" {
+				_ = writer.WriteField("duration", strings.TrimSpace(secs[0]))
 			}
 		}
 		for fieldName, fileHeaders := range formData.File {
@@ -219,6 +240,57 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	return common.ReaderOnly(storage), nil
+}
+
+// syncVideoDurationFields keeps OpenAI `seconds` and Seedance-style `duration` in sync.
+// Upstream that only reads one of them otherwise falls back to a short default (often ~5s).
+func syncVideoDurationFields(bodyMap map[string]interface{}) {
+	if bodyMap == nil {
+		return
+	}
+	dur := jsonValueAsPositiveInt(bodyMap["duration"])
+	sec := jsonValueAsPositiveInt(bodyMap["seconds"])
+	if dur <= 0 && sec > 0 {
+		bodyMap["duration"] = sec
+		return
+	}
+	if sec <= 0 && dur > 0 {
+		bodyMap["seconds"] = strconv.Itoa(dur)
+	}
+}
+
+func jsonValueAsPositiveInt(v interface{}) int {
+	switch x := v.(type) {
+	case nil:
+		return 0
+	case float64:
+		if x > 0 {
+			return int(x)
+		}
+	case float32:
+		if x > 0 {
+			return int(x)
+		}
+	case int:
+		if x > 0 {
+			return x
+		}
+	case int64:
+		if x > 0 {
+			return int(x)
+		}
+	case json.Number:
+		n, err := x.Int64()
+		if err == nil && n > 0 {
+			return int(n)
+		}
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(x))
+		if err == nil && n > 0 {
+			return n
+		}
+	}
+	return 0
 }
 
 // DoRequest delegates to common helper.

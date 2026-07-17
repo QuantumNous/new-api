@@ -1093,6 +1093,10 @@
         aspect_ratio: els.aspectRatio.value,
         resolution: els.resolution.value,
       };
+      // OpenAI Videos uses `seconds`; Seedance-compatible APIs often use `duration`.
+      if (profile().family === "openai") {
+        body.seconds = String(body.duration);
+      }
       const urls = submitAssets.map((a) => a.publicUrl).filter(Boolean);
       if (urls.length) body.images = urls;
       return body;
