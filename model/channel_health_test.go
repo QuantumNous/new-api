@@ -245,6 +245,57 @@ func TestAffinityKeptWhenNoFasterPeerExists(t *testing.T) {
 	}
 }
 
+// TestAffinityKeptWhenTheWholeFleetIsSlow reproduces what prod actually did once
+// every channel degraded to 3-9s: some channel is always relatively fastest, so
+// the ratio rule fired for all six in turn and keys churned between them — 21
+// migrations an hour, each paying a cold prefill to land somewhere equally slow.
+// Relative-best is not a good enough reason to throw away a warm cache; there
+// has to be somewhere genuinely fast to go.
+func TestAffinityKeptWhenTheWholeFleetIsSlow(t *testing.T) {
+	withGlobalChannelHealth(t)
+
+	// Real prod numbers from the degraded hour.
+	degraded := map[int]time.Duration{
+		41: 8877 * time.Millisecond,
+		42: 6662 * time.Millisecond,
+		52: 5231 * time.Millisecond,
+		53: 4023 * time.Millisecond,
+		51: 3632 * time.Millisecond,
+		61: 2249 * time.Millisecond, // relatively fastest, but still slow
+	}
+	for ch, lat := range degraded {
+		key := ChannelHealthKey{ChannelID: ch, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+		for i := 0; i < 5; i++ {
+			RecordChannelOutcome(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: lat})
+		}
+	}
+
+	for ch := range degraded {
+		key := ChannelHealthKey{ChannelID: ch, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+		// #41 is 3.9x the fastest peer, which the ratio rule alone would release.
+		if got := ChannelAffinityDecision(key); got != ChannelAffinityKeep {
+			t.Fatalf("ch#%d verdict = %v, want Keep: with no genuinely fast channel to reach, migrating only buys a cold prefill", ch, got)
+		}
+	}
+}
+
+// TestAffinityReleasedOnceSomewhereFastExists is the contrast: the same slow
+// sticky must still migrate the moment a genuinely fast channel is available.
+func TestAffinityReleasedOnceSomewhereFastExists(t *testing.T) {
+	withGlobalChannelHealth(t)
+
+	slow := ChannelHealthKey{ChannelID: 45, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	fast := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	for i := 0; i < 5; i++ {
+		RecordChannelOutcome(slow, ChannelOutcome{StatusCode: http.StatusOK, Latency: 3537 * time.Millisecond})
+		RecordChannelOutcome(fast, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1275 * time.Millisecond})
+	}
+
+	if got := ChannelAffinityDecision(slow); got != ChannelAffinityReleaseSlow {
+		t.Fatalf("verdict = %v, want ReleaseSlow: 3537ms with a 1275ms channel available is worth one prefill", got)
+	}
+}
+
 // TestAffinityKeptWhenAbsolutelyFast guards against churning over differences
 // that no user can perceive: 300ms is 2x 150ms, but migrating to save 150ms
 // costs a full uncached prefill.

@@ -11,6 +11,11 @@ var GetMediaTokenNotStream bool
 var UpdateTask bool
 var MaxRequestBodyMB int
 var AnonymousRequestBodyLimitKB int
+
+// UploadIdleTimeoutSeconds bounds how long a request body may deliver nothing
+// before the request is abandoned. 0 disables it (wait forever, the old
+// behaviour).
+var UploadIdleTimeoutSeconds int
 var AzureDefaultAPIVersion string
 var NotifyLimitCount int
 var NotificationLimitDurationMinute int

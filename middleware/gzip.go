@@ -2,10 +2,14 @@ package middleware
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync/atomic"
+	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/andybalholm/brotli"
 	"github.com/gin-gonic/gin"
@@ -16,8 +20,61 @@ import (
 // the client sent it, before the decompression branches below strip the header.
 const middlewareOriginalContentEncodingKey = "original_content_encoding"
 
+// uploadIdleTimeout is how long a request body may go without delivering a
+// single byte before we give up on it. Generous by default (see
+// UPLOAD_IDLE_TIMEOUT_SECONDS): a client holding the payload never pauses this
+// long, so it only catches genuine stalls. 0 waits indefinitely.
+func uploadIdleTimeout() time.Duration {
+	return time.Duration(constant.UploadIdleTimeoutSeconds) * time.Second
+}
+
 // middlewareWireBytesKey holds the *countingBody wrapping the raw request body.
 const middlewareWireBytesKey = "request_wire_bytes"
+
+// idleTimeoutBody aborts a request-body read that has stopped making progress.
+//
+// The deadline is pushed forward on every Read, so it only ever fires when the
+// client has genuinely gone quiet — a slow but progressing upload is untouched,
+// however long it takes. It is set on the connection rather than tracked in
+// user space because a blocked Read cannot be interrupted any other way, and it
+// is cleared as soon as the body is done so the deadline cannot leak into the
+// response stream or the next keep-alive request.
+type idleTimeoutBody struct {
+	io.ReadCloser
+	rc      *http.ResponseController
+	timeout time.Duration
+	armed   bool
+}
+
+func (b *idleTimeoutBody) Read(p []byte) (int, error) {
+	if b.timeout > 0 {
+		// A server that cannot set deadlines (h2 in some configurations) just
+		// gets the old behaviour rather than a failed request.
+		if err := b.rc.SetReadDeadline(time.Now().Add(b.timeout)); err == nil {
+			b.armed = true
+		}
+	}
+	n, err := b.ReadCloser.Read(p)
+	if err != nil {
+		b.clearDeadline()
+		if os.IsTimeout(err) {
+			return n, fmt.Errorf("%w (%s)", common.ErrUploadIdleTimeout, b.timeout)
+		}
+	}
+	return n, err
+}
+
+func (b *idleTimeoutBody) Close() error {
+	b.clearDeadline()
+	return b.ReadCloser.Close()
+}
+
+func (b *idleTimeoutBody) clearDeadline() {
+	if b.armed {
+		_ = b.rc.SetReadDeadline(time.Time{})
+		b.armed = false
+	}
+}
 
 // countingBody tallies bytes read off the wire. The count is atomic because the
 // zstd decoder reads ahead from its own goroutine, so the diagnostic can sample
@@ -73,6 +130,19 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 		}
 		maxBytes := int64(maxMB) << 20
 
+		// Cut a stalled upload loose before the client's own timeout does. Wraps
+		// the raw body so it governs the compressed stream — the bytes that
+		// actually have to arrive — and sits under the counter so wire_bytes
+		// still reports what did.
+		body := c.Request.Body
+		if d := uploadIdleTimeout(); d > 0 {
+			body = &idleTimeoutBody{
+				ReadCloser: body,
+				rc:         http.NewResponseController(c.Writer),
+				timeout:    d,
+			}
+		}
+
 		// Count bytes as they come off the wire, before any decompressor. This is
 		// the only place the compressed stream is still visible, and it is the
 		// number that decides who to blame for a truncated upload: compare it to
@@ -81,7 +151,7 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 		// first version of this diagnostic did) measures decompressed output
 		// against a compressed Content-Length — two different units, and it can
 		// even exceed it.
-		wireBody := &countingBody{ReadCloser: c.Request.Body}
+		wireBody := &countingBody{ReadCloser: body}
 		c.Set(middlewareWireBytesKey, wireBody)
 		c.Request.Body = wireBody
 

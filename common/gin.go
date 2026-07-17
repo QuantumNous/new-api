@@ -24,6 +24,14 @@ const KeyBodyStorage = "key_body_storage"
 
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
+// ErrUploadIdleTimeout means the client stopped delivering request-body bytes
+// and never resumed. It is deliberately an *idle* timeout, not a total one: a
+// large upload that keeps making progress is never cut, only one that has
+// visibly stalled. Without it a stalled upload holds the request until the
+// client's own timeout fires — measured at 300s in prod, five minutes in which
+// the user's conversation is simply dead.
+var ErrUploadIdleTimeout = errors.New("request body stalled: no bytes received within the upload idle timeout")
+
 func IsRequestBodyTooLargeError(err error) bool {
 	if err == nil {
 		return false
@@ -55,6 +63,7 @@ func IsClientDisconnectError(err error) bool {
 	if errors.Is(err, io.ErrUnexpectedEOF) ||
 		errors.Is(err, context.Canceled) ||
 		errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, ErrUploadIdleTimeout) ||
 		errors.Is(err, http.ErrBodyReadAfterClose) {
 		return true
 	}

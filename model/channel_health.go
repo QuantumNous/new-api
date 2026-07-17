@@ -56,14 +56,21 @@ const (
 	// never fires: a channel sitting at 3.5s while another answers in 1.3s keeps
 	// its sticky traffic forever.
 	//
-	// Both conditions must hold, and each blocks a different kind of pointless
-	// migration:
-	//   - affinityReleaseMinLatency: never migrate off a channel that is fast in
-	//     absolute terms. 0.3s vs 0.15s is a 2x ratio and completely irrelevant.
+	// A migration is only allowed to cross affinityFastLatency, which both sides
+	// of the comparison are measured against. Every condition below blocks a
+	// different kind of pointless migration:
+	//
+	//   - the sticky must be at or above it: never migrate off a channel that is
+	//     already fast. 0.3s vs 0.15s is a 2x ratio and imperceptible.
+	//   - the destination must be below it: never migrate when the whole fleet is
+	//     slow. Observed in prod when every channel degraded to 3-9s — some
+	//     channel is always relatively fastest, so the ratio rule fired for all
+	//     six in turn and keys churned between them, each paying a cold prefill
+	//     to land somewhere equally slow.
 	//   - affinityReleaseRatio: never migrate for a marginal gain. A migration
 	//     costs one full uncached prefill, so the win has to be substantial.
-	affinityReleaseMinLatency = 2 * time.Second
-	affinityReleaseRatio      = 2.0
+	affinityFastLatency  = 2 * time.Second
+	affinityReleaseRatio = 2.0
 )
 
 // channelHealthSlowLatency is the first-token latency at or above which a
@@ -463,13 +470,21 @@ func (r *channelHealthRegistry) affinityDecision(key ChannelHealthKey) ChannelAf
 	if entry.state != ChannelHealthClosed {
 		return ChannelAffinityReleaseUnavailable
 	}
-	if entry.latencyEWMA < float64(affinityReleaseMinLatency) {
+	if entry.latencyEWMA < float64(affinityFastLatency) {
 		return ChannelAffinityKeep
 	}
 	best := r.bestPeerLatencyLocked(key)
 	if best <= 0 {
 		// No other channel has a latency measurement for this model+path, so
 		// there is nothing demonstrably better to migrate to.
+		return ChannelAffinityKeep
+	}
+	if best >= float64(affinityFastLatency) {
+		// Nowhere genuinely fast to go. Relative-best is not good enough to
+		// justify throwing away a warm cache: when every channel is degraded the
+		// destination is slow too, and it will very likely be the relatively-slow
+		// one a minute from now — so this trades a certain cold prefill for a
+		// difference that will not survive the trip.
 		return ChannelAffinityKeep
 	}
 	if entry.latencyEWMA > best*affinityReleaseRatio {
@@ -485,7 +500,7 @@ func (r *channelHealthRegistry) affinityDecision(key ChannelHealthKey) ChannelAf
 // Cost: this scans every entry in the registry, because a Go map cannot be
 // probed by partial key — the bound is total registry size
 // (channelHealthMaxEntries), not the number of matches. It runs only after the
-// affinityReleaseMinLatency early-return above, i.e. only for requests already
+// affinityFastLatency early-return above, i.e. only for requests already
 // pinned to a channel slower than that floor, so traffic on healthy channels
 // never pays for it. If the registry ever approaches its cap on a busy
 // multi-model gateway, index best-latency per (model, path) at Record time

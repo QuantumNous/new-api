@@ -168,6 +168,9 @@ func initConstantEnv() {
 	// MaxRequestBodyMB 请求体最大大小（解压后），用于防止超大请求/zip bomb导致内存暴涨
 	constant.MaxRequestBodyMB = GetEnvOrDefault("MAX_REQUEST_BODY_MB", 128)
 	constant.AnonymousRequestBodyLimitKB = GetEnvOrDefault("ANONYMOUS_REQUEST_BODY_LIMIT_KB", 512)
+	// UploadIdleTimeoutSeconds 上传空闲超时：请求体多久没有任何新字节就放弃。
+	// 是「空闲」不是「总时长」，所以持续有进展的大上传不受影响，只掐真卡死的。
+	constant.UploadIdleTimeoutSeconds = GetEnvOrDefault("UPLOAD_IDLE_TIMEOUT_SECONDS", 60)
 	// ForceStreamOption 覆盖请求参数，强制返回usage信息
 	constant.ForceStreamOption = GetEnvOrDefaultBool("FORCE_STREAM_OPTION", true)
 	constant.CountToken = GetEnvOrDefaultBool("CountToken", true)
