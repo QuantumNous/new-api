@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"io"
 	"net/http"
@@ -420,9 +421,7 @@ func genCreemLink(ctx context.Context, referenceId string, product *CreemProduct
 	logger.LogInfo(ctx, fmt.Sprintf("Creem 支付请求已发送 api_url=%s product_id=%s email=%q trade_no=%s", apiUrl, product.ProductId, email, referenceId))
 
 	// 发送请求
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	client := service.GetHttpClientWithTimeout(30 * time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("发送HTTP请求失败: %v", err)

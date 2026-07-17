@@ -32,22 +32,26 @@ func GetTraceLogs(c *gin.Context) {
 			continue
 		}
 		other, _ := common.StrToMap(l.Other)
+		traceId := l.TraceId
+		if traceId == "" {
+			traceId, _ = other["trace_id"].(string)
+		}
 		items = append(items, gin.H{
-			"id":           l.Id,
-			"created_at":   l.CreatedAt,
-			"type":         l.Type,
-			"model_name":   l.ModelName,
-			"channel":      l.ChannelId,
-			"token_name":   l.TokenName,
-			"quota":        l.Quota,
-			"use_time":     l.UseTime,
-			"is_stream":    l.IsStream,
-			"group":        l.Group,
-			"request_id":   l.RequestId,
-			"content":      l.Content,
-			"other":        other,
-			"thread_id":    other["thread_id"],
-			"trace_id":     other["trace_id"],
+			"id":         l.Id,
+			"created_at": l.CreatedAt,
+			"type":       l.Type,
+			"model_name": l.ModelName,
+			"channel":    l.ChannelId,
+			"token_name": l.TokenName,
+			"quota":      l.Quota,
+			"use_time":   l.UseTime,
+			"is_stream":  l.IsStream,
+			"group":      l.Group,
+			"request_id": l.RequestId,
+			"content":    l.Content,
+			"other":      other,
+			"thread_id":  other["thread_id"],
+			"trace_id":   traceId,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{

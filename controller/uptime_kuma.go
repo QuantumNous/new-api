@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 
 	"github.com/gin-gonic/gin"
@@ -138,7 +139,7 @@ func GetUptimeKumaStatus(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
 	defer cancel()
 
-	client := &http.Client{Timeout: httpTimeout}
+	client := service.GetHttpClientWithTimeout(httpTimeout)
 	results := make([]UptimeGroupResult, len(groups))
 
 	g, gCtx := errgroup.WithContext(ctx)

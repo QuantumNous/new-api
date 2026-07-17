@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/pkg/observability"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
@@ -54,14 +55,18 @@ var classicIndexPage []byte
 
 func main() {
 	startTime := time.Now()
+	mode, plane, err := parseRuntimeConfig(os.Getenv("RUN_MODE"), os.Getenv("APP_PLANE"), os.Getenv("NODE_TYPE"))
+	if err != nil {
+		log.Fatalf("invalid runtime configuration: %v", err)
+	}
 
-	err := InitResources()
+	err = InitResources()
 	if err != nil {
 		common.FatalLog("failed to initialize resources: " + err.Error())
 		return
 	}
 
-	common.SysLog("New API " + common.Version + " started")
+	common.SysLog(fmt.Sprintf("New API %s started: run_mode=%s plane=%s", common.Version, mode, plane))
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -75,18 +80,24 @@ func main() {
 			common.FatalLog("failed to close database: " + err.Error())
 		}
 	}()
+	if mode == runModeMigrate {
+		common.SysLog("database migration completed")
+		return
+	}
 
 	if common.RedisEnabled {
 		// for compatibility with old versions
 		common.MemoryCacheEnabled = true
 		// Multi-instance adaptive metrics snapshot (best-effort, 2m TTL).
-		gopool.Go(func() {
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-			for range ticker.C {
-				service.SyncAdaptiveMetricsToRedis()
-			}
-		})
+		if mode.servesHTTP() || mode.runsWorker() {
+			gopool.Go(func() {
+				ticker := time.NewTicker(30 * time.Second)
+				defer ticker.Stop()
+				for range ticker.C {
+					service.SyncAdaptiveMetricsToRedis()
+				}
+			})
+		}
 	}
 	if common.MemoryCacheEnabled {
 		common.SysLog("memory cache enabled")
@@ -121,9 +132,11 @@ func main() {
 	go authz.StartPolicySync(common.SyncFrequency)
 
 	// 数据看板
-	go model.UpdateQuotaData()
+	if mode.servesHTTP() {
+		go model.UpdateQuotaData()
+	}
 
-	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
+	if mode.runsScheduler() && os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
 		if err != nil {
 			common.FatalLog("failed to parse CHANNEL_UPDATE_FREQUENCY: " + err.Error())
@@ -132,10 +145,12 @@ func main() {
 	}
 
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
-	service.StartCodexCredentialAutoRefreshTask()
+	if mode.runsScheduler() {
+		service.StartCodexCredentialAutoRefreshTask()
 
-	// Subscription quota reset task (daily/weekly/monthly/custom)
-	service.StartSubscriptionQuotaResetTask()
+		// Subscription quota reset task (daily/weekly/monthly/custom)
+		service.StartSubscriptionQuotaResetTask()
+	}
 
 	// Report this process as a system instance so the System Info page can show
 	// all currently alive nodes in multi-instance deployments.
@@ -144,12 +159,16 @@ func main() {
 	// Wire task polling adaptor factory (breaks service -> relay import cycle).
 	// Must run before the system task runner starts: the async_task_poll handler
 	// calls service.RunTaskPollingOnce, which needs this factory set.
-	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
-		a := relay.GetTaskAdaptor(platform)
-		if a == nil {
-			return nil
+	if mode.runsWorker() || mode.runsScheduler() {
+		service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
+			a := relay.GetTaskAdaptor(platform)
+			if a == nil {
+				return nil
+			}
+			return a
 		}
-		return a
+
+		controller.RegisterScheduledSystemTasks()
 	}
 
 	// Register the periodic channel test, upstream model update, and async task
@@ -157,10 +176,14 @@ func main() {
 	// (DB-lease dedup across masters + run history), then start the runner that
 	// schedules and executes them. Master-only execution and the UpdateTask
 	// switch are enforced inside the runner and each handler's Enabled().
-	controller.RegisterScheduledSystemTasks()
-	service.StartSystemTaskRunner()
+	if mode.runsScheduler() {
+		service.StartSystemTaskScheduler()
+	}
+	if mode.runsWorker() {
+		service.StartSystemTaskWorker()
+	}
 
-	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
+	if mode.servesHTTP() && os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
 		common.SysLog("batch update enabled with interval " + strconv.Itoa(common.BatchUpdateInterval) + "s")
 		model.InitBatchUpdater()
@@ -177,6 +200,15 @@ func main() {
 	err = common.StartPyroScope()
 	if err != nil {
 		common.SysError(fmt.Sprintf("start pyroscope error : %v", err))
+	}
+
+	if !mode.servesHTTP() {
+		common.SysLog(fmt.Sprintf("runtime ready: run_mode=%s", mode))
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-quit
+		common.SysLog(fmt.Sprintf("received signal: %v, shutting down...", sig))
+		return
 	}
 
 	// Initialize HTTP server
@@ -201,6 +233,10 @@ func main() {
 	server.Use(middleware.Version())
 	server.Use(middleware.TraceContext())
 	server.Use(middleware.I18n())
+	if observability.Enabled() {
+		server.Use(observability.HTTPMiddleware())
+		server.GET("/metrics", observability.MetricsAuth(), gin.WrapH(observability.Handler()))
+	}
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
@@ -217,21 +253,21 @@ func main() {
 	InjectGoogleAnalytics()
 
 	// 设置路由
-	router.SetRouter(server, router.ThemeAssets{
+	if err := router.SetRouterForPlane(server, router.ThemeAssets{
 		DefaultBuildFS:   buildFS,
 		DefaultIndexPage: indexPage,
 		ClassicBuildFS:   classicBuildFS,
 		ClassicIndexPage: classicIndexPage,
-	})
+	}, plane); err != nil {
+		common.FatalLog("failed to configure router: " + err.Error())
+		return
+	}
 	var port = os.Getenv("PORT")
 	if port == "" {
 		port = strconv.Itoa(*common.Port)
 	}
 
-	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: server,
-	}
+	srv := newHTTPServer(":"+port, server)
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -260,6 +296,16 @@ func main() {
 		model.SaveQuotaDataCache()
 	}
 	common.SysLog("server exited")
+}
+
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: time.Duration(common.GetEnvOrDefault("HTTP_READ_HEADER_TIMEOUT_SECONDS", 10)) * time.Second,
+		IdleTimeout:       time.Duration(common.GetEnvOrDefault("HTTP_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
+		MaxHeaderBytes:    common.GetEnvOrDefault("HTTP_MAX_HEADER_BYTES", 1<<20),
+	}
 }
 
 func InjectUmamiAnalytics() {

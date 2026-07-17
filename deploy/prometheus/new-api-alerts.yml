@@ -1,0 +1,45 @@
+groups:
+  - name: new-api-slo
+    rules:
+      - alert: NewAPIRelayHighErrorRate
+        expr: |
+          sum(rate(newapi_http_requests_total{route_class="relay",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(newapi_http_requests_total{route_class="relay"}[5m])), 0.001)
+          > 0.01
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: Relay 5xx ratio is above 1%
+
+      - alert: NewAPIManagementLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(newapi_http_request_duration_seconds_bucket{route_class="api"}[10m]))
+          ) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Management API P95 latency is above 500ms
+
+      - alert: NewAPIInFlightRequestsHigh
+        expr: sum(newapi_http_requests_in_flight) > 800
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: In-flight request count is unusually high
+
+      - alert: NewAPIWebVitalsPoor
+        expr: |
+          sum(rate(newapi_web_vital_value_count{rating="poor"}[15m]))
+          /
+          clamp_min(sum(rate(newapi_web_vital_value_count[15m])), 0.001)
+          > 0.25
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 25% of reported Web Vitals are poor

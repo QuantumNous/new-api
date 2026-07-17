@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -176,7 +177,7 @@ func FetchCustomOAuthDiscovery(c *gin.Context) {
 	}
 	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: 20 * time.Second}
+	client := service.GetSSRFProtectedHTTPClientWithTimeout(20 * time.Second)
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		common.ApiErrorMsg(c, "获取 Discovery 配置失败: "+err.Error())

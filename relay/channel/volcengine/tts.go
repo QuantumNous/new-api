@@ -1,7 +1,6 @@
 package volcengine
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -209,7 +208,7 @@ func handleTTSWebSocketResponse(c *gin.Context, requestURL string, volcRequest V
 	header := http.Header{}
 	header.Set("Authorization", fmt.Sprintf("Bearer;%s", token))
 
-	conn, resp, dialErr := websocket.DefaultDialer.DialContext(context.Background(), requestURL, header)
+	conn, resp, dialErr := websocket.DefaultDialer.DialContext(c.Request.Context(), requestURL, header)
 	if dialErr != nil {
 		if resp != nil {
 			return nil, types.NewErrorWithStatusCode(
