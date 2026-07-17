@@ -107,6 +107,69 @@ func TestSystemTaskSchedulerSkipsDisabled(t *testing.T) {
 	assert.Equal(t, int64(0), countSystemTasks(t, handler.taskType))
 }
 
+func TestSystemTaskLoopsStopWhenContextCanceled(t *testing.T) {
+	truncate(t)
+	withSystemTaskRegistry(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	workerDone := make(chan struct{})
+	schedulerDone := make(chan struct{})
+	go func() {
+		runSystemTaskWorkerLoop(ctx, "runner-cancel")
+		close(workerDone)
+	}()
+	go func() {
+		runSystemTaskSchedulerLoop(ctx)
+		close(schedulerDone)
+	}()
+
+	cancel()
+	for name, done := range map[string]<-chan struct{}{
+		"worker":    workerDone,
+		"scheduler": schedulerDone,
+	} {
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%s did not stop after context cancellation", name)
+		}
+	}
+}
+
+func TestSystemTaskClaimPassContextCancelsDispatchedHandler(t *testing.T) {
+	truncate(t)
+
+	started := make(chan struct{})
+	canceled := make(chan error, 1)
+	handler := &stubScheduledHandler{
+		taskType: "test_context_cancel",
+		onRun: func(ctx context.Context, _ *model.SystemTask, _ string) {
+			close(started)
+			<-ctx.Done()
+			canceled <- ctx.Err()
+		},
+	}
+	withSystemTaskRegistry(t, handler)
+	_, err := model.CreateSystemTask(handler.taskType, nil, nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runSystemTaskClaimPassContext(ctx, "runner-cancel")
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("claimed task handler did not start")
+	}
+	cancel()
+
+	select {
+	case err := <-canceled:
+		assert.ErrorIs(t, err, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("claimed task handler did not receive context cancellation")
+	}
+}
+
 func TestSystemTaskClaimPassDispatchesByType(t *testing.T) {
 	truncate(t)
 

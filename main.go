@@ -84,6 +84,8 @@ func main() {
 		common.SysLog("database migration completed")
 		return
 	}
+	systemTaskCtx, stopSystemTasks := context.WithCancel(context.Background())
+	defer stopSystemTasks()
 
 	if common.RedisEnabled {
 		// for compatibility with old versions
@@ -177,10 +179,10 @@ func main() {
 	// schedules and executes them. Master-only execution and the UpdateTask
 	// switch are enforced inside the runner and each handler's Enabled().
 	if mode.runsScheduler() {
-		service.StartSystemTaskScheduler()
+		service.StartSystemTaskSchedulerContext(systemTaskCtx)
 	}
 	if mode.runsWorker() {
-		service.StartSystemTaskWorker()
+		service.StartSystemTaskWorkerContext(systemTaskCtx)
 	}
 
 	if mode.servesHTTP() && os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
@@ -208,11 +210,22 @@ func main() {
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-quit
 		common.SysLog(fmt.Sprintf("received signal: %v, shutting down...", sig))
+		stopSystemTasks()
+		shutdownTimeout := time.Duration(common.GetEnvOrDefault("SHUTDOWN_TIMEOUT_SECONDS", 120)) * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := service.WaitForSystemTasks(ctx); err != nil {
+			common.SysError(fmt.Sprintf("system tasks did not stop before shutdown deadline: %v", err))
+		}
 		return
 	}
 
 	// Initialize HTTP server
 	server := gin.New()
+	if err := configureTrustedProxies(server); err != nil {
+		common.FatalLog("failed to configure trusted proxies: " + err.Error())
+		return
+	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		reqID := c.GetString(common.RequestIdKey)
 		common.SysLog(fmt.Sprintf("panic detected request_id=%s: %v", reqID, err))
@@ -283,6 +296,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
 	common.SysLog(fmt.Sprintf("received signal: %v, shutting down...", sig))
+	stopSystemTasks()
 
 	// SSE streams may run for minutes; give them time to finish before forced exit
 	shutdownTimeout := time.Duration(common.GetEnvOrDefault("SHUTDOWN_TIMEOUT_SECONDS", 120)) * time.Second
@@ -290,6 +304,9 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(fmt.Sprintf("server forced to shutdown: %v", err))
+	}
+	if err := service.WaitForSystemTasks(ctx); err != nil {
+		common.SysError(fmt.Sprintf("system tasks did not stop before shutdown deadline: %v", err))
 	}
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {

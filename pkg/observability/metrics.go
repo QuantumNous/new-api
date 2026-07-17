@@ -84,7 +84,7 @@ func MetricsAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		expected := strings.TrimSpace(os.Getenv("METRICS_TOKEN"))
 		if expected == "" {
-			c.Next()
+			c.AbortWithStatus(http.StatusServiceUnavailable)
 			return
 		}
 		provided := strings.TrimSpace(strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "))

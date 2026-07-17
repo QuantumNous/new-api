@@ -1,6 +1,8 @@
 package model
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/url"
@@ -53,6 +55,29 @@ func initCol() {
 var DB *gorm.DB
 
 var LOG_DB *gorm.DB
+
+type sqlConnectionPoolConfig struct {
+	maxIdleConns int
+	maxOpenConns int
+	maxLifetime  time.Duration
+}
+
+func connectionPoolConfig() sqlConnectionPoolConfig {
+	return sqlConnectionPoolConfig{
+		maxIdleConns: common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100),
+		maxOpenConns: common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000),
+		maxLifetime: time.Second * time.Duration(
+			common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60),
+		),
+	}
+}
+
+func configureConnectionPool(sqlDB *sql.DB) {
+	config := connectionPoolConfig()
+	sqlDB.SetMaxIdleConns(config.maxIdleConns)
+	sqlDB.SetMaxOpenConns(config.maxOpenConns)
+	sqlDB.SetConnMaxLifetime(config.maxLifetime)
+}
 
 func createRootAccountIfNeed() error {
 	var user User
@@ -200,9 +225,7 @@ func InitDB() (err error) {
 		if err != nil {
 			return err
 		}
-		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
-		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+		configureConnectionPool(sqlDB)
 
 		if !common.IsMasterNode {
 			return nil
@@ -244,9 +267,7 @@ func InitLogDB() (err error) {
 		if err != nil {
 			return err
 		}
-		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
-		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+		configureConnectionPool(sqlDB)
 
 		if !common.IsMasterNode {
 			return nil
@@ -818,13 +839,7 @@ func PingDB() error {
 		return nil
 	}
 
-	sqlDB, err := DB.DB()
-	if err != nil {
-		log.Printf("Error getting sql.DB from GORM: %v", err)
-		return err
-	}
-
-	err = sqlDB.Ping()
+	err := PingDBContext(context.Background())
 	if err != nil {
 		log.Printf("Error pinging DB: %v", err)
 		return err
@@ -833,4 +848,12 @@ func PingDB() error {
 	lastPingTime = time.Now()
 	common.SysLog("Database pinged successfully")
 	return nil
+}
+
+func PingDBContext(ctx context.Context) error {
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
 }

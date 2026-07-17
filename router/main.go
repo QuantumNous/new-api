@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -43,9 +44,12 @@ func SetRouterForPlane(engine *gin.Engine, assets ThemeAssets, plane Plane) erro
 		return err
 	}
 	engine.Use(middleware.CORS())
-	engine.GET("/healthz", func(c *gin.Context) {
+	livenessHandler := func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "plane": plane})
-	})
+	}
+	engine.GET("/healthz", livenessHandler)
+	engine.GET("/livez", livenessHandler)
+	engine.GET("/readyz", controller.GetReadiness)
 
 	if plane == PlaneAll || plane == PlaneManagement {
 		SetApiRouter(engine)
