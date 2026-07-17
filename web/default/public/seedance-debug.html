@@ -271,7 +271,7 @@
   <main class="app">
     <header class="top">
       <div class="brand">
-        <div class="logo">四模型</div>
+        <div class="logo">五模型</div>
         <div>
           <h1>Seedance 视频调试</h1>
           <p class="sub">选择模型自动构建参数。本地图片经图床转公网 URL；Key 仅保存在本机浏览器。</p>
@@ -507,6 +507,20 @@
         showResolution: true,
         showAudioWatermark: false,
         showMingizSend: true,
+      },
+      "seedance2.0": {
+        label: "seedance2.0（OpenAI Videos）",
+        family: "openai",
+        hint: "OpenAI Videos 协议 · POST /v1/videos · 参考图须公网 URL（图床）；完成后用本站 /content 代理下载。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 8, 10, 12, 15],
+        defaultDuration: 15,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: false,
       },
     };
 
