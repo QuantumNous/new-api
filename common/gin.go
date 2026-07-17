@@ -64,6 +64,19 @@ func IsClientDisconnectError(err error) bool {
 	return errors.As(err, &opErr) && opErr.Op == "read"
 }
 
+// countingReader tallies bytes actually delivered by the client. Only used to
+// make a failed body read diagnosable; it adds one indirection per Read.
+type countingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
+}
+
 func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 	// 首先检查是否有 BodyStorage 缓存
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
@@ -97,10 +110,16 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 	contentLength := c.Request.ContentLength
 
 	// 使用新的存储系统
-	storage, err := CreateBodyStorageFromReader(c.Request.Body, contentLength, maxBytes)
+	// 统计实际读到的字节数：读 body 失败时，「收到了多少」是唯一能区分故障模式的
+	// 数字 —— 0 表示客户端压根没发（例如在等 100-continue），读到一半表示上传中途
+	// 卡死，接近 Content-Length 则是尾部被截断。io.ReadAll 出错时会丢弃已读数据，
+	// 所以只能在这里数。
+	counter := &countingReader{r: c.Request.Body}
+	storage, err := CreateBodyStorageFromReader(counter, contentLength, maxBytes)
 	_ = c.Request.Body.Close()
 
 	if err != nil {
+		SetContextKey(c, constant.ContextKeyRequestBodyReadBytes, counter.n)
 		if IsRequestBodyTooLargeError(err) {
 			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
 		}
@@ -195,6 +214,11 @@ func GetContextKey(c *gin.Context, key constant.ContextKey) (any, bool) {
 
 func GetContextKeyString(c *gin.Context, key constant.ContextKey) string {
 	return c.GetString(string(key))
+}
+
+func GetContextKeyInt64(c *gin.Context, key constant.ContextKey) int64 {
+	v, _ := GetContextKeyType[int64](c, key)
+	return v
 }
 
 func GetContextKeyInt(c *gin.Context, key constant.ContextKey) int {

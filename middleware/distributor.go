@@ -225,11 +225,16 @@ const StatusClientClosedRequest = 499
 // maxLoggedUserAgentLen 限制写进日志的 UA 长度，避免单条日志被超长 UA 撑爆。
 const maxLoggedUserAgentLen = 80
 
-// abortWithClientDisconnect 处理「客户端上传请求体途中掉线」。
+// abortWithClientDisconnect 处理「客户端在我们读完请求体之前掉线」。
 //
 // 这类请求从没选到渠道，因此不计费、也不会记到任何渠道的健康度上；客户端已经走了，
-// 响应大概率没人接收，所以唯一有价值的产物是日志。诊断字段刻意记全：靠 elapsed_ms
-// 与 ctx_err 就能区分是客户端自己超时、边缘代理掐断，还是我们读得太慢。
+// 响应大概率没人接收，所以唯一有价值的产物是日志。
+//
+// 字段是为了回答一个具体问题挑的：为什么 body 发不完。read_bytes 对比
+// content_length 是最关键的一刀 —— 0 说明客户端根本没开始发（例如卡在等
+// 100-continue），读到一半是上传途中断流，接近 content_length 是尾部截断。
+// 三者的 err 完全一样，只有这个数能分开。encoding 则用来识别「压缩流被截断」，
+// gzip/zstd reader 在那种情况下同样报 unexpected EOF。
 func abortWithClientDisconnect(c *gin.Context, err error, bodyReadStart time.Time) {
 	ctxErr := "none"
 	if e := c.Request.Context().Err(); e != nil {
@@ -240,9 +245,21 @@ func abortWithClientDisconnect(c *gin.Context, err error, bodyReadStart time.Tim
 	if r := []rune(ua); len(r) > maxLoggedUserAgentLen {
 		ua = string(r[:maxLoggedUserAgentLen])
 	}
+	// gzip 中间件会在解压后删掉 Content-Encoding，所以这里读它保存的原始值。
+	encoding := c.Request.Header.Get("Content-Encoding")
+	if orig, ok := c.Get(middlewareOriginalContentEncodingKey); ok {
+		if s, _ := orig.(string); s != "" {
+			encoding = s
+		}
+	}
+	if encoding == "" {
+		encoding = "identity"
+	}
 	logger.LogWarn(c, fmt.Sprintf(
-		"client_upload_aborted: err=%v ctx_err=%s elapsed_ms=%d content_length=%d proto=%s path=%s ua=%q",
-		err, ctxErr, time.Since(bodyReadStart).Milliseconds(), c.Request.ContentLength,
+		"client_upload_aborted: err=%v ctx_err=%s elapsed_ms=%d read_bytes=%d content_length=%d encoding=%s expect=%q proto=%s path=%s ua=%q",
+		err, ctxErr, time.Since(bodyReadStart).Milliseconds(),
+		common.GetContextKeyInt64(c, constant.ContextKeyRequestBodyReadBytes), c.Request.ContentLength,
+		encoding, c.Request.Header.Get("Expect"),
 		c.Request.Proto, c.Request.URL.Path, ua,
 	))
 	c.Status(StatusClientClosedRequest)

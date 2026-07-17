@@ -19,6 +19,13 @@ const (
 	// migrated to look slow, and every affinity key on it migrates away too.
 	ContextKeyAffinityColdStart ContextKey = "affinity_cold_start"
 
+	// ContextKeyRequestBodyReadBytes carries how many body bytes the client
+	// actually delivered before a read failed. Compared against Content-Length
+	// it is what separates "client never sent the body" from "upload stalled
+	// midway" from "tail truncated" — the read error itself looks identical in
+	// all three cases.
+	ContextKeyRequestBodyReadBytes ContextKey = "request_body_read_bytes"
+
 	/* token related keys */
 	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"
 	ContextKeyTokenKey               ContextKey = "token_key"

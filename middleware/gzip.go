@@ -11,6 +11,10 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
+// middlewareOriginalContentEncodingKey holds the request's Content-Encoding as
+// the client sent it, before the decompression branches below strip the header.
+const middlewareOriginalContentEncodingKey = "original_content_encoding"
+
 type readCloser struct {
 	io.Reader
 	closeFn func() error
@@ -38,6 +42,14 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 		origBody := c.Request.Body
 		wrapMaxBytes := func(body io.ReadCloser) io.ReadCloser {
 			return http.MaxBytesReader(c.Writer, body, maxBytes)
+		}
+
+		// Remember what the client actually sent: the branches below strip
+		// Content-Encoding after wrapping the body in a decompressor, which
+		// erases the only evidence that a later "unexpected EOF" was a truncated
+		// compressed stream rather than a truncated plain one.
+		if enc := c.GetHeader("Content-Encoding"); enc != "" {
+			c.Set(middlewareOriginalContentEncodingKey, enc)
 		}
 
 		switch c.GetHeader("Content-Encoding") {
