@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
@@ -84,7 +85,15 @@ export function UserCharts(props: UserChartsProps) {
   const timeGranularity = props.filters.timeGranularity
   const selectedRange = props.filters.selectedRange
   const topUserLimit = props.filters.topUserLimit
+  const username = props.filters.username
   const onFiltersChange = props.onFiltersChange
+
+  // 用户名输入即时更新到共享 filter，但网络请求做防抖，避免每次按键都发起查询。
+  const [debouncedUsername, setDebouncedUsername] = useState(username)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedUsername(username.trim()), 400)
+    return () => clearTimeout(timer)
+  }, [username])
 
   const timeRange = useMemo(() => {
     const { start, end } = getRollingDateRange(selectedRange)
@@ -93,6 +102,13 @@ export function UserCharts(props: UserChartsProps) {
       end_timestamp: Math.floor(end.getTime() / 1000),
     }
   }, [selectedRange])
+
+  const handleUsernameChange = useCallback(
+    (value: string) => {
+      onFiltersChange({ ...props.filters, username: value })
+    },
+    [onFiltersChange, props.filters]
+  )
 
   const handleRangeChange = useCallback(
     (days: number) => {
@@ -137,8 +153,12 @@ export function UserCharts(props: UserChartsProps) {
   }, [resolvedTheme])
 
   const { data: userData, isLoading } = useQuery({
-    queryKey: ['dashboard', 'user-quota', timeRange],
-    queryFn: () => getUserQuotaDataByUsers(timeRange),
+    queryKey: ['dashboard', 'user-quota', timeRange, debouncedUsername],
+    queryFn: () =>
+      getUserQuotaDataByUsers({
+        ...timeRange,
+        ...(debouncedUsername ? { username: debouncedUsername } : {}),
+      }),
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })
@@ -215,6 +235,13 @@ export function UserCharts(props: UserChartsProps) {
             ))}
           </TabsList>
         </Tabs>
+
+        <Input
+          value={username}
+          onChange={(e) => handleUsernameChange(e.target.value)}
+          placeholder={t('Filter by username')}
+          className='h-8 w-36 shrink-0 text-xs sm:w-44'
+        />
 
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />

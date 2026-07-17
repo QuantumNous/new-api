@@ -1396,6 +1396,30 @@ func GetUsernameById(id int, fromDB bool) (username string, err error) {
 	return username, nil
 }
 
+// UserIdentity 用于批量查询用户的用户名与显示名称，供日志、数据看板等展示层附加显示名称使用。
+type UserIdentity struct {
+	Id          int    `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+}
+
+// GetUserIdentitiesByIds 批量按用户 id 查询用户名与显示名称，返回以 id 为键的映射。
+// 显示名称不做冗余存储（用户改名后历史数据需保持一致），改由展示时实时关联主库 users 表。
+func GetUserIdentitiesByIds(ids []int) (map[int]UserIdentity, error) {
+	result := make(map[int]UserIdentity)
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var rows []UserIdentity
+	if err := DB.Model(&User{}).Select("id, username, display_name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		result[r.Id] = r
+	}
+	return result, nil
+}
+
 func IsLinuxDOIdAlreadyTaken(linuxDOId string) bool {
 	var user User
 	err := DB.Unscoped().Where("linux_do_id = ?", linuxDOId).First(&user).Error

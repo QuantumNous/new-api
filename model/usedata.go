@@ -2,12 +2,20 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 )
+
+// buildUsernameFuzzyPattern 将用户输入转义为字面串并用 % 包裹，用于模糊匹配。
+// 使用 ! 作为 ESCAPE 字符，兼容 MySQL/PostgreSQL/SQLite。
+func buildUsernameFuzzyPattern(username string) string {
+	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(username)
+	return "%" + escaped + "%"
+}
 
 // QuotaData 柱状图数据
 type QuotaData struct {
@@ -23,6 +31,8 @@ type QuotaData struct {
 	TokenUsed int    `json:"token_used" gorm:"default:0"`
 	Count     int    `json:"count" gorm:"default:0"`
 	Quota     int    `json:"quota" gorm:"default:0"`
+	// DisplayName 为展示用显示名称，不落库，按 user_id 实时关联主库 users 表填充。
+	DisplayName string `json:"display_name,omitempty" gorm:"-"`
 }
 
 type QuotaDataLogParams struct {
@@ -160,13 +170,32 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	return quotaDatas, err
 }
 
-func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+func GetQuotaDataGroupByUser(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
-	err = DB.Table("quota_data").
-		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
-		Where("created_at >= ? and created_at <= ?", startTime, endTime).
-		Group("username, created_at").
-		Find(&quotaDatas).Error
+	// 同时按 user_id 分组，便于展示层按 user_id 关联显示名称，并避免不同用户历史同名快照被错误合并。
+	tx := DB.Table("quota_data").
+		Select("user_id, username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if username != "" {
+		pattern := buildUsernameFuzzyPattern(username)
+		var userIds []int
+		if err = DB.Model(&User{}).
+			Where("username LIKE ? ESCAPE '!'", pattern).
+			Pluck("id", &userIds).Error; err != nil {
+			return nil, err
+		}
+		if len(userIds) == 0 {
+			tx = tx.Where("user_id <= ? AND username LIKE ? ESCAPE '!'", 0, pattern)
+		} else {
+			tx = tx.Where(
+				"user_id IN ? OR (user_id <= ? AND username LIKE ? ESCAPE '!')",
+				userIds,
+				0,
+				pattern,
+			)
+		}
+	}
+	err = tx.Group("user_id, username, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
 }
 

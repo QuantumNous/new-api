@@ -750,29 +750,66 @@ export function processUserChartData(
 
   if (!data || data.length === 0) return emptyResult
 
+  const userIdentityOf = (item: (typeof data)[number]) => {
+    const username = item.username || ''
+    const baseLabel = item.display_name || username || 'unknown'
+    const hasUserId = typeof item.user_id === 'number' && item.user_id > 0
+    const key = hasUserId
+      ? `id:${item.user_id}`
+      : `username:${username || baseLabel}`
+    return { key, username, baseLabel }
+  }
+
+  const identityByKey = new Map<
+    string,
+    { username: string; baseLabel: string }
+  >()
+  for (const item of data) {
+    const { key, username, baseLabel } = userIdentityOf(item)
+    if (!identityByKey.has(key)) {
+      identityByKey.set(key, { username, baseLabel })
+    }
+  }
+
+  const baseLabelCounts = new Map<string, number>()
+  for (const { baseLabel } of identityByKey.values()) {
+    baseLabelCounts.set(baseLabel, (baseLabelCounts.get(baseLabel) || 0) + 1)
+  }
+
+  const labelByKey = new Map<string, string>()
+  for (const [key, identity] of identityByKey) {
+    const duplicate = (baseLabelCounts.get(identity.baseLabel) || 0) > 1
+    const suffix = identity.username || key.replace(/^id:/, '#')
+    labelByKey.set(
+      key,
+      duplicate ? `${identity.baseLabel} (${suffix})` : identity.baseLabel
+    )
+  }
+
   const userQuotaTotal = new Map<string, number>()
   data.forEach((item) => {
-    const username = item.username || 'unknown'
-    const prev = userQuotaTotal.get(username) || 0
-    userQuotaTotal.set(username, prev + (Number(item.quota) || 0))
+    const { key } = userIdentityOf(item)
+    const prev = userQuotaTotal.get(key) || 0
+    userQuotaTotal.set(key, prev + (Number(item.quota) || 0))
   })
 
   const sorted = Array.from(userQuotaTotal.entries()).sort(
     (a, b) => b[1] - a[1]
   )
-  const topUsers = sorted.slice(0, limit).map(([u]) => u)
-  const topUserSet = new Set(topUsers)
+  const topUserKeys = sorted.slice(0, limit).map(([key]) => key)
+  const topUserKeySet = new Set(topUserKeys)
   const totalQuota = sorted.slice(0, limit).reduce((s, [, q]) => s + q, 0)
 
-  const rankValues = sorted.slice(0, limit).map(([username, quota]) => ({
-    User: username,
+  const rankValues = sorted.slice(0, limit).map(([userKey, quota]) => ({
+    User: labelByKey.get(userKey) || 'unknown',
     rawQuota: quota,
     Usage: Number((quota / quotaPerUnit).toFixed(4)),
   }))
 
-  const userColorMap = topUsers.reduce<Record<string, string>>(
-    (acc, user, i) => {
-      acc[user] = USER_COLORS[i % USER_COLORS.length]
+  const userColorMap = topUserKeys.reduce<Record<string, string>>(
+    (acc, userKey, i) => {
+      acc[labelByKey.get(userKey) || 'unknown'] =
+        USER_COLORS[i % USER_COLORS.length]
       return acc
     },
     {}
@@ -785,11 +822,11 @@ export function processUserChartData(
     const ts = Number(item.created_at)
     const timeKey = formatChartTime(ts, timeGranularity)
     allTimePoints.add(timeKey)
-    const user = item.username || 'unknown'
-    if (!topUserSet.has(user)) return
+    const { key } = userIdentityOf(item)
+    if (!topUserKeySet.has(key)) return
     if (!timeUserMap.has(timeKey)) timeUserMap.set(timeKey, new Map())
     const map = timeUserMap.get(timeKey)!
-    map.set(user, (map.get(user) || 0) + (Number(item.quota) || 0))
+    map.set(key, (map.get(key) || 0) + (Number(item.quota) || 0))
   })
 
   const sortedTimePoints = Array.from(allTimePoints).sort()
@@ -801,11 +838,11 @@ export function processUserChartData(
   }> = []
 
   sortedTimePoints.forEach((time) => {
-    topUsers.forEach((user) => {
-      const q = timeUserMap.get(time)?.get(user) || 0
+    topUserKeys.forEach((userKey) => {
+      const q = timeUserMap.get(time)?.get(userKey) || 0
       trendValues.push({
         Time: time,
-        User: user,
+        User: labelByKey.get(userKey) || 'unknown',
         rawQuota: q,
         Usage: Number((q / quotaPerUnit).toFixed(4)),
       })

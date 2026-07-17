@@ -27,10 +27,41 @@ func GetAllLogs(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	fillLogDisplayNames(logs)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+// fillLogDisplayNames 按 user_id 批量关联主库用户，为日志附加显示名称（不冗余存储，实时查询）。
+func fillLogDisplayNames(logs []*model.Log) {
+	if len(logs) == 0 {
+		return
+	}
+	idSet := make(map[int]struct{})
+	for _, log := range logs {
+		if log.UserId > 0 {
+			idSet[log.UserId] = struct{}{}
+		}
+	}
+	if len(idSet) == 0 {
+		return
+	}
+	ids := make([]int, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	identities, err := model.GetUserIdentitiesByIds(ids)
+	if err != nil {
+		common.SysLog("failed to fill log display names: " + err.Error())
+		return
+	}
+	for _, log := range logs {
+		if identity, ok := identities[log.UserId]; ok {
+			log.DisplayName = identity.DisplayName
+		}
+	}
 }
 
 func GetUserLogs(c *gin.Context) {
@@ -49,6 +80,7 @@ func GetUserLogs(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	fillLogDisplayNames(logs)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)

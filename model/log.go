@@ -63,6 +63,7 @@ type Log struct {
 	Type              int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content           string `json:"content"`
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
+	DisplayName       string `json:"display_name,omitempty" gorm:"-"`
 	TokenName         string `json:"token_name" gorm:"index;default:''"`
 	ModelName         string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
 	Quota             int    `json:"quota" gorm:"default:0"`

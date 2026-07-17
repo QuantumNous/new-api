@@ -486,13 +486,21 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       {
         id: 'user',
         header: t('User'),
-        accessorFn: (row) => row.username,
+        accessorFn: (row) => row.display_name || row.username,
         cell: function UserCell({ row }) {
           const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
             useUsageLogsContext()
           const log = row.original
 
-          if (!log.username) return null
+          if (!log.username && !log.display_name) return null
+
+          // 优先展示显示名称，username 作为次要标识（悬浮时展示）。
+          const primaryName = log.display_name || log.username
+          const showUsername = Boolean(
+            log.display_name &&
+            log.username &&
+            log.display_name !== log.username
+          )
 
           return (
             <button
@@ -512,11 +520,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   )}
                   style={
                     sensitiveVisible
-                      ? getUserAvatarStyle(log.username)
+                      ? getUserAvatarStyle(primaryName)
                       : undefined
                   }
                 >
-                  {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
+                  {sensitiveVisible ? getUserAvatarFallback(primaryName) : '•'}
                 </AvatarFallback>
               </Avatar>
               <TooltipProvider delay={300}>
@@ -526,11 +534,16 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
                     }
                   >
-                    {sensitiveVisible ? log.username : '••••'}
+                    {sensitiveVisible ? primaryName : '••••'}
                   </TooltipTrigger>
-                  {sensitiveVisible && log.username.length > 12 && (
-                    <TooltipContent side='top'>{log.username}</TooltipContent>
-                  )}
+                  {sensitiveVisible &&
+                    (showUsername || primaryName.length > 12) && (
+                      <TooltipContent side='top'>
+                        {showUsername
+                          ? `${primaryName} (${log.username})`
+                          : primaryName}
+                      </TooltipContent>
+                    )}
                 </Tooltip>
               </TooltipProvider>
             </button>

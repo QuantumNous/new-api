@@ -10,7 +10,7 @@ Chart aggregation will use a stable user identity derived from `user_id`. The vi
 
 - Use `display_name` when present; otherwise fall back to `username`.
 - When multiple user IDs share the same visible display name, disambiguate each label with its username, for example `用户显示名称A（用户名1）` and `用户显示名称A（用户名2）`.
-- If a legacy row has no `user_id`, use `username` as the identity fallback so existing data remains usable.
+- If a legacy row has no positive `user_id` (missing values are serialized as `0`), use `username` as the identity fallback so existing data remains usable.
 
 ## Data Flow
 
@@ -24,7 +24,7 @@ Both ranking and trend output will use the same final label map, so the bar char
 
 ## Compatibility and Scope
 
-The backend response and TypeScript API types do not change. The fix is limited to chart processing and its regression test. It does not alter database storage, user records, filtering behavior, or unrelated dashboard charts.
+The backend response and TypeScript API types do not change. Username filtering first resolves current matching users to IDs so renamed users retain their complete history; legacy rows without a positive user ID still use snapshot-username matching. The change does not alter database storage, user records, or unrelated dashboard charts.
 
 ## Testing
 
@@ -34,5 +34,7 @@ Add a deterministic regression test containing two different `user_id` values wi
 - quota totals are not combined;
 - the labels use the approved `显示名称（用户名）` format;
 - two independent trend series remain.
+
+Add an API regression test proving that filtering by a user's current username returns quota rows recorded under both the old and current usernames, with the current username and display name attached to the response.
 
 Run the targeted chart test, frontend type checking, changed-file lint and formatting checks, the frontend production build, and the full Go test suite before creating the pull request.

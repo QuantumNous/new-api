@@ -26,6 +26,7 @@ export interface QuotaDataItem {
   id?: number
   user_id?: number
   username?: string
+  display_name?: string
   model_name?: string
   created_at: number
   token_used?: number
@@ -208,6 +209,7 @@ export interface UserChartsFilters {
   timeGranularity: TimeGranularity
   selectedRange: number
   topUserLimit: number
+  username: string
 }
 
 // ============================================================================

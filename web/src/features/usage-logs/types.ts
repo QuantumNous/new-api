@@ -280,6 +280,7 @@ export interface TaskLog {
   id: number
   user_id: number
   username?: string
+  display_name?: string
   platform: string // suno, kling, runway, etc.
   task_id: string
   action: string // MUSIC, LYRICS, GENERATE, TEXT_GENERATE, etc.

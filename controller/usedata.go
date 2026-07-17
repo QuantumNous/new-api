@@ -48,16 +48,49 @@ func GetAllQuotaDates(c *gin.Context) {
 func GetQuotaDatesByUser(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp)
+	username := c.Query("username")
+	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp, username)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	fillQuotaDataDisplayNames(dates)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    dates,
 	})
+}
+
+// fillQuotaDataDisplayNames 按 user_id 批量关联主库用户，为数据看板统计附加显示名称。
+func fillQuotaDataDisplayNames(dates []*model.QuotaData) {
+	if len(dates) == 0 {
+		return
+	}
+	idSet := make(map[int]struct{})
+	for _, d := range dates {
+		if d.UserID > 0 {
+			idSet[d.UserID] = struct{}{}
+		}
+	}
+	if len(idSet) == 0 {
+		return
+	}
+	ids := make([]int, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	identities, err := model.GetUserIdentitiesByIds(ids)
+	if err != nil {
+		common.SysLog("failed to fill quota data display names: " + err.Error())
+		return
+	}
+	for _, d := range dates {
+		if identity, ok := identities[d.UserID]; ok {
+			d.Username = identity.Username
+			d.DisplayName = identity.DisplayName
+		}
+	}
 }
 
 func GetUserQuotaDates(c *gin.Context) {

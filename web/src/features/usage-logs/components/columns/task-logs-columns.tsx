@@ -123,12 +123,13 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }), {
       id: 'user',
       header: t('User'),
-      accessorFn: (row) => row.username || row.user_id,
+      accessorFn: (row) => row.display_name || row.username || row.user_id,
       cell: function UserCell({ row }) {
         const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
           useUsageLogsContext()
         const log = row.original
-        const displayName = log.username || String(log.user_id || '?')
+        const displayName =
+          log.display_name || log.username || String(log.user_id || '?')
 
         return (
           <button
