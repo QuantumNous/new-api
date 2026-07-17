@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 import type { TokenUnit } from './types'
 
@@ -132,6 +132,17 @@ export const TOKEN_UNIT_DIVISORS = {
 
 /** Default token unit for pricing display */
 export const DEFAULT_TOKEN_UNIT: TokenUnit = 'M'
+
+/** Currency used by the public model catalog. Prices are displayed 1:1. */
+export const PRICING_CURRENCIES = {
+  CNY: 'CNY',
+  USD: 'USD',
+} as const
+
+export type PricingCurrency =
+  (typeof PRICING_CURRENCIES)[keyof typeof PRICING_CURRENCIES]
+
+export const DEFAULT_PRICING_CURRENCY: PricingCurrency = PRICING_CURRENCIES.CNY
 
 /** View mode options */
 export const VIEW_MODES = {

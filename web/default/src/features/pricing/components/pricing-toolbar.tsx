@@ -16,8 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowUpDown, Check, Filter, Grid2X2, Table2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import {
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  Filter,
+  Grid2X2,
+  Table2,
+} from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -30,6 +37,7 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -48,13 +56,16 @@ import {
 import { cn } from '@/lib/utils'
 
 import {
+  PRICING_CURRENCIES,
   VIEW_MODES,
   getSortLabels,
+  type PricingCurrency,
   type SortOption,
   type ViewMode,
 } from '../constants'
 import type { PricingModel, PricingVendor, TokenUnit } from '../types'
 import { PricingSidebar } from './pricing-sidebar'
+import { SearchBar } from './search-bar'
 
 type SegmentOption = {
   value: string
@@ -64,14 +75,17 @@ type SegmentOption = {
 }
 
 export interface PricingToolbarProps {
+  searchInput: string
+  onSearchChange: (value: string) => void
+  onClearSearch: () => void
   filteredCount: number
   totalCount?: number
   sortBy: string
   onSortChange: (value: string) => void
   tokenUnit: TokenUnit
   onTokenUnitChange: (value: TokenUnit) => void
-  showRechargePrice: boolean
-  onRechargePriceChange: (value: boolean) => void
+  displayCurrency: PricingCurrency
+  onCurrencyChange: (value: PricingCurrency) => void
   viewMode: ViewMode
   onViewModeChange: (value: ViewMode) => void
   quotaTypeFilter: string
@@ -92,6 +106,11 @@ export interface PricingToolbarProps {
   hasActiveFilters: boolean
   activeFilterCount: number
   onClearFilters: () => void
+}
+
+type FilterDropdownOption = {
+  value: string
+  label: string
 }
 
 function SegmentedControl(props: {
@@ -134,7 +153,7 @@ function SegmentedControl(props: {
 
         return (
           <Tooltip key={option.value}>
-            <TooltipTrigger render={button}></TooltipTrigger>
+            <TooltipTrigger render={button} />
             <TooltipContent side='bottom' className='text-xs'>
               {option.tooltip}
             </TooltipContent>
@@ -145,46 +164,138 @@ function SegmentedControl(props: {
   )
 }
 
+function FilterDropdown(props: {
+  label: string
+  value: string
+  options: FilterDropdownOption[]
+  onChange: (value: string) => void
+}) {
+  const selectedLabel =
+    props.options.find((option) => option.value === props.value)?.label ||
+    props.options[0]?.label ||
+    props.label
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type='button'
+            variant='outline'
+            className='h-10 w-full justify-between px-3 font-normal'
+          />
+        }
+      >
+        <span className='flex min-w-0 items-center gap-2'>
+          <span className='text-muted-foreground shrink-0 text-xs'>
+            {props.label}
+          </span>
+          <span className='truncate text-sm font-medium'>{selectedLabel}</span>
+        </span>
+        <ChevronDown data-icon='inline-end' />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        className='min-w-[var(--anchor-width)]'
+      >
+        <DropdownMenuGroup>
+          {props.options.map((option) => (
+            <DropdownMenuItem
+              key={option.value}
+              onClick={() => props.onChange(option.value)}
+            >
+              <Check
+                className={cn(
+                  props.value === option.value ? 'opacity-100' : 'opacity-0'
+                )}
+              />
+              <span className='truncate'>{option.label}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export function PricingToolbar(props: PricingToolbarProps) {
   const { t } = useTranslation()
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const sortLabels = getSortLabels(t)
 
-  const handleTokenUnitChange = useCallback(
-    (value: string) => props.onTokenUnitChange(value as TokenUnit),
-    [props]
-  )
+  const handleTokenUnitChange = (value: string) => {
+    props.onTokenUnitChange(value as TokenUnit)
+  }
 
-  const handleViewModeChange = useCallback(
-    (value: string) => props.onViewModeChange(value as ViewMode),
-    [props]
-  )
+  const handleViewModeChange = (value: string) => {
+    props.onViewModeChange(value as ViewMode)
+  }
 
-  const handleRechargePriceChange = useCallback(
-    (value: string) => props.onRechargePriceChange(value === 'recharge'),
-    [props]
-  )
+  const handleCurrencyChange = (value: string) => {
+    props.onCurrencyChange(value as PricingCurrency)
+  }
+
+  const vendorOptions: FilterDropdownOption[] = [
+    { value: 'all', label: t('All Vendors') },
+    ...props.vendors.map((vendor) => ({
+      value: vendor.name,
+      label: vendor.name,
+    })),
+  ]
+  const groupOptions: FilterDropdownOption[] = [
+    { value: 'all', label: t('All Groups') },
+    ...props.groups.map((group) => ({ value: group, label: group })),
+  ]
 
   return (
-    <div className='rounded-xl border p-3'>
-      <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
-        <div className='flex items-center gap-2'>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            onClick={() => setMobileFiltersOpen(true)}
-            className='gap-1.5 xl:hidden'
+    <section className='flex flex-col gap-3'>
+      <div className='grid gap-3 md:grid-cols-2 lg:grid-cols-[minmax(280px,1fr)_220px_220px_auto]'>
+        <SearchBar
+          value={props.searchInput}
+          onChange={props.onSearchChange}
+          onClear={props.onClearSearch}
+          placeholder={t('Search model name, provider, endpoint, or tag...')}
+          className='md:col-span-2 lg:col-span-1'
+        />
+        <FilterDropdown
+          label={t('Provider')}
+          value={props.vendorFilter}
+          options={vendorOptions}
+          onChange={props.onVendorChange}
+        />
+        <FilterDropdown
+          label={t('Pricing group')}
+          value={props.groupFilter}
+          options={groupOptions}
+          onChange={props.onGroupChange}
+        />
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type='button'
+                variant='outline'
+                size='icon'
+                onClick={() => setMobileFiltersOpen(true)}
+                className='relative size-10'
+                aria-label={t('More filters')}
+              />
+            }
           >
-            <Filter className='size-4' />
-            {t('Filter')}
+            <Filter />
             {props.activeFilterCount > 0 && (
-              <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+              <Badge className='absolute -top-2 -right-2 size-5 justify-center p-0 text-[10px]'>
                 {props.activeFilterCount}
               </Badge>
             )}
-          </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('More filters')}</TooltipContent>
+        </Tooltip>
+      </div>
 
+      <div className='border-border/70 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='flex items-center gap-2'>
           <div className='text-muted-foreground flex items-baseline gap-1 text-sm'>
             <span className='text-foreground font-semibold tabular-nums'>
               {props.filteredCount.toLocaleString()}
@@ -199,15 +310,15 @@ export function PricingToolbar(props: PricingToolbarProps) {
         </div>
 
         <div className='flex flex-wrap items-center gap-2'>
-          <div className='hidden items-center gap-2 sm:flex'>
+          <div className='flex items-center gap-2'>
             <SegmentedControl
               options={[
-                { value: 'standard', label: t('Standard') },
-                { value: 'recharge', label: t('Recharge') },
+                { value: PRICING_CURRENCIES.CNY, label: '¥ CNY' },
+                { value: PRICING_CURRENCIES.USD, label: '$ USD' },
               ]}
-              value={props.showRechargePrice ? 'recharge' : 'standard'}
-              onChange={handleRechargePriceChange}
-              ariaLabel={t('Price display mode')}
+              value={props.displayCurrency}
+              onChange={handleCurrencyChange}
+              ariaLabel={t('Currency')}
             />
             <SegmentedControl
               options={[
@@ -235,21 +346,21 @@ export function PricingToolbar(props: PricingToolbarProps) {
               <span>{sortLabels[props.sortBy as SortOption] || t('Sort')}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end' className='w-44'>
-              {Object.entries(sortLabels).map(([value, label]) => (
-                <DropdownMenuItem
-                  key={value}
-                  onClick={() => props.onSortChange(value)}
-                  className='gap-2'
-                >
-                  <Check
-                    className={cn(
-                      'size-4 shrink-0',
-                      props.sortBy === value ? 'opacity-100' : 'opacity-0'
-                    )}
-                  />
-                  {label}
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuGroup>
+                {Object.entries(sortLabels).map(([value, label]) => (
+                  <DropdownMenuItem
+                    key={value}
+                    onClick={() => props.onSortChange(value)}
+                  >
+                    <Check
+                      className={cn(
+                        props.sortBy === value ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -308,6 +419,6 @@ export function PricingToolbar(props: PricingToolbarProps) {
           </div>
         </SheetContent>
       </Sheet>
-    </div>
+    </section>
   )
 }
