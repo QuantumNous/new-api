@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
 
 	"github.com/stretchr/testify/require"
 )
@@ -201,4 +202,94 @@ func TestLatencyBucket(t *testing.T) {
 		b := latencyBucket(tt.latency)
 		require.Equal(t, tt.bucket, b, "latencyBucket(%v)", tt.latency)
 	}
+}
+
+func TestAdaptiveFilteringRecomputesHalfOpenProbeScore(t *testing.T) {
+	channelID := 220
+	circuitBreakers.Delete(channelID)
+	t.Cleanup(func() { circuitBreakers.Delete(channelID) })
+
+	cb := getCircuitBreaker(channelID)
+	cb.mu.Lock()
+	cb.State = CircuitOpen
+	cb.OpenUntil = time.Now().Add(-time.Second)
+	cb.ConsecutiveFailure = 3
+	cb.mu.Unlock()
+
+	ch := testChannel(channelID, 10, 100)
+	candidates := ScoreCandidates([]*model.Channel{ch}, "test", "gpt-4", 0)
+	require.Len(t, candidates, 1)
+	require.Zero(t, candidates[0].Score)
+
+	filtered, permits := filterAdaptiveCandidates(
+		candidates,
+		"test",
+		"gpt-4",
+		0,
+		nil,
+		false,
+	)
+	require.Len(t, filtered, 1)
+	require.Greater(t, filtered[0].Score, 0.0)
+	require.True(t, permits[channelID].HalfOpen)
+	ReleaseCircuitPermit(permits[channelID])
+}
+
+func TestAdaptiveLegacyFallbackPolicyDoesNotBypassFiltering(t *testing.T) {
+	require.True(t, shouldFallbackToLegacy(0, 0, false))
+	require.False(t, shouldFallbackToLegacy(2, 0, false))
+	require.True(t, shouldFallbackToLegacy(2, 0, true))
+}
+
+func TestOpenCircuitIgnoresLateSuccess(t *testing.T) {
+	channelID := 221
+	circuitBreakers.Delete(channelID)
+	t.Cleanup(func() { circuitBreakers.Delete(channelID) })
+
+	RecordCircuitFailure(channelID, "500")
+	RecordCircuitFailure(channelID, "500")
+	RecordCircuitFailure(channelID, "500")
+	require.True(t, IsCircuitOpen(channelID))
+
+	RecordCircuitSuccess(channelID)
+	state, failures, _ := GetCircuitState(channelID)
+	require.Equal(t, CircuitOpen, state)
+	require.Equal(t, 3, failures)
+}
+
+func TestGetMetricsReturnsImmutableSnapshot(t *testing.T) {
+	channelID := 222
+	ObserveSuccess(channelID, "snapshot", "gpt-4", 250*time.Millisecond)
+
+	first := GetMetrics(channelID, "snapshot", "gpt-4")
+	first.SuccessRate = 0
+	first.AvgLatency = 99 * time.Second
+
+	second := GetMetrics(channelID, "snapshot", "gpt-4")
+	require.Greater(t, second.SuccessRate, 0.0)
+	require.NotEqual(t, 99*time.Second, second.AvgLatency)
+}
+
+func TestHalfOpenClientErrorReleasesProbeAndClosesCircuit(t *testing.T) {
+	channelID := 223
+	circuitBreakers.Delete(channelID)
+	t.Cleanup(func() { circuitBreakers.Delete(channelID) })
+
+	cb := getCircuitBreaker(channelID)
+	cb.mu.Lock()
+	cb.State = CircuitOpen
+	cb.OpenUntil = time.Now().Add(-time.Second)
+	cb.ConsecutiveFailure = 3
+	cb.mu.Unlock()
+	permit, ok := AcquireCircuitPermit(channelID)
+	require.True(t, ok)
+	require.True(t, permit.HalfOpen)
+
+	ctx, _ := gin.CreateTestContext(nil)
+	ctx.Set(string(ctxKeyAdaptiveCircuitPermit), permit)
+	RecordAdaptiveResult(ctx, channelID, "test", "gpt-4", 400, time.Millisecond, fmt.Errorf("bad request"))
+
+	state, failures, _ := GetCircuitState(channelID)
+	require.Equal(t, CircuitClosed, state)
+	require.Zero(t, failures)
 }

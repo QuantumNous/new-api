@@ -128,7 +128,7 @@ func cacheGetRandomSatisfiedChannelLegacy(param *RetryParam) (*model.Channel, st
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath)
+			channel, _ = model.GetRandomSatisfiedChannelExcluding(autoGroup, param.ModelName, priorityRetry, param.RequestPath, adaptiveUsedChannelSet(param.Ctx))
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -166,7 +166,7 @@ func cacheGetRandomSatisfiedChannelLegacy(param *RetryParam) (*model.Channel, st
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+		channel, err = model.GetRandomSatisfiedChannelExcluding(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath, adaptiveUsedChannelSet(param.Ctx))
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

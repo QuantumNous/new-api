@@ -16,13 +16,13 @@ type CandidateScore struct {
 	Score   float64
 
 	// 各因子明细（供日志/观测用）
-	BaseWeight       float64 `json:"base_weight"`
-	SuccessFactor    float64 `json:"success_factor"`
-	LatencyFactor    float64 `json:"latency_factor"`
-	RateLimitFactor  float64 `json:"rate_limit_factor"`
+	BaseWeight        float64 `json:"base_weight"`
+	SuccessFactor     float64 `json:"success_factor"`
+	LatencyFactor     float64 `json:"latency_factor"`
+	RateLimitFactor   float64 `json:"rate_limit_factor"`
 	ConcurrencyFactor float64 `json:"concurrency_factor"`
-	CircuitFactor    float64 `json:"circuit_factor"`
-	AffinityFactor   float64 `json:"affinity_factor"`
+	CircuitFactor     float64 `json:"circuit_factor"`
+	AffinityFactor    float64 `json:"affinity_factor"`
 }
 
 // ScoreCandidates 对一组渠道进行动态评分，返回排序后的候选列表
@@ -35,36 +35,6 @@ func ScoreCandidates(channels []*model.Channel, group, model string, preferredCh
 	candidates := make([]CandidateScore, 0, len(channels))
 
 	for _, ch := range channels {
-		metrics := GetMetrics(ch.Id, group, model)
-		baseWeight := float64(ch.GetWeight())
-		if baseWeight <= 0 {
-			baseWeight = 1.0
-		}
-
-		// 1. 成功率因子 [0, 1]：success_rate^2，让低成功率显著降权
-		successFactor := math.Pow(metrics.SuccessRate, 2)
-
-		// 2. 延迟因子 [0, 1]：基于 EWMA 平均延迟
-		latencyMs := float64(metrics.AvgLatency) / float64(time.Millisecond)
-		latencyFactor := latencyToScore(latencyMs)
-
-		// 3. 限流因子 [0, 1]：429 率越低越好
-		rateLimitFactor := 1.0 - metrics.RateLimitRate
-		if rateLimitFactor < 0 {
-			rateLimitFactor = 0
-		}
-
-		// 4. 并发因子 [0, 1]：当前并发 / 最大并发
-		currentConcurrency := GetChannelConcurrency(ch.Id)
-		maxConcurrency := int64(constant.MaxChannelConcurrency)
-		concurrencyFactor := 1.0
-		if maxConcurrency > 0 && currentConcurrency >= maxConcurrency {
-			concurrencyFactor = 0.1 // 超限降权但不完全排除
-		} else if maxConcurrency > 0 {
-			concurrencyFactor = 1.0 - float64(currentConcurrency)/float64(maxConcurrency)*0.5
-		}
-
-		// 5. 熔断因子 [0, 1]
 		circuitFactor := 1.0
 		if constant.ChannelCircuitBreakerEnabled {
 			if IsCircuitOpen(ch.Id) {
@@ -76,30 +46,7 @@ func ScoreCandidates(channels []*model.Channel, group, model string, preferredCh
 			}
 		}
 
-		// 6. 亲和因子 [1.0, 1.5]
-		affinityFactor := 1.0
-		if preferredChannelID > 0 && ch.Id == preferredChannelID {
-			affinityFactor = 1.5
-		}
-
-		score := baseWeight * successFactor * latencyFactor * rateLimitFactor *
-			concurrencyFactor * circuitFactor * affinityFactor
-
-		// 注入 jitter (±5%)，防止同分渠道集中
-		jitter := 0.95 + rand.Float64()*0.1
-		score *= jitter
-
-		candidates = append(candidates, CandidateScore{
-			Channel:          ch,
-			Score:            score,
-			BaseWeight:       baseWeight,
-			SuccessFactor:    successFactor,
-			LatencyFactor:    latencyFactor,
-			RateLimitFactor:  rateLimitFactor,
-			ConcurrencyFactor: concurrencyFactor,
-			CircuitFactor:    circuitFactor,
-			AffinityFactor:   affinityFactor,
-		})
+		candidates = append(candidates, scoreCandidate(ch, group, model, preferredChannelID, circuitFactor))
 	}
 
 	// 按分数降序排序
@@ -108,6 +55,47 @@ func ScoreCandidates(channels []*model.Channel, group, model string, preferredCh
 	})
 
 	return candidates
+}
+
+func scoreCandidate(ch *model.Channel, group, model string, preferredChannelID int, circuitFactor float64) CandidateScore {
+	metrics := GetMetrics(ch.Id, group, model)
+	baseWeight := float64(ch.GetWeight())
+	if baseWeight <= 0 {
+		baseWeight = 1.0
+	}
+	successFactor := math.Pow(metrics.SuccessRate, 2)
+	latencyMs := float64(metrics.AvgLatency) / float64(time.Millisecond)
+	latencyFactor := latencyToScore(latencyMs)
+	rateLimitFactor := math.Max(0, 1.0-metrics.RateLimitRate)
+
+	currentConcurrency := GetChannelConcurrency(ch.Id)
+	maxConcurrency := int64(constant.MaxChannelConcurrency)
+	concurrencyFactor := 1.0
+	if maxConcurrency > 0 && currentConcurrency >= maxConcurrency {
+		concurrencyFactor = 0.1
+	} else if maxConcurrency > 0 {
+		concurrencyFactor = 1.0 - float64(currentConcurrency)/float64(maxConcurrency)*0.5
+	}
+
+	affinityFactor := 1.0
+	if preferredChannelID > 0 && ch.Id == preferredChannelID {
+		affinityFactor = 1.5
+	}
+	score := baseWeight * successFactor * latencyFactor * rateLimitFactor *
+		concurrencyFactor * circuitFactor * affinityFactor
+	score *= 0.95 + rand.Float64()*0.1
+
+	return CandidateScore{
+		Channel:           ch,
+		Score:             score,
+		BaseWeight:        baseWeight,
+		SuccessFactor:     successFactor,
+		LatencyFactor:     latencyFactor,
+		RateLimitFactor:   rateLimitFactor,
+		ConcurrencyFactor: concurrencyFactor,
+		CircuitFactor:     circuitFactor,
+		AffinityFactor:    affinityFactor,
+	}
 }
 
 // SelectTopKWeighted 从候选列表中取 topK 然后按 score 加权随机选一个

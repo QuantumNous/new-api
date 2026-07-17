@@ -201,6 +201,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
+			service.ReleaseAdaptiveCircuitPermit(c, channel.Id)
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
 			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
@@ -305,6 +306,7 @@ func isRealtimeWebSocketOriginAllowed(r *http.Request) bool {
 }
 
 func addUsedChannel(c *gin.Context, channelId int) {
+	service.MarkChannelUsed(c, channelId)
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)
@@ -366,6 +368,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
 	if newAPIError != nil {
+		service.ReleaseAdaptiveCircuitPermit(c, channel.Id)
 		return nil, newAPIError
 	}
 	return channel, nil
@@ -378,16 +381,22 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false
 	}
-	if types.IsChannelError(openaiErr) {
-		return true
-	}
-	if types.IsSkipRetryError(openaiErr) {
-		return false
-	}
 	if retryTimes <= 0 {
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	if openaiErr.GetErrorCode() == types.ErrorCodeGetChannelFailed {
+		return false
+	}
+	if isUpstreamChannelQuotaError(openaiErr) {
+		return true
+	}
+	if types.IsChannelError(openaiErr) {
+		return true
+	}
+	if types.IsSkipRetryError(openaiErr) {
 		return false
 	}
 	code := openaiErr.StatusCode
@@ -401,6 +410,44 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	return operation_setting.ShouldRetryByStatusCode(code)
+}
+
+func isUpstreamChannelQuotaError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	code := strings.ToLower(strings.TrimSpace(string(err.GetErrorCode())))
+	if code == string(types.ErrorCodeInsufficientUserQuota) || code == string(types.ErrorCodePreConsumeTokenQuotaFailed) {
+		return false
+	}
+	if err.StatusCode == http.StatusPaymentRequired {
+		return true
+	}
+	for _, marker := range []string{
+		"insufficient_quota",
+		"quota_exceeded",
+		"billing_hard_limit_reached",
+		"insufficient_balance",
+		"insufficient_credits",
+	} {
+		if strings.Contains(code, marker) {
+			return true
+		}
+	}
+	message := strings.ToLower(err.Error())
+	for _, marker := range []string{
+		"insufficient quota",
+		"quota exceeded",
+		"insufficient balance",
+		"insufficient credit",
+		"额度不足",
+		"余额不足",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {

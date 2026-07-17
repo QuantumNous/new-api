@@ -1,9 +1,10 @@
 package service
 
 import (
-	"github.com/QuantumNous/new-api/constant"
 	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/constant"
 )
 
 // CircuitState 熔断器状态
@@ -27,6 +28,13 @@ type ChannelCircuitBreaker struct {
 	HalfOpenInFlight   int       // half-open 进行中的探测数
 	HalfOpenSince      time.Time // when current half-open probe started
 	LastError          string    // 最近一次错误信息
+	Generation         uint64    // invalidates results from requests started before a transition
+}
+
+type CircuitPermit struct {
+	ChannelID  int
+	Generation uint64
+	HalfOpen   bool
 }
 
 var (
@@ -82,15 +90,43 @@ func RecordCircuitSuccess(channelID int) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	if cb.State == CircuitHalfOpen {
-		cb.HalfOpenInFlight--
-		if cb.HalfOpenInFlight < 0 {
-			cb.HalfOpenInFlight = 0
-		}
-		cb.HalfOpenSince = time.Time{}
+	// A success without a selection-time permit may be a late result from a
+	// request that started before the circuit opened. It must not close an
+	// open/half-open circuit.
+	if cb.State != CircuitClosed {
+		return
+	}
+	cb.ConsecutiveFailure = 0
+	cb.OpenUntil = time.Time{}
+	cb.LastError = ""
+}
+
+func RecordCircuitSuccessWithPermit(permit CircuitPermit) {
+	if !constant.ChannelCircuitBreakerEnabled || permit.ChannelID <= 0 {
+		return
 	}
 
-	cb.State = CircuitClosed
+	cb := getCircuitBreaker(permit.ChannelID)
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	if permit.Generation != cb.Generation {
+		return
+	}
+	if permit.HalfOpen {
+		if cb.State != CircuitHalfOpen {
+			return
+		}
+		if cb.HalfOpenInFlight > 0 {
+			cb.HalfOpenInFlight--
+		}
+		cb.State = CircuitClosed
+		cb.Generation++
+		cb.HalfOpenSince = time.Time{}
+	} else if cb.State != CircuitClosed {
+		return
+	}
+
 	cb.ConsecutiveFailure = 0
 	cb.OpenUntil = time.Time{}
 	cb.LastError = ""
@@ -101,70 +137,115 @@ func RecordCircuitFailure(channelID int, errMsg string) {
 	if !constant.ChannelCircuitBreakerEnabled {
 		return
 	}
-
 	cb := getCircuitBreaker(channelID)
+	cb.mu.RLock()
+	permit := CircuitPermit{ChannelID: channelID, Generation: cb.Generation}
+	cb.mu.RUnlock()
+	RecordCircuitFailureWithPermit(permit, errMsg)
+}
+
+func RecordCircuitFailureWithPermit(permit CircuitPermit, errMsg string) {
+	if !constant.ChannelCircuitBreakerEnabled || permit.ChannelID <= 0 {
+		return
+	}
+
+	cb := getCircuitBreaker(permit.ChannelID)
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	cb.ConsecutiveFailure++
-	cb.LastError = errMsg
-
-	// 半开状态下失败 -> 立即回退到 open
-	if cb.State == CircuitHalfOpen {
-		cb.HalfOpenInFlight--
-		if cb.HalfOpenInFlight < 0 {
-			cb.HalfOpenInFlight = 0
+	if permit.Generation != cb.Generation {
+		return
+	}
+	if permit.HalfOpen {
+		if cb.State != CircuitHalfOpen {
+			return
+		}
+		if cb.HalfOpenInFlight > 0 {
+			cb.HalfOpenInFlight--
 		}
 		cb.HalfOpenSince = time.Time{}
 		cb.State = CircuitOpen
+		cb.Generation++
+		cb.ConsecutiveFailure++
+		cb.LastError = errMsg
 		cb.OpenUntil = time.Now().Add(time.Duration(constant.ChannelCooldownSeconds) * time.Second)
 		return
 	}
+	if cb.State != CircuitClosed {
+		return
+	}
+
+	cb.ConsecutiveFailure++
+	cb.LastError = errMsg
 
 	// closed 状态下连续失败达到阈值 -> open
 	threshold := 3
 	if cb.ConsecutiveFailure >= threshold {
 		cb.State = CircuitOpen
+		cb.Generation++
 		cb.OpenUntil = time.Now().Add(time.Duration(constant.ChannelCooldownSeconds) * time.Second)
 	}
 
 	// 如果配置了熔断但未启用，不做任何事
 }
 
-// ProbeHalfOpen 申请进入 half-open 探测（由选择器调用）
-func ProbeHalfOpen(channelID int) bool {
+func AcquireCircuitPermit(channelID int) (CircuitPermit, bool) {
 	if !constant.ChannelCircuitBreakerEnabled {
-		return true
+		return CircuitPermit{ChannelID: channelID}, true
 	}
 
 	cb := getCircuitBreaker(channelID)
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	// open 且已过冷却 -> 自动转为 half-open
+	if cb.State == CircuitClosed {
+		return CircuitPermit{ChannelID: channelID, Generation: cb.Generation}, true
+	}
 	if cb.State == CircuitOpen && time.Now().After(cb.OpenUntil) {
 		cb.State = CircuitHalfOpen
 		cb.HalfOpenInFlight = 0
+		cb.HalfOpenSince = time.Time{}
 	}
-
 	if cb.State != CircuitHalfOpen {
-		return false
+		return CircuitPermit{}, false
 	}
 
-	// Reclaim stuck half-open probes (client cancel / no Record* callback).
 	const halfOpenProbeTimeout = 60 * time.Second
 	if cb.HalfOpenInFlight > 0 && !cb.HalfOpenSince.IsZero() && time.Since(cb.HalfOpenSince) > halfOpenProbeTimeout {
 		cb.HalfOpenInFlight = 0
 		cb.HalfOpenSince = time.Time{}
 	}
-
 	if cb.HalfOpenInFlight >= cb.HalfOpenLimit {
-		return false
+		return CircuitPermit{}, false
 	}
 
 	cb.HalfOpenInFlight++
 	cb.HalfOpenSince = time.Now()
-	return true
+	return CircuitPermit{ChannelID: channelID, Generation: cb.Generation, HalfOpen: true}, true
+}
+
+func ReleaseCircuitPermit(permit CircuitPermit) {
+	if !constant.ChannelCircuitBreakerEnabled || !permit.HalfOpen || permit.ChannelID <= 0 {
+		return
+	}
+	cb := getCircuitBreaker(permit.ChannelID)
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	if cb.State != CircuitHalfOpen || cb.Generation != permit.Generation {
+		return
+	}
+	if cb.HalfOpenInFlight > 0 {
+		cb.HalfOpenInFlight--
+	}
+	if cb.HalfOpenInFlight == 0 {
+		cb.HalfOpenSince = time.Time{}
+	}
+}
+
+// ProbeHalfOpen 申请进入 half-open 探测（由选择器调用）
+func ProbeHalfOpen(channelID int) bool {
+	_, ok := AcquireCircuitPermit(channelID)
+	return ok
 }
 
 // GetCircuitState 读取熔断状态（供日志/观测使用）
