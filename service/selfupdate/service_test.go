@@ -39,12 +39,17 @@ func (f *fakeGitHubClient) FetchBytes(_ context.Context, _ string, _ int64) ([]b
 // ----------------------------------------------------------------------------
 
 type fakeDockerEngine struct {
-	pingErr      error
-	pullErr      error
-	recreateErr  error
-	inspectSelf  *ContainerInspect
-	pullCalled   bool
-	recreateCalled bool
+	pingErr            error
+	pullErr            error
+	recreateErr        error
+	recreateLocalErr   error
+	buildErr           error
+	inspectSelf        *ContainerInspect
+	pullCalled         bool
+	recreateCalled     bool
+	recreateLocalCalled bool
+	buildCalled        bool
+	buildTarget        string
 }
 
 func (f *fakeDockerEngine) Ping(_ context.Context) error { return f.pingErr }
@@ -64,6 +69,17 @@ func (f *fakeDockerEngine) PullImage(_ context.Context, _ string) error {
 func (f *fakeDockerEngine) RecreateSelf(_ context.Context, _ string) error {
 	f.recreateCalled = true
 	return f.recreateErr
+}
+
+func (f *fakeDockerEngine) BuildImageWithBinary(_ context.Context, _, _, targetImage string) error {
+	f.buildCalled = true
+	f.buildTarget = targetImage
+	return f.buildErr
+}
+
+func (f *fakeDockerEngine) RecreateSelfLocal(_ context.Context, _ string) error {
+	f.recreateLocalCalled = true
+	return f.recreateLocalErr
 }
 
 // ----------------------------------------------------------------------------

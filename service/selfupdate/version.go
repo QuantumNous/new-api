@@ -56,13 +56,35 @@ func parsePreRelease(pre string) int {
 	return n
 }
 
+// splitToyHunterBuild splits "1.0.0-rc.21-th.4" into ("1.0.0-rc.21", 4).
+// When no "-th.N" suffix is present, th is -1.
+func splitToyHunterBuild(v string) (rest string, th int) {
+	const marker = "-th."
+	idx := strings.LastIndex(v, marker)
+	if idx < 0 {
+		return v, -1
+	}
+	n, err := strconv.Atoi(v[idx+len(marker):])
+	if err != nil {
+		return v, -1
+	}
+	return v[:idx], n
+}
+
 // CompareVersions compares two version strings (with or without leading 'v').
 // Returns -1 if current < latest, 0 if equal, 1 if current > latest.
-// Handles pre-release segments (e.g. v1.0.0-rc.21): release > any pre-release;
-// pre-release with higher numeric tail > pre-release with lower numeric tail.
+//
+// Order:
+//  1. semver core (major.minor.patch)
+//  2. pre-release (e.g. rc.N); a release (no pre) is greater than any pre-release
+//  3. ToyHunter fork build suffix -th.N (e.g. v1.0.0-rc.21-th.3 < v1.0.0-rc.21-th.4);
+//     a version without -th.N is treated as lower than the same base with -th.N
 func CompareVersions(current, latest string) int {
 	cur := NormalizeVersion(current)
 	lat := NormalizeVersion(latest)
+
+	curRest, curTh := splitToyHunterBuild(cur)
+	latRest, latTh := splitToyHunterBuild(lat)
 
 	// Split into core and optional pre-release on first '-'
 	splitPre := func(v string) (string, string) {
@@ -73,8 +95,8 @@ func CompareVersions(current, latest string) int {
 		return v[:idx], v[idx+1:]
 	}
 
-	curCore, curPre := splitPre(cur)
-	latCore, latPre := splitPre(lat)
+	curCore, curPre := splitPre(curRest)
+	latCore, latPre := splitPre(latRest)
 
 	cNums := parseCore(curCore)
 	lNums := parseCore(latCore)
@@ -89,25 +111,35 @@ func CompareVersions(current, latest string) int {
 	}
 
 	// Cores are equal; compare pre-release.
-	// Convention: no pre-release (release) > any pre-release.
 	cPreVal := parsePreRelease(curPre)
 	lPreVal := parsePreRelease(latPre)
 
-	// -1 sentinel means "this is a release (no pre-release)"
 	if cPreVal == -1 && lPreVal == -1 {
-		return 0
-	}
-	if cPreVal == -1 {
+		// both releases — fall through to th compare
+	} else if cPreVal == -1 {
 		return 1 // current is a release, latest is a pre-release
-	}
-	if lPreVal == -1 {
+	} else if lPreVal == -1 {
 		return -1 // current is a pre-release, latest is a release
+	} else if cPreVal < lPreVal {
+		return -1
+	} else if cPreVal > lPreVal {
+		return 1
 	}
 
-	if cPreVal < lPreVal {
+	// Same core + pre-release: compare -th.N
+	if curTh == -1 && latTh == -1 {
+		return 0
+	}
+	if curTh == -1 {
 		return -1
 	}
-	if cPreVal > lPreVal {
+	if latTh == -1 {
+		return 1
+	}
+	if curTh < latTh {
+		return -1
+	}
+	if curTh > latTh {
 		return 1
 	}
 	return 0

@@ -155,9 +155,34 @@ services:
 
 ### 行为说明
 
-- 默认 pull **当前容器正在使用的 image:tag**
-- 可用 `NEWAPI_DOCKER_IMAGE` 覆盖为你的 fork 镜像
-- 「是否有更新」主要依据 GitHub Release 语义版本；真正 recreate 以 pull 后镜像 digest 是否变化为准
+- **Docker + GitHub 资产（推荐，ali 现网）**  
+  当 fork 的 Latest Release **带有** `new-api-v*` 二进制 + `checksums-linux.txt` 时，「拉取更新」会：
+  1. 从 GitHub 下载 linux 资产并校验 SHA256  
+  2. 基于当前运行镜像 commit 出 `local/new-api:{ReleaseTag}`  
+  3. recreate 当前容器到该本地镜像  
+  **不依赖**公有镜像仓库；compose 里 `image:` 可保持 `local/new-api:…`。
+- **Docker 无资产时的回退**  
+  若 Release 没有可下载资产，则仍 pull 当前容器的 image 引用（或 `NEWAPI_DOCKER_IMAGE`）。仅改 tag、不推 registry 时无法更新。
+- **「是否有更新」** 依据 GitHub Release 语义版本（含 `-th.N` 比较）；Docker 真正是否 recreate 以新镜像构建/digest 为准。
+
+### 手动发版（使网页可拉取）清单
+
+以 `v1.0.0-rc.21-th.4` 为例：
+
+```bash
+VER=v1.0.0-rc.21-th.4
+echo "$VER" > VERSION
+# 构建前端 + linux 二进制（VERSION 写入 ldflags）
+# 资产名必须匹配：
+#   new-api-${VER}
+#   checksums-linux.txt   内容: "<sha256>  new-api-${VER}\n"
+
+gh release upload "$VER" "dist-linux/new-api-${VER}" dist-linux/checksums-linux.txt --clobber
+```
+
+发版后 Root 在系统维护点「检查更新」应看到新 tag；「拉取更新」在 Docker 模式下会从该 Release 装包。
+
+**注意：** 若线上仍是**旧二进制**（没有「GitHub→本地镜像」逻辑），需要**先手动部署一次**含此逻辑的版本，之后的 `th.5+` 才可纯网页一键更新。
 
 ## API（Root）
 

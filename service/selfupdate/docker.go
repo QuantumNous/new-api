@@ -1,6 +1,7 @@
 package selfupdate
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -174,6 +175,15 @@ type DockerEngine interface {
 	// Returns ErrAlreadyUpToDate when the pulled image digest matches the
 	// currently running image.
 	RecreateSelf(ctx context.Context, image string) error
+
+	// BuildImageWithBinary creates targetImage by copying binaryPath to /new-api
+	// inside a temporary container based on baseImage, then committing it.
+	// Used when updating from a GitHub Release binary while running in Docker.
+	BuildImageWithBinary(ctx context.Context, baseImage, binaryPath, targetImage string) error
+
+	// RecreateSelfLocal recreates the current container onto an already-local
+	// image reference without pulling from a registry.
+	RecreateSelfLocal(ctx context.Context, image string) error
 }
 
 // NewDockerEngine creates a production DockerEngine that communicates over the
@@ -470,6 +480,185 @@ func (d *dockerEngineImpl) deleteContainer(ctx context.Context, id string) error
 	defer drain(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("DELETE /containers/%s: HTTP %d", id, resp.StatusCode)
+	}
+	return nil
+}
+
+// BuildImageWithBinary creates targetImage from baseImage by replacing /new-api.
+func (d *dockerEngineImpl) BuildImageWithBinary(ctx context.Context, baseImage, binaryPath, targetImage string) error {
+	if baseImage == "" {
+		return fmt.Errorf("base image is required")
+	}
+	if targetImage == "" {
+		return fmt.Errorf("target image is required")
+	}
+	binData, err := os.ReadFile(binaryPath)
+	if err != nil {
+		return fmt.Errorf("read binary: %w", err)
+	}
+	if len(binData) == 0 {
+		return fmt.Errorf("binary file is empty")
+	}
+
+	tmpName := fmt.Sprintf("new-api-update-tmp-%d", time.Now().UnixNano())
+	createBody := containerCreateBody{
+		Image: baseImage,
+		Cmd:   []string{"sleep", "3600"},
+	}
+	bodyBytes, err := common.Marshal(createBody)
+	if err != nil {
+		return err
+	}
+	tmpID, err := d.createContainer(ctx, tmpName, bodyBytes)
+	if err != nil {
+		return fmt.Errorf("create temp container: %w", err)
+	}
+	defer func() { _ = d.deleteContainer(ctx, tmpID) }()
+
+	tarBytes, err := tarOneFile("new-api", binData, 0o755)
+	if err != nil {
+		return err
+	}
+	if err := d.putContainerArchive(ctx, tmpID, "/", tarBytes); err != nil {
+		return fmt.Errorf("copy binary into temp container: %w", err)
+	}
+
+	repo, tag := splitImageTag(targetImage)
+	if err := d.commitContainer(ctx, tmpID, repo, tag); err != nil {
+		return fmt.Errorf("commit image %s: %w", targetImage, err)
+	}
+	return nil
+}
+
+// RecreateSelfLocal recreates onto a local image without pulling.
+func (d *dockerEngineImpl) RecreateSelfLocal(ctx context.Context, image string) error {
+	ci, err := d.InspectSelf(ctx)
+	if err != nil {
+		return fmt.Errorf("inspect self: %w", err)
+	}
+	oldID := ci.ID
+	name := strings.TrimPrefix(ci.Name, "/")
+	targetImage := image
+	if targetImage == "" {
+		targetImage = ci.Config.Image
+	}
+
+	if _, err := d.inspectImage(ctx, targetImage); err != nil {
+		return fmt.Errorf("local image %s not found: %w", targetImage, err)
+	}
+
+	_ = d.postEmpty(ctx, "/containers/"+oldID+"/stop?t=10")
+
+	oldName := name + "-updating-old"
+	if err := d.renameContainer(ctx, oldID, oldName); err != nil {
+		return fmt.Errorf("rename old container: %w", err)
+	}
+
+	rollback := func() {
+		_ = d.renameContainer(ctx, oldID, name)
+		_ = d.postEmpty(ctx, "/containers/"+oldID+"/start")
+	}
+
+	// Preserve env but drop any stale NEWAPI_DOCKER_IMAGE so the next update
+	// keeps using GitHub→local image flow instead of a pinned registry ref.
+	env := filterEnv(ci.Config.Env, "NEWAPI_DOCKER_IMAGE")
+
+	body := containerCreateBody{
+		Image:      targetImage,
+		Env:        env,
+		Cmd:        ci.Config.Cmd,
+		Entrypoint: ci.Config.Entrypoint,
+		Labels:     ci.Config.Labels,
+		WorkingDir: ci.Config.WorkingDir,
+		HostConfig: ci.HostConfig,
+	}
+	bodyBytes, err := common.Marshal(body)
+	if err != nil {
+		rollback()
+		return fmt.Errorf("marshal create body: %w", err)
+	}
+	newContainerID, err := d.createContainer(ctx, name, bodyBytes)
+	if err != nil {
+		rollback()
+		return fmt.Errorf("create container: %w", err)
+	}
+	if err := d.postEmpty(ctx, "/containers/"+newContainerID+"/start"); err != nil {
+		_ = d.deleteContainer(ctx, newContainerID)
+		rollback()
+		return fmt.Errorf("start new container: %w", err)
+	}
+	_ = d.deleteContainer(ctx, oldID)
+	return nil
+}
+
+func filterEnv(env []string, dropKey string) []string {
+	if len(env) == 0 {
+		return env
+	}
+	prefix := dropKey + "="
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		if strings.HasPrefix(e, prefix) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+func tarOneFile(name string, data []byte, mode int64) ([]byte, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	hdr := &tar.Header{
+		Name: name,
+		Mode: mode,
+		Size: int64(len(data)),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return nil, err
+	}
+	if _, err := tw.Write(data); err != nil {
+		return nil, err
+	}
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (d *dockerEngineImpl) putContainerArchive(ctx context.Context, id, path string, tarBytes []byte) error {
+	req, err := d.client.request(ctx, http.MethodPut,
+		fmt.Sprintf("/containers/%s/archive?path=%s", id, path),
+		bytes.NewReader(tarBytes),
+	)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-tar")
+	resp, err := d.client.call(req)
+	if err != nil {
+		return err
+	}
+	defer drain(resp)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return httpError("put archive", resp)
+	}
+	return nil
+}
+
+func (d *dockerEngineImpl) commitContainer(ctx context.Context, id, repo, tag string) error {
+	path := fmt.Sprintf("/commit?container=%s&repo=%s&tag=%s", id, repo, tag)
+	req, err := d.client.request(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := d.client.call(req)
+	if err != nil {
+		return err
+	}
+	defer drain(resp)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return httpError("commit", resp)
 	}
 	return nil
 }

@@ -2,9 +2,15 @@ package selfupdate
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -305,11 +311,6 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 			return nil, errors.New(reason)
 		}
 
-		image := info.Docker.Image
-		if image == "" {
-			image = s.cfg.DockerImage
-		}
-
 		eng := s.docker
 		if eng == nil {
 			eng, err = NewDockerEngine(s.cfg.DockerHost)
@@ -317,6 +318,30 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 				s.setStatus(PhaseFailed, "create docker engine failed", false, err.Error())
 				return nil, err
 			}
+		}
+
+		// When the GitHub Release has downloadable assets, install from GitHub
+		// into a local image (works for private/local Docker deploys).
+		if info.Release != nil && len(info.Release.Assets) > 0 {
+			s.setStatus(PhasePulling, "downloading release binary for docker update", true, "")
+			if err := s.applyDockerFromGitHub(ctx, eng, info); err != nil {
+				s.setStatus(PhaseFailed, "docker github update failed", false, err.Error())
+				return nil, err
+			}
+			s.setStatus(PhaseDone, "docker update complete; container recreated", false, "")
+			return &PerformResult{
+				Message:     "docker update complete; container recreated from GitHub release",
+				NeedRestart: false,
+				DeployMode:  mode,
+				FromVersion: s.currentVersion,
+				ToVersion:   info.LatestVersion,
+			}, nil
+		}
+
+		// Fallback: pull registry image (legacy path).
+		image := info.Docker.Image
+		if image == "" {
+			image = s.cfg.DockerImage
 		}
 
 		s.setStatus(PhasePulling, "pulling new image", true, "")
@@ -356,6 +381,99 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 		return nil, errors.New("unknown deploy mode: " + string(mode))
 	}
 }
+
+// dockerLocalImageRef builds the local image name for a release tag.
+func dockerLocalImageRef(version string) string {
+	v := strings.TrimSpace(version)
+	if v == "" {
+		v = "latest"
+	}
+	return "local/new-api:" + v
+}
+
+// applyDockerFromGitHub downloads the linux binary from the release, builds a
+// local image local/new-api:{tag}, and recreates the current container onto it.
+func (s *Service) applyDockerFromGitHub(ctx context.Context, eng DockerEngine, info *Info) error {
+	goos, goarch := "linux", runtime.GOARCH
+	if goarch == "" {
+		goarch = "amd64"
+	}
+
+	binAsset, sumAsset, err := SelectBinaryAsset(info.Release.Assets, goos, goarch)
+	if err != nil {
+		return fmt.Errorf("select release asset: %w", err)
+	}
+	if sumAsset == nil {
+		return fmt.Errorf("no checksum asset for %s/%s; update rejected", goos, goarch)
+	}
+
+	tmpDir, err := os.MkdirTemp("", "new-api-docker-update-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	binPath := filepath.Join(tmpDir, binAsset.Name)
+	maxSize := binAsset.Size
+	if maxSize <= 0 {
+		maxSize = defaultMaxDownload
+	} else {
+		maxSize += 1 << 20
+	}
+	if err := s.gh.Download(ctx, binAsset.DownloadURL, binPath, maxSize); err != nil {
+		return fmt.Errorf("download binary: %w", err)
+	}
+
+	sumData, err := s.gh.FetchBytes(ctx, sumAsset.DownloadURL, 1<<20)
+	if err != nil {
+		return fmt.Errorf("fetch checksum: %w", err)
+	}
+	wantHex, err := ParseChecksumFile(sumData, binAsset.Name)
+	if err != nil {
+		return fmt.Errorf("parse checksum: %w", err)
+	}
+	gotHex, err := fileSHA256Hex(binPath)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(gotHex, wantHex) {
+		return fmt.Errorf("checksum mismatch: want %s got %s", wantHex, gotHex)
+	}
+
+	ci, err := eng.InspectSelf(ctx)
+	if err != nil {
+		return fmt.Errorf("inspect self: %w", err)
+	}
+	baseImage := ci.Image
+	if baseImage == "" {
+		baseImage = ci.Config.Image
+	}
+	if baseImage == "" {
+		baseImage = "calciumion/new-api:latest"
+	}
+
+	targetImage := dockerLocalImageRef(info.LatestVersion)
+	s.setStatus(PhaseApplying, "building local image from release binary", true, "")
+	if err := eng.BuildImageWithBinary(ctx, baseImage, binPath, targetImage); err != nil {
+		return err
+	}
+	s.setStatus(PhaseApplying, "recreating container onto "+targetImage, true, "")
+	return eng.RecreateSelfLocal(ctx, targetImage)
+}
+
+func fileSHA256Hex(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 
 // Restart schedules a graceful process exit after 500ms (binary mode only).
 // For Docker mode it returns an error — the container restart is handled by
