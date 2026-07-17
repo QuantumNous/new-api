@@ -255,10 +255,21 @@ func abortWithClientDisconnect(c *gin.Context, err error, bodyReadStart time.Tim
 	if encoding == "" {
 		encoding = "identity"
 	}
+	// wire_bytes is the number that assigns blame; the rest is context.
+	// It counts raw bytes off the socket, so it is directly comparable to
+	// content_length: short means the client stopped sending, equal means it
+	// sent everything and the stall is ours. plain_bytes is post-decompression
+	// output and is NOT comparable to content_length when encoding != identity.
+	wire := WireBytesRead(c)
+	shortfall := "n/a"
+	if wire >= 0 && c.Request.ContentLength > 0 {
+		shortfall = fmt.Sprintf("%.1f%%", 100*float64(c.Request.ContentLength-wire)/float64(c.Request.ContentLength))
+	}
 	logger.LogWarn(c, fmt.Sprintf(
-		"client_upload_aborted: err=%v ctx_err=%s elapsed_ms=%d read_bytes=%d content_length=%d encoding=%s expect=%q proto=%s path=%s ua=%q",
+		"client_upload_aborted: err=%v ctx_err=%s elapsed_ms=%d wire_bytes=%d content_length=%d missing=%s plain_bytes=%d encoding=%s expect=%q proto=%s path=%s ua=%q",
 		err, ctxErr, time.Since(bodyReadStart).Milliseconds(),
-		common.GetContextKeyInt64(c, constant.ContextKeyRequestBodyReadBytes), c.Request.ContentLength,
+		wire, c.Request.ContentLength, shortfall,
+		common.GetContextKeyInt64(c, constant.ContextKeyRequestBodyReadBytes),
 		encoding, c.Request.Header.Get("Expect"),
 		c.Request.Proto, c.Request.URL.Path, ua,
 	))
