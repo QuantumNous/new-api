@@ -400,7 +400,19 @@ func migrateClickHouseLogDB() error {
 	if err := LOG_DB.Exec(clickHouseLogCreateTableSQL(ttlDays)).Error; err != nil {
 		return err
 	}
+	for _, statement := range clickHouseLogSchemaMigrationSQL() {
+		if err := LOG_DB.Exec(statement).Error; err != nil {
+			return err
+		}
+	}
 	return syncClickHouseLogTTL(ttlDays)
+}
+
+func clickHouseLogSchemaMigrationSQL() []string {
+	return []string{
+		"ALTER TABLE logs ADD COLUMN IF NOT EXISTS trace_id String DEFAULT ''",
+		"ALTER TABLE logs ADD INDEX IF NOT EXISTS idx_logs_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1",
+	}
 }
 
 func clickHouseLogTTLDays() int {
@@ -448,6 +460,7 @@ CREATE TABLE IF NOT EXISTS logs (
 	ip String DEFAULT '',
 	request_id String DEFAULT '',
 	upstream_request_id String DEFAULT '',
+	trace_id String DEFAULT '',
 	other String DEFAULT ''
 )
 ENGINE = MergeTree()

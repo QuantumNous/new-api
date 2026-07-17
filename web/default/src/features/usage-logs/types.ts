@@ -303,6 +303,8 @@ export interface TaskLog {
 export interface GetLogsParams {
   p?: number
   page_size?: number
+  pagination?: 'cursor'
+  cursor?: string
   type?: number
   username?: string
   token_name?: string
@@ -313,6 +315,7 @@ export interface GetLogsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  trace_id?: string
 }
 
 export interface GetLogsResponse {
@@ -320,9 +323,11 @@ export interface GetLogsResponse {
   message?: string
   data?: {
     items: UsageLog[] | MidjourneyLog[] | TaskLog[]
-    total: number
+    total?: number
     page: number
     page_size: number
+    has_more?: boolean
+    next_cursor?: string
   }
 }
 
@@ -385,6 +390,7 @@ export interface FetchLogsConfig {
   pageSize: number
   searchParams: Record<string, unknown>
   columnFilters: Array<{ id: string; value: unknown }>
+  cursor?: string
 }
 
 // ============================================================================

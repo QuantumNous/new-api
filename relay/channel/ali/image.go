@@ -1,6 +1,7 @@
 package ali
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -192,19 +193,19 @@ func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, reque
 	return &imageRequest, nil
 }
 
-func updateTask(info *relaycommon.RelayInfo, taskID string) (*AliResponse, error, []byte) {
+func updateTask(ctx context.Context, info *relaycommon.RelayInfo, taskID string) (*AliResponse, error, []byte) {
 	url := fmt.Sprintf("%s/api/v1/tasks/%s", info.ChannelBaseUrl, taskID)
 
 	var aliResponse AliResponse
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return &aliResponse, err, nil
 	}
 
 	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
 
-	client := &http.Client{}
+	client := service.GetHttpClientWithTimeout(30 * time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		common.SysLog("updateTask client.Do err: " + err.Error())
@@ -237,7 +238,7 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 	for {
 		logger.LogDebug(c, "asyncTaskWait step %d/%d, wait %d seconds", step, maxStep, waitSeconds)
 		step++
-		rsp, err, body := updateTask(info, taskID)
+		rsp, err, body := updateTask(c.Request.Context(), info, taskID)
 		responseBody = body
 		if err != nil {
 			logger.LogWarn(c, "asyncTaskWait UpdateTask err: "+err.Error())

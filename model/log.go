@@ -2,6 +2,8 @@ package model
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -58,9 +60,9 @@ func sanitizeClickHouseLikePattern(input string) (string, error) {
 }
 
 type Log struct {
-	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2"`
-	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type"`
+	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2;index:idx_logs_user_created_id,priority:3"`
+	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1;index:idx_logs_user_created_id,priority:1"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type;index:idx_logs_user_created_id,priority:2;index:idx_logs_trace_created,priority:2"`
 	Type              int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content           string `json:"content"`
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
@@ -78,6 +80,7 @@ type Log struct {
 	Ip                string `json:"ip" gorm:"index;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
+	TraceId           string `json:"trace_id,omitempty" gorm:"type:varchar(128);index:idx_logs_trace_id;index:idx_logs_trace_created,priority:1;default:''"`
 	Other             string `json:"other"`
 }
 
@@ -99,9 +102,62 @@ func ensureLogRequestId(log *Log) {
 	}
 }
 
+func ensureLogTraceId(log *Log) {
+	if log == nil || log.TraceId != "" || log.Other == "" {
+		return
+	}
+	other, err := common.StrToMap(log.Other)
+	if err != nil || other == nil {
+		return
+	}
+	if traceId, ok := other["trace_id"].(string); ok {
+		log.TraceId = strings.TrimSpace(traceId)
+	}
+}
+
 func createLog(log *Log) error {
 	ensureLogRequestId(log)
+	ensureLogTraceId(log)
 	return LOG_DB.Create(log).Error
+}
+
+var ErrInvalidLogCursor = errors.New("invalid log cursor")
+
+type logCursor struct {
+	CreatedAt int64  `json:"t"`
+	Id        int    `json:"i,omitempty"`
+	RequestId string `json:"r,omitempty"`
+}
+
+func encodeLogCursor(log *Log) (string, error) {
+	if log == nil || log.CreatedAt <= 0 {
+		return "", ErrInvalidLogCursor
+	}
+	payload, err := json.Marshal(logCursor{
+		CreatedAt: log.CreatedAt,
+		Id:        log.Id,
+		RequestId: log.RequestId,
+	})
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(payload), nil
+}
+
+func decodeLogCursor(value string) (logCursor, error) {
+	var cursor logCursor
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return cursor, nil
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil || len(payload) > 512 {
+		return cursor, ErrInvalidLogCursor
+	}
+	if err := json.Unmarshal(payload, &cursor); err != nil || cursor.CreatedAt <= 0 {
+		return logCursor{}, ErrInvalidLogCursor
+	}
+	return cursor, nil
 }
 
 func clickHouseLogOrder(prefix string) string {
@@ -280,7 +336,6 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
-
 // mergeTraceIntoOther injects thread_id/trace_id from gin context into Other JSON.
 func mergeTraceIntoOther(c *gin.Context, otherStr string) string {
 	other, _ := common.StrToMap(otherStr)
@@ -303,6 +358,18 @@ func mergeTraceIntoOther(c *gin.Context, otherStr string) string {
 		}
 	}
 	return common.MapToJsonStr(other)
+}
+
+func traceIdFromContext(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	for _, key := range []string{"trace_id", string(constant.ContextKeyTraceId)} {
+		if value := strings.TrimSpace(c.GetString(key)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
@@ -343,6 +410,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		}(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
+		TraceId:           traceIdFromContext(c),
 		Other:             mergeTraceIntoOther(c, otherStr),
 	}
 	err := createLog(log)
@@ -408,6 +476,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		}(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
+		TraceId:           traceIdFromContext(c),
 		Other:             otherStr,
 	}
 	err := createLog(log)
@@ -492,40 +561,69 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB
-	} else {
-		tx = LOG_DB.Where("logs.type = ?", logType)
+type LogQuery struct {
+	LogType           int
+	StartTimestamp    int64
+	EndTimestamp      int64
+	ModelName         string
+	Username          string
+	TokenName         string
+	Channel           int
+	Group             string
+	RequestId         string
+	UpstreamRequestId string
+	TraceId           string
+}
+
+func buildLogQuery(query LogQuery, userId *int) (*gorm.DB, error) {
+	tx := LOG_DB.Model(&Log{})
+	if userId != nil {
+		tx = tx.Where("logs.user_id = ?", *userId)
+	}
+	if query.LogType != LogTypeUnknown {
+		tx = tx.Where("logs.type = ?", query.LogType)
 	}
 
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+	var err error
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", query.ModelName); err != nil {
+		return nil, err
+	}
+	if userId == nil {
+		if tx, err = applyExplicitLogTextFilter(tx, "logs.username", query.Username); err != nil {
+			return nil, err
+		}
+	}
+	if query.TokenName != "" {
+		tx = tx.Where("logs.token_name = ?", query.TokenName)
+	}
+	if query.RequestId != "" {
+		tx = tx.Where("logs.request_id = ?", query.RequestId)
+	}
+	if query.UpstreamRequestId != "" {
+		tx = tx.Where("logs.upstream_request_id = ?", query.UpstreamRequestId)
+	}
+	if query.TraceId != "" {
+		tx = tx.Where("logs.trace_id = ?", query.TraceId)
+	}
+	if query.StartTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", query.StartTimestamp)
+	}
+	if query.EndTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", query.EndTimestamp)
+	}
+	if userId == nil && query.Channel != 0 {
+		tx = tx.Where("logs.channel_id = ?", query.Channel)
+	}
+	if query.Group != "" {
+		tx = tx.Where("logs."+logGroupCol+" = ?", query.Group)
+	}
+	return tx, nil
+}
+
+func GetAllLogs(query LogQuery, startIdx int, num int) (logs []*Log, total int64, err error) {
+	tx, err := buildLogQuery(query, nil)
+	if err != nil {
 		return nil, 0, err
-	}
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
-		return nil, 0, err
-	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
-	}
-	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
-	}
-	if upstreamRequestId != "" {
-		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if channel != 0 {
-		tx = tx.Where("logs.channel_id = ?", channel)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
 	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
@@ -543,6 +641,14 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		assignDisplayLogIds(logs, startIdx)
 	}
 
+	if err := populateLogChannelNames(logs); err != nil {
+		return logs, total, err
+	}
+
+	return logs, total, nil
+}
+
+func populateLogChannelNames(logs []*Log) error {
 	channelIds := types.NewSet[int]()
 	for _, log := range logs {
 		if log.ChannelId != 0 {
@@ -570,8 +676,8 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 			}
 		} else {
 			// Bulk query channels from DB
-			if err = DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
-				return logs, total, err
+			if err := DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
+				return err
 			}
 		}
 		channelMap := make(map[int]string, len(channels))
@@ -583,46 +689,22 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 	}
 
-	return logs, total, err
+	return nil
 }
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
-	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
-	}
-
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+func GetUserLogs(userId int, query LogQuery, startIdx int, num int) (logs []*Log, total int64, err error) {
+	tx, err := buildLogQuery(query, &userId)
+	if err != nil {
 		return nil, 0, err
-	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
-	}
-	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
-	}
-	if upstreamRequestId != "" {
-		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
 	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
 	if err != nil {
 		common.SysError("failed to count user logs: " + err.Error())
 		return nil, 0, errors.New("查询日志失败")
 	}
-	order := "logs.id desc"
+	order := "logs.created_at desc, logs.id desc"
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		order = clickHouseLogOrder("logs.")
 	}
@@ -634,6 +716,99 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 
 	formatUserLogs(logs, startIdx)
 	return logs, total, err
+}
+
+func applyLogCursor(tx *gorm.DB, value string) (*gorm.DB, error) {
+	cursor, err := decodeLogCursor(value)
+	if err != nil || cursor.CreatedAt == 0 {
+		if strings.TrimSpace(value) == "" {
+			return tx, nil
+		}
+		return nil, ErrInvalidLogCursor
+	}
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		if cursor.RequestId == "" {
+			return nil, ErrInvalidLogCursor
+		}
+		return tx.Where(
+			"logs.created_at < ? OR (logs.created_at = ? AND logs.request_id < ?)",
+			cursor.CreatedAt,
+			cursor.CreatedAt,
+			cursor.RequestId,
+		), nil
+	}
+	if cursor.Id <= 0 {
+		return nil, ErrInvalidLogCursor
+	}
+	return tx.Where(
+		"logs.created_at < ? OR (logs.created_at = ? AND logs.id < ?)",
+		cursor.CreatedAt,
+		cursor.CreatedAt,
+		cursor.Id,
+	), nil
+}
+
+func getLogsByCursor(tx *gorm.DB, cursorValue string, num int) (logs []*Log, nextCursor string, hasMore bool, err error) {
+	if num <= 0 {
+		num = common.ItemsPerPage
+	}
+	if num > 100 {
+		num = 100
+	}
+	tx, err = applyLogCursor(tx, cursorValue)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	order := "logs.created_at desc, logs.id desc"
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = clickHouseLogOrder("logs.")
+	}
+	if err := tx.Order(order).Limit(num + 1).Find(&logs).Error; err != nil {
+		return nil, "", false, err
+	}
+	if len(logs) <= num {
+		return logs, "", false, nil
+	}
+
+	hasMore = true
+	logs = logs[:num]
+	nextCursor, err = encodeLogCursor(logs[len(logs)-1])
+	if err != nil {
+		return nil, "", false, err
+	}
+	return logs, nextCursor, hasMore, nil
+}
+
+func GetAllLogsByCursor(query LogQuery, cursorValue string, num int, displayStart int) (logs []*Log, nextCursor string, hasMore bool, err error) {
+	tx, err := buildLogQuery(query, nil)
+	if err != nil {
+		return nil, "", false, err
+	}
+	logs, nextCursor, hasMore, err = getLogsByCursor(tx, cursorValue, num)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		assignDisplayLogIds(logs, displayStart)
+	}
+	if err := populateLogChannelNames(logs); err != nil {
+		return logs, "", false, err
+	}
+	return logs, nextCursor, hasMore, nil
+}
+
+func GetUserLogsByCursor(userId int, query LogQuery, cursorValue string, num int, displayStart int) (logs []*Log, nextCursor string, hasMore bool, err error) {
+	tx, err := buildLogQuery(query, &userId)
+	if err != nil {
+		return nil, "", false, err
+	}
+	logs, nextCursor, hasMore, err = getLogsByCursor(tx, cursorValue, num)
+	if err != nil {
+		return nil, "", false, err
+	}
+	formatUserLogs(logs, displayStart)
+	return logs, nextCursor, hasMore, nil
 }
 
 type Stat struct {
@@ -790,9 +965,8 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 	return total, nil
 }
 
-
-// GetLogsByTraceId returns consume/error logs that carry other.trace_id (JSON contains).
-// Admin-oriented; used for AxonHub-style trace tree reconstruction.
+// GetLogsByTraceId uses the indexed trace_id column for new rows and falls
+// back to legacy JSON only when no indexed rows exist.
 func GetLogsByTraceId(traceId string, limit int) ([]*Log, error) {
 	traceId = strings.TrimSpace(traceId)
 	if traceId == "" {
@@ -801,14 +975,30 @@ func GetLogsByTraceId(traceId string, limit int) ([]*Log, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	// Escape LIKE wildcards; strip quotes so pattern stays valid JSON substring.
-	safe := strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_", "\"", "").Replace(traceId)
 	var logs []*Log
-	pattern := "%\"trace_id\":\"" + safe + "\"%"
+	order := "created_at asc, id asc"
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = "created_at asc, request_id asc"
+	}
 	err := LOG_DB.Model(&Log{}).
-		Where("other LIKE ? ESCAPE ?", pattern, "\\").
-		Order("id asc").
+		Where("trace_id = ?", traceId).
+		Order(order).
 		Limit(limit).
 		Find(&logs).Error
+	if err != nil || len(logs) > 0 {
+		return logs, err
+	}
+
+	legacy := LOG_DB.Model(&Log{})
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		safe := strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_", "\"", "").Replace(traceId)
+		pattern := "%\"trace_id\":\"" + safe + "\"%"
+		legacy = legacy.Where("other LIKE ?", pattern)
+	} else {
+		safe := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_", "\"", "").Replace(traceId)
+		pattern := "%\"trace_id\":\"" + safe + "\"%"
+		legacy = legacy.Where("other LIKE ? ESCAPE '!'", pattern)
+	}
+	err = legacy.Order(order).Limit(limit).Find(&logs).Error
 	return logs, err
 }

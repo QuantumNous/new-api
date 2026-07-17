@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -38,6 +39,10 @@ import {
 } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
+import {
+  buildLogCursorScope,
+  estimateCursorTotalCount,
+} from '../lib/query-params'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
@@ -64,7 +69,12 @@ function getColumnVisibilityStorageKey(
 }
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
-  const values = Array.isArray(value) ? value : value ? [value] : []
+  let values: unknown[] = []
+  if (Array.isArray(value)) {
+    values = value
+  } else if (value) {
+    values = [value]
+  }
   return values.filter((item) => String(item) !== LOG_TYPE_ALL_VALUE)
 }
 
@@ -116,6 +126,38 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ],
   })
 
+  const isCommon = logCategory === 'common'
+  const cursorScope = useMemo(
+    () =>
+      buildLogCursorScope(
+        isAdmin,
+        pagination.pageSize,
+        searchParams,
+        columnFilters
+      ),
+    [isAdmin, pagination.pageSize, columnFilters, searchParams]
+  )
+  const cursorPages = useRef<{
+    scope: string
+    values: Map<number, string>
+  }>({ scope: cursorScope, values: new Map([[0, '']]) })
+
+  if (cursorPages.current.scope !== cursorScope) {
+    cursorPages.current = { scope: cursorScope, values: new Map([[0, '']]) }
+  }
+
+  const currentCursor = isCommon
+    ? cursorPages.current.values.get(pagination.pageIndex)
+    : undefined
+  const cursorReady =
+    !isCommon || pagination.pageIndex === 0 || currentCursor !== undefined
+
+  useEffect(() => {
+    if (isCommon && !cursorReady && pagination.pageIndex > 0) {
+      onPaginationChange({ ...pagination, pageIndex: 0 })
+    }
+  }, [cursorReady, isCommon, onPaginationChange, pagination])
+
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'logs',
@@ -123,6 +165,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       isAdmin,
       pagination.pageIndex + 1,
       pagination.pageSize,
+      currentCursor,
+      cursorScope,
       columnFilters,
       searchParams,
       t,
@@ -135,6 +179,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         pageSize: pagination.pageSize,
         searchParams,
         columnFilters,
+        cursor: currentCursor,
       })
 
       if (!result?.success) {
@@ -144,6 +189,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
 
       return result.data || DEFAULT_LOGS_DATA
     },
+    enabled: cursorReady,
     placeholderData: (previousData, previousQuery) => {
       if (previousQuery?.queryKey[1] === logCategory) {
         return previousData
@@ -151,6 +197,18 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       return undefined
     },
   })
+
+  useEffect(() => {
+    if (!isCommon || !data) return
+    const nextPage = pagination.pageIndex + 1
+    if (data.has_more && data.next_cursor) {
+      cursorPages.current.values.set(nextPage, data.next_cursor)
+      return
+    }
+    for (const page of cursorPages.current.values.keys()) {
+      if (page > pagination.pageIndex) cursorPages.current.values.delete(page)
+    }
+  }, [data, isCommon, pagination.pageIndex])
 
   const logs = data?.items || []
   const columns = useColumnsByCategory(logCategory, isAdmin)
@@ -170,11 +228,16 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     onColumnFiltersChange,
     manualPagination: true,
     manualFiltering: true,
-    totalCount: data?.total || 0,
+    totalCount: isCommon
+      ? estimateCursorTotalCount(
+          pagination.pageIndex,
+          pagination.pageSize,
+          logs.length,
+          Boolean(data?.has_more)
+        )
+      : data?.total || 0,
     ensurePageInRange,
   })
-
-  const isCommon = logCategory === 'common'
 
   return (
     <DataTablePage

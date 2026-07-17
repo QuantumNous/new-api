@@ -16,37 +16,42 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { StrictMode } from 'react'
-import ReactDOM from 'react-dom/client'
-import { AxiosError } from 'axios'
 import {
   QueryCache,
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
+import { AxiosError } from 'axios'
 import i18next from 'i18next'
+import { StrictMode } from 'react'
+import ReactDOM from 'react-dom/client'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
+
+import { safeRedirect } from '@/features/auth/lib/safe-redirect'
+import { resetSessionVerified } from '@/features/auth/lib/session-verification'
 import { getStatus } from '@/lib/api'
-import { installBuildMetadata } from '@/lib/build-metadata'
 import '@/lib/dayjs'
+import { installBuildMetadata } from '@/lib/build-metadata'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { handleServerError } from '@/lib/handle-server-error'
-import { safeRedirect } from '@/features/auth/lib/safe-redirect'
-import { resetSessionVerified } from '@/features/auth/lib/session-verification'
+import { initializeRUM } from '@/lib/rum'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
-import './i18n/config'
+import { i18nReady } from './i18n/config'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
+
 // Styles
 import './styles/index.css'
 
 // Ensure VChart theme is initialized before any chart mounts (prevents white default theme flash)
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
+await i18nReady
 initializeFrontendCache()
 installBuildMetadata()
 
@@ -120,7 +125,10 @@ declare module '@tanstack/react-router' {
 }
 
 // Render the app
-const rootElement = document.getElementById('root')!
+const rootElement = document.querySelector<HTMLElement>('#root')
+if (!rootElement) {
+  throw new Error('Missing #root application mount point')
+}
 // Set document.title and favicon from cached status, then refresh from network
 ;(function initSystemBranding() {
   try {
@@ -146,6 +154,7 @@ const rootElement = document.getElementById('root')!
     // Background refresh
     getStatus()
       .then((s) => {
+        if (s?.rum_enabled) initializeRUM().catch(() => undefined)
         if (s?.system_name) {
           apply(s.system_name as string)
           try {

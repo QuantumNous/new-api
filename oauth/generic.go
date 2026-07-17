@@ -131,9 +131,7 @@ func (p *GenericOAuthProvider) ExchangeToken(ctx context.Context, code string, c
 	logger.LogDebug(ctx, "[OAuth-Generic-%s] ExchangeToken: token_endpoint=%s, redirect_uri=%s, auth_style=%d",
 		p.config.Slug, p.config.TokenEndpoint, redirectUri, authStyle)
 
-	client := http.Client{
-		Timeout: 20 * time.Second,
-	}
+	client := newHTTPClient(20 * time.Second)
 	res, err := client.Do(req)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] ExchangeToken error: %s", p.config.Slug, err.Error()))
@@ -212,9 +210,7 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 	req.Header.Set("Authorization", fmt.Sprintf("%s %s", tokenType, token.AccessToken))
 	req.Header.Set("Accept", "application/json")
 
-	client := http.Client{
-		Timeout: 20 * time.Second,
-	}
+	client := newHTTPClient(20 * time.Second)
 	res, err := client.Do(req)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] GetUserInfo error: %s", p.config.Slug, err.Error()))

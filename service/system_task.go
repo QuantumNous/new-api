@@ -104,7 +104,8 @@ type LogCleanupResult struct {
 }
 
 var (
-	systemTaskRunnerOnce sync.Once
+	systemTaskWorkerOnce    sync.Once
+	systemTaskSchedulerOnce sync.Once
 	// systemTaskWakeup signals the runner to check for runnable tasks
 	// immediately instead of waiting for the idle poll. Buffered so a signal
 	// raised while the runner is busy is not lost and is handled on the next loop.
@@ -121,7 +122,12 @@ func notifySystemTaskRunner() {
 }
 
 func StartSystemTaskRunner() {
-	systemTaskRunnerOnce.Do(func() {
+	StartSystemTaskScheduler()
+	StartSystemTaskWorker()
+}
+
+func StartSystemTaskWorker() {
+	systemTaskWorkerOnce.Do(func() {
 		if !common.IsMasterNode {
 			return
 		}
@@ -133,32 +139,35 @@ func StartSystemTaskRunner() {
 			ticker := time.NewTicker(systemTaskRunnerIdleInterval)
 			defer ticker.Stop()
 
-			var lastScheduler time.Time
-			var lastStaleLockCleanup time.Time
-			runPass := func() {
-				// The scheduler/stale-lock pass is throttled independently of the
-				// claim pass: wakeups (e.g. a manual log cleanup) should claim
-				// immediately without re-running the scheduler every time.
-				now := time.Now()
-				if now.Sub(lastStaleLockCleanup) >= systemTaskStaleLockInterval {
-					lastStaleLockCleanup = now
-					if err := model.ExpireStaleSystemTaskLocks(common.GetTimestamp()); err != nil {
-						logger.LogWarn(context.Background(), fmt.Sprintf("system task stale lock cleanup failed: %v", err))
-					}
-				}
-				if now.Sub(lastScheduler) >= systemTaskSchedulerInterval {
-					lastScheduler = now
-					runSystemTaskScheduler()
-				}
-				runSystemTaskClaimPass(runnerID)
-			}
-
-			runPass()
+			runSystemTaskClaimPass(runnerID)
 			for {
 				select {
 				case <-ticker.C:
 				case <-systemTaskWakeup:
 				}
+				runSystemTaskClaimPass(runnerID)
+			}
+		})
+	})
+}
+
+func StartSystemTaskScheduler() {
+	systemTaskSchedulerOnce.Do(func() {
+		if !common.IsMasterNode {
+			return
+		}
+		gopool.Go(func() {
+			logger.LogInfo(context.Background(), fmt.Sprintf("system task scheduler started: interval=%s", systemTaskSchedulerInterval))
+			ticker := time.NewTicker(systemTaskSchedulerInterval)
+			defer ticker.Stop()
+			runPass := func() {
+				if err := model.ExpireStaleSystemTaskLocks(common.GetTimestamp()); err != nil {
+					logger.LogWarn(context.Background(), fmt.Sprintf("system task stale lock cleanup failed: %v", err))
+				}
+				runSystemTaskScheduler()
+			}
+			runPass()
+			for range ticker.C {
 				runPass()
 			}
 		})

@@ -1,7 +1,7 @@
 # New-API Docker Compose Configuration
 # 
 # Quick Start:
-#   1. docker-compose up -d
+#   1. docker compose up -d
 #   2. Access at http://localhost:3000
 #
 # Using MySQL instead of PostgreSQL:
@@ -10,13 +10,11 @@
 #   3. Uncomment mysql in depends_on (line 28)
 #   4. Uncomment mysql_data in volumes section (line 64)
 #
-# ⚠️  IMPORTANT: Change all default passwords before deploying to production!
-
-version: '3.4' # For compatibility with older Docker versions
+# Required environment: NEW_API_IMAGE, POSTGRES_PASSWORD, REDIS_PASSWORD.
 
 services:
   new-api:
-    image: calciumion/new-api:latest
+    image: ${NEW_API_IMAGE:?Set NEW_API_IMAGE to a versioned image or digest}
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
@@ -26,15 +24,19 @@ services:
       - ./data:/data
       - ./logs:/app/logs
     environment:
-      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api # ⚠️ IMPORTANT: Change the password in production!
-#      - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service, uncomment if using MySQL
-#      - LOG_SQL_DSN=postgresql://root:123456@postgres:5432/new-api-log # OPTIONAL: If you want a separate database for logging, uncomment and set this
-#      - LOG_SQL_DSN=clickhouse://default:123456@clickhouse:9000/new_api_logs # OPTIONAL: Use ClickHouse for logs only; also uncomment clickhouse in depends_on and the clickhouse service below
+      - SQL_DSN=postgresql://${POSTGRES_USER:-newapi}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-new-api}
+#      - SQL_DSN=${MYSQL_USER:-newapi}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@tcp(mysql:3306)/${MYSQL_DATABASE:-new-api}  # Point to the mysql service, uncomment if using MySQL
+#      - LOG_SQL_DSN=postgresql://${POSTGRES_USER:-newapi}:${POSTGRES_LOG_PASSWORD:?Set POSTGRES_LOG_PASSWORD}@postgres:5432/new-api-log # OPTIONAL: Use a separate database/user in production
+#      - LOG_SQL_DSN=clickhouse://${CLICKHOUSE_USER:-newapi}:${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD}@clickhouse:9000/new_api_logs # OPTIONAL: Use ClickHouse for logs only
 #      - LOG_SQL_CLICKHOUSE_TTL_DAYS=0 # OPTIONAL: ClickHouse log retention days. Unset or 0 disables automatic deletion; set to e.g. 30 to keep 30 days
-      - REDIS_CONN_STRING=redis://:123456@redis:6379 # ⚠️ IMPORTANT: Change the password in production!
+      - REDIS_CONN_STRING=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
       - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)
+      - RUN_MODE=${RUN_MODE:-all}
+      - APP_PLANE=${APP_PLANE:-all}
+      - METRICS_ENABLED=${METRICS_ENABLED:-false}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
       - NODE_NAME=new-api-node-1  # 节点名称，用于审计日志中标识节点身份；多节点/容器部署时建议设置 (Node name used in audit logs; recommended when running multiple instances or in containers)
 #      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 （Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions）
 #      - RELAY_IDLE_CONN_TIMEOUT=90  # Relay HTTP 客户端空闲连接超时时间，单位秒，默认跟随 Go 标准库，设置为0表示不限制 (Relay HTTP client idle keep-alive timeout in seconds, defaults to Go standard library; set 0 to disable)
@@ -54,27 +56,27 @@ services:
     networks:
       - new-api-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      test: ["CMD-SHELL", "if [ '${RUN_MODE:-all}' = 'all' ] || [ '${RUN_MODE:-all}' = 'serve' ]; then wget -q -O - http://localhost:3000/healthz | grep -q '\"status\":\"ok\"'; else kill -0 1; fi"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   redis:
-    image: redis:latest
+    image: redis:7.4.2-alpine
     container_name: redis
     restart: always
-    command: ["redis-server", "--requirepass", "123456"]  # ⚠️ IMPORTANT: Change this password in production!
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD}"]
     networks:
       - new-api-network
 
   postgres:
-    image: postgres:15
+    image: postgres:15.10-alpine
     container_name: postgres
     restart: always
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
-      POSTGRES_DB: new-api
+      POSTGRES_USER: ${POSTGRES_USER:-newapi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-new-api}
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
@@ -83,12 +85,14 @@ services:
 #      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
 
 #  mysql:
-#    image: mysql:8.2
+#    image: mysql:8.4.6
 #    container_name: mysql
 #    restart: always
 #    environment:
-#      MYSQL_ROOT_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
-#      MYSQL_DATABASE: new-api
+#      MYSQL_USER: ${MYSQL_USER:-newapi}
+#      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+#      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+#      MYSQL_DATABASE: ${MYSQL_DATABASE:-new-api}
 #    volumes:
 #      - mysql_data:/var/lib/mysql
 #    networks:
@@ -97,13 +101,13 @@ services:
 #      - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
 
 #  clickhouse:
-#    image: clickhouse/clickhouse-server:24.8
+#    image: clickhouse/clickhouse-server:24.8.14.39-alpine
 #    container_name: clickhouse
 #    restart: always
 #    environment:
 #      CLICKHOUSE_DB: new_api_logs
-#      CLICKHOUSE_USER: default
-#      CLICKHOUSE_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
+#      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-newapi}
+#      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD}
 #      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
 #    volumes:
 #      - clickhouse_data:/var/lib/clickhouse

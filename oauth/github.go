@@ -69,9 +69,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	client := http.Client{
-		Timeout: 20 * time.Second,
-	}
+	client := newHTTPClient(20 * time.Second)
 	res, err := client.Do(req)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] ExchangeToken error: %s", err.Error()))
@@ -111,9 +109,7 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 
-	client := http.Client{
-		Timeout: 20 * time.Second,
-	}
+	client := newHTTPClient(20 * time.Second)
 	res, err := client.Do(req)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo error: %s", err.Error()))

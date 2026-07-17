@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -12,17 +13,24 @@ import (
 
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	logType, _ := strconv.Atoi(c.Query("type"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	username := c.Query("username")
-	tokenName := c.Query("token_name")
-	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
-	group := c.Query("group")
-	requestId := c.Query("request_id")
-	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId)
+	query := getLogQuery(c)
+	if isLogCursorPagination(c) {
+		logs, nextCursor, hasMore, err := model.GetAllLogsByCursor(query, c.Query("cursor"), pageInfo.GetPageSize(), pageInfo.GetStartIdx())
+		if err != nil {
+			writeLogQueryError(c, err)
+			return
+		}
+		common.ApiSuccess(c, gin.H{
+			"items":       logs,
+			"page":        pageInfo.GetPage(),
+			"page_size":   pageInfo.GetPageSize(),
+			"has_more":    hasMore,
+			"next_cursor": nextCursor,
+		})
+		return
+	}
+
+	logs, total, err := model.GetAllLogs(query, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -30,21 +38,61 @@ func GetAllLogs(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
-	return
+}
+
+func getLogQuery(c *gin.Context) model.LogQuery {
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	return model.LogQuery{
+		LogType:           logType,
+		StartTimestamp:    startTimestamp,
+		EndTimestamp:      endTimestamp,
+		ModelName:         c.Query("model_name"),
+		Username:          c.Query("username"),
+		TokenName:         c.Query("token_name"),
+		Channel:           channel,
+		Group:             c.Query("group"),
+		RequestId:         c.Query("request_id"),
+		UpstreamRequestId: c.Query("upstream_request_id"),
+		TraceId:           c.Query("trace_id"),
+	}
+}
+
+func isLogCursorPagination(c *gin.Context) bool {
+	return c.Query("pagination") == "cursor" || c.Request.URL.Query().Has("cursor")
+}
+
+func writeLogQueryError(c *gin.Context, err error) {
+	if errors.Is(err, model.ErrInvalidLogCursor) {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid log cursor"})
+		return
+	}
+	common.ApiError(c, err)
 }
 
 func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	userId := c.GetInt("id")
-	logType, _ := strconv.Atoi(c.Query("type"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	tokenName := c.Query("token_name")
-	modelName := c.Query("model_name")
-	group := c.Query("group")
-	requestId := c.Query("request_id")
-	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	query := getLogQuery(c)
+	if isLogCursorPagination(c) {
+		logs, nextCursor, hasMore, err := model.GetUserLogsByCursor(userId, query, c.Query("cursor"), pageInfo.GetPageSize(), pageInfo.GetStartIdx())
+		if err != nil {
+			writeLogQueryError(c, err)
+			return
+		}
+		common.ApiSuccess(c, gin.H{
+			"items":       logs,
+			"page":        pageInfo.GetPage(),
+			"page_size":   pageInfo.GetPageSize(),
+			"has_more":    hasMore,
+			"next_cursor": nextCursor,
+		})
+		return
+	}
+
+	logs, total, err := model.GetUserLogs(userId, query, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -52,7 +100,6 @@ func GetUserLogs(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
-	return
 }
 
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。
