@@ -36,6 +36,7 @@ data/
 token_estimator_test.go
 skills-lock.json
 .playwright-mcp
+artifacts/
 
 # Local-only live probes and scratch test workspaces.
 .local-tests/
