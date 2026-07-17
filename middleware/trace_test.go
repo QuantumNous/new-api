@@ -68,3 +68,28 @@ func TestTraceContextRespectsClientHeaders(t *testing.T) {
 	require.Equal(t, "trace-xyz", w.Header().Get("AH-Trace-Id"))
 	require.Equal(t, "trace-xyz", w.Header().Get("X-Trace-Id"))
 }
+
+func TestTraceContextRejectsOversizedAffinityTrace(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequestId())
+	r.Use(TraceContext())
+	r.GET("/v1/chat/completions", func(c *gin.Context) {
+		require.Empty(t, c.GetString("affinity_trace_id"))
+		require.False(t, c.GetBool("trace_client_provided"))
+		require.NotEqual(t, c.GetHeader("AH-Trace-Id"), c.GetString("trace_id"))
+		c.Status(http.StatusNoContent)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("AH-Trace-Id", string(make([]byte, maxClientTraceIDBytes+1)))
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestTraceContextRejectsControlCharactersForAffinity(t *testing.T) {
+	require.Empty(t, normalizeClientTraceID("trace\tattacker"))
+	require.Empty(t, normalizeClientTraceID("trace attacker"))
+	require.Equal(t, "trace-safe_123", normalizeClientTraceID(" trace-safe_123 "))
+}

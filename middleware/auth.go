@@ -52,12 +52,39 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+func getFreshSessionUser(userID int) (*model.User, error) {
+	if userID <= 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if model.DB == nil {
+		return nil, model.ErrDatabase
+	}
+	return model.GetUserById(userID, false)
+}
+
+func abortSessionUserRefresh(c *gin.Context, err error) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
+		})
+	} else {
+		common.SysLog("session user refresh failed: " + err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
+		})
+	}
+	c.Abort()
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	username := session.Get("username")
 	role := session.Get("role")
 	id := session.Get("id")
 	status := session.Get("status")
+	authenticatedBySession := username != nil
 	useAccessToken := false
 	if username == nil {
 		// Check access token
@@ -139,22 +166,24 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	// Re-source role/status/group from DB so demotion/ban/group changes apply
-	// before the 30-day cookie expires. Session values are only a bootstrap fallback.
-	// DB failures keep session values (unit tests / degraded mode).
+	// Session cookies are identity hints. Authorization always comes from the
+	// current database row so bans, deletion and demotion fail closed.
 	userGroup := ""
 	if g := session.Get("group"); g != nil {
 		if gs, ok := g.(string); ok {
 			userGroup = gs
 		}
 	}
-	if uid := asIntID(id); uid > 0 && model.DB != nil {
-		if full, err := model.GetUserById(uid, false); err == nil && full != nil {
-			username = full.Username
-			role = full.Role
-			status = full.Status
-			userGroup = full.Group
+	if authenticatedBySession {
+		full, refreshErr := getFreshSessionUser(asIntID(id))
+		if refreshErr != nil {
+			abortSessionUserRefresh(c, refreshErr)
+			return
 		}
+		username = full.Username
+		role = full.Role
+		status = full.Status
+		userGroup = full.Group
 	}
 	statusInt := asIntID(status)
 	roleInt := asIntID(role)
@@ -268,34 +297,27 @@ func TokenOrUserAuth() func(c *gin.Context) {
 		session := sessions.Default(c)
 		if id := session.Get("id"); id != nil {
 			uid := asIntID(id)
-			if uid > 0 {
-				if model.DB != nil {
-					if full, err := model.GetUserById(uid, false); err == nil && full != nil {
-						if full.Status == common.UserStatusEnabled {
-							c.Set("id", full.Id)
-							c.Set("username", full.Username)
-							c.Set("role", full.Role)
-							c.Set("status", full.Status)
-							c.Set("group", full.Group)
-							c.Set("user_group", full.Group)
-							c.Next()
-							return
-						}
-						c.JSON(http.StatusForbidden, gin.H{
-							"success": false,
-							"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
-						})
-						c.Abort()
-						return
-					}
-				}
-				// DB unavailable: fall back to session status (tests / degraded).
-				if asIntID(session.Get("status")) == common.UserStatusEnabled {
-					c.Set("id", uid)
-					c.Next()
-					return
-				}
+			full, refreshErr := getFreshSessionUser(uid)
+			if refreshErr != nil {
+				abortSessionUserRefresh(c, refreshErr)
+				return
 			}
+			if full.Status != common.UserStatusEnabled {
+				c.JSON(http.StatusForbidden, gin.H{
+					"success": false,
+					"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
+				})
+				c.Abort()
+				return
+			}
+			c.Set("id", full.Id)
+			c.Set("username", full.Username)
+			c.Set("role", full.Role)
+			c.Set("status", full.Status)
+			c.Set("group", full.Group)
+			c.Set("user_group", full.Group)
+			c.Next()
+			return
 		}
 		// Fall back to token auth (API clients)
 		TokenAuth()(c)
@@ -351,7 +373,6 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			c.Abort()
 			return
 		}
-
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {

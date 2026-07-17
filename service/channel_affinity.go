@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
 	"regexp"
@@ -27,6 +28,7 @@ const (
 	ginKeyChannelAffinitySkipRetry  = "channel_affinity_skip_retry_on_failure"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v1"
+	channelAffinityRedisLRUIndex            = "new-api:channel_affinity_lru:v1"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
 )
 
@@ -207,6 +209,13 @@ func ClearChannelAffinityCacheAll() int {
 			common.SysError(fmt.Sprintf("channel affinity cache delete many failed: err=%v", err))
 		}
 	}
+	if common.RedisEnabled && common.RDB != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := common.RDB.Del(ctx, channelAffinityRedisLRUIndex).Err(); err != nil {
+			common.SysError(fmt.Sprintf("channel affinity LRU index clear failed: err=%v", err))
+		}
+	}
 	return len(keys)
 }
 
@@ -238,9 +247,41 @@ func ClearChannelAffinityCacheByRuleName(ruleName string) (int, error) {
 	}
 
 	cache := getChannelAffinityCache()
-	deleted, err := cache.DeleteByPrefix(ruleName)
+	if !common.RedisEnabled || common.RDB == nil {
+		return cache.DeleteByPrefix(ruleName)
+	}
+	keys, err := cache.Keys()
 	if err != nil {
 		return 0, err
+	}
+	prefix := cache.FullKey(ruleName) + ":"
+	matched := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if strings.HasPrefix(key, prefix) {
+			matched = append(matched, key)
+		}
+	}
+	if len(matched) == 0 {
+		return 0, nil
+	}
+	deletedMap, err := cache.DeleteMany(matched)
+	if err != nil {
+		return 0, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	members := make([]interface{}, 0, len(matched))
+	for _, key := range matched {
+		members = append(members, key)
+	}
+	if err := common.RDB.ZRem(ctx, channelAffinityRedisLRUIndex, members...).Err(); err != nil {
+		return 0, err
+	}
+	deleted := 0
+	for _, ok := range deletedMap {
+		if ok {
+			deleted++
+		}
 	}
 	return deleted, nil
 }
@@ -334,18 +375,35 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 	}
 }
 
-func buildChannelAffinityCacheKeySuffix(rule operation_setting.ChannelAffinityRule, modelName string, usingGroup string, affinityValue string) string {
+func fixedAffinityKeyPart(value string) string {
+	return fmt.Sprintf("%x", common.Sha256Raw([]byte(value)))
+}
+
+func channelAffinityCredentialScope(c *gin.Context) string {
+	if c != nil {
+		if tokenID := c.GetInt("token_id"); tokenID > 0 {
+			return fmt.Sprintf("token:%d", tokenID)
+		}
+		if userID := c.GetInt("id"); userID > 0 {
+			return fmt.Sprintf("user:%d", userID)
+		}
+	}
+	return "anonymous"
+}
+
+func buildChannelAffinityCacheKeySuffix(c *gin.Context, rule operation_setting.ChannelAffinityRule, modelName string, usingGroup string, affinityValue string) string {
 	parts := make([]string, 0, 4)
 	if rule.IncludeRuleName && rule.Name != "" {
 		parts = append(parts, rule.Name)
 	}
 	if rule.IncludeModelName && modelName != "" {
-		parts = append(parts, modelName)
+		parts = append(parts, fixedAffinityKeyPart(modelName)[:16])
 	}
 	if rule.IncludeUsingGroup && usingGroup != "" {
-		parts = append(parts, usingGroup)
+		parts = append(parts, fixedAffinityKeyPart(usingGroup)[:16])
 	}
-	parts = append(parts, affinityValue)
+	scopedValue := channelAffinityCredentialScope(c) + "\x00" + affinityValue
+	parts = append(parts, fixedAffinityKeyPart(scopedValue))
 	return strings.Join(parts, ":")
 }
 
@@ -591,7 +649,7 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 		if ttlSeconds <= 0 {
 			ttlSeconds = setting.DefaultTTLSeconds
 		}
-		cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, modelName, usingGroup, affinityValue)
+		cacheKeySuffix := buildChannelAffinityCacheKeySuffix(c, rule, modelName, usingGroup, affinityValue)
 		cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
 		setChannelAffinityContext(c, channelAffinityMeta{
 			CacheKey:       cacheKeyFull,
@@ -734,9 +792,48 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 		ttlSeconds = 3600
 	}
 	cache := getChannelAffinityCache()
-	if err := cache.SetWithTTL(cacheKey, channelID, time.Duration(ttlSeconds)*time.Second); err != nil {
+	if err := setChannelAffinityWithLimit(cache, cacheKey, channelID, time.Duration(ttlSeconds)*time.Second, setting.MaxEntries); err != nil {
 		common.SysError(fmt.Sprintf("channel affinity cache set failed: key=%s, err=%v", cacheKey, err))
 	}
+}
+
+const channelAffinityRedisSetScript = `
+redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+redis.call('ZADD', KEYS[2], ARGV[3], KEYS[1])
+local max_entries = tonumber(ARGV[4])
+if max_entries and max_entries > 0 then
+  local count = redis.call('ZCARD', KEYS[2])
+  local overflow = count - max_entries
+  if overflow > 0 then
+    local victims = redis.call('ZRANGE', KEYS[2], 0, overflow - 1)
+    for _, key in ipairs(victims) do
+      redis.call('DEL', key)
+    end
+    redis.call('ZREMRANGEBYRANK', KEYS[2], 0, overflow - 1)
+  end
+end
+return 1
+`
+
+func setChannelAffinityWithLimit(cache *cachex.HybridCache[int], key string, channelID int, ttl time.Duration, maxEntries int) error {
+	if !common.RedisEnabled || common.RDB == nil {
+		return cache.SetWithTTL(key, channelID, ttl)
+	}
+	if maxEntries <= 0 {
+		maxEntries = 100_000
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := common.RDB.Eval(
+		ctx,
+		channelAffinityRedisSetScript,
+		[]string{cache.FullKey(key), channelAffinityRedisLRUIndex},
+		strconv.Itoa(channelID),
+		strconv.FormatInt(ttl.Milliseconds(), 10),
+		strconv.FormatInt(time.Now().UnixNano(), 10),
+		strconv.Itoa(maxEntries),
+	).Result()
+	return err
 }
 
 type ChannelAffinityUsageCacheStats struct {
