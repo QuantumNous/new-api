@@ -19,7 +19,7 @@ export TOKEN="sk-你的令牌"
 
 | 模型 ID | 说明 | 创建路径 | 素材方式 |
 |---------|------|----------|----------|
-| `doubao-seedance-2.0` | 豆包 Seedance 2.0（多模态） | `POST /v1/video/generations` | `content` 图/视频/音频 URL |
+| `doubao-seedance-2-0-260128` | 豆包 Seedance（多模态） | `POST /v1/video/generations` | `content` 图/视频/音频 URL |
 | `mingiz-sd2` | 星河 2.0 | `POST /v1/videos` | multipart 上传文件，或 JSON 公网 URL |
 | `sd2-fast` | 星河快速版 | 同上 | 同上（参数同 `mingiz-sd2`） |
 
@@ -62,7 +62,7 @@ curl -X POST "https://imageproxy.zhongzhuan.chat/api/upload" \
 
 ---
 
-## 4. `doubao-seedance-2.0`
+## 4. `doubao-seedance-2-0-260128`
 
 ### 文生视频
 
@@ -73,7 +73,7 @@ curl -s -X POST "$BASE/v1/video/generations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "doubao-seedance-2.0",
+    "model": "doubao-seedance-2-0-260128",
     "prompt": "一只橘猫在窗边打哈欠",
     "metadata": {
       "ratio": "16:9",
@@ -93,7 +93,7 @@ curl -s -X POST "$BASE/v1/video/generations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "doubao-seedance-2.0",
+    "model": "doubao-seedance-2-0-260128",
     "content": [
       {
         "type": "text",
@@ -122,6 +122,7 @@ curl -s -X POST "$BASE/v1/video/generations" \
 
 | 参数 | 说明 |
 |------|------|
+| `model` | `doubao-seedance-2-0-260128` |
 | `ratio` | `16:9` / `9:16` / `1:1` |
 | `resolution` | `480p` / `720p` / `1080p`（推荐 `720p`） |
 | `duration` | 常见 5～15 秒 |
@@ -206,7 +207,7 @@ curl -X POST "$BASE/v1/videos" \
 
 | 场景 | 推荐模型 |
 |------|----------|
-| 多模态参考（图/视频/音频） | `doubao-seedance-2.0` |
+| 多模态参考（图/视频/音频） | `doubao-seedance-2-0-260128` |
 | 本地文件直传 / 星河画质 | `mingiz-sd2` |
 | 快速出片（星河协议） | `sd2-fast` |
 
@@ -235,4 +236,4 @@ curl -X POST "$BASE/v1/videos" \
 
 ---
 
-*文档版本：2026-07-14 · 三模型统一版*
+*文档版本：2026-07-17 · 三模型统一版*

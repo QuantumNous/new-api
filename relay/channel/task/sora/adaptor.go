@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -321,11 +323,58 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	return &taskResult, nil
 }
 
+// authGatedVideoContentURLPaths are response fields that may carry upstream
+// /v1/videos/{id}/content URLs requiring the upstream Bearer key.
+var authGatedVideoContentURLPaths = []string{
+	"url",
+	"video_url",
+	"content_url",
+	"metadata.url",
+	"metadata.video_url",
+	"metadata.content_url",
+}
+
+// isAuthGatedVideoContentURL reports whether u looks like an OpenAI-style
+// authenticated content endpoint (.../v1/videos/{id}/content), not a CDN/mp4 link.
+func isAuthGatedVideoContentURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || !strings.HasPrefix(raw, "http") {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	for i := 0; i+3 < len(parts); i++ {
+		if parts[i] == "v1" && parts[i+1] == "videos" && parts[i+3] == "content" {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	data := task.Data
 	var err error
 	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
 		return nil, errors.Wrap(err, "set id failed")
+	}
+	if gjson.GetBytes(data, "task_id").Exists() {
+		if data, err = sjson.SetBytes(data, "task_id", task.TaskID); err != nil {
+			return nil, errors.Wrap(err, "set task_id failed")
+		}
+	}
+
+	proxyURL := taskcommon.BuildProxyURL(task.TaskID)
+	for _, path := range authGatedVideoContentURLPaths {
+		u := strings.TrimSpace(gjson.GetBytes(data, path).String())
+		if !isAuthGatedVideoContentURL(u) {
+			continue
+		}
+		if data, err = sjson.SetBytes(data, path, proxyURL); err != nil {
+			return nil, errors.Wrapf(err, "rewrite %s failed", path)
+		}
 	}
 	return data, nil
 }

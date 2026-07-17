@@ -36,3 +36,4 @@ data/
 token_estimator_test.go
 skills-lock.json
 ...
+ - 副本.env

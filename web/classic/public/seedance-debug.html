@@ -452,8 +452,8 @@
     };
 
     const MODEL_PROFILES = {
-      "doubao-seedance-2.0": {
-        label: "doubao-seedance-2.0（多模态）",
+      "doubao-seedance-2-0-260128": {
+        label: "doubao-seedance-2-0-260128（多模态）",
         family: "doubao",
         hint: "豆包 Seedance · content 多模态参考 · ratio/resolution/duration/配音/水印。",
         createPath: "/v1/video/generations",
@@ -579,7 +579,7 @@
       return v || window.location.origin;
     }
     function profile() {
-      return MODEL_PROFILES[els.model.value] || MODEL_PROFILES["doubao-seedance-2.0"];
+      return MODEL_PROFILES[els.model.value] || MODEL_PROFILES["doubao-seedance-2-0-260128"];
     }
     function authHeaders(extra = {}) {
       return { Authorization: `Bearer ${token()}`, ...extra };
@@ -1480,7 +1480,7 @@
         `<option value="${id}">${p.label}</option>`
       ).join("");
       const saved = readLocal(STORAGE.model);
-      els.model.value = MODEL_PROFILES[saved] ? saved : "doubao-seedance-2.0";
+      els.model.value = MODEL_PROFILES[saved] ? saved : "doubao-seedance-2-0-260128";
     }
 
     function init() {
