@@ -21,7 +21,7 @@ import React from 'react';
 import { Card, Collapse, Empty } from '@douyinfe/semi-ui';
 import { HelpCircle } from 'lucide-react';
 import { IconPlus, IconMinus } from '@douyinfe/semi-icons';
-import { marked } from 'marked';
+import { renderMarkdown } from '../../helpers/sanitizeHtml';
 import {
   IllustrationConstruction,
   IllustrationConstructionDark,
@@ -62,7 +62,7 @@ const FaqPanel = ({
               >
                 <div
                   dangerouslySetInnerHTML={{
-                    __html: marked.parse(item.answer || ''),
+                    __html: renderMarkdown(item.answer || ''),
                   }}
                 />
               </Collapse.Panel>

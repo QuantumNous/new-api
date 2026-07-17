@@ -30,7 +30,7 @@ import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
 import { useActualTheme } from '../../context/Theme';
-import { marked } from 'marked';
+import { renderMarkdown, sanitizeHtml } from '../../helpers/sanitizeHtml';
 import { useTranslation } from 'react-i18next';
 import {
   IconGithubLogo,
@@ -82,13 +82,18 @@ const Home = () => {
   const isChinese = i18n.language.startsWith('zh');
 
   const displayHomePageContent = async () => {
-    setHomePageContent(localStorage.getItem('home_page_content') || '');
+    const cachedContent = localStorage.getItem('home_page_content') || '';
+    setHomePageContent(
+      cachedContent.startsWith('https://')
+        ? cachedContent
+        : sanitizeHtml(cachedContent),
+    );
     const res = await API.get('/api/home_page_content');
     const { success, message, data } = res.data;
     if (success) {
       let content = data;
       if (!data.startsWith('https://')) {
-        content = marked.parse(data);
+        content = renderMarkdown(data);
       }
       setHomePageContent(content);
       localStorage.setItem('home_page_content', content);
