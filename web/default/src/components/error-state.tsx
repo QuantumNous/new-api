@@ -20,8 +20,8 @@ import { AlertTriangle, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
 import { FadeIn } from '@/components/page-transition'
-import { Button } from '@/components/ui/button'
 import {
   Empty,
   EmptyContent,
@@ -61,7 +61,7 @@ export function ErrorState(props: ErrorStateProps) {
         </EmptyHeader>
         <EmptyContent>
           {props.onRetry != null && (
-            <Button variant='outline' size='sm' onClick={props.onRetry}>
+            <Button variant='outline' onClick={props.onRetry}>
               {t('Retry')}
             </Button>
           )}

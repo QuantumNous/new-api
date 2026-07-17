@@ -21,8 +21,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/design-system/button'
 import { Dialog } from '@/components/dialog'
-import { Button } from '@/components/ui/button'
 import { Markdown } from '@/components/ui/markdown'
 import { formatTimestamp, formatTimestampToDate } from '@/lib/format'
 

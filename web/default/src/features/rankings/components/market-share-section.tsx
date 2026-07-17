@@ -279,7 +279,7 @@ function VendorList(props: {
     <ul>
       {props.rows.map((vendor) => (
         <li key={vendor.vendor} className='flex items-center gap-3 py-2.5'>
-          <span className='text-muted-foreground/80 w-6 shrink-0 text-right font-mono text-xs tabular-nums'>
+          <span className='text-muted-foreground/80 w-6 shrink-0 text-right text-xs tabular-nums'>
             {vendor.rank}.
           </span>
           <span
@@ -296,10 +296,10 @@ function VendorList(props: {
             {vendor.vendor}
           </VendorLink>
           <div className='shrink-0 text-right'>
-            <div className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+            <div className='text-foreground text-sm font-semibold tabular-nums'>
               {formatTokens(vendor.total_tokens)}
             </div>
-            <div className='text-muted-foreground/80 font-mono text-[11px] tabular-nums'>
+            <div className='text-muted-foreground/80 text-xs tabular-nums'>
               {formatShare(vendor.share)}
             </div>
           </div>

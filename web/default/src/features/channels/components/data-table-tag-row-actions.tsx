@@ -22,7 +22,7 @@ import { Power, PowerOff, Pencil, Edit } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,

@@ -16,13 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTablePage, useDataTable } from '@/components/data-table'
-import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 
 import { getModels, searchModels, getVendors } from '../api'
@@ -41,7 +40,7 @@ const route = getRouteApi('/_authenticated/models/$section')
 export function ModelsTable() {
   const { t } = useTranslation()
   const { selectedVendor } = useModels()
-  const isMobile = useMediaQuery('(max-width: 640px)')
+  const queryClient = useQueryClient()
 
   // URL state management
   const {
@@ -57,7 +56,8 @@ export function ModelsTable() {
     navigate: route.useNavigate(),
     pagination: {
       defaultPage: 1,
-      defaultPageSize: isMobile ? 10 : DEFAULT_PAGE_SIZE,
+      defaultPageSize: DEFAULT_PAGE_SIZE,
+      pageSizeStorageKey: 'models:page-size:v1',
     },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
@@ -113,9 +113,9 @@ export function ModelsTable() {
   // Use search API whenever any filter is active so status/sync are applied server-side
   const shouldSearch = Boolean(
     globalFilter?.trim() ||
-      activeVendorFilter ||
-      statusFilterValue ||
-      syncFilterValue
+    activeVendorFilter ||
+    statusFilterValue ||
+    syncFilterValue
   )
 
   // Fetch models data
@@ -192,6 +192,7 @@ export function ModelsTable() {
     <DataTablePage
       table={table}
       columns={columns}
+      tableLabel={t('Models')}
       isLoading={isLoading}
       isFetching={isFetching}
       emptyTitle={t('No Models Found')}
@@ -202,6 +203,10 @@ export function ModelsTable() {
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by model name...'),
+        onRefresh: () =>
+          queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() }),
+        refreshLoading: isFetching,
+        refreshStorageKey: 'models:auto-refresh',
         filters: [
           {
             columnId: 'status',

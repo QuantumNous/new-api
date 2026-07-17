@@ -38,7 +38,7 @@ import {
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { StatusBadge } from '@/components/status-badge'
+import { CopyableStatusBadge, StatusBadge } from '@/components/status-badge'
 import { formatTimestampToDate } from '@/lib/format'
 
 import { MJ_TASK_TYPES } from '../../constants'
@@ -94,20 +94,27 @@ export function useDrawingLogsColumns(
         const submitTime = row.getValue('submit_time') as number
 
         return (
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            <span className='truncate font-mono text-xs tabular-nums'>
+          // In mobile cards this cell sits in a label-left/value-right row
+          // (data-table-card-value); align both lines to the right edge there.
+          <div className='flex min-w-0 flex-col gap-0.5 in-data-[slot=data-table-card-value]:items-end'>
+            <span className='text-xs tabular-nums in-data-[slot=data-table-card-value]:text-sm'>
               {formatTimestampToDate(submitTime, 'milliseconds')}
             </span>
             <StatusBadge
-              label={t(mjStatusMapper.getLabel(log.status))}
               variant={mjStatusMapper.getVariant(log.status)}
               size='sm'
-              copyable={false}
-            />
+            >
+              {t(mjStatusMapper.getLabel(log.status))}
+            </StatusBadge>
           </div>
         )
       },
       size: 180,
+      meta: {
+        cardRole: 'primary',
+        cardOrder: 10,
+        contentMode: 'full',
+      },
     },
   ]
 
@@ -122,16 +129,18 @@ export function useDrawingLogsColumns(
     header: t('Type'),
     cell: ({ row }) => {
       const action = row.getValue('action') as string
+      const TypeIcon = getDrawingTypeIcon(action)
       return (
-        <StatusBadge
-          label={t(mjTaskTypeMapper.getLabel(action))}
-          variant={mjTaskTypeMapper.getVariant(action)}
-          icon={getDrawingTypeIcon(action)}
-          size='sm'
-          copyable={false}
-          className='-ml-1.5'
-        />
+        <StatusBadge variant={mjTaskTypeMapper.getVariant(action)} size='sm'>
+          <TypeIcon data-icon='inline-start' aria-hidden='true' />
+          {t(mjTaskTypeMapper.getLabel(action))}
+        </StatusBadge>
       )
+    },
+    meta: {
+      cardRole: 'title',
+      cardSpan: 2,
+      contentMode: 'wrap',
     },
   })
 
@@ -142,22 +151,28 @@ export function useDrawingLogsColumns(
       const mjId = row.getValue('mj_id') as string
 
       if (!mjId) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className='text-subtle-foreground text-xs'>-</span>
       }
 
       return (
-        <div className='flex max-w-[160px] flex-col gap-0.5'>
-          <StatusBadge
-            label={mjId}
-            copyText={mjId}
+        <div className='flex min-w-0 flex-col items-start gap-0.5'>
+          <CopyableStatusBadge
+            value={mjId}
             variant='neutral'
             size='sm'
-            className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
-          />
+            className='max-w-full min-w-0 shrink overflow-hidden font-mono [&>[data-slot=status-badge-label]]:max-w-full [&>[data-slot=status-badge-label]]:min-w-0 [&>[data-slot=status-badge-label]]:shrink [&>[data-slot=status-badge-label]]:overflow-hidden [&>[data-slot=status-badge-label]]:text-ellipsis'
+          >
+            {mjId}
+          </CopyableStatusBadge>
         </div>
       )
     },
-    meta: { mobileTitle: true },
+    meta: {
+      cardRole: 'primary',
+      cardOrder: 30,
+      cardSpan: 2,
+      contentMode: 'full',
+    },
   })
 
   columns.push(
@@ -177,13 +192,16 @@ export function useDrawingLogsColumns(
 
         return (
           <StatusBadge
-            label={t(mjSubmitResultMapper.getLabel(String(code)))}
             variant={mjSubmitResultMapper.getVariant(String(code))}
             size='sm'
-            copyable={false}
-            className='-ml-1.5'
-          />
+          >
+            {t(mjSubmitResultMapper.getLabel(String(code)))}
+          </StatusBadge>
         )
+      },
+      meta: {
+        cardRole: 'badge',
+        contentMode: 'full',
       },
     })
   }
@@ -199,7 +217,7 @@ export function useDrawingLogsColumns(
         const [dialogOpen, setDialogOpen] = useState(false)
 
         if (!imageUrl) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className='text-subtle-foreground text-xs'>-</span>
         }
 
         return (
@@ -210,7 +228,7 @@ export function useDrawingLogsColumns(
               onClick={() => setDialogOpen(true)}
               title={t('Click to view image')}
             >
-              <span className='text-foreground truncate leading-snug group-hover:underline'>
+              <span className='text-foreground leading-snug group-hover:underline'>
                 {t('View')}
               </span>
             </button>
@@ -223,6 +241,11 @@ export function useDrawingLogsColumns(
           </>
         )
       },
+      meta: {
+        cardRole: 'primary',
+        cardOrder: 50,
+        contentMode: 'full',
+      },
     },
     {
       accessorKey: 'prompt',
@@ -233,7 +256,7 @@ export function useDrawingLogsColumns(
         const [dialogOpen, setDialogOpen] = useState(false)
 
         if (!prompt) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className='text-subtle-foreground text-xs'>-</span>
         }
 
         return (
@@ -259,6 +282,12 @@ export function useDrawingLogsColumns(
       },
       size: 200,
       maxSize: 220,
+      meta: {
+        cardRole: 'secondary',
+        cardOrder: 20,
+        cardSpan: 2,
+        contentMode: 'summary',
+      },
     },
     createFailReasonColumn<MidjourneyLog>({
       headerLabel: t('Fail Reason'),

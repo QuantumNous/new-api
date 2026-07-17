@@ -23,22 +23,27 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
 type AuthLayoutProps = {
+  title?: string
+  description?: React.ReactNode
+  icon?: React.ReactNode
+  footer?: React.ReactNode
   children: React.ReactNode
 }
 
-export function AuthLayout({ children }: AuthLayoutProps) {
+export function AuthLayout(props: AuthLayoutProps) {
   const { t } = useTranslation()
   const { systemName, logo, loading } = useSystemConfig()
+  const hasHeader = Boolean(props.icon || props.title || props.description)
 
   return (
-    <div className='relative grid h-svh max-w-none'>
-      <Link
-        to='/'
-        className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
-      >
-        <div className='relative h-8 w-8'>
+    <div className='bg-background flex min-h-svh flex-col items-center justify-center px-6 py-10'>
+      <div className='flex w-full max-w-sm flex-col gap-8'>
+        <Link
+          to='/'
+          className='flex items-center justify-center gap-2.5 transition-opacity hover:opacity-80'
+        >
           {loading ? (
-            <Skeleton className='absolute inset-0 rounded-full' />
+            <Skeleton className='h-8 w-8 rounded-full' />
           ) : (
             <img
               src={logo}
@@ -46,17 +51,37 @@ export function AuthLayout({ children }: AuthLayoutProps) {
               className='h-8 w-8 rounded-full object-cover'
             />
           )}
-        </div>
-        {loading ? (
-          <Skeleton className='h-6 w-24' />
-        ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
+          {loading ? (
+            <Skeleton className='h-6 w-28' />
+          ) : (
+            <span className='text-lg font-medium'>{systemName}</span>
+          )}
+        </Link>
+
+        <main className='flex flex-col gap-6'>
+          {hasHeader && (
+            <header className='flex flex-col items-center gap-2 text-center'>
+              {props.icon}
+              {props.title && (
+                <h1 className='text-xl font-semibold tracking-tight'>
+                  {props.title}
+                </h1>
+              )}
+              {props.description && (
+                <p className='text-muted-foreground text-sm text-balance'>
+                  {props.description}
+                </p>
+              )}
+            </header>
+          )}
+          {props.children}
+        </main>
+
+        {props.footer && (
+          <footer className='text-muted-foreground text-center text-sm'>
+            {props.footer}
+          </footer>
         )}
-      </Link>
-      <div className='container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
-          {children}
-        </div>
       </div>
     </div>
   )

@@ -67,7 +67,7 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
         res?.message || i18next.t('Failed to send verification email')
       )
       return false
-    } catch (_error) {
+    } catch {
       // Errors are handled by global interceptor
       return false
     } finally {

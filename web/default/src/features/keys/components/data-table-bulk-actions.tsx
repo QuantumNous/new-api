@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   Tooltip,
   TooltipContent,
@@ -89,7 +89,6 @@ export function DataTableBulkActions<TData>({
               <Button
                 variant='outline'
                 size='icon'
-                className='size-8'
                 onClick={handleBatchCopy}
                 disabled={isCopying}
                 aria-label={t('Copy selected keys')}
@@ -114,7 +113,6 @@ export function DataTableBulkActions<TData>({
                 variant='destructive'
                 size='icon'
                 onClick={() => setShowDeleteConfirm(true)}
-                className='size-8'
                 aria-label={t('Delete selected API keys')}
               />
             }

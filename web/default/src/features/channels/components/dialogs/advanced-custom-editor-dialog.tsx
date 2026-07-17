@@ -32,11 +32,19 @@ import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/design-system/select'
 import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Popover,
   PopoverContent,
@@ -45,14 +53,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -519,7 +519,6 @@ export function AdvancedCustomEditorDialog({
           <Button
             type='button'
             variant={editMode === 'visual' ? 'default' : 'outline'}
-            size='sm'
             onClick={switchToVisualMode}
           >
             {t('Visual')}
@@ -527,7 +526,6 @@ export function AdvancedCustomEditorDialog({
           <Button
             type='button'
             variant={editMode === 'json' ? 'default' : 'outline'}
-            size='sm'
             onClick={switchToJsonMode}
           >
             {t('JSON Text')}
@@ -546,7 +544,7 @@ export function AdvancedCustomEditorDialog({
               )
             }
           >
-            <SelectTrigger className='h-8 max-w-full min-w-[260px] flex-1 sm:w-[320px]'>
+            <SelectTrigger className='max-w-full min-w-[260px] flex-1 sm:w-[320px]'>
               <SelectValue className='min-w-0 truncate'>
                 {t(templateLabel)}
               </SelectValue>
@@ -573,7 +571,6 @@ export function AdvancedCustomEditorDialog({
           <Button
             type='button'
             variant='outline'
-            size='sm'
             onClick={() => applyTemplate('fill')}
           >
             {t('Fill Template')}
@@ -581,7 +578,6 @@ export function AdvancedCustomEditorDialog({
           <Button
             type='button'
             variant='ghost'
-            size='sm'
             onClick={() => applyTemplate('append')}
           >
             {t('Append Template')}
@@ -592,12 +588,7 @@ export function AdvancedCustomEditorDialog({
       {editMode === 'visual' ? (
         <div className='flex flex-col gap-4 p-4 lg:gap-3'>
           <div className='flex justify-end border-y py-4 lg:py-2'>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={addRoute}
-            >
+            <Button type='button' variant='outline' onClick={addRoute}>
               <Plus data-icon='inline-start' />
               {t('Add route')}
             </Button>
@@ -655,12 +646,7 @@ export function AdvancedCustomEditorDialog({
       ) : (
         <div className='p-4'>
           <div className='mb-2 flex items-center gap-2'>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={formatJson}
-            >
+            <Button type='button' variant='outline' onClick={formatJson}>
               {t('Format')}
             </Button>
             <span className='text-muted-foreground text-xs'>

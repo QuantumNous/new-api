@@ -46,14 +46,10 @@ export function renderCellContent<TData>(
   return cell.getValue() as ReactNode
 }
 
-/**
- * Whether any visible column declares `mobileTitle`/`mobileBadge` meta. When
- * true the compact two-tier layout is used; otherwise the condensed
- * label:value fallback layout is used.
- */
+/** Whether visible columns declare a title/status card hierarchy. */
 export function tableHasCompactMeta<TData>(table: Table<TData>): boolean {
   return table.getVisibleLeafColumns().some((col) => {
     const meta = col.columnDef.meta
-    return Boolean(meta?.mobileTitle || meta?.mobileBadge)
+    return meta?.cardRole === 'title' || meta?.cardRole === 'badge'
   })
 }

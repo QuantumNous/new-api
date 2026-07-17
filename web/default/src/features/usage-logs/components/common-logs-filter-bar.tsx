@@ -23,7 +23,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   Select,
   SelectContent,
@@ -31,7 +31,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
 import {
   Tooltip,
   TooltipContent,
@@ -200,6 +200,11 @@ export function CommonLogsFilterBar<TData>(
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
   }, [filters, logType, navigate, queryClient])
 
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['logs'] })
+    queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
+  }, [queryClient])
+
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
     const resetFilters: CommonLogFilters = { startTime: start, endTime: end }
@@ -263,21 +268,16 @@ export function CommonLogsFilterBar<TData>(
   const logTypeLabel =
     logTypeItems.find((type) => type.value === logType)?.label ?? t('All Types')
 
-  const statsBar = (
-    <div className='flex flex-wrap items-center gap-2'>
-      <CommonLogsStats />
-    </div>
-  )
   const sensitiveToggle = (
     <Tooltip>
       <TooltipTrigger
         render={
           <Button
             variant='ghost'
-            size='icon'
+            size='icon-sm'
             onClick={() => setSensitiveVisible(!sensitiveVisible)}
             aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-            className='text-muted-foreground hover:text-foreground size-7'
+            className='text-muted-foreground hover:text-foreground'
           />
         }
       >
@@ -412,7 +412,7 @@ export function CommonLogsFilterBar<TData>(
   return (
     <LogsFilterToolbar
       table={props.table}
-      stats={statsBar}
+      stats={<CommonLogsStats />}
       actionStart={sensitiveToggle}
       primaryFilters={
         <>
@@ -442,6 +442,9 @@ export function CommonLogsFilterBar<TData>(
       onSearch={handleApply}
       searchLoading={fetchingLogs > 0}
       onReset={handleReset}
+      onRefresh={handleRefresh}
+      refreshing={fetchingLogs > 0}
+      refreshStorageKey='usage-logs:auto-refresh'
     />
   )
 }

@@ -29,13 +29,13 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Input } from '@/components/ui/input'
 import {
   Tooltip,
   TooltipContent,
@@ -135,10 +135,10 @@ export const WebPreviewNavigationButton = ({
       <TooltipTrigger
         render={
           <Button
-            className='hover:text-foreground h-8 w-8 p-0'
+            className='hover:text-foreground'
             disabled={disabled}
             onClick={onClick}
-            size='sm'
+            size='icon'
             variant='ghost'
             {...props}
           />
@@ -185,7 +185,7 @@ export const WebPreviewUrl = ({
 
   return (
     <Input
-      className='h-8 flex-1 text-sm'
+      className='flex-1 text-sm'
       onChange={onChange ?? handleChange}
       onKeyDown={handleKeyDown}
       placeholder={t('Enter URL...')}

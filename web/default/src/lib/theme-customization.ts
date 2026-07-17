@@ -27,7 +27,7 @@ export const THEME_PRESETS = [
   {
     value: 'default',
     name: 'Default',
-    swatches: ['oklch(0.72 0.18 250)', 'oklch(0.7 0.12 280)'],
+    swatches: ['oklch(0.692 0.141 243.716)', 'oklch(0.7 0.12 280)'],
   },
   {
     // Inspired by Anthropic's official brand language: warm cream canvas
@@ -82,22 +82,36 @@ export const THEME_PRESETS = [
 export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
 export type ThemeRadius = 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
 export type ThemeScale = 'default' | 'sm' | 'lg' | 'xl'
+
+/**
+ * Text size axis. Overrides only the `--text-*` type ramp, independently of
+ * the density scale (which adjusts spacing and text together). `default`
+ * follows the active preset/density ramp; explicit tiers win over both.
+ */
+export type ThemeTextSize = 'default' | 'sm' | 'lg' | 'xl' | '2xl'
+
+/**
+ * Badge size axis. Controls how "chubby" badges/pills (Badge, StatusBadge)
+ * read, independently of the global density scale. `default` is the compact
+ * redesign look; `lg` restores the pre-redesign pill (larger text, full-pill
+ * corners) and is the site default; `xl` is one step larger for readability.
+ */
+export type ThemeBadgeSize = 'default' | 'lg' | 'xl'
 export type ContentLayout = 'full' | 'centered'
 
 /**
  * Font axis for the theme.
  *
  * - `default` — resolve at runtime from the active preset
- *   (see `PRESET_DEFAULT_FONT`). The shipped `default` and `anthropic`
- *   presets resolve to serif; other named color presets fall back to
- *   sans unless they list a different choice. Mirrors how
+ *   (see `PRESET_DEFAULT_FONT`). The Anthropic preset resolves to serif;
+ *   every other preset falls back to sans. Mirrors how
  *   `radius: 'default'` defers to a per-preset hint.
- * - `sans` — humanist sans (Public Sans), the project's UI fallback.
- * - `serif` — editorial serif (Lora + CJK fallbacks), the project's
- *   "soul" typography. Inherits across the whole UI; monospace contexts
- *   keep their own family via Tailwind preflight and `.font-mono`.
+ * - `mono` — monospace (JetBrains Mono), the same face used by
+ *   `.font-mono` and code blocks.
+ * - `sans` — humanist sans (Public Sans), the project's default body face.
+ * - `serif` — editorial serif (Lora + CJK fallbacks).
  */
-export type ThemeFont = 'default' | 'sans' | 'serif'
+export type ThemeFont = 'default' | 'mono' | 'sans' | 'serif'
 
 /**
  * The resolved (non-`default`) font value applied to the DOM. The provider
@@ -112,6 +126,8 @@ export type ThemeCustomization = {
   font: ThemeFont
   radius: ThemeRadius
   scale: ThemeScale
+  textSize: ThemeTextSize
+  badgeSize: ThemeBadgeSize
   contentLayout: ContentLayout
 }
 
@@ -120,6 +136,8 @@ export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
   font: 'default',
   radius: 'default',
   scale: 'default',
+  textSize: 'default',
+  badgeSize: 'lg',
   contentLayout: 'full',
 }
 
@@ -129,6 +147,7 @@ export const THEME_PRESET_VALUES = new Set(
 
 export const THEME_FONT_VALUES: ReadonlySet<ThemeFont> = new Set([
   'default',
+  'mono',
   'sans',
   'serif',
 ])
@@ -149,6 +168,20 @@ export const THEME_SCALE_VALUES: ReadonlySet<ThemeScale> = new Set([
   'xl',
 ])
 
+export const THEME_TEXT_SIZE_VALUES: ReadonlySet<ThemeTextSize> = new Set([
+  'default',
+  'sm',
+  'lg',
+  'xl',
+  '2xl',
+])
+
+export const THEME_BADGE_SIZE_VALUES: ReadonlySet<ThemeBadgeSize> = new Set([
+  'default',
+  'lg',
+  'xl',
+])
+
 export const CONTENT_LAYOUT_VALUES: ReadonlySet<ContentLayout> = new Set([
   'full',
   'centered',
@@ -159,6 +192,8 @@ export const THEME_COOKIE_KEYS = {
   font: 'theme_font',
   radius: 'theme_radius',
   scale: 'theme_scale',
+  textSize: 'theme_text_size',
+  badgeSize: 'theme_badge_size',
   contentLayout: 'theme_content_layout',
 } as const
 
@@ -168,15 +203,12 @@ export const THEME_COOKIE_KEYS = {
  *
  * Co-located with the preset registry so a preset's signature typography
  * is declared in one place. Presets not listed here fall back to the
- * `resolveThemeFont` default of `sans`. The shipped `default` preset
- * opts into serif so the editorial Lora voice is the out-of-the-box
- * experience; vivid color presets stay on the humanist sans so their
- * accents read clearly without competing with the body type.
+ * `resolveThemeFont` default of `sans`. Anthropic opts into serif to
+ * keep its editorial Lora voice.
  */
 export const PRESET_DEFAULT_FONT: Partial<
   Record<ThemePreset, ResolvedThemeFont>
 > = {
-  default: 'sans',
   anthropic: 'serif',
 }
 

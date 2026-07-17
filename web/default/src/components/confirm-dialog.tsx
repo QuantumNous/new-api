@@ -26,8 +26,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+} from '@/components/design-system/alert-dialog'
+import { Button } from '@/components/design-system/button'
 import { cn } from '@/lib/utils'
 
 type ConfirmDialogProps = {

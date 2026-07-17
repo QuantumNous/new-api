@@ -32,13 +32,14 @@ import { IconSidebarSidebar } from '@/assets/custom/icon-sidebar-sidebar'
 import { IconThemeDark } from '@/assets/custom/icon-theme-dark'
 import { IconThemeLight } from '@/assets/custom/icon-theme-light'
 import { IconThemeSystem } from '@/assets/custom/icon-theme-system'
+import { Button } from '@/components/design-system/button'
+import { useSidebar } from '@/components/design-system/sidebar'
 import {
   sideDrawerContentClassName,
   sideDrawerFooterClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
-import { Button } from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
@@ -55,30 +56,42 @@ import { useTheme } from '@/context/theme-provider'
 import {
   type ContentLayout,
   THEME_PRESETS,
+  type ThemeBadgeSize,
   type ThemeFont,
   type ThemePreset,
   type ThemeRadius,
   type ThemeScale,
+  type ThemeTextSize,
 } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
 
-import { useSidebar } from './ui/sidebar'
-
 const Item = RadioPrimitive.Root
 
-export function ConfigDrawer() {
+type ConfigDrawerProps = {
+  /**
+   * Whether to show console-only sections (sidebar, layout, content width).
+   * Requires SidebarProvider/LayoutProvider; disable on public pages.
+   * @default true
+   */
+  showLayoutControls?: boolean
+  /**
+   * Extra classes for the trigger button (e.g. to override `max-md:hidden`).
+   */
+  triggerClassName?: string
+}
+
+export function ConfigDrawer({
+  showLayoutControls = true,
+  triggerClassName,
+}: ConfigDrawerProps) {
   const { t } = useTranslation()
-  const { setOpen } = useSidebar()
   const { resetDir } = useDirection()
   const { resetTheme } = useTheme()
-  const { resetLayout } = useLayout()
   const { resetCustomization } = useThemeCustomization()
 
-  const handleReset = () => {
-    setOpen(true)
+  const resetAppearance = () => {
     resetDir()
     resetTheme()
-    resetLayout()
     resetCustomization()
   }
 
@@ -91,7 +104,7 @@ export function ConfigDrawer() {
             variant='ghost'
             aria-label={t('Open theme settings')}
             aria-describedby='config-drawer-description'
-            className='max-md:hidden'
+            className={cn('max-md:hidden', triggerClassName)}
           />
         }
       >
@@ -110,22 +123,59 @@ export function ConfigDrawer() {
           <FontConfig />
           <RadiusConfig />
           <ScaleConfig />
-          <SidebarConfig />
-          <LayoutConfig />
-          <ContentLayoutConfig />
+          <TextSizeConfig />
+          <BadgeSizeConfig />
+          {showLayoutControls && (
+            <>
+              <SidebarConfig />
+              <LayoutConfig />
+              <ContentLayoutConfig />
+            </>
+          )}
           <DirConfig />
         </div>
         <SheetFooter className={sideDrawerFooterClassName('grid-cols-1')}>
-          <Button
-            variant='destructive'
-            onClick={handleReset}
-            aria-label={t('Reset all settings to default values')}
-          >
-            {t('Reset')}
-          </Button>
+          {showLayoutControls ? (
+            <ConsoleResetButton onReset={resetAppearance} />
+          ) : (
+            <Button
+              variant='destructive'
+              onClick={resetAppearance}
+              aria-label={t('Reset all settings to default values')}
+            >
+              {t('Reset')}
+            </Button>
+          )}
         </SheetFooter>
       </SheetContent>
     </Sheet>
+  )
+}
+
+/**
+ * Reset button variant that also restores sidebar/layout state. Kept as a
+ * separate component because it consumes SidebarProvider/LayoutProvider hooks
+ * that only exist inside the console layout.
+ */
+function ConsoleResetButton(props: { onReset: () => void }) {
+  const { t } = useTranslation()
+  const { setOpen } = useSidebar()
+  const { resetLayout } = useLayout()
+
+  const handleReset = () => {
+    setOpen(true)
+    resetLayout()
+    props.onReset()
+  }
+
+  return (
+    <Button
+      variant='destructive'
+      onClick={handleReset}
+      aria-label={t('Reset all settings to default values')}
+    >
+      {t('Reset')}
+    </Button>
   )
 }
 
@@ -145,9 +195,8 @@ function SectionTitle(props: {
       {props.title}
       {props.showReset && props.onReset && (
         <Button
-          size='icon'
+          size='icon-xs'
           variant='secondary'
-          className='size-4'
           onClick={props.onReset}
           aria-label='Reset'
         >
@@ -277,12 +326,18 @@ function PresetConfig() {
               <div
                 aria-hidden='true'
                 className='absolute inset-0 rounded-md'
-                style={{
-                  background:
-                    preset.value === 'default'
-                      ? 'linear-gradient(135deg, oklch(0.68 0.2 25) 0%, oklch(0.8 0.17 85) 25%, oklch(0.72 0.18 155) 50%, oklch(0.66 0.19 245) 75%, oklch(0.68 0.2 315) 100%)'
-                      : `linear-gradient(135deg, ${preset.swatches[0]} 0%, ${preset.swatches[1] ?? preset.swatches[0]} 100%)`,
-                }}
+                style={
+                  // The default preset is the full-color theme; two swatch
+                  // stops cannot convey that, so it previews as a rainbow.
+                  preset.value === 'default'
+                    ? {
+                        background:
+                          'linear-gradient(135deg, oklch(0.68 0.2 25) 0%, oklch(0.8 0.17 85) 25%, oklch(0.72 0.18 155) 50%, oklch(0.66 0.19 245) 75%, oklch(0.68 0.2 315) 100%)',
+                      }
+                    : {
+                        background: `linear-gradient(135deg, ${preset.swatches[0]} 0%, ${preset.swatches[1] ?? preset.swatches[0]} 100%)`,
+                      }
+                }
               />
               <CircleCheck
                 className={cn(
@@ -320,6 +375,7 @@ const FONT_OPTIONS: {
   preview?: string
 }[] = [
   { value: 'default', label: 'Auto', preview: undefined },
+  { value: 'mono', label: 'Mono', preview: 'var(--font-mono)' },
   { value: 'sans', label: 'Sans', preview: 'var(--font-sans)' },
   { value: 'serif', label: 'Serif', preview: 'var(--font-serif)' },
 ]
@@ -337,7 +393,7 @@ function FontConfig() {
       <Radio
         value={customization.font}
         onValueChange={(v) => setFont(v as ThemeFont)}
-        className='grid w-full grid-cols-3 gap-4'
+        className='grid w-full grid-cols-4 gap-4'
         aria-label={t('Select body font')}
       >
         {FONT_OPTIONS.map((option) => (
@@ -382,7 +438,49 @@ function FontConfig() {
           </Item>
         ))}
       </Radio>
+      <FontLicenseNote />
     </div>
+  )
+}
+
+/**
+ * One-line licensing attribution for the bundled webfonts. All three faces
+ * ship under the SIL Open Font License 1.1, which permits commercial use;
+ * each name links to its official source and the license text.
+ */
+function FontLicenseNote() {
+  const { t } = useTranslation()
+  const fontSources: { name: string; href: string }[] = [
+    { name: 'Public Sans', href: 'https://github.com/uswds/public-sans' },
+    { name: 'Lora', href: 'https://fonts.google.com/specimen/Lora' },
+    { name: 'JetBrains Mono', href: 'https://www.jetbrains.com/lp/mono/' },
+  ]
+  return (
+    <p className='text-subtle-foreground mt-2 text-xs leading-relaxed'>
+      {fontSources.map((font, index) => (
+        <span key={font.name}>
+          {index > 0 && ' · '}
+          <a
+            href={font.href}
+            target='_blank'
+            rel='noreferrer'
+            className='hover:text-foreground hover:underline'
+          >
+            {font.name}
+          </a>
+        </span>
+      ))}
+      {' — '}
+      <a
+        href='https://openfontlicense.org'
+        target='_blank'
+        rel='noreferrer'
+        className='hover:text-foreground hover:underline'
+      >
+        SIL OFL 1.1
+      </a>
+      {`, ${t('free for commercial use')}`}
+    </p>
   )
 }
 
@@ -465,12 +563,12 @@ function ScalePreview(props: { rows: number; rowGap: string }) {
       className='absolute inset-2.5 flex flex-col justify-center'
       style={{ gap: props.rowGap }}
     >
-      {Array.from({ length: props.rows }, (_, index) => 85 - index * 10).map(
+      {Array.from({ length: props.rows }, (_, i) => `${85 - i * 10}%`).map(
         (width) => (
           <span
             key={width}
             className='bg-foreground/60 block h-[2px] rounded-full'
-            style={{ width: `${width}%` }}
+            style={{ width }}
           />
         )
       )}
@@ -528,6 +626,158 @@ function ScaleConfig() {
                 aria-hidden='true'
               />
               <ScalePreview rows={option.rows} rowGap={option.rowGap} />
+            </div>
+            <div className='mt-1.5 truncate text-center text-xs'>
+              {option.label}
+            </div>
+          </Item>
+        ))}
+      </Radio>
+    </div>
+  )
+}
+
+function TextSizeConfig() {
+  const { t } = useTranslation()
+  const { defaults, customization, setTextSize } = useThemeCustomization()
+  // Preview font sizes mirror each tier's `--text-base` so the tiles show
+  // the actual relative difference between tiers.
+  const textSizeOptions: {
+    value: ThemeTextSize
+    label: string
+    previewSize: string
+  }[] = [
+    { value: 'sm', label: t('Small'), previewSize: '0.88rem' },
+    { value: 'default', label: t('Default'), previewSize: '1rem' },
+    { value: 'lg', label: t('Large'), previewSize: '1.075rem' },
+    { value: 'xl', label: t('Extra Large'), previewSize: '1.125rem' },
+    { value: '2xl', label: t('Super Large'), previewSize: '1.21rem' },
+  ]
+  return (
+    <div>
+      <SectionTitle
+        title={t('Text size')}
+        showReset={customization.textSize !== defaults.textSize}
+        onReset={() => setTextSize(defaults.textSize)}
+      />
+      <Radio
+        value={customization.textSize}
+        onValueChange={(v) => setTextSize(v as ThemeTextSize)}
+        className='grid w-full grid-cols-5 gap-2'
+        aria-label={t('Select text size')}
+      >
+        {textSizeOptions.map((option) => (
+          <Item
+            key={option.value}
+            value={option.value}
+            className='group flex flex-col items-stretch outline-none'
+            aria-label={option.label}
+          >
+            <div
+              className={cn(
+                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-focus-visible:ring-2',
+                'group-hover:ring-primary/60'
+              )}
+            >
+              <CircleCheck
+                className={cn(
+                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'group-data-unchecked:hidden'
+                )}
+                aria-hidden='true'
+              />
+              <span
+                aria-hidden='true'
+                className='text-foreground absolute inset-0 flex items-center justify-center leading-none font-medium'
+                style={{ fontSize: option.previewSize }}
+              >
+                Aa
+              </span>
+            </div>
+            <div className='mt-1.5 truncate text-center text-xs'>
+              {option.label}
+            </div>
+          </Item>
+        ))}
+      </Radio>
+    </div>
+  )
+}
+
+/**
+ * Mock pill rendered inside the badge-size preview tiles. Each option shows
+ * the pill at the proportions that size will actually produce.
+ */
+function BadgeSizePreview(props: { height: string; fontSize: string }) {
+  return (
+    <div
+      aria-hidden='true'
+      className='absolute inset-0 flex items-center justify-center'
+    >
+      <span
+        className='border-foreground/50 text-foreground/70 inline-flex items-center rounded-full border px-2 leading-none font-medium'
+        style={{ height: props.height, fontSize: props.fontSize }}
+      >
+        Abc
+      </span>
+    </div>
+  )
+}
+
+function BadgeSizeConfig() {
+  const { t } = useTranslation()
+  const { defaults, customization, setBadgeSize } = useThemeCustomization()
+  const badgeSizeOptions: {
+    value: ThemeBadgeSize
+    label: string
+    height: string
+    fontSize: string
+  }[] = [
+    { value: 'default', label: t('Compact'), height: '20px', fontSize: '11px' },
+    { value: 'lg', label: t('Comfortable'), height: '24px', fontSize: '12px' },
+    { value: 'xl', label: t('Super Large'), height: '28px', fontSize: '13px' },
+  ]
+  return (
+    <div>
+      <SectionTitle
+        title={t('Badge size')}
+        showReset={customization.badgeSize !== defaults.badgeSize}
+        onReset={() => setBadgeSize(defaults.badgeSize)}
+      />
+      <Radio
+        value={customization.badgeSize}
+        onValueChange={(v) => setBadgeSize(v as ThemeBadgeSize)}
+        className='grid w-full grid-cols-3 gap-3'
+        aria-label={t('Select badge size')}
+      >
+        {badgeSizeOptions.map((option) => (
+          <Item
+            key={option.value}
+            value={option.value}
+            className='group flex flex-col items-stretch outline-none'
+            aria-label={option.label}
+          >
+            <div
+              className={cn(
+                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-focus-visible:ring-2',
+                'group-hover:ring-primary/60'
+              )}
+            >
+              <CircleCheck
+                className={cn(
+                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'group-data-unchecked:hidden'
+                )}
+                aria-hidden='true'
+              />
+              <BadgeSizePreview
+                height={option.height}
+                fontSize={option.fontSize}
+              />
             </div>
             <div className='mt-1.5 truncate text-center text-xs'>
               {option.label}

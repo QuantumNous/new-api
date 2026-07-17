@@ -19,11 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { CircleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  dotColorMap,
-  textColorMap,
-  type StatusVariant,
-} from '@/components/status-badge'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Tooltip,
   TooltipContent,
@@ -36,18 +32,13 @@ import { cn } from '@/lib/utils'
 import { getFirstResponseTimeColor, getResponseTimeColor } from '../lib/format'
 import type { LogOtherData } from '../types'
 
-/**
- * Softened fills for the full-height timing bar. The bar sits directly beside
- * dense numeric text, so the saturated `dotColorMap` tones (tuned for small
- * dots and badges) read as too high-contrast at that size; a translucent fill
- * keeps the status legible while matching the page's muted palette.
- */
-const barColorMap: Record<StatusVariant, string> = {
-  ...dotColorMap,
-  success: 'bg-success/90',
-  warning: 'bg-warning/80',
-  danger: 'bg-destructive/80',
-  neutral: 'bg-neutral/80',
+type TimingVariant = 'success' | 'warning' | 'destructive' | 'neutral'
+
+const timingTextColorMap: Record<TimingVariant, string> = {
+  success: 'text-status-success',
+  warning: 'text-status-warning',
+  destructive: 'text-status-destructive',
+  neutral: 'text-muted-foreground',
 }
 
 interface TimingMetricsCellProps {
@@ -56,26 +47,23 @@ interface TimingMetricsCellProps {
   frtMs?: number
   isStream: boolean
   className?: string
-  /**
-   * `bar` (default) draws a full-height color segment beside the labels,
-   * matching the dense desktop table. `dot` swaps that segment for small
-   * status dots inline with each label, matching the lighter-weight status
-   * indicator used elsewhere on the mobile card.
-   */
-  indicator?: 'bar' | 'dot'
 }
 
+/**
+ * Two-line timing readout for request logs: first-token latency (stream
+ * requests only) and total duration, each colored by the shared
+ * response-time thresholds.
+ */
 export function TimingMetricsCell(props: TimingMetricsCellProps) {
   const { t } = useTranslation()
-  const indicator = props.indicator ?? 'bar'
   const showFirstToken = props.isStream
   const firstTokenSeconds =
     props.frtMs != null && props.frtMs > 0 ? props.frtMs / 1000 : null
-  const firstTokenVariant: StatusVariant =
+  const firstTokenVariant: TimingVariant =
     firstTokenSeconds == null
       ? 'neutral'
       : getFirstResponseTimeColor(firstTokenSeconds)
-  const totalTimeVariant = getResponseTimeColor(
+  const totalTimeVariant: TimingVariant = getResponseTimeColor(
     props.useTimeSec,
     props.completionTokens
   )
@@ -83,74 +71,39 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
     firstTokenSeconds == null ? t('N/A') : formatUseTime(firstTokenSeconds)
   const totalTimeLabel = formatUseTime(props.useTimeSec)
 
-  const labels = (
-    <div className='flex min-h-8 min-w-0 flex-col justify-center gap-0.5 text-xs leading-tight'>
+  return (
+    <div
+      className={cn(
+        // Mobile cards render this cell in a label-left/value-right row
+        // (data-table-card-value): lines hug the right edge and use the
+        // card's standard value size instead of the dense table size.
+        'flex min-w-0 flex-col justify-center gap-0.5 text-xs leading-tight in-data-[slot=data-table-card-value]:items-end in-data-[slot=data-table-card-value]:text-sm',
+        props.className
+      )}
+    >
       {showFirstToken && (
         <div className='flex items-baseline gap-1.5'>
-          {indicator === 'dot' && (
-            <span
-              aria-hidden
-              className={cn(
-                'size-1.5 shrink-0 rounded-full',
-                dotColorMap[firstTokenVariant]
-              )}
-            />
-          )}
-          <span className='text-muted-foreground shrink-0'>
+          <span className='text-subtle-foreground shrink-0'>
             {t('First token')}
           </span>
           <span
-            className={cn('tabular-nums', textColorMap[firstTokenVariant])}
+            className={cn(
+              'tabular-nums',
+              timingTextColorMap[firstTokenVariant]
+            )}
           >
             {firstTokenLabel}
           </span>
         </div>
       )}
       <div className='flex items-baseline gap-1.5'>
-        {indicator === 'dot' && (
-          <span
-            aria-hidden
-            className={cn(
-              'size-1.5 shrink-0 rounded-full',
-              dotColorMap[totalTimeVariant]
-            )}
-          />
-        )}
-        <span className='text-muted-foreground shrink-0'>
-          {t('Duration')}
-        </span>
-        <span className={cn('tabular-nums', textColorMap[totalTimeVariant])}>
+        <span className='text-subtle-foreground shrink-0'>{t('Duration')}</span>
+        <span
+          className={cn('tabular-nums', timingTextColorMap[totalTimeVariant])}
+        >
           {totalTimeLabel}
         </span>
       </div>
-    </div>
-  )
-
-  if (indicator === 'dot') {
-    return (
-      <div className={cn('flex items-stretch', props.className)}>
-        {labels}
-      </div>
-    )
-  }
-
-  return (
-    <div className={cn('flex items-stretch gap-2', props.className)}>
-      <span
-        aria-hidden
-        className={cn(
-          'flex w-1 shrink-0 flex-col overflow-hidden rounded-full',
-          !showFirstToken && barColorMap[totalTimeVariant]
-        )}
-      >
-        {showFirstToken && (
-          <>
-            <span className={cn('flex-1', barColorMap[firstTokenVariant])} />
-            <span className={cn('flex-1', barColorMap[totalTimeVariant])} />
-          </>
-        )}
-      </span>
-      {labels}
     </div>
   )
 }
@@ -170,22 +123,18 @@ export function StreamTpsCell(props: StreamTpsCellProps) {
     props.tokensPerSecond != null
       ? `${Math.round(props.tokensPerSecond)} t/s`
       : '—'
-  const streamLabel = props.isStream ? t('Stream') : t('Non-stream')
 
   return (
     <div
       className={cn(
-        'flex shrink-0 flex-col items-start justify-center gap-0.5 text-xs leading-tight',
+        'flex shrink-0 flex-col items-start justify-center gap-0.5 text-xs leading-tight in-data-[slot=data-table-card-value]:items-end',
         props.className
       )}
     >
-      <span
-        className={cn(
-          'inline-flex items-center gap-1 font-medium',
-          props.isStream ? 'text-info' : 'text-muted-foreground'
-        )}
-      >
-        {streamLabel}
+      <span className='inline-flex items-center gap-1'>
+        <StatusBadge variant={props.isStream ? 'info' : 'neutral'} size='sm'>
+          {props.isStream ? t('Stream') : t('Non-stream')}
+        </StatusBadge>
         {showStreamError && (
           <TooltipProvider>
             <Tooltip>
@@ -209,9 +158,7 @@ export function StreamTpsCell(props: StreamTpsCellProps) {
           </TooltipProvider>
         )}
       </span>
-      <span className='text-muted-foreground/60 px-0.5 tabular-nums'>
-        {tpsLabel}
-      </span>
+      <span className='text-subtle-foreground tabular-nums'>{tpsLabel}</span>
     </div>
   )
 }

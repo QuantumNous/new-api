@@ -23,8 +23,8 @@ import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/design-system/button'
 import { JsonCodeEditor } from '@/components/json-code-editor'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -223,7 +223,6 @@ export const ModelRatioForm = memo(function ModelRatioForm({
           <Button
             type='button'
             variant='destructive'
-            size='sm'
             onClick={onReset}
             disabled={isResetting}
           >
@@ -231,17 +230,12 @@ export const ModelRatioForm = memo(function ModelRatioForm({
             {t('Reset prices')}
           </Button>
           {editMode === 'json' && (
-            <Button
-              type='button'
-              size='sm'
-              onClick={handleSave}
-              disabled={isSaving}
-            >
+            <Button type='button' onClick={handleSave} disabled={isSaving}>
               <Save data-icon='inline-start' />
               {isSaving ? t('Saving...') : t('Save model prices')}
             </Button>
           )}
-          <Button variant='outline' size='sm' onClick={toggleEditMode}>
+          <Button variant='outline' onClick={toggleEditMode}>
             {editMode === 'visual' ? (
               <>
                 <Code2 className='mr-2 h-4 w-4' />

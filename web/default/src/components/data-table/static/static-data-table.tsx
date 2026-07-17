@@ -25,7 +25,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/design-system/table'
 import { cn } from '@/lib/utils'
 
 import { TruncatedCell } from '../core/truncated-cell'

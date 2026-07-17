@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { StatusBadgeProps } from '@/components/status-badge'
 
-import { type PrefillGroup, type PrefillGroupFormValues } from '../types'
+import type { PrefillGroup, PrefillGroupFormValues } from '../types'
 
 export type PrefillGroupType = PrefillGroup['type']
 
@@ -27,19 +27,19 @@ export const PREFILL_GROUP_TYPES = [
     value: 'model' as PrefillGroupType,
     label: 'Model Group',
     description: 'Reusable sets of models you can attach to channels.',
-    badge: 'blue' as StatusBadgeProps['variant'],
+    badge: 'neutral' as StatusBadgeProps['variant'],
   },
   {
     value: 'tag' as PrefillGroupType,
     label: 'Tag Group',
     description: 'Collections of metadata tags for bulk operations.',
-    badge: 'purple' as StatusBadgeProps['variant'],
+    badge: 'neutral' as StatusBadgeProps['variant'],
   },
   {
     value: 'endpoint' as PrefillGroupType,
     label: 'Endpoint Group',
     description: 'HTTP endpoint mappings shared across providers.',
-    badge: 'cyan' as StatusBadgeProps['variant'],
+    badge: 'neutral' as StatusBadgeProps['variant'],
   },
 ] as const
 
@@ -98,13 +98,11 @@ export function parseEndpointKeys(items: PrefillGroup['items']): string[] {
       typeof items === 'string' ? JSON.parse(items || '{}') : (items as unknown)
     if (Array.isArray(parsed)) {
       return parsed
-        .map((item) =>
-          typeof item === 'string'
-            ? item
-            : typeof item?.name === 'string'
-              ? item.name
-              : ''
-        )
+        .map((item) => {
+          if (typeof item === 'string') return item
+          if (typeof item?.name === 'string') return item.name
+          return ''
+        })
         .filter(Boolean)
     }
     if (parsed && typeof parsed === 'object') {

@@ -29,10 +29,14 @@ interface ModelBillingModeBadgeProps {
   className?: string
 }
 
+/**
+ * Billing-mode indicator for a pricing model: dynamic (expression-based)
+ * pricing, token-based billing, or per-request billing.
+ */
 export function ModelBillingModeBadge(props: ModelBillingModeBadgeProps) {
   const { t } = useTranslation()
   let label = t('Per Request')
-  let variant: StatusVariant = 'purple'
+  let variant: StatusVariant = 'neutral'
 
   if (isDynamicPricingModel(props.model)) {
     label = t('Dynamic Pricing')
@@ -43,12 +47,8 @@ export function ModelBillingModeBadge(props: ModelBillingModeBadgeProps) {
   }
 
   return (
-    <StatusBadge
-      label={label}
-      variant={variant}
-      copyable={false}
-      size='sm'
-      className={props.className}
-    />
+    <StatusBadge variant={variant} size='sm' className={props.className}>
+      {label}
+    </StatusBadge>
   )
 }

@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   Command,
   CommandEmpty,
@@ -28,7 +28,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
+} from '@/components/design-system/command'
 import {
   Drawer,
   DrawerContent,
@@ -92,12 +92,11 @@ const ModelTriggerButton = React.forwardRef<
     ref={ref}
     variant='outline'
     role='combobox'
-    size='sm'
     disabled={isDisabled}
     className={cn(
-      'flex h-8 items-center gap-2 border px-3 font-medium',
+      'flex items-center gap-2 border px-3 font-medium',
       'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
-      'w-8',
+      'w-7 sm:w-auto',
       'bg-background text-foreground',
       'hover:bg-accent transition-colors',
       'focus:!ring-0 focus:!outline-none',
@@ -128,12 +127,11 @@ const GroupTriggerButton = React.forwardRef<
     ref={ref}
     variant='outline'
     role='combobox'
-    size='sm'
     disabled={isDisabled}
     className={cn(
-      'flex h-8 items-center gap-2 border px-3 font-medium',
+      'flex items-center gap-2 border px-3 font-medium',
       'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
-      'w-8',
+      'w-7 sm:w-auto',
       'bg-background text-foreground',
       'hover:bg-accent transition-colors',
       'focus:!ring-0 focus:!outline-none',
@@ -230,7 +228,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
         {!isMobile && (
           <CommandInput
             placeholder={t('Search models...')}
-            className='h-9'
+            className=''
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -253,7 +251,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
                   <div
                     className={cn(
                       'text-muted-foreground px-2 py-1 font-medium',
-                      isMobile ? 'text-xs' : 'text-[10px]'
+                      isMobile ? 'text-xs' : 'text-xs'
                     )}
                   >
                     {t('{{category}} Models', { category })}
@@ -274,7 +272,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
                         <div
                           className={cn(
                             'truncate font-medium',
-                            isMobile ? 'text-sm' : 'text-[11px]'
+                            isMobile ? 'text-sm' : 'text-xs'
                           )}
                         >
                           <span className='inline'>{model.label}</span>
@@ -300,14 +298,16 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
 
     return isMobile ? (
       <Drawer open={open} onOpenChange={setOpen}>
-        <DrawerTrigger asChild>
-          <ModelTriggerButton
-            currentLabel={currentModel?.label || t('Model')}
-            triggerClassName={className}
-            isDisabled={disabled}
-            aria-expanded={open}
-          />
-        </DrawerTrigger>
+        <DrawerTrigger
+          render={
+            <ModelTriggerButton
+              currentLabel={currentModel?.label || t('Model')}
+              triggerClassName={className}
+              isDisabled={disabled}
+              aria-expanded={open}
+            />
+          }
+        />
         <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
           <DrawerHeader className='flex-shrink-0 pb-4'>
             <DrawerTitle className='flex items-center gap-2 text-left text-lg font-medium'>
@@ -336,7 +336,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
           align='start'
           side='bottom'
           sideOffset={4}
-          collisionPadding={8}
         >
           {renderModelCommandContent()}
         </PopoverContent>
@@ -394,13 +393,13 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
           return searchableFields.includes(searchTerm) ? 1 : 0
         }}
       >
-        <CommandInput placeholder={t('Search groups...')} className='h-9' />
+        <CommandInput placeholder={t('Search groups...')} className='' />
         <CommandEmpty>{t('No group found.')}</CommandEmpty>
         <CommandList
           className={isMobile ? '!max-h-full flex-1 p-2' : 'max-h-[240px]'}
         >
           <CommandGroup>
-            <div className='text-muted-foreground px-2 py-1 text-[10px] font-medium'>
+            <div className='text-muted-foreground px-2 py-1 text-xs font-medium'>
               {t('Model Group')}
             </div>
             {groups.map((group) => (
@@ -417,7 +416,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
               >
                 <div className='flex min-w-0 flex-1 items-center gap-2 pr-4'>
                   <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className='text-foreground truncate text-[11px] font-medium'>
+                    <span className='text-foreground truncate text-xs font-medium'>
                       {group.label}
                     </span>
                     {(group.desc || group.description) && (
@@ -448,14 +447,16 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
 
     return isMobile ? (
       <Drawer open={open} onOpenChange={setOpen}>
-        <DrawerTrigger asChild>
-          <GroupTriggerButton
-            currentLabel={currentGroup?.label || t('Group')}
-            triggerClassName={className}
-            isDisabled={disabled}
-            aria-expanded={open}
-          />
-        </DrawerTrigger>
+        <DrawerTrigger
+          render={
+            <GroupTriggerButton
+              currentLabel={currentGroup?.label || t('Group')}
+              triggerClassName={className}
+              isDisabled={disabled}
+              aria-expanded={open}
+            />
+          }
+        />
         <DrawerContent className='max-h-[80vh]'>
           <DrawerHeader className='pb-4 text-left'>
             <DrawerTitle>{t('Choose Group')}</DrawerTitle>
@@ -468,7 +469,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                   variant='outline'
                   onClick={() => handleGroupChange(group.value)}
                   className={cn(
-                    'flex h-auto w-full items-center justify-between rounded-lg p-4 text-left whitespace-normal',
+                    'flex h-auto sm:h-auto w-full items-center justify-between rounded-lg p-4 text-left whitespace-normal',
                     'border-border hover:bg-accent',
                     selectedGroup === group.value
                       ? 'bg-accent border-primary/20'
@@ -526,7 +527,6 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
           align='start'
           side='bottom'
           sideOffset={4}
-          collisionPadding={8}
         >
           {renderGroupCommandContent()}
         </PopoverContent>
@@ -644,21 +644,20 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     <Button
       aria-expanded={open}
       className={cn(
-        'h-8 max-w-[15rem] justify-start gap-2 border px-2.5 font-medium shadow-none',
+        'max-w-[15rem] justify-start gap-2 border px-2.5 font-medium shadow-none',
         'bg-background/80 hover:bg-accent/70 text-foreground',
         'focus:!ring-0 focus:!outline-none',
         className
       )}
       disabled={disabled}
       role='combobox'
-      size='sm'
       variant='outline'
     >
       <CpuIcon className='text-muted-foreground size-4 shrink-0' />
       <span className='min-w-0 truncate text-xs'>
         {currentModel?.label || t('Model')}
       </span>
-      <span className='bg-muted text-muted-foreground hidden max-w-20 shrink-0 rounded px-1.5 py-0.5 text-[10px] sm:inline-flex'>
+      <span className='bg-muted text-muted-foreground hidden max-w-20 shrink-0 rounded px-1.5 py-0.5 text-xs sm:inline-flex'>
         {currentGroup?.label || t('Group')}
       </span>
       <ChevronsUpDown className='text-muted-foreground ml-auto size-3.5 shrink-0 opacity-60' />
@@ -672,7 +671,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
         !isMobile && modelGroupSelectorLayoutClasses.groupColumn
       )}
     >
-      <div className='text-muted-foreground px-1 text-[11px] leading-4 font-medium'>
+      <div className='text-muted-foreground px-1 text-xs leading-4 font-medium'>
         {t('Model Group')}
       </div>
       <div
@@ -725,7 +724,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       shouldFilter={false}
     >
       <CommandInput
-        className='h-8 text-[13px]'
+        className='text-[13px]'
         onValueChange={setSearchQuery}
         placeholder={t('Search models...')}
         value={searchQuery}
@@ -804,7 +803,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
 
   return isMobile ? (
     <Drawer open={open} onOpenChange={setOpen}>
-      <DrawerTrigger asChild>{renderTrigger()}</DrawerTrigger>
+      <DrawerTrigger render={renderTrigger()} />
       <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
         <DrawerHeader className='pb-3 text-left'>
           <DrawerTitle>{t('Select Model')}</DrawerTitle>
@@ -823,7 +822,6 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
           'bg-popover z-50 w-[34rem] max-w-[calc(100vw-2rem)] rounded-xl border p-0 shadow-lg',
           modelGroupSelectorLayoutClasses.desktopPanel
         )}
-        collisionPadding={8}
         side='top'
         sideOffset={8}
       >

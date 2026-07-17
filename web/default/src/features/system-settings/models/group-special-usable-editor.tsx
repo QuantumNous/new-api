@@ -26,8 +26,18 @@ import {
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/design-system/select'
 import { StatusBadge } from '@/components/status-badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -40,15 +50,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 const sectionCardClassName =
   'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
@@ -195,9 +196,7 @@ function GroupSection(props: GroupSectionProps) {
         <div className='flex items-center justify-between p-3'>
           <div className='flex items-center gap-2'>
             <CollapsibleTrigger
-              render={
-                <Button variant='ghost' size='sm' className='h-6 w-6 p-0' />
-              }
+              render={<Button variant='ghost' size='icon-xs' />}
             >
               {open ? (
                 <ChevronUp className='h-4 w-4' />
@@ -207,28 +206,27 @@ function GroupSection(props: GroupSectionProps) {
             </CollapsibleTrigger>
             <span className='font-semibold'>{props.groupName}</span>
             {!isKnownGroup && (
-              <StatusBadge variant='danger' copyable={false}>
-                <AlertTriangle className='mr-1 h-3 w-3' />
+              <StatusBadge variant='destructive'>
+                <AlertTriangle data-icon='inline-start' />
                 {t('Not in pricing table')}
               </StatusBadge>
             )}
-            <StatusBadge variant='neutral' copyable={false}>
+            <Badge variant='outline'>
               {props.items.length} {t('rules')}
-            </StatusBadge>
+            </Badge>
           </div>
           <div className='flex items-center gap-1'>
             <Button
               variant='ghost'
-              size='sm'
-              className='h-7 w-7 p-0'
+              size='icon-sm'
               onClick={() => props.onAdd(props.groupName)}
             >
               <Plus className='h-4 w-4' />
             </Button>
             <Button
               variant='ghost'
-              size='sm'
-              className='text-destructive h-7 w-7 p-0'
+              size='icon-sm'
+              className='text-destructive'
               onClick={() => props.onRemoveGroup(props.groupName)}
             >
               <Trash2 className='h-4 w-4' />
@@ -249,27 +247,23 @@ function GroupSection(props: GroupSectionProps) {
                   <SelectTrigger className='w-[130px]'>
                     <SelectValue>
                       <StatusBadge
-                        label={rule.visible ? t('Extra visible') : t('Hidden')}
-                        variant={rule.visible ? 'info' : 'danger'}
-                        copyable={false}
-                      />
+                        variant={rule.visible ? 'info' : 'destructive'}
+                      >
+                        {rule.visible ? t('Extra visible') : t('Hidden')}
+                      </StatusBadge>
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
                     <SelectGroup>
                       <SelectItem value='visible'>
-                        <StatusBadge
-                          label={t('Extra visible')}
-                          variant='info'
-                          copyable={false}
-                        />
+                        <StatusBadge variant='info'>
+                          {t('Extra visible')}
+                        </StatusBadge>
                       </SelectItem>
                       <SelectItem value='hidden'>
-                        <StatusBadge
-                          label={t('Hidden')}
-                          variant='danger'
-                          copyable={false}
-                        />
+                        <StatusBadge variant='destructive'>
+                          {t('Hidden')}
+                        </StatusBadge>
                       </SelectItem>
                     </SelectGroup>
                   </SelectContent>
@@ -308,8 +302,8 @@ function GroupSection(props: GroupSectionProps) {
                 )}
                 <Button
                   variant='ghost'
-                  size='sm'
-                  className='text-destructive h-8 w-8 p-0'
+                  size='icon'
+                  className='text-destructive'
                   onClick={() => props.onRemove(rule._id)}
                 >
                   <Trash2 className='h-4 w-4' />

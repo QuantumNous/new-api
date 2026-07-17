@@ -20,8 +20,7 @@ import { Activity, RotateCw } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
-import { IconBadge } from '@/components/ui/icon-badge'
+import { Button } from '@/components/design-system/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { getUptimeStatus } from '@/features/dashboard/api'
 import type {
@@ -33,10 +32,10 @@ import { cn } from '@/lib/utils'
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 const STATUS_COLOR_MAP: Record<number, string> = {
-  1: 'bg-emerald-500',
-  0: 'bg-red-500',
-  2: 'bg-amber-500',
-  3: 'bg-blue-500',
+  1: 'bg-success',
+  0: 'bg-destructive',
+  2: 'bg-warning',
+  3: 'bg-info',
 }
 const DEFAULT_STATUS_COLOR = 'bg-muted-foreground/40'
 
@@ -54,7 +53,7 @@ export function UptimePanel() {
   useEffect(() => {
     const abortController = new AbortController()
 
-    void getUptimeStatus()
+    getUptimeStatus()
       .then((res) => {
         if (abortController.signal.aborted) return
         setGroups(res?.data || [])
@@ -78,7 +77,7 @@ export function UptimePanel() {
     const abortController = new AbortController()
     setRefreshing(true)
 
-    void getUptimeStatus()
+    getUptimeStatus()
       .then((res) => {
         if (abortController.signal.aborted) return
         setGroups(res?.data || [])
@@ -98,9 +97,7 @@ export function UptimePanel() {
     <PanelWrapper
       title={
         <span className='flex items-center gap-2'>
-          <IconBadge tone='success' size='sm'>
-            <Activity />
-          </IconBadge>
+          <Activity className='text-muted-foreground/60 size-4' />
           {t('Uptime')}
         </span>
       }
@@ -113,10 +110,9 @@ export function UptimePanel() {
       headerActions={
         <Button
           variant='ghost'
-          size='sm'
+          size='icon-sm'
           onClick={handleRefresh}
           disabled={refreshing}
-          className='size-7 p-0'
         >
           <RotateCw
             className={cn('size-3.5', refreshing && 'animate-spin')}
@@ -134,7 +130,7 @@ export function UptimePanel() {
                   <h4 className='text-muted-foreground text-xs font-semibold tracking-wider uppercase'>
                     {group.categoryName}
                   </h4>
-                  <span className='text-muted-foreground/40 font-mono text-xs tabular-nums'>
+                  <span className='text-muted-foreground/40 text-xs tabular-nums'>
                     {group.monitors?.length || 0}
                   </span>
                 </div>
@@ -162,7 +158,7 @@ export function UptimePanel() {
                         </span>
                       )}
                     </div>
-                    <span className='text-foreground shrink-0 font-mono text-sm font-semibold tabular-nums'>
+                    <span className='text-foreground shrink-0 text-sm font-semibold tabular-nums'>
                       {((monitor.uptime ?? 0) * 100).toFixed(2)}%
                     </span>
                   </div>

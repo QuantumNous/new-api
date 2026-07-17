@@ -16,6 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export function isContentSizedColumn(columnId: string): boolean {
-  return columnId === 'actions'
+export function isContentSizedColumn(
+  columnId: string,
+  contentSized = false
+): boolean {
+  return contentSized || columnId === 'actions'
 }

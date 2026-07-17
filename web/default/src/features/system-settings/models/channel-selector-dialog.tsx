@@ -26,11 +26,8 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -38,7 +35,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
+import { Checkbox } from '@/components/ui/checkbox'
 
 import type { UpstreamChannel } from '../types'
 import {
@@ -155,12 +155,9 @@ export function ChannelSelectorDialog({
             <div className='flex items-center gap-2'>
               <span className='font-medium'>{name}</span>
               {isOfficial && (
-                <StatusBadge
-                  label={t('Official')}
-                  variant='success'
-                  size='sm'
-                  copyable={false}
-                />
+                <StatusBadge variant='success' size='sm'>
+                  {t('Official')}
+                </StatusBadge>
               )}
             </div>
           )
@@ -195,22 +192,16 @@ export function ChannelSelectorDialog({
 
           if (!config) {
             return (
-              <StatusBadge
-                label={t('Unknown')}
-                variant='neutral'
-                size='sm'
-                copyable={false}
-              />
+              <StatusBadge variant='neutral' size='sm'>
+                {t('Unknown')}
+              </StatusBadge>
             )
           }
 
           return (
-            <StatusBadge
-              label={t(config.label)}
-              variant={config.variant}
-              size='sm'
-              copyable={false}
-            />
+            <StatusBadge variant={config.variant} size='sm'>
+              {t(config.label)}
+            </StatusBadge>
           )
         },
       },
@@ -243,7 +234,7 @@ export function ChannelSelectorDialog({
                 value={endpointType}
                 onValueChange={(v) => v !== null && handleTypeChange(v)}
               >
-                <SelectTrigger className='h-8 w-32'>
+                <SelectTrigger className='w-32'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -261,7 +252,7 @@ export function ChannelSelectorDialog({
                   value={currentEndpoint}
                   onChange={(e) => updateEndpoint(channel.id, e.target.value)}
                   placeholder={t('/your/endpoint')}
-                  className='h-8 min-w-0 flex-1 font-mono text-xs'
+                  className='min-w-0 flex-1 font-mono text-xs'
                 />
               )}
             </div>
@@ -300,7 +291,7 @@ export function ChannelSelectorDialog({
     getRowId: (row) => row.id.toString(),
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
-    initialPagination: { pageIndex: 0, pageSize: 10 },
+    initialPagination: { pageIndex: 0, pageSize: 20 },
     withSortedRowModel: false,
     withFacetedRowModel: false,
   })

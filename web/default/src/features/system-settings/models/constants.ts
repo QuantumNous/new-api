@@ -72,6 +72,6 @@ export const RATIO_TYPE_OPTIONS = [
 
 export const CHANNEL_STATUS_CONFIG = {
   1: { label: 'Enabled', variant: 'success' as const },
-  2: { label: 'Disabled', variant: 'danger' as const },
+  2: { label: 'Disabled', variant: 'destructive' as const },
   3: { label: 'Auto Disabled', variant: 'warning' as const },
 } as const

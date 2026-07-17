@@ -16,35 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  flexRender,
-  type Cell,
-  type Row,
-  type Table as TanstackTable,
-} from '@tanstack/react-table'
+import { flexRender, type Row } from '@tanstack/react-table'
 import * as React from 'react'
 
-import { TableCell, TableRow } from '@/components/ui/table'
+import { TableCell, TableRow } from '@/components/design-system/table'
 import { cn } from '@/lib/utils'
 
-import { TruncatedCell } from './truncated-cell'
 import type { DataTableColumnClassName } from './types'
 
 type DataTableRowProps<TData> = {
   row: Row<TData>
   className?: string
   getColumnClassName?: DataTableColumnClassName
-  cellRenderColumns?: TanstackTable<TData>['options']['columns']
 } & Omit<React.ComponentProps<typeof TableRow>, 'children'>
 
 type DataTableRowInnerProps<TData> = DataTableRowProps<TData> & {
   isSelected: boolean
-  /**
-   * Stable signature of currently visible leaf columns for this row.
-   * Captured outside the memo comparator so visibility toggles re-render
-   * even when the TanStack row object reference stays the same.
-   */
-  visibleColumnIds: string
 }
 
 function DataTableRowInner<TData>({
@@ -52,15 +39,8 @@ function DataTableRowInner<TData>({
   isSelected,
   className,
   getColumnClassName,
-  cellRenderColumns,
-  visibleColumnIds,
   ...rowProps
 }: DataTableRowInnerProps<TData>) {
-  // Destructured only to keep them out of `rowProps` (not valid DOM attrs)
-  // and to feed the memo comparator below; intentionally unused here.
-  void cellRenderColumns
-  void visibleColumnIds
-
   return (
     <TableRow
       data-state={isSelected ? 'selected' : undefined}
@@ -68,19 +48,27 @@ function DataTableRowInner<TData>({
       {...rowProps}
     >
       {row.getVisibleCells().map((cell) => {
-        const renderedCell = renderCellContent(cell)
+        const contentMode = cell.column.columnDef.meta?.contentMode ?? 'wrap'
 
         return (
           <TableCell
             key={cell.id}
             data-column-id={cell.column.id}
+            data-content-mode={contentMode}
             className={cn(
               'max-w-full min-w-0',
-              renderedCell.isPrimitive && 'overflow-hidden',
+              contentMode === 'full' &&
+                'max-w-none overflow-visible [&_.truncate]:overflow-visible [&_.truncate]:text-clip',
+              // Keep `.truncate` children single-line (ellipsis + tooltip)
+              // even in wrap mode, so table rows stay at most ~2 lines tall.
+              contentMode === 'wrap' &&
+                'whitespace-normal break-words [overflow-wrap:anywhere]',
+              contentMode === 'summary' &&
+                'whitespace-normal break-words [overflow-wrap:anywhere]',
               getColumnClassName?.(cell.column.id, 'cell')
             )}
           >
-            {renderedCell.content}
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </TableCell>
         )
       })}
@@ -88,61 +76,6 @@ function DataTableRowInner<TData>({
   )
 }
 
-const MemoizedDataTableRow = React.memo(DataTableRowInner, (prev, next) => {
-  // Do not read row.getIsSelected() / row.getVisibleCells() inside the
-  // comparator: TanStack row objects keep a stable reference while selection
-  // and columnVisibility mutate on the table instance. Reading them here would
-  // compare identical live values and miss those updates. Both are lifted to
-  // explicit props, captured per render in DataTableRow.
-  //
-  // Column cell renderers (and getColumnClassName) can close over external
-  // state while the row stays stable, so column definitions and the class
-  // resolver are part of the render identity and must be compared too.
-  return (
-    prev.row === next.row &&
-    prev.className === next.className &&
-    prev.isSelected === next.isSelected &&
-    prev.visibleColumnIds === next.visibleColumnIds &&
-    prev.getColumnClassName === next.getColumnClassName &&
-    prev.cellRenderColumns === next.cellRenderColumns
-  )
-}) as typeof DataTableRowInner
-
 export function DataTableRow<TData>(props: DataTableRowProps<TData>) {
-  const visibleColumnIds = props.row
-    .getVisibleCells()
-    .map((cell) => cell.column.id)
-    .join('\0')
-
-  return (
-    <MemoizedDataTableRow
-      {...props}
-      isSelected={props.row.getIsSelected()}
-      visibleColumnIds={visibleColumnIds}
-    />
-  )
-}
-
-function renderCellContent<TData>(cell: Cell<TData, unknown>) {
-  const content = flexRender(cell.column.columnDef.cell, cell.getContext())
-  const textContent = getPrimitiveTextContent(content)
-
-  if (!textContent) {
-    return { content, isPrimitive: false }
-  }
-
-  return {
-    content: (
-      <TruncatedCell tooltipContent={textContent}>{content}</TruncatedCell>
-    ),
-    isPrimitive: true,
-  }
-}
-
-function getPrimitiveTextContent(content: React.ReactNode): string | null {
-  if (typeof content === 'string' || typeof content === 'number') {
-    return String(content)
-  }
-
-  return null
+  return <DataTableRowInner {...props} isSelected={props.row.getIsSelected()} />
 }

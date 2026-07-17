@@ -35,7 +35,7 @@ import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -199,10 +199,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         )}
 
         <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault()
-            setBindingDialogOpen(true)
-          }}
+          closeOnClick={false}
+          onClick={() => setBindingDialogOpen(true)}
         >
           {t('Manage Bindings')}
           <DropdownMenuShortcut>
@@ -211,10 +209,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         </DropdownMenuItem>
 
         <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault()
-            setSubscriptionsDialogOpen(true)
-          }}
+          closeOnClick={false}
+          onClick={() => setSubscriptionsDialogOpen(true)}
         >
           {t('Manage Subscriptions')}
           <DropdownMenuShortcut>
@@ -225,10 +221,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault()
-            setResetPasskeyOpen(true)
-          }}
+          closeOnClick={false}
+          onClick={() => setResetPasskeyOpen(true)}
           disabled={isRoot}
         >
           {t('Reset Passkey')}
@@ -238,10 +232,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         </DropdownMenuItem>
 
         <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault()
-            setResetTwoFAOpen(true)
-          }}
+          closeOnClick={false}
+          onClick={() => setResetTwoFAOpen(true)}
           disabled={isRoot}
         >
           {t('Reset 2FA')}

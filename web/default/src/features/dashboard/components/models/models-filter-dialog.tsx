@@ -21,11 +21,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DateTimePicker } from '@/components/datetime-picker'
-import { Dialog } from '@/components/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -33,7 +30,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
+import { Dialog } from '@/components/dialog'
+import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
@@ -171,7 +171,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
       open={open}
       onOpenChange={handleOpenChange}
       trigger={
-        <Button variant='outline' size='sm'>
+        <Button variant='outline'>
           <Filter className='mr-2 h-4 w-4' />
           {t('Filter')}
         </Button>
@@ -210,7 +210,6 @@ export function ModelsFilter(props: ModelsFilterProps) {
                 <Button
                   key={range.days}
                   type='button'
-                  size='sm'
                   variant={selectedRange === range.days ? 'default' : 'outline'}
                   onClick={() => handleQuickRange(range.days)}
                   className={cn(

@@ -29,7 +29,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -110,7 +110,7 @@ export function MessageActions({
 
   if (hasContent) {
     actions.push({
-      className: isCopied ? 'text-green-600' : '',
+      className: isCopied ? 'text-success' : '',
       icon: isCopied ? Check : Copy,
       label: isCopied
         ? MESSAGE_ACTION_LABELS.COPIED
@@ -185,7 +185,7 @@ export function MessageActions({
             render={
               <Button
                 aria-label={t('Open menu')}
-                className='data-popup-open:bg-muted text-muted-foreground hover:text-foreground size-11'
+                className='data-popup-open:bg-muted text-muted-foreground hover:text-foreground'
                 size='icon'
                 variant='ghost'
               />

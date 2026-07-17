@@ -84,7 +84,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
 
   const [subs, setSubs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 20;
 
   const planTitleMap = useMemo(() => {
     const map = new Map();

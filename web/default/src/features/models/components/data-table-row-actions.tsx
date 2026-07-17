@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   DropdownMenuItem,
   DropdownMenuShortcut,
@@ -108,10 +108,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
       <DataTableRowActionMenu ariaLabel={t('Open menu')}>
         <DropdownMenuItem
-          onSelect={(e) => {
-            e.preventDefault()
-            setDeleteConfirmOpen(true)
-          }}
+          closeOnClick={false}
+          onClick={() => setDeleteConfirmOpen(true)}
           className='text-destructive focus:text-destructive'
         >
           {t('Delete')}

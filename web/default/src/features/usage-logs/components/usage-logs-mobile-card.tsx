@@ -16,45 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { flexRender, type Cell, type Table } from '@tanstack/react-table'
-import { Database } from 'lucide-react'
+import {
+  flexRender,
+  type Cell,
+  type Row,
+  type Table,
+} from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 
 import {
-  dotColorMap,
-  textColorMap,
-  type StatusVariant,
-} from '@/components/status-badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty'
-import { Skeleton } from '@/components/ui/skeleton'
-import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import { formatTimestampToDate } from '@/lib/format'
+  DataTableCardField,
+  DataTableCardRow,
+  ERROR_ROW_MOBILE,
+  INFO_ROW_MOBILE,
+  MobileCardList,
+} from '@/components/data-table'
 import { cn } from '@/lib/utils'
 
 import { LOG_TYPE_ENUM } from '../constants'
-import type { UsageLog } from '../data/schema'
-import { parseLogOther } from '../lib/format'
-import {
-  getLogTypeConfig,
-  isDisplayableLogType,
-  isTimingLogType,
-} from '../lib/utils'
-import type { LogCategory } from '../types'
-import { StreamTpsCell, TimingMetricsCell } from './timing-metrics-cell'
-import { useUsageLogsContext } from './usage-logs-provider'
 
-const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]:
-    'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/50 dark:border-rose-900/30',
-  [LOG_TYPE_ENUM.REFUND]:
-    'bg-blue-50/30 dark:bg-blue-950/15 border-blue-200/50 dark:border-blue-900/30',
+// Same treatment as disabled cards in the keys/channels/users mobile lists
+// (tinted card background), only the hue differs.
+const logTypeRowClass: Record<number, string> = {
+  [LOG_TYPE_ENUM.ERROR]: ERROR_ROW_MOBILE,
+  [LOG_TYPE_ENUM.REFUND]: INFO_ROW_MOBILE,
 }
 
 interface UsageLogsMobileListProps<TData> {
@@ -62,387 +47,116 @@ interface UsageLogsMobileListProps<TData> {
   isLoading?: boolean
   emptyTitle?: string
   emptyDescription?: string
-  logCategory: LogCategory
+  getRowClassName?: (row: Row<TData>) => string | undefined
 }
 
-function UsageLogsMobileSkeleton() {
-  return (
-    <div className='border-border/50 bg-card overflow-hidden rounded-lg border'>
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className='border-border/40 space-y-2.5 border-b p-3 last:border-b-0'
-        >
-          <div className='flex items-center justify-between gap-3'>
-            <Skeleton className='h-5 w-40 rounded-md' />
-            <Skeleton className='h-5 w-16 rounded-md' />
-          </div>
-          <div className='grid grid-cols-2 gap-x-4 gap-y-2'>
-            {[1, 2, 3, 4, 5, 6].map((j) => (
-              <div key={j} className='min-w-0 space-y-1'>
-                <Skeleton className='h-3 w-10 rounded' />
-                <Skeleton className='h-4 w-full rounded' />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+type CardRole = 'title' | 'badge' | 'primary' | 'secondary' | 'hidden'
+
+function getCardRole<TData>(cell: Cell<TData, unknown>): CardRole {
+  return cell.column.columnDef.meta?.cardRole ?? 'primary'
 }
 
-function CompactCell<TData>({
-  cell,
-  fallback = '-',
-  className,
-  primaryOnly = false,
-}: {
-  cell?: Cell<TData, unknown>
-  fallback?: string
-  className?: string
-  primaryOnly?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        'min-w-0 overflow-hidden leading-tight [&_button]:max-w-full [&_span]:max-w-full',
-        primaryOnly &&
-          '[&_.flex-col]:min-w-0 [&_.flex-col>*:not(:first-child)]:hidden',
-        className
-      )}
-    >
-      {cell ? (
-        flexRender(cell.column.columnDef.cell, cell.getContext())
-      ) : (
-        <span className='text-muted-foreground/50'>{fallback}</span>
-      )}
-    </div>
-  )
+function getCardLabel<TData>(cell: Cell<TData, unknown>): string {
+  const metaLabel = cell.column.columnDef.meta?.label
+  if (metaLabel) return metaLabel
+
+  const header = cell.column.columnDef.header
+  return typeof header === 'string' ? header : cell.column.id
 }
 
-function SummaryField<TData>({
-  label,
-  cell,
-  className,
-  valueClassName,
-  primaryOnly = false,
-}: {
-  label?: string
-  cell?: Cell<TData, unknown>
-  className?: string
-  valueClassName?: string
-  primaryOnly?: boolean
-}) {
-  if (!cell) return null
-
-  return (
-    <div
-      className={cn('bg-muted/20 min-w-0 rounded-md px-2 py-1.5', className)}
-    >
-      {label != null && label !== '' && (
-        <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
-          {label}
-        </div>
-      )}
-      <CompactCell
-        cell={cell}
-        primaryOnly={primaryOnly}
-        className={valueClassName}
-      />
-    </div>
-  )
+function orderCardCells<TData>(
+  cells: Cell<TData, unknown>[]
+): Cell<TData, unknown>[] {
+  return [...cells].sort((a, b) => {
+    const aOrder = a.column.columnDef.meta?.cardOrder
+    const bOrder = b.column.columnDef.meta?.cardOrder
+    if (aOrder == null && bOrder == null) return 0
+    if (aOrder == null) return 1
+    if (bOrder == null) return -1
+    return aOrder - bOrder
+  })
 }
 
-function MobileLogTimeStatus({
-  createdAt,
-  type,
-}: {
-  createdAt: unknown
-  type: unknown
-}) {
-  const { t } = useTranslation()
-  const timestamp = typeof createdAt === 'number' ? createdAt : undefined
-  const logType = typeof type === 'number' ? type : undefined
-  const config = getLogTypeConfig(logType ?? LOG_TYPE_ENUM.UNKNOWN)
-  const variant = config.color as StatusVariant
-
-  return (
-    <div className='space-y-1'>
-      <div className='font-mono text-xs leading-tight tabular-nums'>
-        {formatTimestampToDate(timestamp)}
-      </div>
-      <div
-        className={cn(
-          'inline-flex items-center gap-1 text-xs leading-none font-medium',
-          textColorMap[variant]
-        )}
-      >
-        <span
-          className={cn('size-1.5 shrink-0 rounded-full', dotColorMap[variant])}
-          aria-hidden='true'
-        />
-        <span>{t(config.label)}</span>
-      </div>
-    </div>
-  )
+function isWideField<TData>(cell: Cell<TData, unknown>): boolean {
+  const meta = cell.column.columnDef.meta
+  return meta?.cardSpan === 2 || meta?.contentMode === 'summary'
 }
 
-/** Mobile-only Tokens block: always show cache ↓/↑ when present (no label). */
-function MobileTokensField({ log }: { log: UsageLog }) {
-  const { t } = useTranslation()
-
-  if (!isDisplayableLogType(log.type)) return null
-
-  const promptTokens = log.prompt_tokens || 0
-  const completionTokens = log.completion_tokens || 0
-  if (promptTokens === 0 && completionTokens === 0) {
-    return (
-      <div className='bg-muted/20 min-w-0 rounded-md px-2 py-1.5'>
-        <span className='text-muted-foreground text-xs'>-</span>
-      </div>
+function UsageLogCard<TData>(props: { cells: Cell<TData, unknown>[] }) {
+  const titleCell = props.cells.find((cell) => getCardRole(cell) === 'title')
+  const badgeCell = props.cells.find((cell) => getCardRole(cell) === 'badge')
+  const bodyCells = orderCardCells(
+    props.cells.filter(
+      (cell) =>
+        getCardRole(cell) !== 'title' &&
+        getCardRole(cell) !== 'badge' &&
+        getCardRole(cell) !== 'hidden'
     )
-  }
-
-  const other = parseLogOther(log.other)
-  const cacheReadTokens = other?.cache_tokens || 0
-  const cacheWrite5m = other?.cache_creation_tokens_5m || 0
-  const cacheWrite1h = other?.cache_creation_tokens_1h || 0
-  const hasSplitCache = cacheWrite5m > 0 || cacheWrite1h > 0
-  const cacheWriteTokens = hasSplitCache
-    ? cacheWrite5m + cacheWrite1h
-    : other?.cache_creation_tokens || 0
-  const showCache = cacheReadTokens > 0 || cacheWriteTokens > 0
-
-  return (
-    <div className='bg-muted/20 min-w-0 rounded-md px-2 py-1.5'>
-      <div className='flex flex-col gap-0.5'>
-        <span className='font-mono text-xs font-medium tabular-nums'>
-          {promptTokens.toLocaleString()} / {completionTokens.toLocaleString()}
-        </span>
-        {showCache ? (
-          <div className='text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-none'>
-            {cacheReadTokens > 0 && (
-              <span>
-                {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
-              </span>
-            )}
-            {cacheWriteTokens > 0 && (
-              <span>↑ {cacheWriteTokens.toLocaleString()}</span>
-            )}
-          </div>
-        ) : (
-          <span className='text-muted-foreground/50 text-[11px] leading-none'>
-            —
-          </span>
-        )}
-      </div>
-    </div>
   )
-}
-
-/** Mobile-only User block: own layout so avatar/name always line up on the same baseline. */
-function MobileUserField({ log }: { log: UsageLog }) {
-  const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
-    useUsageLogsContext()
-
-  if (!log.username) return null
+  const rowCells = bodyCells.filter((cell) => !isWideField(cell))
+  const wideCells = bodyCells.filter((cell) => isWideField(cell))
 
   return (
-    <button
-      type='button'
-      className='bg-muted/20 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-left'
-      onClick={(e) => {
-        e.stopPropagation()
-        setSelectedUserId(log.user_id)
-        setUserInfoDialogOpen(true)
-      }}
-    >
-      <Avatar className='ring-border/60 size-6 shrink-0 ring-1'>
-        <AvatarFallback
-          className={cn(
-            'text-[11px] font-semibold',
-            !sensitiveVisible && 'bg-muted text-muted-foreground'
+    <div className='flex min-w-0 flex-col'>
+      {(titleCell || badgeCell) && (
+        <div className='flex min-w-0 items-start justify-between gap-3'>
+          {titleCell && (
+            <div className='min-w-0 flex-1 text-base leading-tight font-semibold break-words'>
+              {flexRender(
+                titleCell.column.columnDef.cell,
+                titleCell.getContext()
+              )}
+            </div>
           )}
-          style={
-            sensitiveVisible ? getUserAvatarStyle(log.username) : undefined
-          }
-        >
-          {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
-        </AvatarFallback>
-      </Avatar>
-      <span className='text-foreground min-w-0 truncate text-sm'>
-        {sensitiveVisible ? log.username : '••••'}
-      </span>
-    </button>
-  )
-}
-
-/** Merge stream badge + TPS with first-token / duration on one row. */
-function MobileStreamTimingField({ log }: { log: UsageLog }) {
-  if (!isTimingLogType(log.type)) return null
-
-  const other = parseLogOther(log.other)
-  const useTime = log.use_time || 0
-  const tokensPerSecond =
-    useTime > 0 && log.completion_tokens > 0
-      ? log.completion_tokens / useTime
-      : null
-
-  return (
-    <div className='bg-muted/20 flex min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5'>
-      <TimingMetricsCell
-        useTimeSec={useTime}
-        completionTokens={log.completion_tokens}
-        frtMs={other?.frt}
-        isStream={log.is_stream}
-        indicator='dot'
-        className='min-w-0 flex-1'
-      />
-      <StreamTpsCell
-        isStream={log.is_stream}
-        tokensPerSecond={tokensPerSecond}
-        streamStatus={other?.stream_status}
-        className='shrink-0'
-      />
-    </div>
-  )
-}
-
-function CommonLogsCard<TData>({
-  cells,
-}: {
-  cells: Map<string, Cell<TData, unknown>>
-}) {
-  const { t } = useTranslation()
-
-  const modelCell = cells.get('model_name')
-  const quotaCell = cells.get('quota')
-  const rowData = cells.get('created_at')?.row.original as UsageLog | undefined
-
-  return (
-    <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-center justify-between gap-3'>
-        <CompactCell cell={modelCell} className='flex-1' />
-        <CompactCell
-          cell={quotaCell}
-          className='shrink-0 text-right [&_.flex-col]:items-end'
-        />
-      </div>
-
-      <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)] gap-1.5'>
-        <div className='bg-muted/20 min-w-0 rounded-md px-2 py-1.5'>
-          <MobileLogTimeStatus
-            createdAt={rowData?.created_at}
-            type={rowData?.type}
-          />
+          {badgeCell && (
+            <div className='max-w-1/2 shrink text-right tabular-nums'>
+              {flexRender(
+                badgeCell.column.columnDef.cell,
+                badgeCell.getContext()
+              )}
+            </div>
+          )}
         </div>
-        <SummaryField
-          cell={cells.get('channel')}
-          valueClassName='[&_.flex-col]:max-w-none'
-        />
-        {rowData && cells.has('user') ? (
-          <MobileUserField log={rowData} />
-        ) : (
-          <SummaryField cell={cells.get('user')} />
-        )}
-        <SummaryField
-          cell={cells.get('token_name')}
-          valueClassName='[&_.flex-col]:max-w-none [&_.flex-col>*:not(:first-child)]:text-[11px] [&_.flex-col>*:not(:first-child)]:leading-none'
-        />
-        {rowData ? (
-          <MobileStreamTimingField log={rowData} />
-        ) : (
-          <SummaryField cell={cells.get('use_time')} />
-        )}
-        {rowData ? (
-          <MobileTokensField log={rowData} />
-        ) : (
-          <SummaryField cell={cells.get('prompt_tokens')} />
-        )}
-        <SummaryField
-          label={t('Details')}
-          cell={cells.get('content')}
-          className='col-span-2 bg-transparent px-0 py-0'
-        />
-      </div>
-    </div>
-  )
-}
+      )}
 
-function TaskLogsCard<TData>({
-  cells,
-}: {
-  cells: Map<string, Cell<TData, unknown>>
-}) {
-  const { t } = useTranslation()
+      {bodyCells.length > 0 && (
+        <div
+          className={cn(
+            'flex flex-col gap-3',
+            (titleCell || badgeCell) && 'mt-3'
+          )}
+        >
+          {rowCells.length > 0 && (
+            <div className='flex flex-col gap-0.5'>
+              {rowCells.map((cell) => (
+                <DataTableCardRow
+                  key={cell.id}
+                  label={getCardLabel(cell)}
+                  contentMode={cell.column.columnDef.meta?.contentMode}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </DataTableCardRow>
+              ))}
+            </div>
+          )}
 
-  const taskIdCell = cells.get('task_id')
-  const statusCell = cells.get('status')
-  const submitTimeCell = cells.get('submit_time')
-
-  return (
-    <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-start justify-between gap-3'>
-        <CompactCell cell={taskIdCell} className='flex-1' />
-        <CompactCell cell={statusCell} className='shrink-0 text-right' />
-      </div>
-
-      <div className='grid grid-cols-2 gap-1.5'>
-        <SummaryField label={t('Submit Time')} cell={submitTimeCell} />
-        <SummaryField label={t('User')} cell={cells.get('user')} primaryOnly />
-        <SummaryField
-          label={t('Result')}
-          cell={cells.get('fail_reason')}
-          className='col-span-2 bg-transparent px-0 py-0'
-        />
-      </div>
-    </div>
-  )
-}
-
-function DrawingLogsCard<TData>({
-  cells,
-}: {
-  cells: Map<string, Cell<TData, unknown>>
-}) {
-  const { t } = useTranslation()
-
-  const actionCell = cells.get('action')
-  const codeCell = cells.get('code')
-  const submitTimeCell = cells.get('submit_time')
-
-  return (
-    <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-start justify-between gap-3'>
-        <CompactCell cell={actionCell} className='flex-1' />
-        <CompactCell cell={codeCell} className='shrink-0 text-right' />
-      </div>
-
-      <div className='grid grid-cols-2 gap-1.5'>
-        <SummaryField label={t('Submit Time')} cell={submitTimeCell} />
-        <SummaryField
-          label={t('Channel')}
-          cell={cells.get('channel')}
-          primaryOnly
-        />
-        <SummaryField label={t('Task ID')} cell={cells.get('mj_id')} />
-        <SummaryField
-          label={t('Duration')}
-          cell={cells.get('duration')}
-          primaryOnly
-        />
-        <SummaryField label={t('Image')} cell={cells.get('image_url')} />
-        <SummaryField
-          label={t('Prompt')}
-          cell={cells.get('prompt')}
-          primaryOnly
-        />
-        <SummaryField
-          label={t('Fail Reason')}
-          cell={cells.get('fail_reason')}
-          className='col-span-2 bg-transparent px-0 py-0'
-        />
-      </div>
+          {wideCells.length > 0 && (
+            <div className='bg-muted/30 flex flex-col gap-3 rounded-md px-2.5 py-2'>
+              {wideCells.map((cell) => (
+                <DataTableCardField
+                  key={cell.id}
+                  label={getCardLabel(cell)}
+                  contentMode={
+                    cell.column.columnDef.meta?.contentMode ?? 'full'
+                  }
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </DataTableCardField>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -452,7 +166,7 @@ export function UsageLogsMobileList<TData>({
   isLoading = false,
   emptyTitle,
   emptyDescription,
-  logCategory,
+  getRowClassName,
 }: UsageLogsMobileListProps<TData>) {
   const { t } = useTranslation()
 
@@ -461,54 +175,21 @@ export function UsageLogsMobileList<TData>({
     emptyDescription ??
     t('No usage logs available. Logs will appear here once API calls are made.')
 
-  if (isLoading) {
-    return <UsageLogsMobileSkeleton />
-  }
-
-  const rows = table.getRowModel().rows
-
-  if (!rows || rows.length === 0) {
-    return (
-      <div className='rounded-lg border p-6'>
-        <Empty className='border-none p-0'>
-          <EmptyHeader>
-            <EmptyMedia variant='icon'>
-              <Database className='size-6' />
-            </EmptyMedia>
-            <EmptyTitle>{resolvedEmptyTitle}</EmptyTitle>
-            <EmptyDescription>{resolvedEmptyDescription}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </div>
-    )
-  }
-
   return (
-    <div className='border-border/50 bg-card overflow-hidden rounded-lg border'>
-      {rows.map((row) => {
-        const cells = new Map(
-          row.getVisibleCells().map((cell) => [cell.column.id, cell])
-        )
-
+    <MobileCardList
+      table={table}
+      isLoading={isLoading}
+      emptyTitle={resolvedEmptyTitle}
+      emptyDescription={resolvedEmptyDescription}
+      renderCard={(row) => <UsageLogCard cells={row.getVisibleCells()} />}
+      getRowClassName={(row) => {
         const logType = (row.original as Record<string, unknown>).type as
           | number
           | undefined
-        const tintClass = logType != null ? (logTypeRowTint[logType] ?? '') : ''
-
-        return (
-          <div
-            key={row.id}
-            className={cn(
-              'border-border/40 border-b border-l-2 border-l-transparent p-3 transition-colors last:border-b-0',
-              tintClass
-            )}
-          >
-            {logCategory === 'common' && <CommonLogsCard cells={cells} />}
-            {logCategory === 'task' && <TaskLogsCard cells={cells} />}
-            {logCategory === 'drawing' && <DrawingLogsCard cells={cells} />}
-          </div>
-        )
-      })}
-    </div>
+        const statusClass =
+          logType != null ? (logTypeRowClass[logType] ?? '') : ''
+        return cn('transition-colors', statusClass, getRowClassName?.(row))
+      }}
+    />
   )
 }

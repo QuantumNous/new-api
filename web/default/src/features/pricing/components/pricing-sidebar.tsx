@@ -20,8 +20,8 @@ import { ChevronDown, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -115,7 +115,7 @@ function FilterChip(props: {
       {(props.option.suffix || props.option.count != null) && (
         <span
           className={cn(
-            'rounded-md px-1.5 py-0.5 text-[12px]',
+            'rounded-md px-1.5 py-0.5 text-[10px]',
             props.active
               ? 'bg-background text-foreground'
               : 'bg-muted text-muted-foreground'

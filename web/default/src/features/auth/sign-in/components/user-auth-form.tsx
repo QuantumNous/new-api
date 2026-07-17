@@ -19,16 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
 import { Loader2, LogIn, KeyRound } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
-import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -37,14 +37,15 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { login, wechatLoginByCode } from '@/features/auth/api'
+import { login } from '@/features/auth/api'
+import { AuthSeparator } from '@/features/auth/components/auth-separator'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
+import { WeChatLoginDialog } from '@/features/auth/components/wechat-login-dialog'
 import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+import { hasOAuthProviders } from '@/features/auth/lib/oauth'
 import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
 import type { AuthFormProps } from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
@@ -62,14 +63,11 @@ export function UserAuthForm({
 }: AuthFormProps) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
-  const [wechatCode, setWeChatCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [passkeySupported, setPasskeySupported] = useState(false)
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
-  const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
-  const loginFailedMessage = t('Login failed')
 
   const { status } = useStatus()
   const passkeyLoginEnabled = Boolean(
@@ -91,21 +89,11 @@ export function UserAuthForm({
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
-  const passkeyButtonDisabled =
-    isPasskeyLoading ||
-    !passkeySupported ||
-    (requiresLegalConsent && !agreedToLegal)
+  const consentMissing = requiresLegalConsent && !agreedToLegal
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const hasOAuthLogin = Boolean(
-    status?.github_oauth ||
-    status?.discord_oauth ||
-    status?.oidc_enabled ||
-    status?.linuxdo_oauth ||
-    status?.telegram_oauth ||
-    (status?.custom_oauth_providers?.length ?? 0) > 0
-  )
-  const hasAlternativeLogin =
-    passkeyLoginEnabled || hasWeChatLogin || hasOAuthLogin
+  const hasAlternativeLogin = passkeyLoginEnabled || hasOAuthProviders(status)
+  const passkeyButtonDisabled =
+    isPasskeyLoading || !passkeySupported || consentMissing
 
   useEffect(() => {
     if (requiresLegalConsent) {
@@ -129,22 +117,8 @@ export function UserAuthForm({
     },
   })
 
-  const wechatQrCodeUrl = useMemo(() => {
-    return (
-      status?.wechat_qrcode ||
-      status?.wechat_qr_code ||
-      status?.wechat_qrcode_image_url ||
-      status?.wechat_qr_code_image_url ||
-      status?.wechat_account_qrcode_image_url ||
-      status?.WeChatAccountQRCodeImageURL ||
-      status?.data?.wechat_qrcode ||
-      status?.data?.WeChatAccountQRCodeImageURL ||
-      ''
-    )
-  }, [status])
-
   async function onSubmit(data: z.infer<typeof loginFormSchema>) {
-    if (requiresLegalConsent && !agreedToLegal) {
+    if (consentMissing) {
       toast.error(legalConsentErrorMessage)
       return
     }
@@ -168,7 +142,7 @@ export function UserAuthForm({
         await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
         toast.success(t('Welcome back!'))
       }
-    } catch (_error) {
+    } catch {
       // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)
@@ -176,7 +150,7 @@ export function UserAuthForm({
   }
 
   const handleOpenWeChatDialog = () => {
-    if (requiresLegalConsent && !agreedToLegal) {
+    if (consentMissing) {
       toast.error(legalConsentErrorMessage)
       return
     }
@@ -184,39 +158,8 @@ export function UserAuthForm({
     setIsWeChatDialogOpen(true)
   }
 
-  const handleWeChatDialogChange = (open: boolean) => {
-    setIsWeChatDialogOpen(open)
-    if (!open) {
-      setWeChatCode('')
-      setIsWeChatSubmitting(false)
-    }
-  }
-
-  async function handleWeChatLogin() {
-    if (!wechatCode.trim()) {
-      toast.error(t('Please enter the verification code'))
-      return
-    }
-
-    setIsWeChatSubmitting(true)
-    try {
-      const res = await wechatLoginByCode(wechatCode)
-      if (res?.success) {
-        await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
-        toast.success(t('Signed in via WeChat'))
-        handleWeChatDialogChange(false)
-      } else {
-        toast.error(res?.message || loginFailedMessage)
-      }
-    } catch (_error) {
-      toast.error(loginFailedMessage)
-    } finally {
-      setIsWeChatSubmitting(false)
-    }
-  }
-
   async function handlePasskeyLogin() {
-    if (requiresLegalConsent && !agreedToLegal) {
+    if (consentMissing) {
       toast.error(legalConsentErrorMessage)
       return
     }
@@ -283,16 +226,19 @@ export function UserAuthForm({
     }
   }
 
-  const alternativeLoginMethods = (
-    <>
+  const alternativeLoginMethods = hasAlternativeLogin ? (
+    <div className='grid gap-3'>
+      {passwordLoginEnabled && <AuthSeparator label={t('Or continue with')} />}
+
       {passkeyLoginEnabled && (
-        <div className='mt-2 space-y-1'>
+        <div className='space-y-1'>
           <Button
             type='button'
             variant='outline'
             disabled={passkeyButtonDisabled}
             onClick={handlePasskeyLogin}
-            className='h-11 w-full justify-center gap-2 rounded-lg'
+            size='xl'
+            className='w-full justify-center'
           >
             {isPasskeyLoading ? (
               <Loader2 className='h-4 w-4 animate-spin' />
@@ -302,22 +248,20 @@ export function UserAuthForm({
             {t('Sign in with Passkey')}
           </Button>
           {!passkeySupported && (
-            <p className='text-muted-foreground text-xs'>
+            <p className='text-muted-foreground text-center text-xs'>
               {t('Passkey is not supported on this device.')}
             </p>
           )}
         </div>
       )}
 
-      {/* OAuth Providers */}
       <OAuthProviders
         status={status}
-        disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+        disabled={isLoading || consentMissing}
         onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
-        isWeChatLoading={isWeChatSubmitting}
       />
-    </>
-  )
+    </div>
+  ) : null
 
   return (
     <Form {...form}>
@@ -326,11 +270,8 @@ export function UserAuthForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
-        {hasAlternativeLogin && alternativeLoginMethods}
-
         {passwordLoginEnabled && (
           <>
-            {/* Username Field */}
             <FormField
               control={form.control}
               name='username'
@@ -339,7 +280,9 @@ export function UserAuthForm({
                   <FormLabel>{t('Username or Email')}</FormLabel>
                   <FormControl>
                     <Input
+                      size='xl'
                       placeholder={t('Enter your username or email')}
+                      autoComplete='username'
                       {...field}
                     />
                   </FormControl>
@@ -348,48 +291,38 @@ export function UserAuthForm({
               )}
             />
 
-            {/* Password Field */}
             <FormField
               control={form.control}
               name='password'
               render={({ field }) => (
-                <FormItem className='relative'>
-                  <FormLabel>{t('Password')}</FormLabel>
+                <FormItem>
+                  <div className='flex items-center justify-between'>
+                    <FormLabel>{t('Password')}</FormLabel>
+                    <Link
+                      to='/forgot-password'
+                      className='text-muted-foreground hover:text-primary text-sm font-medium'
+                    >
+                      {t('Forgot password?')}
+                    </Link>
+                  </div>
                   <FormControl>
                     <PasswordInput
+                      size='xl'
                       placeholder={t('Enter password')}
+                      autoComplete='current-password'
                       {...field}
                     />
                   </FormControl>
                   <FormMessage />
-                  <Link
-                    to='/forgot-password'
-                    className='text-muted-foreground absolute end-0 -top-0.5 z-10 text-sm font-medium hover:opacity-75'
-                  >
-                    {t('Forgot password?')}
-                  </Link>
                 </FormItem>
               )}
             />
 
-            {/* Submit Button */}
-            <Button
-              type='submit'
-              className='mt-2 w-full justify-center gap-2'
-              disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
-            >
-              {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-              {t('Sign in')}
-            </Button>
-
-            {/* Turnstile */}
             {isTurnstileEnabled && (
-              <div className='mt-2'>
-                <Turnstile
-                  siteKey={turnstileSiteKey}
-                  onVerify={setTurnstileToken}
-                />
-              </div>
+              <Turnstile
+                siteKey={turnstileSiteKey}
+                onVerify={setTurnstileToken}
+              />
             )}
           </>
         )}
@@ -398,76 +331,30 @@ export function UserAuthForm({
           status={status}
           checked={agreedToLegal}
           onCheckedChange={setAgreedToLegal}
-          className='mt-1'
         />
 
-        {!hasAlternativeLogin && alternativeLoginMethods}
+        {passwordLoginEnabled && (
+          <Button
+            type='submit'
+            size='xl'
+            className='w-full justify-center'
+            disabled={isLoading || consentMissing}
+          >
+            {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
+            {t('Sign in')}
+          </Button>
+        )}
+
+        {alternativeLoginMethods}
       </form>
 
       {hasWeChatLogin && (
-        <Dialog
+        <WeChatLoginDialog
           open={isWeChatDialogOpen}
-          onOpenChange={handleWeChatDialogChange}
-          title={t('WeChat sign in')}
-          description={t(
-            'Scan the QR code to follow the official account and reply with “验证码” to receive your verification code.'
-          )}
-          contentClassName='max-w-sm'
-          headerClassName='text-left'
-          contentHeight='auto'
-          bodyClassName='space-y-4'
-          footer={
-            <>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => handleWeChatDialogChange(false)}
-                disabled={isWeChatSubmitting}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button
-                type='button'
-                onClick={handleWeChatLogin}
-                disabled={
-                  isWeChatSubmitting ||
-                  !wechatCode.trim() ||
-                  (requiresLegalConsent && !agreedToLegal)
-                }
-                className='gap-2'
-              >
-                {isWeChatSubmitting ? (
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                ) : null}
-                {t('Confirm')}
-              </Button>
-            </>
-          }
-        >
-          {wechatQrCodeUrl ? (
-            <div className='flex justify-center'>
-              <img
-                src={wechatQrCodeUrl}
-                alt={t('WeChat login QR code')}
-                className='h-40 w-40 rounded-md border object-contain'
-              />
-            </div>
-          ) : (
-            <p className='text-muted-foreground text-sm'>
-              {t('QR code is not configured. Please contact support.')}
-            </p>
-          )}
-          <div className='grid gap-2'>
-            <Label htmlFor='wechat-code'>{t('Verification code')}</Label>
-            <Input
-              id='wechat-code'
-              placeholder={t('Enter the verification code')}
-              value={wechatCode}
-              onChange={(event) => setWeChatCode(event.target.value)}
-              autoComplete='one-time-code'
-            />
-          </div>
-        </Dialog>
+          onOpenChange={setIsWeChatDialogOpen}
+          status={status}
+          redirectTo={redirectTo}
+        />
       )}
     </Form>
   )

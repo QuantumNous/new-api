@@ -34,7 +34,7 @@ import {
   ComboboxList,
   ComboboxValue,
   useComboboxAnchor,
-} from '@/components/ui/combobox'
+} from '@/components/design-system/combobox'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { cn } from '@/lib/utils'
 

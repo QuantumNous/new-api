@@ -18,27 +18,33 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
+import { getIdentityTextColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 
-import { StatusBadge, type StatusBadgeProps } from './status-badge'
+import {
+  CopyableStatusBadge,
+  StatusBadge,
+  type StatusBadgeProps,
+} from './status-badge'
 
-type GroupBadgeProps = Omit<
-  StatusBadgeProps,
-  'autoColor' | 'label' | 'variant'
-> & {
+type GroupBadgeProps = Omit<StatusBadgeProps, 'children' | 'variant'> & {
   group?: string | null
   label?: string
   ratio?: number | null
+  /**
+   * Click-to-copy the group name. Enabled by default; auto/empty groups and
+   * masked labels are never copyable. Set to false for badges that carry
+   * their own click behavior (e.g. selection toggles).
+   */
+  copyable?: boolean
 }
 
-function getGroupRatioClassName(ratio: number): string {
-  if (ratio > 1) {
-    return 'bg-warning/10 text-warning'
-  }
-  if (ratio < 1) {
-    return 'bg-info/10 text-info'
-  }
-  return 'bg-muted text-muted-foreground'
+function getGroupRatioVariant(
+  ratio: number
+): NonNullable<StatusBadgeProps['variant']> {
+  if (ratio > 1) return 'warning'
+  if (ratio < 1) return 'info'
+  return 'neutral'
 }
 
 function getGroupLabel(params: {
@@ -60,15 +66,14 @@ export function GroupBadge(props: GroupBadgeProps) {
     group,
     label: labelOverride,
     ratio,
-    copyable = false,
-    showDot,
     className,
+    copyable = true,
     ...badgeProps
   } = props
   const groupName = group?.trim()
   const isAutoGroup = groupName === 'auto'
   const isEmptyGroup = !groupName
-  const isSpecialGroup = isAutoGroup || isEmptyGroup
+  const colorKey = groupName || labelOverride || 'group'
   const label = getGroupLabel({
     labelOverride,
     groupName,
@@ -77,16 +82,35 @@ export function GroupBadge(props: GroupBadgeProps) {
     t,
   })
 
-  const badge = (
+  const badgeClassName = cn(
+    'shrink-0 overflow-visible',
+    getIdentityTextColorClass(colorKey),
+    className
+  )
+  const canCopy = copyable && !isAutoGroup && !isEmptyGroup && !labelOverride
+  // CopyableStatusBadge owns the click/render behavior, so drop any
+  // caller-provided handlers when the badge is in copy mode.
+  const { onClick: _onClick, render: _render, ...copyBadgeProps } = badgeProps
+
+  const badge = canCopy ? (
+    <CopyableStatusBadge
+      {...copyBadgeProps}
+      value={groupName}
+      variant='neutral'
+      appearance='plain'
+      className={badgeClassName}
+    >
+      {label}
+    </CopyableStatusBadge>
+  ) : (
     <StatusBadge
       {...badgeProps}
-      copyable={copyable}
-      label={label}
-      showDot={showDot ?? (isSpecialGroup ? false : undefined)}
-      variant={isSpecialGroup ? 'neutral' : undefined}
-      autoColor={isSpecialGroup ? undefined : groupName}
-      className={cn('min-w-0 shrink overflow-hidden', className)}
-    />
+      variant='neutral'
+      appearance='plain'
+      className={badgeClassName}
+    >
+      {label}
+    </StatusBadge>
   )
 
   if (ratio == null) {
@@ -94,16 +118,15 @@ export function GroupBadge(props: GroupBadgeProps) {
   }
 
   return (
-    <span className='inline-flex max-w-full min-w-0 items-center gap-2 text-xs'>
-      <span className='max-w-full min-w-0 overflow-hidden'>{badge}</span>
-      <span
-        className={cn(
-          'inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-mono text-xs leading-none font-medium tabular-nums',
-          getGroupRatioClassName(ratio)
-        )}
+    <span className='inline-flex w-max shrink-0 items-center gap-2 text-xs whitespace-nowrap'>
+      <span className='inline-flex shrink-0'>{badge}</span>
+      <StatusBadge
+        variant={getGroupRatioVariant(ratio)}
+        appearance='plain'
+        className='shrink-0 tabular-nums'
       >
-        <span>{ratio}x</span>
-      </span>
+        {ratio}x
+      </StatusBadge>
     </span>
   )
 }

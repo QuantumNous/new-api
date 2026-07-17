@@ -41,6 +41,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Tabs, TabsList, TabsTrigger } from '@/components/design-system/tabs'
+import { Toggle } from '@/components/design-system/toggle'
 import { MultiSelect } from '@/components/multi-select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -50,10 +52,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Toggle } from '@/components/ui/toggle'
 import {
   Tooltip,
   TooltipContent,
@@ -667,9 +666,7 @@ export function FlowCharts(props: FlowChartsProps) {
       <div className='overflow-hidden rounded-lg border'>
         <div className='flex w-full flex-col gap-2 border-b px-3 py-2 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
-            <IconBadge tone='info' size='sm'>
-              <GitBranch />
-            </IconBadge>
+            <GitBranch className='text-muted-foreground/60 size-4 shrink-0' />
             <div className='text-sm font-semibold'>{chartTitle}</div>
           </div>
           <TooltipProvider>

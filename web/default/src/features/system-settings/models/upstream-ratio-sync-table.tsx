@@ -25,7 +25,7 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -33,7 +33,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
 
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
@@ -224,7 +224,7 @@ export function UpstreamRatioSyncTable({
     data: filteredData,
     columns,
     getRowId: (row) => row.key,
-    initialPagination: { pageIndex: 0, pageSize: 10 },
+    initialPagination: { pageIndex: 0, pageSize: 20 },
     withFilteredRowModel: false,
     withSortedRowModel: false,
     withFacetedRowModel: false,

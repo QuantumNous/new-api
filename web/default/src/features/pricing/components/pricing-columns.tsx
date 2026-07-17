@@ -26,6 +26,7 @@ import {
 } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { getIdentityTextColorClass } from '@/lib/colors'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
@@ -331,11 +332,11 @@ export function usePricingColumns(
           <BadgeCell className='gap-1.5'>
             {vendorIcon}
             <StatusBadge
-              label={model.vendor_name}
-              autoColor={model.vendor_name}
               size='sm'
-              copyable={false}
-            />
+              className={getIdentityTextColorClass(model.vendor_name)}
+            >
+              {model.vendor_name}
+            </StatusBadge>
           </BadgeCell>
         )
       },
@@ -354,11 +355,11 @@ export function usePricingColumns(
             items={tags.map((tag) => (
               <StatusBadge
                 key={tag}
-                label={tag}
-                autoColor={tag}
                 size='sm'
-                copyable={false}
-              />
+                className={getIdentityTextColorClass(tag)}
+              >
+                {tag}
+              </StatusBadge>
             ))}
           />
         )
@@ -378,11 +379,11 @@ export function usePricingColumns(
             items={endpoints.map((ep) => (
               <StatusBadge
                 key={ep}
-                label={ep}
-                autoColor={ep}
                 size='sm'
-                copyable={false}
-              />
+                className={getIdentityTextColorClass(ep)}
+              >
+                {ep}
+              </StatusBadge>
             ))}
           />
         )

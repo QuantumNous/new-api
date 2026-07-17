@@ -21,8 +21,8 @@ import { X } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
@@ -184,9 +184,8 @@ export function DataTableBulkActions<TData>({
               render={
                 <Button
                   variant='outline'
-                  size='icon'
+                  size='icon-xs'
                   onClick={handleClearSelection}
-                  className='size-6'
                   aria-label={t('Clear selection')}
                   title={t('Clear selection (Escape)')}
                 />

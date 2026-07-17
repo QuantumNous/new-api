@@ -40,7 +40,7 @@ import type {
 export async function getUsers(
   params: GetUsersParams = {}
 ): Promise<GetUsersResponse> {
-  const { p = 1, page_size = 10, sort_by, sort_order } = params
+  const { p = 1, page_size = 20, sort_by, sort_order } = params
   const res = await api.get('/api/user/', {
     params: {
       p,
@@ -64,7 +64,7 @@ export async function searchUsers(
     role = '',
     status = '',
     p = 1,
-    page_size = 10,
+    page_size = 20,
     sort_by,
     sort_order,
   } = params

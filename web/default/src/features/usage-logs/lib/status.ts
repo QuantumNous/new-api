@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { StatusBadgeProps } from '@/components/status-badge'
+import type { StatusVariant } from '@/components/status-badge'
 
 /**
  * Generic status mapping utility
  * Creates a function to map status values to labels and variants
  */
 export function createStatusMapper<T extends string>(mapping: {
-  [key in T]?: { label: string; variant: StatusBadgeProps['variant'] }
+  [key in T]?: { label: string; variant: StatusVariant }
 }) {
   return {
     getLabel: (status: string, defaultLabel = 'Unknown'): string => {
@@ -31,8 +31,8 @@ export function createStatusMapper<T extends string>(mapping: {
     },
     getVariant: (
       status: string,
-      defaultVariant: StatusBadgeProps['variant'] = 'neutral'
-    ): StatusBadgeProps['variant'] => {
+      defaultVariant: StatusVariant = 'neutral'
+    ): StatusVariant => {
       return mapping[status as T]?.variant ?? defaultVariant
     },
   }

@@ -20,13 +20,13 @@ import { ArrowUpDown, Check, Filter, Grid2X2, Table2 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -134,7 +134,7 @@ function SegmentedControl(props: {
 
         return (
           <Tooltip key={option.value}>
-            <TooltipTrigger render={button}></TooltipTrigger>
+            <TooltipTrigger render={button} />
             <TooltipContent side='bottom' className='text-xs'>
               {option.tooltip}
             </TooltipContent>

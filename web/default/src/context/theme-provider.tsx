@@ -20,7 +20,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from 'react'
@@ -88,7 +88,8 @@ export function ThemeProvider({
     resolveTheme(getStoredTheme(storageKey, defaultTheme))
   )
 
-  useEffect(() => {
+  // Apply before paint to avoid a light→dark (or reverse) flash on load.
+  useLayoutEffect(() => {
     const root = window.document.documentElement
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
@@ -97,6 +98,10 @@ export function ThemeProvider({
       root.classList.remove('light', 'dark')
       root.classList.add(nextResolvedTheme)
       setResolvedTheme(nextResolvedTheme)
+
+      const themeColor = nextResolvedTheme === 'dark' ? '#2c2c2c' : '#fff'
+      const metaThemeColor = document.querySelector("meta[name='theme-color']")
+      if (metaThemeColor) metaThemeColor.setAttribute('content', themeColor)
     }
 
     applyTheme()

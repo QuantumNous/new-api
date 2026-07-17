@@ -21,18 +21,17 @@ import { Eye, EyeOff } from 'lucide-react'
 import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/design-system/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/design-system/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { FadeIn } from '@/components/page-transition'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ROLE } from '@/lib/roles'
-import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
@@ -51,31 +50,14 @@ import {
   DASHBOARD_DEFAULT_SECTION,
   DASHBOARD_SECTION_IDS,
 } from './section-registry'
-import type {
-  DashboardChartPreferences,
-  DashboardFilters,
-  QuotaDataItem,
-  UserChartsFilters,
+import {
+  type DashboardChartPreferences,
+  type DashboardFilters,
+  type QuotaDataItem,
+  type UserChartsFilters,
 } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
-
-const LOG_STAT_CARD_FALLBACK_KEYS = [
-  'count',
-  'quota',
-  'tokens',
-  'average-rpm',
-  'average-tpm',
-] as const
-const PERFORMANCE_METRIC_FALLBACK_KEYS = [
-  'success-rate',
-  'average-latency',
-  'throughput',
-] as const
-const PERFORMANCE_MODEL_FALLBACK_KEYS = [
-  'primary-model',
-  'secondary-model',
-] as const
 
 const LazyLogStatCards = lazy(() =>
   import('./components/models/log-stat-cards').then((m) => ({
@@ -117,21 +99,11 @@ function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
       <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
-        {LOG_STAT_CARD_FALLBACK_KEYS.map((key, index) => (
-          <div
-            key={key}
-            className={cn(
-              'px-2.5 py-1.5 sm:px-5 sm:py-4',
-              index === LOG_STAT_CARD_FALLBACK_KEYS.length - 1 &&
-                'col-span-2 sm:col-span-1'
-            )}
-          >
-            <div className='flex items-center gap-1.5 sm:gap-2'>
-              <Skeleton className='size-4 rounded-sm sm:size-7 sm:rounded-md' />
-              <Skeleton className='h-4 w-16' />
-            </div>
-            <Skeleton className='mt-1 h-5 w-16 sm:mt-2 sm:h-7 sm:w-20' />
-            <Skeleton className='mt-1 hidden h-3.5 w-28 md:block' />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+            <Skeleton className='h-3.5 w-16' />
+            <Skeleton className='mt-2 h-7 w-20' />
+            <Skeleton className='mt-1.5 h-3.5 w-28' />
           </div>
         ))}
       </div>
@@ -160,15 +132,15 @@ function PerformanceOverviewFallback() {
         <div className='flex items-center gap-2'>
           <Skeleton className='h-4 w-24' />
         </div>
-        {PERFORMANCE_METRIC_FALLBACK_KEYS.map((key) => (
-          <div key={key} className='flex items-center gap-1.5'>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className='flex items-center gap-1.5'>
             <Skeleton className='h-3 w-14' />
             <Skeleton className='h-4 w-16' />
           </div>
         ))}
         <div className='ml-auto flex items-center gap-2'>
-          {PERFORMANCE_MODEL_FALLBACK_KEYS.map((key) => (
-            <Skeleton key={key} className='h-5 w-28 rounded-full' />
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className='h-5 w-28 rounded-full' />
           ))}
         </div>
       </div>
@@ -293,7 +265,7 @@ export function Dashboard() {
                     ? t('Hide sensitive data')
                     : t('Show sensitive data')
                 }
-                className='text-muted-foreground hover:text-foreground size-8'
+                className='text-muted-foreground hover:text-foreground'
               />
             }
           >
@@ -326,7 +298,7 @@ export function Dashboard() {
             <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
               {showSectionTabs ? (
                 <Tabs value={activeSection} onValueChange={handleSectionChange}>
-                  <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+                  <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto sm:group-data-horizontal/tabs:h-auto'>
                     {visibleSections.map((section) => (
                       <TabsTrigger key={section} value={section}>
                         {t(SECTION_META[section].titleKey)}

@@ -44,6 +44,33 @@
     "no-duplicate-imports": "error",
     "no-nested-ternary": "error",
     "no-new-wrappers": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": [
+              "@/components/ui/alert-dialog",
+              "@/components/ui/button",
+              "@/components/ui/combobox",
+              "@/components/ui/combobox-input",
+              "@/components/ui/command",
+              "@/components/ui/dialog",
+              "@/components/ui/input",
+              "@/components/ui/input-group",
+              "@/components/ui/pagination",
+              "@/components/ui/select",
+              "@/components/ui/sidebar",
+              "@/components/ui/table",
+              "@/components/ui/tabs",
+              "@/components/ui/toggle",
+              "@/components/ui/toggle-group"
+            ],
+            "message": "Import policy-bearing controls from @/components/design-system so responsive sizing stays centralized."
+          }
+        ]
+      }
+    ],
     "no-regex-spaces": "error",
     "no-unsafe-finally": "warn",
     "no-unsafe-negation": "error",
@@ -194,6 +221,19 @@
       "files": ["src/routes/**/*.{ts,tsx}"],
       "rules": {
         "react/only-export-components": "off"
+      }
+    },
+    {
+      "files": ["src/components/design-system/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": "off",
+        "react/only-export-components": [
+          "error",
+          {
+            "allowConstantExport": true,
+            "allowExportNames": ["useComboboxAnchor", "useSidebar"]
+          }
+        ]
       }
     },
     {

@@ -20,9 +20,9 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatLogQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { formatQuotaWithCurrency } from '@/lib/currency'
 
 import { getLogStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
@@ -33,17 +33,23 @@ const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 function StatBadge(props: {
   label: string
+  tone: 'usage' | 'rpm' | 'tpm'
   value: string | number
-  accent: string
 }) {
+  let labelClassName = 'text-foreground'
+  if (props.tone === 'usage') {
+    labelClassName = 'text-status-info'
+  } else if (props.tone === 'rpm') {
+    labelClassName = 'text-metric-rpm'
+  }
+
   return (
-    <span className='border-border/60 bg-muted/25 inline-flex h-7 items-center gap-2 rounded-md border px-2.5 text-xs shadow-xs'>
-      <span className={cn('h-3.5 w-0.5 rounded-full', props.accent)} />
-      <span className='text-muted-foreground'>{props.label}</span>
-      <span className='text-foreground/85 font-mono font-semibold tabular-nums'>
+    <Badge variant='outline' className='h-6 gap-2'>
+      <span className={labelClassName}>{props.label}</span>
+      <span className='text-foreground/85 font-semibold tabular-nums'>
         {props.value}
       </span>
-    </span>
+    </Badge>
   )
 }
 
@@ -75,12 +81,15 @@ export function CommonLogsStats() {
     placeholderData: (previousData) => previousData,
   })
 
+  // Mirrors the loaded stat badges below: same wrapping row, and pill widths
+  // matching the typical rendered size of "Usage ¥…", "RPM n", "TPM n" so the
+  // row stays on one line on phones (~304px incl. gaps) without layout shift.
   if (isLoading) {
     return (
-      <div className='flex items-center gap-2'>
-        <Skeleton className='h-7 w-[150px] rounded-md' />
-        <Skeleton className='h-7 w-[100px] rounded-md' />
-        <Skeleton className='h-7 w-[120px] rounded-md' />
+      <div className='flex flex-wrap items-center gap-2'>
+        <Skeleton className='h-6 w-28 rounded-full' />
+        <Skeleton className='h-6 w-20 rounded-full' />
+        <Skeleton className='h-6 w-24 rounded-full' />
       </div>
     )
   }
@@ -89,19 +98,19 @@ export function CommonLogsStats() {
     <div className='flex flex-wrap items-center gap-2'>
       <StatBadge
         label={t('Usage')}
-        value={sensitiveVisible ? formatLogQuota(stats?.quota || 0) : '••••'}
-        accent='bg-sky-500/70'
+        tone='usage'
+        value={
+          sensitiveVisible
+            ? formatQuotaWithCurrency(stats?.quota || 0, {
+                digitsLarge: 2,
+                digitsSmall: 6,
+                abbreviate: false,
+              })
+            : '••••'
+        }
       />
-      <StatBadge
-        label={t('RPM')}
-        value={stats?.rpm || 0}
-        accent='bg-rose-500/65'
-      />
-      <StatBadge
-        label={t('TPM')}
-        value={stats?.tpm || 0}
-        accent='bg-slate-400/70'
-      />
+      <StatBadge label={t('RPM')} tone='rpm' value={stats?.rpm || 0} />
+      <StatBadge label={t('TPM')} tone='tpm' value={stats?.tpm || 0} />
     </div>
   )
 }

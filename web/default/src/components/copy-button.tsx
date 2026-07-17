@@ -20,7 +20,7 @@ import { Check, Copy } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/button'
 import {
   Tooltip,
   TooltipContent,
@@ -35,7 +35,7 @@ interface CopyButtonProps {
   className?: string
   iconClassName?: string
   variant?: 'ghost' | 'outline' | 'default' | 'secondary' | 'destructive'
-  size?: 'default' | 'sm' | 'lg' | 'icon'
+  size?: 'default' | 'sm' | 'lg' | 'icon' | 'icon-sm' | 'icon-xs'
   tooltip?: string
   successTooltip?: string
   'aria-label'?: string
