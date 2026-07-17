@@ -400,8 +400,13 @@ func migrateClickHouseLogDB() error {
 	if err := LOG_DB.Exec(clickHouseLogCreateTableSQL(ttlDays)).Error; err != nil {
 		return err
 	}
+	if err := LOG_DB.Exec(clickHouseLogRetryAttemptColumnSQL).Error; err != nil {
+		return err
+	}
 	return syncClickHouseLogTTL(ttlDays)
 }
+
+const clickHouseLogRetryAttemptColumnSQL = "ALTER TABLE logs ADD COLUMN IF NOT EXISTS is_retry_attempt UInt8 DEFAULT 0"
 
 func clickHouseLogTTLDays() int {
 	ttlDays := common.GetEnvOrDefault("LOG_SQL_CLICKHOUSE_TTL_DAYS", 0)
@@ -442,6 +447,7 @@ CREATE TABLE IF NOT EXISTS logs (
 	completion_tokens Int32 DEFAULT 0,
 	use_time Int32 DEFAULT 0,
 	is_stream UInt8 DEFAULT 0,
+	is_retry_attempt UInt8 DEFAULT 0,
 	channel_id Int32 DEFAULT 0,
 	token_id Int32 DEFAULT 0,
 	`+"`group`"+` String DEFAULT '',

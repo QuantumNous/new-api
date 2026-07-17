@@ -200,6 +200,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 	retryBudget := newRelayRetryBudget()
+	finalRetryLogPending := false
 
 	for retryParam.GetRetry() <= common.RetryTimes {
 		relayInfo.RetryIndex = retryParam.GetRetry()
@@ -242,11 +243,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		shouldRetry := prepareNextRelayAttempt(c, relayInfo.RelayMode, newAPIError, retryParam, &retryBudget)
+		processChannelError(c,
+			*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
+				common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
+			newAPIError, shouldRetry)
+		finalRetryLogPending = shouldRetry
 
-		if !prepareNextRelayAttempt(c, relayInfo.RelayMode, newAPIError, retryParam, &retryBudget) {
+		if !shouldRetry {
 			break
 		}
+	}
+	if newAPIError != nil && finalRetryLogPending {
+		processChannelError(c,
+			*types.NewChannelError(c.GetInt("channel_id"), c.GetInt("channel_type"), c.GetString("channel_name"),
+				common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey), "", false),
+			newAPIError, false)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -367,7 +379,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
-func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
+func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, isRetryAttempt bool) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
@@ -409,7 +421,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other, isRetryAttempt)
 	}
 
 }
@@ -514,6 +526,7 @@ func RelayTask(c *gin.Context) {
 
 	var result *relay.TaskSubmitResult
 	var taskErr *dto.TaskError
+	finalRetryLogPending := false
 	defer func() {
 		if taskErr != nil && relayInfo.Billing != nil {
 			relayInfo.Billing.Refund(c)
@@ -565,17 +578,30 @@ func RelayTask(c *gin.Context) {
 		if taskErr == nil {
 			break
 		}
+		shouldRetry := shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry())
 
 		if !taskErr.LocalError {
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
-				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
+				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode),
+				shouldRetry)
+			finalRetryLogPending = shouldRetry
 		}
 
-		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetry {
 			break
 		}
+	}
+	if taskErr != nil && finalRetryLogPending {
+		finalTaskError := taskErr.Error
+		if finalTaskError == nil {
+			finalTaskError = errors.New(taskErr.Message)
+		}
+		processChannelError(c,
+			*types.NewChannelError(c.GetInt("channel_id"), c.GetInt("channel_type"), c.GetString("channel_name"),
+				common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey), "", false),
+			types.NewOpenAIError(finalTaskError, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode), false)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
