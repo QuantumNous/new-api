@@ -489,6 +489,30 @@ function ModelBackendProviderSection(props: { model: PricingModel }) {
     )
   }
 
+  if (model.function_tags) {
+    cells.push(
+      <CatalogInfoCell key='function_tags' label={t('Function Tags')}>
+        <CatalogPillList items={model.function_tags.split(',').map((tag) => tag.trim()).filter(Boolean)} />
+      </CatalogInfoCell>
+    )
+  }
+
+  if (model.max_prompt_tokens) {
+    cells.push(
+      <CatalogInfoCell key='max_prompt_tokens' label={t('Max Prompt')}>
+        <CatalogTextValue>{formatCatalogTokenCount(model.max_prompt_tokens)}</CatalogTextValue>
+      </CatalogInfoCell>
+    )
+  }
+
+  if (model.max_completion_tokens) {
+    cells.push(
+      <CatalogInfoCell key='max_completion_tokens' label={t('Max Completion')}>
+        <CatalogTextValue>{formatCatalogTokenCount(model.max_completion_tokens)}</CatalogTextValue>
+      </CatalogInfoCell>
+    )
+  }
+
   if (model.parameter_count) {
     cells.push(
       <CatalogInfoCell key='parameters' label={t('Parameters')}>

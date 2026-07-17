@@ -20,6 +20,9 @@ type Pricing struct {
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
+	FunctionTags           string                  `json:"function_tags,omitempty"`
+	MaxPromptTokens        *int64                  `json:"max_prompt_tokens,omitempty"`
+	MaxCompletionTokens    *int64                  `json:"max_completion_tokens,omitempty"`
 	VendorID               int                     `json:"vendor_id,omitempty"`
 	QuotaType              int                     `json:"quota_type"`
 	ModelRatio             float64                 `json:"model_ratio"`
@@ -362,7 +365,7 @@ func updatePricing() {
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
 		}
 
-		// 补充模型元数据（描述、标签、供应商、状态）
+		// 补充模型元数据（描述、标签、能力标签、上下文长度、供应商、状态）
 		if meta, ok := metaMap[model]; ok {
 			// 若模型被禁用(status!=1)，则直接跳过，不返回给前端
 			if meta.Status != 1 {
@@ -371,6 +374,9 @@ func updatePricing() {
 			pricing.Description = meta.Description
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
+			pricing.FunctionTags = meta.FunctionTags
+			pricing.MaxPromptTokens = meta.MaxPromptTokens
+			pricing.MaxCompletionTokens = meta.MaxCompletionTokens
 			pricing.VendorID = meta.VendorID
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)

@@ -47,6 +47,9 @@ export type PricingModel = {
   audio_completion_ratio?: number | null
   enable_groups: string[]
   tags?: string
+  function_tags?: string
+  max_prompt_tokens?: number
+  max_completion_tokens?: number
   supported_endpoint_types?: string[]
   key?: string
   group_ratio?: Record<string, number>
