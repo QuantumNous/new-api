@@ -4263,11 +4263,16 @@ export function ChannelMutateDrawer({
                                     <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
                                       <div className='space-y-0.5'>
                                         <FormLabel className='text-sm'>
-                                          {t('Allow service_tier passthrough')}
+                                          {t('Allow {{field}} passthrough', {
+                                            field: 'service_tier',
+                                          })}
                                         </FormLabel>
                                         <FormDescription>
                                           {t(
-                                            'Pass through the service_tier field'
+                                            'Pass through the {{field}} field',
+                                            {
+                                              field: 'service_tier',
+                                            }
                                           )}
                                         </FormDescription>
                                       </div>
@@ -4290,11 +4295,17 @@ export function ChannelMutateDrawer({
                                         <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
                                           <div className='space-y-0.5'>
                                             <FormLabel className='text-sm'>
-                                              {t('Disable store passthrough')}
+                                              {t(
+                                                'Block {{field}} passthrough',
+                                                {
+                                                  field: 'store',
+                                                }
+                                              )}
                                             </FormLabel>
                                             <FormDescription>
                                               {t(
-                                                'When enabled, the store field will be blocked'
+                                                'When enabled, the {{field}} field will be blocked',
+                                                { field: 'store' }
                                               )}
                                             </FormDescription>
                                           </div>
@@ -4316,12 +4327,14 @@ export function ChannelMutateDrawer({
                                           <div className='space-y-0.5'>
                                             <FormLabel className='text-sm'>
                                               {t(
-                                                'Allow safety_identifier passthrough'
+                                                'Allow {{field}} passthrough',
+                                                { field: 'safety_identifier' }
                                               )}
                                             </FormLabel>
                                             <FormDescription>
                                               {t(
-                                                'Pass through the safety_identifier field'
+                                                'Pass through the {{field}} field',
+                                                { field: 'safety_identifier' }
                                               )}
                                             </FormDescription>
                                           </div>
@@ -4343,12 +4356,20 @@ export function ChannelMutateDrawer({
                                           <div className='space-y-0.5'>
                                             <FormLabel className='text-sm'>
                                               {t(
-                                                'Allow include usage obfuscation passthrough'
+                                                'Allow {{field}} passthrough',
+                                                {
+                                                  field:
+                                                    'stream_options.include_obfuscation',
+                                                }
                                               )}
                                             </FormLabel>
                                             <FormDescription>
                                               {t(
-                                                'Pass through the include field for usage obfuscation'
+                                                'Pass through {{field}} for usage obfuscation',
+                                                {
+                                                  field:
+                                                    'stream_options.include_obfuscation',
+                                                }
                                               )}
                                             </FormDescription>
                                           </div>
@@ -4370,12 +4391,14 @@ export function ChannelMutateDrawer({
                                           <div className='space-y-0.5'>
                                             <FormLabel className='text-sm'>
                                               {t(
-                                                'Allow inference geography passthrough'
+                                                'Allow {{field}} passthrough',
+                                                { field: 'inference_geo' }
                                               )}
                                             </FormLabel>
                                             <FormDescription>
                                               {t(
-                                                'Pass through the inference_geo field for geographic routing'
+                                                'Pass through {{field}} for geographic routing',
+                                                { field: 'inference_geo' }
                                               )}
                                             </FormDescription>
                                           </div>
@@ -4401,12 +4424,14 @@ export function ChannelMutateDrawer({
                                           <div className='space-y-0.5'>
                                             <FormLabel className='text-sm'>
                                               {t(
-                                                'Allow inference_geo passthrough'
+                                                'Allow {{field}} passthrough',
+                                                { field: 'inference_geo' }
                                               )}
                                             </FormLabel>
                                             <FormDescription>
                                               {t(
-                                                'Pass through the inference_geo field for Claude data residency region control'
+                                                'Pass through {{field}} to control the Claude data residency region',
+                                                { field: 'inference_geo' }
                                               )}
                                             </FormDescription>
                                           </div>
@@ -4427,11 +4452,17 @@ export function ChannelMutateDrawer({
                                         <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
                                           <div className='space-y-0.5'>
                                             <FormLabel className='text-sm'>
-                                              {t('Allow speed passthrough')}
+                                              {t(
+                                                'Allow {{field}} passthrough',
+                                                {
+                                                  field: 'speed',
+                                                }
+                                              )}
                                             </FormLabel>
                                             <FormDescription>
                                               {t(
-                                                'Pass through the speed field for Claude inference speed mode control'
+                                                'Pass through {{field}} to control the Claude inference speed mode',
+                                                { field: 'speed' }
                                               )}
                                             </FormDescription>
                                           </div>
@@ -4453,12 +4484,16 @@ export function ChannelMutateDrawer({
                                           <div className='space-y-0.5'>
                                             <FormLabel className='text-sm'>
                                               {t(
-                                                'Allow Claude beta query passthrough'
+                                                'Append {{query}} to Claude requests',
+                                                {
+                                                  query: '?beta=true',
+                                                }
                                               )}
                                             </FormLabel>
                                             <FormDescription>
                                               {t(
-                                                'Pass through the anthropic-beta header for beta features'
+                                                'Append {{query}} to upstream Claude request URLs for beta features',
+                                                { query: '?beta=true' }
                                               )}
                                             </FormDescription>
                                           </div>
@@ -4570,7 +4605,7 @@ export function ChannelMutateDrawer({
                                     </FormControl>
                                     <FormDescription>
                                       {t(
-                                        'Comma-separated exact model names. Prefix with regex: to ignore by regular expression.'
+                                        'Separate exact model names with ASCII commas. Prefix a rule with regex: to use Go regular expression syntax (RE2; lookarounds such as (?!...) are not supported).'
                                       )}
                                     </FormDescription>
                                     <FormMessage />

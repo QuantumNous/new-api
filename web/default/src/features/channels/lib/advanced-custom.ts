@@ -727,7 +727,11 @@ function validateAdvancedCustomRouteModels(
       getAdvancedCustomModelRuleKind(model) === 'regex' &&
       getAdvancedCustomRegexModelPattern(model) === ''
     ) {
-      return { routeIndex, message: 'Model regex cannot be empty' }
+      return {
+        routeIndex,
+        message:
+          'The Go regular expression for model matching cannot be empty.',
+      }
     }
     if (seenInRoute.has(model)) {
       return { routeIndex, message: 'Duplicate model in route models' }
