@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -55,6 +55,7 @@ export function RedemptionsTable() {
   const { t } = useTranslation()
   const columns = useRedemptionsColumns()
   const { refreshTrigger } = useRedemptions()
+  const queryClient = useQueryClient()
 
   const {
     globalFilter,
@@ -173,6 +174,10 @@ export function RedemptionsTable() {
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name or ID...'),
+        onRefresh: () =>
+          queryClient.invalidateQueries({ queryKey: ['redemptions'] }),
+        refreshLoading: isFetching,
+        refreshStorageKey: 'redemption-codes:auto-refresh',
         filters: [
           {
             columnId: 'status',

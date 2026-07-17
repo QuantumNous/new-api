@@ -56,6 +56,10 @@ export function useDebouncedColumnFilter({
   }, [value])
 
   React.useEffect(() => {
+    // Commit only after the debounce settles on the latest pending value.
+    // A stale debounced value would otherwise resurrect a filter that was
+    // just cleared externally (e.g. the toolbar Reset button).
+    if (debouncedValue !== pendingValue) return
     if (debouncedValue === value) return
 
     onColumnFiltersChangeRef.current((previous) => {
@@ -64,7 +68,7 @@ export function useDebouncedColumnFilter({
         ? [...filters, { id: columnId, value: debouncedValue }]
         : filters
     })
-  }, [columnId, debouncedValue, value])
+  }, [columnId, debouncedValue, pendingValue, value])
 
   const updateInputValue = React.useCallback((nextValue: string) => {
     setInputValue(nextValue)

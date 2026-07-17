@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type {
   ColumnFiltersState,
@@ -95,6 +95,7 @@ export function ChannelsTable() {
     sensitiveVisible,
     setSensitiveVisible,
   } = useChannels()
+  const queryClient = useQueryClient()
   const isMobile = useMediaQuery('(max-width: 640px)')
 
   // Table state
@@ -459,6 +460,12 @@ export function ChannelsTable() {
             singleSelect: true,
           },
         ],
+        onRefresh: () =>
+          queryClient.invalidateQueries({
+            queryKey: channelsQueryKeys.lists(),
+          }),
+        refreshLoading: isFetching,
+        refreshStorageKey: 'channels:auto-refresh',
         preActions: (
           <Tooltip>
             <TooltipTrigger

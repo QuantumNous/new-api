@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -55,6 +55,7 @@ function isDisabledApiKeyRow(apiKey: ApiKey) {
 export function ApiKeysTable() {
   const { t } = useTranslation()
   const { refreshTrigger } = useApiKeys()
+  const queryClient = useQueryClient()
   const [now, setNow] = useState(() => Date.now())
   const columns = useApiKeysColumns(now)
 
@@ -178,6 +179,9 @@ export function ApiKeysTable() {
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name...'),
+        onRefresh: () => queryClient.invalidateQueries({ queryKey: ['keys'] }),
+        refreshLoading: isFetching,
+        refreshStorageKey: 'api-keys:auto-refresh',
         hasAdditionalFilters: Boolean(tokenFilterInput.trim()),
         onReset: () => setTokenFilterInput(''),
         additionalSearch: (

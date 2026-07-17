@@ -78,9 +78,21 @@ export interface ApiResponse<T = unknown> {
   data?: T
 }
 
+export type UserSortBy =
+  | 'id'
+  | 'username'
+  | 'quota'
+  | 'group'
+  | 'created_at'
+  | 'last_login_at'
+
+export type UserSortOrder = 'asc' | 'desc'
+
 export interface GetUsersParams {
   p?: number
   page_size?: number
+  sort_by?: UserSortBy
+  sort_order?: UserSortOrder
 }
 
 export interface GetUsersResponse {
@@ -101,6 +113,8 @@ export interface SearchUsersParams {
   status?: string
   p?: number
   page_size?: number
+  sort_by?: UserSortBy
+  sort_order?: UserSortOrder
 }
 
 export interface UserFormData {

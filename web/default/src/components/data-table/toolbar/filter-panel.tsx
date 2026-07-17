@@ -36,6 +36,7 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 
+import { DataTableRefreshControl } from './refresh-control'
 import { DataTableViewOptions } from './view-options'
 
 export interface DataTableFilterPanelProps<TData> {
@@ -55,6 +56,13 @@ export interface DataTableFilterPanelProps<TData> {
   searchLoading?: boolean
   onReset: () => void
   onSearch?: () => void
+  /**
+   * When provided, renders the built-in {@link DataTableRefreshControl}
+   * (manual refresh + auto-refresh interval picker) before `actionStart`.
+   */
+  onRefresh?: () => void
+  refreshing?: boolean
+  refreshStorageKey?: string
   inlineActions?: boolean
   className?: string
 }
@@ -146,8 +154,17 @@ export function DataTableFilterPanel<TData>(
     <DataTableViewOptions table={props.table} />
   ) : null
 
+  const refreshControl = props.onRefresh ? (
+    <DataTableRefreshControl
+      onRefresh={props.onRefresh}
+      isRefreshing={props.refreshing}
+      storageKey={props.refreshStorageKey}
+    />
+  ) : null
+
   const desktopActions = (
     <div className='ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2'>
+      {refreshControl}
       {props.actionStart}
       <Button
         type='button'
@@ -216,6 +233,7 @@ export function DataTableFilterPanel<TData>(
                   )}
                 />
               </Button>
+              {refreshControl}
               {props.actionStart}
               {hasMobileFilters && (
                 <DrawerTrigger

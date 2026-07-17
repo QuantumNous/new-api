@@ -230,6 +230,12 @@ export function DeploymentsTable() {
         applyHeaderSize
         toolbarProps={{
           searchPlaceholder: t('Search deployments...'),
+          onRefresh: () =>
+            queryClient.invalidateQueries({
+              queryKey: deploymentsQueryKeys.lists(),
+            }),
+          refreshLoading: isFetching,
+          refreshStorageKey: 'model-deployments:auto-refresh',
           filters: [
             {
               columnId: 'status',

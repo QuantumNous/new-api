@@ -40,6 +40,9 @@ interface LogsFilterToolbarProps<TData> {
   searchLoading?: boolean
   onReset: () => void
   onSearch: () => void
+  onRefresh?: () => void
+  refreshing?: boolean
+  refreshStorageKey?: string
   className?: string
 }
 

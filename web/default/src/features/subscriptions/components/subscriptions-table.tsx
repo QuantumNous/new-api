@@ -16,11 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DataTablePage, useDataTable } from '@/components/data-table'
+import {
+  DataTablePage,
+  DataTableRefreshControl,
+  useDataTable,
+} from '@/components/data-table'
 
 import { getAdminPlans } from '../api'
 import { useSubscriptionsColumns } from './subscriptions-columns'
@@ -30,8 +34,9 @@ export function SubscriptionsTable() {
   const { t } = useTranslation()
   const columns = useSubscriptionsColumns()
   const { refreshTrigger } = useSubscriptions()
+  const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['admin-subscription-plans', refreshTrigger],
     queryFn: async () => {
       const result = await getAdminPlans()
@@ -55,6 +60,20 @@ export function SubscriptionsTable() {
       columns={columns}
       tableLabel={t('Subscriptions')}
       isLoading={isLoading}
+      isFetching={isFetching}
+      toolbar={
+        <div className='flex justify-end'>
+          <DataTableRefreshControl
+            onRefresh={() =>
+              queryClient.invalidateQueries({
+                queryKey: ['admin-subscription-plans'],
+              })
+            }
+            isRefreshing={isFetching}
+            storageKey='subscriptions:auto-refresh'
+          />
+        </div>
+      }
       emptyTitle={t('No subscription plans yet')}
       emptyDescription={t(
         'Click "Create Plan" to create your first subscription plan'

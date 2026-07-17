@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,6 +40,7 @@ const route = getRouteApi('/_authenticated/models/$section')
 export function ModelsTable() {
   const { t } = useTranslation()
   const { selectedVendor } = useModels()
+  const queryClient = useQueryClient()
 
   // URL state management
   const {
@@ -171,7 +172,6 @@ export function ModelsTable() {
     onPaginationChange,
     onGlobalFilterChange,
     manualPagination: true,
-    manualSorting: true,
     manualFiltering: true,
     ensurePageInRange,
   })
@@ -203,6 +203,10 @@ export function ModelsTable() {
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by model name...'),
+        onRefresh: () =>
+          queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() }),
+        refreshLoading: isFetching,
+        refreshStorageKey: 'models:auto-refresh',
         filters: [
           {
             columnId: 'status',

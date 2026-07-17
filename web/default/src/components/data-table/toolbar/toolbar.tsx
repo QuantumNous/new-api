@@ -101,6 +101,21 @@ export type DataTableToolbarProps<TData> = {
    */
   preActions?: ReactNode
   /**
+   * When provided, renders the built-in refresh control (manual refresh +
+   * auto-refresh interval picker) before `preActions`. Typically
+   * invalidates/refetches the table query.
+   */
+  onRefresh?: () => void
+  /**
+   * Loading state for the built-in refresh control — disables the manual
+   * button and spins the icon. Typically the query's `isFetching`.
+   */
+  refreshLoading?: boolean
+  /**
+   * localStorage key persisting the chosen auto-refresh interval per table.
+   */
+  refreshStorageKey?: string
+  /**
    * Explicit "Search" / "Apply" callback. When provided the toolbar
    * shows a primary Search button. Filters are committed only on click
    * (form-mode workflow).
@@ -315,6 +330,9 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
       mobileFilterCount={mobileFilterCount}
       stats={props.leftActions}
       actionStart={props.preActions}
+      onRefresh={props.onRefresh}
+      refreshing={props.refreshLoading}
+      refreshStorageKey={props.refreshStorageKey}
       viewToggle={props.viewToggle}
       hideViewOptions={props.hideViewOptions}
       hasActiveFilters={isFiltered}

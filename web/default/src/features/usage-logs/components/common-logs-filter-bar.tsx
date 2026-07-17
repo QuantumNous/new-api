@@ -200,6 +200,11 @@ export function CommonLogsFilterBar<TData>(
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
   }, [filters, logType, navigate, queryClient])
 
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['logs'] })
+    queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
+  }, [queryClient])
+
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
     const resetFilters: CommonLogFilters = { startTime: start, endTime: end }
@@ -437,6 +442,9 @@ export function CommonLogsFilterBar<TData>(
       onSearch={handleApply}
       searchLoading={fetchingLogs > 0}
       onReset={handleReset}
+      onRefresh={handleRefresh}
+      refreshing={fetchingLogs > 0}
+      refreshStorageKey='usage-logs:auto-refresh'
     />
   )
 }

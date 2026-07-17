@@ -27,6 +27,7 @@ export {
 export { TruncatedCell } from './core/truncated-cell'
 export { DataTableViewOptions } from './toolbar/view-options'
 export { DataTableToolbar } from './toolbar/toolbar'
+export { DataTableRefreshControl } from './toolbar/refresh-control'
 export {
   DataTableFilterField,
   DataTableFilterInput,
