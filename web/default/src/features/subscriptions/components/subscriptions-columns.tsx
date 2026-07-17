@@ -194,6 +194,30 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         size: 120,
       },
       {
+        id: 'allowed_groups',
+        header: t('Billing Groups'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => {
+          const groups = (row.original.plan.allowed_groups || '')
+            .split(',')
+            .map((groupName) => groupName.trim())
+            .filter(Boolean)
+          if (groups.length === 0) {
+            return (
+              <span className='text-muted-foreground'>{t('All Groups')}</span>
+            )
+          }
+          return (
+            <BadgeCell className='flex flex-wrap gap-1'>
+              {groups.map((groupName) => (
+                <GroupBadge key={groupName} group={groupName} />
+              ))}
+            </BadgeCell>
+          )
+        },
+        size: 160,
+      },
+      {
         id: 'actions',
         header: () => t('Actions'),
         cell: ({ row }) => <DataTableRowActions row={row} />,

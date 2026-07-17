@@ -31,6 +31,7 @@ import {
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -468,6 +469,35 @@ export function SubscriptionsMutateDrawer({
                       <FormDescription>
                         {t(
                           'Downgrade to this group after the subscription expires'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='allowed_groups'
+                  render={({ field }) => (
+                    <FormItem className='sm:col-span-2'>
+                      <FormLabel>{t('Billing Groups')}</FormLabel>
+                      <FormControl>
+                        <MultiSelect
+                          options={groupOptions.map((groupName) => ({
+                            label: groupName,
+                            value: groupName,
+                          }))}
+                          selected={field.value || []}
+                          onChange={field.onChange}
+                          placeholder={t(
+                            'Select groups (empty = all groups)'
+                          )}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Only requests using these groups will deduct this subscription. Leave empty to allow all groups.'
                         )}
                       </FormDescription>
                       <FormMessage />
