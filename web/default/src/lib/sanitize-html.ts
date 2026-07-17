@@ -53,7 +53,14 @@ const FORBIDDEN_TAGS = new Set([
   'marquee',
 ])
 
-const URL_ATTRS = new Set(['href', 'src', 'xlink:href', 'action', 'formaction', 'poster'])
+const URL_ATTRS = new Set([
+  'href',
+  'src',
+  'xlink:href',
+  'action',
+  'formaction',
+  'poster',
+])
 
 function isSafeUrl(value: string): boolean {
   const v = value.trim().toLowerCase()
@@ -61,7 +68,11 @@ function isSafeUrl(value: string): boolean {
   if (v.startsWith('#')) return true
   if (v.startsWith('/') && !v.startsWith('//')) return true
   if (v.startsWith('//')) return false
-  if (v.startsWith('data:') || v.startsWith('blob:') || v.startsWith('javascript:')) {
+  if (
+    v.startsWith('data:') ||
+    v.startsWith('blob:') ||
+    v.startsWith('javascript:')
+  ) {
     return false
   }
   if (
@@ -72,6 +83,23 @@ function isSafeUrl(value: string): boolean {
     return true
   }
   return false
+}
+
+export function normalizeAnchorRel(
+  target: string | null,
+  rel: string | null
+): string | null {
+  const tokens = new Set(
+    (rel ?? '')
+      .split(/\s+/)
+      .map((token) => token.trim().toLowerCase())
+      .filter((token) => token && token !== 'opener')
+  )
+  if (target?.toLowerCase() === '_blank') {
+    tokens.add('noopener')
+    tokens.add('noreferrer')
+  }
+  return tokens.size > 0 ? [...tokens].sort().join(' ') : null
 }
 
 function sanitizeNode(node: Node, doc: Document): Node | null {
@@ -90,17 +118,65 @@ function sanitizeNode(node: Node, doc: Document): Node | null {
 
   // Only allow a conservative set of content tags (drop unknown custom tags).
   const ALLOWED_TAGS = new Set([
-    'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'code', 'col', 'colgroup',
-    'dd', 'del', 'details', 'div', 'dl', 'dt', 'em', 'figcaption', 'figure',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd', 'li',
-    'mark', 'ol', 'p', 'pre', 'q', 's', 'samp', 'section', 'small', 'span',
-    'strong', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th',
-    'thead', 'tr', 'u', 'ul', 'var',
+    'a',
+    'abbr',
+    'b',
+    'blockquote',
+    'br',
+    'caption',
+    'code',
+    'col',
+    'colgroup',
+    'dd',
+    'del',
+    'details',
+    'div',
+    'dl',
+    'dt',
+    'em',
+    'figcaption',
+    'figure',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'hr',
+    'i',
+    'img',
+    'ins',
+    'kbd',
+    'li',
+    'mark',
+    'ol',
+    'p',
+    'pre',
+    'q',
+    's',
+    'samp',
+    'section',
+    'small',
+    'span',
+    'strong',
+    'sub',
+    'summary',
+    'sup',
+    'table',
+    'tbody',
+    'td',
+    'tfoot',
+    'th',
+    'thead',
+    'tr',
+    'u',
+    'ul',
+    'var',
   ])
   if (!ALLOWED_TAGS.has(tag)) {
     // Keep text children of unknown tags, drop the wrapper.
     const frag = doc.createDocumentFragment()
-    for (const child of Array.from(el.childNodes)) {
+    for (const child of el.childNodes) {
       const c = sanitizeNode(child, doc)
       if (c) frag.appendChild(c)
     }
@@ -109,7 +185,7 @@ function sanitizeNode(node: Node, doc: Document): Node | null {
 
   const clean = doc.createElement(tag)
 
-  for (const attr of Array.from(el.attributes)) {
+  for (const attr of el.attributes) {
     const name = attr.name.toLowerCase()
     const value = attr.value
     if (name.startsWith('on')) continue
@@ -118,7 +194,11 @@ function sanitizeNode(node: Node, doc: Document): Node | null {
     if (URL_ATTRS.has(name) || name === 'href' || name === 'src') {
       if (!isSafeUrl(value)) continue
       clean.setAttribute(attr.name, value)
-      if (tag === 'a' && (name === 'href' || name === 'src') && !clean.hasAttribute('rel')) {
+      if (
+        tag === 'a' &&
+        (name === 'href' || name === 'src') &&
+        !clean.hasAttribute('rel')
+      ) {
         clean.setAttribute('rel', 'noopener noreferrer')
       }
       if (tag === 'a' && name === 'target') {
@@ -145,7 +225,16 @@ function sanitizeNode(node: Node, doc: Document): Node | null {
     }
   }
 
-  for (const child of Array.from(el.childNodes)) {
+  if (tag === 'a') {
+    const rel = normalizeAnchorRel(
+      clean.getAttribute('target'),
+      clean.getAttribute('rel')
+    )
+    if (rel) clean.setAttribute('rel', rel)
+    else clean.removeAttribute('rel')
+  }
+
+  for (const child of el.childNodes) {
     const c = sanitizeNode(child, doc)
     if (c) clean.appendChild(c)
   }
@@ -157,10 +246,10 @@ export function sanitizeHtml(dirty: string): string {
   if (!dirty) return ''
   if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
     return dirty
-      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-      .replace(/<svg[\s\S]*?>[\s\S]*?<\/svg>/gi, '')
-      .replace(/on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-      .replace(/javascript\s*:/gi, '')
+      .replaceAll(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+      .replaceAll(/<svg[\s\S]*?>[\s\S]*?<\/svg>/gi, '')
+      .replaceAll(/on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replaceAll(/javascript\s*:/gi, '')
   }
   try {
     const parser = new DOMParser()
@@ -168,10 +257,10 @@ export function sanitizeHtml(dirty: string): string {
       `<div id="__root">${dirty}</div>`,
       'text/html'
     )
-    const root = doc.getElementById('__root')
+    const root = doc.querySelector('#__root')
     if (!root) return ''
     const out = doc.createElement('div')
-    for (const child of Array.from(root.childNodes)) {
+    for (const child of root.childNodes) {
       const c = sanitizeNode(child, doc)
       if (c) out.appendChild(c)
     }

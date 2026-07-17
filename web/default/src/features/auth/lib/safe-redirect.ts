@@ -29,6 +29,32 @@ export function safeRedirect(
   let value = path.trim()
   if (!value) return fallback
 
+  const hasUnsafeSyntax = (candidate: string): boolean => {
+    let decoded = candidate
+    const containsUnsafePathCharacter = (input: string): boolean => {
+      if (input.includes('\\')) return true
+      for (const character of input) {
+        const codePoint = character.codePointAt(0) ?? 0
+        if (codePoint <= 0x1f || codePoint === 0x7f) return true
+      }
+      return false
+    }
+    for (let i = 0; i < 2; i += 1) {
+      if (decoded.startsWith('//')) return true
+      if (containsUnsafePathCharacter(decoded)) return true
+      try {
+        const next = decodeURIComponent(decoded)
+        if (next === decoded) break
+        decoded = next
+      } catch {
+        return true
+      }
+    }
+    return decoded.startsWith('//') || containsUnsafePathCharacter(decoded)
+  }
+
+  if (hasUnsafeSyntax(value)) return fallback
+
   // Absolute URL → keep pathname+search+hash if same origin, else fallback
   try {
     if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value) || value.startsWith('//')) {
@@ -43,6 +69,8 @@ export function safeRedirect(
   } catch {
     return fallback
   }
+
+  if (hasUnsafeSyntax(value)) return fallback
 
   if (!value.startsWith('/')) return fallback
   if (value.startsWith('//')) return fallback

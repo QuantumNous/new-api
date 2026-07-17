@@ -110,7 +110,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     e.stopPropagation()
     setIsTesting(true)
     try {
-      await handleTestChannel(channel.id, { channelName: channel.name }, () => {
+      await handleTestChannel(channel.id, undefined, () => {
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       })
     } finally {

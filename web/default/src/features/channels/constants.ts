@@ -265,7 +265,8 @@ export const SUCCESS_MESSAGES = {
 // Default Values
 // ============================================================================
 
-export const DEFAULT_PAGE_SIZE = 20
+export const DEFAULT_PAGE_SIZE = 21
+export const CHANNEL_PAGE_SIZE_OPTIONS = [12, 21, 30, 60, 99] as const
 
 export const DEFAULT_CHANNEL_VALUES = {
   name: '',

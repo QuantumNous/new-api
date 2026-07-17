@@ -184,6 +184,9 @@ export type DataTablePageProps<TData> = {
    */
   showPagination?: boolean
 
+  /** Optional page-size choices for views with layout-specific row counts. */
+  pageSizeOptions?: readonly number[]
+
   /**
    * Render pagination via `PageFooterPortal` (sticks to page footer).
    * Defaults to `true`. Set `false` to render inline below the table.
@@ -370,7 +373,12 @@ function renderPagination<TData>(
     return null
   }
 
-  const pagination = <DataTablePagination table={props.table} />
+  const pagination = (
+    <DataTablePagination
+      table={props.table}
+      pageSizeOptions={props.pageSizeOptions}
+    />
+  )
 
   return props.paginationInFooter !== false ? (
     <PageFooterPortal>{pagination}</PageFooterPortal>
