@@ -3591,6 +3591,7 @@
     "Randomly select a key from the pool for each request": "Случайно выбирать ключ из пула для каждого запроса",
     "Ranking data is currently simulated for preview purposes and will be replaced with live analytics once the backend integration ships.": "Сейчас данные рейтинга смоделированы для превью; после внедрения бэкенда они будут заменены реальной аналитикой.",
     "Rankings": "Рейтинги",
+    "Model Status": "Статус моделей",
     "Rate Limit Windows": "Окна ограничения скорости",
     "Rate Limited": "Ограничение частоты",
     "Rate Limiting": "Ограничение скорости",

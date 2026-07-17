@@ -3591,6 +3591,7 @@
     "Randomly select a key from the pool for each request": "各リクエストごとにプールからランダムにキーを選択",
     "Ranking data is currently simulated for preview purposes and will be replaced with live analytics once the backend integration ships.": "現在のランキングデータはプレビュー用のシミュレーションです。バックエンド連携が完了次第、リアルタイム分析データに置き換わります。",
     "Rankings": "ランキング",
+    "Model Status": "モデル監視",
     "Rate Limit Windows": "レート制限ウィンドウ",
     "Rate Limited": "レート制限",
     "Rate Limiting": "レート制限",

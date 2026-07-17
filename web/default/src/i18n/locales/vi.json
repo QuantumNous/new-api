@@ -3591,6 +3591,7 @@
     "Randomly select a key from the pool for each request": "Chọn ngẫu nhiên một khóa từ kho cho mỗi yêu cầu",
     "Ranking data is currently simulated for preview purposes and will be replaced with live analytics once the backend integration ships.": "Dữ liệu xếp hạng hiện đang được mô phỏng để xem trước và sẽ được thay bằng dữ liệu thực sau khi tích hợp backend.",
     "Rankings": "Bảng xếp hạng",
+    "Model Status": "Trạng thái mô hình",
     "Rate Limit Windows": "Cửa sổ giới hạn tốc độ",
     "Rate Limited": "Giới hạn tốc độ",
     "Rate Limiting": "Rate limit",

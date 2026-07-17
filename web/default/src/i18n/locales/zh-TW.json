@@ -3591,6 +3591,7 @@
     "Randomly select a key from the pool for each request": "每次請求從池中隨機選擇一個金鑰",
     "Ranking data is currently simulated for preview purposes and will be replaced with live analytics once the backend integration ships.": "目前排行榜數據為預覽用模擬數據，後端整合完成後將替換為真實分析數據。",
     "Rankings": "排行榜",
+    "Model Status": "模型監控",
     "Rate Limit Windows": "速率限制窗口",
     "Rate Limited": "限流",
     "Rate Limiting": "速率限制",

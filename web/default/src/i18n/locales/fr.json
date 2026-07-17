@@ -3591,6 +3591,7 @@
     "Randomly select a key from the pool for each request": "Sélectionner aléatoirement une clé du pool pour chaque requête",
     "Ranking data is currently simulated for preview purposes and will be replaced with live analytics once the backend integration ships.": "Les données de classement sont actuellement simulées à des fins d'aperçu et seront remplacées par des analyses en direct une fois l'intégration backend livrée.",
     "Rankings": "Classements",
+    "Model Status": "État des modèles",
     "Rate Limit Windows": "Fenêtres de limitation",
     "Rate Limited": "Limitation de débit",
     "Rate Limiting": "Limitation du débit",
