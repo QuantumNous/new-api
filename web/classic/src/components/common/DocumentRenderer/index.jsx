@@ -27,6 +27,7 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
 import MarkdownRenderer from '../markdown/MarkdownRenderer';
+import { sanitizeHtml as sanitizeDocumentHtml } from '../../../helpers/sanitizeHtml';
 
 // Check whether content is a URL.
 const isUrl = (content) => {
@@ -46,19 +47,9 @@ const isHtmlContent = (content) => {
   return htmlTagRegex.test(content);
 };
 
-// Parse HTML content and extract inline styles.
+// Keep the existing payload shape while dropping executable markup and CSS.
 const sanitizeHtml = (html) => {
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = html;
-
-  const styles = Array.from(tempDiv.querySelectorAll('style'))
-    .map((style) => style.innerHTML)
-    .join('\n');
-
-  const bodyContent = tempDiv.querySelector('body');
-  const content = bodyContent ? bodyContent.innerHTML : html;
-
-  return { content, styles };
+  return { content: sanitizeDocumentHtml(html), styles: '' };
 };
 
 /**
