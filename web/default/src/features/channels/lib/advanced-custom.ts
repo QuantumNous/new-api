@@ -93,6 +93,10 @@ export type AdvancedCustomIncomingPathOption = {
 export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOption[] =
   [
     {
+      value: '/pg/chat/completions',
+      label: 'Playground Chat',
+    },
+    {
       value: '/v1/chat/completions',
       label: 'OpenAI Chat',
     },
@@ -160,6 +164,7 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
 
 const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
   '/v1/chat/completions': 'OpenAI Chat',
+  '/pg/chat/completions': 'Playground Chat',
 }
 
 export type AdvancedCustomValidationError = {
