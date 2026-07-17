@@ -47,6 +47,7 @@ export function getPlanFormSchema(t: TFunction) {
     total_amount: z.coerce.number().min(0),
     upgrade_group: z.string().optional(),
     downgrade_group: z.string().optional(),
+    allowed_groups: z.array(z.string()).optional(),
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
@@ -72,6 +73,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   total_amount: 0,
   upgrade_group: '',
   downgrade_group: '',
+  allowed_groups: [],
   stripe_price_id: '',
   creem_product_id: '',
   waffo_pancake_product_id: '',
@@ -95,6 +97,10 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     total_amount: quotaUnitsToDollars(Number(plan.total_amount || 0)),
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
+    allowed_groups: (plan.allowed_groups || '')
+      .split(',')
+      .map((group) => group.trim())
+      .filter(Boolean),
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
     waffo_pancake_product_id: plan.waffo_pancake_product_id || '',
@@ -119,6 +125,10 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
+      allowed_groups: (values.allowed_groups || [])
+        .map((group) => group.trim())
+        .filter(Boolean)
+        .join(','),
     },
   }
 }

@@ -99,6 +99,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
   const price = Number(plan.price_amount || 0).toFixed(2)
+  const billingGroups = (plan.allowed_groups || '')
+    .split(',')
+    .map((groupName) => groupName.trim())
+    .filter(Boolean)
   const quotaPerUnit =
     currency?.quotaPerUnit && currency.quotaPerUnit > 0
       ? currency.quotaPerUnit
@@ -314,6 +318,20 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <GroupBadge group={plan.upgrade_group} />
             </div>
           )}
+          <div className='flex items-start justify-between gap-3'>
+            <span className='text-muted-foreground text-sm'>
+              {t('Billing Groups')}
+            </span>
+            <div className='flex flex-wrap justify-end gap-1'>
+              {billingGroups.length === 0 ? (
+                <span className='text-sm'>{t('All Groups')}</span>
+              ) : (
+                billingGroups.map((groupName) => (
+                  <GroupBadge key={groupName} group={groupName} />
+                ))
+              )}
+            </div>
+          </div>
           <Separator />
           <div className='flex items-center justify-between'>
             <span className='text-sm font-medium'>{t('Amount Due')}</span>
