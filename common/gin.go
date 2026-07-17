@@ -2,10 +2,12 @@ package common
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -31,6 +33,35 @@ func IsRequestBodyTooLargeError(err error) bool {
 	}
 	var mbe *http.MaxBytesError
 	return errors.As(err, &mbe)
+}
+
+// IsClientDisconnectError 判断 err 是否为「客户端在我们读完请求体之前掉线」，而不是
+// 「客户端发来了一个格式错误的请求」。两者都表现为读 body 失败，但只有后者是客户端
+// 的锅，把前者也报成「无效的请求」会把排查引向完全错误的方向。
+//
+// 仅用于判定读取 *入站* 请求体产生的 error。不要拿它去判定上游（relay）请求的
+// error：那边的连接层失败长得一模一样，会被误判成「客户端掉线」而静默吞掉，
+// 该重试的不重试、该记渠道健康度的不记。
+//
+// 两个刻意的边界：
+//   - io.EOF 不算：那是干净的结尾（空 body），属于请求本身的问题；
+//     只有 io.ErrUnexpectedEOF 才代表收到的字节数少于 Content-Length。
+//   - context.Canceled 在优雅关机（srv.Shutdown 取消在途请求）时也会出现，
+//     那种情况同样不该计费、不该记渠道账，按掉线处理结果是对的。
+func IsClientDisconnectError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, http.ErrBodyReadAfterClose) {
+		return true
+	}
+	// 读连接时的连接层错误（RST、broken pipe 等）归为掉线。只认 "read"：
+	// dial/write 不可能出现在读请求体的路径上，放行它们只会扩大误判面。
+	var opErr *net.OpError
+	return errors.As(err, &opErr) && opErr.Op == "read"
 }
 
 func GetRequestBody(c *gin.Context) (io.Seeker, error) {

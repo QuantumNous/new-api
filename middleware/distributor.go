@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -33,8 +34,13 @@ func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
+		bodyReadStart := time.Now()
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
+			if common.IsClientDisconnectError(err) {
+				abortWithClientDisconnect(c, err, bodyReadStart)
+				return
+			}
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
@@ -88,6 +94,10 @@ func Distribute() func(c *gin.Context) {
 					playgroundRequest := &dto.PlayGroundRequest{}
 					err = common.UnmarshalBodyReusable(c, playgroundRequest)
 					if err != nil {
+						if common.IsClientDisconnectError(err) {
+							abortWithClientDisconnect(c, err, bodyReadStart)
+							return
+						}
 						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
 						return
 					}
@@ -182,6 +192,37 @@ func Distribute() func(c *gin.Context) {
 	}
 }
 
+// StatusClientClosedRequest 是 nginx 事实标准的 499：客户端在服务端应答前就走了。
+// 用它而不是 400，是为了让「客户端掉线」在日志和监控里跟真正的坏请求分开。
+const StatusClientClosedRequest = 499
+
+// maxLoggedUserAgentLen 限制写进日志的 UA 长度，避免单条日志被超长 UA 撑爆。
+const maxLoggedUserAgentLen = 80
+
+// abortWithClientDisconnect 处理「客户端上传请求体途中掉线」。
+//
+// 这类请求从没选到渠道，因此不计费、也不会记到任何渠道的健康度上；客户端已经走了，
+// 响应大概率没人接收，所以唯一有价值的产物是日志。诊断字段刻意记全：靠 elapsed_ms
+// 与 ctx_err 就能区分是客户端自己超时、边缘代理掐断，还是我们读得太慢。
+func abortWithClientDisconnect(c *gin.Context, err error, bodyReadStart time.Time) {
+	ctxErr := "none"
+	if e := c.Request.Context().Err(); e != nil {
+		ctxErr = e.Error()
+	}
+	// 按 rune 截断：按字节切会把多字节字符腰斩，日志里变成一串 \xHH 乱码。
+	ua := c.Request.UserAgent()
+	if r := []rune(ua); len(r) > maxLoggedUserAgentLen {
+		ua = string(r[:maxLoggedUserAgentLen])
+	}
+	logger.LogWarn(c, fmt.Sprintf(
+		"client_upload_aborted: err=%v ctx_err=%s elapsed_ms=%d content_length=%d proto=%s path=%s ua=%q",
+		err, ctxErr, time.Since(bodyReadStart).Milliseconds(), c.Request.ContentLength,
+		c.Request.Proto, c.Request.URL.Path, ua,
+	))
+	c.Status(StatusClientClosedRequest)
+	c.Abort()
+}
+
 // channelSupportsRequestPath reports whether a channel can serve the request path.
 // Only Advanced Custom (type 58) channels are path-checked; all other channel types
 // always pass. A type-58 channel is usable only when one of its routes matches.
@@ -202,18 +243,16 @@ func channelSupportsRequestPath(channel *model.Channel, requestPath string, requ
 // - application/x-www-form-urlencoded
 // - multipart/form-data
 func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
+	// 这里返回裸 error：调用方 Distribute 会统一套上 MsgDistributorInvalidRequest，
+	// 在这里再套一层会得到「无效的请求，无效的请求，xxx」。同时保留原始 error 以便
+	// Distribute 能用 errors.Is 识别出客户端掉线。
 	if strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
-		modelRequest, err := getModelFromJSONBody(c)
-		if err != nil {
-			return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
-		}
-		return modelRequest, nil
+		return getModelFromJSONBody(c)
 	}
 
 	var modelRequest ModelRequest
-	err := common.UnmarshalBodyReusable(c, &modelRequest)
-	if err != nil {
-		return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+	if err := common.UnmarshalBodyReusable(c, &modelRequest); err != nil {
+		return nil, err
 	}
 	return &modelRequest, nil
 }
@@ -277,6 +316,11 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			midjourneyRequest := dto.MidjourneyRequest{}
 			err = common.UnmarshalBodyReusable(c, &midjourneyRequest)
 			if err != nil {
+				// 客户端掉线时原样返回：errors.New(i18n.T(...)) 会把错误链拍成字符串，
+				// 调用方的 errors.Is 就再也看不穿它了。
+				if common.IsClientDisconnectError(err) {
+					return nil, false, err
+				}
 				return nil, false, errors.New(i18n.T(c, i18n.MsgDistributorInvalidMidjourney, map[string]any{"Error": err.Error()}))
 			}
 			midjourneyModel, mjErr, success := service.GetMjRequestModel(relayMode, &midjourneyRequest)
