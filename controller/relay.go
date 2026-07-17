@@ -487,11 +487,34 @@ func shouldCooldownForUpstreamError(err *types.NewAPIError) bool {
 	return !isSemanticClientError(err) && service.ShouldCooldownChannelForUpstreamError(err)
 }
 
+// isModelCapabilityError reports whether the channel failed specifically because
+// it cannot serve the requested model — the upstream returned model_not_found
+// ("not supported by any configured account"). That is a per-(channel, model)
+// gap, not a channel-wide fault, so it must not trigger a channel-wide cooldown.
+//
+// The model_not_found this matches is the one an upstream returns for a live
+// request; the same code is also used at the distribution stage for "no channel
+// in this group", but that path aborts before any channel is selected and never
+// reaches processChannelError.
+func isModelCapabilityError(err *types.NewAPIError) bool {
+	return err != nil && err.GetErrorCode() == types.ErrorCodeModelNotFound
+}
+
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
-	if service.ShouldCooldownChannel(err) {
+	if isModelCapabilityError(err) {
+		// The upstream reported it cannot serve THIS model (model_not_found),
+		// which is a fact about (channel, model), not about the channel. The
+		// adaptive health circuit already recorded it at that granularity
+		// (RecordChannelHealthOutcome ran before this, and ErrorCodeModelNotFound
+		// is channel-attributable), so it will steer this one model away on its
+		// own. A channel-wide cooldown here would also sideline every other model
+		// the channel serves fine — exactly what cooled a healthy claude-sonnet-5
+		// on #25 because gpt-5.4-mini 404'd. Skip it.
+		logger.LogInfo(c, fmt.Sprintf("channel #%d does not serve model %q; isolating that pair via the health circuit instead of cooling the whole channel", channelError.ChannelId, common.GetContextKeyString(c, constant.ContextKeyOriginalModel)))
+	} else if service.ShouldCooldownChannel(err) {
 		service.CooldownChannel(channelError, err)
 	} else if isRetryableChannelError(c, err) {
 		// Any error that would send the request to retry another channel means
