@@ -104,3 +104,10 @@ export type ApiKeysDialogType =
   | 'delete'
   | 'batch-delete'
   | 'cc-switch'
+  | 'connect-tool'
+
+export type CreateApiKeyResult = {
+  id: number
+  key: string
+  name: string
+}

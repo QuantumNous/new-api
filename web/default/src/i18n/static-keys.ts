@@ -278,6 +278,20 @@ export const STATIC_I18N_KEYS = [
   'Opus Model',
   'Enter model name',
 
+  // Connect tool wizard
+  'Connect tool',
+  'Pick a provider type, group, model, and client. We create an API key and open the tool for you.',
+  'Provider type',
+  'No provider types are available for your current groups.',
+  'No groups available for this provider type',
+  'Select a model',
+  'A recommended model is selected automatically. You can change it.',
+  'Configuration tool',
+  'Configuring...',
+  'Create and configure',
+  'API key created. Opening the selected tool...',
+  'If the app did not open, install the tool and use this API key manually:',
+
   // User binding dialog
   'Account Binding Management',
   'Built-in',
