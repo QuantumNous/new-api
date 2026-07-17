@@ -21,11 +21,12 @@ var (
 type adaptiveContextKey string
 
 const (
-	ctxKeyAdaptiveUsedChannels adaptiveContextKey = "adaptive_used_channels"
-	ctxKeyAdaptiveGroup        adaptiveContextKey = "adaptive_group"
-	ctxKeyAdaptiveModel        adaptiveContextKey = "adaptive_model"
-	ctxKeyAdaptiveSelected     adaptiveContextKey = "adaptive_selected"
-	ctxKeyAdaptiveScores       adaptiveContextKey = "adaptive_scores"
+	ctxKeyAdaptiveUsedChannels  adaptiveContextKey = "adaptive_used_channels"
+	ctxKeyAdaptiveGroup         adaptiveContextKey = "adaptive_group"
+	ctxKeyAdaptiveModel         adaptiveContextKey = "adaptive_model"
+	ctxKeyAdaptiveSelected      adaptiveContextKey = "adaptive_selected"
+	ctxKeyAdaptiveScores        adaptiveContextKey = "adaptive_scores"
+	ctxKeyAdaptiveCircuitPermit adaptiveContextKey = "adaptive_circuit_permit"
 )
 
 // AdaptiveSelectChannel 动态评分调度器主入口。
@@ -60,38 +61,23 @@ func AdaptiveSelectChannel(param *RetryParam) (*model.Channel, string, error) {
 	// 评分
 	candidates := ScoreCandidates(channels, group, modelName, preferredID)
 
-	// 排除已用过的渠道（重试时）+ 熔断
 	usedIDs := getAdaptiveUsedChannels(ctx)
-	var filtered []CandidateScore
-	for _, c := range candidates {
-		if containsInt(usedIDs, c.Channel.Id) {
-			continue
-		}
-		if IsCircuitOpen(c.Channel.Id) {
-			// 冷却后尝试 half-open 探测位
-			if ProbeHalfOpen(c.Channel.Id) {
-				// allow one probe candidate through
-			} else {
-				continue
-			}
-		}
-		if c.Score <= 0 {
-			continue
-		}
-		filtered = append(filtered, c)
-	}
+	filtered, permits := filterAdaptiveCandidates(
+		candidates, group, modelName, preferredID, usedIDs, constant.AdaptiveBalanceShadowMode,
+	)
 
 	if len(filtered) == 0 {
-		if constant.AdaptiveBalanceShadowMode {
-			logger.LogDebug(ctx, "adaptive: no available channels after filtering, fallback to original")
+		if shouldFallbackToLegacy(len(candidates), len(filtered), constant.AdaptiveBalanceShadowMode) {
+			return cacheGetRandomSatisfiedChannelLegacy(param)
 		}
-		return cacheGetRandomSatisfiedChannelLegacy(param)
+		return nil, group, fmt.Errorf("adaptive: no available channels after circuit and retry filtering")
 	}
 
 	// topK 加权随机选择
 	selected := SelectTopKWeighted(filtered, 3)
 	if selected == nil {
-		return cacheGetRandomSatisfiedChannelLegacy(param)
+		releaseUnselectedCircuitPermits(permits, 0)
+		return nil, group, fmt.Errorf("adaptive: failed to select an eligible channel")
 	}
 
 	// Shadow Mode：选择仍走旧逻辑，仅记录对比
@@ -103,25 +89,93 @@ func AdaptiveSelectChannel(param *RetryParam) (*model.Channel, string, error) {
 			logAdaptiveCompare(ctx, modelName, group, selected, oldCh)
 		}
 
-		// shadow mode 下仍然使用旧渠道
+		// shadow mode never changes routing or acquires half-open permits.
 		if oldCh != nil {
 			addAdaptiveUsedChannel(ctx, oldCh.Id)
 			storeAdaptiveSelection(ctx, selected.Channel, group, candidates)
-			return oldCh, oldGroup, oldErr
 		}
+		return oldCh, oldGroup, oldErr
 	}
 
 	// 正常模式：使用动态选择的渠道
 	selectGroup := group
 	ch := selected.Channel
+	permit := permits[ch.Id]
+	releaseUnselectedCircuitPermits(permits, ch.Id)
 
 	addAdaptiveUsedChannel(ctx, ch.Id)
 	storeAdaptiveSelection(ctx, ch, group, candidates)
+	ctx.Set(string(ctxKeyAdaptiveCircuitPermit), permit)
 
 	logger.LogDebug(ctx, "adaptive selected channel #%d (score=%.3f) for group=%s model=%s",
 		ch.Id, selected.Score, group, modelName)
 
 	return ch, selectGroup, nil
+}
+
+func filterAdaptiveCandidates(
+	candidates []CandidateScore,
+	group string,
+	modelName string,
+	preferredID int,
+	usedIDs []int,
+	shadowMode bool,
+) ([]CandidateScore, map[int]CircuitPermit) {
+	filtered := make([]CandidateScore, 0, len(candidates))
+	permits := make(map[int]CircuitPermit, len(candidates))
+	for _, candidate := range candidates {
+		channelID := candidate.Channel.Id
+		if containsInt(usedIDs, channelID) {
+			continue
+		}
+		if shadowMode {
+			if IsCircuitOpen(channelID) || candidate.Score <= 0 {
+				continue
+			}
+			filtered = append(filtered, candidate)
+			continue
+		}
+
+		permit, ok := AcquireCircuitPermit(channelID)
+		if !ok {
+			continue
+		}
+		if permit.HalfOpen {
+			candidate = scoreCandidate(candidate.Channel, group, modelName, preferredID, 0.5)
+		}
+		if candidate.Score <= 0 {
+			ReleaseCircuitPermit(permit)
+			continue
+		}
+		permits[channelID] = permit
+		filtered = append(filtered, candidate)
+	}
+	return filtered, permits
+}
+
+func ReleaseAdaptiveCircuitPermit(c *gin.Context, channelID int) {
+	if c == nil || channelID <= 0 {
+		return
+	}
+	permitAny, ok := c.Get(string(ctxKeyAdaptiveCircuitPermit))
+	permit, permitOK := permitAny.(CircuitPermit)
+	if !ok || !permitOK || permit.ChannelID != channelID {
+		return
+	}
+	ReleaseCircuitPermit(permit)
+	c.Set(string(ctxKeyAdaptiveCircuitPermit), CircuitPermit{})
+}
+
+func shouldFallbackToLegacy(candidateCount, filteredCount int, shadowMode bool) bool {
+	return candidateCount == 0 || (shadowMode && filteredCount == 0)
+}
+
+func releaseUnselectedCircuitPermits(permits map[int]CircuitPermit, selectedChannelID int) {
+	for channelID, permit := range permits {
+		if channelID != selectedChannelID {
+			ReleaseCircuitPermit(permit)
+		}
+	}
 }
 
 // getCandidateChannels 获取 group+model 全部候选（非单渠道路由）
@@ -186,6 +240,25 @@ func addAdaptiveUsedChannel(c *gin.Context, channelID int) {
 	c.Set(string(ctxKeyAdaptiveUsedChannels), existing)
 }
 
+func MarkChannelUsed(c *gin.Context, channelID int) {
+	if c == nil || channelID <= 0 || containsInt(getAdaptiveUsedChannels(c), channelID) {
+		return
+	}
+	addAdaptiveUsedChannel(c, channelID)
+}
+
+func adaptiveUsedChannelSet(c *gin.Context) map[int]struct{} {
+	used := getAdaptiveUsedChannels(c)
+	if len(used) == 0 {
+		return nil
+	}
+	excluded := make(map[int]struct{}, len(used))
+	for _, channelID := range used {
+		excluded[channelID] = struct{}{}
+	}
+	return excluded
+}
+
 // storeAdaptiveSelection 保存本次选择结果到上下文（供失败回写用）
 func storeAdaptiveSelection(c *gin.Context, ch *model.Channel, group string, candidates []CandidateScore) {
 	c.Set(string(ctxKeyAdaptiveSelected), ch.Id)
@@ -214,22 +287,29 @@ func RecordAdaptiveResult(c *gin.Context, channelID int, group, modelName string
 		return
 	}
 
-	if err == nil && statusCode < 400 {
+	succeeded := err == nil && statusCode < 400
+	if succeeded {
 		ObserveSuccess(channelID, group, modelName, latency)
-		RecordCircuitSuccess(channelID)
+	} else {
+		ObserveFailure(channelID, group, modelName, statusCode, latency)
+	}
+
+	if constant.AdaptiveBalanceShadowMode {
 		return
 	}
-
-	// 失败处理
-	ObserveFailure(channelID, group, modelName, statusCode, latency)
-
-	if statusCode == 429 {
-		// 429 cooldown 由指标层自动处理
-		logger.LogDebug(c, "adaptive: channel #%d got 429, score will be downgraded", channelID)
+	permitAny, ok := c.Get(string(ctxKeyAdaptiveCircuitPermit))
+	permit, permitOK := permitAny.(CircuitPermit)
+	if !ok || !permitOK || permit.ChannelID != channelID {
+		return
 	}
-
-	if statusCode >= 500 || statusCode == 429 {
-		RecordCircuitFailure(channelID, fmt.Sprintf("HTTP %d", statusCode))
+	if succeeded {
+		RecordCircuitSuccessWithPermit(permit)
+	} else if statusCode >= 500 || statusCode == 429 {
+		RecordCircuitFailureWithPermit(permit, fmt.Sprintf("HTTP %d", statusCode))
+	} else {
+		// A client/input error still proves the upstream is reachable. Do not
+		// leave a half-open permit stuck or preserve an old failure streak.
+		RecordCircuitSuccessWithPermit(permit)
 	}
 }
 

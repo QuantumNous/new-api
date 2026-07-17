@@ -13,14 +13,14 @@ import (
 
 // ChannelMetrics 渠道运行时指标，按 (channelID, group, model) 分桶
 type ChannelMetrics struct {
-	mu sync.Mutex `json:"-"` // 保护并发写
-	SuccessRate     float64       `json:"success_rate"`      // EWMA
-	ErrorRate       float64       `json:"error_rate"`        // EWMA
-	RateLimitRate   float64       `json:"rate_limit_rate"`   // EWMA 429 率
-	Status5xxRate   float64       `json:"status_5xx_rate"`   // EWMA 5xx 率
-	AvgLatency      time.Duration `json:"avg_latency"`       // EWMA 平均延迟
-	SampleCount     int64         `json:"sample_count"`      // 总样本数
-	LastSeen        time.Time     `json:"last_seen"`
+	mu            sync.Mutex    `json:"-"`               // 保护并发写
+	SuccessRate   float64       `json:"success_rate"`    // EWMA
+	ErrorRate     float64       `json:"error_rate"`      // EWMA
+	RateLimitRate float64       `json:"rate_limit_rate"` // EWMA 429 率
+	Status5xxRate float64       `json:"status_5xx_rate"` // EWMA 5xx 率
+	AvgLatency    time.Duration `json:"avg_latency"`     // EWMA 平均延迟
+	SampleCount   int64         `json:"sample_count"`    // 总样本数
+	LastSeen      time.Time     `json:"last_seen"`
 
 	// 延迟直方图（轻量桶），用于近似 p95
 	LatencyBuckets [6]int64 `json:"latency_buckets"` // <=500ms, <=1s, <=2s, <=5s, <=10s, >10s
@@ -28,8 +28,8 @@ type ChannelMetrics struct {
 
 // LocalMetricsSnapshot 进程内本地指标快照，定期从 Redis sync 或直接从本地累加
 type LocalMetricsSnapshot struct {
-	mu       sync.RWMutex
-	metrics  map[metricsKey]*ChannelMetrics
+	mu        sync.RWMutex
+	metrics   map[metricsKey]*ChannelMetrics
 	updatedAt time.Time
 }
 
@@ -50,8 +50,8 @@ func (s *LocalMetricsSnapshot) ensureKey(key metricsKey) *ChannelMetrics {
 	m, ok := s.metrics[key]
 	if !ok {
 		m = &ChannelMetrics{
-			SuccessRate:   1.0, // 冷启动默认信任
-			AvgLatency:    500 * time.Millisecond,
+			SuccessRate: 1.0, // 冷启动默认信任
+			AvgLatency:  500 * time.Millisecond,
 		}
 		s.metrics[key] = m
 	}
@@ -140,7 +140,7 @@ func GetMetrics(channelID int, group, model string) *ChannelMetrics {
 	m, ok := globalSnapshot.metrics[key]
 	globalSnapshot.mu.RUnlock()
 	if ok {
-		return m
+		return snapshotChannelMetrics(m)
 	}
 
 	// 尝试回退到 (channelID, group)
@@ -149,7 +149,7 @@ func GetMetrics(channelID int, group, model string) *ChannelMetrics {
 	m2, ok2 := globalSnapshot.metrics[key2]
 	globalSnapshot.mu.RUnlock()
 	if ok2 {
-		return m2
+		return snapshotChannelMetrics(m2)
 	}
 
 	// 回退到 (channelID)
@@ -158,13 +158,31 @@ func GetMetrics(channelID int, group, model string) *ChannelMetrics {
 	m3, ok3 := globalSnapshot.metrics[key3]
 	globalSnapshot.mu.RUnlock()
 	if ok3 {
-		return m3
+		return snapshotChannelMetrics(m3)
 	}
 
 	// 无数据，返回中性默认值
 	return &ChannelMetrics{
 		SuccessRate: 1.0,
 		AvgLatency:  500 * time.Millisecond,
+	}
+}
+
+func snapshotChannelMetrics(m *ChannelMetrics) *ChannelMetrics {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return &ChannelMetrics{
+		SuccessRate:    m.SuccessRate,
+		ErrorRate:      m.ErrorRate,
+		RateLimitRate:  m.RateLimitRate,
+		Status5xxRate:  m.Status5xxRate,
+		AvgLatency:     m.AvgLatency,
+		SampleCount:    m.SampleCount,
+		LastSeen:       m.LastSeen,
+		LatencyBuckets: m.LatencyBuckets,
 	}
 }
 
