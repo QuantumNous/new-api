@@ -192,6 +192,11 @@ type RelayInfo struct {
 	// circuit so traffic steers away from channels that silently return nothing.
 	UpstreamEmptyResponse bool
 
+	// AffinityColdStart marks a request whose prompt-cache affinity we released
+	// for slowness, so the channel serving it starts from a cold cache. See
+	// constant.ContextKeyAffinityColdStart for why this must not be scored.
+	AffinityColdStart bool
+
 	ThinkingContentInfo
 	TokenCountMeta
 	*ClaudeConvertInfo
@@ -485,6 +490,8 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		UserEmail:  common.GetContextKeyString(c, constant.ContextKeyUserEmail),
 
 		OriginModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
+
+		AffinityColdStart: common.GetContextKeyBool(c, constant.ContextKeyAffinityColdStart),
 
 		TokenId:        common.GetContextKeyInt(c, constant.ContextKeyTokenId),
 		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),

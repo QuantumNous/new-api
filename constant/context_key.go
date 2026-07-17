@@ -10,6 +10,15 @@ const (
 	ContextKeyOriginalModel    ContextKey = "original_model"
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 
+	// ContextKeyAffinityColdStart marks a request whose prompt-cache affinity was
+	// deliberately released because the sticky channel had gone slow. Whatever
+	// channel serves it next holds no prompt cache for this key, so its first
+	// token pays a full prefill — a cost we imposed, not evidence that the new
+	// channel is slow. Channel health reads this to keep that one outlier out of
+	// the latency EWMA; without it a 20s+ cold prefill makes the channel we just
+	// migrated to look slow, and every affinity key on it migrates away too.
+	ContextKeyAffinityColdStart ContextKey = "affinity_cold_start"
+
 	/* token related keys */
 	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"
 	ContextKeyTokenKey               ContextKey = "token_key"

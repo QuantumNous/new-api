@@ -201,6 +201,165 @@ func TestIsChannelFastEnoughForAffinity(t *testing.T) {
 	common.AdaptiveChannelHealthEnabled = true
 }
 
+// TestAffinityReleaseIsRelativeToTheBestPeer covers the case the old absolute
+// rule missed entirely: 3.5s is nowhere near the ~9s score floor, so a channel
+// sitting at 3.5s used to keep its sticky traffic forever even while a peer
+// answered the same model in 1.3s. Measured in prod: ch#45 3537ms vs ch#41
+// 1275ms, 52 requests pinned to the slow one.
+func TestAffinityReleaseIsRelativeToTheBestPeer(t *testing.T) {
+	withGlobalChannelHealth(t)
+
+	fast := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	slow := ChannelHealthKey{ChannelID: 45, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	for i := 0; i < 5; i++ {
+		RecordChannelOutcome(fast, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1275 * time.Millisecond})
+		RecordChannelOutcome(slow, ChannelOutcome{StatusCode: http.StatusOK, Latency: 3537 * time.Millisecond})
+	}
+
+	if IsChannelFastEnoughForAffinity(slow) {
+		t.Fatal("a sticky 2.8x slower than an available peer must yield affinity")
+	}
+	if !IsChannelFastEnoughForAffinity(fast) {
+		t.Fatal("the fastest channel must keep its affinity")
+	}
+}
+
+// TestAffinityKeptWhenNoFasterPeerExists guards the other side: releasing only
+// pays off if there is somewhere better to go. With every channel equally slow,
+// migrating just burns a prefill and lands on the same latency.
+func TestAffinityKeptWhenNoFasterPeerExists(t *testing.T) {
+	withGlobalChannelHealth(t)
+
+	lonely := ChannelHealthKey{ChannelID: 45, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	peer := ChannelHealthKey{ChannelID: 33, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	otherModel := ChannelHealthKey{ChannelID: 41, Model: "claude-sonnet-5", Path: "/v1/responses"}
+	for i := 0; i < 5; i++ {
+		RecordChannelOutcome(lonely, ChannelOutcome{StatusCode: http.StatusOK, Latency: 4 * time.Second})
+		RecordChannelOutcome(peer, ChannelOutcome{StatusCode: http.StatusOK, Latency: 4 * time.Second})
+		// A fast channel on a different model must not tempt a migration.
+		RecordChannelOutcome(otherModel, ChannelOutcome{StatusCode: http.StatusOK, Latency: 100 * time.Millisecond})
+	}
+
+	if !IsChannelFastEnoughForAffinity(lonely) {
+		t.Fatal("slow sticky with no faster peer for the same model must keep affinity")
+	}
+}
+
+// TestAffinityKeptWhenAbsolutelyFast guards against churning over differences
+// that no user can perceive: 300ms is 2x 150ms, but migrating to save 150ms
+// costs a full uncached prefill.
+func TestAffinityKeptWhenAbsolutelyFast(t *testing.T) {
+	withGlobalChannelHealth(t)
+
+	quick := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	quicker := ChannelHealthKey{ChannelID: 51, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	for i := 0; i < 5; i++ {
+		RecordChannelOutcome(quick, ChannelOutcome{StatusCode: http.StatusOK, Latency: 300 * time.Millisecond})
+		RecordChannelOutcome(quicker, ChannelOutcome{StatusCode: http.StatusOK, Latency: 150 * time.Millisecond})
+	}
+
+	if !IsChannelFastEnoughForAffinity(quick) {
+		t.Fatal("a channel already fast in absolute terms must keep affinity regardless of ratio")
+	}
+}
+
+// TestColdCacheStartDoesNotPoisonLatency is the guard that makes migration safe
+// to enable at all. A migration hands the new channel an uncached prompt; in
+// prod a cold 240k-token prefill took 23.3s. Scoring that against the channel we
+// just moved to would make it look slow to every other affinity key on it, and
+// they would all stampede off — each paying its own cold prefill.
+func TestColdCacheStartDoesNotPoisonLatency(t *testing.T) {
+	health, _ := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+
+	for i := 0; i < 5; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1275 * time.Millisecond})
+	}
+	warm := health.Score(key)
+
+	health.Record(key, ChannelOutcome{
+		StatusCode:     http.StatusOK,
+		Latency:        23348 * time.Millisecond,
+		ColdCacheStart: true,
+	})
+
+	if got := health.Score(key); got != warm {
+		t.Fatalf("cold-cache latency changed the score: %f -> %f, want unchanged", warm, got)
+	}
+	// It must not trip the slow circuit either: 23.3s clears the slow bound, and
+	// three such migrations would otherwise sideline a perfectly fast channel.
+	for i := 0; i < channelHealthSlowThreshold; i++ {
+		health.Record(key, ChannelOutcome{
+			StatusCode:     http.StatusOK,
+			Latency:        23348 * time.Millisecond,
+			ColdCacheStart: true,
+		})
+	}
+	if got := health.State(key); got != ChannelHealthClosed {
+		t.Fatalf("cold-cache attempts tripped the circuit: state = %v, want %v", got, ChannelHealthClosed)
+	}
+}
+
+// TestColdCacheStartStillCountsFailures is the contrast: excluding cold-start
+// latency must not excuse a channel that actually errors on the request.
+func TestColdCacheStartStillCountsFailures(t *testing.T) {
+	health, _ := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		health.Record(key, ChannelOutcome{
+			StatusCode:     http.StatusServiceUnavailable,
+			ColdCacheStart: true,
+		})
+	}
+	if got := health.State(key); got != ChannelHealthOpen {
+		t.Fatalf("cold-start failures were ignored: state = %v, want %v", got, ChannelHealthOpen)
+	}
+}
+
+// TestAffinityDecisionDistinguishesUnavailableFromSlow: the two release reasons
+// must stay distinct at the API. Callers rate-limit the slow one (each migration
+// costs a prefill) but must act on the unavailable one immediately — conflate
+// them and a rate-limited key gets parked on a channel whose circuit is open,
+// and the caller's Acquire hands that user's request the half-open probe lease.
+func TestAffinityDecisionDistinguishesUnavailableFromSlow(t *testing.T) {
+	withGlobalChannelHealth(t)
+
+	fast := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	slow := ChannelHealthKey{ChannelID: 45, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	tripped := ChannelHealthKey{ChannelID: 57, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+
+	for i := 0; i < 5; i++ {
+		RecordChannelOutcome(fast, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1275 * time.Millisecond})
+		RecordChannelOutcome(slow, ChannelOutcome{StatusCode: http.StatusOK, Latency: 3537 * time.Millisecond})
+		RecordChannelOutcome(tripped, ChannelOutcome{StatusCode: http.StatusOK, Latency: 2 * time.Second})
+	}
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		RecordChannelOutcome(tripped, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+
+	if got := ChannelAffinityDecision(fast); got != ChannelAffinityKeep {
+		t.Fatalf("fast channel verdict = %v, want Keep", got)
+	}
+	if got := ChannelAffinityDecision(slow); got != ChannelAffinityReleaseSlow {
+		t.Fatalf("slow channel verdict = %v, want ReleaseSlow", got)
+	}
+	if got := ChannelAffinityDecision(tripped); got != ChannelAffinityReleaseUnavailable {
+		t.Fatalf("circuit-open channel verdict = %v, want ReleaseUnavailable", got)
+	}
+}
+
+func withGlobalChannelHealth(t *testing.T) {
+	t.Helper()
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldEnabled
+	})
+}
+
 func TestChannelHealthOpensOnSustainedSlowness(t *testing.T) {
 	health, _ := newTestChannelHealth(t)
 	key := ChannelHealthKey{ChannelID: 50, Model: "gpt-5.5", Path: "/v1/responses"}

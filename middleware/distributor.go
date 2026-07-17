@@ -115,17 +115,43 @@ func Distribute() func(c *gin.Context) {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					affinityKey := model.ChannelHealthKey{ChannelID: preferredChannelID, Model: modelRequest.Model, Path: service.ChannelHealthPath(c.Request.URL.Path)}
-					// Keep prompt-cache affinity only while the sticky channel is fast
-					// enough and actually serves this request path. A sustained-slow
-					// sticky yields to normal health-weighted selection so a cache-locked
-					// user is moved to a faster available channel
-					// (IsChannelFastEnoughForAffinity is checked before Acquire so we
-					// never strand a half-open probe lease on a channel we skip); an
-					// Advanced Custom channel whose routes do not cover this path must
-					// not be pinned either.
-					if err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) &&
-						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) &&
-						model.IsChannelFastEnoughForAffinity(affinityKey) && model.AcquireChannelHealth(affinityKey) {
+					// Keep prompt-cache affinity only while the sticky channel actually
+					// serves this request path (an Advanced Custom channel whose routes
+					// do not cover it must not be pinned) and is still worth staying on.
+					// A sticky that has gone materially slower than the best alternative
+					// yields to normal health-weighted selection, so a cache-locked user
+					// is moved to a faster channel instead of being stuck for the whole
+					// session.
+					stickyUsable := err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) &&
+						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model)
+					if stickyUsable {
+						switch model.ChannelAffinityDecision(affinityKey) {
+						case model.ChannelAffinityReleaseUnavailable:
+							// Circuit is not closed: the sticky cannot serve this request.
+							// Release unconditionally — rate-limiting this would park the
+							// key on a tripped channel, and falling through to Acquire
+							// would hand a paying request the half-open probe lease.
+							stickyUsable = false
+						case model.ChannelAffinityReleaseSlow:
+							// Costs a full uncached prefill, so only when the rate limiter
+							// agrees: a key that just migrated stays put even if the channel
+							// it moved to looks slow for a moment.
+							if service.TryReleaseChannelAffinity(c) {
+								stickyUsable = false
+								// The channel we land on next holds no prompt cache for this
+								// key, so its first token pays a full prefill. Flag it: that
+								// latency is a cost we imposed and must not be charged to
+								// that channel (health EWMA or the slow-channel cooldown).
+								common.SetContextKey(c, constant.ContextKeyAffinityColdStart, true)
+								logger.LogInfo(c, fmt.Sprintf(
+									"channel_affinity_released: channel #%d is slow for model=%s; migrating to a faster channel (one cold prefill expected)",
+									preferred.Id, modelRequest.Model))
+							}
+						}
+					}
+					// Acquire runs only for a sticky we are actually keeping, so we never
+					// strand a health lease on a channel we then skip.
+					if stickyUsable && model.AcquireChannelHealth(affinityKey) {
 						if preferred.Status != common.ChannelStatusEnabled {
 							// Affinity channel is disabled, fall back to random selection
 							// Skip retry only applies if we actually used the affinity channel

@@ -30,9 +30,48 @@ const (
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
 )
 
+// affinityReleaseCooldown bounds how often a single affinity key may be
+// migrated off its sticky channel. Every migration buys speed with one full
+// uncached prefill, and immediately afterwards the channel we moved to has
+// barely been measured — so without a floor on the interval a key could hop
+// channels on every request and pay that prefill each time. One hop per cooldown
+// still walks a key off a slow channel promptly while making thrash impossible.
+const affinityReleaseCooldown = 10 * time.Minute
+
+// channelAffinityReleaseCacheCapacity bounds the guard's memory. It holds one
+// short-lived entry per recently migrated key, so it stays far below the
+// affinity cache itself; entries expire on their own via the TTL.
+const channelAffinityReleaseCacheCapacity = 10_000
+
+// affinityReleaseMinInterval spaces migrations apart across ALL keys, not just
+// within one. The slow-channel verdict is per (channel, model, path), so the
+// moment a channel crosses the ratio *every* key pinned to it is told to leave
+// — 52 keys in the measured case. The per-key cooldown does nothing to stop
+// that: each of those keys is migrating for the first time. Without spacing,
+// their cold prefills (140k-240k tokens each) land on the one or two fast
+// channels simultaneously and can make those genuinely slow, which then
+// releases *their* keys — a real cascade that no amount of latency-exclusion
+// prevents, because the load is real. Draining a slow channel over minutes
+// instead of seconds costs nothing: keys retry on their next request.
+//
+// var, not const, so tests can isolate the per-key limiter from this one.
+var affinityReleaseMinInterval = 5 * time.Second
+
 var (
 	channelAffinityCacheOnce sync.Once
 	channelAffinityCache     *cachex.HybridCache[int]
+
+	// Memory-only on purpose: this is a local thrash guard, not shared state.
+	// Note the asymmetry — affinity *assignment* is Redis-backed and therefore
+	// cluster-wide, so under N instances a key gets N migration budgets rather
+	// than one. That is bounded (N cold prefills per window, not a loop) and is
+	// the accepted trade for keeping a Redis round trip off the hot path; if
+	// this ever runs multi-instance at scale, move the guard to the shared
+	// cachex.HybridCache instead of widening the interval.
+	channelAffinityReleaseOnce  sync.Once
+	channelAffinityReleaseCache *hot.HotCache[string, bool]
+	channelAffinityReleaseMu    sync.Mutex
+	channelAffinityLastRelease  time.Time
 
 	channelAffinityUsageCacheStatsOnce  sync.Once
 	channelAffinityUsageCacheStatsCache *cachex.HybridCache[ChannelAffinityUsageCacheCounters]
@@ -353,6 +392,59 @@ func setChannelAffinityContext(c *gin.Context, meta channelAffinityMeta) {
 	c.Set(ginKeyChannelAffinityCacheKey, meta.CacheKey)
 	c.Set(ginKeyChannelAffinityTTLSeconds, meta.TTLSeconds)
 	c.Set(ginKeyChannelAffinityMeta, meta)
+}
+
+func getChannelAffinityReleaseCache() *hot.HotCache[string, bool] {
+	channelAffinityReleaseOnce.Do(func() {
+		channelAffinityReleaseCache = hot.NewHotCache[string, bool](hot.LRU, channelAffinityReleaseCacheCapacity).
+			WithTTL(affinityReleaseCooldown).
+			WithJanitor().
+			Build()
+	})
+	return channelAffinityReleaseCache
+}
+
+// TryReleaseChannelAffinity reports whether this request's affinity key may be
+// migrated off its sticky channel right now, and records the migration when it
+// may. The check and the record are one locked step on purpose: split them and
+// two concurrent requests on the same key both migrate, each paying a prefill.
+//
+// Two independent limits, because they stop different failures:
+//   - affinityReleaseCooldown, per key: stops one key bouncing between channels.
+//   - affinityReleaseMinInterval, global: stops every key on a newly-slow
+//     channel from leaving at once and stampeding the destination.
+//
+// Returns false when the request carries no affinity key: with nothing to
+// rate-limit against, staying put is the safe answer.
+func TryReleaseChannelAffinity(c *gin.Context) bool {
+	key, _, ok := getChannelAffinityContext(c)
+	if !ok || key == "" {
+		return false
+	}
+	cache := getChannelAffinityReleaseCache()
+
+	channelAffinityReleaseMu.Lock()
+	defer channelAffinityReleaseMu.Unlock()
+
+	now := time.Now()
+	if !channelAffinityLastRelease.IsZero() && now.Sub(channelAffinityLastRelease) < affinityReleaseMinInterval {
+		return false
+	}
+	if _, found, _ := cache.Get(key); found {
+		return false
+	}
+	cache.SetWithTTL(key, true, affinityReleaseCooldown)
+	channelAffinityLastRelease = now
+	return true
+}
+
+// ResetChannelAffinityReleaseStateForTest clears both limiters so cases do not
+// leak the global interval into each other.
+func ResetChannelAffinityReleaseStateForTest() {
+	channelAffinityReleaseMu.Lock()
+	defer channelAffinityReleaseMu.Unlock()
+	channelAffinityLastRelease = time.Time{}
+	getChannelAffinityReleaseCache().Purge()
 }
 
 func getChannelAffinityContext(c *gin.Context) (string, int, bool) {

@@ -49,6 +49,21 @@ const (
 	// channelHealthSlowLatency.
 	channelHealthSlowThreshold             = 3
 	defaultChannelHealthSlowLatencySeconds = 9
+
+	// Releasing prompt-cache affinity is judged relative to the best channel
+	// serving the same model+path, not against an absolute bound. The absolute
+	// score floor only trips past ~9s of first-token latency, which in practice
+	// never fires: a channel sitting at 3.5s while another answers in 1.3s keeps
+	// its sticky traffic forever.
+	//
+	// Both conditions must hold, and each blocks a different kind of pointless
+	// migration:
+	//   - affinityReleaseMinLatency: never migrate off a channel that is fast in
+	//     absolute terms. 0.3s vs 0.15s is a 2x ratio and completely irrelevant.
+	//   - affinityReleaseRatio: never migrate for a marginal gain. A migration
+	//     costs one full uncached prefill, so the win has to be substantial.
+	affinityReleaseMinLatency = 2 * time.Second
+	affinityReleaseRatio      = 2.0
 )
 
 // channelHealthSlowLatency is the first-token latency at or above which a
@@ -74,6 +89,12 @@ type ChannelOutcome struct {
 	Latency       time.Duration
 	SemanticError bool
 	LocalError    bool
+	// ColdCacheStart marks an attempt whose latency is dominated by a prompt
+	// prefill this channel had no cache for, because we just released the
+	// request's affinity from a slower channel. Its Latency measures work we
+	// imposed, not the channel's responsiveness, so it is excluded from the
+	// latency EWMA and the slow-trip counter. Success/failure still counts.
+	ColdCacheStart bool
 }
 
 type channelHealthEntry struct {
@@ -235,7 +256,12 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 		return
 	}
 
-	if outcome.Latency > 0 {
+	// A cold-cache attempt is timed but not scored: we released this request's
+	// affinity ourselves, so its first token pays a full prefill (23s+ observed
+	// on a 240k-token prompt). Folding that into the EWMA would make the channel
+	// we just migrated to look slow to *every* affinity key on it — one
+	// migration would stampede the rest away, each paying its own cold prefill.
+	if outcome.Latency > 0 && !outcome.ColdCacheStart {
 		latency := float64(outcome.Latency)
 		if entry.latencyEWMA == 0 {
 			entry.latencyEWMA = latency
@@ -248,7 +274,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	// taking too long to first token is evicted and re-probed like a failing
 	// one, so latency weighting (which only reorders within a priority tier) is
 	// not the only defense against consistently-slow channels.
-	slow := outcome.Latency >= channelHealthSlowLatency()
+	slow := outcome.Latency >= channelHealthSlowLatency() && !outcome.ColdCacheStart
 
 	if entry.state == ChannelHealthHalfOpen {
 		if slow {
@@ -386,18 +412,98 @@ func GetChannelHealthScore(key ChannelHealthKey) float64 {
 	return adaptiveChannelHealth.Score(key)
 }
 
-// IsChannelFastEnoughForAffinity reports whether a prompt-cache-sticky channel
-// is healthy enough to keep routing to. It returns false once the channel is
-// sustained-slow (health score pinned to the floor, i.e. first-token latency
-// past the slow threshold) or its circuit is open, so a cache-locked user is
-// released to normal health-weighted selection and moves to a faster available
-// channel. A cold/unknown or fast channel keeps its affinity. No-op (always
-// true) when adaptive health is disabled.
-func IsChannelFastEnoughForAffinity(key ChannelHealthKey) bool {
+// ChannelAffinityVerdict says what to do with a prompt-cache-sticky channel.
+// The two release reasons are deliberately distinct because they must be acted
+// on differently: an unavailable channel cannot serve the request at all, while
+// a merely-slow one can, so only the latter is worth rate-limiting against the
+// cost of a migration.
+type ChannelAffinityVerdict int
+
+const (
+	// ChannelAffinityKeep: stay on the sticky channel and keep the warm cache.
+	ChannelAffinityKeep ChannelAffinityVerdict = iota
+	// ChannelAffinityReleaseUnavailable: the circuit is not closed. Release
+	// immediately and unconditionally — never rate-limit this one, and never
+	// acquire a health lease on the channel, or an affinity-bound user request
+	// becomes the half-open probe for a channel that just tripped.
+	ChannelAffinityReleaseUnavailable
+	// ChannelAffinityReleaseSlow: the channel works but is materially slower
+	// than the best peer. Releasing costs a full uncached prefill, so callers
+	// must clear it with service.TryReleaseChannelAffinity first.
+	ChannelAffinityReleaseSlow
+)
+
+// ChannelAffinityDecision reports whether a prompt-cache-sticky channel is still
+// worth staying pinned to, and if not, why. A cold/unknown or fast channel keeps
+// its affinity, and so does a slow one with no faster alternative to move to.
+// No-op (always Keep) when adaptive health is disabled.
+func ChannelAffinityDecision(key ChannelHealthKey) ChannelAffinityVerdict {
 	if !common.AdaptiveChannelHealthEnabled {
-		return true
+		return ChannelAffinityKeep
 	}
-	return GetChannelHealthScore(key) > minimumChannelHealthScore
+	return adaptiveChannelHealth.affinityDecision(key)
+}
+
+// IsChannelFastEnoughForAffinity reports whether the sticky channel should be
+// kept. Prefer ChannelAffinityDecision when the reason matters.
+func IsChannelFastEnoughForAffinity(key ChannelHealthKey) bool {
+	return ChannelAffinityDecision(key) == ChannelAffinityKeep
+}
+
+func (r *channelHealthRegistry) affinityDecision(key ChannelHealthKey) ChannelAffinityVerdict {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	entry := r.entries[key]
+	if entry == nil || entry.latencyEWMA <= 0 {
+		// Nothing measured yet — no basis to move, and moving would throw away a
+		// warm cache on a hunch.
+		return ChannelAffinityKeep
+	}
+	if entry.state != ChannelHealthClosed {
+		return ChannelAffinityReleaseUnavailable
+	}
+	if entry.latencyEWMA < float64(affinityReleaseMinLatency) {
+		return ChannelAffinityKeep
+	}
+	best := r.bestPeerLatencyLocked(key)
+	if best <= 0 {
+		// No other channel has a latency measurement for this model+path, so
+		// there is nothing demonstrably better to migrate to.
+		return ChannelAffinityKeep
+	}
+	if entry.latencyEWMA > best*affinityReleaseRatio {
+		return ChannelAffinityReleaseSlow
+	}
+	return ChannelAffinityKeep
+}
+
+// bestPeerLatencyLocked returns the lowest latency EWMA among the *other*
+// serving channels for key's model+path, or 0 when none has been measured.
+// Caller must hold r.mu.
+//
+// Cost: this scans every entry in the registry, because a Go map cannot be
+// probed by partial key — the bound is total registry size
+// (channelHealthMaxEntries), not the number of matches. It runs only after the
+// affinityReleaseMinLatency early-return above, i.e. only for requests already
+// pinned to a channel slower than that floor, so traffic on healthy channels
+// never pays for it. If the registry ever approaches its cap on a busy
+// multi-model gateway, index best-latency per (model, path) at Record time
+// rather than scanning here: r.mu is the single lock every relay attempt needs.
+func (r *channelHealthRegistry) bestPeerLatencyLocked(key ChannelHealthKey) float64 {
+	best := 0.0
+	for k, e := range r.entries {
+		if k.ChannelID == key.ChannelID || k.Model != key.Model || k.Path != key.Path {
+			continue
+		}
+		if e.state != ChannelHealthClosed || e.latencyEWMA <= 0 {
+			continue
+		}
+		if best == 0 || e.latencyEWMA < best {
+			best = e.latencyEWMA
+		}
+	}
+	return best
 }
 
 func clearChannelHealthForTest() {

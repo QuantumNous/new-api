@@ -438,6 +438,15 @@ func shouldCooldownSlowChannel(info *relaycommon.RelayInfo, attemptStart time.Ti
 		return 0, false
 	}
 	frt := info.FirstResponseTime.Sub(attemptStart)
+	if info.AffinityColdStart {
+		// We released this request's prompt-cache affinity, so this channel is
+		// answering from a cold cache and its first token pays a full prefill
+		// (23.3s measured on a 240k-token prompt — 78% of the threshold below).
+		// That is work we imposed, not the channel being slow. Cooling it here
+		// would sideline for 30 minutes the very channel we just picked for
+		// being the fastest, which is the opposite of the intent.
+		return frt, false
+	}
 	return frt, frt >= service.SlowChannelFRTThreshold
 }
 

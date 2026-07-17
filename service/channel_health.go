@@ -121,7 +121,15 @@ func RecordChannelHealthOutcome(channelID int, modelName, requestPath string, re
 		return
 	}
 	statusCode, localError := channelHealthOutcomeStatus(apiErr, relayInfo)
-	outcome := model.ChannelOutcome{StatusCode: statusCode, SemanticError: semanticError, LocalError: localError}
+	outcome := model.ChannelOutcome{
+		StatusCode:    statusCode,
+		SemanticError: semanticError,
+		LocalError:    localError,
+		// We released this request's affinity, so this channel is answering it
+		// from a cold prompt cache. Time it, but do not hold the prefill we
+		// imposed against the channel's latency.
+		ColdCacheStart: relayInfo != nil && relayInfo.AffinityColdStart,
+	}
 	if relayInfo != nil && relayInfo.HasSendResponse() && relayInfo.FirstResponseTime.After(attemptStart) {
 		outcome.Latency = relayInfo.FirstResponseTime.Sub(attemptStart)
 	} else if !attemptStart.IsZero() {

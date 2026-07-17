@@ -33,6 +33,34 @@ func TestShouldCooldownSlowChannelMeasuresFromAttemptStart(t *testing.T) {
 	}
 }
 
+// TestShouldCooldownSlowChannelIgnoresAffinityColdStart guards the second, and
+// far more damaging, way this cooldown can blame a channel for latency that is
+// not its fault. When we release a request's prompt-cache affinity because its
+// sticky channel went slow, the channel we migrate TO answers from a cold cache:
+// a 240k-token prefill measured 23.3s in prod, and a larger prompt clears the
+// 30s threshold outright. Cooling on that would pull the channel we just picked
+// for being the fastest out of rotation for 30 minutes — and push the migrated
+// traffic back onto the slow channels it just fled.
+func TestShouldCooldownSlowChannelIgnoresAffinityColdStart(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	firstResp := base.Add(35 * time.Second) // full cold prefill on a huge prompt
+
+	info := &relaycommon.RelayInfo{
+		StartTime:         base,
+		FirstResponseTime: firstResp,
+		AffinityColdStart: true,
+	}
+
+	// Guard the premise: without the exemption this frt trips the cooldown.
+	if firstResp.Sub(base) < service.SlowChannelFRTThreshold {
+		t.Fatal("test setup invalid: frt should exceed the threshold")
+	}
+
+	if frt, slow := shouldCooldownSlowChannel(info, base); slow {
+		t.Fatalf("a cold prefill we caused by migrating must not cool the destination channel (frt=%v)", frt)
+	}
+}
+
 // TestShouldCooldownSlowChannelTripsOnGenuinelySlowAttempt confirms a channel
 // that is genuinely slow to first token on its own attempt is still cooled.
 func TestShouldCooldownSlowChannelTripsOnGenuinelySlowAttempt(t *testing.T) {
