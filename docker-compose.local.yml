@@ -1,7 +1,56 @@
 # Local Docker Compose configuration.
 # Builds the application from the local Dockerfile instead of pulling an image.
+#
+# Traffic path:
+#   client -> gateway:3000
+#     /api/v3/contents/generations/tasks* -> seedance-compat:3001
+#     all other paths                      -> new-api:3000
 
 services:
+  gateway:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/registry.k8s.io/nginx-slim:0.21
+    container_name: new-api-gateway
+    restart: unless-stopped
+    ports:
+      - "${NEWAPI_BIND_ADDRESS:-0.0.0.0}:${NEWAPI_PORT:-3000}:80"
+    volumes:
+      - ./deploy/newapi-local/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - new-api-local-network
+    depends_on:
+      new-api:
+        condition: service_healthy
+      seedance-compat:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  seedance-compat:
+    build:
+      context: ./deploy/newapi-local/seedance-compat
+    image: seedance-compat-local:latest
+    container_name: seedance-compat-local
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      LISTEN_ADDR: ":3001"
+      NEWAPI_BASE_URL: "http://new-api:3000"
+    networks:
+      - new-api-local-network
+    depends_on:
+      new-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3001/healthz | grep -o '\"ok\":true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   new-api:
     build:
       context: .
@@ -13,8 +62,9 @@ services:
     container_name: new-api-local
     restart: unless-stopped
     command: --log-dir /app/logs
-    ports:
-      - "${NEWAPI_BIND_ADDRESS:-0.0.0.0}:${NEWAPI_PORT:-3000}:3000"
+    # Only reachable inside the compose network; public traffic goes through gateway.
+    expose:
+      - "3000"
     volumes:
       - ./data:/data
       - ./logs:/app/logs
@@ -47,7 +97,9 @@ services:
       - redis
       - postgres
     networks:
-      - new-api-local-network
+      new-api-local-network:
+        aliases:
+          - new-api
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
       interval: 30s
