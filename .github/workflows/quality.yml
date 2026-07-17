@@ -1,6 +1,7 @@
 name: Quality Gate
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches:
@@ -25,6 +26,14 @@ jobs:
         with:
           go-version: 1.26.5
           cache: true
+
+      - name: Validate build metadata
+        run: |
+          test -s VERSION
+          test "$(go env GOVERSION)" = "go1.26.5"
+
+      - name: Build
+        run: go build -trimpath -buildvcs=true ./...
 
       - name: Test
         env:
@@ -76,9 +85,21 @@ jobs:
         working-directory: web/default
         run: bun run bundle:check
 
+      - name: Test classic frontend
+        working-directory: web/classic
+        run: bun test
+
       - name: Build classic frontend
         working-directory: web/classic
         run: bun run build
+
+      - name: Enforce classic bundle budget
+        working-directory: web/classic
+        run: bun run bundle:check
+
+      - name: Test shared web tooling
+        working-directory: web
+        run: bun run test:tooling
 
   image-reproducibility:
     needs: [go-quality, web-quality]
