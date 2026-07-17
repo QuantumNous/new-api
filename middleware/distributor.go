@@ -409,6 +409,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 	}
 
+	if relayconstant.Path2RelayMode(c.Request.URL.Path) == relayconstant.RelayModeCodexAlphaSearch {
+		c.Set("relay_mode", relayconstant.RelayModeCodexAlphaSearch)
+	}
+
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}

@@ -114,8 +114,18 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			info.ChannelBaseUrl = baseUrl
 		}
 	}
+	alphaSearchPath := func() string {
+		path := "/v1/alpha/search"
+		if idx := strings.Index(info.RequestURLPath, "?"); idx >= 0 {
+			path += info.RequestURLPath[idx:]
+		}
+		return path
+	}
 	switch info.ChannelType {
 	case constant.ChannelTypeAzure:
+		if info.RelayMode == relayconstant.RelayModeCodexAlphaSearch {
+			return "", fmt.Errorf("azure channel does not support /v1/alpha/search")
+		}
 		apiVersion := info.ApiVersion
 		if apiVersion == "" {
 			apiVersion = constant.AzureDefaultAPIVersion
@@ -167,10 +177,16 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	//case constant.ChannelTypeMiniMax:
 	//	return minimax.GetRequestURL(info)
 	case constant.ChannelTypeCustom:
+		if info.RelayMode == relayconstant.RelayModeCodexAlphaSearch {
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, alphaSearchPath(), info.ChannelType), nil
+		}
 		url := info.ChannelBaseUrl
 		url = strings.Replace(url, "{model}", info.UpstreamModelName, -1)
 		return url, nil
 	default:
+		if info.RelayMode == relayconstant.RelayModeCodexAlphaSearch {
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, alphaSearchPath(), info.ChannelType), nil
+		}
 		if (info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini) &&
 			info.RelayMode != relayconstant.RelayModeResponses &&
 			info.RelayMode != relayconstant.RelayModeResponsesCompact {
@@ -651,6 +667,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		}
 	case relayconstant.RelayModeResponsesCompact:
 		usage, err = OaiResponsesCompactionHandler(c, resp)
+	case relayconstant.RelayModeCodexAlphaSearch:
+		usage, err = OaiAlphaSearchHandler(c, resp)
 	default:
 		if info.IsStream {
 			usage, err = OaiStreamHandler(c, info, resp)

@@ -112,8 +112,14 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
+	if info.RelayMode != relayconstant.RelayModeResponses &&
+		info.RelayMode != relayconstant.RelayModeResponsesCompact &&
+		info.RelayMode != relayconstant.RelayModeCodexAlphaSearch {
 		return nil, types.NewError(errors.New("codex channel: endpoint not supported"), types.ErrorCodeInvalidRequest)
+	}
+
+	if info.RelayMode == relayconstant.RelayModeCodexAlphaSearch {
+		return openai.OaiAlphaSearchHandler(c, resp)
 	}
 
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
@@ -135,11 +141,18 @@ func (a *Adaptor) GetChannelName() string {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
-		return "", errors.New("codex channel: only /v1/responses and /v1/responses/compact are supported")
+	if info.RelayMode != relayconstant.RelayModeResponses &&
+		info.RelayMode != relayconstant.RelayModeResponsesCompact &&
+		info.RelayMode != relayconstant.RelayModeCodexAlphaSearch {
+		return "", errors.New("codex channel: only /v1/responses, /v1/responses/compact and /v1/alpha/search are supported")
 	}
 	path := "/backend-api/codex/responses"
-	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+	if info.RelayMode == relayconstant.RelayModeCodexAlphaSearch {
+		path = "/backend-api/codex/alpha/search"
+		if idx := strings.Index(info.RequestURLPath, "?"); idx >= 0 {
+			path += info.RequestURLPath[idx:]
+		}
+	} else if info.RelayMode == relayconstant.RelayModeResponsesCompact {
 		path = "/backend-api/codex/responses/compact"
 	}
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, path, info.ChannelType), nil
@@ -171,7 +184,27 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	req.Set("Authorization", "Bearer "+accessToken)
 	req.Set("chatgpt-account-id", accountID)
 
-	if req.Get("OpenAI-Beta") == "" {
+	if info.RelayMode == relayconstant.RelayModeCodexAlphaSearch {
+		req.Del("OpenAI-Beta")
+		req.Del("Session_ID")
+		req.Del("Conversation_ID")
+		req.Del("X-Codex-Beta-Features")
+		req.Del("X-Codex-Turn-State")
+
+		if c != nil && c.Request != nil {
+			for _, name := range []string{
+				"Version",
+				"User-Agent",
+				"Session_id",
+				"X-Client-Request-Id",
+				"X-Codex-Turn-Metadata",
+			} {
+				if value := strings.TrimSpace(c.GetHeader(name)); value != "" {
+					req.Set(name, value)
+				}
+			}
+		}
+	} else if req.Get("OpenAI-Beta") == "" {
 		req.Set("OpenAI-Beta", "responses=experimental")
 	}
 	if req.Get("originator") == "" {
@@ -182,7 +215,9 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,
 	// which can be rejected by the upstream. Force the exact media type.
 	req.Set("Content-Type", "application/json")
-	if info.IsStream {
+	if info.RelayMode == relayconstant.RelayModeCodexAlphaSearch {
+		req.Set("Accept", "application/json")
+	} else if info.IsStream {
 		req.Set("Accept", "text/event-stream")
 	} else if req.Get("Accept") == "" {
 		req.Set("Accept", "application/json")

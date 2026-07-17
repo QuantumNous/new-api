@@ -104,6 +104,9 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/responses/compact", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
 		})
+		httpRouter.POST("/alpha/search", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatCodexAlphaSearch)
+		})
 
 		// image related routes
 		httpRouter.POST("/edits", func(c *gin.Context) {
@@ -163,6 +166,20 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/fine-tunes/:id/cancel", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes/:id/events", controller.RelayNotImplemented)
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
+	}
+
+	alphaSearchHandler := func(c *gin.Context) {
+		controller.Relay(c, types.RelayFormatCodexAlphaSearch)
+	}
+	alphaSearchRouter := router.Group("")
+	alphaSearchRouter.Use(middleware.RouteTag("relay"))
+	alphaSearchRouter.Use(middleware.SystemPerformanceCheck())
+	alphaSearchRouter.Use(middleware.TokenAuth())
+	alphaSearchRouter.Use(middleware.ModelRequestRateLimit())
+	alphaSearchRouter.Use(middleware.Distribute())
+	{
+		alphaSearchRouter.POST("/alpha/search", alphaSearchHandler)
+		alphaSearchRouter.POST("/backend-api/codex/alpha/search", alphaSearchHandler)
 	}
 
 	relayMjRouter := router.Group("/mj")

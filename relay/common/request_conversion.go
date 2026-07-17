@@ -11,6 +11,8 @@ func GuessRelayFormatFromRequest(req any) (types.RelayFormat, bool) {
 		return types.RelayFormatOpenAI, true
 	case *dto.OpenAIResponsesRequest, dto.OpenAIResponsesRequest:
 		return types.RelayFormatOpenAIResponses, true
+	case *dto.CodexAlphaSearchRequest, dto.CodexAlphaSearchRequest:
+		return types.RelayFormatCodexAlphaSearch, true
 	case *dto.ClaudeRequest, dto.ClaudeRequest:
 		return types.RelayFormatClaude, true
 	case *dto.GeminiChatRequest, dto.GeminiChatRequest:

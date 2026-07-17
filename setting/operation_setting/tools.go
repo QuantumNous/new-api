@@ -22,6 +22,7 @@ import (
 var defaultToolPrices = map[string]float64{
 	"web_search":         10.0, // OpenAI web search (all models) / Claude web search
 	"web_search_preview": 10.0, // OpenAI web search preview (default: reasoning models)
+	"codex_alpha_search": 10.0, // Protective proxy billing for Codex standalone alpha/search.
 	"file_search":        2.5,  // OpenAI file search (Responses API)
 	"google_search":      14.0, // Gemini Grounding with Google Search
 }

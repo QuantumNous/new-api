@@ -416,6 +416,13 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 	return info
 }
 
+func GenRelayInfoCodexAlphaSearch(c *gin.Context, request *dto.CodexAlphaSearchRequest) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayMode = relayconstant.RelayModeCodexAlphaSearch
+	info.RelayFormat = types.RelayFormatCodexAlphaSearch
+	return info
+}
+
 func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatGemini
@@ -575,6 +582,11 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			return GenRelayInfoResponsesCompaction(c, request), nil
 		}
 		return nil, errors.New("request is not a OpenAIResponsesCompactionRequest")
+	case types.RelayFormatCodexAlphaSearch:
+		if request, ok := request.(*dto.CodexAlphaSearchRequest); ok {
+			return GenRelayInfoCodexAlphaSearch(c, request), nil
+		}
+		return nil, errors.New("request is not a CodexAlphaSearchRequest")
 	case types.RelayFormatTask:
 		info = genBaseRelayInfo(c, nil)
 		info.TaskRelayInfo = &TaskRelayInfo{}
