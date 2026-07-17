@@ -18,8 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+
 import {
   LoadingSkeleton,
   EmptyState,
@@ -40,7 +42,8 @@ export function Pricing() {
     null
   )
 
-  const { models,
+  const {
+    models,
     vendors,
     groupRatio,
     usableGroup,
@@ -48,7 +51,10 @@ export function Pricing() {
     autoGroups,
     isLoading,
     priceRate,
-    usdExchangeRate, error: pricingError, refetch: refetchPricing } = usePricingData()
+    usdExchangeRate,
+    error: pricingError,
+    refetch: refetchPricing,
+  } = usePricingData()
 
   const {
     searchInput,
@@ -142,7 +148,7 @@ export function Pricing() {
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
         selectedGroup={groupFilter}
-          liveMetricsOnly={liveMetricsOnly}
+        liveMetricsOnly={liveMetricsOnly}
         onModelClick={handleModelClick}
       />
     )
@@ -253,8 +259,7 @@ export function Pricing() {
                 onTokenUnitChange={setTokenUnit}
                 showRechargePrice={showRechargePrice}
                 onRechargePriceChange={setShowRechargePrice}
-                selectedGroup={groupFilter}
-          liveMetricsOnly={liveMetricsOnly}
+                liveMetricsOnly={liveMetricsOnly}
                 onLiveMetricsOnlyChange={setLiveMetricsOnly}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
