@@ -71,6 +71,15 @@ const (
 	//     costs one full uncached prefill, so the win has to be substantial.
 	affinityFastLatency  = 2 * time.Second
 	affinityReleaseRatio = 2.0
+
+	// fastChannelSelectionBoost multiplies the selection weight of a channel
+	// measured fast (EWMA < affinityFastLatency). It concentrates traffic on
+	// genuinely fast channels so a session bounced off slow ones lands on a fast
+	// one rather than being weighted-randomly dropped back onto another slow one.
+	// 8 gives a single fast channel ~80% of the traffic against a handful of slow
+	// peers while leaving them a probe share; the boost self-cancels once a
+	// channel's EWMA rises past the threshold under load.
+	fastChannelSelectionBoost = 8
 )
 
 // channelHealthSlowLatency is the first-token latency at or above which a
@@ -401,7 +410,63 @@ func (r *channelHealthRegistry) Score(key ChannelHealthKey) float64 {
 	return math.Max(minimumChannelHealthScore, math.Min(1, score))
 }
 
+// selectionFactors returns, in one lock, a channel's health score and whether
+// it is *measured fast* — a closed circuit with a latency EWMA below
+// affinityFastLatency. The two are needed together at channel selection.
+//
+// A cold/unknown channel (no EWMA yet) is deliberately reported as not-fast: it
+// keeps its full base score so it can be probed, but does not receive the
+// fast-channel selection boost, which is reserved for channels proven fast right
+// now. This mirrors ChannelAffinityDecision, which also treats <affinityFastLatency
+// as the bar for "genuinely fast".
+func (r *channelHealthRegistry) selectionFactors(key ChannelHealthKey) (score float64, latencyFast bool) {
+	if !common.AdaptiveChannelHealthEnabled {
+		return 1, false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry := r.entries[key]
+	if entry == nil || entry.latencyEWMA <= 0 {
+		return 1, false
+	}
+	if entry.state != ChannelHealthClosed {
+		return minimumChannelHealthScore, false
+	}
+	score = math.Max(minimumChannelHealthScore, math.Min(1, 1/(1+entry.latencyEWMA/float64(time.Second))))
+	return score, entry.latencyEWMA < float64(affinityFastLatency)
+}
+
 var adaptiveChannelHealth = newChannelHealthRegistry(time.Now)
+
+// ChannelSelectionFactors reports a channel's health-weighted score and whether
+// it is currently measured fast (see selectionFactors), for weighting channel
+// selection toward channels that are actually fast now.
+func ChannelSelectionFactors(key ChannelHealthKey) (score float64, latencyFast bool) {
+	return adaptiveChannelHealth.selectionFactors(key)
+}
+
+// EffectiveSelectionWeight turns a base selection weight into a health-adjusted
+// one: scaled by the channel's health score, then multiplied by
+// fastChannelSelectionBoost when the channel is measured fast right now.
+//
+// The boost concentrates traffic on channels that are fast at this moment, so a
+// session bounced off a slow channel lands on a fast one instead of being
+// weighted-randomly dropped onto another slow one (observed in prod: a session
+// churned #51->#41->#56, all 8-22s, while an idle #17 did 1.8s). The health
+// score alone under-separates them — 12s vs 1.8s is only ~4.6x. It self-limits:
+// the boost keys off the live EWMA, so a channel that slows under the added load
+// past affinityFastLatency stops being fast and traffic redistributes; slow
+// channels keep a small share, which probes them for recovery.
+//
+// Shared by the memory-cache and DB selection paths so both weight identically.
+func EffectiveSelectionWeight(baseWeight int, key ChannelHealthKey) int {
+	score, fast := ChannelSelectionFactors(key)
+	w := max(1, int(math.Round(float64(baseWeight)*score)))
+	if fast {
+		w *= fastChannelSelectionBoost
+	}
+	return w
+}
 
 func RecordChannelOutcome(key ChannelHealthKey, outcome ChannelOutcome) {
 	adaptiveChannelHealth.Record(key, outcome)

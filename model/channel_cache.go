@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/rand"
 	"sort"
 	"strings"
@@ -249,8 +248,7 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		if baseWeight == 0 {
 			continue
 		}
-		score := GetChannelHealthScore(ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path})
-		effectiveWeights[i] = max(1, int(math.Round(float64(baseWeight)*score)))
+		effectiveWeights[i] = EffectiveSelectionWeight(baseWeight, ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path})
 		totalWeight += effectiveWeights[i]
 	}
 

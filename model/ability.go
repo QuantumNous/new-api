@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -187,8 +186,7 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	totalWeight := 0
 	for i, ability := range targetAbilities {
 		baseWeight := int(ability.Weight) + 10
-		score := GetChannelHealthScore(ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: options.Path})
-		effectiveWeights[i] = max(1, int(math.Round(float64(baseWeight)*score)))
+		effectiveWeights[i] = EffectiveSelectionWeight(baseWeight, ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: options.Path})
 		totalWeight += effectiveWeights[i]
 	}
 
