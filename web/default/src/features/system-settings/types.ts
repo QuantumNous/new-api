@@ -187,6 +187,12 @@ export type ContentSettings = {
   MjActionCheckSuccessEnabled: boolean
 }
 
+export type ExtensionsSettings = {
+  'console_setting.custom_pages': string
+  'console_setting.availability_monitor_enabled': boolean
+  'console_setting.availability_monitor_visibility': string
+}
+
 export type ModelSettings = {
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string

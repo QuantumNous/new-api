@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -135,6 +136,15 @@ func GetStatus(c *gin.Context) {
 		data["faq"] = console_setting.GetFAQ()
 	}
 
+	isLoggedIn, isAdmin := statusViewerRole(c)
+	if isLoggedIn {
+		data["custom_pages"] = console_setting.GetCustomPagesForRole(isAdmin)
+		data["availability_monitor_visible"] = console_setting.IsAvailabilityMonitorVisible(isAdmin)
+	} else {
+		data["custom_pages"] = []map[string]interface{}{}
+		data["availability_monitor_visible"] = false
+	}
+
 	// Add enabled custom OAuth providers
 	customProviders := oauth.GetEnabledCustomProviders()
 	if len(customProviders) > 0 {
@@ -169,6 +179,23 @@ func GetStatus(c *gin.Context) {
 		"data":    data,
 	})
 	return
+}
+
+func statusViewerRole(c *gin.Context) (isLoggedIn bool, isAdmin bool) {
+	session := sessions.Default(c)
+	if session.Get("id") == nil {
+		return false, false
+	}
+	role := 0
+	switch v := session.Get("role").(type) {
+	case int:
+		role = v
+	case int64:
+		role = int(v)
+	case float64:
+		role = int(v)
+	}
+	return true, role >= common.RoleAdminUser
 }
 
 func GetNotice(c *gin.Context) {

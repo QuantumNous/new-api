@@ -172,6 +172,14 @@ export interface SystemStatus {
   password_login_enabled?: boolean
   password_register_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
+  custom_pages?: Array<{
+    id: string
+    title: string
+    icon: string
+    url: string
+    open_mode?: 'embed' | 'external'
+  }>
+  availability_monitor_visible?: boolean
   [key: string]: unknown
 }
 

@@ -322,6 +322,24 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "console_setting.custom_pages":
+		err = console_setting.ValidateConsoleSettings(option.Value.(string), "CustomPages")
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	case "console_setting.availability_monitor_visibility":
+		err = console_setting.ValidateAvailabilityMonitorVisibility(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "console_setting.uptime_kuma_groups":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "UptimeKumaGroups")
 		if err != nil {

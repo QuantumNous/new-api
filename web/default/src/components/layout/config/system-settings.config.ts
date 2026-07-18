@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 import {
   Box,
+  Blocks,
   CreditCard,
   Layout,
   Settings,
@@ -79,6 +80,12 @@ function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
           title: t('Console Content'),
           icon: Layout,
           items: getContentSectionNavItems(t),
+        },
+        {
+          title: t('Extensions'),
+          icon: Blocks,
+          url: '/system-settings/extensions/pages',
+          activeUrls: ['/system-settings/extensions'],
         },
         {
           title: t('Operations'),

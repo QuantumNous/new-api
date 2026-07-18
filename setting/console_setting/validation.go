@@ -73,9 +73,241 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 		return validateFAQ(settingsStr)
 	case "UptimeKumaGroups":
 		return validateUptimeKumaGroups(settingsStr)
+	case "CustomPages":
+		return validateCustomPages(settingsStr)
 	default:
 		return fmt.Errorf("未知的设置类型：%s", settingType)
 	}
+}
+
+var validCustomPageIcons = map[string]bool{
+	"Link": true, "BookOpen": true, "ExternalLink": true, "FileText": true,
+	"Globe": true, "Layout": true, "Newspaper": true, "HelpCircle": true,
+	"Bookmark": true, "FolderOpen": true,
+}
+
+var validCustomPageOpenModes = map[string]bool{
+	"embed":    true,
+	"external": true,
+}
+
+var validExtensionVisibilities = map[string]bool{
+	"all":   true,
+	"admin": true,
+}
+
+func NormalizeExtensionVisibility(visibility string) string {
+	visibility = strings.TrimSpace(visibility)
+	if validExtensionVisibilities[visibility] {
+		return visibility
+	}
+	return "all"
+}
+
+func IsAvailabilityMonitorVisible(isAdmin bool) bool {
+	cs := GetConsoleSetting()
+	if !cs.AvailabilityMonitorEnabled {
+		return false
+	}
+	visibility := NormalizeExtensionVisibility(cs.AvailabilityMonitorVisibility)
+	if visibility == "admin" {
+		return isAdmin
+	}
+	return true
+}
+
+func ValidateAvailabilityMonitorVisibility(value string) error {
+	if !validExtensionVisibilities[strings.TrimSpace(value)] {
+		return fmt.Errorf("可用性监控可见范围不合法，仅支持 all 或 admin")
+	}
+	return nil
+}
+
+func getJSONString(item map[string]interface{}, key string) (string, bool) {
+	v, ok := item[key].(string)
+	return v, ok
+}
+
+func getJSONBool(item map[string]interface{}, key string) (bool, bool) {
+	v, ok := item[key].(bool)
+	return v, ok
+}
+
+func getJSONSort(item map[string]interface{}) int {
+	v, exists := item["sort"]
+	if !exists || v == nil {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0
+		}
+		return int(i)
+	default:
+		return 0
+	}
+}
+
+func validateCustomPages(customPagesStr string) error {
+	list, err := parseJSONArray(customPagesStr, "定制页面")
+	if err != nil {
+		return err
+	}
+
+	idSet := make(map[string]bool)
+	for i, page := range list {
+		id, ok := getJSONString(page, "id")
+		if !ok || strings.TrimSpace(id) == "" {
+			return fmt.Errorf("第%d个定制页面缺少id字段", i+1)
+		}
+		id = strings.TrimSpace(id)
+		if len(id) > 64 {
+			return fmt.Errorf("第%d个定制页面的id长度不能超过64字符", i+1)
+		}
+		if !slugRegex.MatchString(id) {
+			return fmt.Errorf("第%d个定制页面的id只能包含字母、数字、下划线和连字符", i+1)
+		}
+		if idSet[id] {
+			return fmt.Errorf("第%d个定制页面的id与其他项重复", i+1)
+		}
+		idSet[id] = true
+
+		title, ok := getJSONString(page, "title")
+		if !ok || strings.TrimSpace(title) == "" {
+			return fmt.Errorf("第%d个定制页面缺少标题字段", i+1)
+		}
+		title = strings.TrimSpace(title)
+		if len(title) > 100 {
+			return fmt.Errorf("第%d个定制页面的标题长度不能超过100字符", i+1)
+		}
+		if err := checkDangerousContent(title, i+1, "定制页面"); err != nil {
+			return err
+		}
+
+		urlStr, ok := getJSONString(page, "url")
+		if !ok {
+			urlStr = ""
+		}
+		urlStr = strings.TrimSpace(urlStr)
+		if urlStr != "" {
+			if err := validateURL(urlStr, i+1, "定制页面"); err != nil {
+				return err
+			}
+			if len(urlStr) > 500 {
+				return fmt.Errorf("第%d个定制页面的URL长度不能超过500字符", i+1)
+			}
+		}
+
+		icon, ok := getJSONString(page, "icon")
+		if ok && strings.TrimSpace(icon) != "" {
+			icon = strings.TrimSpace(icon)
+			if !validCustomPageIcons[icon] {
+				return fmt.Errorf("第%d个定制页面的图标不在预设列表中", i+1)
+			}
+		}
+
+		if _, exists := page["enabled"]; exists {
+			if _, ok := getJSONBool(page, "enabled"); !ok {
+				return fmt.Errorf("第%d个定制页面的enabled字段必须是布尔值", i+1)
+			}
+		}
+
+		if openMode, exists := page["open_mode"]; exists && openMode != nil {
+			openModeStr, ok := openMode.(string)
+			if !ok || !validCustomPageOpenModes[strings.TrimSpace(openModeStr)] {
+				return fmt.Errorf("第%d个定制页面的打开方式不合法，仅支持 embed 或 external", i+1)
+			}
+		}
+
+		if visibility, exists := page["visibility"]; exists && visibility != nil {
+			visibilityStr, ok := visibility.(string)
+			if !ok || !validExtensionVisibilities[strings.TrimSpace(visibilityStr)] {
+				return fmt.Errorf("第%d个定制页面的可见范围不合法，仅支持 all 或 admin", i+1)
+			}
+		}
+
+		if _, exists := page["sort"]; exists && page["sort"] != nil {
+			switch page["sort"].(type) {
+			case float64, int, int64, json.Number:
+			default:
+				return fmt.Errorf("第%d个定制页面的sort字段必须是数字", i+1)
+			}
+		}
+	}
+	return nil
+}
+
+// GetCustomPages returns enabled custom pages visible to admins (all visibilities).
+func GetCustomPages() []map[string]interface{} {
+	return GetCustomPagesForRole(true)
+}
+
+// GetCustomPagesForRole returns enabled custom pages with non-empty URLs for the given role.
+func GetCustomPagesForRole(isAdmin bool) []map[string]interface{} {
+	list := getJSONList(GetConsoleSetting().CustomPages)
+	result := make([]map[string]interface{}, 0, len(list))
+	for _, page := range list {
+		enabled, hasEnabled := getJSONBool(page, "enabled")
+		if hasEnabled && !enabled {
+			continue
+		}
+		if !hasEnabled {
+			continue
+		}
+		urlStr, _ := getJSONString(page, "url")
+		urlStr = strings.TrimSpace(urlStr)
+		if urlStr == "" {
+			continue
+		}
+		visibility, _ := getJSONString(page, "visibility")
+		visibility = NormalizeExtensionVisibility(visibility)
+		if visibility == "admin" && !isAdmin {
+			continue
+		}
+		id, _ := getJSONString(page, "id")
+		title, _ := getJSONString(page, "title")
+		icon, _ := getJSONString(page, "icon")
+		icon = strings.TrimSpace(icon)
+		if icon == "" || !validCustomPageIcons[icon] {
+			icon = "Link"
+		}
+		openMode, _ := getJSONString(page, "open_mode")
+		openMode = strings.TrimSpace(openMode)
+		if !validCustomPageOpenModes[openMode] {
+			openMode = "embed"
+		}
+		result = append(result, map[string]interface{}{
+			"id":        strings.TrimSpace(id),
+			"title":     strings.TrimSpace(title),
+			"icon":      icon,
+			"url":       urlStr,
+			"open_mode": openMode,
+			"sort":      getJSONSort(page),
+		})
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		si := getJSONSort(result[i])
+		sj := getJSONSort(result[j])
+		if si != sj {
+			return si < sj
+		}
+		idi, _ := result[i]["id"].(string)
+		idj, _ := result[j]["id"].(string)
+		return idi < idj
+	})
+	// Strip sort from public payload
+	for _, page := range result {
+		delete(page, "sort")
+	}
+	return result
 }
 
 func validateApiInfo(apiInfoStr string) error {

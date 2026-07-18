@@ -1,0 +1,40 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+    70|but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
+import { ExtensionsSettingsPage } from '@/features/system-settings/extensions'
+import {
+  EXTENSIONS_DEFAULT_SECTION,
+  EXTENSIONS_SECTION_IDS,
+} from '@/features/system-settings/extensions/section-registry'
+
+export const Route = createFileRoute(
+  '/_authenticated/system-settings/extensions/$section'
+)({
+  beforeLoad: ({ params }) => {
+    const validSections = EXTENSIONS_SECTION_IDS as unknown as string[]
+    if (!validSections.includes(params.section)) {
+      throw redirect({
+        to: '/system-settings/extensions/$section',
+        params: { section: EXTENSIONS_DEFAULT_SECTION },
+      })
+    }
+  },
+  component: ExtensionsSettingsPage,
+})

@@ -37,6 +37,9 @@ const STATUS_RELATED_KEYS = [
   'general_setting.quota_display_type',
   'general_setting.custom_currency_symbol',
   'general_setting.custom_currency_exchange_rate',
+  'console_setting.custom_pages',
+  'console_setting.availability_monitor_enabled',
+  'console_setting.availability_monitor_visibility',
 ]
 
 export function useUpdateOption() {

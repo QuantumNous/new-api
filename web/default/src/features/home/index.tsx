@@ -27,6 +27,7 @@ import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import { HomeHtmlFrame } from './components/home-html-frame'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -52,11 +53,13 @@ export function Home() {
     }
   }, [i18n.language, resolvedTheme])
 
+  const contentIsHtml = !!content && !isUrl && isLikelyHtml(content)
+
   useEffect(() => {
-    if (isUrl) {
+    if (isUrl || contentIsHtml) {
       syncIframePreferences()
     }
-  }, [isUrl, syncIframePreferences])
+  }, [contentIsHtml, isUrl, syncIframePreferences])
 
   if (!isLoaded) {
     return (
@@ -92,16 +95,13 @@ export function Home() {
       )
     }
 
-    const contentIsHtml = isLikelyHtml(content)
-
     if (contentIsHtml) {
       return (
         <PublicLayout showMainContainer={false}>
-          <RichContent
-            mode='html'
-            htmlVariant='isolated'
-            content={content}
-            className='custom-home-content'
+          <HomeHtmlFrame
+            html={content}
+            iframeRef={iframeRef}
+            onLoad={syncIframePreferences}
           />
         </PublicLayout>
       )

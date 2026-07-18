@@ -762,3 +762,62 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 
 	return total, nil
 }
+
+// GroupAvailabilityRecord is a channel-free projection of recent group logs.
+type GroupAvailabilityRecord struct {
+	CreatedAt int64 `json:"created_at"`
+	UseTime   int   `json:"use_time"`
+	Ok        bool  `json:"ok"`
+}
+
+// GetRecentGroupAvailabilityLogs returns the latest consume/error logs for a billing group.
+// Results are chronological (oldest → newest). No channel fields are loaded.
+func GetRecentGroupAvailabilityLogs(group string, limit int) ([]GroupAvailabilityRecord, error) {
+	if group == "" {
+		return []GroupAvailabilityRecord{}, nil
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	type row struct {
+		CreatedAt int64 `gorm:"column:created_at"`
+		UseTime   int   `gorm:"column:use_time"`
+		Type      int   `gorm:"column:type"`
+	}
+
+	var rows []row
+	order := "created_at desc, id desc"
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = clickHouseLogOrder("")
+	}
+
+	err := LOG_DB.Model(&Log{}).
+		Select("created_at", "use_time", "type").
+		Where("type IN ?", []int{LogTypeConsume, LogTypeError}).
+		Where(logGroupCol+" = ?", group).
+		Order(order).
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Reverse to chronological order for PAST → NOW charts.
+	for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
+		rows[i], rows[j] = rows[j], rows[i]
+	}
+
+	result := make([]GroupAvailabilityRecord, 0, len(rows))
+	for _, item := range rows {
+		result = append(result, GroupAvailabilityRecord{
+			CreatedAt: item.CreatedAt,
+			UseTime:   item.UseTime,
+			Ok:        item.Type == LogTypeConsume,
+		})
+	}
+	return result, nil
+}
