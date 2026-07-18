@@ -100,7 +100,15 @@ function ChannelCardComponent({
             {!isTagRow && selectCell && (
               <span className='shrink-0'>{selectCell}</span>
             )}
-            <div className='min-w-0 overflow-hidden'>{typeCell}</div>
+            <div
+              className={cn(
+                isTagRow
+                  ? 'shrink-0 overflow-visible [&_[data-slot=status-badge]]:max-w-none [&_[data-slot=status-badge]]:shrink-0'
+                  : 'min-w-0 overflow-hidden'
+              )}
+            >
+              {typeCell}
+            </div>
           </div>
           <div className='flex shrink-0 items-center gap-1.5'>
             {showStatusBadge && statusCell}
@@ -113,7 +121,12 @@ function ChannelCardComponent({
         <div className='flex items-start justify-between gap-3'>
           {/* Left column */}
           <div className='flex min-w-0 flex-1 flex-col gap-3 overflow-hidden'>
-            <div className='min-w-0 text-sm'>
+            <div
+              className={cn(
+                'min-w-0 text-sm',
+                isTagRow && '[&>div]:!max-w-none [&>div]:w-full'
+              )}
+            >
               {!isTagRow && (
                 <div className={labelClass}>
                   #{sensitiveVisible ? row.original.id : SENSITIVE_MASK}

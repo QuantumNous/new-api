@@ -529,6 +529,13 @@ export const STATIC_I18N_KEYS = [
   'Detection complete: {{add}} to add, {{remove}} to remove',
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
+  '{{count}} channel',
+  '{{count}} channel_one',
+  '{{count}} channel_other',
+  '{{count}} channel_few',
+  '{{count}} channel_many',
+  '{{status}} ({{count}})',
+  'Inactive',
 
   // Advanced Custom model discovery
   'Only one OpenAI Models route is allowed',
