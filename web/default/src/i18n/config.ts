@@ -58,7 +58,8 @@ export const i18nReady = i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    fallbackLng: 'en',
+    // 本地与国内部署默认中文；已缓存的 i18nextLng 仍优先于 fallback。
+    fallbackLng: 'zhCN',
     supportedLngs: ['en', 'zhCN', 'fr', 'ru', 'ja', 'vi', 'zhTW'],
     load: 'currentOnly',
     nsSeparator: false, // Allow literal colons in keys (e.g., URLs, labels)
