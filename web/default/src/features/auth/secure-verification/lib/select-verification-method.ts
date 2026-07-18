@@ -16,24 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export interface ApiResponse<T = unknown> {
-  success: boolean
-  message?: string
-  data?: T
-}
+import type { VerificationMethod, VerificationMethods } from '../types'
 
-export interface PasskeyStatus {
-  enabled: boolean
-  system_enabled: boolean
-  last_used_at?: string | null
-  backup_eligible?: boolean
-  backup_state?: boolean
-  [key: string]: unknown
-}
+export function selectVerificationMethod(
+  methods: VerificationMethods,
+  preferredMethod?: VerificationMethod
+): VerificationMethod | null {
+  const passkeyAvailable = methods.hasPasskey && methods.passkeySupported
 
-export interface PasskeyOptionsPayload {
-  options?: unknown
-  publicKey?: unknown
-  response?: unknown
-  Response?: unknown
+  if (preferredMethod === '2fa' && methods.has2FA) return '2fa'
+  if (preferredMethod === 'passkey' && passkeyAvailable) return 'passkey'
+  if (passkeyAvailable) return 'passkey'
+  if (methods.has2FA) return '2fa'
+  return null
 }

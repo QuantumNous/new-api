@@ -46,7 +46,8 @@ export async function checkVerificationMethods(): Promise<VerificationMethods> {
       Boolean(twoFAResponse?.success) && Boolean(twoFAResponse?.data?.enabled)
     const hasPasskey =
       Boolean(passkeyResponse?.success) &&
-      Boolean(passkeyResponse?.data?.enabled)
+      Boolean(passkeyResponse?.data?.enabled) &&
+      Boolean(passkeyResponse?.data?.system_enabled)
 
     return {
       has2FA,

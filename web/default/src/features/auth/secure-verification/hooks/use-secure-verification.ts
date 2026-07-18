@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -26,6 +26,7 @@ import {
 } from '@/lib/secure-verification'
 
 import { checkVerificationMethods, verify } from '../api'
+import { selectVerificationMethod } from '../lib/select-verification-method'
 import type {
   SecureVerificationState,
   StartVerificationOptions,
@@ -87,7 +88,12 @@ export function useSecureVerification(
       const { preferredMethod, title, description } = config
       const availableMethods = await fetchVerificationMethods()
 
-      if (!availableMethods.has2FA && !availableMethods.hasPasskey) {
+      const defaultMethod = selectVerificationMethod(
+        availableMethods,
+        preferredMethod
+      )
+
+      if (!defaultMethod) {
         toast.error(
           i18next.t(
             'Please enable Two-factor Authentication or Passkey before proceeding'
@@ -99,15 +105,6 @@ export function useSecureVerification(
           )
         )
         return false
-      }
-
-      let defaultMethod: VerificationMethod | null = preferredMethod ?? null
-      if (!defaultMethod) {
-        if (availableMethods.hasPasskey && availableMethods.passkeySupported) {
-          defaultMethod = 'passkey'
-        } else if (availableMethods.has2FA) {
-          defaultMethod = '2fa'
-        }
       }
 
       setState((prev) => ({
@@ -211,11 +208,7 @@ export function useSecureVerification(
     [methods]
   )
 
-  const recommendedMethod = useMemo<VerificationMethod | null>(() => {
-    if (methods.hasPasskey && methods.passkeySupported) return 'passkey'
-    if (methods.has2FA) return '2fa'
-    return null
-  }, [methods])
+  const recommendedMethod = selectVerificationMethod(methods)
 
   return {
     open,

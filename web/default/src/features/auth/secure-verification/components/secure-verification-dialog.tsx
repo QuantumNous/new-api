@@ -61,7 +61,9 @@ export function SecureVerificationDialog({
   }, [methods])
 
   const activeMethod =
-    state.method ?? (availableTabs.length > 0 ? availableTabs[0] : null)
+    state.method && availableTabs.includes(state.method)
+      ? state.method
+      : (availableTabs[0] ?? null)
 
   const title =
     state.title ??

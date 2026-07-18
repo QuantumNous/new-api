@@ -186,14 +186,17 @@ func PasskeyStatus(c *gin.Context) {
 		return
 	}
 
+	data := gin.H{
+		"enabled":        false,
+		"system_enabled": system_setting.GetPasskeySettings().Enabled,
+	}
+
 	credential, err := model.GetPasskeyByUserID(user.Id)
 	if errors.Is(err, model.ErrPasskeyNotFound) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
-			"data": gin.H{
-				"enabled": false,
-			},
+			"data":    data,
 		})
 		return
 	}
@@ -202,10 +205,8 @@ func PasskeyStatus(c *gin.Context) {
 		return
 	}
 
-	data := gin.H{
-		"enabled":      true,
-		"last_used_at": credential.LastUsedAt,
-	}
+	data["enabled"] = true
+	data["last_used_at"] = credential.LastUsedAt
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

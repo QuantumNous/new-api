@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Link } from '@tanstack/react-router'
 import { AlertTriangle, KeyRound, Loader2, ShieldAlert } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { StatusBadge } from '@/components/status-badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +53,8 @@ import {
   type VerificationMethods,
 } from '@/features/auth/secure-verification'
 import dayjs from '@/lib/dayjs'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 interface PasskeyCardProps {
   loading: boolean
@@ -61,6 +65,8 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [restrictedMethod, setRestrictedMethod] =
     useState<VerificationMethod | null>(null)
+  const isSuperAdmin =
+    useAuthStore((state) => state.auth.user?.role) === ROLE.SUPER_ADMIN
 
   const {
     status,
@@ -69,6 +75,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
     removing,
     supported,
     enabled,
+    systemEnabled,
     lastUsed,
     register,
     remove,
@@ -102,6 +109,11 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
   }, [restrictedMethod, verificationMethods])
 
   const handleRegister = useCallback(async () => {
+    if (systemEnabled !== true) {
+      toast.info(t('Passkey login is disabled by the administrator.'))
+      return
+    }
+
     if (!supported) {
       toast.info(t('This device does not support Passkey'))
       return
@@ -123,7 +135,14 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
         'Confirm your identity with Two-factor Authentication before registering a Passkey.'
       ),
     })
-  }, [fetchVerificationMethods, register, startVerification, supported, t])
+  }, [
+    fetchVerificationMethods,
+    register,
+    startVerification,
+    supported,
+    systemEnabled,
+    t,
+  ])
 
   const handleRemove = useCallback(async () => {
     const methods = await fetchVerificationMethods()
@@ -250,7 +269,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                   <div className='flex flex-wrap items-center gap-2'>
                     <p className='font-medium'>{t('Passkey Authentication')}</p>
                     <StatusBadge
-                      label={enabled ? t('Enabled') : t('Disabled')}
+                      label={enabled ? t('Bound') : t('Not bound')}
                       variant={enabled ? 'success' : 'neutral'}
                       showDot
                       copyable={false}
@@ -270,7 +289,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                 </div>
               </div>
 
-              {!enabled && (
+              {!enabled && systemEnabled === true && (
                 <Button
                   className='w-full sm:w-auto xl:w-full 2xl:w-auto'
                   onClick={handleRegister}
@@ -283,6 +302,24 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                 </Button>
               )}
             </div>
+
+            {systemEnabled === false && (
+              <Alert>
+                <ShieldAlert />
+                <AlertTitle>{t('Passkey is unavailable')}</AlertTitle>
+                <AlertDescription>
+                  <p>{t('Passkey login is disabled by the administrator.')}</p>
+                  {isSuperAdmin && (
+                    <Link
+                      to='/system-settings/auth/$section'
+                      params={{ section: 'passkey' }}
+                    >
+                      {t('Open Passkey settings')}
+                    </Link>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
 
             {enabled && (
               <div className='flex flex-col gap-3 border-t pt-6 sm:flex-row xl:flex-col 2xl:flex-row'>
