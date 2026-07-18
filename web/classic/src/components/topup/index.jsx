@@ -28,6 +28,7 @@ import {
   renderQuotaWithAmount,
   copy,
   getQuotaPerUnit,
+  getCurrencyConfig,
 } from '../../helpers';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -800,8 +801,56 @@ const TopUp = () => {
     }
   }, [statusState?.status]);
 
+  const getUsdExchangeRate = () => {
+    const statusStr = localStorage.getItem('status');
+
+    try {
+      if (statusStr) {
+        const status = JSON.parse(statusStr);
+        const rate = Number(status?.usd_exchange_rate);
+        if (Number.isFinite(rate) && rate > 0) {
+          return rate;
+        }
+      }
+    } catch (e) {}
+
+    return 7;
+  };
+
+  const isUsdPaymentMethod = () =>
+    payWay === 'stripe' ||
+    payWay === 'waffo_pancake' ||
+    (typeof payWay === 'string' && payWay.startsWith('waffo:'));
+
+  const formatPaymentAmount = (value) => {
+    const { symbol, rate, type } = getCurrencyConfig();
+    const numericAmount = Number(value);
+    const paymentIsUsd = isUsdPaymentMethod();
+    const displaySymbol =
+      type === 'TOKENS' ? (paymentIsUsd ? '$' : '¥') : symbol;
+
+    if (!Number.isFinite(numericAmount)) {
+      return `${displaySymbol}${value}`;
+    }
+
+    let displayAmount = numericAmount;
+
+    if (!paymentIsUsd) {
+      const usdRate = getUsdExchangeRate();
+      if (type === 'USD') {
+        displayAmount = numericAmount / usdRate;
+      } else if (type === 'CUSTOM') {
+        displayAmount = (numericAmount / usdRate) * rate;
+      }
+    } else if (type !== 'USD' && type !== 'TOKENS') {
+      displayAmount = numericAmount * rate;
+    }
+
+    return `${displaySymbol}${displayAmount.toFixed(2)}`;
+  };
+
   const renderAmount = () => {
-    return amount + ' ' + t('元');
+    return formatPaymentAmount(amount);
   };
 
   const getAmount = async (value) => {
@@ -932,6 +981,7 @@ const TopUp = () => {
         payMethods={confirmPayMethods}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
+        formatPaymentAmount={formatPaymentAmount}
       />
 
       {/* 充值账单模态框 */}
