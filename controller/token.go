@@ -230,6 +230,11 @@ func AddToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data": gin.H{
+			"id":   cleanToken.Id,
+			"key":  cleanToken.Key,
+			"name": cleanToken.Name,
+		},
 	})
 }
 

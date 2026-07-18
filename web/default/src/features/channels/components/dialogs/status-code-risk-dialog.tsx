@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { AlertTriangle } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -25,6 +25,12 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+
+const Markdown = lazy(() =>
+  import('@/components/ui/markdown').then((module) => ({
+    default: module.Markdown,
+  }))
+)
 
 interface StatusCodeRiskDialogProps {
   open: boolean
@@ -87,8 +93,7 @@ export function StatusCodeRiskDialog({
           {t('High-risk operation confirmation')}
         </>
       }
-      description={t('High-risk status code retry risk disclaimer')}
-      contentClassName='max-w-lg'
+      contentClassName='sm:max-w-3xl'
       titleClassName='text-destructive flex items-center gap-2'
       contentHeight='auto'
       bodyClassName='space-y-4'
@@ -108,6 +113,23 @@ export function StatusCodeRiskDialog({
       }
     >
       <div className='space-y-4'>
+        {open ? (
+          <div className='border-warning/40 bg-warning/5 rounded-lg border p-3 sm:p-4'>
+            <Suspense
+              fallback={
+                <div
+                  aria-hidden='true'
+                  className='bg-warning/10 h-32 animate-pulse rounded-md'
+                />
+              }
+            >
+              <Markdown className='[&_h3]:text-warning text-sm [&_h3]:text-base'>
+                {t('High-risk status code retry risk disclaimer')}
+              </Markdown>
+            </Suspense>
+          </div>
+        ) : null}
+
         {detailItems.length > 0 && (
           <div className='border-destructive/30 bg-destructive/5 rounded-lg border p-3'>
             <p className='mb-2 text-sm font-medium'>

@@ -46,6 +46,11 @@ export type PricingModel = {
   audio_ratio?: number | null
   audio_completion_ratio?: number | null
   enable_groups: string[]
+  /**
+   * Groups keyed by the channel's primary endpoint type (e.g. anthropic, openai).
+   * Preserves endpoint×group pairing; prefer this over enable_groups when filtering by protocol.
+   */
+  enable_groups_by_endpoint?: Record<string, string[]>
   tags?: string
   supported_endpoint_types?: string[]
   key?: string

@@ -32,6 +32,11 @@ type Pricing struct {
 	AudioRatio             *float64                `json:"audio_ratio,omitempty"`
 	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
 	EnableGroup            []string                `json:"enable_groups"`
+	// EnableGroupsByEndpoint maps a channel's primary endpoint type to the
+	// groups where that model is actually served via that endpoint. Unlike
+	// EnableGroup (union across all channels), this preserves endpoint×group
+	// pairing so clients can filter groups per protocol (e.g. Anthropic vs OpenAI).
+	EnableGroupsByEndpoint map[string][]string     `json:"enable_groups_by_endpoint,omitempty"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
@@ -115,6 +120,21 @@ func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCusto
 		return config.SupportedEndpointTypesForModel(ability.Model)
 	}
 	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+}
+
+// primaryPricingEndpointType returns the channel's native protocol endpoint,
+// skipping image-generation which may be prepended as a capability flag.
+func primaryPricingEndpointType(endpoints []constant.EndpointType) constant.EndpointType {
+	for _, et := range endpoints {
+		if et == constant.EndpointTypeImageGeneration {
+			continue
+		}
+		return et
+	}
+	if len(endpoints) > 0 {
+		return endpoints[0]
+	}
+	return ""
 }
 
 // loadPricingAdvancedCustomConfigs runs inside updatePricing while
@@ -259,6 +279,8 @@ func updatePricing() {
 	}
 
 	modelGroupsMap := make(map[string]*types.Set[string])
+	// model -> primary endpoint -> groups
+	modelGroupsByEndpoint := make(map[string]map[string]*types.Set[string])
 
 	for _, ability := range enableAbilities {
 		groups, ok := modelGroupsMap[ability.Model]
@@ -273,7 +295,7 @@ func updatePricing() {
 	modelSupportEndpointsStr := make(map[string][]string)
 	advancedCustomConfigs := loadPricingAdvancedCustomConfigs(enableAbilities)
 
-	// 先根据已有能力填充原生端点
+	// 先根据已有能力填充原生端点，并按渠道主端点记录分组
 	for _, ability := range enableAbilities {
 		endpoints := modelSupportEndpointsStr[ability.Model]
 		channelTypes := getPricingEndpointTypesForAbility(ability, advancedCustomConfigs)
@@ -283,6 +305,23 @@ func updatePricing() {
 			}
 		}
 		modelSupportEndpointsStr[ability.Model] = endpoints
+
+		primary := primaryPricingEndpointType(channelTypes)
+		if primary == "" || ability.Group == "" {
+			continue
+		}
+		byEndpoint, ok := modelGroupsByEndpoint[ability.Model]
+		if !ok {
+			byEndpoint = make(map[string]*types.Set[string])
+			modelGroupsByEndpoint[ability.Model] = byEndpoint
+		}
+		primaryKey := string(primary)
+		endpointGroups, ok := byEndpoint[primaryKey]
+		if !ok {
+			endpointGroups = types.NewSet[string]()
+			byEndpoint[primaryKey] = endpointGroups
+		}
+		endpointGroups.Add(ability.Group)
 	}
 
 	// 再补充模型自定义端点：若配置有效则追加到已有推断，不再裁剪渠道真实能力
@@ -356,9 +395,17 @@ func updatePricing() {
 
 	pricingMap = make([]Pricing, 0)
 	for model, groups := range modelGroupsMap {
+		var enableGroupsByEndpoint map[string][]string
+		if byEndpoint := modelGroupsByEndpoint[model]; len(byEndpoint) > 0 {
+			enableGroupsByEndpoint = make(map[string][]string, len(byEndpoint))
+			for endpoint, endpointGroups := range byEndpoint {
+				enableGroupsByEndpoint[endpoint] = endpointGroups.Items()
+			}
+		}
 		pricing := Pricing{
 			ModelName:              model,
 			EnableGroup:            groups.Items(),
+			EnableGroupsByEndpoint: enableGroupsByEndpoint,
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
 		}
 
