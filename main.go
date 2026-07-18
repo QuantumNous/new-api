@@ -40,13 +40,13 @@ import (
 	_ "net/http/pprof"
 )
 
-//go:embed web/default/dist web/default/dist/.well-known/waffo-challenge.txt
+//go:embed web/default/dist
 var buildFS embed.FS
 
 //go:embed web/default/dist/index.html
 var indexPage []byte
 
-//go:embed web/classic/dist web/classic/dist/.well-known/waffo-challenge.txt
+//go:embed web/classic/dist
 var classicBuildFS embed.FS
 
 //go:embed web/classic/dist/index.html

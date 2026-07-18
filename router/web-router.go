@@ -21,7 +21,15 @@ type ThemeAssets struct {
 	ClassicIndexPage []byte
 }
 
+const waffoDomainVerificationToken = "760c72286c01046cfc453ce8c7324f2b"
+
+func serveWaffoDomainVerification(c *gin.Context) {
+	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(waffoDomainVerificationToken))
+}
+
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
+	router.GET("/.well-known/waffo-challenge.txt", serveWaffoDomainVerification)
+
 	defaultFS := common.EmbedFolder(assets.DefaultBuildFS, "web/default/dist")
 	classicFS := common.EmbedFolder(assets.ClassicBuildFS, "web/classic/dist")
 	themeFS := common.NewThemeAwareFS(defaultFS, classicFS)
