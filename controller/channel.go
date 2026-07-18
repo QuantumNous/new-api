@@ -1285,6 +1285,11 @@ func FetchModels(c *gin.Context) {
 			Key:     key,
 			BaseURL: &baseURL,
 		}
+		if req.Proxy != nil {
+			settings := channel.GetSetting()
+			settings.Proxy = strings.TrimSpace(*req.Proxy)
+			channel.SetSetting(settings)
+		}
 	}
 
 	models, err := fetchChannelUpstreamModelIDs(channel)

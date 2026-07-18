@@ -384,6 +384,64 @@ func TestFetchModelsUsesSharedChannelFetchBehavior(t *testing.T) {
 	require.JSONEq(t, `{"success":true,"message":"","data":["claude-sonnet"]}`, recorder.Body.String())
 }
 
+func TestFetchModelsUsesConfiguredProxyForUnsavedChannel(t *testing.T) {
+	tests := []struct {
+		name             string
+		channelType      int
+		wantPath         string
+		proxyResponse    string
+		wantResponseBody string
+	}{
+		{
+			name:             "OpenAI-compatible channel",
+			channelType:      constant.ChannelTypeOpenAI,
+			wantPath:         "/v1/models",
+			proxyResponse:    `{"data":[{"id":"proxied-openai-model"}]}`,
+			wantResponseBody: `{"success":true,"message":"","data":["proxied-openai-model"]}`,
+		},
+		{
+			name:             "Ollama channel",
+			channelType:      constant.ChannelTypeOllama,
+			wantPath:         "/api/tags",
+			proxyResponse:    `{"models":[{"name":"proxied-ollama-model"}]}`,
+			wantResponseBody: `{"success":true,"message":"","data":["proxied-ollama-model"]}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			proxiedRequest := make(chan *http.Request, 1)
+			proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				proxiedRequest <- r.Clone(r.Context())
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(test.proxyResponse))
+			}))
+			t.Cleanup(proxyServer.Close)
+
+			body, err := common.Marshal(map[string]any{
+				"base_url": "http://upstream.invalid",
+				"type":     test.channelType,
+				"key":      "test-key",
+				"proxy":    proxyServer.URL,
+			})
+			require.NoError(t, err)
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+
+			FetchModels(ctx)
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			require.JSONEq(t, test.wantResponseBody, recorder.Body.String())
+			request := <-proxiedRequest
+			require.Equal(t, "upstream.invalid", request.URL.Host)
+			require.Equal(t, test.wantPath, request.URL.Path)
+		})
+	}
+}
+
 func TestNormalizeModelNames(t *testing.T) {
 	result := normalizeModelNames([]string{
 		" gpt-4o ",
