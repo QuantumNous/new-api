@@ -21,12 +21,40 @@ For commercial licensing, please contact support@quantumnous.com
  */
 import { LOG_CATEGORY_LABELS } from '../constants'
 import type {
+  CommonFilters,
   LogCategory,
   LogFilters,
   CommonLogFilters,
   DrawingLogFilters,
   TaskLogFilters,
 } from '../types'
+import { getDefaultTimeRange } from './utils'
+
+type TimeRangeFilters = Pick<CommonFilters, 'startTime' | 'endTime'>
+
+// URL-backed dates are fixed filters. Keeping both values absent preserves the
+// rolling default so it can be recalculated when the page is refreshed.
+export function getTimeRangeFilters(
+  startTime?: number,
+  endTime?: number
+): TimeRangeFilters {
+  return {
+    ...(startTime !== undefined ? { startTime: new Date(startTime) } : {}),
+    ...(endTime !== undefined ? { endTime: new Date(endTime) } : {}),
+  }
+}
+
+export function getDisplayTimeRange(
+  filters: TimeRangeFilters,
+  now: Date = new Date()
+): { start?: Date; end?: Date } {
+  const hasExplicitTimeRange =
+    filters.startTime !== undefined || filters.endTime !== undefined
+  if (hasExplicitTimeRange) {
+    return { start: filters.startTime, end: filters.endTime }
+  }
+  return getDefaultTimeRange(now)
+}
 
 // ============================================================================
 // Filter Building Functions

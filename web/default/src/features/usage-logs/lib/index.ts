@@ -41,11 +41,13 @@ export {
   getLogTypeConfig,
   isPerCallBilling,
   getDefaultTimeRange,
-  buildQueryParams,
   buildBaseParams,
   buildApiParams,
   fetchLogsByCategory,
 } from './utils'
+
+// Query utilities
+export { buildQueryParams } from './query'
 
 // Status mapper utilities
 export { createStatusMapper } from './status'

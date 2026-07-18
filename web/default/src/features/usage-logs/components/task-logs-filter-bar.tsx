@@ -18,12 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { buildSearchParams } from '../lib/filter'
-import { getDefaultTimeRange } from '../lib/utils'
+import {
+  buildSearchParams,
+  getDisplayTimeRange,
+  getTimeRangeFilters,
+} from '../lib/filter'
 import type { DrawingLogFilters, LogCategory, TaskLogFilters } from '../types'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import {
@@ -72,18 +75,11 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   const { isAdminView: isAdmin } = useLogsViewScope()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
-  const [filters, setFilters] = useState<TaskLogsFilters>(() => {
-    const { start, end } = getDefaultTimeRange()
-    return { startTime: start, endTime: end }
-  })
+  const [filters, setFilters] = useState<TaskLogsFilters>({})
 
   useEffect(() => {
-    const { start, end } = getDefaultTimeRange()
     const baseFilters = {
-      startTime: searchParams.startTime
-        ? new Date(searchParams.startTime)
-        : start,
-      endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
+      ...getTimeRangeFilters(searchParams.startTime, searchParams.endTime),
       ...(searchParams.channel
         ? { channel: String(searchParams.channel) }
         : {}),
@@ -115,6 +111,17 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
     []
   )
 
+  const handleTimeRangeChange = useCallback(
+    (range: { start?: Date; end?: Date }) => {
+      setFilters((current) => ({
+        ...current,
+        startTime: range.start,
+        endTime: range.end,
+      }))
+    },
+    []
+  )
+
   const handleApply = useCallback(() => {
     const filterParams = buildSearchParams(filters, props.logCategory)
     navigate({
@@ -129,17 +136,13 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   }, [filters, navigate, props.logCategory, queryClient])
 
   const handleReset = useCallback(() => {
-    const { start, end } = getDefaultTimeRange()
-    const resetFilters: TaskLogsFilters = { startTime: start, endTime: end }
-    setFilters(resetFilters)
+    setFilters({})
 
     navigate({
       to: '/usage-logs/$section',
       params: { section: props.logCategory },
       search: {
         page: 1,
-        startTime: start.getTime(),
-        endTime: end.getTime(),
       },
     })
     queryClient.invalidateQueries({ queryKey: ['logs'] })
@@ -160,6 +163,9 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   )
 
   const filterValue = getFilterValue(filters, props.logCategory)
+  const displayTimeRange = getDisplayTimeRange(filters)
+  const hasExplicitTimeRange =
+    filters.startTime !== undefined || filters.endTime !== undefined
   const placeholder =
     props.logCategory === 'drawing'
       ? t('Filter by MjProxy task ID')
@@ -168,12 +174,9 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   const dateRangeFilter = (
     <LogsFilterField wide>
       <CompactDateTimeRangePicker
-        start={filters.startTime}
-        end={filters.endTime}
-        onChange={({ start, end }) => {
-          handleChange('startTime', start)
-          handleChange('endTime', end)
-        }}
+        start={displayTimeRange.start}
+        end={displayTimeRange.end}
+        onChange={handleTimeRangeChange}
       />
     </LogsFilterField>
   )
@@ -217,7 +220,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
         </>
       }
       mobileFilterCount={[filterValue, filters.channel].filter(Boolean).length}
-      hasActiveFilters={hasAdditionalFilters}
+      hasActiveFilters={hasAdditionalFilters || hasExplicitTimeRange}
       onSearch={handleApply}
       searchLoading={fetchingLogs > 0}
       onReset={handleReset}
