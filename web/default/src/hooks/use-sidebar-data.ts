@@ -36,7 +36,8 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
+import { ChannelMonitorIcon } from '@/features/channel-monitor/icon'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -123,6 +124,12 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: '渠道监控',
+            url: '/channel-monitor',
+            icon: ChannelMonitorIcon,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('Models'),

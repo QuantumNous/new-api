@@ -105,8 +105,17 @@ type ChannelTestDialogProps = {
   onOpenChange: (open: boolean) => void
 }
 
+export type ChannelTestTarget = Pick<
+  Channel,
+  'id' | 'name' | 'models' | 'test_model'
+>
+
+type ChannelTestDialogForChannelProps = ChannelTestDialogProps & {
+  channel: ChannelTestTarget
+}
+
 type ChannelTestDialogContentProps = ChannelTestDialogProps & {
-  currentRow: Channel
+  currentRow: ChannelTestTarget
 }
 
 type ModelRow = {
@@ -311,11 +320,23 @@ export function ChannelTestDialog({
   }
 
   return (
-    <ChannelTestDialogContent
-      key={currentRow.id}
+    <ChannelTestDialogForChannel
+      channel={currentRow}
       open={open}
       onOpenChange={onOpenChange}
-      currentRow={currentRow}
+    />
+  )
+}
+
+export function ChannelTestDialogForChannel(
+  props: ChannelTestDialogForChannelProps
+) {
+  return (
+    <ChannelTestDialogContent
+      key={props.channel.id}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      currentRow={props.channel}
     />
   )
 }

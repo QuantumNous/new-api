@@ -83,7 +83,7 @@ export type CodexCredentialRefreshResponse = {
 export async function getChannels(
   params: GetChannelsParams = {}
 ): Promise<GetChannelsResponse> {
-  const res = await api.get('/api/channel', { params })
+  const res = await api.get('/api/channel/', { params })
   return res.data
 }
 
@@ -120,7 +120,7 @@ export async function getChannelOps(): Promise<ChannelOpsResponse> {
 export async function createChannel(
   data: AddChannelRequest
 ): Promise<{ success: boolean; message?: string }> {
-  const res = await api.post('/api/channel', data, channelActionConfig())
+  const res = await api.post('/api/channel/', data, channelActionConfig())
   return res.data
 }
 

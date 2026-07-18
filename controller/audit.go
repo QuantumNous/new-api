@@ -51,9 +51,30 @@ var auditContentTemplates = map[string]string{
 	"subscription.user_plan_reset": "Reset active plan ${plan_id} subscriptions for user ${target_user_id}",
 }
 
-// auditContentEN 按 action 模板渲染英文兜底文本；未登记的 action 退回 action 本身。
+// channelMonitorAuditContentTemplates 是自定义渠道监控功能的固定中文日志模板。
+// 该页面仅供内部使用，不跟随系统语言切换。
+var channelMonitorAuditContentTemplates = map[string]string{
+	"channel.status_update":                        "已将渠道 ${id} 的状态更新为 ${status}",
+	"channel.monitor_smart_schedule_config_update": "已更新渠道 ${id} 的智能调度设置",
+	"channel.monitor_group_ratio_sync":             "已根据上游倍率 ${upstream_ratio} 和系数 ${coefficient}，将分组 ${group} 的倍率更新为 ${ratio}",
+	"channel.monitor_group_ratio_update":           "已将分组 ${group} 的倍率更新为 ${ratio}",
+	"channel.monitor_ratio_update":                 "已将渠道 ${id} 的倍率更新为 ${ratio}",
+	"channel.monitor_ratio_update_run":             "已启动上游倍率更新任务 ${task_id}",
+	"channel.monitor_upstream_config_update":       "已更新渠道 ${id} 的上游配置（${upstream_type}）",
+	"channel.monitor_upstream_ratio_fetch":         "已获取渠道 ${id} 的上游倍率 ${ratio}",
+	"channel.monitor_upstream_group_apply":         "已将上游分组 ${group} 应用于渠道 ${id}（已更新 ${keys_updated} 个令牌，倍率 ${ratio}）",
+	"channel.monitor_smart_schedule_run":           "已启动智能调度任务 ${task_id}",
+	"channel.monitor_order_update":                 "已更新 ${channel_count} 个监控渠道的自定义顺序",
+	"channel.monitor_settings_update":              "已更新渠道监控设置",
+}
+
+// auditContentEN 渲染日志兜底文本；渠道监控使用固定中文，其余操作使用英文基线。
+// 未登记的 action 退回 action 本身。
 func auditContentEN(action string, params map[string]interface{}) string {
-	tmpl, ok := auditContentTemplates[action]
+	tmpl, ok := channelMonitorAuditContentTemplates[action]
+	if !ok {
+		tmpl, ok = auditContentTemplates[action]
+	}
 	if !ok {
 		return action
 	}

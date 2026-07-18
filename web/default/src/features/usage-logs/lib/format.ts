@@ -390,10 +390,32 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   generic: '{{method}} {{route}}',
 }
 
+// 渠道监控是内部自定义功能，操作日志固定使用中文，不跟随系统语言切换。
+const CHANNEL_MONITOR_AUDIT_TEMPLATES: Record<string, string> = {
+  'channel.status_update': '已将渠道 {{id}} 的状态更新为 {{status}}',
+  'channel.monitor_smart_schedule_config_update':
+    '已更新渠道 {{id}} 的智能调度设置',
+  'channel.monitor_group_ratio_sync':
+    '已根据上游倍率 {{upstream_ratio}} 和系数 {{coefficient}}，将分组 {{group}} 的倍率更新为 {{ratio}}',
+  'channel.monitor_group_ratio_update':
+    '已将分组 {{group}} 的倍率更新为 {{ratio}}',
+  'channel.monitor_ratio_update': '已将渠道 {{id}} 的倍率更新为 {{ratio}}',
+  'channel.monitor_ratio_update_run': '已启动上游倍率更新任务 {{task_id}}',
+  'channel.monitor_upstream_config_update':
+    '已更新渠道 {{id}} 的上游配置（{{upstream_type}}）',
+  'channel.monitor_upstream_ratio_fetch':
+    '已获取渠道 {{id}} 的上游倍率 {{ratio}}',
+  'channel.monitor_upstream_group_apply':
+    '已将上游分组 {{group}} 应用于渠道 {{id}}（已更新 {{keys_updated}} 个令牌，倍率 {{ratio}}）',
+  'channel.monitor_smart_schedule_run': '已启动智能调度任务 {{task_id}}',
+  'channel.monitor_order_update':
+    '已更新 {{channel_count}} 个监控渠道的自定义顺序',
+  'channel.monitor_settings_update': '已更新渠道监控设置',
+}
+
 /**
- * Render the localized content of an audit/login log from its structured
- * `other.op` descriptor. Returns null when the log has no recognized action,
- * letting callers fall back to the raw `content` field.
+ * Render audit/login content from its structured `other.op` descriptor.
+ * Channel-monitor actions use fixed Chinese copy; other actions use i18n.
  */
 export function renderAuditContent(
   other: LogOtherData | null | undefined,
@@ -401,6 +423,14 @@ export function renderAuditContent(
 ): string | null {
   const op = other?.op
   if (!op?.action) return null
+  const fixedChineseTemplate = CHANNEL_MONITOR_AUDIT_TEMPLATES[op.action]
+  if (fixedChineseTemplate) {
+    const params = op.params ?? {}
+    return fixedChineseTemplate.replaceAll(/\{\{(\w+)\}\}/g, (_match, key) => {
+      const value = params[key]
+      return value == null ? '' : String(value)
+    })
+  }
   const template = AUDIT_TEMPLATES[op.action]
   if (!template) return null
   return t(template, (op.params ?? {}) as Record<string, unknown>)
