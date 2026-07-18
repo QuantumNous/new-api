@@ -59,13 +59,25 @@ func cacheDecrTokenQuota(key string, decrement int64) error {
 	return cacheIncrTokenQuota(key, -decrement)
 }
 
-func cacheTryDecrTokenQuota(key string, decrement int64) error {
+func cacheTryDecrTokenQuota(tokenId int, key string, decrement int64) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	key = common.GenerateHMAC(key)
+	hmacKey := common.GenerateHMAC(key)
+	err := common.RedisHDecrByIfEnough(
+		fmt.Sprintf("token:%s", hmacKey),
+		constant.TokenFiledRemainQuota,
+		"UnlimitedQuota",
+		decrement,
+	)
+	if !errors.Is(err, common.ErrRedisQuotaUnavailable) {
+		return err
+	}
+	if err := ensureTokenQuotaCache(tokenId, key); err != nil {
+		return err
+	}
 	return common.RedisHDecrByIfEnough(
-		fmt.Sprintf("token:%s", key),
+		fmt.Sprintf("token:%s", hmacKey),
 		constant.TokenFiledRemainQuota,
 		"UnlimitedQuota",
 		decrement,

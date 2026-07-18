@@ -465,7 +465,7 @@ func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 			if err := ensureTokenQuotaCache(id, key); err != nil {
 				return err
 			}
-			if err := cacheTryDecrTokenQuota(key, int64(quota)); err != nil {
+			if err := cacheTryDecrTokenQuota(id, key, int64(quota)); err != nil {
 				return err
 			}
 		} else {
@@ -497,7 +497,7 @@ func DecreaseTokenQuotaDirect(id int, key string, quota int) error {
 				return err
 			}
 			if common.RedisEnabled {
-				if err := cacheTryDecrTokenQuota(key, int64(quota)); err != nil {
+				if err := cacheTryDecrTokenQuota(id, key, int64(quota)); err != nil {
 					return err
 				}
 			}

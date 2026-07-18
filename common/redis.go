@@ -332,25 +332,30 @@ func RedisHIncrBy(key, field string, delta int64) error {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis HINCRBY: key=%s, field=%s, delta=%d", key, field, delta))
 	}
-	ttlCmd := RDB.TTL(context.Background(), key)
-	ttl, err := ttlCmd.Result()
-	if err != nil && !errors.Is(err, redis.Nil) {
-		return fmt.Errorf("failed to get TTL: %w", err)
+	const script = `
+if not redis.call('HGET', KEYS[1], 'Id') or not redis.call('HGET', KEYS[1], ARGV[1]) then
+  return -2
+end
+redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[2])
+local expiration = tonumber(ARGV[3])
+if expiration ~= nil and expiration > 0 then
+  redis.call('EXPIRE', KEYS[1], expiration)
+end
+return 1
+`
+	result, err := RDB.Eval(
+		context.Background(),
+		script,
+		[]string{key},
+		field,
+		delta,
+		RedisKeyCacheSeconds(),
+	).Int64()
+	if err != nil {
+		return fmt.Errorf("failed to increment Redis quota: %w", err)
 	}
-
-	if ttl > 0 {
-		ctx := context.Background()
-		txn := RDB.TxPipeline()
-
-		incrCmd := txn.HIncrBy(ctx, key, field, delta)
-		if err := incrCmd.Err(); err != nil {
-			return err
-		}
-
-		txn.Expire(ctx, key, ttl)
-
-		_, err = txn.Exec(ctx)
-		return err
+	if result != 1 {
+		return ErrRedisQuotaUnavailable
 	}
 	return nil
 }
@@ -365,7 +370,7 @@ func RedisHDecrByIfEnough(key, field, unlimitedField string, delta int64) error 
 		return nil
 	}
 	const script = `
-if redis.call('TTL', KEYS[1]) <= 0 then
+if not redis.call('HGET', KEYS[1], 'Id') then
   return -2
 end
 local current = tonumber(redis.call('HGET', KEYS[1], ARGV[1]))
@@ -381,9 +386,21 @@ if not unlimited and current < amount then
   return -1
 end
 redis.call('HINCRBY', KEYS[1], ARGV[1], -amount)
+local expiration = tonumber(ARGV[4])
+if expiration ~= nil and expiration > 0 then
+  redis.call('EXPIRE', KEYS[1], expiration)
+end
 return 1
 `
-	result, err := RDB.Eval(context.Background(), script, []string{key}, field, unlimitedField, delta).Int64()
+	result, err := RDB.Eval(
+		context.Background(),
+		script,
+		[]string{key},
+		field,
+		unlimitedField,
+		delta,
+		RedisKeyCacheSeconds(),
+	).Int64()
 	if err != nil {
 		return fmt.Errorf("failed to decrement Redis quota: %w", err)
 	}

@@ -96,6 +96,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Stop(err)
 			return
 		}
+		if streamResponse.Type == "response.completed" ||
+			streamResponse.Type == "response.failed" ||
+			streamResponse.Type == "response.incomplete" {
+			sr.Done()
+		}
 		switch streamResponse.Type {
 		case "response.completed":
 			if streamResponse.Response != nil {

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -197,6 +198,13 @@ func cacheDecrUserQuota(userId int, delta int64) error {
 func cacheTryDecrUserQuota(userId int, delta int64) error {
 	if !common.RedisEnabled {
 		return nil
+	}
+	err := common.RedisHDecrByIfEnough(getUserCacheKey(userId), "Quota", "", delta)
+	if !errors.Is(err, common.ErrRedisQuotaUnavailable) {
+		return err
+	}
+	if err := ensureUserQuotaCache(userId); err != nil {
+		return err
 	}
 	return common.RedisHDecrByIfEnough(getUserCacheKey(userId), "Quota", "", delta)
 }
