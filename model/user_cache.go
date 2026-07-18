@@ -13,7 +13,9 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
-// UserBase struct remains the same as it represents the cached data structure
+// UserBase is the Redis/hash-backed user snapshot used by hot auth paths.
+// Role is included so session middleware can fail closed on demotion without
+// a dedicated DB round-trip on every dashboard request.
 type UserBase struct {
 	Id       int    `json:"id"`
 	Group    string `json:"group"`
@@ -21,6 +23,7 @@ type UserBase struct {
 	Quota    int    `json:"quota"`
 	Status   int    `json:"status"`
 	Username string `json:"username"`
+	Role     int    `json:"role"`
 	Setting  string `json:"setting"`
 }
 
@@ -132,6 +135,7 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 		Quota:    user.Quota,
 		Status:   user.Status,
 		Username: user.Username,
+		Role:     user.Role,
 		Setting:  user.Setting,
 		Email:    user.Email,
 	}
