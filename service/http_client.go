@@ -22,6 +22,21 @@ var (
 	proxyClients            = make(map[string]*http.Client)
 )
 
+// applyRelayHTTP2Setting downgrades an upstream relay transport to HTTP/1.1 when
+// RELAY_DISABLE_HTTP2 is enabled. By default Go multiplexes all requests to a
+// host onto a small pool of shared HTTP/2 connections; under heavy concurrent
+// streaming to the same upstream those shared connections head-of-line-block
+// latency-sensitive requests. Forcing HTTP/1.1 gives each in-flight request its
+// own pooled connection (bounded by MaxIdleConnsPerHost), removing the drag.
+func applyRelayHTTP2Setting(transport *http.Transport) {
+	if !common.RelayDisableHTTP2 {
+		return
+	}
+	var protocols http.Protocols
+	protocols.SetHTTP1(true)
+	transport.Protocols = &protocols
+}
+
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	urlStr := req.URL.String()
 	if err := validateURLWithCurrentFetchSetting(urlStr, true); err != nil {
@@ -61,6 +76,7 @@ func InitHttpClient() {
 		ForceAttemptHTTP2:   true,
 		Proxy:               http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
 	}
+	applyRelayHTTP2Setting(transport)
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig
 	}
@@ -150,6 +166,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			ForceAttemptHTTP2:   true,
 			Proxy:               http.ProxyURL(parsedURL),
 		}
+		applyRelayHTTP2Setting(transport)
 		if common.TLSInsecureSkipVerify {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
@@ -192,6 +209,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 				return dialer.Dial(network, addr)
 			},
 		}
+		applyRelayHTTP2Setting(transport)
 		if common.TLSInsecureSkipVerify {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
