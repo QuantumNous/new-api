@@ -231,6 +231,8 @@ func main() {
 	server.Use(middleware.RequestId())
 	server.Use(middleware.Version())
 	server.Use(middleware.TraceContext())
+	// HSTS 等安全头：经 Tunnel/CF 的 HTTPS 回源会带 X-Forwarded-Proto。
+	server.Use(middleware.SecurityHeaders())
 	server.Use(middleware.I18n())
 	if observability.Enabled() {
 		server.Use(observability.HTTPMiddleware())
