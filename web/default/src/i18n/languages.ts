@@ -31,7 +31,8 @@ export type InterfaceLanguageCode =
   (typeof INTERFACE_LANGUAGE_OPTIONS)[number]['code']
 
 export function normalizeInterfaceLanguage(value?: string | null): string {
-  if (!value) return 'en'
+  // 空值与未知语言统一回落到简体中文，与 i18n fallbackLng 保持一致。
+  if (!value) return 'zhCN'
 
   let normalized = value.trim().replaceAll('_', '-').toLowerCase()
   if (value === 'zh-TW' || value === 'zh-HK' || value === 'zh-MO' || value === 'zhTW') {
@@ -43,7 +44,7 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
 
   return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === normalized)
     ? normalized
-    : 'en'
+    : 'zhCN'
 }
 
 /**
