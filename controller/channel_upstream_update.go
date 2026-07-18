@@ -285,6 +285,10 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(models), nil
 	}
 
+	if channel.Type == constant.ChannelTypeCodex {
+		return service.FetchCodexChannelModels(channel)
+	}
+
 	var url string
 	switch channel.Type {
 	case constant.ChannelTypeAli:
