@@ -26,7 +26,7 @@ func TestServeWaffoDomainVerification(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, recorder.Code)
 			assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
-			assert.Equal(t, "760c72286c01046cfc453ce8c7324f2b", recorder.Body.String())
+			assert.Equal(t, "14f79916f4b7d9a0430c3e1b58dfd289", recorder.Body.String())
 			assert.NotContains(t, recorder.Body.String(), "\n")
 		})
 	}

@@ -21,7 +21,7 @@ type ThemeAssets struct {
 	ClassicIndexPage []byte
 }
 
-const waffoDomainVerificationToken = "760c72286c01046cfc453ce8c7324f2b"
+const waffoDomainVerificationToken = "14f79916f4b7d9a0430c3e1b58dfd289"
 
 func serveWaffoDomainVerification(c *gin.Context) {
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(waffoDomainVerificationToken))
