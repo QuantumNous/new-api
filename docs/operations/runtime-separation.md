@@ -83,3 +83,9 @@ Set `METRICS_ENABLED=true` to expose `/metrics`. Set `METRICS_TOKEN` and scrape 
 - Process roles: restore `RUN_MODE=all` and `APP_PLANE=all` and start the previous single process.
 - Frontend delivery: restore the integrated image/binary (default embed build) and leave `FRONTEND_MODE` unset/`auto`.
 - Database migrations add compatible columns/indexes and do not require destructive rollback.
+
+## SPA NoRoute boundary
+
+Embedded mode must not serve `index.html` for backend/ops paths such as `/metrics`,
+`/v1`, `/v1beta`, `/mj`, `/pg`, `/suno`, `/kling`, `/jimeng`, `/dashboard`, or
+`/frontend-healthz`. Unregistered paths under those prefixes return API-style 404 JSON.
