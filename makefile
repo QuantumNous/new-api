@@ -10,7 +10,7 @@ DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
 
-.PHONY: all check-build-root check-version build-web build-web-classic build-all-web start-api dev dev-api dev-api-rebuild dev-web dev-web-classic reset-setup
+.PHONY: all check-build-root check-version build-web build-web-classic build-all-web start-api dev dev-api dev-api-rebuild dev-web dev-web-classic reset-setup build-backend docker-integrated docker-backend docker-frontend docker-separated
 
 all: build-all-web start-api
 
@@ -32,6 +32,28 @@ build-web-classic: check-version
 	@cd $(WEB_CLASSIC_DIR) && VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
 
 build-all-web: build-web build-web-classic
+
+# Pure backend binary without embedding web/*/dist (requires FRONTEND_MODE=disabled|redirect at runtime).
+build-backend: check-version
+	@echo "Building pure backend (tags=frontend_external)..."
+	@go build -trimpath -buildvcs=true -tags frontend_external \
+		-ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$$(cat VERSION)'" \
+		-o new-api-backend .
+
+docker-integrated: check-build-root
+	@echo "Building integrated image..."
+	@docker build --tag new-api:local .
+
+docker-backend: check-build-root
+	@echo "Building pure backend image..."
+	@docker build -f Dockerfile.backend --tag new-api-backend:local .
+
+docker-frontend: check-build-root
+	@echo "Building separated frontend image..."
+	@docker build -f deploy/separated/Dockerfile.frontend --tag new-api-frontend:local .
+
+docker-separated: docker-backend docker-frontend
+	@echo "Separated images ready: new-api-backend:local new-api-frontend:local"
 
 start-api: check-build-root
 	@echo "Starting api dev server..."

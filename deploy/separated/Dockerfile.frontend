@@ -1,5 +1,10 @@
 # Frontend-only image: builds web/default and serves via non-root Nginx with same-origin API proxy.
 # Build context MUST be the authoritative repository root (D:\newapi\src).
+#
+# NGINX_IMAGE may be a tag or repo@sha256 digest. Quality CI resolves the tag to a digest
+# at build time so the runtime base is pinned even when the Dockerfile default is a tag.
+
+ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:1.27-alpine
 
 FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder
 
@@ -15,8 +20,7 @@ RUN test -s /build/VERSION \
     && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
 
 # nginxinc unprivileged image listens on 8080 and runs as non-root by default.
-# Pin major.minor; digest may be tightened once CI can resolve it on the build host.
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM ${NGINX_IMAGE}
 
 USER root
 RUN apk add --no-cache curl gettext \
