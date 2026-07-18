@@ -85,29 +85,112 @@ func newUnixHTTPClient(socketPath string) *http.Client {
 // ContainerInspect holds the subset of fields from GET /containers/{id}/json
 // that are needed for self-inspect and recreate.
 type ContainerInspect struct {
-	ID    string `json:"Id"`
-	Image string `json:"Image"` // image ID (sha256:…)
-	Name  string `json:"Name"`  // "/name"
+	ID     string `json:"Id"`
+	Image  string `json:"Image"` // image ID (sha256:…)
+	Name   string `json:"Name"`  // "/name"
 	Config struct {
-		Image      string            `json:"Image"` // human reference (repo:tag)
-		Env        []string          `json:"Env"`
-		Cmd        []string          `json:"Cmd"`
-		Entrypoint []string          `json:"Entrypoint"`
-		Labels     map[string]string `json:"Labels"`
-		WorkingDir string            `json:"WorkingDir"`
+		Hostname        string                 `json:"Hostname"`
+		Domainname      string                 `json:"Domainname"`
+		User            string                 `json:"User"`
+		AttachStdin     bool                   `json:"AttachStdin"`
+		AttachStdout    bool                   `json:"AttachStdout"`
+		AttachStderr    bool                   `json:"AttachStderr"`
+		ExposedPorts    map[string]struct{}    `json:"ExposedPorts"`
+		Tty             bool                   `json:"Tty"`
+		OpenStdin       bool                   `json:"OpenStdin"`
+		StdinOnce       bool                   `json:"StdinOnce"`
+		Env             []string               `json:"Env"`
+		Cmd             []string               `json:"Cmd"`
+		Healthcheck     *containerHealthConfig `json:"Healthcheck"`
+		ArgsEscaped     bool                   `json:"ArgsEscaped"`
+		Image           string                 `json:"Image"` // human reference (repo:tag)
+		Volumes         map[string]struct{}    `json:"Volumes"`
+		WorkingDir      string                 `json:"WorkingDir"`
+		Entrypoint      []string               `json:"Entrypoint"`
+		NetworkDisabled bool                   `json:"NetworkDisabled"`
+		MacAddress      string                 `json:"MacAddress"`
+		OnBuild         []string               `json:"OnBuild"`
+		Labels          map[string]string      `json:"Labels"`
+		StopSignal      string                 `json:"StopSignal"`
+		StopTimeout     *int                   `json:"StopTimeout"`
+		Shell           []string               `json:"Shell"`
 	} `json:"Config"`
-	HostConfig json.RawMessage `json:"HostConfig"` // forwarded as-is to create
+	State struct {
+		Status   string `json:"Status"`
+		Running  bool   `json:"Running"`
+		ExitCode int    `json:"ExitCode"`
+		Error    string `json:"Error"`
+		Health   *struct {
+			Status string `json:"Status"`
+		} `json:"Health"`
+	} `json:"State"`
+	HostConfig      json.RawMessage  `json:"HostConfig"` // forwarded as-is to create
+	Mounts          []containerMount `json:"Mounts"`
+	NetworkSettings struct {
+		Networks map[string]*containerEndpointSettings `json:"Networks"`
+	} `json:"NetworkSettings"`
+}
+
+type containerHealthConfig struct {
+	Test        []string `json:"Test,omitempty"`
+	Interval    int64    `json:"Interval,omitempty"`
+	Timeout     int64    `json:"Timeout,omitempty"`
+	Retries     int      `json:"Retries,omitempty"`
+	StartPeriod int64    `json:"StartPeriod,omitempty"`
+}
+
+type containerMount struct {
+	Type        string `json:"Type"`
+	Source      string `json:"Source"`
+	Destination string `json:"Destination"`
+}
+
+type containerEndpointIPAMConfig struct {
+	IPv4Address  string   `json:"IPv4Address,omitempty"`
+	IPv6Address  string   `json:"IPv6Address,omitempty"`
+	LinkLocalIPs []string `json:"LinkLocalIPs,omitempty"`
+}
+
+type containerEndpointSettings struct {
+	IPAMConfig *containerEndpointIPAMConfig `json:"IPAMConfig,omitempty"`
+	Links      []string                     `json:"Links,omitempty"`
+	Aliases    []string                     `json:"Aliases,omitempty"`
+	DriverOpts map[string]string            `json:"DriverOpts,omitempty"`
+}
+
+type containerNetworkingConfig struct {
+	EndpointsConfig map[string]*containerEndpointSettings `json:"EndpointsConfig"`
 }
 
 // containerCreateBody is used for POST /containers/create.
 type containerCreateBody struct {
-	Image      string            `json:"Image"`
-	Env        []string          `json:"Env,omitempty"`
-	Cmd        []string          `json:"Cmd,omitempty"`
-	Entrypoint []string          `json:"Entrypoint,omitempty"`
-	Labels     map[string]string `json:"Labels,omitempty"`
-	WorkingDir string            `json:"WorkingDir,omitempty"`
-	HostConfig json.RawMessage   `json:"HostConfig,omitempty"`
+	Hostname         string                     `json:"Hostname,omitempty"`
+	Domainname       string                     `json:"Domainname,omitempty"`
+	User             string                     `json:"User,omitempty"`
+	AttachStdin      bool                       `json:"AttachStdin,omitempty"`
+	AttachStdout     bool                       `json:"AttachStdout,omitempty"`
+	AttachStderr     bool                       `json:"AttachStderr,omitempty"`
+	ExposedPorts     map[string]struct{}        `json:"ExposedPorts,omitempty"`
+	Tty              bool                       `json:"Tty,omitempty"`
+	OpenStdin        bool                       `json:"OpenStdin,omitempty"`
+	StdinOnce        bool                       `json:"StdinOnce,omitempty"`
+	Env              []string                   `json:"Env,omitempty"`
+	Cmd              []string                   `json:"Cmd,omitempty"`
+	Healthcheck      *containerHealthConfig     `json:"Healthcheck,omitempty"`
+	ArgsEscaped      bool                       `json:"ArgsEscaped,omitempty"`
+	Image            string                     `json:"Image"`
+	Volumes          map[string]struct{}        `json:"Volumes,omitempty"`
+	WorkingDir       string                     `json:"WorkingDir,omitempty"`
+	Entrypoint       []string                   `json:"Entrypoint,omitempty"`
+	NetworkDisabled  bool                       `json:"NetworkDisabled,omitempty"`
+	MacAddress       string                     `json:"MacAddress,omitempty"`
+	OnBuild          []string                   `json:"OnBuild,omitempty"`
+	Labels           map[string]string          `json:"Labels,omitempty"`
+	StopSignal       string                     `json:"StopSignal,omitempty"`
+	StopTimeout      *int                       `json:"StopTimeout,omitempty"`
+	Shell            []string                   `json:"Shell,omitempty"`
+	HostConfig       json.RawMessage            `json:"HostConfig,omitempty"`
+	NetworkingConfig *containerNetworkingConfig `json:"NetworkingConfig,omitempty"`
 }
 
 // imageInspect holds the Id field from GET /images/{name}/json.
@@ -170,8 +253,8 @@ type DockerEngine interface {
 	// PullImage pulls the given image reference, streaming progress until done.
 	PullImage(ctx context.Context, image string) error
 
-	// RecreateSelf stops the current container, creates a new one from image,
-	// starts it, and removes the old container.
+	// RecreateSelf pulls image and schedules an independent helper to replace
+	// the current container after the update response has been returned.
 	// Returns ErrAlreadyUpToDate when the pulled image digest matches the
 	// currently running image.
 	RecreateSelf(ctx context.Context, image string) error
@@ -181,8 +264,8 @@ type DockerEngine interface {
 	// Used when updating from a GitHub Release binary while running in Docker.
 	BuildImageWithBinary(ctx context.Context, baseImage, binaryPath, targetImage string) error
 
-	// RecreateSelfLocal recreates the current container onto an already-local
-	// image reference without pulling from a registry.
+	// RecreateSelfLocal schedules the same helper for an already-local image
+	// reference without pulling from a registry.
 	RecreateSelfLocal(ctx context.Context, image string) error
 }
 
@@ -204,6 +287,9 @@ func NewDockerEngine(dockerHost string) (DockerEngine, error) {
 			do:   httpClient.Do,
 			base: base,
 		},
+		dockerHost: dockerHost,
+		network:    network,
+		address:    addr,
 	}, nil
 }
 
@@ -212,7 +298,13 @@ func NewDockerEngine(dockerHost string) (DockerEngine, error) {
 // ----------------------------------------------------------------------------
 
 type dockerEngineImpl struct {
-	client *engineClient
+	client           *engineClient
+	dockerHost       string
+	network          string
+	address          string
+	pollInterval     time.Duration
+	readinessTimeout time.Duration
+	runningGrace     time.Duration
 }
 
 // Ping issues GET /_ping.
@@ -335,15 +427,13 @@ func (d *dockerEngineImpl) PullImage(ctx context.Context, image string) error {
 	return err
 }
 
-// RecreateSelf implements the full recreate algorithm described in the brief.
+// RecreateSelf pulls the requested image and schedules the recreate helper.
 func (d *dockerEngineImpl) RecreateSelf(ctx context.Context, image string) error {
 	// 1. Inspect current container.
 	ci, err := d.InspectSelf(ctx)
 	if err != nil {
 		return fmt.Errorf("inspect self: %w", err)
 	}
-	oldID := ci.ID
-	name := strings.TrimPrefix(ci.Name, "/")
 	targetImage := image
 	if targetImage == "" {
 		targetImage = ci.Config.Image
@@ -366,52 +456,9 @@ func (d *dockerEngineImpl) RecreateSelf(ctx context.Context, image string) error
 		return ErrAlreadyUpToDate
 	}
 
-	// 5. Stop old container (best-effort; ignore already-stopped errors).
-	_ = d.postEmpty(ctx, "/containers/"+oldID+"/stop?t=10")
-
-	// 6. Rename old container.
-	oldName := name + "-updating-old"
-	if err := d.renameContainer(ctx, oldID, oldName); err != nil {
-		return fmt.Errorf("rename old container: %w", err)
-	}
-
-	// rollback: try rename old back + restart it.
-	rollback := func() {
-		_ = d.renameContainer(ctx, oldID, name)
-		_ = d.postEmpty(ctx, "/containers/"+oldID+"/start")
-	}
-
-	// 7. Create new container with reconstructed body.
-	body := containerCreateBody{
-		Image:      targetImage,
-		Env:        ci.Config.Env,
-		Cmd:        ci.Config.Cmd,
-		Entrypoint: ci.Config.Entrypoint,
-		Labels:     ci.Config.Labels,
-		WorkingDir: ci.Config.WorkingDir,
-		HostConfig: ci.HostConfig,
-	}
-	bodyBytes, err := common.Marshal(body)
-	if err != nil {
-		rollback()
-		return fmt.Errorf("marshal create body: %w", err)
-	}
-	newContainerID, err := d.createContainer(ctx, name, bodyBytes)
-	if err != nil {
-		rollback()
-		return fmt.Errorf("create container: %w", err)
-	}
-
-	// 8. Start new container.
-	if err := d.postEmpty(ctx, "/containers/"+newContainerID+"/start"); err != nil {
-		_ = d.deleteContainer(ctx, newContainerID)
-		rollback()
-		return fmt.Errorf("start new container: %w", err)
-	}
-
-	// 9. Remove old container (best-effort).
-	_ = d.deleteContainer(ctx, oldID)
-	return nil
+	// The running process cannot stop its own container and then continue the
+	// recreate sequence. Hand the destructive switch to an independent helper.
+	return d.scheduleRecreateHelper(ctx, ci, targetImage, false)
 }
 
 // postEmpty issues a POST with no request body and expects a 2xx response.
@@ -530,14 +577,12 @@ func (d *dockerEngineImpl) BuildImageWithBinary(ctx context.Context, baseImage, 
 	return nil
 }
 
-// RecreateSelfLocal recreates onto a local image without pulling.
+// RecreateSelfLocal schedules an independent helper to recreate onto a local image.
 func (d *dockerEngineImpl) RecreateSelfLocal(ctx context.Context, image string) error {
 	ci, err := d.InspectSelf(ctx)
 	if err != nil {
 		return fmt.Errorf("inspect self: %w", err)
 	}
-	oldID := ci.ID
-	name := strings.TrimPrefix(ci.Name, "/")
 	targetImage := image
 	if targetImage == "" {
 		targetImage = ci.Config.Image
@@ -547,48 +592,7 @@ func (d *dockerEngineImpl) RecreateSelfLocal(ctx context.Context, image string) 
 		return fmt.Errorf("local image %s not found: %w", targetImage, err)
 	}
 
-	_ = d.postEmpty(ctx, "/containers/"+oldID+"/stop?t=10")
-
-	oldName := name + "-updating-old"
-	if err := d.renameContainer(ctx, oldID, oldName); err != nil {
-		return fmt.Errorf("rename old container: %w", err)
-	}
-
-	rollback := func() {
-		_ = d.renameContainer(ctx, oldID, name)
-		_ = d.postEmpty(ctx, "/containers/"+oldID+"/start")
-	}
-
-	// Preserve env but drop any stale NEWAPI_DOCKER_IMAGE so the next update
-	// keeps using GitHub→local image flow instead of a pinned registry ref.
-	env := filterEnv(ci.Config.Env, "NEWAPI_DOCKER_IMAGE")
-
-	body := containerCreateBody{
-		Image:      targetImage,
-		Env:        env,
-		Cmd:        ci.Config.Cmd,
-		Entrypoint: ci.Config.Entrypoint,
-		Labels:     ci.Config.Labels,
-		WorkingDir: ci.Config.WorkingDir,
-		HostConfig: ci.HostConfig,
-	}
-	bodyBytes, err := common.Marshal(body)
-	if err != nil {
-		rollback()
-		return fmt.Errorf("marshal create body: %w", err)
-	}
-	newContainerID, err := d.createContainer(ctx, name, bodyBytes)
-	if err != nil {
-		rollback()
-		return fmt.Errorf("create container: %w", err)
-	}
-	if err := d.postEmpty(ctx, "/containers/"+newContainerID+"/start"); err != nil {
-		_ = d.deleteContainer(ctx, newContainerID)
-		rollback()
-		return fmt.Errorf("start new container: %w", err)
-	}
-	_ = d.deleteContainer(ctx, oldID)
-	return nil
+	return d.scheduleRecreateHelper(ctx, ci, targetImage, true)
 }
 
 func filterEnv(env []string, dropKey string) []string {

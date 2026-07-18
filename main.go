@@ -28,6 +28,7 @@ import (
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/QuantumNous/new-api/service/selfupdate"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -53,6 +54,14 @@ var classicBuildFS embed.FS
 var classicIndexPage []byte
 
 func main() {
+	if handled, err := selfupdate.RunDockerUpdateHelper(os.Args); handled {
+		if err != nil {
+			log.Printf("docker update helper failed: %v", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	startTime := time.Now()
 
 	err := InitResources()

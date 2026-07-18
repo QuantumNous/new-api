@@ -21,8 +21,8 @@ import (
 
 func TestParseDockerHost(t *testing.T) {
 	cases := []struct {
-		input   string
-		wantNet string
+		input    string
+		wantNet  string
 		wantAddr string
 	}{
 		{"unix:///var/run/docker.sock", "unix", "/var/run/docker.sock"},
@@ -229,22 +229,14 @@ func TestEngineClient_InspectImage_OK(t *testing.T) {
 func TestEngineClient_RecreateSelf_OK(t *testing.T) {
 	const (
 		oldContainerID = "oldcontainer123"
-		newContainerID = "newcontainer456"
+		helperID       = "updatehelper456"
 		containerName  = "myapp"
 		imageName      = "calciumion/new-api"
 		imageRef       = imageName + ":latest"
 	)
 
 	calls := map[string]int{}
-
 	mux := newFakeMux()
-
-	// InspectSelf → inspectContainer (via HOSTNAME env, but we call it directly in this test)
-	// We drive RecreateSelf via the exported method, which calls InspectSelf
-	// using selfContainerID(). Since we're not in a container, we instead
-	// call the private recreate logic by constructing the engine manually and
-	// testing via an exported adapter. Instead, we test via fake containerID
-	// by setting HOSTNAME env.
 	t.Setenv("HOSTNAME", oldContainerID)
 
 	mux.handle(http.MethodGet, "/containers/"+oldContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
@@ -257,10 +249,14 @@ func TestEngineClient_RecreateSelf_OK(t *testing.T) {
 				"Env":   []string{"FOO=bar"},
 			},
 			"HostConfig": map[string]any{"NetworkMode": "bridge"},
+			"Mounts": []map[string]any{{
+				"Type":        "bind",
+				"Source":      "/host/run/docker.sock",
+				"Destination": "/var/run/docker.sock",
+			}},
 		})
 	})
 
-	// inspectImage before pull → old digest
 	mux.handle(http.MethodGet, "/images/"+imageName+":latest/json", func(w http.ResponseWriter, r *http.Request) {
 		calls["inspectImage"]++
 		if calls["inspectImage"] == 1 {
@@ -270,58 +266,57 @@ func TestEngineClient_RecreateSelf_OK(t *testing.T) {
 		}
 	})
 
-	// PullImage
 	mux.handle(http.MethodPost, "/images/create", func(w http.ResponseWriter, r *http.Request) {
 		calls["pull"]++
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, `{"status":"Pull complete"}`+"\n")
 	})
 
-	// Stop
 	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/stop", func(w http.ResponseWriter, r *http.Request) {
 		calls["stop"]++
 		w.WriteHeader(http.StatusNoContent)
 	})
-
-	// Rename old
-	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/rename", func(w http.ResponseWriter, r *http.Request) {
-		calls["rename"]++
-		assert.Equal(t, containerName+"-updating-old", r.URL.Query().Get("name"))
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	// Create new container
 	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
 		calls["create"]++
-		assert.Equal(t, containerName, r.URL.Query().Get("name"))
-		jsonResponse(w, http.StatusCreated, map[string]any{"Id": newContainerID})
+		assert.True(t, strings.HasPrefix(r.URL.Query().Get("name"), "new-api-update-helper-"))
+		var body containerCreateBody
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, imageRef, body.Image)
+		assert.Equal(t, []string{"/new-api"}, body.Entrypoint)
+		assert.Equal(t, []string{
+			dockerUpdateHelperCommand,
+			oldContainerID,
+			imageRef,
+			"unix:///var/run/docker.sock",
+			"false",
+		}, body.Cmd)
+		var hostConfig helperHostConfig
+		require.NoError(t, json.Unmarshal(body.HostConfig, &hostConfig))
+		assert.Equal(t, []string{"/host/run/docker.sock:/var/run/docker.sock:rw"}, hostConfig.Binds)
+		assert.True(t, hostConfig.AutoRemove)
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": helperID})
 	})
-
-	// Start new container
-	mux.handle(http.MethodPost, "/containers/"+newContainerID+"/start", func(w http.ResponseWriter, r *http.Request) {
-		calls["startNew"]++
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	// Delete old container
-	mux.handle(http.MethodDelete, "/containers/"+oldContainerID, func(w http.ResponseWriter, r *http.Request) {
-		calls["delete"]++
+	mux.handle(http.MethodPost, "/containers/"+helperID+"/start", func(w http.ResponseWriter, r *http.Request) {
+		calls["startHelper"]++
 		w.WriteHeader(http.StatusNoContent)
 	})
 
 	ec := fakeEngineClient(mux)
-	d := &dockerEngineImpl{client: ec}
+	d := &dockerEngineImpl{
+		client:     ec,
+		dockerHost: "unix:///var/run/docker.sock",
+		network:    "unix",
+		address:    "/var/run/docker.sock",
+	}
 	err := d.RecreateSelf(context.Background(), "")
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, calls["inspect"], "inspect")
 	assert.Equal(t, 2, calls["inspectImage"], "inspectImage")
 	assert.Equal(t, 1, calls["pull"], "pull")
-	assert.Equal(t, 1, calls["stop"], "stop")
-	assert.Equal(t, 1, calls["rename"], "rename")
+	assert.Zero(t, calls["stop"], "the request process must not stop its own container")
 	assert.Equal(t, 1, calls["create"], "create")
-	assert.Equal(t, 1, calls["startNew"], "startNew")
-	assert.Equal(t, 1, calls["delete"], "delete")
+	assert.Equal(t, 1, calls["startHelper"], "startHelper")
 }
 
 // ----------------------------------------------------------------------------
@@ -366,76 +361,144 @@ func TestEngineClient_RecreateSelf_AlreadyUpToDate(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrAlreadyUpToDate))
 }
 
+func TestEngineClient_RecreateSelfLocal_SchedulesHelperWithoutStoppingSelf(t *testing.T) {
+	const (
+		oldContainerID = "localold123"
+		helperID       = "localhelper456"
+		currentImageID = "sha256:current"
+		targetImage    = "local/new-api:v2"
+	)
+	t.Setenv("HOSTNAME", oldContainerID)
+
+	stopCalled := false
+	mux := newFakeMux()
+	mux.handle(http.MethodGet, "/containers/"+oldContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id":    oldContainerID,
+			"Image": currentImageID,
+			"Name":  "/myapp",
+			"Config": map[string]any{
+				"Image": "local/new-api:v1",
+			},
+		})
+	})
+	mux.handle(http.MethodGet, "/images/"+targetImage+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{"Id": "sha256:target"})
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/stop", func(w http.ResponseWriter, r *http.Request) {
+		stopCalled = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		var body containerCreateBody
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, currentImageID, body.Image, "the known-good current image must run the helper")
+		assert.Equal(t, targetImage, body.Cmd[2])
+		assert.Equal(t, "true", body.Cmd[4])
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": helperID})
+	})
+	mux.handle(http.MethodPost, "/containers/"+helperID+"/start", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	d := &dockerEngineImpl{
+		client:     fakeEngineClient(mux),
+		dockerHost: "unix:///var/run/docker.sock",
+		network:    "unix",
+		address:    "/var/run/docker.sock",
+	}
+	require.NoError(t, d.RecreateSelfLocal(context.Background(), targetImage))
+	assert.False(t, stopCalled, "the update request must return before the helper stops the current container")
+}
+
 // ----------------------------------------------------------------------------
-// RecreateSelf – rollback when start fails
+// Helper replacement and rollback
 // ----------------------------------------------------------------------------
 
-func TestEngineClient_RecreateSelf_RollbackOnStartFail(t *testing.T) {
+func TestEngineClient_ReplaceContainer_RollbackWhenUnhealthy(t *testing.T) {
 	const (
 		oldContainerID = "rollbackold"
 		newContainerID = "rollbacknew"
 		containerName  = "myapp"
-		imageRef       = "alpine:latest"
-		imageName      = "alpine"
+		targetImage    = "local/new-api:v2"
 	)
-	t.Setenv("HOSTNAME", oldContainerID)
 
 	rollbackRename := false
 	rollbackStart := false
+	deletedNew := false
+	deletedOld := false
 
 	mux := newFakeMux()
-
 	mux.handle(http.MethodGet, "/containers/"+oldContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, http.StatusOK, map[string]any{
 			"Id":   oldContainerID,
 			"Name": "/" + containerName,
-			"Config": map[string]any{"Image": imageRef},
+			"Config": map[string]any{
+				"Image":        "local/new-api:v1",
+				"Env":          []string{"DB_URL=sqlite", "NEWAPI_DOCKER_IMAGE=stale"},
+				"ExposedPorts": map[string]any{"3000/tcp": map[string]any{}},
+				"Healthcheck": map[string]any{
+					"Test":     []string{"CMD", "wget", "--spider", "http://127.0.0.1:3000/api/status"},
+					"Interval": 1000000000,
+				},
+			},
+			"HostConfig": map[string]any{
+				"NetworkMode": "newapi-net",
+				"PortBindings": map[string]any{
+					"3000/tcp": []map[string]string{{"HostIp": "0.0.0.0", "HostPort": "3000"}},
+				},
+			},
+			"NetworkSettings": map[string]any{
+				"Networks": map[string]any{
+					"newapi-net": map[string]any{"Aliases": []string{"new-api", containerName}},
+				},
+			},
 		})
 	})
-
-	inspectCount := 0
-	mux.handle(http.MethodGet, "/images/"+imageName+":latest/json", func(w http.ResponseWriter, r *http.Request) {
-		inspectCount++
-		digest := "sha256:old"
-		if inspectCount > 1 {
-			digest = "sha256:new"
-		}
-		jsonResponse(w, http.StatusOK, map[string]any{"Id": digest})
+	mux.handle(http.MethodGet, "/containers/"+newContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id": newContainerID,
+			"State": map[string]any{
+				"Status":  "running",
+				"Running": true,
+				"Health":  map[string]any{"Status": "unhealthy"},
+			},
+		})
 	})
-
-	mux.handle(http.MethodPost, "/images/create", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
 	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/stop", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-
-	renameCount := 0
 	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/rename", func(w http.ResponseWriter, r *http.Request) {
-		renameCount++
-		newName := r.URL.Query().Get("name")
-		if newName == containerName {
+		if r.URL.Query().Get("name") == containerName {
 			rollbackRename = true
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-
 	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, containerName, r.URL.Query().Get("name"))
+		var body containerCreateBody
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, targetImage, body.Image)
+		assert.Equal(t, []string{"DB_URL=sqlite"}, body.Env)
+		assert.Contains(t, body.ExposedPorts, "3000/tcp")
+		require.NotNil(t, body.Healthcheck)
+		assert.Equal(t, "CMD", body.Healthcheck.Test[0])
+		require.NotNil(t, body.NetworkingConfig)
+		assert.Equal(t, []string{"new-api", containerName}, body.NetworkingConfig.EndpointsConfig["newapi-net"].Aliases)
+		assert.JSONEq(t, `{"NetworkMode":"newapi-net","PortBindings":{"3000/tcp":[{"HostIp":"0.0.0.0","HostPort":"3000"}]}}`, string(body.HostConfig))
 		jsonResponse(w, http.StatusCreated, map[string]any{"Id": newContainerID})
 	})
-
-	// Start new container → fail.
 	mux.handle(http.MethodPost, "/containers/"+newContainerID+"/start", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "start failed", http.StatusInternalServerError)
-	})
-
-	// Delete new container (called before rollback).
-	mux.handle(http.MethodDelete, "/containers/"+newContainerID, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-
-	// Rollback: start old container.
+	mux.handle(http.MethodDelete, "/containers/"+newContainerID, func(w http.ResponseWriter, r *http.Request) {
+		deletedNew = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodDelete, "/containers/"+oldContainerID, func(w http.ResponseWriter, r *http.Request) {
+		deletedOld = true
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/start", func(w http.ResponseWriter, r *http.Request) {
 		rollbackStart = true
 		w.WriteHeader(http.StatusNoContent)
@@ -443,11 +506,79 @@ func TestEngineClient_RecreateSelf_RollbackOnStartFail(t *testing.T) {
 
 	ec := fakeEngineClient(mux)
 	d := &dockerEngineImpl{client: ec}
-	err := d.RecreateSelf(context.Background(), "")
+	err := d.replaceContainer(context.Background(), oldContainerID, targetImage, true)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "start new container")
+	assert.Contains(t, err.Error(), "unhealthy")
+	assert.True(t, deletedNew, "unhealthy replacement should be removed")
+	assert.False(t, deletedOld, "old container must remain available for rollback")
 	assert.True(t, rollbackRename, "old container should be renamed back")
 	assert.True(t, rollbackStart, "old container should be restarted")
+}
+
+func TestEngineClient_ReplaceContainer_RemovesOldAfterHealthy(t *testing.T) {
+	const (
+		oldContainerID = "healthyold"
+		newContainerID = "healthynew"
+	)
+	deletedOld := false
+	mux := newFakeMux()
+	mux.handle(http.MethodGet, "/containers/"+oldContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id":   oldContainerID,
+			"Name": "/myapp",
+			"Config": map[string]any{
+				"Healthcheck": map[string]any{"Test": []string{"CMD", "true"}},
+			},
+		})
+	})
+	mux.handle(http.MethodGet, "/containers/"+newContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id": newContainerID,
+			"State": map[string]any{
+				"Status":  "running",
+				"Running": true,
+				"Health":  map[string]any{"Status": "healthy"},
+			},
+		})
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/stop", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/rename", func(w http.ResponseWriter, r *http.Request) {
+		assert.True(t, strings.HasPrefix(r.URL.Query().Get("name"), "myapp-updating-old-"))
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": newContainerID})
+	})
+	mux.handle(http.MethodPost, "/containers/"+newContainerID+"/start", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodDelete, "/containers/"+oldContainerID, func(w http.ResponseWriter, r *http.Request) {
+		deletedOld = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	d := &dockerEngineImpl{client: fakeEngineClient(mux)}
+	require.NoError(t, d.replaceContainer(context.Background(), oldContainerID, "local/new-api:v2", true))
+	assert.True(t, deletedOld)
+}
+
+func TestReplacementContainerBody_NormalizesDockerGeneratedHostname(t *testing.T) {
+	ci := &ContainerInspect{ID: "0123456789abcdef"}
+	ci.Config.Hostname = "0123456789ab"
+	ci.HostConfig = json.RawMessage(`{"NetworkMode":"host"}`)
+	ci.NetworkSettings.Networks = map[string]*containerEndpointSettings{
+		"host": {Aliases: []string{"old-alias"}},
+	}
+
+	body := replacementContainerBody(ci, "local/new-api:v2", false)
+	assert.Empty(t, body.Hostname, "Docker must generate a hostname for the new container ID")
+	assert.Nil(t, body.NetworkingConfig, "host networking cannot accept endpoint attachments")
+
+	ci.Config.Hostname = "custom-hostname"
+	body = replacementContainerBody(ci, "local/new-api:v2", false)
+	assert.Equal(t, "custom-hostname", body.Hostname)
 }
 
 // ----------------------------------------------------------------------------

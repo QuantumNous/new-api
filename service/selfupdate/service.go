@@ -328,9 +328,9 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 				s.setStatus(PhaseFailed, "docker github update failed", false, err.Error())
 				return nil, err
 			}
-			s.setStatus(PhaseDone, "docker update complete; container recreated", false, "")
+			s.setStatus(PhaseDone, "docker update scheduled; container recreation in progress", false, "")
 			return &PerformResult{
-				Message:     "docker update complete; container recreated from GitHub release",
+				Message:     "docker update scheduled; container recreation in progress",
 				NeedRestart: false,
 				DeployMode:  mode,
 				FromVersion: s.currentVersion,
@@ -366,10 +366,10 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 			return nil, err
 		}
 
-		// Container is replaced; process will die momentarily.
-		s.setStatus(PhaseDone, "docker update complete; container recreated", false, "")
+		// The helper will replace this container after the response is returned.
+		s.setStatus(PhaseDone, "docker update scheduled; container recreation in progress", false, "")
 		return &PerformResult{
-			Message:     "docker update complete; container recreated",
+			Message:     "docker update scheduled; container recreation in progress",
 			NeedRestart: false,
 			DeployMode:  mode,
 			FromVersion: s.currentVersion,
@@ -392,7 +392,7 @@ func dockerLocalImageRef(version string) string {
 }
 
 // applyDockerFromGitHub downloads the linux binary from the release, builds a
-// local image local/new-api:{tag}, and recreates the current container onto it.
+// local image local/new-api:{tag}, and schedules the current container replacement.
 func (s *Service) applyDockerFromGitHub(ctx context.Context, eng DockerEngine, info *Info) error {
 	goos, goarch := "linux", runtime.GOARCH
 	if goarch == "" {
@@ -473,7 +473,6 @@ func fileSHA256Hex(path string) (string, error) {
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
-
 
 // Restart schedules a graceful process exit after 500ms (binary mode only).
 // For Docker mode it returns an error — the container restart is handled by
