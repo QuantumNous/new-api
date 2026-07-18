@@ -52,6 +52,7 @@ services:
         condition: service_healthy
     environment:
       - BACKEND_UPSTREAM=backend:3000
+      - DNS_RESOLVER=127.0.0.11
       - NGINX_PORT=8080
       - SERVER_NAME=_
       - CLIENT_MAX_BODY_SIZE=100m
