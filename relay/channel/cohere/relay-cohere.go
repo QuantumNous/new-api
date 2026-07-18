@@ -1,7 +1,6 @@
 package cohere
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -121,7 +120,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			}
 			data = strings.TrimSuffix(data, "\r")
 			var cohereResp CohereResponse
-			err := json.Unmarshal([]byte(data), &cohereResp)
+			err := common.Unmarshal([]byte(data), &cohereResp)
 			if err != nil {
 				common.SysLog("error unmarshalling stream response: " + err.Error())
 				return true
@@ -156,7 +155,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 				}
 				responseText += cohereResp.Text
 			}
-			jsonStr, err := json.Marshal(openaiResp)
+			jsonStr, err := common.Marshal(openaiResp)
 			if err != nil {
 				common.SysLog("error marshalling stream response: " + err.Error())
 				return true
@@ -182,7 +181,7 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 	service.CloseResponseBodyGracefully(resp)
 	var cohereResp CohereResponseResult
-	err = json.Unmarshal(responseBody, &cohereResp)
+	err = common.Unmarshal(responseBody, &cohereResp)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -206,7 +205,7 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		},
 	}
 
-	jsonResponse, err := json.Marshal(openaiResp)
+	jsonResponse, err := common.Marshal(openaiResp)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -223,7 +222,7 @@ func cohereRerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	}
 	service.CloseResponseBodyGracefully(resp)
 	var cohereResp CohereRerankResponseResult
-	err = json.Unmarshal(responseBody, &cohereResp)
+	err = common.Unmarshal(responseBody, &cohereResp)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -242,7 +241,7 @@ func cohereRerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	rerankResp.Results = cohereResp.Results
 	rerankResp.Usage = usage
 
-	jsonResponse, err := json.Marshal(rerankResp)
+	jsonResponse, err := common.Marshal(rerankResp)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}

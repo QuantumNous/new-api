@@ -2,7 +2,6 @@ package model
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -46,7 +45,7 @@ func (p *PasskeyCredential) TransportList() []protocol.AuthenticatorTransport {
 		return nil
 	}
 	var transports []string
-	if err := json.Unmarshal([]byte(p.Transports), &transports); err != nil {
+	if err := common.Unmarshal([]byte(p.Transports), &transports); err != nil {
 		return nil
 	}
 	result := make([]protocol.AuthenticatorTransport, 0, len(transports))
@@ -65,7 +64,7 @@ func (p *PasskeyCredential) SetTransports(list []protocol.AuthenticatorTransport
 	for i, transport := range list {
 		stringList[i] = string(transport)
 	}
-	encoded, err := json.Marshal(stringList)
+	encoded, err := common.Marshal(stringList)
 	if err != nil {
 		return
 	}

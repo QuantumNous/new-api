@@ -4,15 +4,16 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
-	"github.com/gin-gonic/gin"
 )
 
 // UnmarshalMetadata converts a map[string]any metadata to a typed struct via JSON round-trip.
-// This replaces the repeated pattern: json.Marshal(metadata) → json.Unmarshal(bytes, &target).
+// This replaces the repeated pattern: common.Marshal(metadata) → common.Unmarshal(bytes, &target).
 func UnmarshalMetadata(metadata map[string]any, target any) error {
 	if metadata == nil {
 		return nil

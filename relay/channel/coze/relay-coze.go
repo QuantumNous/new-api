@@ -9,13 +9,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/samber/lo"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
-	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -56,7 +57,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 	var response dto.TextResponse
 	var cozeResponse CozeChatDetailResponse
 	response.Model = info.UpstreamModelName
-	err = json.Unmarshal(responseBody, &cozeResponse)
+	err = common.Unmarshal(responseBody, &cozeResponse)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -86,7 +87,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 			FinishReason: "stop",
 		},
 	}
-	jsonResponse, err := json.Marshal(response)
+	jsonResponse, err := common.Marshal(response)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -154,7 +155,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 	case "conversation.chat.completed":
 		// 将 data 解析为 CozeChatResponseData
 		var chatData CozeChatResponseData
-		err := json.Unmarshal([]byte(data), &chatData)
+		err := common.Unmarshal([]byte(data), &chatData)
 		if err != nil {
 			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
 			return
@@ -171,14 +172,14 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 	case "conversation.message.delta":
 		// 将 data 解析为 CozeChatV3MessageDetail
 		var messageData CozeChatV3MessageDetail
-		err := json.Unmarshal([]byte(data), &messageData)
+		err := common.Unmarshal([]byte(data), &messageData)
 		if err != nil {
 			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
 			return
 		}
 
 		var content string
-		err = json.Unmarshal(messageData.Content, &content)
+		err = common.Unmarshal(messageData.Content, &content)
 		if err != nil {
 			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
 			return
@@ -203,7 +204,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 
 	case "error":
 		var errorData CozeError
-		err := json.Unmarshal([]byte(data), &errorData)
+		err := common.Unmarshal([]byte(data), &errorData)
 		if err != nil {
 			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
 			return
@@ -242,7 +243,7 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 	if err != nil {
 		return fmt.Errorf("read response body failed: %w", err), false
 	}
-	err = json.Unmarshal(responseBody, &cozeResponse)
+	err = common.Unmarshal(responseBody, &cozeResponse)
 	if err != nil {
 		return fmt.Errorf("unmarshal response body failed: %w", err), false
 	}

@@ -22,6 +22,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
 
 	//"github.com/QuantumNous/new-api/relay/channel/minimax"
+	"github.com/samber/lo"
+
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	"github.com/QuantumNous/new-api/relay/channel/xinference"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -31,7 +33,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
-	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -289,7 +290,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		// 没有做排除3.5Haiku等，要出问题再加吧，最佳兼容性（不是
 		if request.THINKING != nil && strings.HasPrefix(info.UpstreamModelName, "anthropic") {
 			var thinking dto.Thinking // Claude标准Thinking格式
-			if err := json.Unmarshal(request.THINKING, &thinking); err != nil {
+			if err := common.Unmarshal(request.THINKING, &thinking); err != nil {
 				return nil, fmt.Errorf("error Unmarshal thinking: %w", err)
 			}
 

@@ -1,16 +1,17 @@
 package helper
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
+	commonpkg "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/gin-gonic/gin"
 )
 
 func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Request) error {
@@ -29,7 +30,7 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 	modelMapping := c.GetString("model_mapping")
 	if modelMapping != "" && modelMapping != "{}" {
 		modelMap := make(map[string]string)
-		err := json.Unmarshal([]byte(modelMapping), &modelMap)
+		err := commonpkg.Unmarshal([]byte(modelMapping), &modelMap)
 		if err != nil {
 			return fmt.Errorf("unmarshal_model_mapping_failed")
 		}

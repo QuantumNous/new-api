@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -170,7 +169,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	var mapResult map[string]interface{}
 	// if get request, no need to read request body
 	if c.Request.Method != "GET" {
-		err := json.NewDecoder(c.Request.Body).Decode(&mapResult)
+		err := common.DecodeJson(c.Request.Body, &mapResult)
 		if err != nil {
 			return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_request_body_failed", http.StatusInternalServerError), nullBytes, err
 		}
@@ -192,7 +191,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 			mapResult["prompt"] = prompt
 		}
 	}
-	reqBody, err := json.Marshal(mapResult)
+	reqBody, err := common.Marshal(mapResult)
 	if err != nil {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "marshal_request_body_failed", http.StatusInternalServerError), nullBytes, err
 	}
@@ -239,9 +238,9 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	if len(responseBody) == 0 {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "empty_response_body", statusCode), responseBody, nil
 	} else {
-		err = json.Unmarshal(responseBody, &midjResponse)
+		err = common.Unmarshal(responseBody, &midjResponse)
 		if err != nil {
-			err2 := json.Unmarshal(responseBody, &midjourneyUploadsResponse)
+			err2 := common.Unmarshal(responseBody, &midjourneyUploadsResponse)
 			if err2 != nil {
 				return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "unmarshal_response_body_failed", statusCode), responseBody, err
 			}

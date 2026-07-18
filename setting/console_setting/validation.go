@@ -1,13 +1,14 @@
 package console_setting
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var (
@@ -24,7 +25,7 @@ var (
 
 func parseJSONArray(jsonStr string, typeName string) ([]map[string]interface{}, error) {
 	var list []map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &list); err != nil {
+	if err := common.Unmarshal([]byte(jsonStr), &list); err != nil {
 		return nil, fmt.Errorf("%s格式错误：%s", typeName, err.Error())
 	}
 	return list, nil
@@ -55,7 +56,7 @@ func getJSONList(jsonStr string) []map[string]interface{} {
 		return []map[string]interface{}{}
 	}
 	var list []map[string]interface{}
-	json.Unmarshal([]byte(jsonStr), &list)
+	common.Unmarshal([]byte(jsonStr), &list)
 	return list
 }
 

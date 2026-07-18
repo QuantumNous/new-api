@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -140,7 +139,7 @@ func tencentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Resp
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 	service.CloseResponseBodyGracefully(resp)
-	err = json.Unmarshal(responseBody, &tencentSb)
+	err = common.Unmarshal(responseBody, &tencentSb)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
@@ -193,7 +192,7 @@ func getTencentSign(req TencentChatRequest, adaptor *Adaptor, secId, secKey stri
 	canonicalHeaders := fmt.Sprintf("content-type:%s\nhost:%s\nx-tc-action:%s\n",
 		"application/json", host, strings.ToLower(adaptor.Action))
 	signedHeaders := "content-type;host;x-tc-action"
-	payload, _ := json.Marshal(req)
+	payload, _ := common.Marshal(req)
 	hashedRequestPayload := sha256hex(string(payload))
 	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s",
 		httpRequestMethod,

@@ -2,15 +2,15 @@ package controller
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/ionet"
-	"github.com/gin-gonic/gin"
 )
 
 func getIoAPIKey(c *gin.Context) (string, bool) {
@@ -66,7 +66,7 @@ func TestIoNetConnection(c *gin.Context) {
 		return
 	}
 	if len(bytes.TrimSpace(rawBody)) > 0 {
-		if err := json.Unmarshal(rawBody, &req); err != nil {
+		if err := common.Unmarshal(rawBody, &req); err != nil {
 			common.ApiErrorMsg(c, "invalid request payload")
 			return
 		}

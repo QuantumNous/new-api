@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,7 +31,7 @@ func KlingRequestConvert() func(c *gin.Context) {
 			"metadata": originalReq,
 		}
 
-		jsonData, err := json.Marshal(unifiedReq)
+		jsonData, err := common.Marshal(unifiedReq)
 		if err != nil {
 			c.Next()
 			return
