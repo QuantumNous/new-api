@@ -66,6 +66,7 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 		if audioRequest.Model == "" {
 			return nil, errors.New("model is required")
 		}
+		audioRequest.Stream = nil
 	default:
 		if audioRequest.Model == "" {
 			return nil, errors.New("model is required")

@@ -17,6 +17,7 @@ type AudioRequest struct {
 	ResponseFormat string          `json:"response_format,omitempty"`
 	Speed          *float64        `json:"speed,omitempty"`
 	StreamFormat   string          `json:"stream_format,omitempty"`
+	Stream         *BoolValue      `json:"stream,omitempty"`
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 	// vllm-omini
 	TaskType                json.RawMessage `json:"task_type,omitempty"`
@@ -27,7 +28,6 @@ type AudioRequest struct {
 	MaxNewTokens            json.RawMessage `json:"max_new_tokens,omitempty"`
 	InitialCodecChunkFrames json.RawMessage `json:"initial_codec_chunk_frames,omitempty"`
 	// TODO：ensure that the logic remains correct after the stream is started.
-	//Stream                  json.RawMessage `json:"stream,omitempty"`
 }
 
 func (r *AudioRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -42,7 +42,17 @@ func (r *AudioRequest) GetTokenCountMeta() *types.TokenCountMeta {
 }
 
 func (r *AudioRequest) IsStream(c *gin.Context) bool {
-	return r.StreamFormat == "sse"
+	if r.StreamFormat == "sse" {
+		return true
+	}
+	if r.Stream == nil || c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	path := c.Request.URL.Path
+	if !strings.HasSuffix(path, "/audio/transcriptions") && !strings.HasSuffix(path, "/audio/translations") {
+		return false
+	}
+	return bool(*r.Stream)
 }
 
 func (r *AudioRequest) SetModelName(modelName string) {
