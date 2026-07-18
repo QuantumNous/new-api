@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +41,7 @@ func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 					},
 				},
 			})
-			resp := service.ResponseOpenAI2Claude(&dto.OpenAITextResponse{
+			resp := relayconvert.ResponseOpenAI2Claude(&dto.OpenAITextResponse{
 				Id:    "chatcmpl_1",
 				Model: "gpt-test",
 				Choices: []dto.OpenAITextResponseChoice{
@@ -322,7 +322,7 @@ func TestBuildOpenAIStyleUsageFromClaudeUsageDefaultsAggregateCacheCreationTo5m(
 	require.Equal(t, 0, openAIUsage.ClaudeCacheCreation1hTokens)
 }
 
-func TestRequestOpenAI2ClaudeMessage_ClaudeOpus48HighUsesAdaptiveThinking(t *testing.T) {
+func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48HighUsesAdaptiveThinking(t *testing.T) {
 	request := dto.GeneralOpenAIRequest{
 		Model:       "claude-opus-4-8-high",
 		Temperature: commonPointer(0.7),
@@ -336,7 +336,7 @@ func TestRequestOpenAI2ClaudeMessage_ClaudeOpus48HighUsesAdaptiveThinking(t *tes
 		},
 	}
 
-	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, request)
 	require.NoError(t, err)
 	require.Equal(t, "claude-opus-4-8", claudeRequest.Model)
 	require.NotNil(t, claudeRequest.Thinking)
@@ -348,7 +348,7 @@ func TestRequestOpenAI2ClaudeMessage_ClaudeOpus48HighUsesAdaptiveThinking(t *tes
 	require.Nil(t, claudeRequest.TopK)
 }
 
-func TestRequestOpenAI2ClaudeMessage_ClaudeOpus48ThinkingUsesAdaptiveHighEffort(t *testing.T) {
+func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48ThinkingUsesAdaptiveHighEffort(t *testing.T) {
 	request := dto.GeneralOpenAIRequest{
 		Model:       "claude-opus-4-8-thinking",
 		Temperature: commonPointer(0.7),
@@ -362,7 +362,7 @@ func TestRequestOpenAI2ClaudeMessage_ClaudeOpus48ThinkingUsesAdaptiveHighEffort(
 		},
 	}
 
-	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, request)
 	require.NoError(t, err)
 	require.Equal(t, "claude-opus-4-8", claudeRequest.Model)
 	require.NotNil(t, claudeRequest.Thinking)

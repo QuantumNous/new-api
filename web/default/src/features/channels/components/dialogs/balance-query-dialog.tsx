@@ -24,6 +24,7 @@ import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
@@ -169,18 +170,18 @@ export function BalanceQueryDialog({
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
-        <>
-          <Button variant='outline' onClick={handleClose} disabled={isQuerying}>
-            {t('Close')}
-          </Button>
-        </>
+        <Button variant='outline' onClick={handleClose} disabled={isQuerying}>
+          {t('Close')}
+        </Button>
       }
     >
       <div className='space-y-4 py-4'>
         {/* Current Balance Display */}
         <div className='bg-muted/50 rounded-lg border p-4'>
           <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
-            <DollarSign className='h-4 w-4' />
+            <IconBadge tone='success' size='xs'>
+              <DollarSign />
+            </IconBadge>
             <span>{t('Current Balance')}</span>
           </div>
           <div className='text-2xl font-bold'>

@@ -32,7 +32,7 @@ func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(geminiResponse.Candidates) == 0 {
-		usage := buildUsageFromGeminiMetadata(geminiResponse.UsageMetadata, info.GetEstimatePromptTokens())
+		usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
 		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
 			return &usage, types.NewOpenAIError(
@@ -51,13 +51,21 @@ func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 
 	chatResp := responseGeminiChat2OpenAI(c, &geminiResponse)
 	chatResp.Model = info.UpstreamModelName
-	usage := buildUsageFromGeminiMetadata(geminiResponse.UsageMetadata, info.GetEstimatePromptTokens())
+	if responseID := helper.GetResponseID(c); responseID != "" {
+		chatResp.Id = responseID
+	}
+	usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
 	chatResp.Usage = usage
 
-	responsesResp, responsesUsage, err := service.ChatCompletionsResponseToResponsesResponse(chatResp, helper.GetResponseID(c))
+	convertResult, err := relayconvert.ConvertResponse(c, info, types.RelayFormatOpenAIResponses, chatResp)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	responsesResp, ok := convertResult.Value.(*dto.OpenAIResponsesResponse)
+	if !ok {
+		return nil, types.NewOpenAIError(fmt.Errorf("expected OpenAI responses response, got %T", convertResult.Value), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	responsesUsage := convertResult.Usage
 	if responsesUsage == nil || responsesUsage.TotalTokens == 0 {
 		responsesResp.Usage = relayconvert.UsageFromChatUsage(&usage)
 	}
@@ -73,8 +81,14 @@ func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseID := helper.GetResponseID(c)
 	created := common.GetTimestamp()
-	state := relayconvert.NewChatToResponsesStreamState(responseID, info.UpstreamModelName)
-	state.Created = created
+	state, err := relayconvert.NewResponseStreamState(types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses, relayconvert.ResponseStreamOptions{
+		ID:      responseID,
+		Model:   info.UpstreamModelName,
+		Created: created,
+	})
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
 	finishReason := constant.FinishReasonStop
 	toolCallIndexByChoice := make(map[int]map[string]int)
 	nextToolCallIndexByChoice := make(map[int]int)
@@ -90,12 +104,17 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 		return true
 	}
 	sendChunk := func(chunk *dto.ChatCompletionsStreamResponse) bool {
-		events, err := relayconvert.ChatCompletionsStreamChunkToResponsesEvents(chunk, state)
+		results, err := relayconvert.ConvertStreamResponseChunk(c, info, state, chunk)
 		if err != nil {
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 			return false
 		}
-		for _, event := range events {
+		for _, result := range results {
+			event, ok := result.Value.(relayconvert.ChatToResponsesStreamEvent)
+			if !ok {
+				streamErr = types.NewOpenAIError(fmt.Errorf("expected OAI responses stream event, got %T", result.Value), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+				return false
+			}
 			if !sendEvent(event) {
 				return false
 			}
@@ -103,7 +122,7 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 		return true
 	}
 
-	usage, err := geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
+	usage, streamAPIError := geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
 		response, isStop := streamResponseGeminiChat2OpenAI(geminiResponse)
 		response.Id = responseID
 		response.Created = created
@@ -143,17 +162,25 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 		}
 		return true
 	})
-	if err != nil {
-		return usage, err
+	if streamAPIError != nil {
+		return usage, streamAPIError
 	}
 	if streamErr != nil {
 		return nil, streamErr
 	}
 
 	if usage != nil {
-		state.Usage = relayconvert.UsageFromChatUsage(usage)
+		state.SetUsage(usage)
 	}
-	for _, event := range relayconvert.FinalizeChatCompletionsStreamToResponses(state) {
+	finalResults, err := relayconvert.FinalizeStreamResponse(c, info, state)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	for _, result := range finalResults {
+		event, ok := result.Value.(relayconvert.ChatToResponsesStreamEvent)
+		if !ok {
+			return nil, types.NewOpenAIError(fmt.Errorf("expected OAI responses stream event, got %T", result.Value), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
 		if !sendEvent(event) {
 			return nil, streamErr
 		}

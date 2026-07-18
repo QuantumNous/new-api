@@ -39,6 +39,12 @@ type DataTableRowProps<TData> = {
 
 type DataTableRowInnerProps<TData> = DataTableRowProps<TData> & {
   isSelected: boolean
+  /**
+   * Stable signature of currently visible leaf columns for this row.
+   * Captured outside the memo comparator so visibility toggles re-render
+   * even when the TanStack row object reference stays the same.
+   */
+  visibleColumnIds: string
 }
 
 function DataTableRowInner<TData>({
@@ -47,11 +53,13 @@ function DataTableRowInner<TData>({
   className,
   getColumnClassName,
   cellRenderColumns,
+  visibleColumnIds,
   ...rowProps
 }: DataTableRowInnerProps<TData>) {
-  // Destructured only to keep it out of `rowProps` (it is not a valid DOM attr)
-  // and to feed the memo comparator below; it is intentionally unused here.
+  // Destructured only to keep them out of `rowProps` (not valid DOM attrs)
+  // and to feed the memo comparator below; intentionally unused here.
   void cellRenderColumns
+  void visibleColumnIds
 
   return (
     <TableRow
@@ -65,6 +73,7 @@ function DataTableRowInner<TData>({
         return (
           <TableCell
             key={cell.id}
+            data-column-id={cell.column.id}
             className={cn(
               'max-w-full min-w-0',
               renderedCell.isPrimitive && 'overflow-hidden',
@@ -80,10 +89,11 @@ function DataTableRowInner<TData>({
 }
 
 const MemoizedDataTableRow = React.memo(DataTableRowInner, (prev, next) => {
-  // Do not read row.getIsSelected() inside the comparator: TanStack row objects
-  // keep a stable reference while their selection state mutates, so reading it
-  // here compares identical live values and misses selection changes. Selection
-  // is lifted to the `isSelected` prop, captured per render in DataTableRow.
+  // Do not read row.getIsSelected() / row.getVisibleCells() inside the
+  // comparator: TanStack row objects keep a stable reference while selection
+  // and columnVisibility mutate on the table instance. Reading them here would
+  // compare identical live values and miss those updates. Both are lifted to
+  // explicit props, captured per render in DataTableRow.
   //
   // Column cell renderers (and getColumnClassName) can close over external
   // state while the row stays stable, so column definitions and the class
@@ -92,14 +102,24 @@ const MemoizedDataTableRow = React.memo(DataTableRowInner, (prev, next) => {
     prev.row === next.row &&
     prev.className === next.className &&
     prev.isSelected === next.isSelected &&
+    prev.visibleColumnIds === next.visibleColumnIds &&
     prev.getColumnClassName === next.getColumnClassName &&
     prev.cellRenderColumns === next.cellRenderColumns
   )
 }) as typeof DataTableRowInner
 
 export function DataTableRow<TData>(props: DataTableRowProps<TData>) {
+  const visibleColumnIds = props.row
+    .getVisibleCells()
+    .map((cell) => cell.column.id)
+    .join('\0')
+
   return (
-    <MemoizedDataTableRow {...props} isSelected={props.row.getIsSelected()} />
+    <MemoizedDataTableRow
+      {...props}
+      isSelected={props.row.getIsSelected()}
+      visibleColumnIds={visibleColumnIds}
+    />
   )
 }
 

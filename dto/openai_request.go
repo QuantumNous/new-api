@@ -849,6 +849,7 @@ type OpenAIResponsesRequest struct {
 	MaxOutputTokens    *uint           `json:"max_output_tokens,omitempty"`
 	TopLogProbs        *int            `json:"top_logprobs,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
+	Moderation         json.RawMessage `json:"moderation,omitempty"`
 	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
 	PreviousResponseID string          `json:"previous_response_id,omitempty"`
 	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
@@ -859,6 +860,7 @@ type OpenAIResponsesRequest struct {
 	// This field is allowed by default and can be disabled via channel setting disable_store.
 	Store                json.RawMessage `json:"store,omitempty"`
 	PromptCacheKey       json.RawMessage `json:"prompt_cache_key,omitempty"`
+	PromptCacheOptions   json.RawMessage `json:"prompt_cache_options,omitempty"`
 	PromptCacheRetention json.RawMessage `json:"prompt_cache_retention,omitempty"`
 	// SafetyIdentifier carries client identity for policy abuse detection.
 	// This field is filtered by default and can be enabled via channel setting allow_safety_identifier.
@@ -874,6 +876,9 @@ type OpenAIResponsesRequest struct {
 	User             json.RawMessage `json:"user,omitempty"`
 	MaxToolCalls     *uint           `json:"max_tool_calls,omitempty"`
 	Prompt           json.RawMessage `json:"prompt,omitempty"`
+	// Codex Responses metadata/client_metadata:
+	// https://github.com/openai/codex/commit/14df0e8833aad0d6d78287954b61ffac67af936c
+	ClientMetadata json.RawMessage `json:"client_metadata,omitempty"`
 	// qwen
 	EnableThinking json.RawMessage `json:"enable_thinking,omitempty"`
 	// perplexity
@@ -958,8 +963,10 @@ func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
 }
 
 type Reasoning struct {
-	Effort  string `json:"effort,omitempty"`
-	Summary string `json:"summary,omitempty"`
+	Effort  string          `json:"effort,omitempty"`
+	Summary string          `json:"summary,omitempty"`
+	Mode    json.RawMessage `json:"mode,omitempty"`
+	Context json.RawMessage `json:"context,omitempty"`
 }
 
 type Input struct {

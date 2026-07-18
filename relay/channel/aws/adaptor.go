@@ -123,9 +123,13 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	// 原有的Claude模型处理逻辑
-	claudeReq, err := claude.RequestOpenAI2ClaudeMessage(c, *request)
+	result, err := service.ConvertRequest(c, info, types.RelayFormatClaude, request)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to convert openai request to claude request")
+	}
+	claudeReq, ok := result.Value.(*dto.ClaudeRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
 	}
 	info.UpstreamModelName = claudeReq.Model
 	return claudeReq, err

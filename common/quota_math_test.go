@@ -6,6 +6,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // 2000 quota per call * n=18446744073686646784 overflows int64; the constant
@@ -76,6 +77,23 @@ func TestQuotaFromFloatChecked(t *testing.T) {
 		assert.Equal(t, QuotaClampNaN, clamp.Kind)
 		assert.Equal(t, 0, clamp.Clamped)
 	}
+}
+
+func TestQuotaFromFloatStrictReturnsTypedClampError(t *testing.T) {
+	quota, err := QuotaFromFloatStrict(42.9)
+	require.NoError(t, err)
+	assert.Equal(t, 42, quota)
+
+	quota, err = QuotaFromFloatStrict(overflowingProduct)
+	assert.Zero(t, quota)
+	var clamp *QuotaClamp
+	require.ErrorAs(t, err, &clamp)
+	assert.Equal(t, QuotaClampOverflow, clamp.Kind)
+	assert.Equal(t, MaxQuota, clamp.Clamped)
+	assert.ErrorContains(t, err, "QuotaFromFloat")
+	assert.ErrorContains(t, err, "overflow")
+	assert.ErrorContains(t, err, "original=")
+	assert.ErrorContains(t, err, "clamped=2147483647")
 }
 
 // TestQuotaRoundChecked verifies the rounding entry point reports clamps the
