@@ -180,6 +180,7 @@ func UsageFromClaudeAPIUsage(usage *dto.ClaudeUsage) *dto.Usage {
 	}
 	semanticUsage.PromptTokensDetails.CachedTokens = usage.CacheReadInputTokens
 	semanticUsage.PromptTokensDetails.CachedCreationTokens = usage.CacheCreationInputTokens
+	semanticUsage.CompletionTokenDetails.ReasoningTokens = usage.GetThinkingTokens()
 	semanticUsage.ClaudeCacheCreation5mTokens = usage.GetCacheCreation5mTokens()
 	semanticUsage.ClaudeCacheCreation1hTokens = usage.GetCacheCreation1hTokens()
 	return UsageFromClaudeUsage(semanticUsage)
@@ -268,6 +269,11 @@ func BuildMessageDeltaPatchUsage(claudeResponse *dto.ClaudeResponse, claudeInfo 
 		usage.CacheCreation.Ephemeral5mInputTokens = cacheCreation5m
 		usage.CacheCreation.Ephemeral1hInputTokens = cacheCreation1h
 	}
+	if usage.GetThinkingTokens() == 0 {
+		if thinkingTokens := claudeInfo.Usage.GetReasoningTokens(); thinkingTokens > 0 {
+			usage.OutputTokensDetails = &dto.ClaudeOutputTokenDetails{ThinkingTokens: thinkingTokens}
+		}
+	}
 	return usage
 }
 
@@ -285,6 +291,9 @@ func claudeBillingUsageFromSemanticUsage(usage *dto.Usage) *dto.BillingUsage {
 		CacheCreationInputTokens: usage.PromptTokensDetails.CachedCreationTokens,
 		CacheReadInputTokens:     usage.PromptTokensDetails.CachedTokens,
 		OutputTokens:             usage.CompletionTokens,
+	}
+	if reasoningTokens := usage.GetReasoningTokens(); reasoningTokens > 0 {
+		claudeUsage.OutputTokensDetails = &dto.ClaudeOutputTokenDetails{ThinkingTokens: reasoningTokens}
 	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
 		claudeUsage.CacheCreation = &dto.ClaudeCacheCreationUsage{
@@ -350,6 +359,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Message.Usage.GetCacheCreation5mTokens()
 			claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Message.Usage.GetCacheCreation1hTokens()
 			claudeInfo.Usage.CompletionTokens = claudeResponse.Message.Usage.OutputTokens
+			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Message.Usage.GetThinkingTokens()
 			claudeInfo.Usage.BillingUsage = claudeBillingUsageFromSemanticUsage(claudeInfo.Usage)
 		}
 	} else if claudeResponse.Type == "content_block_delta" {
@@ -381,6 +391,9 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			}
 			if claudeResponse.Usage.OutputTokens > 0 {
 				claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+			}
+			if thinkingTokens := claudeResponse.Usage.GetThinkingTokens(); thinkingTokens > 0 {
+				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = thinkingTokens
 			}
 			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 			claudeInfo.Usage.BillingUsage = claudeBillingUsageFromSemanticUsage(claudeInfo.Usage)

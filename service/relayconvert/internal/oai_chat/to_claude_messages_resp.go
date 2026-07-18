@@ -58,6 +58,9 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
 		BillingUsage:             billingUsage,
 	}
+	if reasoningTokens := oaiUsage.GetReasoningTokens(); reasoningTokens > 0 {
+		usage.OutputTokensDetails = &dto.ClaudeOutputTokenDetails{ThinkingTokens: reasoningTokens}
+	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
 		usage.CacheCreation = &dto.ClaudeCacheCreationUsage{
 			Ephemeral5mInputTokens: cacheCreation5m,

@@ -658,7 +658,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         const promptTokens = log.prompt_tokens || 0
         const completionTokens = log.completion_tokens || 0
-        if (promptTokens === 0 && completionTokens === 0) {
+        const reasoningTokens = other?.reasoning_tokens || 0
+        if (
+          promptTokens === 0 &&
+          completionTokens === 0 &&
+          reasoningTokens === 0
+        ) {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
@@ -675,6 +680,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             <span className='font-mono text-xs font-medium tabular-nums'>
               {promptTokens.toLocaleString()} /{' '}
               {completionTokens.toLocaleString()}
+              {reasoningTokens > 0 && (
+                <span className='text-muted-foreground/60 ml-1 font-sans text-[11px] font-normal'>
+                  {t('Reasoning')} {reasoningTokens.toLocaleString()}
+                </span>
+              )}
             </span>
             {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
               <div className='flex items-center gap-1 text-[11px]'>

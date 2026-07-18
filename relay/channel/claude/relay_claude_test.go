@@ -137,6 +137,29 @@ func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {
 	}
 }
 
+func TestFormatClaudeResponseInfo_MessageDeltaThinkingTokens(t *testing.T) {
+	claudeInfo := &ClaudeResponseInfo{
+		Usage: &dto.Usage{PromptTokens: 100},
+	}
+	claudeResponse := &dto.ClaudeResponse{
+		Type: "message_delta",
+		Usage: &dto.ClaudeUsage{
+			OutputTokens: 80,
+			OutputTokensDetails: &dto.ClaudeOutputTokenDetails{
+				ThinkingTokens: 32,
+			},
+		},
+	}
+
+	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
+
+	require.True(t, ok)
+	require.Equal(t, 80, claudeInfo.Usage.CompletionTokens)
+	require.Equal(t, 32, claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens)
+	require.Equal(t, 180, claudeInfo.Usage.TotalTokens)
+	require.True(t, claudeInfo.Done)
+}
+
 func TestFormatClaudeResponseInfo_MessageDelta_OnlyOutputTokens(t *testing.T) {
 	// 模拟 Bedrock: message_start 已积累 usage
 	claudeInfo := &ClaudeResponseInfo{
@@ -253,6 +276,20 @@ func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
 	if openAIUsage.UsageSource != "anthropic" {
 		t.Fatalf("UsageSource = %s, want anthropic", openAIUsage.UsageSource)
 	}
+}
+
+func TestBuildOpenAIStyleUsageFromClaudeUsagePreservesReasoningTokens(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     10,
+		CompletionTokens: 20,
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			ReasoningTokens: 7,
+		},
+	}
+
+	openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
+
+	require.Equal(t, 7, openAIUsage.CompletionTokenDetails.ReasoningTokens)
 }
 
 func TestBuildOpenAIStyleUsageFromClaudeUsagePreservesCacheCreationRemainder(t *testing.T) {

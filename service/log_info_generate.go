@@ -68,6 +68,13 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 	}
 }
 
+func appendReasoningTokens(other map[string]interface{}, reasoningTokens int) {
+	if other == nil || reasoningTokens <= 0 {
+		return
+	}
+	other["reasoning_tokens"] = reasoningTokens
+}
+
 func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
 	cacheTokens int, cacheRatio float64, modelPrice float64, userGroupRatio float64) map[string]interface{} {
 	other := make(map[string]interface{})
