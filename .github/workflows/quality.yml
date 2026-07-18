@@ -137,8 +137,24 @@ jobs:
       - name: Build pure backend image
         run: docker build -f Dockerfile.backend --tag new-api-backend:quality .
 
+      - name: Resolve nginx unprivileged base digest
+        # Pin the frontend runtime base at build time so floating tags cannot silently drift.
+        id: nginx_base
+        run: |
+          set -euo pipefail
+          IMAGE_REF='nginxinc/nginx-unprivileged:1.27-alpine'
+          docker pull "$IMAGE_REF"
+          DIGEST_REF="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_REF")"
+          test -n "$DIGEST_REF"
+          echo "image=${DIGEST_REF}" >> "$GITHUB_OUTPUT"
+          echo "Pinned frontend nginx base: ${DIGEST_REF}" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build separated frontend image
-        run: docker build -f deploy/separated/Dockerfile.frontend --tag new-api-frontend:quality .
+        run: |
+          docker build \
+            -f deploy/separated/Dockerfile.frontend \
+            --build-arg "NGINX_IMAGE=${{ steps.nginx_base.outputs.image }}" \
+            --tag new-api-frontend:quality .
 
       - name: Validate frontend Nginx configuration
         # Variable proxy_pass + resolver defers DNS; use loopback upstream so nginx -t
@@ -158,3 +174,19 @@ jobs:
               < /etc/nginx/templates/nginx.conf.template > /tmp/nginx-test.conf
             nginx -t -c /tmp/nginx-test.conf
           '
+
+      - name: Record separated image digests
+        if: always()
+        run: |
+          {
+            echo '### Separated delivery images'
+            for image in new-api:quality new-api-backend:quality new-api-frontend:quality; do
+              if docker image inspect "$image" >/dev/null 2>&1; then
+                id="$(docker image inspect --format='{{.Id}}' "$image")"
+                echo "- \`${image}\`: \`${id}\`"
+              else
+                echo "- \`${image}\`: missing"
+              fi
+            done
+            echo "- nginx base: \`${{ steps.nginx_base.outputs.image }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

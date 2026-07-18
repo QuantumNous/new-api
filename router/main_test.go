@@ -54,6 +54,37 @@ func TestFrontendModeRequiresAssetsOrExplicitExternalDelivery(t *testing.T) {
 	require.NoError(t, SetRouterForPlane(gin.New(), ThemeAssets{}, PlaneManagement))
 }
 
+// TestFrontendDisabledReturnsNotFoundForUnknownPage 验证纯后端模式对未知页面返回 404 且 API 仍可用。
+func TestFrontendDisabledReturnsNotFoundForUnknownPage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Setenv("FRONTEND_MODE", "disabled")
+	t.Setenv("FRONTEND_BASE_URL", "")
+
+	engine := gin.New()
+	require.NoError(t, SetRouterForPlane(engine, ThemeAssets{}, PlaneManagement))
+
+	unknown := httptest.NewRecorder()
+	engine.ServeHTTP(unknown, httptest.NewRequest(http.MethodGet, "/console/settings", nil))
+	require.Equal(t, http.StatusNotFound, unknown.Code)
+
+	status := httptest.NewRecorder()
+	engine.ServeHTTP(status, httptest.NewRequest(http.MethodGet, "/api/status", nil))
+	require.NotEqual(t, http.StatusNotFound, status.Code)
+}
+
+// TestFrontendModeAutoIgnoresBaseURLOnMaster 验证 auto 模式下 master 忽略 FRONTEND_BASE_URL，且无资源时失败。
+func TestFrontendModeAutoIgnoresBaseURLOnMaster(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousMaster := common.IsMasterNode
+	common.IsMasterNode = true
+	t.Cleanup(func() { common.IsMasterNode = previousMaster })
+
+	t.Setenv("FRONTEND_MODE", "auto")
+	t.Setenv("FRONTEND_BASE_URL", "https://console.example")
+	err := SetRouterForPlane(gin.New(), ThemeAssets{}, PlaneManagement)
+	require.ErrorContains(t, err, "embedded frontend assets are unavailable")
+}
+
 // TestExplicitFrontendRedirectWorksOnMaster 验证明示 redirect 可覆盖旧版 master 自动嵌入行为。
 func TestExplicitFrontendRedirectWorksOnMaster(t *testing.T) {
 	gin.SetMode(gin.TestMode)

@@ -89,14 +89,38 @@ docker run --rm --entrypoint /bin/sh new-api-frontend:local -c 'nginx -t -c /etc
 
 The entrypoint always runs `nginx -t` before `daemon off`.
 
+Quality CI pulls `nginxinc/nginx-unprivileged:1.27-alpine`, resolves its registry digest, and builds with
+`--build-arg NGINX_IMAGE=<repo@sha256:...>`. Local builds may still use the tag default; prefer the CI-resolved
+digest when freezing a production frontend image.
+
+## Makefile shortcuts
+
+From repository root:
+
+```bash
+make build-backend      # go build -tags frontend_external
+make docker-backend     # Dockerfile.backend
+make docker-frontend    # deploy/separated/Dockerfile.frontend
+make docker-separated   # backend + frontend images
+```
+
 ## Compose smoke checklist
 
-1. `curl -fsS http://127.0.0.1:8080/frontend-healthz` → `"status":"ok"`.
-2. SPA loads at `/`.
-3. `curl -fsS http://127.0.0.1:8080/api/status` reaches backend through proxy.
-4. `curl -i http://127.0.0.1:8080/v1/models` without token → `401`.
-5. `/readyz` reflects backend readiness.
-6. Confirm SSE is not buffered (chat stream) and WebSocket upgrade works for `/v1/realtime`.
+Automated:
+
+```bash
+# bash
+FRONTEND_BASE=http://127.0.0.1:8080 ./deploy/separated/smoke.sh
+
+# Windows PowerShell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\separated\smoke.ps1
+```
+
+Manual extras:
+
+1. Confirm SSE is not buffered (chat stream).
+2. Confirm WebSocket upgrade works for `/v1/realtime`.
+3. Confirm `/metrics` remains 404 on the public edge.
 
 ## Rollback
 

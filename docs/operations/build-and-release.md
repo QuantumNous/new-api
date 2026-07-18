@@ -37,8 +37,13 @@ $env:FRONTEND_MODE = 'disabled'
 Separated compose example (from repo root):
 
 ```bash
+make docker-separated
 docker compose -f deploy/separated/docker-compose.yml build
+FRONTEND_BASE=http://127.0.0.1:8080 ./deploy/separated/smoke.sh
 ```
+
+Frontend runtime base pinning: quality CI resolves `nginxinc/nginx-unprivileged:1.27-alpine` to a
+digest and passes `NGINX_IMAGE` as a build-arg. Prefer that digest when freezing production images.
 
 ## Windows release evidence
 

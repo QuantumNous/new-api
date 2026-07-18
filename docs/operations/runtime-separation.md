@@ -54,6 +54,14 @@ browser --> frontend container (:8080)
 
 See `deploy/separated/README.md` and ADR `docs/adr/0001-frontend-backend-delivery-seam.md`.
 
+Operational shortcuts from repository root:
+
+```bash
+make build-backend
+make docker-separated
+FRONTEND_BASE=http://127.0.0.1:8080 ./deploy/separated/smoke.sh
+```
+
 ## Split Deployment (process roles)
 
 1. Run one `RUN_MODE=migrate` job before updating application instances.
