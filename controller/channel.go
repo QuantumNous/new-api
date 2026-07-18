@@ -2222,3 +2222,90 @@ func OllamaVersion(c *gin.Context) {
 		},
 	})
 }
+
+const maxChannelHealthCheckBatchSize = 200
+
+type channelHealthCheckBatchItem struct {
+	Id          int                            `json:"id"`
+	AutoBan     *int                           `json:"auto_ban,omitempty"`
+	HealthCheck *dto.ChannelHealthCheckSettings `json:"health_check,omitempty"`
+}
+
+type channelHealthCheckBatchRequest struct {
+	Items []channelHealthCheckBatchItem `json:"items"`
+}
+
+type channelHealthCheckBatchItemResult struct {
+	Id      int    `json:"id"`
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
+}
+
+// BatchUpdateChannelHealthCheck narrowly updates settings.health_check and/or
+// auto_ban without requiring ChannelSensitiveWrite for the full settings column.
+func BatchUpdateChannelHealthCheck(c *gin.Context) {
+	req := channelHealthCheckBatchRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "参数错误",
+		})
+		return
+	}
+	if len(req.Items) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "参数错误",
+		})
+		return
+	}
+	if len(req.Items) > maxChannelHealthCheckBatchSize {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("单次最多更新 %d 个渠道", maxChannelHealthCheckBatchSize),
+		})
+		return
+	}
+
+	results := make([]channelHealthCheckBatchItemResult, 0, len(req.Items))
+	succeeded := 0
+	for _, item := range req.Items {
+		result := channelHealthCheckBatchItemResult{Id: item.Id}
+		if item.Id <= 0 {
+			result.Message = "invalid channel id"
+			results = append(results, result)
+			continue
+		}
+		if item.AutoBan == nil && item.HealthCheck == nil {
+			result.Message = "no health check fields to update"
+			results = append(results, result)
+			continue
+		}
+		if err := model.UpdateHealthCheckSettings(item.Id, item.AutoBan, item.HealthCheck); err != nil {
+			result.Message = err.Error()
+			results = append(results, result)
+			continue
+		}
+		result.Success = true
+		results = append(results, result)
+		succeeded++
+	}
+
+	if succeeded > 0 {
+		model.InitChannelCache()
+		recordManageAudit(c, "channel.health_check_batch", map[string]interface{}{
+			"count":     len(req.Items),
+			"succeeded": succeeded,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": succeeded == len(req.Items),
+		"message": "",
+		"data": gin.H{
+			"succeeded": succeeded,
+			"failed":    len(req.Items) - succeeded,
+			"results":   results,
+		},
+	})
+}

@@ -88,6 +88,14 @@ export interface ChannelSettings {
   system_prompt_override?: boolean
 }
 
+export interface ChannelHealthCheckSettings {
+  enabled?: boolean
+  disable_threshold_seconds?: number
+  enable_on_success?: boolean
+  endpoint_type?: string
+  stream?: boolean
+}
+
 export interface ChannelOtherSettings {
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
@@ -107,6 +115,7 @@ export interface ChannelOtherSettings {
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
   advanced_custom?: AdvancedCustomConfig
+  health_check?: ChannelHealthCheckSettings
 }
 
 export interface AdvancedCustomConfig {
@@ -321,6 +330,28 @@ export interface BatchDeleteParams {
 export interface BatchSetTagParams {
   ids: number[]
   tag: string | null
+}
+
+export interface ChannelHealthCheckBatchItem {
+  id: number
+  auto_ban?: number
+  health_check?: ChannelHealthCheckSettings | null
+}
+
+export interface ChannelHealthCheckBatchResultItem {
+  id: number
+  success: boolean
+  message?: string
+}
+
+export interface ChannelHealthCheckBatchResponse {
+  success: boolean
+  message?: string
+  data?: {
+    succeeded: number
+    failed: number
+    results: ChannelHealthCheckBatchResultItem[]
+  }
 }
 
 export interface TagOperationParams {
