@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/url"
@@ -690,6 +691,36 @@ func closeDB(db *gorm.DB) error {
 	return err
 }
 
+func PingDB() error {
+	return PingDBContext(context.Background())
+}
+
+func PingDBContext(ctx context.Context) error {
+	// Keep the same throttle semantics as PingDB for background callers, but honor ctx.
+	pingMutex.Lock()
+	defer pingMutex.Unlock()
+
+	if time.Since(lastPingTime) < time.Second*10 {
+		return nil
+	}
+
+	if DB == nil {
+		return fmt.Errorf("database is not initialized")
+	}
+	sqlDB, err := DB.DB()
+	if err != nil {
+		log.Printf("Error getting sql.DB from GORM: %v", err)
+		return err
+	}
+	err = sqlDB.PingContext(ctx)
+	if err != nil {
+		log.Printf("Error pinging database: %v", err)
+		return err
+	}
+	lastPingTime = time.Now()
+	return nil
+}
+
 func CloseDB() error {
 	if LOG_DB != DB {
 		err := closeDB(LOG_DB)
@@ -797,27 +828,3 @@ var (
 	pingMutex    sync.Mutex
 )
 
-func PingDB() error {
-	pingMutex.Lock()
-	defer pingMutex.Unlock()
-
-	if time.Since(lastPingTime) < time.Second*10 {
-		return nil
-	}
-
-	sqlDB, err := DB.DB()
-	if err != nil {
-		log.Printf("Error getting sql.DB from GORM: %v", err)
-		return err
-	}
-
-	err = sqlDB.Ping()
-	if err != nil {
-		log.Printf("Error pinging DB: %v", err)
-		return err
-	}
-
-	lastPingTime = time.Now()
-	common.SysLog("Database pinged successfully")
-	return nil
-}

@@ -1,0 +1,192 @@
+name: Quality Gate
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: 1.26.5
+          cache: true
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Build embedded frontend assets
+        working-directory: web
+        env:
+          DISABLE_ESLINT_PLUGIN: 'true'
+        run: |
+          bun install --frozen-lockfile
+          (cd default && bun run build)
+          (cd classic && bun run build)
+
+      - name: Validate build metadata
+        run: |
+          test -s VERSION
+          test "$(go env GOVERSION)" = "go1.26.5"
+
+      - name: Build
+        run: go build -trimpath -buildvcs=true ./...
+
+      - name: Build pure backend without embedded frontend
+        # frontend_external excludes //go:embed web/*/dist so the backend can ship without Bun assets.
+        run: go build -trimpath -buildvcs=true -tags frontend_external .
+
+      - name: Test
+        env:
+          GOSUMDB: sum.golang.org
+        run: go test -count=1 ./...
+
+      - name: Test pure backend package with frontend_external
+        env:
+          GOSUMDB: sum.golang.org
+        run: go test -count=1 -tags frontend_external .
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Vulnerability scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          govulncheck ./...
+
+  web-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Install locked dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Audit dependencies
+        working-directory: web
+        run: bun audit
+
+      - name: Typecheck default frontend
+        working-directory: web/default
+        run: bun run typecheck
+
+      - name: Test default frontend
+        working-directory: web/default
+        run: bun test
+
+      - name: Build default frontend
+        working-directory: web/default
+        env:
+          DISABLE_ESLINT_PLUGIN: 'true'
+        run: bun run build
+
+      - name: Enforce entry bundle budget
+        working-directory: web/default
+        run: bun run bundle:check
+
+      - name: Test classic frontend
+        working-directory: web/classic
+        run: bun test
+
+      - name: Build classic frontend
+        working-directory: web/classic
+        run: bun run build
+
+      - name: Enforce classic bundle budget
+        working-directory: web/classic
+        run: bun run bundle:check
+
+      - name: Test shared web tooling
+        working-directory: web
+        run: bun run test:tooling
+
+  image-reproducibility:
+    needs: [go-quality, web-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Build pinned integrated image
+        run: docker build --tag new-api:quality .
+
+      - name: Build pure backend image
+        run: docker build -f Dockerfile.backend --tag new-api-backend:quality .
+
+      - name: Resolve nginx unprivileged base digest
+        # Pin the frontend runtime base at build time so floating tags cannot silently drift.
+        id: nginx_base
+        run: |
+          set -euo pipefail
+          IMAGE_REF='nginxinc/nginx-unprivileged:1.27-alpine'
+          docker pull "$IMAGE_REF"
+          DIGEST_REF="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_REF")"
+          test -n "$DIGEST_REF"
+          echo "image=${DIGEST_REF}" >> "$GITHUB_OUTPUT"
+          echo "Pinned frontend nginx base: ${DIGEST_REF}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build separated frontend image
+        run: |
+          docker build \
+            -f deploy/separated/Dockerfile.frontend \
+            --build-arg "NGINX_IMAGE=${{ steps.nginx_base.outputs.image }}" \
+            --tag new-api-frontend:quality .
+
+      - name: Validate frontend Nginx configuration
+        # Variable proxy_pass + resolver defers DNS; use loopback upstream so nginx -t
+        # does not require a live backend hostname in this single-container job.
+        run: |
+          docker run --rm --entrypoint /bin/sh new-api-frontend:quality -c '
+            set -eu
+            export BACKEND_UPSTREAM=127.0.0.1:3000
+            export DNS_RESOLVER=127.0.0.1
+            export NGINX_PORT=8080
+            export SERVER_NAME=_
+            export CLIENT_MAX_BODY_SIZE=100m
+            export PROXY_CONNECT_TIMEOUT=60s
+            export PROXY_SEND_TIMEOUT=3600s
+            export PROXY_READ_TIMEOUT=3600s
+            envsubst '\''${BACKEND_UPSTREAM} ${NGINX_PORT} ${SERVER_NAME} ${CLIENT_MAX_BODY_SIZE} ${PROXY_CONNECT_TIMEOUT} ${PROXY_SEND_TIMEOUT} ${PROXY_READ_TIMEOUT} ${DNS_RESOLVER}'\'' \
+              < /etc/nginx/templates/nginx.conf.template > /tmp/nginx-test.conf
+            nginx -t -c /tmp/nginx-test.conf
+          '
+
+      - name: Record separated image digests
+        if: always()
+        run: |
+          {
+            echo '### Separated delivery images'
+            for image in new-api:quality new-api-backend:quality new-api-frontend:quality; do
+              if docker image inspect "$image" >/dev/null 2>&1; then
+                id="$(docker image inspect --format='{{.Id}}' "$image")"
+                echo "- \`${image}\`: \`${id}\`"
+              else
+                echo "- \`${image}\`: missing"
+              fi
+            done
+            echo "- nginx base: \`${{ steps.nginx_base.outputs.image }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,78 @@
+# Same-origin frontend + pure backend example stack.
+# Build from the authoritative repository root:
+#   docker compose -f deploy/separated/docker-compose.yml build
+# Required secrets must be provided via environment or an env file (never commit real values).
+
+services:
+  backend:
+    image: ${NEW_API_BACKEND_IMAGE:-new-api-backend:local}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.backend
+    container_name: new-api-backend
+    restart: always
+    command: --log-dir /app/logs
+    environment:
+      - FRONTEND_MODE=disabled
+      - RUN_MODE=${RUN_MODE:-all}
+      - APP_PLANE=${APP_PLANE:-all}
+      - SQL_DSN=${SQL_DSN:?Set SQL_DSN}
+      - REDIS_CONN_STRING=${REDIS_CONN_STRING:-}
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - NODE_NAME=new-api-backend-1
+      - TRUSTED_PROXY_CIDRS=${TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
+      - METRICS_ENABLED=${METRICS_ENABLED:-false}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
+      - SESSION_SECRET=${SESSION_SECRET:-}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-}
+      - SESSION_COOKIE_TRUSTED_URL=${SESSION_COOKIE_TRUSTED_URL:-}
+    volumes:
+      - backend_data:/data
+      - backend_logs:/app/logs
+    networks:
+      - new-api-separated
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/readyz | grep -q '\"status\":\"ok\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Backend is intentionally not published; only the frontend edge is exposed.
+
+  frontend:
+    image: ${NEW_API_FRONTEND_IMAGE:-new-api-frontend:local}
+    build:
+      context: ../..
+      dockerfile: deploy/separated/Dockerfile.frontend
+    container_name: new-api-frontend
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - BACKEND_UPSTREAM=backend:3000
+      - DNS_RESOLVER=127.0.0.11
+      - NGINX_PORT=8080
+      - SERVER_NAME=_
+      - CLIENT_MAX_BODY_SIZE=100m
+      - PROXY_CONNECT_TIMEOUT=60s
+      - PROXY_SEND_TIMEOUT=3600s
+      - PROXY_READ_TIMEOUT=3600s
+    ports:
+      - "${FRONTEND_PUBLISH_PORT:-8080}:8080"
+    networks:
+      - new-api-separated
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/frontend-healthz | grep -q '\"status\":\"ok\"'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  new-api-separated:
+    driver: bridge
+
+volumes:
+  backend_data:
+  backend_logs:

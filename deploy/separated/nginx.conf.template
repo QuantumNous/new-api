@@ -1,0 +1,235 @@
+# Nginx SPA + same-origin reverse proxy for new-api frontend delivery.
+# Placeholders are substituted by docker-entrypoint.sh via envsubst.
+#
+# Upstream uses a variable + resolver so:
+# 1) nginx -t works without the backend hostname existing (CI / cold start)
+# 2) Docker Compose service names are resolved at request time via 127.0.0.11
+
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log /var/log/nginx/access.log main;
+
+    sendfile on;
+    tcp_nopush on;
+    keepalive_timeout 65;
+    server_tokens off;
+    client_max_body_size ${CLIENT_MAX_BODY_SIZE};
+
+    # Streaming / SSE / WebSocket-friendly upgrade map.
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
+    # Long-lived relay streams and realtime sockets need extended idle timeouts.
+    proxy_connect_timeout ${PROXY_CONNECT_TIMEOUT};
+    proxy_send_timeout    ${PROXY_SEND_TIMEOUT};
+    proxy_read_timeout    ${PROXY_READ_TIMEOUT};
+
+    # Docker embedded DNS by default; override for non-Docker runtimes.
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+
+    server {
+        listen ${NGINX_PORT};
+        server_name ${SERVER_NAME};
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Independent frontend health for container orchestrators (does not probe backend).
+        location = /frontend-healthz {
+            access_log off;
+            default_type application/json;
+            return 200 '{"status":"ok","component":"frontend"}';
+        }
+
+        # Do not expose Prometheus metrics on the public frontend edge by default.
+        location = /metrics {
+            return 404;
+        }
+
+        # Fingerprinted static assets: long cache, immutable.
+        location /assets/ {
+            try_files $uri =404;
+            access_log off;
+            expires 1y;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+        }
+
+        # Shared proxy settings for API, relay, SSE, and WebSocket paths.
+        # Variable proxy_pass defers DNS lookup to request time and keeps $request_uri intact.
+        location /api/ {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_request_buffering off;
+            proxy_cache off;
+        }
+
+        location /v1/ {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_buffering off;
+            proxy_request_buffering off;
+            proxy_cache off;
+            proxy_read_timeout ${PROXY_READ_TIMEOUT};
+            proxy_send_timeout ${PROXY_SEND_TIMEOUT};
+        }
+
+        location /v1beta/ {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_request_buffering off;
+            proxy_cache off;
+        }
+
+        location /mj/ {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_cache off;
+        }
+
+        # Midjourney mode-prefixed paths: /:mode/mj/...
+        location ~ ^/[^/]+/mj(/|$) {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_cache off;
+        }
+
+        location /pg/ {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_cache off;
+        }
+
+        location /suno/ {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_cache off;
+        }
+
+        location /kling/ {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_cache off;
+        }
+
+        location /jimeng {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_cache off;
+        }
+
+        # Backend liveness/readiness through the same origin (optional operational path).
+        location = /healthz {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream/healthz;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            access_log off;
+        }
+
+        location = /livez {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream/livez;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            access_log off;
+        }
+
+        location = /readyz {
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream/readyz;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            access_log off;
+        }
+
+        # SPA fallback: never cache the HTML shell so releases roll out immediately.
+        location / {
+            try_files $uri $uri/ /index.html;
+            add_header Cache-Control "no-cache" always;
+        }
+    }
+}

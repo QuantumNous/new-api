@@ -21,6 +21,11 @@ type ThemeAssets struct {
 	ClassicIndexPage []byte
 }
 
+// Available reports whether both theme index pages are present (embedded build).
+func (assets ThemeAssets) Available() bool {
+	return len(assets.DefaultIndexPage) > 0 && len(assets.ClassicIndexPage) > 0
+}
+
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	defaultFS := common.EmbedFolder(assets.DefaultBuildFS, "web/default/dist")
 	classicFS := common.EmbedFolder(assets.ClassicBuildFS, "web/classic/dist")
