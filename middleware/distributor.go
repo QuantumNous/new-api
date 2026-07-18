@@ -115,43 +115,31 @@ func Distribute() func(c *gin.Context) {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					affinityKey := model.ChannelHealthKey{ChannelID: preferredChannelID, Model: modelRequest.Model, Path: service.ChannelHealthPath(c.Request.URL.Path)}
-					// Keep prompt-cache affinity only while the sticky channel actually
-					// serves this request path (an Advanced Custom channel whose routes
-					// do not cover it must not be pinned) and is still worth staying on.
-					// A sticky that has gone materially slower than the best alternative
-					// yields to normal health-weighted selection, so a cache-locked user
-					// is moved to a faster channel instead of being stuck for the whole
-					// session.
+					// Keep prompt-cache affinity as long as the sticky channel can
+					// still serve the request. The session already holds this
+					// channel's upstream prompt cache; leaving throws it away and the
+					// next channel pays a full cold prefill — 20-40s on a ~200k-token
+					// prompt, measured in prod, far worse than riding out a slow
+					// channel where the cache hit still yields a ~1s first token.
+					// AcquireChannelHealthForAffinity therefore yields ONLY on failure
+					// (failure-open circuit), not on slowness; the previous logic
+					// migrated on slowness and made a session churn #42->#41->#29->#17,
+					// paying a cold prefill on every hop. (An Advanced Custom channel
+					// whose routes do not cover this path is still not pinnable.)
 					stickyUsable := err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) &&
 						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model)
-					if stickyUsable {
-						switch model.ChannelAffinityDecision(affinityKey) {
-						case model.ChannelAffinityReleaseUnavailable:
-							// Circuit is not closed: the sticky cannot serve this request.
-							// Release unconditionally — rate-limiting this would park the
-							// key on a tripped channel, and falling through to Acquire
-							// would hand a paying request the half-open probe lease.
-							stickyUsable = false
-						case model.ChannelAffinityReleaseSlow:
-							// Costs a full uncached prefill, so only when the rate limiter
-							// agrees: a key that just migrated stays put even if the channel
-							// it moved to looks slow for a moment.
-							if service.TryReleaseChannelAffinity(c) {
-								stickyUsable = false
-								// The channel we land on next holds no prompt cache for this
-								// key, so its first token pays a full prefill. Flag it: that
-								// latency is a cost we imposed and must not be charged to
-								// that channel (health EWMA or the slow-channel cooldown).
-								common.SetContextKey(c, constant.ContextKeyAffinityColdStart, true)
-								logger.LogInfo(c, fmt.Sprintf(
-									"channel_affinity_released: channel #%d is slow for model=%s; migrating to a faster channel (one cold prefill expected)",
-									preferred.Id, modelRequest.Model))
-							}
-						}
+					if stickyUsable && !model.AcquireChannelHealthForAffinity(affinityKey) {
+						// The channel is failing, not merely slow: staying would error.
+						// Leaving means the next channel is cold, so flag it — the cold
+						// prefill is a cost we imposed and must not be charged to that
+						// channel's health EWMA or slow-channel cooldown.
+						stickyUsable = false
+						common.SetContextKey(c, constant.ContextKeyAffinityColdStart, true)
+						logger.LogInfo(c, fmt.Sprintf(
+							"channel_affinity_released: channel #%d is failing for model=%s; leaving its warm cache for a healthy channel (cold prefill expected)",
+							preferred.Id, modelRequest.Model))
 					}
-					// Acquire runs only for a sticky we are actually keeping, so we never
-					// strand a health lease on a channel we then skip.
-					if stickyUsable && model.AcquireChannelHealth(affinityKey) {
+					if stickyUsable {
 						if preferred.Status != common.ChannelStatusEnabled {
 							// Affinity channel is disabled, fall back to random selection
 							// Skip retry only applies if we actually used the affinity channel

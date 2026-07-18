@@ -163,162 +163,11 @@ func TestChannelHealthIgnoresSemanticClientErrors(t *testing.T) {
 	}
 }
 
-func TestIsChannelFastEnoughForAffinity(t *testing.T) {
-	oldEnabled := common.AdaptiveChannelHealthEnabled
-	common.AdaptiveChannelHealthEnabled = true
-	clearChannelHealthForTest()
-	t.Cleanup(func() {
-		clearChannelHealthForTest()
-		common.AdaptiveChannelHealthEnabled = oldEnabled
-	})
-
-	cold := ChannelHealthKey{ChannelID: 40, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	if !IsChannelFastEnoughForAffinity(cold) {
-		t.Fatal("cold/unknown sticky channel must keep affinity")
-	}
-
-	fast := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	for i := 0; i < 4; i++ {
-		RecordChannelOutcome(fast, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1500 * time.Millisecond})
-	}
-	if !IsChannelFastEnoughForAffinity(fast) {
-		t.Fatal("fast sticky channel must keep affinity")
-	}
-
-	slow := ChannelHealthKey{ChannelID: 42, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	for i := 0; i < 5; i++ {
-		RecordChannelOutcome(slow, ChannelOutcome{StatusCode: http.StatusOK, Latency: 20 * time.Second})
-	}
-	if IsChannelFastEnoughForAffinity(slow) {
-		t.Fatal("sustained-slow sticky channel must yield affinity so routing can pick a faster channel")
-	}
-
-	// Gate: disabled adaptive health keeps affinity regardless (current behavior).
-	common.AdaptiveChannelHealthEnabled = false
-	if !IsChannelFastEnoughForAffinity(slow) {
-		t.Fatal("with adaptive health off, affinity must be preserved (no-op)")
-	}
-	common.AdaptiveChannelHealthEnabled = true
-}
-
-// TestAffinityReleaseIsRelativeToTheBestPeer covers the case the old absolute
-// rule missed entirely: 3.5s is nowhere near the ~9s score floor, so a channel
-// sitting at 3.5s used to keep its sticky traffic forever even while a peer
-// answered the same model in 1.3s. Measured in prod: ch#45 3537ms vs ch#41
-// 1275ms, 52 requests pinned to the slow one.
-func TestAffinityReleaseIsRelativeToTheBestPeer(t *testing.T) {
-	withGlobalChannelHealth(t)
-
-	fast := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	slow := ChannelHealthKey{ChannelID: 45, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	for i := 0; i < 5; i++ {
-		RecordChannelOutcome(fast, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1275 * time.Millisecond})
-		RecordChannelOutcome(slow, ChannelOutcome{StatusCode: http.StatusOK, Latency: 3537 * time.Millisecond})
-	}
-
-	if IsChannelFastEnoughForAffinity(slow) {
-		t.Fatal("a sticky 2.8x slower than an available peer must yield affinity")
-	}
-	if !IsChannelFastEnoughForAffinity(fast) {
-		t.Fatal("the fastest channel must keep its affinity")
-	}
-}
-
-// TestAffinityKeptWhenNoFasterPeerExists guards the other side: releasing only
-// pays off if there is somewhere better to go. With every channel equally slow,
-// migrating just burns a prefill and lands on the same latency.
-func TestAffinityKeptWhenNoFasterPeerExists(t *testing.T) {
-	withGlobalChannelHealth(t)
-
-	lonely := ChannelHealthKey{ChannelID: 45, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	peer := ChannelHealthKey{ChannelID: 33, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	otherModel := ChannelHealthKey{ChannelID: 41, Model: "claude-sonnet-5", Path: "/v1/responses"}
-	for i := 0; i < 5; i++ {
-		RecordChannelOutcome(lonely, ChannelOutcome{StatusCode: http.StatusOK, Latency: 4 * time.Second})
-		RecordChannelOutcome(peer, ChannelOutcome{StatusCode: http.StatusOK, Latency: 4 * time.Second})
-		// A fast channel on a different model must not tempt a migration.
-		RecordChannelOutcome(otherModel, ChannelOutcome{StatusCode: http.StatusOK, Latency: 100 * time.Millisecond})
-	}
-
-	if !IsChannelFastEnoughForAffinity(lonely) {
-		t.Fatal("slow sticky with no faster peer for the same model must keep affinity")
-	}
-}
-
-// TestAffinityKeptWhenTheWholeFleetIsSlow reproduces what prod actually did once
-// every channel degraded to 3-9s: some channel is always relatively fastest, so
-// the ratio rule fired for all six in turn and keys churned between them — 21
-// migrations an hour, each paying a cold prefill to land somewhere equally slow.
-// Relative-best is not a good enough reason to throw away a warm cache; there
-// has to be somewhere genuinely fast to go.
-func TestAffinityKeptWhenTheWholeFleetIsSlow(t *testing.T) {
-	withGlobalChannelHealth(t)
-
-	// Real prod numbers from the degraded hour.
-	degraded := map[int]time.Duration{
-		41: 8877 * time.Millisecond,
-		42: 6662 * time.Millisecond,
-		52: 5231 * time.Millisecond,
-		53: 4023 * time.Millisecond,
-		51: 3632 * time.Millisecond,
-		61: 2249 * time.Millisecond, // relatively fastest, but still slow
-	}
-	for ch, lat := range degraded {
-		key := ChannelHealthKey{ChannelID: ch, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-		for i := 0; i < 5; i++ {
-			RecordChannelOutcome(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: lat})
-		}
-	}
-
-	for ch := range degraded {
-		key := ChannelHealthKey{ChannelID: ch, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-		// #41 is 3.9x the fastest peer, which the ratio rule alone would release.
-		if got := ChannelAffinityDecision(key); got != ChannelAffinityKeep {
-			t.Fatalf("ch#%d verdict = %v, want Keep: with no genuinely fast channel to reach, migrating only buys a cold prefill", ch, got)
-		}
-	}
-}
-
-// TestAffinityReleasedOnceSomewhereFastExists is the contrast: the same slow
-// sticky must still migrate the moment a genuinely fast channel is available.
-func TestAffinityReleasedOnceSomewhereFastExists(t *testing.T) {
-	withGlobalChannelHealth(t)
-
-	slow := ChannelHealthKey{ChannelID: 45, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	fast := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	for i := 0; i < 5; i++ {
-		RecordChannelOutcome(slow, ChannelOutcome{StatusCode: http.StatusOK, Latency: 3537 * time.Millisecond})
-		RecordChannelOutcome(fast, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1275 * time.Millisecond})
-	}
-
-	if got := ChannelAffinityDecision(slow); got != ChannelAffinityReleaseSlow {
-		t.Fatalf("verdict = %v, want ReleaseSlow: 3537ms with a 1275ms channel available is worth one prefill", got)
-	}
-}
-
-// TestAffinityKeptWhenAbsolutelyFast guards against churning over differences
-// that no user can perceive: 300ms is 2x 150ms, but migrating to save 150ms
-// costs a full uncached prefill.
-func TestAffinityKeptWhenAbsolutelyFast(t *testing.T) {
-	withGlobalChannelHealth(t)
-
-	quick := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	quicker := ChannelHealthKey{ChannelID: 51, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	for i := 0; i < 5; i++ {
-		RecordChannelOutcome(quick, ChannelOutcome{StatusCode: http.StatusOK, Latency: 300 * time.Millisecond})
-		RecordChannelOutcome(quicker, ChannelOutcome{StatusCode: http.StatusOK, Latency: 150 * time.Millisecond})
-	}
-
-	if !IsChannelFastEnoughForAffinity(quick) {
-		t.Fatal("a channel already fast in absolute terms must keep affinity regardless of ratio")
-	}
-}
-
-// TestColdCacheStartDoesNotPoisonLatency is the guard that makes migration safe
-// to enable at all. A migration hands the new channel an uncached prompt; in
-// prod a cold 240k-token prefill took 23.3s. Scoring that against the channel we
-// just moved to would make it look slow to every other affinity key on it, and
-// they would all stampede off — each paying its own cold prefill.
+// TestColdCacheStartDoesNotPoisonLatency: when a session leaves a failing
+// channel, the healthy channel it lands on serves it from a cold prompt cache —
+// a 240k-token prefill took 23.3s in prod. Scoring that against the new channel
+// would make it look slow to every other affinity key on it, so cold-start
+// latency must be excluded from the EWMA and the slow-trip counter.
 func TestColdCacheStartDoesNotPoisonLatency(t *testing.T) {
 	health, _ := newTestChannelHealth(t)
 	key := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
@@ -368,35 +217,51 @@ func TestColdCacheStartStillCountsFailures(t *testing.T) {
 	}
 }
 
-// TestAffinityDecisionDistinguishesUnavailableFromSlow: the two release reasons
-// must stay distinct at the API. Callers rate-limit the slow one (each migration
-// costs a prefill) but must act on the unavailable one immediately — conflate
-// them and a rate-limited key gets parked on a channel whose circuit is open,
-// and the caller's Acquire hands that user's request the half-open probe lease.
-func TestAffinityDecisionDistinguishesUnavailableFromSlow(t *testing.T) {
+// TestAffinityRidesOutSlownessButLeavesOnFailure is the core of the
+// cache-preservation fix. A session holding a channel's prompt cache must keep
+// using it through slowness — even once the slow circuit trips — because a cache
+// hit answers in ~1s while leaving pays a 20-40s cold prefill. It must leave only
+// when the channel is actually failing. In prod the old logic migrated on
+// slowness and made one session churn #42->#41->#29->#17, paying a cold prefill
+// on every hop.
+func TestAffinityRidesOutSlownessButLeavesOnFailure(t *testing.T) {
 	withGlobalChannelHealth(t)
 
-	fast := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	slow := ChannelHealthKey{ChannelID: 45, Model: "gpt-5.6-sol", Path: "/v1/responses"}
-	tripped := ChannelHealthKey{ChannelID: 57, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	slowOpen := ChannelHealthKey{ChannelID: 42, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	failOpen := ChannelHealthKey{ChannelID: 57, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	closed := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.6-sol", Path: "/v1/responses"}
 
-	for i := 0; i < 5; i++ {
-		RecordChannelOutcome(fast, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1275 * time.Millisecond})
-		RecordChannelOutcome(slow, ChannelOutcome{StatusCode: http.StatusOK, Latency: 3537 * time.Millisecond})
-		RecordChannelOutcome(tripped, ChannelOutcome{StatusCode: http.StatusOK, Latency: 2 * time.Second})
+	// A closed, healthy channel is always usable.
+	RecordChannelOutcome(closed, ChannelOutcome{StatusCode: http.StatusOK, Latency: 1500 * time.Millisecond})
+	if !AcquireChannelHealthForAffinity(closed) {
+		t.Fatal("a closed channel must be usable for affinity")
 	}
+
+	// Trip #42 open via sustained slowness (12s, well past the 9s slow bound).
+	for i := 0; i < channelHealthSlowThreshold; i++ {
+		RecordChannelOutcome(slowOpen, ChannelOutcome{StatusCode: http.StatusOK, Latency: 12 * time.Second})
+	}
+	if adaptiveChannelHealth.State(slowOpen) != ChannelHealthOpen {
+		t.Fatalf("premise: #42 should be slow-open, got %v", adaptiveChannelHealth.State(slowOpen))
+	}
+	if !AcquireChannelHealthForAffinity(slowOpen) {
+		t.Fatal("a cache-holding session must ride out a SLOW-open channel, not pay a cold prefill to leave it")
+	}
+	// The normal (non-affinity) acquire, by contrast, refuses it during backoff —
+	// so new traffic still avoids the slow channel; only the cache-holding session stays.
+	if AcquireChannelHealth(slowOpen) {
+		t.Fatal("premise: normal acquire should refuse a slow-open channel during backoff")
+	}
+
+	// Trip #57 open via failures.
 	for i := 0; i < channelHealthFailureThreshold; i++ {
-		RecordChannelOutcome(tripped, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+		RecordChannelOutcome(failOpen, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
 	}
-
-	if got := ChannelAffinityDecision(fast); got != ChannelAffinityKeep {
-		t.Fatalf("fast channel verdict = %v, want Keep", got)
+	if adaptiveChannelHealth.State(failOpen) != ChannelHealthOpen {
+		t.Fatalf("premise: #57 should be failure-open, got %v", adaptiveChannelHealth.State(failOpen))
 	}
-	if got := ChannelAffinityDecision(slow); got != ChannelAffinityReleaseSlow {
-		t.Fatalf("slow channel verdict = %v, want ReleaseSlow", got)
-	}
-	if got := ChannelAffinityDecision(tripped); got != ChannelAffinityReleaseUnavailable {
-		t.Fatalf("circuit-open channel verdict = %v, want ReleaseUnavailable", got)
+	if AcquireChannelHealthForAffinity(failOpen) {
+		t.Fatal("a cache-holding session must LEAVE a failing channel; staying would just error")
 	}
 }
 
