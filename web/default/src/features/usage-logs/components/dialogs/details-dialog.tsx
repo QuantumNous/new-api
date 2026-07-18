@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -31,7 +32,6 @@ import {
   Info,
   LogIn,
 } from 'lucide-react'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -179,7 +179,9 @@ function getUsageBillingPathLabel(
   }
 }
 
-function isUsageBillingPathLocal(adminInfo: LogOtherData['admin_info']): boolean {
+function isUsageBillingPathLocal(
+  adminInfo: LogOtherData['admin_info']
+): boolean {
   if (adminInfo?.usage_billing_path) {
     return adminInfo.usage_billing_path === USAGE_BILLING_PATH.LOCAL
   }
@@ -332,18 +334,28 @@ function BillingBreakdown(props: {
     }
   }
 
-  if (other.web_search && other.web_search_call_count) {
-    rows.push({
-      label: t('Web Search'),
-      value: `${other.web_search_call_count}x${other.web_search_price ? ` (${fmtPrice(other.web_search_price)})` : ''}`,
-    })
-  }
+  if (other.tool_calls?.length) {
+    for (const toolCall of other.tool_calls) {
+      if (!toolCall.name || toolCall.call_count <= 0) continue
+      rows.push({
+        label: toolCall.name,
+        value: `${toolCall.call_count}x${toolCall.price_per_1k ? ` (${fmtPrice(toolCall.price_per_1k)})` : ''}`,
+      })
+    }
+  } else {
+    if (other.web_search && other.web_search_call_count) {
+      rows.push({
+        label: t('Web Search'),
+        value: `${other.web_search_call_count}x${other.web_search_price ? ` (${fmtPrice(other.web_search_price)})` : ''}`,
+      })
+    }
 
-  if (other.file_search && other.file_search_call_count) {
-    rows.push({
-      label: t('File Search'),
-      value: `${other.file_search_call_count}x${other.file_search_price ? ` (${fmtPrice(other.file_search_price)})` : ''}`,
-    })
+    if (other.file_search && other.file_search_call_count) {
+      rows.push({
+        label: t('File Search'),
+        value: `${other.file_search_call_count}x${other.file_search_price ? ` (${fmtPrice(other.file_search_price)})` : ''}`,
+      })
+    }
   }
 
   if (other.image_generation_call && other.image_generation_call_price) {

@@ -60,6 +60,55 @@ type ResponsesUsageInfo struct {
 	BuiltInTools map[string]*BuildInToolInfo
 }
 
+// RecordToolCall records an actual built-in tool call emitted by a Responses
+// upstream. A tool is charged only when its call output can be matched to a
+// tool type declared in the original request.
+func (r *ResponsesUsageInfo) RecordToolCall(outputType string) bool {
+	if r == nil || r.BuiltInTools == nil || !strings.HasSuffix(outputType, "_call") {
+		return false
+	}
+
+	// image_generation_call has its own quality/size-based pricing path.
+	if outputType == dto.ResponsesOutputTypeImageGenerationCall {
+		return false
+	}
+
+	toolName := strings.TrimSuffix(outputType, "_call")
+	if tool, ok := r.BuiltInTools[toolName]; ok && tool != nil {
+		tool.CallCount++
+		return true
+	}
+
+	// OpenAI's web_search_preview emits web_search_call, so only use this
+	// fallback when the request did not declare the current web_search type.
+	if outputType == dto.BuildInCallWebSearchCall {
+		if tool, ok := r.BuiltInTools[dto.BuildInToolWebSearchPreview]; ok && tool != nil {
+			tool.CallCount++
+			return true
+		}
+	}
+
+	return false
+}
+
+// RecordCurrentToolUsage records the provider-reported tool usage for the
+// current request. The usage field is the final snapshot for that request, so
+// it replaces any provisional count collected from streamed output items.
+func (r *ResponsesUsageInfo) RecordCurrentToolUsage(toolUsage map[string]int) {
+	if r == nil || r.BuiltInTools == nil {
+		return
+	}
+
+	for toolName, callCount := range toolUsage {
+		if callCount < 0 {
+			continue
+		}
+		if tool, ok := r.BuiltInTools[toolName]; ok && tool != nil {
+			tool.CallCount = callCount
+		}
+	}
+}
+
 type ChannelMeta struct {
 	ChannelType          int
 	ChannelId            int

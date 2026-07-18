@@ -970,6 +970,7 @@
     "Configure monitoring status page groups for the dashboard": "設定用於儀表板的監控狀態頁面分組",
     "Configure NODE_NAME": "設定 NODE_NAME",
     "Configure per-model ratio for image inputs or outputs.": "設定圖像輸入或輸出的每模型比例。",
+    "Configure per-tool unit prices ($/1K calls). Only tool calls confirmed by the upstream are billed.": "為每個工具設定單價（$/1K 次呼叫）。僅對上游確認實際呼叫的工具收費。",
     "Configure per-tool unit prices ($/1K calls). Per-request models do not incur additional tool fees.": "為每個工具設定單價（$/1K 次呼叫）。按請求收費的模型不額外收取工具費用。",
     "Configure pricing ratios for a specific model.": "設定特定模型的定價比例。",
     "Configure rate limiting rules for a specific user group.": "設定特定用戶分組的速率限制規則。",

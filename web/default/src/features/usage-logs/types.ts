@@ -197,6 +197,11 @@ export interface LogOtherData {
   file_search?: boolean
   file_search_call_count?: number
   file_search_price?: number
+  tool_calls?: Array<{
+    name: string
+    call_count: number
+    price_per_1k: number
+  }>
   audio_input_seperate_price?: boolean
   audio_input_token_count?: number
   audio_input_price?: number

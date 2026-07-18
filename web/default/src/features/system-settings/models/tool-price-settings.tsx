@@ -34,6 +34,8 @@ const OPTION_KEY = 'tool_price_setting.prices'
 const DEFAULT_PRICES: Record<string, number> = {
   web_search: 10.0,
   web_search_preview: 10.0,
+  web_extractor: 0.0,
+  code_interpreter: 0.0,
   'web_search_preview:gpt-4o*': 25.0,
   'web_search_preview:gpt-4.1*': 25.0,
   'web_search_preview:gpt-4o-mini*': 25.0,
@@ -78,7 +80,7 @@ function parseInitialPrices(
       !Array.isArray(parsed) &&
       Object.keys(parsed as object).length > 0
     ) {
-      return parsed as Record<string, number>
+      return { ...DEFAULT_PRICES, ...(parsed as Record<string, number>) }
     }
   } catch {
     // fall through to defaults
@@ -198,7 +200,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
         <AlertDescription className='space-y-1 text-sm'>
           <div>
             {t(
-              'Configure per-tool unit prices ($/1K calls). Per-request models do not incur additional tool fees.'
+              'Configure per-tool unit prices ($/1K calls). Only tool calls confirmed by the upstream are billed.'
             )}
           </div>
           <div>
