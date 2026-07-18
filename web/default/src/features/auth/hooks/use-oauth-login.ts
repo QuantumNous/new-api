@@ -31,6 +31,7 @@ import {
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
 } from '../lib/oauth'
+import { resetSessionVerified } from '../lib/session-verification'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 
 type LogoutRequestConfig = AxiosRequestConfig & {
@@ -60,6 +61,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   const resetSession = async () => {
     try {
+      resetSessionVerified()
       auth.reset()
     } catch (_error) {
       // ignore store reset errors

@@ -171,7 +171,16 @@ func setupLogin(user *model.User, c *gin.Context) {
 
 func Logout(c *gin.Context) {
 	session := sessions.Default(c)
+	// 清空会话数据，并强制 MaxAge=-1，确保浏览器删除 Secure session cookie。
+	// 仅 Clear()+Save() 在部分客户端上会留下空 cookie，导致登出后仍被当成半登录态。
 	session.Clear()
+	session.Options(sessions.Options{
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   common.SessionCookieSecure,
+		SameSite: http.SameSiteStrictMode,
+	})
 	err := session.Save()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
