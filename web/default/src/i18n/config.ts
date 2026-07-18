@@ -45,7 +45,27 @@ const localeBackend: BackendModule = {
     }
     /* oxlint-disable promise/no-callback-in-promise -- i18next backends expose a callback API. */
     loader()
-      .then((resource) => callback(null, resource))
+      .then((resource) => {
+        // locale JSON 形如 { translation: {...keys}, 以及少数顶层键 }。
+        // backend 返回的是 defaultNS=translation 的资源表，必须展开 translation 嵌套，
+        // 否则 t('Home') 找不到键，界面会一直显示英文 key（英文环境看起来“正常”）。
+        if (
+          resource &&
+          typeof resource === 'object' &&
+          !Array.isArray(resource) &&
+          'translation' in resource &&
+          typeof (resource as { translation?: unknown }).translation ===
+            'object' &&
+          (resource as { translation: object }).translation !== null
+        ) {
+          const { translation, ...rest } = resource as {
+            translation: ResourceLanguage
+          } & Record<string, unknown>
+          callback(null, { ...translation, ...rest } as ResourceLanguage)
+          return
+        }
+        callback(null, resource)
+      })
       .catch((error: unknown) =>
         callback(error instanceof Error ? error : String(error), false)
       )
