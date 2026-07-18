@@ -18,9 +18,6 @@ concurrency:
 
 env:
   TAG: ${{ inputs.tag }}
-  RELEASE_DIR: ${{ runner.temp }}/new-api-release
-  TAG_SOURCE: ${{ runner.temp }}/new-api-tag-source
-  BUILD_CONTEXT: ${{ runner.temp }}/new-api-smoke-image
   REGISTRY_NAME: new-api-smoke-registry-${{ github.run_id }}-${{ github.run_attempt }}
   NETWORK_NAME: new-api-smoke-net-${{ github.run_id }}-${{ github.run_attempt }}
   CONTAINER_NAME: new-api-smoke-${{ github.run_id }}-${{ github.run_attempt }}
@@ -43,6 +40,14 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
+
+      - name: Initialize temporary paths
+        run: |
+          {
+            echo "RELEASE_DIR=$RUNNER_TEMP/new-api-release"
+            echo "TAG_SOURCE=$RUNNER_TEMP/new-api-tag-source"
+            echo "BUILD_CONTEXT=$RUNNER_TEMP/new-api-smoke-image"
+          } >> "$GITHUB_ENV"
 
       - name: Check release metadata and source tests
         env:
