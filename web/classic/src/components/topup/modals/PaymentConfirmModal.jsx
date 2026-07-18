@@ -34,6 +34,7 @@ const PaymentConfirmModal = ({
   renderQuotaWithAmount,
   amountLoading,
   renderAmount,
+  renderPaymentAmount,
   payWay,
   payMethods,
   // 新增：用于显示折扣明细
@@ -97,7 +98,7 @@ const PaymentConfirmModal = ({
                     {t('原价')}：
                   </Text>
                   <Text delete className='text-slate-500 dark:text-slate-400'>
-                    {`${originalAmount.toFixed(2)} ${t('元')}`}
+                    {renderPaymentAmount(originalAmount)}
                   </Text>
                 </div>
                 <div className='flex justify-between items-center'>
@@ -105,7 +106,7 @@ const PaymentConfirmModal = ({
                     {t('优惠')}：
                   </Text>
                   <Text className='text-emerald-600 dark:text-emerald-400'>
-                    {`- ${discountAmount.toFixed(2)} ${t('元')}`}
+                    {`- ${renderPaymentAmount(discountAmount)}`}
                   </Text>
                 </div>
               </>
