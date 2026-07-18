@@ -42,6 +42,7 @@ import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
+const LEGAL_REFUND_POLICY_KEY = 'legal.refund_policy';
 
 const OtherSetting = () => {
   const { t } = useTranslation();
@@ -49,6 +50,7 @@ const OtherSetting = () => {
     Notice: '',
     [LEGAL_USER_AGREEMENT_KEY]: '',
     [LEGAL_PRIVACY_POLICY_KEY]: '',
+    [LEGAL_REFUND_POLICY_KEY]: '',
     SystemName: '',
     Logo: '',
     Footer: '',
@@ -65,23 +67,28 @@ const OtherSetting = () => {
 
   const updateOption = async (key, value) => {
     setLoading(true);
-    const res = await API.put('/api/option/', {
-      key,
-      value,
-    });
-    const { success, message } = res.data;
-    if (success) {
-      setInputs((inputs) => ({ ...inputs, [key]: value }));
-    } else {
-      showError(message);
+    try {
+      const res = await API.put('/api/option/', {
+        key,
+        value,
+      });
+      const { success, message } = res.data;
+      if (success) {
+        setInputs((inputs) => ({ ...inputs, [key]: value }));
+      } else {
+        showError(message);
+      }
+      return success;
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const [loadingInput, setLoadingInput] = useState({
     Notice: false,
     [LEGAL_USER_AGREEMENT_KEY]: false,
     [LEGAL_PRIVACY_POLICY_KEY]: false,
+    [LEGAL_REFUND_POLICY_KEY]: false,
     SystemName: false,
     Logo: false,
     HomePageContent: false,
@@ -110,50 +117,83 @@ const OtherSetting = () => {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: false }));
     }
   };
+  const submitLegalDocument = async ({
+    key,
+    cacheKey,
+    statusKey,
+    successMessage,
+    errorMessage,
+  }) => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [key]: true,
+      }));
+
+      const content = String(inputs[key] || '');
+      const success = await updateOption(key, content);
+      if (!success) {
+        return;
+      }
+
+      try {
+        if (content.trim()) {
+          localStorage.setItem(cacheKey, content);
+        } else {
+          localStorage.removeItem(cacheKey);
+        }
+      } catch (error) {
+        console.warn('Failed to update legal document cache', error);
+      }
+
+      if (statusState?.status) {
+        statusDispatch({
+          type: 'merge',
+          payload: { [statusKey]: content.trim() !== '' },
+        });
+      }
+
+      showSuccess(t(successMessage));
+    } catch (error) {
+      console.error(t(errorMessage), error);
+      showError(t(errorMessage));
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [key]: false,
+      }));
+    }
+  };
+
   // 通用设置 - UserAgreement
-  const submitUserAgreement = async () => {
-    try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        [LEGAL_USER_AGREEMENT_KEY]: true,
-      }));
-      await updateOption(
-        LEGAL_USER_AGREEMENT_KEY,
-        inputs[LEGAL_USER_AGREEMENT_KEY],
-      );
-      showSuccess(t('用户协议已更新'));
-    } catch (error) {
-      console.error(t('用户协议更新失败'), error);
-      showError(t('用户协议更新失败'));
-    } finally {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        [LEGAL_USER_AGREEMENT_KEY]: false,
-      }));
-    }
-  };
+  const submitUserAgreement = () =>
+    submitLegalDocument({
+      key: LEGAL_USER_AGREEMENT_KEY,
+      cacheKey: 'user_agreement',
+      statusKey: 'user_agreement_enabled',
+      successMessage: '用户协议已更新',
+      errorMessage: '用户协议更新失败',
+    });
+
   // 通用设置 - PrivacyPolicy
-  const submitPrivacyPolicy = async () => {
-    try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        [LEGAL_PRIVACY_POLICY_KEY]: true,
-      }));
-      await updateOption(
-        LEGAL_PRIVACY_POLICY_KEY,
-        inputs[LEGAL_PRIVACY_POLICY_KEY],
-      );
-      showSuccess(t('隐私政策已更新'));
-    } catch (error) {
-      console.error(t('隐私政策更新失败'), error);
-      showError(t('隐私政策更新失败'));
-    } finally {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        [LEGAL_PRIVACY_POLICY_KEY]: false,
-      }));
-    }
-  };
+  const submitPrivacyPolicy = () =>
+    submitLegalDocument({
+      key: LEGAL_PRIVACY_POLICY_KEY,
+      cacheKey: 'privacy_policy',
+      statusKey: 'privacy_policy_enabled',
+      successMessage: '隐私政策已更新',
+      errorMessage: '隐私政策更新失败',
+    });
+
+  // 通用设置 - RefundPolicy
+  const submitRefundPolicy = () =>
+    submitLegalDocument({
+      key: LEGAL_REFUND_POLICY_KEY,
+      cacheKey: 'refund_policy',
+      statusKey: 'refund_policy_enabled',
+      successMessage: '退款政策已更新',
+      errorMessage: '退款政策更新失败',
+    });
   // 个性化设置
   const formAPIPersonalization = useRef();
   //  个性化设置 - SystemName
@@ -437,6 +477,23 @@ const OtherSetting = () => {
                 loading={loadingInput[LEGAL_PRIVACY_POLICY_KEY]}
               >
                 {t('设置隐私政策')}
+              </Button>
+              <Form.TextArea
+                label={t('退款政策')}
+                placeholder={t(
+                  '在此输入退款政策内容，支持 Markdown & HTML 代码',
+                )}
+                field={LEGAL_REFUND_POLICY_KEY}
+                onChange={handleInputChange}
+                style={{ fontFamily: 'JetBrains Mono, Consolas' }}
+                autosize={{ minRows: 6, maxRows: 12 }}
+                helpText={t('填写退款政策内容后，页脚将显示退款政策入口')}
+              />
+              <Button
+                onClick={submitRefundPolicy}
+                loading={loadingInput[LEGAL_REFUND_POLICY_KEY]}
+              >
+                {t('设置退款政策')}
               </Button>
             </Form.Section>
           </Card>

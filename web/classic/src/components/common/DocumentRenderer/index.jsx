@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import DOMPurify from 'dompurify';
 import { API, showError } from '../../../helpers';
 import { Empty, Card, Spin, Typography } from '@douyinfe/semi-ui';
 const { Title } = Typography;
@@ -31,8 +32,8 @@ import MarkdownRenderer from '../markdown/MarkdownRenderer';
 // Check whether content is a URL.
 const isUrl = (content) => {
   try {
-    new URL(content.trim());
-    return true;
+    const url = new URL(content.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:';
   } catch {
     return false;
   }
@@ -48,15 +49,24 @@ const isHtmlContent = (content) => {
 
 // Parse HTML content and extract inline styles.
 const sanitizeHtml = (html) => {
+  const sanitizedHtml = DOMPurify.sanitize(html, {
+    ADD_ATTR: ['target'],
+    FORBID_ATTR: ['srcdoc'],
+    FORBID_TAGS: ['base', 'embed', 'link', 'meta', 'object', 'script'],
+  });
   const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = html;
+  tempDiv.innerHTML = sanitizedHtml;
+
+  tempDiv.querySelectorAll('a[target="_blank"]').forEach((link) => {
+    link.setAttribute('rel', 'noopener noreferrer');
+  });
 
   const styles = Array.from(tempDiv.querySelectorAll('style'))
     .map((style) => style.innerHTML)
     .join('\n');
 
   const bodyContent = tempDiv.querySelector('body');
-  const content = bodyContent ? bodyContent.innerHTML : html;
+  const content = bodyContent ? bodyContent.innerHTML : tempDiv.innerHTML;
 
   return { content, styles };
 };
@@ -83,14 +93,18 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
     try {
       const res = await API.get(apiEndpoint);
       const { success, message, data } = res.data;
-      if (success && data) {
-        setContent(data);
-        localStorage.setItem(cacheKey, data);
-      } else {
-        if (!cachedContent) {
-          showError(message || emptyMessage);
+      if (success) {
+        const nextContent = typeof data === 'string' ? data : '';
+        if (nextContent.trim()) {
+          setContent(nextContent);
+          localStorage.setItem(cacheKey, nextContent);
+        } else {
           setContent('');
+          localStorage.removeItem(cacheKey);
         }
+      } else if (!cachedContent) {
+        showError(message || emptyMessage);
+        setContent('');
       }
     } catch (error) {
       if (!cachedContent) {
@@ -152,7 +166,8 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
     return (
       <div className='classic-page-fill flex justify-center items-center bg-gray-50'>
         <Empty
-          title={t('管理员未设置' + title + '内容')}
+          title={title}
+          description={t('暂无数据')}
           image={
             <IllustrationConstruction style={{ width: 150, height: 150 }} />
           }
@@ -182,10 +197,10 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
               target='_blank'
               rel='noopener noreferrer'
               title={content.trim()}
-              aria-label={`${t('访问' + title)}: ${content.trim()}`}
+              aria-label={`${title}: ${content.trim()}`}
               className='inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
             >
-              {t('访问' + title)}
+              {title}
             </a>
           </div>
         </Card>

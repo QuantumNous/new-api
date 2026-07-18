@@ -97,6 +97,13 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
       href: '/privacy-policy',
     })
   }
+  if (status?.refund_policy_enabled) {
+    items.push({
+      key: 'refund-policy',
+      label: t('Refund Policy'),
+      href: '/refund-policy',
+    })
+  }
   if (items.length === 0) {
     return null
   }
@@ -272,14 +279,14 @@ export function Footer(props: FooterProps) {
           {/* Links columns */}
           {isDemoSiteMode && (
             <div className='grid grid-cols-3 gap-8 md:gap-16'>
-              {displayColumns.map((column, index) => (
-                <div key={index}>
+              {displayColumns.map((column) => (
+                <div key={column.title}>
                   <p className='text-muted-foreground/50 mb-3 text-xs font-medium tracking-wider uppercase'>
                     {t(column.title)}
                   </p>
                   <ul className='space-y-2.5'>
-                    {column.links.map((link, linkIndex) => (
-                      <li key={linkIndex}>
+                    {column.links.map((link) => (
+                      <li key={`${column.title}-${link.href}`}>
                         <FooterLinkItem link={link} />
                       </li>
                     ))}

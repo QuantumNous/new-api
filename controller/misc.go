@@ -119,8 +119,9 @@ func GetStatus(c *gin.Context) {
 		"passkey_user_verification":   passkeySetting.UserVerification,
 		"passkey_attachment":          passkeySetting.AttachmentPreference,
 		"setup":                       constant.Setup,
-		"user_agreement_enabled":      legalSetting.UserAgreement != "",
-		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
+		"user_agreement_enabled":      strings.TrimSpace(legalSetting.UserAgreement) != "",
+		"privacy_policy_enabled":      strings.TrimSpace(legalSetting.PrivacyPolicy) != "",
+		"refund_policy_enabled":       strings.TrimSpace(legalSetting.RefundPolicy) != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
 	}
 
@@ -194,21 +195,41 @@ func GetAbout(c *gin.Context) {
 }
 
 func GetUserAgreement(c *gin.Context) {
+	common.OptionMapRWMutex.RLock()
+	userAgreement := system_setting.GetLegalSettings().UserAgreement
+	common.OptionMapRWMutex.RUnlock()
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    system_setting.GetLegalSettings().UserAgreement,
+		"data":    userAgreement,
 	})
 	return
 }
 
 func GetPrivacyPolicy(c *gin.Context) {
+	common.OptionMapRWMutex.RLock()
+	privacyPolicy := system_setting.GetLegalSettings().PrivacyPolicy
+	common.OptionMapRWMutex.RUnlock()
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    system_setting.GetLegalSettings().PrivacyPolicy,
+		"data":    privacyPolicy,
 	})
 	return
+}
+
+func GetRefundPolicy(c *gin.Context) {
+	common.OptionMapRWMutex.RLock()
+	refundPolicy := system_setting.GetLegalSettings().RefundPolicy
+	common.OptionMapRWMutex.RUnlock()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    refundPolicy,
+	})
 }
 
 func GetMidjourney(c *gin.Context) {

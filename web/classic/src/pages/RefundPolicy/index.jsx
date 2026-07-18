@@ -17,31 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export const reducer = (state, action) => {
-  switch (action.type) {
-    case 'set':
-      return {
-        ...state,
-        status: action.payload,
-      };
-    case 'merge':
-      return {
-        ...state,
-        status: {
-          ...state.status,
-          ...action.payload,
-        },
-      };
-    case 'unset':
-      return {
-        ...state,
-        status: undefined,
-      };
-    default:
-      return state;
-  }
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import DocumentRenderer from '../../components/common/DocumentRenderer';
+
+const RefundPolicy = () => {
+  const { t } = useTranslation();
+
+  return (
+    <DocumentRenderer
+      apiEndpoint='/api/refund-policy'
+      title={t('退款政策')}
+      cacheKey='refund_policy'
+      emptyMessage={t('加载退款政策内容失败...')}
+    />
+  );
 };
 
-export const initialState = {
-  status: undefined,
-};
+export default RefundPolicy;

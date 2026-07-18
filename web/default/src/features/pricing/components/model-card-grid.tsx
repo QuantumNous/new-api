@@ -82,7 +82,6 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             tokenUnit={tokenUnit}
             priceRate={props.priceRate}
             usdExchangeRate={props.usdExchangeRate}
-            officialUsdExchangeRate={props.officialUsdExchangeRate}
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
             perf={perfMap.get(model.model_name || '')}

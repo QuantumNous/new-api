@@ -124,6 +124,7 @@ export interface SystemStatus {
     demo_site_enabled?: boolean
     user_agreement_enabled?: boolean
     privacy_policy_enabled?: boolean
+    refund_policy_enabled?: boolean
     oauth_register_enabled?: boolean
     register_enabled?: boolean
     password_login_enabled?: boolean
@@ -167,6 +168,7 @@ export interface SystemStatus {
   demo_site_enabled?: boolean
   user_agreement_enabled?: boolean
   privacy_policy_enabled?: boolean
+  refund_policy_enabled?: boolean
   oauth_register_enabled?: boolean
   register_enabled?: boolean
   password_login_enabled?: boolean

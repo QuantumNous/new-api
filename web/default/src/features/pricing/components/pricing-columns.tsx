@@ -64,7 +64,6 @@ export function usePricingColumns(
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
     usdExchangeRate = 1,
-    officialUsdExchangeRate = priceRate,
     showRechargePrice = false,
     selectedGroup,
   } = options

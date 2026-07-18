@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2025 QuantumNous
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -16,32 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { createFileRoute } from '@tanstack/react-router'
 
-export const reducer = (state, action) => {
-  switch (action.type) {
-    case 'set':
-      return {
-        ...state,
-        status: action.payload,
-      };
-    case 'merge':
-      return {
-        ...state,
-        status: {
-          ...state.status,
-          ...action.payload,
-        },
-      };
-    case 'unset':
-      return {
-        ...state,
-        status: undefined,
-      };
-    default:
-      return state;
-  }
-};
+import { RefundPolicy } from '@/features/legal'
 
-export const initialState = {
-  status: undefined,
-};
+export const Route = createFileRoute('/refund-policy')({
+  component: RefundPolicy,
+})

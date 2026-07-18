@@ -19,9 +19,58 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState, useMemo, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { Typography } from '@douyinfe/semi-ui';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
 import { StatusContext } from '../../context/Status';
+
+const LegalLinks = ({ leadingSeparator = false }) => {
+  const { t } = useTranslation();
+  const [statusState] = useContext(StatusContext);
+  const links = [];
+
+  if (statusState?.status?.user_agreement_enabled) {
+    links.push({
+      key: 'user-agreement',
+      label: t('用户协议'),
+      to: '/user-agreement',
+    });
+  }
+  if (statusState?.status?.privacy_policy_enabled) {
+    links.push({
+      key: 'privacy-policy',
+      label: t('隐私政策'),
+      to: '/privacy-policy',
+    });
+  }
+  if (statusState?.status?.refund_policy_enabled) {
+    links.push({
+      key: 'refund-policy',
+      label: t('退款政策'),
+      to: '/refund-policy',
+    });
+  }
+
+  if (links.length === 0) {
+    return null;
+  }
+
+  return links.map((link, index) => (
+    <React.Fragment key={link.key}>
+      {(leadingSeparator || index > 0) && (
+        <span aria-hidden='true' className='!text-semi-color-text-2'>
+          ·
+        </span>
+      )}
+      <Link
+        to={link.to}
+        className='!text-semi-color-text-1 hover:!text-semi-color-primary'
+      >
+        {link.label}
+      </Link>
+    </React.Fragment>
+  ));
+};
 
 const FooterBar = () => {
   const { t } = useTranslation();
@@ -193,6 +242,7 @@ const FooterBar = () => {
             <Typography.Text className='text-sm !text-semi-color-text-1'>
               © {currentYear} {systemName}. {t('版权所有')}
             </Typography.Text>
+            <LegalLinks leadingSeparator />
           </div>
 
           <div className='text-sm'>
@@ -227,7 +277,8 @@ const FooterBar = () => {
               className='custom-footer na-cb6feafeb3990c78 text-sm !text-semi-color-text-1'
               dangerouslySetInnerHTML={{ __html: footer }}
             ></div>
-            <div className='text-sm flex-shrink-0'>
+            <div className='text-sm flex flex-wrap flex-shrink-0 items-center justify-center gap-2'>
+              <LegalLinks />
               <span className='!text-semi-color-text-1'>
                 {t('设计与开发由')}{' '}
               </span>
