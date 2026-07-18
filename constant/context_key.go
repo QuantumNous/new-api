@@ -72,4 +72,17 @@ const (
 	// fallback in authHelper (finishAdminAudit) skips its record to avoid
 	// duplicate entries.
 	ContextKeyAuditLogged ContextKey = "audit_logged"
+
+	// ContextKeyChannelLimitGate carries the *service.GateHandle acquired by
+	// SelectChannelWithLimits so the retry loop / distributor can release the
+	// per-channel (and eventually per-key) concurrency slots after the
+	// upstream call completes — regardless of success or failure.
+	ContextKeyChannelLimitGate ContextKey = "channel_limit_gate"
+
+	// ContextKeyChannelPreSelectedKeyIdx carries a key index that the channel-limit
+	// orchestrator (service.SelectChannelWithLimits) pre-selected for a multi-key
+	// channel after checking per-key cooldown and concurrency. SetupContextForSelectedChannel
+	// reads it to avoid re-running GetNextEnabledKey on a key the orchestrator
+	// already deemed unhealthy.
+	ContextKeyChannelPreSelectedKeyIdx ContextKey = "channel_pre_selected_key_idx"
 )

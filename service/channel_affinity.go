@@ -25,9 +25,17 @@ const (
 	ginKeyChannelAffinityMeta       = "channel_affinity_meta"
 	ginKeyChannelAffinityLogInfo    = "channel_affinity_log_info"
 	ginKeyChannelAffinitySkipRetry  = "channel_affinity_skip_retry_on_failure"
+	ginKeyChannelAffinityPolicy     = "channel_affinity_update_policy"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v1"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
+)
+
+const (
+	ChannelAffinityPolicyKeep    = "keep"
+	ChannelAffinityPolicyCreate  = "create"
+	ChannelAffinityPolicyMigrate = "migrate"
+	ChannelAffinityPolicyClear   = "clear"
 )
 
 var (
@@ -353,6 +361,14 @@ func setChannelAffinityContext(c *gin.Context, meta channelAffinityMeta) {
 	c.Set(ginKeyChannelAffinityCacheKey, meta.CacheKey)
 	c.Set(ginKeyChannelAffinityTTLSeconds, meta.TTLSeconds)
 	c.Set(ginKeyChannelAffinityMeta, meta)
+	c.Set(ginKeyChannelAffinityPolicy, ChannelAffinityPolicyCreate)
+}
+
+func SetChannelAffinityUpdatePolicy(c *gin.Context, policy string) {
+	if c == nil {
+		return
+	}
+	c.Set(ginKeyChannelAffinityPolicy, policy)
 }
 
 func getChannelAffinityContext(c *gin.Context) (string, int, bool) {
@@ -616,6 +632,7 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 			return 0, false
 		}
 		if found {
+			SetChannelAffinityUpdatePolicy(c, ChannelAffinityPolicyKeep)
 			return channelID, true
 		}
 		return 0, false
@@ -711,11 +728,18 @@ func AppendChannelAffinityAdminInfo(c *gin.Context, adminInfo map[string]interfa
 }
 
 func RecordChannelAffinity(c *gin.Context, channelID int) {
-	if channelID <= 0 {
+	if c == nil || channelID <= 0 {
 		return
 	}
 	setting := operation_setting.GetChannelAffinitySetting()
 	if setting == nil || !setting.Enabled {
+		return
+	}
+	policy := c.GetString(ginKeyChannelAffinityPolicy)
+	if policy == ChannelAffinityPolicyKeep || policy == ChannelAffinityPolicyClear {
+		return
+	}
+	if policy != ChannelAffinityPolicyCreate && policy != ChannelAffinityPolicyMigrate {
 		return
 	}
 	if setting.SwitchOnSuccess && c != nil {

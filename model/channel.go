@@ -196,7 +196,12 @@ func (channel *Channel) GetKeys() []string {
 	return keys
 }
 
-func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
+// GetNextEnabledKey returns the next usable (string, index) pair for this channel.
+// excludeKeyIdx lists key indices that should be skipped (e.g. cooled or currently
+// over its per-key concurrency limit). Pass nil when no exclusions apply.
+//
+// Non-multi-key channels ignore the exclusion map and return (channel.Key, 0).
+func (channel *Channel) GetNextEnabledKey(excludeKeyIdx map[int]bool) (string, int, *types.NewAPIError) {
 	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {
 		return channel.Key, 0, nil
@@ -225,10 +230,10 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return common.ChannelStatusEnabled
 	}
 
-	// Collect indexes of enabled keys
+	// Collect indexes of enabled, non-excluded keys
 	enabledIdx := make([]int, 0, len(keys))
 	for i := range keys {
-		if getStatus(i) == common.ChannelStatusEnabled {
+		if getStatus(i) == common.ChannelStatusEnabled && !excludeKeyIdx[i] {
 			enabledIdx = append(enabledIdx, i)
 		}
 	}

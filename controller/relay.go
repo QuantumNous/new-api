@@ -206,6 +206,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			} else {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
+			// Release the gate installed by the prior getChannel call so this
+			// early break does not leak the per-channel semaphore slot.
+			releaseLimitGate(c)
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
@@ -223,15 +226,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			releaseLimitGate(c)
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
+		// free the slot before retrying on another channel.
+		releaseLimitGate(c)
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+			// not retrying: release the slot held by this iteration's handle so
+			// we don't leak the semaphore across the rest of the process lifetime.
+			releaseLimitGate(c)
 			break
 		}
 	}
@@ -259,6 +268,22 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)
+}
+
+// releaseLimitGate frees the per-channel (and per-key) concurrency slots held
+// by the currently-selected channel's GateHandle, then clears the context key
+// so a subsequent acquire in the next retry iteration starts fresh. Safe to
+// call when no handle is stashed. Also clears the pre-selected key index
+// stashed by the limit orchestrator so a later retry on a different channel
+// does not pick up a stale idx from context.
+func releaseLimitGate(c *gin.Context) {
+	if v, ok := common.GetContextKey(c, constant.ContextKeyChannelLimitGate); ok {
+		if h, ok := v.(*service.GateHandle); ok {
+			h.Release()
+		}
+		common.SetContextKey(c, constant.ContextKeyChannelLimitGate, nil)
+	}
+	common.SetContextKey(c, constant.ContextKeyChannelPreSelectedKeyIdx, nil)
 }
 
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
@@ -304,7 +329,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
-	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
+	channel, selectGroup, handle, err := service.SelectChannelWithLimits(retryParam)
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
 
@@ -315,8 +340,24 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 
+	// carry the gate handle so the loop can release it after the upstream call.
+	// A previous iteration may have stashed a handle that has not been released
+	// yet (e.g. early break from the loop); free it before swapping in the new
+	// one to avoid leaking semaphore slots across iterations.
+	if handle != nil {
+		if prev, ok := common.GetContextKey(c, constant.ContextKeyChannelLimitGate); ok {
+			if ph, ok := prev.(*service.GateHandle); ok && ph != handle {
+				ph.Release()
+			}
+		}
+		common.SetContextKey(c, constant.ContextKeyChannelLimitGate, handle)
+	}
+
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
 	if newAPIError != nil {
+		if handle != nil {
+			handle.Release()
+		}
 		return nil, newAPIError
 	}
 	return channel, nil
@@ -544,15 +585,24 @@ func RelayTask(c *gin.Context) {
 			} else {
 				taskErr = service.TaskErrorWrapperLocal(bodyErr, "read_request_body_failed", http.StatusBadRequest)
 			}
+			// Release the gate installed by the prior getChannel call so this
+			// early break does not leak the per-channel semaphore slot.
+			releaseLimitGate(c)
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			// submit succeeded -> channel is healthy; release the gate.
+			// Task accounting settles later when the upstream finishes the async job.
+			releaseLimitGate(c)
 			break
 		}
 
+		// release before processing error so this attempt's failure is
+		// observed without holding a slot.
+		releaseLimitGate(c)
 		if !taskErr.LocalError {
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
@@ -561,6 +611,9 @@ func RelayTask(c *gin.Context) {
 		}
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
+			// not retrying: release the slot held by this iteration's handle so
+			// we don't leak the semaphore across the rest of the process lifetime.
+			releaseLimitGate(c)
 			break
 		}
 	}
