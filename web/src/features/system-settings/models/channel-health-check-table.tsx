@@ -691,6 +691,7 @@ export const ChannelHealthCheckTable = forwardRef<
           return (
             <Switch
               checked={draft.enabled}
+              aria-label={`${t('Scheduled test')}: #${channel.id} ${channel.name}`}
               onCheckedChange={(checked) =>
                 updateDraft(channel, { enabled: checked })
               }
@@ -706,6 +707,7 @@ export const ChannelHealthCheckTable = forwardRef<
           return (
             <Switch
               checked={draft.autoBan}
+              aria-label={`${t('Auto ban')}: #${channel.id} ${channel.name}`}
               onCheckedChange={(checked) =>
                 updateDraft(channel, { autoBan: checked })
               }
@@ -742,7 +744,10 @@ export const ChannelHealthCheckTable = forwardRef<
                     })
                   }
                 >
-                  <SelectTrigger className='min-w-0 flex-1'>
+                  <SelectTrigger
+                    className='min-w-0 flex-1'
+                    aria-label={`${t('Disable threshold')}: #${channel.id} ${channel.name}`}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
@@ -763,6 +768,7 @@ export const ChannelHealthCheckTable = forwardRef<
                     step='any'
                     value={draft.thresholdSeconds}
                     placeholder={t('Seconds')}
+                    aria-label={`${t('Disable threshold')}: #${channel.id} ${channel.name}`}
                     aria-invalid={thresholdInvalid}
                     className={cn(
                       'w-20 shrink-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
@@ -802,7 +808,9 @@ export const ChannelHealthCheckTable = forwardRef<
                 })
               }
             >
-              <SelectTrigger>
+              <SelectTrigger
+                aria-label={`${t('Re-enable on success')}: #${channel.id} ${channel.name}`}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -837,7 +845,10 @@ export const ChannelHealthCheckTable = forwardRef<
                 })
               }
             >
-              <SelectTrigger className='min-w-0'>
+              <SelectTrigger
+                className='min-w-0'
+                aria-label={`${t('Endpoint type')}: #${channel.id} ${channel.name}`}
+              >
                 <SelectValue>{selectedEndpoint.shortLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent
@@ -876,7 +887,9 @@ export const ChannelHealthCheckTable = forwardRef<
                 })
               }
             >
-              <SelectTrigger>
+              <SelectTrigger
+                aria-label={`${t('Stream')}: #${channel.id} ${channel.name}`}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>

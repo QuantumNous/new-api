@@ -5228,7 +5228,7 @@
     "Endpoint type": "Тип endpoint",
     "Enter 0-86400 seconds": "Введите 0–86400 секунд",
     "Failed to save channel health check settings": "Не удалось сохранить настройки проверки каналов",
-    "Follow global": "Как глобально",
+    "Follow global": "Следовать глобальным настройкам",
     "Global settings were saved, but some channel health check changes failed": "Глобальные настройки сохранены, но часть настроек проверки каналов не сохранилась",
     "How often to recheck auto-disabled channels": "Как часто перепроверять автоотключённые каналы",
     "How often to run scheduled channel health checks": "Как часто запускать плановые проверки каналов",
