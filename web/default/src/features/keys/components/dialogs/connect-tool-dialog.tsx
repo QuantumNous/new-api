@@ -45,6 +45,10 @@ import {
   type ConnectToolId,
   type EndpointTypeId,
 } from '../../lib/connect-tool'
+import {
+  ApiKeyGroupCombobox,
+  type ApiKeyGroupOption,
+} from '../api-key-group-combobox'
 import { useApiKeys } from '../api-keys-provider'
 
 type Props = {
@@ -123,15 +127,16 @@ export function ConnectToolDialog(props: Props) {
     (pricingQuery.isError ||
       (pricingQuery.isFetched && pricingModels.length === 0))
 
-  const groupOptions = useMemo(() => {
+  const groupOptions = useMemo((): ApiKeyGroupOption[] => {
     if (!endpointId) return []
     return getGroupsForEndpoint(pricingModels, endpointId, usableGroups).map(
       (value) => {
         const meta = groupsQuery.data?.data?.[value]
-        const desc = meta?.desc ? String(meta.desc) : ''
         return {
           value,
-          label: desc ? `${value} — ${desc}` : value,
+          label: value,
+          desc: meta?.desc ? String(meta.desc) : value,
+          ratio: meta?.ratio,
         }
       }
     )
@@ -327,15 +332,13 @@ export function ConnectToolDialog(props: Props) {
 
       <div className='space-y-2'>
         <Label>{t('Group')}</Label>
-        <div className={cn(!endpointId && 'pointer-events-none opacity-50')}>
-          <ComboboxInput
-            options={groupOptions}
-            value={group}
-            onValueChange={setGroup}
-            placeholder={t('Select a group')}
-            emptyText={t('No groups available for this provider type')}
-          />
-        </div>
+        <ApiKeyGroupCombobox
+          options={groupOptions}
+          value={group}
+          onValueChange={setGroup}
+          placeholder={t('Select a group')}
+          disabled={!endpointId}
+        />
       </div>
 
       <div className='space-y-2'>
