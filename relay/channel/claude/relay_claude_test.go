@@ -1,17 +1,37 @@
 package claude
 
 import (
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func commonPointer[T any](value T) *T {
 	return &value
+}
+
+func TestMaybeMarkClaudeRefusalSetsProviderNeutralRoutingSignal(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	maybeMarkClaudeRefusal(ctx, "refusal")
+
+	require.True(t, common.GetContextKeyBool(ctx, constant.ContextKeyUpstreamRefusal))
+	require.Equal(
+		t,
+		"claude_stop_reason=refusal",
+		common.GetContextKeyString(ctx, constant.ContextKeyAdminRejectReason),
+	)
+
+	normal, _ := gin.CreateTestContext(httptest.NewRecorder())
+	maybeMarkClaudeRefusal(normal, "end_turn")
+	require.False(t, common.GetContextKeyBool(normal, constant.ContextKeyUpstreamRefusal))
 }
 
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {

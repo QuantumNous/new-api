@@ -20,6 +20,16 @@ type RetryParam struct {
 	resetNextTry bool
 }
 
+// ResolveRoutingGroup returns an internal routing override without changing
+// ContextKeyUsingGroup, which remains the source of billing semantics.
+func ResolveRoutingGroup(ctx *gin.Context, defaultGroup string) string {
+	override := common.GetContextKeyString(ctx, constant.ContextKeyRoutingGroup)
+	if override != "" {
+		return override
+	}
+	return defaultGroup
+}
+
 func (p *RetryParam) GetRetry() int {
 	if p.Retry == nil {
 		return 0

@@ -5185,6 +5185,27 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Add Refusal Fallback Rule": "Add Refusal Fallback Rule",
+    "After an upstream refusal, route the same token, model, and group through the configured fallback group for a fixed cooldown. When the cooldown expires, the primary route is probed again.": "After an upstream refusal, route the same token, model, and group through the configured fallback group for a fixed cooldown. When the cooldown expires, the primary route is probed again.",
+    "At least one model regex is required": "At least one model regex is required",
+    "Claude refusal fallback": "Claude refusal fallback",
+    "Cooldown (seconds)": "Cooldown (seconds)",
+    "Cooldown must be between 1 second and 30 days": "Cooldown must be between 1 second and 30 days",
+    "Edit Refusal Fallback Rule": "Edit Refusal Fallback Rule",
+    "Enable refusal fallback": "Enable refusal fallback",
+    "Fallback Group": "Fallback Group",
+    "Fallback requests do not refresh the cooldown. The fallback group affects routing only; billing stays on the original user group.": "Fallback requests do not refresh the cooldown. The fallback group affects routing only; billing stays on the original user group.",
+    "Model or path regex is invalid": "Model or path regex is invalid",
+    "No refusal fallback rules yet": "No refusal fallback rules yet",
+    "One regex per line. Rules are evaluated from top to bottom.": "One regex per line. Rules are evaluated from top to bottom.",
+    "Optional, comma-separated": "Optional, comma-separated",
+    "Optional. Leave empty to match every request path.": "Optional. Leave empty to match every request path.",
+    "Path Regex": "Path Regex",
+    "Refusal Fallback": "Refusal Fallback",
+    "Rule name is required": "Rule name is required",
+    "Rule name must be unique": "Rule name must be unique",
+    "Select a fallback group": "Select a fallback group",
+    "Unavailable group": "Unavailable group"
   }
 }

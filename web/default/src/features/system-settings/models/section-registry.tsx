@@ -24,6 +24,7 @@ import { ClaudeSettingsCard } from './claude-settings-card'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
+import { RefusalFallbackSection } from './refusal-fallback-section'
 import { RoutingReliabilitySection } from './routing-reliability-section'
 
 function formatJsonForEditor(value: string, fallback: string) {
@@ -163,6 +164,21 @@ const MODELS_SECTIONS = [
             settings['channel_affinity_setting.default_ttl_seconds'],
           'channel_affinity_setting.rules':
             settings['channel_affinity_setting.rules'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'refusal-fallback',
+    titleKey: 'Refusal Fallback',
+    build: (settings: ModelSettings) => (
+      <RefusalFallbackSection
+        defaultValues={{
+          GroupRatio: settings.GroupRatio,
+          'refusal_fallback_setting.enabled':
+            settings['refusal_fallback_setting.enabled'],
+          'refusal_fallback_setting.rules':
+            settings['refusal_fallback_setting.rules'],
         }}
       />
     ),

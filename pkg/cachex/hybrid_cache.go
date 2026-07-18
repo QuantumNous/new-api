@@ -38,6 +38,7 @@ type HybridCache[V any] struct {
 	redisEnabled func() bool
 
 	memOnce sync.Once
+	memMu   sync.Mutex
 	memInit func() *hot.HotCache[string, V]
 	mem     *hot.HotCache[string, V]
 }
@@ -126,6 +127,34 @@ func (c *HybridCache[V]) SetWithTTL(key string, v V, ttl time.Duration) error {
 
 	c.memCache().SetWithTTL(full, v, ttl)
 	return nil
+}
+
+// SetIfAbsentWithTTL stores a value only when the key does not already exist.
+// The Redis path uses SET NX, while the in-memory path serializes the check and
+// write so concurrent callers cannot refresh the original TTL.
+func (c *HybridCache[V]) SetIfAbsentWithTTL(key string, v V, ttl time.Duration) (bool, error) {
+	full := c.ns.FullKey(key)
+	if full == "" {
+		return false, nil
+	}
+
+	if c.redisOn() {
+		raw, err := c.redisCodec.Encode(v)
+		if err != nil {
+			return false, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), defaultRedisOpTimeout)
+		defer cancel()
+		return c.redis.SetNX(ctx, full, raw, ttl).Result()
+	}
+
+	c.memMu.Lock()
+	defer c.memMu.Unlock()
+	if _, found, _ := c.memCache().Get(full); found {
+		return false, nil
+	}
+	c.memCache().SetWithTTL(full, v, ttl)
+	return true, nil
 }
 
 // Keys returns keys with valid values. In Redis, it returns all matching keys.

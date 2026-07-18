@@ -27,6 +27,7 @@ import SettingClaudeModel from '../../pages/Setting/Model/SettingClaudeModel';
 import SettingGlobalModel from '../../pages/Setting/Model/SettingGlobalModel';
 import SettingGrokModel from '../../pages/Setting/Model/SettingGrokModel';
 import SettingsChannelAffinity from '../../pages/Setting/Operation/SettingsChannelAffinity';
+import SettingsRefusalFallback from '../../pages/Setting/Operation/SettingsRefusalFallback';
 
 const ModelSetting = () => {
   const { t } = useTranslation();
@@ -116,6 +117,10 @@ const ModelSetting = () => {
         {/* Channel affinity */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* Refusal fallback routing */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsRefusalFallback options={inputs} refresh={onRefresh} />
         </Card>
         {/* Gemini */}
         <Card style={{ marginTop: '10px' }}>
