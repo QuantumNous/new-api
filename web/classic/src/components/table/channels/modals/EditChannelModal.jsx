@@ -1078,6 +1078,7 @@ const EditChannelModal = (props) => {
               base_url: inputs['base_url'],
               type: inputs['type'],
               key: inputs['key'],
+              proxy: inputs['proxy'],
             },
             { skipErrorHandler: true },
           );
