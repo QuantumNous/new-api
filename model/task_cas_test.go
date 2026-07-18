@@ -36,6 +36,12 @@ func TestMain(m *testing.M) {
 
 	if err := db.AutoMigrate(
 		&Task{},
+		&TaskWebhook{},
+		&ImageBillingReservation{},
+		&ImageTaskArtifactChunk{},
+		&ImageInputCleanup{},
+		&ImageTaskBillingLogOutbox{},
+		&ImageTaskBillingLogReceipt{},
 		&User{},
 		&Token{},
 		&PasskeyCredential{},
@@ -49,6 +55,7 @@ func TestMain(m *testing.M) {
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
+		&SubscriptionPreConsumeRecord{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&SystemInstance{},
@@ -64,6 +71,12 @@ func TestMain(m *testing.M) {
 func truncateTables(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
+		DB.Exec("DELETE FROM task_webhooks")
+		DB.Exec("DELETE FROM image_billing_reservations")
+		DB.Exec("DELETE FROM image_task_artifact_chunks")
+		DB.Exec("DELETE FROM image_input_cleanups")
+		DB.Exec("DELETE FROM image_task_billing_log_outboxes")
+		DB.Exec("DELETE FROM image_task_billing_log_receipts")
 		DB.Exec("DELETE FROM tasks")
 		DB.Exec("DELETE FROM passkey_credentials")
 		DB.Exec("DELETE FROM two_fa_backup_codes")
@@ -79,6 +92,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM subscription_orders")
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
+		DB.Exec("DELETE FROM subscription_pre_consume_records")
 		DB.Exec("DELETE FROM perf_metrics")
 		DB.Exec("DELETE FROM system_instances")
 		DB.Exec("DELETE FROM system_task_locks")

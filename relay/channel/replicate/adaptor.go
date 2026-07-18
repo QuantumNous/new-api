@@ -2,6 +2,7 @@ package replicate
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,8 +10,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -27,6 +30,11 @@ import (
 
 type Adaptor struct {
 }
+
+const (
+	replicatePredictionPollInterval = time.Second
+	maxReplicatePredictionBodyBytes = 4 << 20
+)
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
@@ -68,6 +76,11 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if info == nil {
 		return nil, errors.New("replicate adaptor: relay info is nil")
 	}
+	if info.RelayMode == relayconstant.RelayModeImagesEdits {
+		if err := ValidateImageEditInputs(c, request); err != nil {
+			return nil, err
+		}
+	}
 	if strings.TrimSpace(request.Prompt) == "" {
 		if v := c.PostForm("prompt"); strings.TrimSpace(v) != "" {
 			request.Prompt = v
@@ -75,6 +88,13 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 	if strings.TrimSpace(request.Prompt) == "" {
 		return nil, errors.New("replicate adaptor: prompt is required")
+	}
+	imageURLs, err := request.ImageInputURLs()
+	if err != nil {
+		return nil, fmt.Errorf("replicate adaptor: invalid unified image input: %w", err)
+	}
+	if len(imageURLs) > 0 && info.RelayMode != relayconstant.RelayModeImagesEdits {
+		return nil, errors.New("replicate adaptor: the configured model does not support unified image inputs")
 	}
 
 	modelName := strings.TrimSpace(info.UpstreamModelName)
@@ -125,9 +145,14 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	if info.RelayMode == relayconstant.RelayModeImagesEdits {
-		imageURL, err := uploadFileFromForm(c, info, "image", "image[]", "image_prompt")
-		if err != nil {
-			return nil, err
+		imageURL := ""
+		if len(imageURLs) > 0 {
+			imageURL = imageURLs[0]
+		} else {
+			imageURL, err = uploadFileFromForm(c, info, "image", "image[]", "image_prompt")
+			if err != nil {
+				return nil, err
+			}
 		}
 		if imageURL == "" {
 			return nil, errors.New("replicate adaptor: image file is required for edits")
@@ -166,9 +191,88 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		inputPayload[key] = val
 	}
 
+	if value, ok := inputPayload["num_outputs"]; ok {
+		encoded, err := common.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("replicate adaptor: input.num_outputs must be an integer between 1 and %d", dto.MaxImageN)
+		}
+		var numOutputs int
+		if err := common.Unmarshal(encoded, &numOutputs); err != nil || numOutputs <= 0 || numOutputs > dto.MaxImageN {
+			return nil, fmt.Errorf("replicate adaptor: input.num_outputs must be an integer between 1 and %d", dto.MaxImageN)
+		}
+		info.PriceData.AddOtherRatio("n", float64(numOutputs))
+	}
+
 	return map[string]any{
 		"input": inputPayload,
 	}, nil
+}
+
+// ValidateImageEditInputs rejects input shapes that the Replicate image edit
+// mapping cannot preserve. The adaptor maps exactly one image to image_prompt
+// and has no reliable provider-neutral mapping for OpenAI masks.
+func ValidateImageEditInputs(c *gin.Context, request dto.ImageRequest) error {
+	imageURLs, err := request.ImageInputURLs()
+	if err != nil {
+		return fmt.Errorf("replicate adaptor: invalid unified image input: %w", err)
+	}
+	if len(imageURLs) == 0 && len(strings.TrimSpace(string(request.Image))) > 0 && common.GetJsonType(request.Image) != "null" {
+		probe := request
+		probe.Images = append(json.RawMessage(nil), request.Image...)
+		imageURLs, err = probe.ImageInputURLs()
+		if err != nil {
+			return fmt.Errorf("replicate adaptor: invalid image input: %w", err)
+		}
+	}
+
+	imageCount := len(imageURLs)
+	hasMask := len(bytes.TrimSpace(request.Mask)) > 0 && common.GetJsonType(request.Mask) != "null"
+	if c != nil && c.Request != nil && c.Request.MultipartForm != nil {
+		multipartImageCount := 0
+		for field, files := range c.Request.MultipartForm.File {
+			if field == "mask" && len(files) > 0 {
+				hasMask = true
+			}
+			if isReplicateImageInputField(field) {
+				multipartImageCount += len(files)
+			}
+		}
+		for field, values := range c.Request.MultipartForm.Value {
+			for _, value := range values {
+				if strings.TrimSpace(value) == "" {
+					continue
+				}
+				if field == "mask" {
+					hasMask = true
+				}
+				if isReplicateImageInputField(field) {
+					multipartImageCount++
+				}
+			}
+		}
+		if multipartImageCount > 0 {
+			imageCount = multipartImageCount
+		}
+	}
+	if hasMask {
+		return errors.New("replicate adaptor: image edits do not support masks")
+	}
+	if imageCount > 1 {
+		return errors.New("replicate adaptor: image edits support only one input image")
+	}
+	return nil
+}
+
+func isReplicateImageInputField(name string) bool {
+	if name == "image" || name == "image[]" || name == "image_prompt" {
+		return true
+	}
+	if !strings.HasPrefix(name, "image[") || !strings.HasSuffix(name, "]") {
+		return false
+	}
+	indexText := name[len("image[") : len(name)-1]
+	index, err := strconv.Atoi(indexText)
+	return err == nil && index >= 0 && strconv.Itoa(index) == indexText
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -189,6 +293,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	var prediction PredictionResponse
 	if err := common.Unmarshal(responseBody, &prediction); err != nil {
 		return nil, types.NewError(fmt.Errorf("replicate adaptor: failed to decode response: %w", err), types.ErrorCodeBadResponseBody)
+	}
+	if isReplicatePredictionPending(prediction.Status) {
+		prediction, err = pollReplicatePrediction(c, info, prediction)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeBadResponse)
+		}
 	}
 
 	if prediction.Error != nil {
@@ -289,6 +399,115 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	usage := &dto.Usage{}
 	return usage, nil
+}
+
+func isReplicatePredictionPending(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "queued", "starting", "processing":
+		return true
+	default:
+		return false
+	}
+}
+
+func pollReplicatePrediction(c *gin.Context, info *relaycommon.RelayInfo, prediction PredictionResponse) (PredictionResponse, error) {
+	if info == nil || info.ChannelMeta == nil {
+		return prediction, errors.New("replicate adaptor: relay info is required for prediction polling")
+	}
+
+	baseURL := strings.TrimSpace(info.ChannelBaseUrl)
+	if baseURL == "" {
+		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeReplicate]
+	}
+	parsedBaseURL, err := url.Parse(baseURL)
+	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
+		return prediction, fmt.Errorf("replicate adaptor: invalid channel base URL %q", baseURL)
+	}
+
+	pollURL := strings.TrimSpace(prediction.Urls.Get)
+	if pollURL == "" {
+		if strings.TrimSpace(prediction.ID) == "" {
+			return prediction, errors.New("replicate adaptor: pending prediction response is missing id and urls.get")
+		}
+		pollURL = relaycommon.GetFullRequestURL(baseURL, "/v1/predictions/"+url.PathEscape(prediction.ID), info.ChannelType)
+	}
+	parsedPollURL, err := url.Parse(pollURL)
+	if err != nil {
+		return prediction, fmt.Errorf("replicate adaptor: invalid prediction poll URL: %w", err)
+	}
+	parsedPollURL = parsedBaseURL.ResolveReference(parsedPollURL)
+	if parsedPollURL.User != nil || !strings.EqualFold(parsedPollURL.Scheme, parsedBaseURL.Scheme) || !strings.EqualFold(parsedPollURL.Host, parsedBaseURL.Host) {
+		return prediction, errors.New("replicate adaptor: prediction poll URL must have the same origin as the channel base URL")
+	}
+
+	client, err := service.GetHttpClientWithProxy(info.ChannelSetting.Proxy)
+	if err != nil {
+		return prediction, fmt.Errorf("replicate adaptor: create prediction polling client failed: %w", err)
+	}
+	pollClient := *client
+	baseCheckRedirect := client.CheckRedirect
+	pollClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if req.URL == nil || req.URL.User != nil || !strings.EqualFold(req.URL.Scheme, parsedBaseURL.Scheme) || !strings.EqualFold(req.URL.Host, parsedBaseURL.Host) {
+			return errors.New("replicate adaptor: prediction poll redirect must have the same origin as the channel base URL")
+		}
+		if baseCheckRedirect != nil {
+			return baseCheckRedirect(req, via)
+		}
+		return nil
+	}
+
+	ctx := context.Background()
+	if c != nil && c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	firstPoll := true
+	for isReplicatePredictionPending(prediction.Status) {
+		if !firstPoll {
+			timer := time.NewTimer(replicatePredictionPollInterval)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return prediction, fmt.Errorf("%w: replicate adaptor: prediction polling stopped: %w", types.ErrProviderTaskPollingRetryable, ctx.Err())
+			case <-timer.C:
+			}
+		}
+		firstPoll = false
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedPollURL.String(), nil)
+		if err != nil {
+			return prediction, fmt.Errorf("replicate adaptor: create prediction poll request failed: %w", err)
+		}
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Authorization", "Bearer "+info.ApiKey)
+
+		resp, err := pollClient.Do(req)
+		if err != nil {
+			return prediction, fmt.Errorf("%w: replicate adaptor: prediction poll failed: %w", types.ErrProviderTaskPollingRetryable, err)
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxReplicatePredictionBodyBytes+1))
+		resp.Body.Close()
+		if readErr != nil {
+			return prediction, fmt.Errorf("%w: replicate adaptor: read prediction poll response failed: %w", types.ErrProviderTaskPollingRetryable, readErr)
+		}
+		if len(body) > maxReplicatePredictionBodyBytes {
+			return prediction, errors.New("replicate adaptor: prediction poll response is too large")
+		}
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			if resp.StatusCode == http.StatusRequestTimeout ||
+				resp.StatusCode == http.StatusConflict ||
+				resp.StatusCode == http.StatusTooEarly ||
+				resp.StatusCode == http.StatusTooManyRequests ||
+				resp.StatusCode >= http.StatusInternalServerError {
+				return prediction, fmt.Errorf("%w: replicate adaptor: prediction poll failed with status %d: %s", types.ErrProviderTaskPollingRetryable, resp.StatusCode, strings.TrimSpace(string(body)))
+			}
+			return prediction, fmt.Errorf("replicate adaptor: prediction poll failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		}
+		if err := common.Unmarshal(body, &prediction); err != nil {
+			return prediction, fmt.Errorf("replicate adaptor: decode prediction poll response failed: %w", err)
+		}
+	}
+
+	return prediction, nil
 }
 
 func (a *Adaptor) GetModelList() []string {

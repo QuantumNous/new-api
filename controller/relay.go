@@ -2,11 +2,14 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/openai/image_stream"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -123,6 +127,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	asyncImageRequest := false
+	if _, ok := request.(*dto.ImageRequest); ok &&
+		(relayInfo.RelayMode == relayconstant.RelayModeImagesGenerations ||
+			relayInfo.RelayMode == relayconstant.RelayModeImagesEdits) {
+		asyncImageRequest = true
+		relayInfo.ForcePreConsume = true
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -161,7 +172,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	if priceData.FreeModel {
 		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
+	} else if !asyncImageRequest {
 		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
 		if newAPIError != nil {
 			return
@@ -230,11 +241,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = relayHandler(c, relayInfo)
 		}
 
-		service.RecordChannelHealthOutcome(channel.Id, relayInfo.OriginModelName, c.Request.URL.Path, relayInfo, attemptStart, newAPIError, isSemanticClientError(newAPIError))
+		asyncImageSubmitted := c.GetBool(image_stream.ContextKeyAsyncImageSubmitted)
+		if !asyncImageSubmitted {
+			service.RecordChannelHealthOutcome(channel.Id, relayInfo.OriginModelName, c.Request.URL.Path, relayInfo, attemptStart, newAPIError, isSemanticClientError(newAPIError))
+		}
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
-			cooldownSlowChannelIfNeeded(c, relayInfo, channel, attemptStart)
+			if !asyncImageSubmitted {
+				cooldownSlowChannelIfNeeded(c, relayInfo, channel, attemptStart)
+			}
 			return
 		}
 
@@ -275,6 +291,117 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+// ReplayAsyncImageGeneration resolves accepted idempotent image requests after
+// strict authentication and request rate limiting, but before channel selection
+// and task billing. Requests without an idempotency key do not need body parsing.
+func ReplayAsyncImageGeneration(c *gin.Context) {
+	if strings.TrimSpace(c.GetHeader("Idempotency-Key")) == "" {
+		c.Next()
+		return
+	}
+
+	var request *dto.ImageRequest
+	if relayconstant.Path2RelayMode(c.Request.URL.Path) == relayconstant.RelayModeImagesEdits {
+		request = &dto.ImageRequest{}
+		if strings.Contains(strings.ToLower(c.GetHeader("Content-Type")), gin.MIMEMultipartPOSTForm) {
+			form, err := common.ParseMultipartFormReusable(c)
+			if err != nil {
+				c.Next()
+				return
+			}
+			formData := url.Values(form.Value)
+			c.Request.MultipartForm = form
+			c.Request.PostForm = formData
+			request = asyncImageEditIdentityRequest(formData)
+		} else if err := common.UnmarshalBodyReusable(c, request); err != nil {
+			c.Next()
+			return
+		}
+	} else {
+		request = &dto.ImageRequest{}
+		if err := common.UnmarshalBodyReusable(c, request); err != nil {
+			c.Next()
+			return
+		}
+	}
+	handled, apiErr := image_stream.TryReplayAsyncImageTask(c, c.GetInt("id"), request)
+	if !handled {
+		c.Next()
+		return
+	}
+	if apiErr != nil {
+		c.JSON(apiErr.StatusCode, gin.H{"error": apiErr.ToOpenAIError()})
+	}
+	c.Abort()
+}
+
+func asyncImageEditIdentityRequest(formData url.Values) *dto.ImageRequest {
+	request := &dto.ImageRequest{
+		Model:          formData.Get("model"),
+		Prompt:         formData.Get("prompt"),
+		Size:           formData.Get("size"),
+		Quality:        formData.Get("quality"),
+		ResponseFormat: formData.Get("response_format"),
+		WebhookURL:     strings.TrimSpace(formData.Get("webhook_url")),
+		WebhookSecret:  formData.Get("webhook_secret"),
+	}
+	if nValue := strings.TrimSpace(formData.Get("n")); nValue != "" {
+		if n, err := strconv.ParseUint(nValue, 10, 32); err == nil {
+			request.N = common.GetPointer(uint(n))
+		}
+	}
+	if asyncValue := strings.TrimSpace(formData.Get("async")); asyncValue != "" {
+		if async, err := strconv.ParseBool(asyncValue); err == nil {
+			request.Async = common.GetPointer(async)
+		}
+	}
+	if streamValue := strings.TrimSpace(formData.Get("stream")); streamValue != "" {
+		if stream, err := strconv.ParseBool(streamValue); err == nil {
+			request.Stream = common.GetPointer(stream)
+		}
+	}
+	if callbackURL := strings.TrimSpace(formData.Get("callBackUrl")); callbackURL != "" &&
+		(request.WebhookURL == "" || request.WebhookURL == callbackURL) {
+		request.WebhookURL = callbackURL
+	} else if callbackURL != "" {
+		// Preserve the conflict in the replay identity. The normal validator will
+		// return the client-facing 400 after replay lookup does not match.
+		request.Extra = map[string]json.RawMessage{}
+		if encoded, err := common.Marshal(callbackURL); err == nil {
+			request.Extra["callBackUrl"] = encoded
+		}
+	}
+	for _, field := range []struct {
+		name   string
+		target *json.RawMessage
+	}{
+		{name: "style", target: &request.Style},
+		{name: "user", target: &request.User},
+		{name: "background", target: &request.Background},
+		{name: "moderation", target: &request.Moderation},
+		{name: "output_format", target: &request.OutputFormat},
+		{name: "input_fidelity", target: &request.InputFidelity},
+	} {
+		if value := formData.Get(field.name); value != "" {
+			if encoded, err := common.Marshal(value); err == nil {
+				*field.target = encoded
+			}
+		}
+	}
+	for _, field := range []struct {
+		name   string
+		target *json.RawMessage
+	}{
+		{name: "output_compression", target: &request.OutputCompression},
+		{name: "partial_images", target: &request.PartialImages},
+	} {
+		if value := strings.TrimSpace(formData.Get(field.name)); value != "" {
+			*field.target = json.RawMessage(value)
+		}
+	}
+	return request
 }
 
 var upgrader = websocket.Upgrader{

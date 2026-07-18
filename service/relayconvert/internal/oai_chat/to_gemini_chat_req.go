@@ -32,6 +32,9 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 	if textRequest.Seed != nil && *textRequest.Seed != 0 {
 		geminiRequest.GenerationConfig.Seed = common.GetPointer(int64(*textRequest.Seed))
 	}
+	if textRequest.N != nil && *textRequest.N > 0 {
+		geminiRequest.GenerationConfig.CandidateCount = common.GetPointer(*textRequest.N)
+	}
 
 	upstreamModelName := textRequest.Model
 	if modelName := relaymeta.RelayInfoUpstreamModelName(info); modelName != "" {

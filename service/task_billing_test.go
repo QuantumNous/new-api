@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -41,12 +44,17 @@ func TestMain(m *testing.M) {
 
 	if err := db.AutoMigrate(
 		&model.Task{},
+		&model.TaskWebhook{},
+		&model.ImageBillingReservation{},
+		&model.ImageInputCleanup{},
 		&model.User{},
 		&model.Token{},
 		&model.Log{},
 		&model.Channel{},
 		&model.TopUp{},
+		&model.SubscriptionPlan{},
 		&model.UserSubscription{},
+		&model.SubscriptionPreConsumeRecord{},
 		&model.SystemTask{},
 		&model.SystemTaskLock{},
 	); err != nil {
@@ -64,12 +72,17 @@ func truncate(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
 		model.DB.Exec("DELETE FROM tasks")
+		model.DB.Exec("DELETE FROM task_webhooks")
+		model.DB.Exec("DELETE FROM image_billing_reservations")
+		model.DB.Exec("DELETE FROM image_input_cleanups")
 		model.DB.Exec("DELETE FROM users")
 		model.DB.Exec("DELETE FROM tokens")
 		model.DB.Exec("DELETE FROM logs")
 		model.DB.Exec("DELETE FROM channels")
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM subscription_plans")
+		model.DB.Exec("DELETE FROM subscription_pre_consume_records")
 		model.DB.Exec("DELETE FROM system_task_locks")
 		model.DB.Exec("DELETE FROM system_tasks")
 	})
@@ -236,6 +249,136 @@ func TestTaskBillingContextPriceDataFiltersMultiplier(t *testing.T) {
 		"size":     3,
 		"identity": 1,
 	}, priceData.OtherRatios())
+}
+
+func TestCalculateImageTaskQuotaUsesFrozenModalityRatios(t *testing.T) {
+	task := makeTask(1, 1, 999, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelRatio:      1,
+		CompletionRatio: 8,
+		ImageRatio:      2,
+		CacheRatio:      1,
+		GroupRatio:      1,
+		OtherRatios:     map[string]float64{"size": 2},
+		OriginModelName: "gpt-image-test",
+	}
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 10,
+		TotalTokens:      110,
+		PromptTokensDetails: dto.InputTokenDetails{
+			ImageTokens: 60,
+		},
+	}
+
+	quota, clamp, err := CalculateImageTaskQuota(task, usage)
+
+	require.NoError(t, err)
+	assert.Nil(t, clamp)
+	// ((40 text + 60 image * 2) + 10 completion * 8) * size(2)
+	assert.Equal(t, 480, quota)
+}
+
+func TestCalculateImageTaskQuotaUsesSynchronousFallbackWithoutUsage(t *testing.T) {
+	task := makeTask(1, 1, 321, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext = &model.TaskBillingContext{ModelRatio: 1, GroupRatio: 1}
+
+	quota, clamp, err := CalculateImageTaskQuota(task, &dto.Usage{})
+
+	require.NoError(t, err)
+	assert.Nil(t, clamp)
+	assert.Equal(t, 1, quota)
+}
+
+func TestCalculateImageTaskQuotaReconcilesFixedPriceImageCount(t *testing.T) {
+	task := makeTask(1, 1, 200, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelPrice:      0.01,
+		GroupRatio:      2,
+		UsePrice:        true,
+		PerCallBilling:  true,
+		OtherRatios:     map[string]float64{"n": 1, "quality": 1.5},
+		OriginModelName: "fixed-image-model",
+	}
+
+	quota, clamp, err := CalculateImageTaskQuotaWithCount(task, &dto.Usage{}, 3)
+	require.NoError(t, err)
+	assert.Nil(t, clamp)
+	expected, err := common.QuotaFromFloatStrict(0.01 * common.QuotaPerUnit * 2 * 1.5 * 3)
+	require.NoError(t, err)
+	assert.Equal(t, expected, quota)
+
+	quota, clamp, err = CalculateImageTaskQuotaWithCount(task, &dto.Usage{}, 0)
+	require.NoError(t, err)
+	assert.Nil(t, clamp)
+	assert.Equal(t, task.Quota, quota)
+}
+
+func TestForcePreConsumeBypassesBatchAndSettlesSynchronously(t *testing.T) {
+	truncate(t)
+	previousBatchMode := common.BatchUpdateEnabled
+	common.BatchUpdateEnabled = true
+	t.Cleanup(func() { common.BatchUpdateEnabled = previousBatchMode })
+
+	const userID, tokenID, quota = 77, 88, 250
+	seedUser(t, userID, 1000)
+	seedToken(t, tokenID, userID, "sk-force-preconsume", 1000)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		UserId:          userID,
+		TokenId:         tokenID,
+		TokenKey:        "sk-force-preconsume",
+		ForcePreConsume: true,
+		UserSetting: dto.UserSetting{
+			BillingPreference: "wallet_only",
+		},
+	}
+
+	apiErr := PreConsumeBilling(c, quota, info)
+	require.Nil(t, apiErr)
+	assert.Equal(t, 1000-quota, getUserQuota(t, userID))
+	assert.Equal(t, 1000-quota, getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, quota, getTokenUsedQuota(t, tokenID))
+
+	require.NoError(t, SettleBilling(c, info, 0))
+	assert.Equal(t, 1000, getUserQuota(t, userID))
+	assert.Equal(t, 1000, getTokenRemainQuota(t, tokenID))
+	assert.Zero(t, getTokenUsedQuota(t, tokenID))
+}
+
+func TestRecordFinalizedImageTaskLogsActualTotalAndUsage(t *testing.T) {
+	truncate(t)
+	seedUser(t, 91, 1000)
+	seedToken(t, 92, 91, "sk-final-log", 1000)
+	seedChannel(t, 93)
+	responseData, err := common.Marshal(map[string]any{
+		"usage": &dto.Usage{
+			PromptTokens:     12,
+			CompletionTokens: 7,
+			TotalTokens:      19,
+			PromptTokensDetails: dto.InputTokenDetails{
+				ImageTokens: 9,
+			},
+			CompletionTokenDetails: dto.OutputTokenDetails{
+				ImageTokens: 5,
+			},
+		},
+	})
+	require.NoError(t, err)
+	task := makeTask(91, 93, 44, 92, BillingSourceWallet, 0)
+	task.Status = model.TaskStatusSuccess
+	task.Data = responseData
+
+	RecordFinalizedTaskBillingAdjustment(context.Background(), task, 44, "usage settled")
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeConsume, log.Type)
+	assert.Equal(t, 44, log.Quota)
+	assert.Equal(t, 12, log.PromptTokens)
+	assert.Equal(t, 7, log.CompletionTokens)
+	assert.Contains(t, log.Other, `"actual_quota":44`)
+	assert.Contains(t, log.Other, `"image_input_tokens":9`)
 }
 
 // ---------------------------------------------------------------------------

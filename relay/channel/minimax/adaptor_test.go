@@ -2,8 +2,10 @@ package minimax
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +15,13 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	gin.SetMode(gin.TestMode)
+	os.Exit(m.Run())
+}
 
 func TestGetRequestURLForImageGeneration(t *testing.T) {
 	t.Parallel()
@@ -84,10 +92,33 @@ func TestConvertImageRequest(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestRejectsInvalidN(t *testing.T) {
+	t.Parallel()
+
+	wantError := fmt.Sprintf("n must be an integer between 1 and %d", dto.MaxImageN)
+	for _, n := range []uint{0, dto.MaxImageN + 1} {
+		t.Run(fmt.Sprintf("n=%d", n), func(t *testing.T) {
+			request := dto.ImageRequest{
+				Model:  "image-01",
+				Prompt: "a lighthouse",
+				N:      &n,
+			}
+
+			_, err := (&Adaptor{}).ConvertImageRequest(
+				gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()),
+				&relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations},
+				request,
+			)
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), wantError)
+		})
+	}
+}
+
 func TestDoResponseForImageGeneration(t *testing.T) {
 	t.Parallel()
 
-	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 

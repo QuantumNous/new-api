@@ -16,6 +16,11 @@ import (
 var RDB *redis.Client
 var RedisEnabled = true
 
+var (
+	ErrRedisQuotaInsufficient = errors.New("redis quota is insufficient")
+	ErrRedisQuotaUnavailable  = errors.New("redis quota cache is unavailable")
+)
+
 func RedisKeyCacheSeconds() int {
 	return SyncFrequency
 }
@@ -110,10 +115,74 @@ func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
 	}
 	ctx := context.Background()
 
-	data := make(map[string]interface{})
+	data, err := redisHashObjectData(obj)
+	if err != nil {
+		return err
+	}
 
-	// 使用反射遍历结构体字段
-	v := reflect.ValueOf(obj).Elem()
+	txn := RDB.TxPipeline()
+	txn.HSet(ctx, key, data)
+
+	// 只有在 expiration 大于 0 时才设置过期时间
+	if expiration > 0 {
+		txn.Expire(ctx, key, expiration)
+	}
+
+	_, err = txn.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute transaction: %w", err)
+	}
+	return nil
+}
+
+// RedisHSetObjIfAbsent atomically populates a complete hash only when the key
+// does not exist. It prevents delayed DB snapshots from overwriting newer
+// field-level updates such as quota reservations.
+func RedisHSetObjIfAbsent(key string, obj interface{}, expiration time.Duration) (bool, error) {
+	if DebugEnabled {
+		SysLog(fmt.Sprintf("Redis HSET if absent: key=%s, obj=%+v, expiration=%v", key, obj, expiration))
+	}
+	data, err := redisHashObjectData(obj)
+	if err != nil {
+		return false, err
+	}
+
+	args := make([]interface{}, 0, 1+len(data)*2)
+	args = append(args, int64(expiration/time.Second))
+	for field, value := range data {
+		args = append(args, field, value)
+	}
+	const script = `
+if redis.call('EXISTS', KEYS[1]) == 1 then
+  return 0
+end
+for i = 2, #ARGV, 2 do
+  redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
+end
+local expiration = tonumber(ARGV[1])
+if expiration ~= nil and expiration > 0 then
+  redis.call('EXPIRE', KEYS[1], expiration)
+end
+return 1
+`
+	result, err := RDB.Eval(context.Background(), script, []string{key}, args...).Int64()
+	if err != nil {
+		return false, fmt.Errorf("failed to populate Redis hash: %w", err)
+	}
+	return result == 1, nil
+}
+
+func redisHashObjectData(obj interface{}) (map[string]interface{}, error) {
+	value := reflect.ValueOf(obj)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		return nil, fmt.Errorf("obj must be a non-nil pointer to a struct, got %T", obj)
+	}
+	v := value.Elem()
+	if v.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("obj must be a pointer to a struct, got %T", obj)
+	}
+
+	data := make(map[string]interface{}, v.NumField())
 	t := v.Type()
 	for i := 0; i < v.NumField(); i++ {
 		field := t.Field(i)
@@ -142,20 +211,7 @@ func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
 		// 其他类型直接转换为字符串
 		data[field.Name] = fmt.Sprintf("%v", value.Interface())
 	}
-
-	txn := RDB.TxPipeline()
-	txn.HSet(ctx, key, data)
-
-	// 只有在 expiration 大于 0 时才设置过期时间
-	if expiration > 0 {
-		txn.Expire(ctx, key, expiration)
-	}
-
-	_, err := txn.Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to execute transaction: %w", err)
-	}
-	return nil
+	return data, nil
 }
 
 func RedisHGetObj(key string, obj interface{}) error {
@@ -297,6 +353,48 @@ func RedisHIncrBy(key, field string, delta int64) error {
 		return err
 	}
 	return nil
+}
+
+// RedisHDecrByIfEnough atomically checks and decrements a cached quota field.
+// When unlimitedField is non-empty and true, the lower-bound check is skipped.
+func RedisHDecrByIfEnough(key, field, unlimitedField string, delta int64) error {
+	if delta < 0 {
+		return errors.New("redis quota decrement cannot be negative")
+	}
+	if delta == 0 {
+		return nil
+	}
+	const script = `
+if redis.call('TTL', KEYS[1]) <= 0 then
+  return -2
+end
+local current = tonumber(redis.call('HGET', KEYS[1], ARGV[1]))
+if current == nil then
+  return -2
+end
+local unlimited = false
+if ARGV[2] ~= '' then
+  unlimited = redis.call('HGET', KEYS[1], ARGV[2]) == 'true'
+end
+local amount = tonumber(ARGV[3])
+if not unlimited and current < amount then
+  return -1
+end
+redis.call('HINCRBY', KEYS[1], ARGV[1], -amount)
+return 1
+`
+	result, err := RDB.Eval(context.Background(), script, []string{key}, field, unlimitedField, delta).Int64()
+	if err != nil {
+		return fmt.Errorf("failed to decrement Redis quota: %w", err)
+	}
+	switch result {
+	case 1:
+		return nil
+	case -1:
+		return ErrRedisQuotaInsufficient
+	default:
+		return ErrRedisQuotaUnavailable
+	}
 }
 
 func RedisHSetField(key, field string, value interface{}) error {

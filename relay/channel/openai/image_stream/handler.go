@@ -1,7 +1,9 @@
 package image_stream
 
-// Entry point for gpt-image-* model requests on the /v1/images/{generations,edits}
-// classic OpenAI surface. Bypasses the standard adaptor.DoRequest path and
+// Legacy synchronous entry point for gpt-image-* requests on
+// /v1/images/edits. New text-to-image and image-to-image integrations use the
+// durable /v1/images/generations task path. This handler bypasses the standard
+// adaptor.DoRequest path and
 // instead:
 //
 //   1. Re-shapes the request into a /v1/responses + stream:true payload
@@ -44,11 +46,16 @@ func IsGptImageModel(model string) bool {
 	return strings.HasPrefix(strings.ToLower(model), "gpt-image-")
 }
 
-// HandleImageStream is the entry point for both /v1/images/generations and
-// /v1/images/edits when the request model matches the gpt-image-* family.
-// The two relay modes share everything except request building, so the
-// outer flow (early flush → upstream POST → SSE aggregate → envelope →
-// billing) is centralized below.
+// ShouldRunAsync is kept for callers that need to classify the image-generation
+// surface. All /v1/images/generations requests are asynchronous; the model and
+// legacy async flag no longer select a synchronous path.
+func ShouldRunAsync(_ string, _ *bool) bool {
+	return true
+}
+
+// HandleImageStream retains the legacy multipart edit implementation. The
+// generation branch remains for compatibility with direct internal callers;
+// HTTP generation requests are submitted through SubmitAsyncImage.
 func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ImageRequest) *types.NewAPIError {
 	if info.ChannelBaseUrl == "" {
 		return types.NewError(
@@ -69,7 +76,16 @@ func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Ima
 				types.ErrOptionWithSkipRetry(),
 			)
 		}
-		upstreamReq = buildGenerationsRequest(req, info.UpstreamModelName)
+		var buildErr error
+		upstreamReq, buildErr = buildGenerationsRequestWithError(req, info.UpstreamModelName)
+		if buildErr != nil {
+			return types.NewErrorWithStatusCode(
+				buildErr,
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
 
 	case relayconstant.RelayModeImagesEdits:
 		if !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
@@ -204,7 +220,7 @@ func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Ima
 	}
 	c.Writer.Flush()
 
-	applyBilling(c, info, aggregated, req)
+	applyBilling(c, info, envelope.Usage, req)
 	return nil
 }
 
@@ -254,24 +270,50 @@ type imageEnvelope struct {
 	Usage        *dto.Usage      `json:"usage,omitempty"`
 }
 
+type imageStorageError struct {
+	err       error
+	permanent bool
+}
+
+func (e *imageStorageError) Error() string { return e.err.Error() }
+
+func (e *imageStorageError) Unwrap() error { return e.err }
+
+func (e *imageStorageError) Permanent() bool { return e.permanent }
+
 // buildImagesResponse turns the aggregated /v1/responses payload into the
 // classic OpenAI Images-API envelope. For each image_generation_call item,
 // either uploads the bytes to R2 (returning a public URL) or surfaces the
 // base64 inline as `b64_json` if the caller asked for that or R2 isn't
 // configured.
 func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.ImageRequest) (*imageEnvelope, error) {
+	return buildImagesResponseWithStorage(ctx, agg, req, false)
+}
+
+func buildStoredImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.ImageRequest) (*imageEnvelope, error) {
+	return buildImagesResponseWithStorage(ctx, agg, req, true)
+}
+
+func buildImagesResponseWithStorage(ctx context.Context, agg *UpstreamResponse, req *dto.ImageRequest, requireObjectStorage bool) (*imageEnvelope, error) {
 	r2 := LoadR2Config()
-	wantB64 := req.ResponseFormat == "b64_json" || !r2.Enabled()
+	if requireObjectStorage && !r2.Enabled() {
+		return nil, errors.New("image object storage is not configured")
+	}
+	wantB64 := !requireObjectStorage && (req.ResponseFormat == "b64_json" || !r2.Enabled())
+	usage, err := mergeUsage(agg)
+	if err != nil {
+		return nil, err
+	}
 
 	out := &imageEnvelope{
 		Created: time.Now().Unix(),
 		Model:   agg.Model,
-		Usage:   mergeUsage(agg),
+		Usage:   usage,
 	}
 
 	var firstFormat, firstSize string
 	for _, item := range agg.Output {
-		if item.Type != "image_generation_call" || len(item.Result) < 100 {
+		if item.Type != "image_generation_call" || strings.TrimSpace(item.Result) == "" {
 			continue
 		}
 		// Use the magic-byte sniffed extension as authoritative format —
@@ -281,7 +323,10 @@ func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.Im
 		if err != nil {
 			return nil, fmt.Errorf("decode image base64: %w", err)
 		}
-		ext := InferImageExt(item.OutputFormat, raw)
+		ext, ok := strictGenericImageFormat(raw)
+		if !ok {
+			return nil, errors.New("upstream image has unsupported magic bytes")
+		}
 		actualFormat := ext
 		if ext == "jpg" {
 			actualFormat = "jpeg"
@@ -301,7 +346,11 @@ func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.Im
 				"images/"+sha256HexBytes(raw)+"."+ext,
 				MimeForExt(ext), raw)
 			if err != nil {
-				return nil, fmt.Errorf("R2 upload: %w", err)
+				var putErr *r2PutError
+				return nil, &imageStorageError{
+					err:       fmt.Errorf("R2 upload: %w", err),
+					permanent: errors.As(err, &putErr) && putErr.Permanent(),
+				}
 			}
 			entry.Url = url
 		}
@@ -332,47 +381,272 @@ func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.Im
 //
 // Forwarding only response.usage means logs show prompt/completion tokens
 // near 0 even when an actual high-res image was rendered. We merge both.
-func mergeUsage(agg *UpstreamResponse) *dto.Usage {
+func mergeUsage(agg *UpstreamResponse) (*dto.Usage, error) {
+	if agg == nil {
+		return nil, errors.New("upstream image response is required")
+	}
 	u := &dto.Usage{}
 	if agg.Usage != nil {
-		u = agg.Usage
+		copied := *agg.Usage
+		if agg.Usage.InputTokensDetails != nil {
+			details := *agg.Usage.InputTokensDetails
+			copied.InputTokensDetails = &details
+		}
+		if agg.Usage.OutputTokensDetails != nil {
+			details := *agg.Usage.OutputTokensDetails
+			copied.OutputTokensDetails = &details
+		}
+		// billing_usage and its semantic/source selectors are gateway-internal.
+		// A direct upstream must not override the canonical usage merged here.
+		copied.BillingUsage = nil
+		copied.UsageSemantic = ""
+		copied.UsageSource = ""
+		u = &copied
+	}
+	if err := validateImageUsage(u); err != nil {
+		return nil, err
+	}
+	if u.InputTokens == 0 {
+		u.InputTokens = u.PromptTokens
+	}
+	if u.OutputTokens == 0 {
+		u.OutputTokens = u.CompletionTokens
+	}
+	if u.InputTokensDetails != nil {
+		copyMissingImageInputDetails(&u.PromptTokensDetails, *u.InputTokensDetails)
+	}
+	if u.OutputTokensDetails != nil {
+		copyMissingImageOutputDetails(&u.CompletionTokenDetails, *u.OutputTokensDetails)
 	}
 	if agg.ToolUsage != nil && agg.ToolUsage.ImageGen != nil {
 		ig := agg.ToolUsage.ImageGen
+		if err := validateImageGenUsage(ig); err != nil {
+			return nil, err
+		}
 		// Add image-gen input/output to the running totals.
-		u.InputTokens += ig.InputTokens
-		u.OutputTokens += ig.OutputTokens
-		u.TotalTokens += ig.TotalTokens
+		if err := addImageUsageValue("input_tokens", &u.InputTokens, ig.InputTokens); err != nil {
+			return nil, err
+		}
+		if err := addImageUsageValue("output_tokens", &u.OutputTokens, ig.OutputTokens); err != nil {
+			return nil, err
+		}
 		// Surface details so per-modality logs can attribute image cost.
 		if u.InputTokensDetails == nil {
 			u.InputTokensDetails = &dto.InputTokenDetails{}
 		}
-		u.InputTokensDetails.ImageTokens += ig.InputTokensDetails.ImageTokens
-		u.InputTokensDetails.TextTokens += ig.InputTokensDetails.TextTokens
-		u.CompletionTokenDetails.ImageTokens += ig.OutputTokensDetails.ImageTokens
-		u.CompletionTokenDetails.TextTokens += ig.OutputTokensDetails.TextTokens
+		if err := addImageUsageValue("input_tokens_details.image_tokens", &u.InputTokensDetails.ImageTokens, ig.InputTokensDetails.ImageTokens); err != nil {
+			return nil, err
+		}
+		if err := addImageUsageValue("input_tokens_details.text_tokens", &u.InputTokensDetails.TextTokens, ig.InputTokensDetails.TextTokens); err != nil {
+			return nil, err
+		}
+		// Standard text billing reads the legacy prompt/completion detail
+		// fields, while Responses exposes input/output detail fields. Mirror the
+		// modality breakdown so image tokens receive the configured image ratio.
+		if err := addImageUsageValue("prompt_tokens_details.image_tokens", &u.PromptTokensDetails.ImageTokens, ig.InputTokensDetails.ImageTokens); err != nil {
+			return nil, err
+		}
+		if err := addImageUsageValue("prompt_tokens_details.text_tokens", &u.PromptTokensDetails.TextTokens, ig.InputTokensDetails.TextTokens); err != nil {
+			return nil, err
+		}
+		if u.OutputTokensDetails == nil {
+			u.OutputTokensDetails = &dto.OutputTokenDetails{}
+		}
+		if err := addImageUsageValue("output_tokens_details.image_tokens", &u.OutputTokensDetails.ImageTokens, ig.OutputTokensDetails.ImageTokens); err != nil {
+			return nil, err
+		}
+		if err := addImageUsageValue("output_tokens_details.text_tokens", &u.OutputTokensDetails.TextTokens, ig.OutputTokensDetails.TextTokens); err != nil {
+			return nil, err
+		}
+		if err := addImageUsageValue("completion_tokens_details.image_tokens", &u.CompletionTokenDetails.ImageTokens, ig.OutputTokensDetails.ImageTokens); err != nil {
+			return nil, err
+		}
+		if err := addImageUsageValue("completion_tokens_details.text_tokens", &u.CompletionTokenDetails.TextTokens, ig.OutputTokensDetails.TextTokens); err != nil {
+			return nil, err
+		}
 	}
-	// new-api's billing path keys off PromptTokens/CompletionTokens (the
-	// legacy chat-style names). Mirror the responses-API counts into them
-	// so log_consume_log surfaces real numbers instead of zeros.
-	if u.PromptTokens == 0 && u.InputTokens > 0 {
-		u.PromptTokens = u.InputTokens
+	// This path consumes a Responses payload, so the input/output counters are
+	// authoritative after tool usage has been merged.
+	u.PromptTokens = u.InputTokens
+	u.CompletionTokens = u.OutputTokens
+	u.TotalTokens = 0
+	if err := addImageUsageValue("total_tokens", &u.TotalTokens, u.PromptTokens); err != nil {
+		return nil, err
 	}
-	if u.CompletionTokens == 0 && u.OutputTokens > 0 {
-		u.CompletionTokens = u.OutputTokens
+	if err := addImageUsageValue("total_tokens", &u.TotalTokens, u.CompletionTokens); err != nil {
+		return nil, err
 	}
-	if u.TotalTokens == 0 {
-		u.TotalTokens = u.PromptTokens + u.CompletionTokens
+	return u, nil
+}
+
+func validateImageUsage(usage *dto.Usage) error {
+	if usage == nil {
+		return nil
 	}
-	return u
+	values := []struct {
+		name  string
+		value int
+	}{
+		{"prompt_tokens", usage.PromptTokens},
+		{"completion_tokens", usage.CompletionTokens},
+		{"total_tokens", usage.TotalTokens},
+		{"input_tokens", usage.InputTokens},
+		{"output_tokens", usage.OutputTokens},
+		{"prompt_cache_hit_tokens", usage.PromptCacheHitTokens},
+		{"claude_cache_creation_5_m_tokens", usage.ClaudeCacheCreation5mTokens},
+		{"claude_cache_creation_1_h_tokens", usage.ClaudeCacheCreation1hTokens},
+	}
+	for _, value := range values {
+		if value.value < 0 {
+			return fmt.Errorf("upstream usage %s cannot be negative", value.name)
+		}
+	}
+	if err := validateImageInputDetails("prompt_tokens_details", usage.PromptTokensDetails); err != nil {
+		return err
+	}
+	if err := validateImageOutputDetails("completion_tokens_details", usage.CompletionTokenDetails); err != nil {
+		return err
+	}
+	if usage.InputTokensDetails != nil {
+		if err := validateImageInputDetails("input_tokens_details", *usage.InputTokensDetails); err != nil {
+			return err
+		}
+	}
+	if usage.OutputTokensDetails != nil {
+		if err := validateImageOutputDetails("output_tokens_details", *usage.OutputTokensDetails); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateImageInputDetails(prefix string, details dto.InputTokenDetails) error {
+	values := []struct {
+		name  string
+		value int
+	}{
+		{"cached_tokens", details.CachedTokens},
+		{"cached_creation_tokens", details.CachedCreationTokens},
+		{"cache_write_tokens", details.CacheWriteTokens},
+		{"text_tokens", details.TextTokens},
+		{"audio_tokens", details.AudioTokens},
+		{"image_tokens", details.ImageTokens},
+	}
+	for _, value := range values {
+		if value.value < 0 {
+			return fmt.Errorf("upstream usage %s.%s cannot be negative", prefix, value.name)
+		}
+	}
+	return nil
+}
+
+func validateImageOutputDetails(prefix string, details dto.OutputTokenDetails) error {
+	values := []struct {
+		name  string
+		value int
+	}{
+		{"text_tokens", details.TextTokens},
+		{"audio_tokens", details.AudioTokens},
+		{"image_tokens", details.ImageTokens},
+		{"reasoning_tokens", details.ReasoningTokens},
+	}
+	for _, value := range values {
+		if value.value < 0 {
+			return fmt.Errorf("upstream usage %s.%s cannot be negative", prefix, value.name)
+		}
+	}
+	return nil
+}
+
+func validateImageGenUsage(usage *struct {
+	InputTokens        int `json:"input_tokens"`
+	InputTokensDetails struct {
+		ImageTokens int `json:"image_tokens"`
+		TextTokens  int `json:"text_tokens"`
+	} `json:"input_tokens_details"`
+	OutputTokens        int `json:"output_tokens"`
+	OutputTokensDetails struct {
+		ImageTokens int `json:"image_tokens"`
+		TextTokens  int `json:"text_tokens"`
+	} `json:"output_tokens_details"`
+	TotalTokens int `json:"total_tokens"`
+}) error {
+	values := []struct {
+		name  string
+		value int
+	}{
+		{"tool_usage.image_gen.input_tokens", usage.InputTokens},
+		{"tool_usage.image_gen.output_tokens", usage.OutputTokens},
+		{"tool_usage.image_gen.total_tokens", usage.TotalTokens},
+		{"tool_usage.image_gen.input_tokens_details.image_tokens", usage.InputTokensDetails.ImageTokens},
+		{"tool_usage.image_gen.input_tokens_details.text_tokens", usage.InputTokensDetails.TextTokens},
+		{"tool_usage.image_gen.output_tokens_details.image_tokens", usage.OutputTokensDetails.ImageTokens},
+		{"tool_usage.image_gen.output_tokens_details.text_tokens", usage.OutputTokensDetails.TextTokens},
+	}
+	for _, value := range values {
+		if value.value < 0 {
+			return fmt.Errorf("upstream usage %s cannot be negative", value.name)
+		}
+	}
+	return nil
+}
+
+func copyMissingImageInputDetails(target *dto.InputTokenDetails, source dto.InputTokenDetails) {
+	if target.CachedTokens == 0 {
+		target.CachedTokens = source.CachedTokens
+	}
+	if target.CachedCreationTokens == 0 {
+		target.CachedCreationTokens = source.CachedCreationTokens
+	}
+	if target.CacheWriteTokens == 0 {
+		target.CacheWriteTokens = source.CacheWriteTokens
+	}
+	if target.TextTokens == 0 {
+		target.TextTokens = source.TextTokens
+	}
+	if target.AudioTokens == 0 {
+		target.AudioTokens = source.AudioTokens
+	}
+	if target.ImageTokens == 0 {
+		target.ImageTokens = source.ImageTokens
+	}
+}
+
+func copyMissingImageOutputDetails(target *dto.OutputTokenDetails, source dto.OutputTokenDetails) {
+	if target.TextTokens == 0 {
+		target.TextTokens = source.TextTokens
+	}
+	if target.AudioTokens == 0 {
+		target.AudioTokens = source.AudioTokens
+	}
+	if target.ImageTokens == 0 {
+		target.ImageTokens = source.ImageTokens
+	}
+	if target.ReasoningTokens == 0 {
+		target.ReasoningTokens = source.ReasoningTokens
+	}
+}
+
+func addImageUsageValue(name string, target *int, delta int) error {
+	if target == nil {
+		return fmt.Errorf("upstream usage %s target is required", name)
+	}
+	if *target < 0 || delta < 0 {
+		return fmt.Errorf("upstream usage %s cannot be negative", name)
+	}
+	maxInt := int(^uint(0) >> 1)
+	if delta > maxInt-*target {
+		return fmt.Errorf("upstream usage %s overflows int", name)
+	}
+	*target += delta
+	return nil
 }
 
 // applyBilling triggers the standard quota-consume path so this endpoint
 // integrates with the same billing system as everything else. Falls back to
 // PromptTokens=1/TotalTokens=1 if upstream gave us nothing usable, matching
 // the existing image-handler behavior.
-func applyBilling(c *gin.Context, info *relaycommon.RelayInfo, agg *UpstreamResponse, req *dto.ImageRequest) {
-	usage := mergeUsage(agg)
+func applyBilling(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage, req *dto.ImageRequest) {
 	if usage.TotalTokens == 0 {
 		usage.TotalTokens = 1
 	}

@@ -1,12 +1,12 @@
 package jimeng
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
@@ -70,19 +70,30 @@ type imageRequestPayload struct {
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if request.N != nil && *request.N > 1 {
+		return nil, errors.New("jimeng image generation supports only n=1")
+	}
+	imageURLs, err := request.ImageInputURLs()
+	if err != nil {
+		return nil, fmt.Errorf("invalid unified image input: %w", err)
+	}
 	payload := imageRequestPayload{
-		ReqKey: request.Model,
-		Prompt: request.Prompt,
+		ReqKey:    request.Model,
+		Prompt:    request.Prompt,
+		ImageUrls: imageURLs,
 	}
 	if request.ResponseFormat == "" || request.ResponseFormat == "url" {
 		payload.ReturnURL = true // Default to returning image URLs
 	}
 
 	if len(request.ExtraFields) > 0 {
-		if err := json.Unmarshal(request.ExtraFields, &payload); err != nil {
+		if err := common.Unmarshal(request.ExtraFields, &payload); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal extra fields: %w", err)
 		}
 	}
+	// The unified/staged image URLs are authoritative. Provider-specific
+	// extra_fields may set other generation options but must not replace them.
+	payload.ImageUrls = imageURLs
 
 	return payload, nil
 }
@@ -116,6 +127,11 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
+	headerOverride, err := channel.ResolveHeaderOverride(info, c)
+	if err != nil {
+		return nil, err
+	}
+	channel.ApplyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := channel.DoRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -124,7 +140,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayMode == relayconstant.RelayModeImagesGenerations {
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
 		usage, err = jimengImageHandler(c, resp, info)
 	} else if info.IsStream {
 		usage, err = openai.OaiStreamHandler(c, info, resp)

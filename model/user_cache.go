@@ -54,7 +54,12 @@ func invalidateUserCache(userId int) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	return common.RedisDelKey(getUserCacheKey(userId))
+	return invalidateImageTaskQuotaCache(
+		getUserCacheKey(userId),
+		imageTaskUserQuotaPinsKey(userId),
+		imageTaskUserQuotaInvalidationKey(userId),
+		common.UserStatusDisabled,
+	)
 }
 
 // InvalidateUserCache is the exported version of invalidateUserCache.
@@ -68,11 +73,12 @@ func populateUserCache(user User) error {
 		return nil
 	}
 
-	return common.RedisHSetObj(
+	_, err := common.RedisHSetObjIfAbsent(
 		getUserCacheKey(user.Id),
 		user.ToBaseUser(),
 		time.Duration(common.RedisKeyCacheSeconds())*time.Second,
 	)
+	return err
 }
 
 // updateUserCache refreshes non-quota user cache fields.
@@ -149,7 +155,31 @@ func cacheGetUserBase(userId int) (*UserBase, error) {
 	if err != nil {
 		return nil, err
 	}
+	if userCache.Id != userId {
+		return nil, fmt.Errorf("incomplete user cache for user %d", userId)
+	}
 	return &userCache, nil
+}
+
+func ensureUserQuotaCache(userId int) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	if _, err := cacheGetUserBase(userId); err == nil {
+		return nil
+	}
+
+	var user User
+	if err := DB.First(&user, userId).Error; err != nil {
+		return err
+	}
+	if err := populateUserCache(user); err != nil {
+		return err
+	}
+	if _, err := cacheGetUserBase(userId); err != nil {
+		return fmt.Errorf("failed to initialize user quota cache: %w", err)
+	}
+	return nil
 }
 
 // Add atomic quota operations using hash fields
@@ -162,6 +192,13 @@ func cacheIncrUserQuota(userId int, delta int64) error {
 
 func cacheDecrUserQuota(userId int, delta int64) error {
 	return cacheIncrUserQuota(userId, -delta)
+}
+
+func cacheTryDecrUserQuota(userId int, delta int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	return common.RedisHDecrByIfEnough(getUserCacheKey(userId), "Quota", "", delta)
 }
 
 // Helper functions to get individual fields if needed

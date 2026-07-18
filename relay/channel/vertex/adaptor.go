@@ -362,6 +362,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 				if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 					return gemini.GeminiImageHandler(c, info, resp)
 				}
+				if (info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits) &&
+					model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+					return gemini.ChatImageHandler(c, info, resp)
+				}
 				return gemini.GeminiChatHandler(c, info, resp)
 			}
 		case RequestModeOpenSource:

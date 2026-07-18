@@ -57,3 +57,22 @@ func TestNewSSRFProtectionFromFetchSettingParsesPortRanges(t *testing.T) {
 	require.NoError(t, protection.ValidateNetworkTarget("example.com", 8001))
 	require.Error(t, protection.ValidateNetworkTarget("example.com", 9000))
 }
+
+func TestSSRFDomainBlacklistCanonicalizesTrailingDNSDot(t *testing.T) {
+	tests := []struct {
+		name   string
+		domain string
+		list   []string
+	}{
+		{name: "exact request trailing dot", domain: "blocked.example.", list: []string{"blocked.example"}},
+		{name: "exact config trailing dot", domain: "blocked.example", list: []string{"blocked.example."}},
+		{name: "wildcard request trailing dot", domain: "api.blocked.example.", list: []string{"*.blocked.example"}},
+		{name: "wildcard config trailing dot", domain: "api.blocked.example", list: []string{"*.blocked.example."}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			protection := &SSRFProtection{DomainFilterMode: false, DomainList: test.list}
+			require.False(t, protection.isDomainAllowed(test.domain))
+		})
+	}
+}

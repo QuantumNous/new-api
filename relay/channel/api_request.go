@@ -291,7 +291,9 @@ func ResolveHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 	return processHeaderOverride(info, c)
 }
 
-func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]string) {
+// ApplyHeaderOverrideToRequest applies already-resolved channel header
+// overrides to custom adaptor requests that cannot use DoApiRequest.
+func ApplyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]string) {
 	if req == nil {
 		return
 	}
@@ -326,7 +328,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, err
 	}
-	applyHeaderOverrideToRequest(req, headerOverride)
+	ApplyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -358,7 +360,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	if err != nil {
 		return nil, err
 	}
-	applyHeaderOverrideToRequest(req, headerOverride)
+	ApplyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)

@@ -1281,96 +1281,115 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		return nil, errors.New("amount must be > 0")
 	}
 	now := GetDBTimestamp()
-
-	returnValue := &SubscriptionPreConsumeResult{}
-
+	var returnValue *SubscriptionPreConsumeResult
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var existing SubscriptionPreConsumeRecord
-		query := tx.Where("request_id = ?", requestId).Limit(1).Find(&existing)
-		if query.Error != nil {
-			return query.Error
-		}
-		if query.RowsAffected > 0 {
-			if existing.Status == "refunded" {
-				return errors.New("subscription pre-consume already refunded")
-			}
-			var sub UserSubscription
-			if err := tx.Where("id = ?", existing.UserSubscriptionId).First(&sub).Error; err != nil {
-				return err
-			}
-			returnValue.UserSubscriptionId = sub.Id
-			returnValue.PreConsumed = existing.PreConsumed
-			returnValue.AmountTotal = sub.AmountTotal
-			returnValue.AmountUsedBefore = sub.AmountUsed
-			returnValue.AmountUsedAfter = sub.AmountUsed
-			return nil
-		}
-
-		var subs []UserSubscription
-		if err := lockForUpdate(tx).
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
-			Order("end_time asc, id asc").
-			Find(&subs).Error; err != nil {
-			return errors.New("no active subscription")
-		}
-		if len(subs) == 0 {
-			return errors.New("no active subscription")
-		}
-		for _, candidate := range subs {
-			sub := candidate
-			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
-			if err != nil {
-				return err
-			}
-			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
-				return err
-			}
-			usedBefore := sub.AmountUsed
-			if sub.AmountTotal > 0 {
-				remain := sub.AmountTotal - usedBefore
-				if remain < amount {
-					continue
-				}
-			}
-			record := &SubscriptionPreConsumeRecord{
-				RequestId:          requestId,
-				UserId:             userId,
-				UserSubscriptionId: sub.Id,
-				PreConsumed:        amount,
-				Status:             "consumed",
-			}
-			if err := tx.Create(record).Error; err != nil {
-				var dup SubscriptionPreConsumeRecord
-				if err2 := tx.Where("request_id = ?", requestId).First(&dup).Error; err2 == nil {
-					if dup.Status == "refunded" {
-						return errors.New("subscription pre-consume already refunded")
-					}
-					returnValue.UserSubscriptionId = sub.Id
-					returnValue.PreConsumed = dup.PreConsumed
-					returnValue.AmountTotal = sub.AmountTotal
-					returnValue.AmountUsedBefore = sub.AmountUsed
-					returnValue.AmountUsedAfter = sub.AmountUsed
-					return nil
-				}
-				return err
-			}
-			sub.AmountUsed += amount
-			if err := tx.Save(&sub).Error; err != nil {
-				return err
-			}
-			returnValue.UserSubscriptionId = sub.Id
-			returnValue.PreConsumed = amount
-			returnValue.AmountTotal = sub.AmountTotal
-			returnValue.AmountUsedBefore = usedBefore
-			returnValue.AmountUsedAfter = sub.AmountUsed
-			return nil
-		}
-		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
+		var err error
+		returnValue, err = preConsumeUserSubscriptionTx(tx, requestId, userId, modelName, quotaType, amount, now)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	return returnValue, nil
+}
+
+func preConsumeUserSubscriptionTx(tx *gorm.DB, requestId string, userId int, _ string, _ int, amount int64, now int64) (*SubscriptionPreConsumeResult, error) {
+	if tx == nil {
+		return nil, errors.New("subscription transaction is required")
+	}
+	returnValue := &SubscriptionPreConsumeResult{}
+
+	var existing SubscriptionPreConsumeRecord
+	query := tx.Where("request_id = ?", requestId).Limit(1).Find(&existing)
+	if query.Error != nil {
+		return nil, query.Error
+	}
+	if query.RowsAffected > 0 {
+		if existing.Status == "refunded" {
+			return nil, errors.New("subscription pre-consume already refunded")
+		}
+		if existing.UserId != userId || existing.PreConsumed != amount {
+			return nil, errors.New("subscription pre-consume request conflicts with existing reservation")
+		}
+		var sub UserSubscription
+		if err := tx.Where("id = ?", existing.UserSubscriptionId).First(&sub).Error; err != nil {
+			return nil, err
+		}
+		returnValue.UserSubscriptionId = sub.Id
+		returnValue.PreConsumed = existing.PreConsumed
+		returnValue.AmountTotal = sub.AmountTotal
+		returnValue.AmountUsedBefore = sub.AmountUsed
+		returnValue.AmountUsedAfter = sub.AmountUsed
+		return returnValue, nil
+	}
+
+	var subs []UserSubscription
+	if err := lockForUpdate(tx).
+		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Order("end_time asc, id asc").
+		Find(&subs).Error; err != nil {
+		return nil, errors.New("no active subscription")
+	}
+	if len(subs) == 0 {
+		return nil, errors.New("no active subscription")
+	}
+	for _, candidate := range subs {
+		sub := candidate
+		plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+		if err != nil {
+			return nil, err
+		}
+		if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+			return nil, err
+		}
+		usedBefore := sub.AmountUsed
+		if sub.AmountTotal > 0 {
+			remain := sub.AmountTotal - usedBefore
+			if remain < amount {
+				continue
+			}
+		}
+		record := &SubscriptionPreConsumeRecord{
+			RequestId:          requestId,
+			UserId:             userId,
+			UserSubscriptionId: sub.Id,
+			PreConsumed:        amount,
+			Status:             "consumed",
+		}
+		if err := tx.Create(record).Error; err != nil {
+			var dup SubscriptionPreConsumeRecord
+			if err2 := tx.Where("request_id = ?", requestId).First(&dup).Error; err2 == nil {
+				if dup.Status == "refunded" {
+					return nil, errors.New("subscription pre-consume already refunded")
+				}
+				if dup.UserId != userId || dup.PreConsumed != amount {
+					return nil, errors.New("subscription pre-consume request conflicts with existing reservation")
+				}
+				var duplicateSub UserSubscription
+				if err := tx.Where("id = ?", dup.UserSubscriptionId).First(&duplicateSub).Error; err != nil {
+					return nil, err
+				}
+				returnValue.UserSubscriptionId = duplicateSub.Id
+				returnValue.PreConsumed = dup.PreConsumed
+				returnValue.AmountTotal = duplicateSub.AmountTotal
+				returnValue.AmountUsedBefore = duplicateSub.AmountUsed
+				returnValue.AmountUsedAfter = duplicateSub.AmountUsed
+				return returnValue, nil
+			}
+			return nil, err
+		}
+		sub.AmountUsed += amount
+		if err := tx.Save(&sub).Error; err != nil {
+			return nil, err
+		}
+		returnValue.UserSubscriptionId = sub.Id
+		returnValue.PreConsumed = amount
+		returnValue.AmountTotal = sub.AmountTotal
+		returnValue.AmountUsedBefore = usedBefore
+		returnValue.AmountUsedAfter = sub.AmountUsed
+		return returnValue, nil
+	}
+	return nil, fmt.Errorf("subscription quota insufficient, need=%d", amount)
 }
 
 // RefundSubscriptionPreConsume is idempotent and refunds pre-consumed subscription quota by requestId.
@@ -1379,24 +1398,29 @@ func RefundSubscriptionPreConsume(requestId string) error {
 		return errors.New("requestId is empty")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var record SubscriptionPreConsumeRecord
-		if err := lockForUpdate(tx).
-			Where("request_id = ?", requestId).First(&record).Error; err != nil {
-			return err
-		}
-		if record.Status == "refunded" {
-			return nil
-		}
-		if record.PreConsumed <= 0 {
-			record.Status = "refunded"
-			return tx.Save(&record).Error
-		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
-			return err
-		}
-		record.Status = "refunded"
-		return tx.Save(&record).Error
+		return refundSubscriptionPreConsumeTx(tx, requestId)
 	})
+}
+
+func refundSubscriptionPreConsumeTx(tx *gorm.DB, requestId string) error {
+	if tx == nil {
+		return errors.New("subscription transaction is required")
+	}
+	var record SubscriptionPreConsumeRecord
+	if err := lockForUpdate(tx).
+		Where("request_id = ?", requestId).First(&record).Error; err != nil {
+		return err
+	}
+	if record.Status == "refunded" {
+		return nil
+	}
+	if record.PreConsumed > 0 {
+		if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed); err != nil {
+			return err
+		}
+	}
+	record.Status = "refunded"
+	return tx.Save(&record).Error
 }
 
 // ResetDueSubscriptions resets subscriptions whose next_reset_time has passed.
@@ -1490,20 +1514,27 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var sub UserSubscription
-		if err := lockForUpdate(tx).
-			Where("id = ?", userSubscriptionId).
-			First(&sub).Error; err != nil {
-			return err
-		}
-		newUsed := sub.AmountUsed + delta
-		if newUsed < 0 {
-			newUsed = 0
-		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta)
 	})
+}
+
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64) error {
+	if tx == nil {
+		return errors.New("subscription transaction is required")
+	}
+	var sub UserSubscription
+	if err := lockForUpdate(tx).
+		Where("id = ?", userSubscriptionId).
+		First(&sub).Error; err != nil {
+		return err
+	}
+	newUsed := sub.AmountUsed + delta
+	if newUsed < 0 {
+		newUsed = 0
+	}
+	if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+		return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+	}
+	sub.AmountUsed = newUsed
+	return tx.Save(&sub).Error
 }

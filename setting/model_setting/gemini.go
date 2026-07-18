@@ -1,6 +1,8 @@
 package model_setting
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -27,9 +29,18 @@ var defaultGeminiSettings = GeminiSettings{
 	SupportedImagineModels: []string{
 		"gemini-2.0-flash-exp-image-generation",
 		"gemini-2.0-flash-exp",
+		"gemini-2.5-flash-image-preview",
 		"gemini-3-pro-image-preview",
+		"gemini-3-pro-image",
+		"gemini-3.1-pro-image",
+		"gemini-3.1-flash-image",
 		"gemini-2.5-flash-image",
 		"gemini-3.1-flash-image-preview",
+		"gemini-3.1-flash-lite-image",
+		"nano-banana",
+		"nano-banana-2",
+		"nano-banana-pro",
+		"nano-banana-pro-preview",
 	},
 	ThinkingAdapterEnabled:                false,
 	ThinkingAdapterBudgetTokensPercentage: 0.6,
@@ -67,8 +78,9 @@ func GetGeminiVersionSetting(key string) string {
 }
 
 func IsGeminiModelSupportImagine(model string) bool {
+	model = strings.TrimSpace(strings.TrimPrefix(strings.ToLower(model), "models/"))
 	for _, v := range geminiSettings.SupportedImagineModels {
-		if v == model {
+		if strings.EqualFold(v, model) {
 			return true
 		}
 	}

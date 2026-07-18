@@ -211,9 +211,9 @@ func isDomainListed(domain string, list []string) bool {
 		return false
 	}
 
-	domain = strings.ToLower(domain)
+	domain = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
 	for _, item := range list {
-		item = strings.ToLower(strings.TrimSpace(item))
+		item = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(item)), ".")
 		if item == "" {
 			continue
 		}

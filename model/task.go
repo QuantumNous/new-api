@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
 )
 
@@ -35,39 +36,68 @@ const (
 	TaskStatusNotStart   TaskStatus = "NOT_START"
 	TaskStatusSubmitted             = "SUBMITTED"
 	TaskStatusQueued                = "QUEUED"
+	TaskStatusReserving             = "RESERVING"
 	TaskStatusInProgress            = "IN_PROGRESS"
-	TaskStatusFailure               = "FAILURE"
-	TaskStatusSuccess               = "SUCCESS"
-	TaskStatusUnknown               = "UNKNOWN"
+	// CHECKPOINT_PENDING fences a provider call whose response is not durable
+	// yet. Workers must never requeue this state back to provider submission: a
+	// process exit here leaves the upstream outcome ambiguous.
+	TaskStatusCheckpointPending TaskStatus = "CHECKPOINT_PENDING"
+	TaskStatusFinalizing                   = "FINALIZING"
+	TaskStatusFailure                      = "FAILURE"
+	TaskStatusSuccess                      = "SUCCESS"
+	TaskStatusUnknown                      = "UNKNOWN"
 )
 
 type Task struct {
-	ID         int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
-	CreatedAt  int64                 `json:"created_at" gorm:"index"`
-	UpdatedAt  int64                 `json:"updated_at"`
-	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
-	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
-	UserId     int                   `json:"user_id" gorm:"index"`
-	Group      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
-	ChannelId  int                   `json:"channel_id" gorm:"index"`
-	Quota      int                   `json:"quota"`
-	Action     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
-	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
-	FailReason string                `json:"fail_reason"`
-	SubmitTime int64                 `json:"submit_time" gorm:"index"`
-	StartTime  int64                 `json:"start_time" gorm:"index"`
-	FinishTime int64                 `json:"finish_time" gorm:"index"`
-	Progress   string                `json:"progress" gorm:"type:varchar(20);index"`
-	Properties Properties            `json:"properties" gorm:"type:json"`
-	Username   string                `json:"username,omitempty" gorm:"-"`
+	ID                  int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
+	CreatedAt           int64                 `json:"created_at" gorm:"index"`
+	UpdatedAt           int64                 `json:"updated_at"`
+	TaskID              string                `json:"task_id" gorm:"type:varchar(191);index"`                                                // 第三方id，不一定有/ song id\ Task id
+	Platform            constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index;uniqueIndex:idx_task_client_request,priority:1"` // 平台
+	UserId              int                   `json:"user_id" gorm:"index;uniqueIndex:idx_task_client_request,priority:2"`
+	ClientRequestID     *string               `json:"-" gorm:"type:varchar(64);uniqueIndex:idx_task_client_request,priority:3"`
+	Group               string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
+	ChannelId           int                   `json:"channel_id" gorm:"index"`
+	Quota               int                   `json:"quota"`
+	Action              string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
+	Status              TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
+	Attempt             int                   `json:"-"`                                    // worker claim generation; prevents stale workers from committing
+	WorkerAttempts      int                   `json:"-"`
+	WorkerNextRetryAt   int64                 `json:"-" gorm:"index"`
+	WorkerError         string                `json:"-" gorm:"type:text"`
+	FinalizeAttempts    int                   `json:"-"`
+	FinalizeNextRetryAt int64                 `json:"-" gorm:"index"`
+	FinalizeError       string                `json:"-" gorm:"type:text"`
+	ProviderAttempts    int                   `json:"-"`
+	ProviderNextRetryAt int64                 `json:"-" gorm:"index"`
+	ProviderError       string                `json:"-" gorm:"type:text"`
+	DownloadAttempts    int                   `json:"-"`
+	DownloadNextRetryAt int64                 `json:"-" gorm:"index"`
+	DownloadError       string                `json:"-" gorm:"type:text"`
+	UploadAttempts      int                   `json:"-"`
+	UploadNextRetryAt   int64                 `json:"-" gorm:"index"`
+	UploadError         string                `json:"-" gorm:"type:text"`
+	FailReason          string                `json:"fail_reason"`
+	SubmitTime          int64                 `json:"submit_time" gorm:"index"`
+	StartTime           int64                 `json:"start_time" gorm:"index"`
+	FinishTime          int64                 `json:"finish_time" gorm:"index"`
+	Progress            string                `json:"progress" gorm:"type:varchar(20);index"`
+	Properties          Properties            `json:"properties" gorm:"type:json"`
+	Username            string                `json:"username,omitempty" gorm:"-"`
 	// 禁止返回给用户，内部可能包含key等隐私信息
-	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
-	Data        json.RawMessage `json:"data" gorm:"type:json"`
+	PrivateData    TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
+	Data           json.RawMessage `json:"data" gorm:"type:json"`
+	CheckpointData json.RawMessage `json:"-" gorm:"column:checkpoint_data;type:json"`
 }
 
 func (t *Task) SetData(data any) {
 	b, _ := common.Marshal(data)
 	t.Data = json.RawMessage(b)
+}
+
+func (t *Task) SetCheckpointData(data any) {
+	b, _ := common.Marshal(data)
+	t.CheckpointData = json.RawMessage(b)
 }
 
 func (t *Task) GetData(v any) error {
@@ -101,21 +131,81 @@ type TaskPrivateData struct {
 	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
 	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
-	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
-	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
-	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
-	NodeName       string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
-	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	BillingSource        string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
+	SubscriptionId       int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
+	TokenId              int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
+	NodeName             string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
+	BillingContext       *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	BillingFinalStatus   TaskStatus          `json:"billing_final_status,omitempty"`
+	BillingActualQuota   int                 `json:"billing_actual_quota,omitempty"`
+	BillingDBApplied     bool                `json:"billing_db_applied,omitempty"`
+	TokenPreConsumed     int                 `json:"token_pre_consumed,omitempty"`
+	TokenBillingEnabled  bool                `json:"token_billing_enabled,omitempty"`
+	FinalQuotaClamp      *common.QuotaClamp  `json:"final_quota_clamp,omitempty"`
+	ClientRequestHash    string              `json:"client_request_hash,omitempty"`
+	ChannelMultiKeyIndex int                 `json:"channel_multi_key_index,omitempty"`
+	ChannelKeyHash       string              `json:"channel_key_hash,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
 type TaskBillingContext struct {
-	ModelPrice      float64            `json:"model_price,omitempty"`       // 模型单价
-	GroupRatio      float64            `json:"group_ratio,omitempty"`       // 分组倍率
-	ModelRatio      float64            `json:"model_ratio,omitempty"`       // 模型倍率
-	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
-	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
-	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+	ModelPrice            float64                      `json:"model_price,omitempty"`             // 模型单价
+	GroupRatio            float64                      `json:"group_ratio,omitempty"`             // 分组倍率
+	ModelRatio            float64                      `json:"model_ratio,omitempty"`             // 模型倍率
+	CompletionRatio       float64                      `json:"completion_ratio,omitempty"`        // 输出倍率
+	CacheRatio            float64                      `json:"cache_ratio,omitempty"`             // 缓存读取倍率
+	CacheCreationRatio    float64                      `json:"cache_creation_ratio,omitempty"`    // 缓存创建倍率
+	CacheCreation5mRatio  float64                      `json:"cache_creation_5m_ratio,omitempty"` // 5 分钟缓存创建倍率
+	CacheCreation1hRatio  float64                      `json:"cache_creation_1h_ratio,omitempty"` // 1 小时缓存创建倍率
+	ImageRatio            float64                      `json:"image_ratio,omitempty"`             // 图片 token 倍率
+	UsePrice              bool                         `json:"use_price,omitempty"`               // 固定价格模式
+	OtherRatios           map[string]float64           `json:"other_ratios,omitempty"`            // 附加倍率（时长、分辨率等）
+	OriginModelName       string                       `json:"origin_model_name,omitempty"`       // 模型名称，必须为OriginModelName
+	PerCallBilling        bool                         `json:"per_call_billing,omitempty"`        // 按次计费：跳过轮询阶段的差额结算
+	TieredBillingSnapshot *billingexpr.BillingSnapshot `json:"tiered_billing_snapshot,omitempty"`
+	// BillingRequestInput remains readable for legacy rows and in-memory task
+	// construction. TaskPrivateData.Value always encrypts it before persistence.
+	BillingRequestInput          *billingexpr.RequestInput `json:"billing_request_input,omitempty"`
+	EncryptedBillingRequestInput string                    `json:"billing_request_input_encrypted,omitempty"`
+}
+
+// ResolveBillingRequestInput decrypts the request snapshot into a temporary
+// value without placing plaintext back onto the persisted task model.
+func (b *TaskBillingContext) ResolveBillingRequestInput() (*billingexpr.RequestInput, error) {
+	if b == nil {
+		return nil, nil
+	}
+	if b.BillingRequestInput != nil {
+		input := *b.BillingRequestInput
+		input.Body = append([]byte(nil), b.BillingRequestInput.Body...)
+		if b.BillingRequestInput.Headers != nil {
+			input.Headers = make(map[string]string, len(b.BillingRequestInput.Headers))
+			for key, value := range b.BillingRequestInput.Headers {
+				input.Headers[key] = value
+			}
+		}
+		return &input, nil
+	}
+	if b.EncryptedBillingRequestInput == "" {
+		return nil, nil
+	}
+	plaintext, err := common.DecryptString(b.EncryptedBillingRequestInput)
+	if err != nil {
+		return nil, err
+	}
+	var input billingexpr.RequestInput
+	if err := common.Unmarshal([]byte(plaintext), &input); err != nil {
+		return nil, err
+	}
+	return &input, nil
+}
+
+func (b *TaskBillingContext) ClearBillingRequestInput() {
+	if b == nil {
+		return
+	}
+	b.BillingRequestInput = nil
+	b.EncryptedBillingRequestInput = ""
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
@@ -154,7 +244,24 @@ func (p TaskPrivateData) Value() (driver.Value, error) {
 	if (p == TaskPrivateData{}) {
 		return nil, nil
 	}
-	return common.Marshal(p)
+	stored := p
+	if p.BillingContext != nil {
+		billing := *p.BillingContext
+		if billing.BillingRequestInput != nil && common.AsyncImageEncryptedWritesEnabled() {
+			encoded, err := common.Marshal(billing.BillingRequestInput)
+			if err != nil {
+				return nil, err
+			}
+			encrypted, err := common.EncryptString(string(encoded))
+			if err != nil {
+				return nil, err
+			}
+			billing.BillingRequestInput = nil
+			billing.EncryptedBillingRequestInput = encrypted
+		}
+		stored.BillingContext = &billing
+	}
+	return common.Marshal(stored)
 }
 
 // SyncTaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
@@ -293,6 +400,7 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 func GetTimedOutUnfinishedTasks(cutoffUnix int64, limit int) []*Task {
 	var tasks []*Task
 	err := DB.Where("progress != ?", "100%").
+		Where("platform != ?", constant.TaskPlatformOpenAIImage).
 		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess}).
 		Where("submit_time < ?", cutoffUnix).
 		Order("submit_time").
@@ -308,7 +416,13 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	var tasks []*Task
 	var err error
 	// get all tasks progress is not 100%
-	err = DB.Where("progress != ?", "100%").Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
+	err = DB.Where("progress != ?", "100%").
+		Where("platform != ?", constant.TaskPlatformOpenAIImage).
+		Where("status != ?", TaskStatusFailure).
+		Where("status != ?", TaskStatusSuccess).
+		Limit(limit).
+		Order("id").
+		Find(&tasks).Error
 	if err != nil {
 		return nil
 	}
@@ -323,6 +437,7 @@ func HasUnfinishedSyncTasks() bool {
 	var id int64
 	err := DB.Model(&Task{}).
 		Where("progress != ?", "100%").
+		Where("platform != ?", constant.TaskPlatformOpenAIImage).
 		Where("status != ?", TaskStatusFailure).
 		Where("status != ?", TaskStatusSuccess).
 		Limit(1).
@@ -357,6 +472,37 @@ func GetByTaskId(userId int, taskId string) (*Task, bool, error) {
 		return nil, false, err
 	}
 	return task, exist, err
+}
+
+func GetImageTaskByTaskID(taskID string) (*Task, bool, error) {
+	if taskID == "" {
+		return nil, false, nil
+	}
+	var task Task
+	err := DB.Where("task_id = ? AND platform = ?", taskID, constant.TaskPlatformOpenAIImage).First(&task).Error
+	exists, err := RecordExist(err)
+	if err != nil || !exists {
+		return nil, exists, err
+	}
+	return &task, true, nil
+}
+
+func GetImageTaskByClientRequestID(userID int, clientRequestID string) (*Task, bool, error) {
+	if userID <= 0 || clientRequestID == "" {
+		return nil, false, nil
+	}
+	var task Task
+	err := DB.Where(
+		"platform = ? AND user_id = ? AND client_request_id = ?",
+		constant.TaskPlatformOpenAIImage,
+		userID,
+		clientRequestID,
+	).First(&task).Error
+	exists, err := RecordExist(err)
+	if err != nil || !exists {
+		return nil, exists, err
+	}
+	return &task, true, nil
 }
 
 func GetByTaskIds(userId int, taskIds []any) ([]*Task, error) {

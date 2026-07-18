@@ -93,7 +93,6 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	CloseResponseBodyGracefully(resp)
 	var errResponse dto.GeneralErrorResponse
 	responseBodyText := string(responseBody)
-	responseBodyPreview := common.LocalLogPreview(responseBodyText)
 	buildErrWithBody := func(message string) error {
 		if message == "" {
 			return fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, responseBodyText)
@@ -106,7 +105,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		if showBodyWhenFail {
 			newApiErr.Err = buildErrWithBody("")
 		} else {
-			logger.LogError(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, responseBodyPreview))
+			logger.LogError(ctx, fmt.Sprintf("bad response status code %d with malformed JSON body (%d bytes)", resp.StatusCode, len(responseBody)))
 			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
 		}
 		return

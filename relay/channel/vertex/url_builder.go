@@ -61,6 +61,7 @@ func BuildAPIBaseURL(baseURL, version, projectID, region string) string {
 }
 
 func BuildPublisherModelURL(baseURL, version, projectID, region, publisher, modelName, action string) string {
+	modelName = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelName)), "models/")
 	return fmt.Sprintf(
 		"%s/publishers/%s/models/%s:%s",
 		BuildAPIBaseURL(baseURL, version, projectID, region),
