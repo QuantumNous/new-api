@@ -220,9 +220,13 @@ export function AdvancedCustomEditorDialog({
     () => new Set(routeGroups.map((routeGroup) => routeGroup.incomingPath)),
     [routeGroups]
   )
-  const nextAvailableIncomingPath = ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS.find(
-    (option) => !usedIncomingPaths.has(option.value)
-  )?.value
+  const availableIncomingPathOptions = useMemo(
+    () =>
+      ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS.filter(
+        (option) => !usedIncomingPaths.has(option.value)
+      ),
+    [usedIncomingPaths]
+  )
   const validationError = useMemo(
     () => validateAdvancedCustomConfig(normalizedConfig),
     [normalizedConfig]
@@ -258,8 +262,8 @@ export function AdvancedCustomEditorDialog({
     setRouteKeys(nextRouteKeys)
   }
 
-  const addRoute = () => {
-    if (!nextAvailableIncomingPath) return
+  const addRoute = (incomingPath: string | null) => {
+    if (!incomingPath || usedIncomingPaths.has(incomingPath)) return
     setConfig((current) => {
       const next = normalizeAdvancedCustomConfig(current)
       return {
@@ -268,8 +272,8 @@ export function AdvancedCustomEditorDialog({
           ...(next.advanced_routes || []),
           {
             ...createAdvancedCustomRoute(),
-            incoming_path: nextAvailableIncomingPath,
-            upstream_path: nextAvailableIncomingPath,
+            incoming_path: incomingPath,
+            upstream_path: incomingPath,
           },
         ],
       }
@@ -614,16 +618,45 @@ export function AdvancedCustomEditorDialog({
       {editMode === 'visual' ? (
         <div className='flex flex-col gap-4 p-4 lg:gap-3'>
           <div className='flex justify-end border-y py-4 lg:py-2'>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={addRoute}
-              disabled={!nextAvailableIncomingPath}
+            <Select
+              items={availableIncomingPathOptions.map((option) => option.value)}
+              value={null}
+              onValueChange={(incomingPath) => {
+                if (typeof incomingPath === 'string') {
+                  addRoute(incomingPath)
+                }
+              }}
             >
-              <Plus data-icon='inline-start' />
-              {t('Add route')}
-            </Button>
+              <SelectTrigger
+                size='sm'
+                disabled={availableIncomingPathOptions.length === 0}
+              >
+                <Plus data-icon='inline-start' />
+                <SelectValue placeholder={t('Add route')} />
+              </SelectTrigger>
+              <SelectContent
+                align='end'
+                alignItemWithTrigger={false}
+                className={longSelectContentClass}
+              >
+                <SelectGroup>
+                  {availableIncomingPathOptions.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className={longSelectItemClass}
+                    >
+                      <div className='flex min-w-0 flex-col gap-1 leading-snug whitespace-normal'>
+                        <span>{t(option.label)}</span>
+                        <span className='text-muted-foreground font-mono text-xs break-all'>
+                          {option.value}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
 
           {validationError ? (
