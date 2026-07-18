@@ -23,5 +23,14 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "sse.js": "^2.8.0"
+  },
+  "scripts": {
+    "test:tooling": "bun test scripts/check-bundle-budget.test.mjs"
+  },
+  "overrides": {
+    "dompurify": "3.4.11",
+    "form-data": "4.0.6",
+    "hono": "4.12.25",
+    "minimist": "1.2.8"
   }
 }

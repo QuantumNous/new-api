@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
-
-import { Pricing } from '@/features/pricing'
-import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
+import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { Pricing } from '@/features/pricing'
+import { safeRedirect } from '@/features/auth/lib/safe-redirect'
 
 const pricingSearchSchema = z.object({
   search: z.string().optional(),
@@ -34,6 +34,7 @@ const pricingSearchSchema = z.object({
   tokenUnit: z.enum(['M', 'K']).optional(),
   view: z.enum(['card', 'table']).optional().catch(undefined),
   rechargePrice: z.boolean().optional(),
+  liveMetricsOnly: z.boolean().optional(),
 })
 
 export const Route = createFileRoute('/pricing/')({
@@ -48,7 +49,7 @@ export const Route = createFileRoute('/pricing/')({
       if (!auth.user) {
         throw redirect({
           to: '/sign-in',
-          search: { redirect: location.href },
+          search: { redirect: safeRedirect(location.pathname + location.search, '/pricing/') },
         })
       }
     }

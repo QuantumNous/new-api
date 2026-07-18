@@ -111,10 +111,60 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
+// GetSatisfiedChannels returns all enabled channels for group+model (path-aware),
+// highest priority first. Used by adaptive balance candidate collection.
+// When memory cache is off, falls back to a single DB-selected channel.
+func GetSatisfiedChannels(group string, modelName string, requestPath string) ([]*Channel, error) {
+	if !common.MemoryCacheEnabled {
+		ch, err := GetChannel(group, modelName, 0, requestPath)
+		if err != nil {
+			return nil, err
+		}
+		if ch == nil {
+			return nil, nil
+		}
+		return []*Channel{ch}, nil
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	ids := filterChannelsByRequestPathAndModel(group2model2channels[group][modelName], requestPath, modelName)
+	if len(ids) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
+		ids = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, normalizedModel)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	out := make([]*Channel, 0, len(ids))
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ch, ok := channelsIDM[id]
+		if !ok || ch == nil {
+			continue
+		}
+		if ch.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		out = append(out, ch)
+	}
+	return out, nil
+}
+
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetRandomSatisfiedChannelExcluding(group, model, retry, requestPath, nil)
+}
+
+func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, requestPath string, excluded map[int]struct{}) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, requestPath)
+		return GetChannelExcluding(group, model, retry, requestPath, excluded)
 	}
 
 	channelSyncLock.RLock()
@@ -131,6 +181,18 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 
 	if len(channels) == 0 {
 		return nil, nil
+	}
+	if len(excluded) > 0 {
+		filtered := make([]int, 0, len(channels))
+		for _, channelID := range channels {
+			if _, skip := excluded[channelID]; !skip {
+				filtered = append(filtered, channelID)
+			}
+		}
+		channels = filtered
+		if len(channels) == 0 {
+			return nil, nil
+		}
 	}
 
 	if len(channels) == 1 {

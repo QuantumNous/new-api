@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMemo, type ReactNode } from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-
+import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,9 +28,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { getLobeIcon } from '@/lib/lobe-icon'
-import { cn } from '@/lib/utils'
-
 import {
   ENDPOINT_TYPES,
   FILTER_ALL,
@@ -115,7 +113,7 @@ function FilterChip(props: {
       {(props.option.suffix || props.option.count != null) && (
         <span
           className={cn(
-            'rounded-md px-1.5 py-0.5 text-[12px]',
+            'rounded-md px-1.5 py-0.5 text-[10px]',
             props.active
               ? 'bg-background text-foreground'
               : 'bg-muted text-muted-foreground'
@@ -158,92 +156,107 @@ function FilterSection(props: FilterSectionProps) {
 
 export function PricingSidebar(props: PricingSidebarProps) {
   const { t } = useTranslation()
-  const quotaTypeLabels = getQuotaTypeLabels(t)
-  const endpointTypeLabels = getEndpointTypeLabels(t)
+  const quotaTypeLabels = useMemo(() => getQuotaTypeLabels(t), [t])
+  const endpointTypeLabels = useMemo(() => getEndpointTypeLabels(t), [t])
 
-  const vendorOptions: FilterOption[] = [
-    {
-      value: FILTER_ALL,
-      label: t('All Vendors'),
-      count: props.models.length,
-    },
-    ...props.vendors
-      .map((vendor) => ({
-        value: vendor.name,
-        label: vendor.name,
-        count: countBy(
-          props.models,
-          (model) => model.vendor_name === vendor.name
-        ),
-        icon: vendor.icon ? getLobeIcon(vendor.icon, 14) : undefined,
-      }))
-      .filter((vendor) => vendor.count > 0),
-  ]
+  const vendorOptions = useMemo<FilterOption[]>(
+    () => [
+      {
+        value: FILTER_ALL,
+        label: t('All Vendors'),
+        count: props.models.length,
+      },
+      ...props.vendors
+        .map((vendor) => ({
+          value: vendor.name,
+          label: vendor.name,
+          count: countBy(
+            props.models,
+            (model) => model.vendor_name === vendor.name
+          ),
+          icon: vendor.icon ? getLobeIcon(vendor.icon, 14) : undefined,
+        }))
+        .filter((vendor) => vendor.count > 0),
+    ],
+    [props.models, props.vendors, t]
+  )
 
-  const groupOptions: FilterOption[] = [
-    {
-      value: FILTER_ALL,
-      label: t('All Groups'),
-    },
-    ...props.groups.map((group) => ({
-      value: group,
-      label: group,
-      suffix: formatGroupRatio(props.groupRatios?.[group]),
-    })),
-  ]
+  const groupOptions = useMemo<FilterOption[]>(
+    () => [
+      {
+        value: FILTER_ALL,
+        label: t('All Groups'),
+      },
+      ...props.groups.map((group) => ({
+        value: group,
+        label: group,
+        suffix: formatGroupRatio(props.groupRatios?.[group]),
+      })),
+    ],
+    [props.groupRatios, props.groups, t]
+  )
 
-  const quotaOptions: FilterOption[] = [
-    {
-      value: QUOTA_TYPES.ALL,
-      label: quotaTypeLabels[QUOTA_TYPES.ALL],
-      count: props.models.length,
-    },
-    {
-      value: QUOTA_TYPES.TOKEN,
-      label: quotaTypeLabels[QUOTA_TYPES.TOKEN],
-      count: countBy(props.models, (model) => model.quota_type === 0),
-    },
-    {
-      value: QUOTA_TYPES.REQUEST,
-      label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
-      count: countBy(props.models, (model) => model.quota_type === 1),
-    },
-  ]
+  const quotaOptions = useMemo<FilterOption[]>(
+    () => [
+      {
+        value: QUOTA_TYPES.ALL,
+        label: quotaTypeLabels[QUOTA_TYPES.ALL],
+        count: props.models.length,
+      },
+      {
+        value: QUOTA_TYPES.TOKEN,
+        label: quotaTypeLabels[QUOTA_TYPES.TOKEN],
+        count: countBy(props.models, (model) => model.quota_type === 0),
+      },
+      {
+        value: QUOTA_TYPES.REQUEST,
+        label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
+        count: countBy(props.models, (model) => model.quota_type === 1),
+      },
+    ],
+    [props.models, quotaTypeLabels]
+  )
 
-  const tagOptions: FilterOption[] = [
-    {
-      value: FILTER_ALL,
-      label: t('All Tags'),
-      count: props.models.length,
-    },
-    ...props.tags.map((tag) => ({
-      value: tag,
-      label: tag,
-      count: countBy(props.models, (model) =>
-        parseTags(model.tags)
-          .map((item) => item.toLowerCase())
-          .includes(tag.toLowerCase())
-      ),
-    })),
-  ]
-
-  const endpointOptions: FilterOption[] = [
-    {
-      value: ENDPOINT_TYPES.ALL,
-      label: endpointTypeLabels[ENDPOINT_TYPES.ALL],
-      count: props.models.length,
-    },
-    ...Object.entries(endpointTypeLabels)
-      .filter(([value]) => value !== ENDPOINT_TYPES.ALL)
-      .map(([value, label]) => ({
-        value,
-        label,
-        count: countBy(
-          props.models,
-          (model) => model.supported_endpoint_types?.includes(value) ?? false
+  const tagOptions = useMemo<FilterOption[]>(
+    () => [
+      {
+        value: FILTER_ALL,
+        label: t('All Tags'),
+        count: props.models.length,
+      },
+      ...props.tags.map((tag) => ({
+        value: tag,
+        label: tag,
+        count: countBy(props.models, (model) =>
+          parseTags(model.tags)
+            .map((item) => item.toLowerCase())
+            .includes(tag.toLowerCase())
         ),
       })),
-  ]
+    ],
+    [props.models, props.tags, t]
+  )
+
+  const endpointOptions = useMemo<FilterOption[]>(
+    () => [
+      {
+        value: ENDPOINT_TYPES.ALL,
+        label: endpointTypeLabels[ENDPOINT_TYPES.ALL],
+        count: props.models.length,
+      },
+      ...Object.entries(endpointTypeLabels)
+        .filter(([value]) => value !== ENDPOINT_TYPES.ALL)
+        .map(([value, label]) => ({
+          value,
+          label,
+          count: countBy(
+            props.models,
+            (model) => model.supported_endpoint_types?.includes(value) ?? false
+          ),
+        })),
+    ],
+    [endpointTypeLabels, props.models]
+  )
 
   return (
     <aside className={cn('rounded-xl border p-3', props.className)}>

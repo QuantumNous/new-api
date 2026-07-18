@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useSearch } from '@tanstack/react-router'
-import { useMemo, useCallback, useState } from 'react'
-
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
+import { useSearch, useNavigate } from '@tanstack/react-router'
 import {
   FILTER_ALL,
   SORT_OPTIONS,
@@ -42,6 +41,8 @@ type FilterState = {
   tokenUnit?: TokenUnit
   view?: ViewMode
   rechargePrice?: boolean
+  /** Prefer live probe/relay badges; hide cold-start mock fill. */
+  liveMetricsOnly?: boolean
 }
 
 function normalizeViewMode(value: unknown): ViewMode {
@@ -53,6 +54,7 @@ function normalizeViewMode(value: unknown): ViewMode {
 
 export function useFilters(models: PricingModel[]) {
   const search = useSearch({ from: '/pricing/' })
+  const navigate = useNavigate({ from: '/pricing/' })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
     sort: search.sort,
@@ -64,7 +66,92 @@ export function useFilters(models: PricingModel[]) {
     tokenUnit: search.tokenUnit,
     view: search.view,
     rechargePrice: search.rechargePrice,
+    // Default live-only so cold-start mock SLAs are not shown as real metrics.
+    liveMetricsOnly:
+      typeof (search as { liveMetricsOnly?: boolean }).liveMetricsOnly ===
+      'boolean'
+        ? (search as { liveMetricsOnly?: boolean }).liveMetricsOnly
+        : true,
   }))
+
+  // Keep URL shareable/refreshable (debounced for search typing).
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+    syncTimer.current = setTimeout(() => {
+      const next: Record<string, unknown> = {
+        search: filterState.search || undefined,
+        sort:
+          filterState.sort && filterState.sort !== SORT_OPTIONS.NAME
+            ? filterState.sort
+            : undefined,
+        vendor:
+          filterState.vendor && filterState.vendor !== FILTER_ALL
+            ? filterState.vendor
+            : undefined,
+        group:
+          filterState.group && filterState.group !== FILTER_ALL
+            ? filterState.group
+            : undefined,
+        quotaType:
+          filterState.quotaType && filterState.quotaType !== QUOTA_TYPES.ALL
+            ? filterState.quotaType
+            : undefined,
+        endpointType:
+          filterState.endpointType &&
+          filterState.endpointType !== ENDPOINT_TYPES.ALL
+            ? filterState.endpointType
+            : undefined,
+        tag:
+          filterState.tag && filterState.tag !== FILTER_ALL
+            ? filterState.tag
+            : undefined,
+        tokenUnit:
+          filterState.tokenUnit && filterState.tokenUnit !== DEFAULT_TOKEN_UNIT
+            ? filterState.tokenUnit
+            : undefined,
+        view:
+          filterState.view && filterState.view !== VIEW_MODES.CARD
+            ? filterState.view
+            : undefined,
+        rechargePrice: filterState.rechargePrice || undefined,
+        // Only put liveMetricsOnly in URL when non-default (false).
+        liveMetricsOnly:
+          filterState.liveMetricsOnly === false ? false : undefined,
+      }
+      void navigate({
+        search: (prev) => {
+          const cleaned = { ...prev } as Record<string, unknown>
+          for (const k of Object.keys(next)) {
+            if (next[k] === undefined) delete cleaned[k]
+            else cleaned[k] = next[k]
+          }
+          // drop keys that should clear
+          for (const k of [
+            'search',
+            'sort',
+            'vendor',
+            'group',
+            'quotaType',
+            'endpointType',
+            'tag',
+            'tokenUnit',
+            'view',
+            'rechargePrice',
+            'liveMetricsOnly',
+          ]) {
+            if (!(k in next) || next[k] === undefined) delete cleaned[k]
+            else cleaned[k] = next[k]
+          }
+          return cleaned as typeof prev
+        },
+        replace: true,
+      })
+    }, 200)
+    return () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current)
+    }
+  }, [filterState, navigate])
 
   const searchInput = filterState.search || ''
   const sortBy = filterState.sort || SORT_OPTIONS.NAME
@@ -77,6 +164,7 @@ export function useFilters(models: PricingModel[]) {
     filterState.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
   const viewMode = normalizeViewMode(filterState.view)
   const showRechargePrice = filterState.rechargePrice === true
+  const liveMetricsOnly = filterState.liveMetricsOnly === true
 
   const updateFilters = useCallback((updates: Record<string, unknown>) => {
     setFilterState((prev) => {
@@ -135,6 +223,10 @@ export function useFilters(models: PricingModel[]) {
   )
   const setShowRechargePrice = useCallback(
     (v: boolean) => updateFilters({ rechargePrice: v || undefined }),
+    [updateFilters]
+  )
+  const setLiveMetricsOnly = useCallback(
+    (v: boolean) => updateFilters({ liveMetricsOnly: v }),
     [updateFilters]
   )
 
@@ -211,6 +303,7 @@ export function useFilters(models: PricingModel[]) {
     tokenUnit,
     viewMode,
     showRechargePrice,
+    liveMetricsOnly,
     setSearchInput,
     setSortBy,
     setVendorFilter,
@@ -221,6 +314,7 @@ export function useFilters(models: PricingModel[]) {
     setTokenUnit,
     setViewMode,
     setShowRechargePrice,
+    setLiveMetricsOnly,
     filteredModels,
     hasActiveFilters,
     activeFilterCount,

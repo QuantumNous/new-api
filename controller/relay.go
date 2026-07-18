@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -200,6 +201,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
+			service.ReleaseAdaptiveCircuitPermit(c, channel.Id)
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
 			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
@@ -210,15 +212,46 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
-		switch relayFormat {
-		case types.RelayFormatOpenAIRealtime:
-			newAPIError = relay.WssHelper(c, relayInfo)
-		case types.RelayFormatClaude:
-			newAPIError = relay.ClaudeHelper(c, relayInfo)
-		case types.RelayFormatGemini:
-			newAPIError = geminiRelayHandler(c, relayInfo)
-		default:
-			newAPIError = relayHandler(c, relayInfo)
+		attemptStart := time.Now()
+		service.IncChannelConcurrency(channel.Id)
+		// Always dec even if helper panics (CustomRecovery still runs after).
+		func() {
+			defer service.DecChannelConcurrency(channel.Id)
+			switch relayFormat {
+			case types.RelayFormatOpenAIRealtime:
+				newAPIError = relay.WssHelper(c, relayInfo)
+			case types.RelayFormatClaude:
+				newAPIError = relay.ClaudeHelper(c, relayInfo)
+			case types.RelayFormatGemini:
+				newAPIError = geminiRelayHandler(c, relayInfo)
+			default:
+				newAPIError = relayHandler(c, relayInfo)
+			}
+		}()
+		{
+			statusCode := http.StatusOK
+			var recErr error
+			if newAPIError != nil {
+				statusCode = newAPIError.StatusCode
+				if statusCode == 0 {
+					statusCode = http.StatusInternalServerError
+				}
+				recErr = newAPIError
+			}
+			// Prefer UsingGroup (resolved auto group) so score buckets match selection.
+			metricGroup := relayInfo.UsingGroup
+			if metricGroup == "" {
+				metricGroup = relayInfo.TokenGroup
+			}
+			service.RecordAdaptiveResult(
+				c,
+				channel.Id,
+				metricGroup,
+				relayInfo.OriginModelName,
+				statusCode,
+				time.Since(attemptStart),
+				recErr,
+			)
 		}
 
 		if newAPIError == nil {
@@ -250,12 +283,30 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 var upgrader = websocket.Upgrader{
 	Subprotocols: []string{"realtime"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol TODO add other protocol
-	CheckOrigin: func(r *http.Request) bool {
-		return true // 允许跨域
-	},
+	CheckOrigin:  isRealtimeWebSocketOriginAllowed,
+}
+
+func isRealtimeWebSocketOriginAllowed(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	originValue := strings.TrimSpace(r.Header.Get("Origin"))
+	if originValue == "" {
+		return true
+	}
+
+	origin, err := url.Parse(originValue)
+	if err != nil || origin.Host == "" || (origin.Scheme != "http" && origin.Scheme != "https") {
+		return false
+	}
+	if strings.EqualFold(origin.Host, r.Host) {
+		return true
+	}
+	return common.ValidateRedirectURL(originValue) == nil
 }
 
 func addUsedChannel(c *gin.Context, channelId int) {
+	service.MarkChannelUsed(c, channelId)
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)
@@ -317,6 +368,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
 	if newAPIError != nil {
+		service.ReleaseAdaptiveCircuitPermit(c, channel.Id)
 		return nil, newAPIError
 	}
 	return channel, nil
@@ -329,16 +381,22 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false
 	}
-	if types.IsChannelError(openaiErr) {
-		return true
-	}
-	if types.IsSkipRetryError(openaiErr) {
-		return false
-	}
 	if retryTimes <= 0 {
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	if openaiErr.GetErrorCode() == types.ErrorCodeGetChannelFailed {
+		return false
+	}
+	if isUpstreamChannelQuotaError(openaiErr) {
+		return true
+	}
+	if types.IsChannelError(openaiErr) {
+		return true
+	}
+	if types.IsSkipRetryError(openaiErr) {
 		return false
 	}
 	code := openaiErr.StatusCode
@@ -352,6 +410,44 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	return operation_setting.ShouldRetryByStatusCode(code)
+}
+
+func isUpstreamChannelQuotaError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	code := strings.ToLower(strings.TrimSpace(string(err.GetErrorCode())))
+	if code == string(types.ErrorCodeInsufficientUserQuota) || code == string(types.ErrorCodePreConsumeTokenQuotaFailed) {
+		return false
+	}
+	if err.StatusCode == http.StatusPaymentRequired {
+		return true
+	}
+	for _, marker := range []string{
+		"insufficient_quota",
+		"quota_exceeded",
+		"billing_hard_limit_reached",
+		"insufficient_balance",
+		"insufficient_credits",
+	} {
+		if strings.Contains(code, marker) {
+			return true
+		}
+	}
+	message := strings.ToLower(err.Error())
+	for _, marker := range []string{
+		"insufficient quota",
+		"quota exceeded",
+		"insufficient balance",
+		"insufficient credit",
+		"额度不足",
+		"余额不足",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {

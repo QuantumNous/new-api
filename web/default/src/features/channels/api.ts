@@ -203,6 +203,22 @@ export async function batchSetChannelTag(
   return res.data
 }
 
+/**
+ * Batch toggle skip_auto_test on selected channels.
+ * Manual test still works; only automatic batch tests are gated.
+ */
+export async function batchSetChannelSkipAutoTest(data: {
+  ids: number[]
+  skip: boolean
+}): Promise<{ success: boolean; message?: string; data?: number }> {
+  const res = await api.post(
+    '/api/channel/batch/skip_auto_test',
+    data,
+    channelActionConfig()
+  )
+  return res.data
+}
+
 // ============================================================================
 // Channel Operations
 // ============================================================================

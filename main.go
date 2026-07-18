@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 	"log"
@@ -23,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/pkg/observability"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
@@ -40,28 +39,20 @@ import (
 	_ "net/http/pprof"
 )
 
-//go:embed web/default/dist
-var buildFS embed.FS
-
-//go:embed web/default/dist/index.html
-var indexPage []byte
-
-//go:embed web/classic/dist
-var classicBuildFS embed.FS
-
-//go:embed web/classic/dist/index.html
-var classicIndexPage []byte
-
 func main() {
 	startTime := time.Now()
+	mode, plane, err := parseRuntimeConfig(os.Getenv("RUN_MODE"), os.Getenv("APP_PLANE"), os.Getenv("NODE_TYPE"))
+	if err != nil {
+		log.Fatalf("invalid runtime configuration: %v", err)
+	}
 
-	err := InitResources()
+	err = InitResources()
 	if err != nil {
 		common.FatalLog("failed to initialize resources: " + err.Error())
 		return
 	}
 
-	common.SysLog("New API " + common.Version + " started")
+	common.SysLog(fmt.Sprintf("New API %s started: run_mode=%s plane=%s", common.Version, mode, plane))
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -75,10 +66,26 @@ func main() {
 			common.FatalLog("failed to close database: " + err.Error())
 		}
 	}()
+	if mode == runModeMigrate {
+		common.SysLog("database migration completed")
+		return
+	}
+	systemTaskCtx, stopSystemTasks := context.WithCancel(context.Background())
+	defer stopSystemTasks()
 
 	if common.RedisEnabled {
 		// for compatibility with old versions
 		common.MemoryCacheEnabled = true
+		// Multi-instance adaptive metrics snapshot (best-effort, 2m TTL).
+		if mode.servesHTTP() || mode.runsWorker() {
+			gopool.Go(func() {
+				ticker := time.NewTicker(30 * time.Second)
+				defer ticker.Stop()
+				for range ticker.C {
+					service.SyncAdaptiveMetricsToRedis()
+				}
+			})
+		}
 	}
 	if common.MemoryCacheEnabled {
 		common.SysLog("memory cache enabled")
@@ -113,9 +120,11 @@ func main() {
 	go authz.StartPolicySync(common.SyncFrequency)
 
 	// 数据看板
-	go model.UpdateQuotaData()
+	if mode.servesHTTP() {
+		go model.UpdateQuotaData()
+	}
 
-	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
+	if mode.runsScheduler() && os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
 		if err != nil {
 			common.FatalLog("failed to parse CHANNEL_UPDATE_FREQUENCY: " + err.Error())
@@ -124,10 +133,12 @@ func main() {
 	}
 
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
-	service.StartCodexCredentialAutoRefreshTask()
+	if mode.runsScheduler() {
+		service.StartCodexCredentialAutoRefreshTask()
 
-	// Subscription quota reset task (daily/weekly/monthly/custom)
-	service.StartSubscriptionQuotaResetTask()
+		// Subscription quota reset task (daily/weekly/monthly/custom)
+		service.StartSubscriptionQuotaResetTask()
+	}
 
 	// Report this process as a system instance so the System Info page can show
 	// all currently alive nodes in multi-instance deployments.
@@ -136,12 +147,16 @@ func main() {
 	// Wire task polling adaptor factory (breaks service -> relay import cycle).
 	// Must run before the system task runner starts: the async_task_poll handler
 	// calls service.RunTaskPollingOnce, which needs this factory set.
-	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
-		a := relay.GetTaskAdaptor(platform)
-		if a == nil {
-			return nil
+	if mode.runsWorker() || mode.runsScheduler() {
+		service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
+			a := relay.GetTaskAdaptor(platform)
+			if a == nil {
+				return nil
+			}
+			return a
 		}
-		return a
+
+		controller.RegisterScheduledSystemTasks()
 	}
 
 	// Register the periodic channel test, upstream model update, and async task
@@ -149,10 +164,14 @@ func main() {
 	// (DB-lease dedup across masters + run history), then start the runner that
 	// schedules and executes them. Master-only execution and the UpdateTask
 	// switch are enforced inside the runner and each handler's Enabled().
-	controller.RegisterScheduledSystemTasks()
-	service.StartSystemTaskRunner()
+	if mode.runsScheduler() {
+		service.StartSystemTaskSchedulerContext(systemTaskCtx)
+	}
+	if mode.runsWorker() {
+		service.StartSystemTaskWorkerContext(systemTaskCtx)
+	}
 
-	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
+	if mode.servesHTTP() && os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
 		common.SysLog("batch update enabled with interval " + strconv.Itoa(common.BatchUpdateInterval) + "s")
 		model.InitBatchUpdater()
@@ -160,10 +179,10 @@ func main() {
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
+			log.Println(http.ListenAndServe("127.0.0.1:8005", nil))
 		})
 		go common.Monitor()
-		common.SysLog("pprof enabled")
+		common.SysLog("pprof enabled on 127.0.0.1:8005")
 	}
 
 	err = common.StartPyroScope()
@@ -171,13 +190,38 @@ func main() {
 		common.SysError(fmt.Sprintf("start pyroscope error : %v", err))
 	}
 
+	if !mode.servesHTTP() {
+		common.SysLog(fmt.Sprintf("runtime ready: run_mode=%s", mode))
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-quit
+		common.SysLog(fmt.Sprintf("received signal: %v, shutting down...", sig))
+		stopSystemTasks()
+		shutdownTimeout := time.Duration(common.GetEnvOrDefault("SHUTDOWN_TIMEOUT_SECONDS", 120)) * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := service.WaitForSystemTasks(ctx); err != nil {
+			common.SysError(fmt.Sprintf("system tasks did not stop before shutdown deadline: %v", err))
+		}
+		return
+	}
+
 	// Initialize HTTP server
 	server := gin.New()
+	if err := configureTrustedProxies(server); err != nil {
+		common.FatalLog("failed to configure trusted proxies: " + err.Error())
+		return
+	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
-		common.SysLog(fmt.Sprintf("panic detected: %v", err))
+		reqID := c.GetString(common.RequestIdKey)
+		common.SysLog(fmt.Sprintf("panic detected request_id=%s: %v", reqID, err))
+		msg := "Internal server error"
+		if reqID != "" {
+			msg = fmt.Sprintf("Internal server error (request_id=%s)", reqID)
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
-				"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
+				"message": msg,
 				"type":    "new_api_panic",
 			},
 		})
@@ -186,7 +230,14 @@ func main() {
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
 	server.Use(middleware.Version())
+	server.Use(middleware.TraceContext())
+	// HSTS 等安全头：经 Tunnel/CF 的 HTTPS 回源会带 X-Forwarded-Proto。
+	server.Use(middleware.SecurityHeaders())
 	server.Use(middleware.I18n())
+	if observability.Enabled() {
+		server.Use(observability.HTTPMiddleware())
+		server.GET("/metrics", observability.MetricsAuth(), gin.WrapH(observability.Handler()))
+	}
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
@@ -199,25 +250,18 @@ func main() {
 	})
 	server.Use(sessions.Sessions("session", store))
 
-	InjectUmamiAnalytics()
-	InjectGoogleAnalytics()
-
 	// 设置路由
-	router.SetRouter(server, router.ThemeAssets{
-		DefaultBuildFS:   buildFS,
-		DefaultIndexPage: indexPage,
-		ClassicBuildFS:   classicBuildFS,
-		ClassicIndexPage: classicIndexPage,
-	})
+	// 统一通过构建适配器取得前端资源，使后端镜像可以选择完全不嵌入静态文件。
+	if err := router.SetRouterForPlane(server, prepareFrontendAssets(), plane); err != nil {
+		common.FatalLog("failed to configure router: " + err.Error())
+		return
+	}
 	var port = os.Getenv("PORT")
 	if port == "" {
 		port = strconv.Itoa(*common.Port)
 	}
 
-	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: server,
-	}
+	srv := newHTTPServer(":"+port, server)
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -233,6 +277,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
 	common.SysLog(fmt.Sprintf("received signal: %v, shutting down...", sig))
+	stopSystemTasks()
 
 	// SSE streams may run for minutes; give them time to finish before forced exit
 	shutdownTimeout := time.Duration(common.GetEnvOrDefault("SHUTDOWN_TIMEOUT_SECONDS", 120)) * time.Second
@@ -241,6 +286,9 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(fmt.Sprintf("server forced to shutdown: %v", err))
 	}
+	if err := service.WaitForSystemTasks(ctx); err != nil {
+		common.SysError(fmt.Sprintf("system tasks did not stop before shutdown deadline: %v", err))
+	}
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()
@@ -248,49 +296,14 @@ func main() {
 	common.SysLog("server exited")
 }
 
-func InjectUmamiAnalytics() {
-	analyticsInjectBuilder := &strings.Builder{}
-	if os.Getenv("UMAMI_WEBSITE_ID") != "" {
-		umamiSiteID := os.Getenv("UMAMI_WEBSITE_ID")
-		umamiScriptURL := os.Getenv("UMAMI_SCRIPT_URL")
-		if umamiScriptURL == "" {
-			umamiScriptURL = "https://analytics.umami.is/script.js"
-		}
-		analyticsInjectBuilder.WriteString("<script defer src=\"")
-		analyticsInjectBuilder.WriteString(umamiScriptURL)
-		analyticsInjectBuilder.WriteString("\" data-website-id=\"")
-		analyticsInjectBuilder.WriteString(umamiSiteID)
-		analyticsInjectBuilder.WriteString("\"></script>")
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: time.Duration(common.GetEnvOrDefault("HTTP_READ_HEADER_TIMEOUT_SECONDS", 10)) * time.Second,
+		IdleTimeout:       time.Duration(common.GetEnvOrDefault("HTTP_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
+		MaxHeaderBytes:    common.GetEnvOrDefault("HTTP_MAX_HEADER_BYTES", 1<<20),
 	}
-	analyticsInjectBuilder.WriteString("<!--Umami QuantumNous-->\n")
-	analyticsInject := []byte(analyticsInjectBuilder.String())
-	placeholder := []byte("<!--umami-->\n")
-	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
-	classicIndexPage = bytes.ReplaceAll(classicIndexPage, placeholder, analyticsInject)
-}
-
-func InjectGoogleAnalytics() {
-	analyticsInjectBuilder := &strings.Builder{}
-	if os.Getenv("GOOGLE_ANALYTICS_ID") != "" {
-		gaID := os.Getenv("GOOGLE_ANALYTICS_ID")
-		// Google Analytics 4 (gtag.js)
-		analyticsInjectBuilder.WriteString("<script async src=\"https://www.googletagmanager.com/gtag/js?id=")
-		analyticsInjectBuilder.WriteString(gaID)
-		analyticsInjectBuilder.WriteString("\"></script>")
-		analyticsInjectBuilder.WriteString("<script>")
-		analyticsInjectBuilder.WriteString("window.dataLayer = window.dataLayer || [];")
-		analyticsInjectBuilder.WriteString("function gtag(){dataLayer.push(arguments);}")
-		analyticsInjectBuilder.WriteString("gtag('js', new Date());")
-		analyticsInjectBuilder.WriteString("gtag('config', '")
-		analyticsInjectBuilder.WriteString(gaID)
-		analyticsInjectBuilder.WriteString("');")
-		analyticsInjectBuilder.WriteString("</script>")
-	}
-	analyticsInjectBuilder.WriteString("<!--Google Analytics QuantumNous-->\n")
-	analyticsInject := []byte(analyticsInjectBuilder.String())
-	placeholder := []byte("<!--Google Analytics-->\n")
-	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
-	classicIndexPage = bytes.ReplaceAll(classicIndexPage, placeholder, analyticsInject)
 }
 
 func InitResources() error {

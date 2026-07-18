@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -50,6 +51,8 @@ func UpsertPerfMetric(metric *PerfMetric) error {
 
 func GetPerfMetrics(modelName string, group string, startTs int64, endTs int64) ([]PerfMetric, error) {
 	var metrics []PerfMetric
+	// Keep in sync with pkg/perf_metrics.NormalizeModelName — no import (cycle).
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
 	query := DB.Model(&PerfMetric{}).
 		Where("model_name = ? AND bucket_ts >= ? AND bucket_ts <= ?", modelName, startTs, endTs)
 	if group != "" {

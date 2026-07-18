@@ -28,18 +28,24 @@ import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { toast } from 'sonner'
 
+import { safeRedirect } from '@/features/auth/lib/safe-redirect'
+import {
+  isSigningOut,
+  resetSessionVerified,
+} from '@/features/auth/lib/session-verification'
 import { getStatus } from '@/lib/api'
+import '@/lib/dayjs'
 import { installBuildMetadata } from '@/lib/build-metadata'
 import { applyFaviconToDom } from '@/lib/dom-utils'
-import '@/lib/dayjs'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { handleServerError } from '@/lib/handle-server-error'
+import { initializeRUM } from '@/lib/rum'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
-import './i18n/config'
+import { i18nReady } from './i18n/config'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
 
@@ -48,6 +54,7 @@ import './styles/index.css'
 
 // Ensure VChart theme is initialized before any chart mounts (prevents white default theme flash)
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
+await i18nReady
 initializeFrontendCache()
 installBuildMetadata()
 
@@ -86,14 +93,23 @@ const queryClient = new QueryClient({
     onError: (error) => {
       if (error instanceof AxiosError) {
         if (error.response?.status === 401) {
+          // 主动登出时由 SignOutDialog 负责跳转，避免与 Session expired 抢导航。
+          if (isSigningOut()) {
+            return
+          }
           toast.error(i18next.t('Session expired!'))
           useAuthStore.getState().auth.reset()
-          const redirect = `${router.history.location.href}`
+          resetSessionVerified()
+          const loc = router.history.location
+          const redirect = safeRedirect(
+            `${loc.pathname}${loc.search ?? ''}${loc.hash ?? ''}`,
+            '/dashboard'
+          )
           router.navigate({ to: '/sign-in', search: { redirect } })
         }
         if (error.response?.status === 500) {
+          // Stay on page; local error UI / toast is enough. Avoid global eject.
           toast.error(i18next.t('Internal Server Error!'))
-          router.navigate({ to: '/500' })
         }
       }
     },
@@ -116,7 +132,10 @@ declare module '@tanstack/react-router' {
 }
 
 // Render the app
-const rootElement = document.getElementById('root')!
+const rootElement = document.querySelector<HTMLElement>('#root')
+if (!rootElement) {
+  throw new Error('Missing #root application mount point')
+}
 // Set document.title and favicon from cached status, then refresh from network
 ;(function initSystemBranding() {
   try {
@@ -142,6 +161,7 @@ const rootElement = document.getElementById('root')!
     // Background refresh
     getStatus()
       .then((s) => {
+        if (s?.rum_enabled) initializeRUM().catch(() => undefined)
         if (s?.system_name) {
           apply(s.system_name as string)
           try {

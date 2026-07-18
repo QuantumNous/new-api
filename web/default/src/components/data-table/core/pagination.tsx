@@ -38,16 +38,14 @@ import { cn, getPageNumbers } from '@/lib/utils'
 
 type DataTablePaginationProps<TData> = {
   table: Table<TData>
+  pageSizeOptions?: readonly number[]
 }
 
-const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100] as const
-const PAGE_SIZE_SELECT_ITEMS = PAGE_SIZE_OPTIONS.map((pageSize) => ({
-  value: `${pageSize}`,
-  label: pageSize,
-}))
+const PAGE_SIZE_OPTIONS = [10, 20, 21, 30, 40, 50, 100] as const
 
 export function DataTablePagination<TData>({
   table,
+  pageSizeOptions,
 }: DataTablePaginationProps<TData>) {
   const { t } = useTranslation()
   const pagination = table.getState().pagination
@@ -56,6 +54,14 @@ export function DataTablePagination<TData>({
   const totalPages = table.getPageCount()
   const totalRows = table.getRowCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
+  const sizeOptions =
+    pageSizeOptions && pageSizeOptions.length > 0
+      ? pageSizeOptions
+      : PAGE_SIZE_OPTIONS
+  const sizeSelectItems = sizeOptions.map((size) => ({
+    value: `${size}`,
+    label: size,
+  }))
 
   return (
     <div
@@ -77,7 +83,7 @@ export function DataTablePagination<TData>({
             {t('Rows per page')}
           </p>
           <Select
-            items={PAGE_SIZE_SELECT_ITEMS}
+            items={sizeSelectItems}
             value={`${pageSize}`}
             onValueChange={(value) => {
               table.setPageSize(Number(value))
@@ -88,7 +94,7 @@ export function DataTablePagination<TData>({
             </SelectTrigger>
             <SelectContent side='top' alignItemWithTrigger={false}>
               <SelectGroup>
-                {PAGE_SIZE_OPTIONS.map((pageSize) => (
+                {sizeOptions.map((pageSize) => (
                   <SelectItem key={pageSize} value={`${pageSize}`}>
                     {pageSize}
                   </SelectItem>

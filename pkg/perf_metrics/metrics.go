@@ -56,6 +56,7 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 
 func Record(sample Sample) {
 	setting := perf_metrics_setting.GetSetting()
+	sample.Model = NormalizeModelName(sample.Model)
 	if !setting.Enabled || sample.Model == "" {
 		return
 	}
@@ -83,6 +84,10 @@ func Query(params QueryParams) (QueryResult, error) {
 	if params.Hours > 24*30 {
 		params.Hours = 24 * 30
 	}
+	params.Model = NormalizeModelName(params.Model)
+	if params.Model == "" {
+		return QueryResult{SeriesSchema: seriesSchema, Groups: []GroupResult{}}, nil
+	}
 	endTs := time.Now().Unix()
 	startTs := endTs - int64(params.Hours)*3600
 
@@ -92,8 +97,9 @@ func Query(params QueryParams) (QueryResult, error) {
 		return QueryResult{}, err
 	}
 	for _, row := range rows {
+		// Historical rows may still use mixed casing; fold into the normalized key.
 		mergeCounters(merged, bucketKey{
-			model:    row.ModelName,
+			model:    params.Model,
 			group:    row.Group,
 			bucketTs: row.BucketTs,
 		}, counters{
@@ -109,13 +115,18 @@ func Query(params QueryParams) (QueryResult, error) {
 
 	hotBuckets.Range(func(key, value any) bool {
 		k := key.(bucketKey)
-		if k.model != params.Model || k.bucketTs < startTs || k.bucketTs > endTs {
+		if NormalizeModelName(k.model) != params.Model || k.bucketTs < startTs || k.bucketTs > endTs {
 			return true
 		}
 		if params.Group != "" && k.group != params.Group {
 			return true
 		}
-		mergeCounters(merged, k, value.(*atomicBucket).snapshot())
+		// Re-key under the normalized model so mixed-case hot buckets collapse.
+		mergeCounters(merged, bucketKey{
+			model:    params.Model,
+			group:    k.group,
+			bucketTs: k.bucketTs,
+		}, value.(*atomicBucket).snapshot())
 		return true
 	})
 
@@ -148,8 +159,13 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			outputTokens:   row.OutputTokens,
 			generationMs:   row.GenerationMs,
 		}
-		mergeModelTotals(totals, row.ModelName, value)
-		mergeModelBucket(modelBuckets, row.ModelName, row.BucketTs, value)
+		// Collapse mixed-case historical rows onto one summary key.
+		name := NormalizeModelName(row.ModelName)
+		if name == "" {
+			continue
+		}
+		mergeModelTotals(totals, name, value)
+		mergeModelBucket(modelBuckets, name, row.BucketTs, value)
 	}
 
 	hotBuckets.Range(func(key, value any) bool {
@@ -166,14 +182,23 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		if snap.requestCount == 0 {
 			return true
 		}
-		mergeModelTotals(totals, k.model, snap)
-		mergeModelBucket(modelBuckets, k.model, k.bucketTs, snap)
+		name := NormalizeModelName(k.model)
+		if name == "" {
+			return true
+		}
+		mergeModelTotals(totals, name, snap)
+		mergeModelBucket(modelBuckets, name, k.bucketTs, snap)
 		return true
 	})
 
 	models := make([]ModelSummary, 0, len(totals))
 	for name, total := range totals {
 		if total.requestCount == 0 {
+			continue
+		}
+		// Drop image/audio/embedding probe noise from the square summary.
+		// Detail Query still serves any model name for debugging.
+		if !IsChatCapableModelName(name) {
 			continue
 		}
 		avgLatency := total.totalLatencyMs / total.requestCount

@@ -35,7 +35,7 @@ import {
   showSuccess,
   timestamp2string,
 } from '../../helpers';
-import { marked } from 'marked';
+import { renderMarkdown } from '../../helpers/sanitizeHtml';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
@@ -271,7 +271,7 @@ const OtherSetting = () => {
       } else {
         setUpdateData({
           tag_name: tag_name,
-          content: marked.parse(body),
+          content: renderMarkdown(body),
         });
         setShowUpdateModal(true);
       }

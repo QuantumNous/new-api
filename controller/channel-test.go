@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -39,6 +40,12 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
+	// Probe data for perf_metrics (populated on success).
+	relayInfo    *relaycommon.RelayInfo
+	usage        *dto.Usage
+	latencyMs    int64
+	outputTokens int64
+	testModel    string
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
@@ -52,7 +59,154 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
+	// Infer non-chat endpoints so auto-test does not force image/audio models through /chat/completions.
+	if kind := detectProbeModelKind(modelName); kind != "" {
+		return kind
+	}
+	if channel != nil && channel.Type == constant.ChannelTypeMokaAI {
+		return string(constant.EndpointTypeEmbeddings)
+	}
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(strings.ToLower(modelName), "seedream") {
+		return string(constant.EndpointTypeImageGeneration)
+	}
 	return normalized
+}
+
+// detectProbeModelKind returns a constant.EndpointType string for known non-chat models.
+// Empty string means default chat completions path.
+func detectProbeModelKind(modelName string) string {
+	name := strings.ToLower(strings.TrimSpace(modelName))
+	if name == "" {
+		return ""
+	}
+	if strings.HasSuffix(name, ratio_setting.CompactModelSuffix) {
+		return string(constant.EndpointTypeOpenAIResponseCompact)
+	}
+	if strings.Contains(name, "codex") {
+		return string(constant.EndpointTypeOpenAIResponse)
+	}
+	if strings.Contains(name, "rerank") {
+		return string(constant.EndpointTypeJinaRerank)
+	}
+	if strings.Contains(name, "embedding") ||
+		strings.Contains(name, "embed") ||
+		strings.HasPrefix(name, "m3e") ||
+		strings.Contains(name, "bge-") ||
+		strings.Contains(name, "text-embedding") {
+		return string(constant.EndpointTypeEmbeddings)
+	}
+	// Image generation / edit models — never chat-test these (#6121).
+	if isImageProbeModel(name) {
+		return string(constant.EndpointTypeImageGeneration)
+	}
+	return ""
+}
+
+func isImageProbeModel(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return false
+	}
+	imageHints := []string{
+		"gpt-image", "dall-e", "dalle", "seedream", "flux", "imagen",
+		"stable-diffusion", "sdxl", "midjourney", "mj-", "image-gen",
+		"text-to-image", "t2i", "cogview", "kolors", "playground-v",
+	}
+	for _, h := range imageHints {
+		if strings.Contains(name, h) {
+			return true
+		}
+	}
+	// Bare suffixes like "*-image" / "image-*" when not embedding/vision chat.
+	if strings.Contains(name, "image") &&
+		!strings.Contains(name, "vision") &&
+		!strings.Contains(name, "chat") &&
+		!strings.Contains(name, "embedding") {
+		return true
+	}
+	return false
+}
+
+func isAudioOrVideoProbeModel(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return false
+	}
+	hints := []string{
+		"whisper", "tts-", "tts_", "-tts", "speech", "audio-", "-audio",
+		"sora", "kling", "runway", "luma", "hailuo", "vidu", "cogvideo",
+		"text-to-video", "t2v", "minimax-video",
+	}
+	for _, h := range hints {
+		if strings.Contains(name, h) {
+			return true
+		}
+	}
+	return false
+}
+
+// isChatCapableProbeModel reports whether auto-test can safely use chat completions.
+func isChatCapableProbeModel(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	kind := detectProbeModelKind(name)
+	if kind == string(constant.EndpointTypeImageGeneration) ||
+		kind == string(constant.EndpointTypeEmbeddings) ||
+		kind == string(constant.EndpointTypeJinaRerank) {
+		return false
+	}
+	if isAudioOrVideoProbeModel(name) {
+		return false
+	}
+	return true
+}
+
+// pickAutoTestModel chooses a chat-capable model for batch auto-test.
+// Prefers channel.TestModel when chat-capable; otherwise first chat-capable model
+// in the channel list. Empty means skip auto probe for this channel.
+func pickAutoTestModel(channel *model.Channel) string {
+	if channel == nil {
+		return ""
+	}
+	if channel.TestModel != nil {
+		if name := strings.TrimSpace(*channel.TestModel); name != "" && isChatCapableProbeModel(name) {
+			return name
+		}
+	}
+	for _, m := range channel.GetModels() {
+		if name := strings.TrimSpace(m); name != "" && isChatCapableProbeModel(name) {
+			return name
+		}
+	}
+	return ""
+}
+
+func shouldSkipAutoChannelTest(channel *model.Channel) bool {
+	if channel == nil {
+		return true
+	}
+	if channel.Status == common.ChannelStatusManuallyDisabled {
+		return true
+	}
+	if channel.GetSetting().SkipAutoTest {
+		return true
+	}
+	// Channel types without chat/completion test support.
+	unsupported := []int{
+		constant.ChannelTypeMidjourney,
+		constant.ChannelTypeMidjourneyPlus,
+		constant.ChannelTypeSunoAPI,
+		constant.ChannelTypeKling,
+		constant.ChannelTypeJimeng,
+		constant.ChannelTypeDoubaoVideo,
+		constant.ChannelTypeVidu,
+	}
+	if lo.Contains(unsupported, channel.Type) {
+		return true
+	}
+	return false
 }
 
 func resolveChannelTestUserID(c *gin.Context) (int, error) {
@@ -120,34 +274,29 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			requestPath = endpointInfo.Path
 		}
 	} else {
-		// 如果没有指定端点类型，使用原有的自动检测逻辑
-
-		if strings.Contains(strings.ToLower(testModel), "rerank") {
-			requestPath = "/v1/rerank"
+		// 如果没有指定端点类型，使用统一的模型种类检测
+		kind := detectProbeModelKind(testModel)
+		if kind == "" && channel.Type == constant.ChannelTypeMokaAI {
+			kind = string(constant.EndpointTypeEmbeddings)
 		}
-
-		// 先判断是否为 Embedding 模型
-		if strings.Contains(strings.ToLower(testModel), "embedding") ||
-			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
-			strings.Contains(testModel, "bge-") || // bge 系列模型
-			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-			requestPath = "/v1/embeddings" // 修改请求路径
+		if kind == "" && channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(strings.ToLower(testModel), "seedream") {
+			kind = string(constant.EndpointTypeImageGeneration)
 		}
-
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
-			requestPath = "/v1/images/generations"
-		}
-
-		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
-			requestPath = "/v1/responses"
-		}
-
-		// responses compaction models (must use /v1/responses/compact)
-		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
-			requestPath = "/v1/responses/compact"
+		if endpointInfo, ok := common.GetDefaultEndpointInfo(constant.EndpointType(kind)); ok {
+			requestPath = endpointInfo.Path
+		} else {
+			switch kind {
+			case string(constant.EndpointTypeJinaRerank):
+				requestPath = "/v1/rerank"
+			case string(constant.EndpointTypeEmbeddings):
+				requestPath = "/v1/embeddings"
+			case string(constant.EndpointTypeImageGeneration):
+				requestPath = "/v1/images/generations"
+			case string(constant.EndpointTypeOpenAIResponse):
+				requestPath = "/v1/responses"
+			case string(constant.EndpointTypeOpenAIResponseCompact):
+				requestPath = "/v1/responses/compact"
+			}
 		}
 	}
 	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
@@ -512,9 +661,14 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	})
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
-		context:     c,
-		localErr:    nil,
-		newAPIError: nil,
+		context:      c,
+		localErr:     nil,
+		newAPIError:  nil,
+		relayInfo:    info,
+		usage:        usage,
+		latencyMs:    milliseconds,
+		outputTokens: int64(usage.CompletionTokens),
+		testModel:    info.OriginModelName,
 	}
 }
 
@@ -757,37 +911,33 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
-	// 自动检测逻辑（保持原有行为）
-	if strings.Contains(strings.ToLower(model), "rerank") {
+	// 自动检测逻辑（与 detectProbeModelKind / normalizeChannelTestEndpoint 对齐）
+	switch detectProbeModelKind(model) {
+	case string(constant.EndpointTypeJinaRerank):
 		return &dto.RerankRequest{
 			Model:     model,
 			Query:     "What is Deep Learning?",
 			Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
 			TopN:      lo.ToPtr(2),
 		}
-	}
-
-	// 先判断是否为 Embedding 模型
-	if strings.Contains(strings.ToLower(model), "embedding") ||
-		strings.HasPrefix(model, "m3e") ||
-		strings.Contains(model, "bge-") {
-		// 返回 EmbeddingRequest
+	case string(constant.EndpointTypeEmbeddings):
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
 		}
-	}
-
-	// Responses compaction models (must use /v1/responses/compact)
-	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
+	case string(constant.EndpointTypeImageGeneration):
+		return &dto.ImageRequest{
+			Model:  model,
+			Prompt: "a cute cat",
+			N:      lo.ToPtr(uint(1)),
+			Size:   "1024x1024",
+		}
+	case string(constant.EndpointTypeOpenAIResponseCompact):
 		return &dto.OpenAIResponsesCompactionRequest{
 			Model: model,
 			Input: testResponsesInput,
 		}
-	}
-
-	// Responses-only models (e.g. codex series)
-	if strings.Contains(strings.ToLower(model), "codex") {
+	case string(constant.EndpointTypeOpenAIResponse):
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
 			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
@@ -825,6 +975,52 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	return testRequest
 }
 
+func resolveProbeModelName(result testResult, channel *model.Channel, requested string) string {
+	if result.testModel != "" {
+		return result.testModel
+	}
+	if requested = strings.TrimSpace(requested); requested != "" {
+		return requested
+	}
+	if channel != nil && channel.TestModel != nil {
+		if name := strings.TrimSpace(*channel.TestModel); name != "" {
+			return name
+		}
+	}
+	if channel != nil {
+		models := channel.GetModels()
+		if len(models) > 0 {
+			if name := strings.TrimSpace(models[0]); name != "" {
+				return name
+			}
+		}
+	}
+	return ""
+}
+
+func recordChannelProbeMetric(result testResult, channel *model.Channel, requested string, latencyMs int64) {
+	modelName := resolveProbeModelName(result, channel, requested)
+	if modelName == "" {
+		return
+	}
+	probeGroup := "probe"
+	if result.relayInfo != nil && result.relayInfo.UsingGroup != "" {
+		probeGroup = result.relayInfo.UsingGroup
+	}
+	generationMs := int64(0)
+	if result.outputTokens > 0 && latencyMs > 0 {
+		generationMs = latencyMs
+	}
+	perfmetrics.Record(perfmetrics.Sample{
+		Model:        modelName,
+		Group:        probeGroup,
+		LatencyMs:    latencyMs,
+		Success:      result.localErr == nil && result.newAPIError == nil,
+		OutputTokens: result.outputTokens,
+		GenerationMs: generationMs,
+	})
+}
+
 func TestChannel(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -858,11 +1054,15 @@ func TestChannel(c *gin.Context) {
 		requestCtx = c.Request.Context()
 	}
 	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
+	tok := time.Now()
+	milliseconds := tok.Sub(tik).Milliseconds()
+	// Always record success and failure probes so success_rate stays honest.
+	go recordChannelProbeMetric(result, channel, testModel, milliseconds)
 	if result.localErr != nil {
 		resp := gin.H{
 			"success": false,
 			"message": result.localErr.Error(),
-			"time":    0.0,
+			"time":    float64(milliseconds) / 1000.0,
 		}
 		if result.newAPIError != nil {
 			resp["error_code"] = result.newAPIError.GetErrorCode()
@@ -870,10 +1070,9 @@ func TestChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, resp)
 		return
 	}
-	tok := time.Now()
-	milliseconds := tok.Sub(tik).Milliseconds()
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
+
 	if result.newAPIError != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success":    false,
@@ -922,9 +1121,18 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		if channel.Status == common.ChannelStatusManuallyDisabled {
 			continue
 		}
+		if shouldSkipAutoChannelTest(channel) {
+			continue
+		}
+		// Only auto-probe chat-capable models so image/audio/video do not pollute perf_metrics.
+		autoModel := pickAutoTestModel(channel)
+		if autoModel == "" {
+			common.SysLog(fmt.Sprintf("skip auto test channel %d (%s): no chat-capable test model", channel.Id, channel.Name))
+			continue
+		}
 		isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 		tik := time.Now()
-		result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+		result := testChannel(ctx, channel, testUserID, autoModel, "", shouldUseStreamForAutomaticChannelTest(channel))
 		tok := time.Now()
 		milliseconds := tok.Sub(tik).Milliseconds()
 		if ctx != nil && ctx.Err() != nil {
@@ -968,6 +1176,8 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		}
 
 		channel.UpdateResponseTime(milliseconds)
+		// Record success and failure probes for model-square health badges.
+		recordChannelProbeMetric(result, channel, autoModel, milliseconds)
 		if common.RequestInterval > 0 {
 			if ctx == nil {
 				time.Sleep(common.RequestInterval)

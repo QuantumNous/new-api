@@ -205,7 +205,7 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	}
 
 	affinityValue := fmt.Sprintf("header-hit-%d", time.Now().UnixNano())
-	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, "gpt-5", "default", affinityValue)
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(nil, rule, "gpt-5", "default", affinityValue)
 
 	cache := getChannelAffinityCache()
 	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9528, time.Minute))
@@ -234,6 +234,28 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	require.Equal(t, "request_header", meta.KeySourceType)
 	require.Equal(t, "X-Affinity-Key", meta.KeySourceKey)
 	require.Equal(t, buildChannelAffinityKeyHint(affinityValue), meta.KeyHint)
+}
+
+func TestChannelAffinityCacheKeyIsScopedAndBounded(t *testing.T) {
+	rule := operation_setting.ChannelAffinityRule{
+		Name:              "trace-affinity",
+		IncludeRuleName:   true,
+		IncludeModelName:  true,
+		IncludeUsingGroup: true,
+	}
+	longTrace := strings.Repeat("attacker-controlled-trace-", 100)
+
+	ctx1, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx1.Set("token_id", 101)
+	ctx2, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx2.Set("token_id", 202)
+
+	key1 := buildChannelAffinityCacheKeySuffix(ctx1, rule, strings.Repeat("model", 100), "default", longTrace)
+	key2 := buildChannelAffinityCacheKeySuffix(ctx2, rule, strings.Repeat("model", 100), "default", longTrace)
+
+	require.NotEqual(t, key1, key2)
+	require.NotContains(t, key1, longTrace)
+	require.Less(t, len(key1), 160)
 }
 
 func TestClearCurrentChannelAffinityCache(t *testing.T) {
@@ -280,7 +302,7 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.NotNil(t, codexRule)
 
 	affinityValue := fmt.Sprintf("pc-hit-%d", time.Now().UnixNano())
-	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5", "default", affinityValue)
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(nil, *codexRule, "gpt-5", "default", affinityValue)
 
 	cache := getChannelAffinityCache()
 	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9527, time.Minute))

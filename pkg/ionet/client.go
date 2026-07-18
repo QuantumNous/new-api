@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 const (
@@ -25,7 +27,8 @@ type DefaultHTTPClient struct {
 func NewDefaultHTTPClient(timeout time.Duration) *DefaultHTTPClient {
 	return &DefaultHTTPClient{
 		client: &http.Client{
-			Timeout: timeout,
+			Transport: common.NewOutboundHTTPTransport(http.ProxyFromEnvironment, nil),
+			Timeout:   timeout,
 		},
 	}
 }

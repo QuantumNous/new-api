@@ -22,6 +22,7 @@ import { Button, Tooltip, Toast } from '@douyinfe/semi-ui';
 import { Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { copy } from '../../helpers';
+import { sanitizeHtml } from '../../helpers/sanitizeHtml';
 
 const PERFORMANCE_CONFIG = {
   MAX_DISPLAY_LENGTH: 50000, // 最大显示字符数
@@ -218,7 +219,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
   }, [displayContent, language, contentMetrics.isVeryLarge, isExpanded]);
 
   const renderedContent = useMemo(() => {
-    return linkifyHtml(highlightedContent);
+    return sanitizeHtml(linkifyHtml(highlightedContent));
   }, [highlightedContent]);
 
   const handleCopy = useCallback(async () => {

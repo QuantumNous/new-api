@@ -50,6 +50,28 @@ export default defineConfig(({ envMode }) => {
           priority: 0,
           enforce: true,
         },
+        'vendor-vchart': {
+          test: /node_modules[\\/]@visactor[\\/]/,
+          name: 'vendor-vchart',
+          chunks: 'all',
+          priority: 0,
+          enforce: true,
+        },
+        'vendor-shiki': {
+          test: /node_modules[\\/]shiki[\\/]/,
+          name: 'vendor-shiki',
+          chunks: 'async',
+          priority: 0,
+          enforce: true,
+        },
+        'vendor-recharts': {
+          // Legacy shadcn chart helper; keep out of main if unused on critical path.
+          test: /node_modules[\\/]recharts[\\/]/,
+          name: 'vendor-recharts',
+          chunks: 'async',
+          priority: 0,
+          enforce: true,
+        },
       },
     },
     source: {

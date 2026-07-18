@@ -117,6 +117,23 @@ var channelAffinitySetting = ChannelAffinitySetting{
 	DefaultTTLSeconds:     3600,
 	Rules: []ChannelAffinityRule{
 		{
+			Name:       "axonhub trace sticky",
+			ModelRegex: []string{".*"},
+			PathRegex:  []string{"/v1/.*"},
+			// Only client-provided traces (middleware sets affinity_trace_id).
+			KeySources: []ChannelAffinityKeySource{
+				{Type: "context_string", Key: "affinity_trace_id"},
+				{Type: "request_header", Key: "AH-Trace-Id"},
+				{Type: "request_header", Key: "X-Trace-Id"},
+			},
+			ValueRegex:         "",
+			TTLSeconds:         1800,
+			SkipRetryOnFailure: false,
+			IncludeUsingGroup:  true,
+			IncludeModelName:   true,
+			IncludeRuleName:    true,
+		},
+		{
 			Name:       "codex cli trace",
 			ModelRegex: []string{"^gpt-.*$"},
 			PathRegex:  []string{"/v1/responses"},

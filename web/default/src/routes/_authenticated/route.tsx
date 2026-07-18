@@ -17,13 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
-
-import { AuthenticatedLayout } from '@/components/layout'
-import { getSelf } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
-
-// 内存中的验证标记，避免同一会话中重复验证
-let sessionVerified = false
+import { getSelf } from '@/lib/api'
+import { AuthenticatedLayout } from '@/components/layout'
+import { safeRedirect } from '@/features/auth/lib/safe-redirect'
+import {
+  isSessionVerified,
+  markSessionVerified,
+  resetSessionVerified,
+} from '@/features/auth/lib/session-verification'
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
@@ -33,13 +35,17 @@ export const Route = createFileRoute('/_authenticated')({
     if (!auth.user) {
       throw redirect({
         to: '/sign-in',
-        search: { redirect: location.href },
+        search: {
+          redirect: safeRedirect(
+            `${location.pathname}${location.search}`,
+            '/dashboard'
+          ),
+        },
       })
     }
 
     // 本地有用户信息，但需要验证 session 是否有效（每个会话只验证一次）
-    if (!sessionVerified) {
-      // 仅 401 视为 session 失效；网络错误/超时/5xx 返回 null 放行，下次导航重验
+    if (!isSessionVerified()) {
       const res = await getSelf().catch((err: unknown) =>
         (err as { response?: { status?: number } })?.response?.status === 401
           ? { success: false }
@@ -48,13 +54,19 @@ export const Route = createFileRoute('/_authenticated')({
       if (res?.success && res.data) {
         // 验证成功，更新用户信息（可能有变化）
         auth.setUser(res.data)
-        sessionVerified = true
+        markSessionVerified()
       } else if (res) {
-        // 验证失败，清除本地缓存并跳转登录页
+        // only 401 clears session
+        resetSessionVerified()
         auth.reset()
         throw redirect({
           to: '/sign-in',
-          search: { redirect: location.href },
+          search: {
+            redirect: safeRedirect(
+              `${location.pathname}${location.search}`,
+              '/dashboard'
+            ),
+          },
         })
       }
     }

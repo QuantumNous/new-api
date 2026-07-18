@@ -1,7 +1,7 @@
 package setting
 
 import (
-	"encoding/json"
+	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
@@ -28,7 +28,7 @@ func UserUsableGroups2JSONString() string {
 	userUsableGroupsMutex.RLock()
 	defer userUsableGroupsMutex.RUnlock()
 
-	jsonBytes, err := json.Marshal(userUsableGroups)
+	jsonBytes, err := common.Marshal(userUsableGroups)
 	if err != nil {
 		common.SysLog("error marshalling user groups: " + err.Error())
 	}
@@ -39,8 +39,28 @@ func UpdateUserUsableGroupsByJSONString(jsonStr string) error {
 	userUsableGroupsMutex.Lock()
 	defer userUsableGroupsMutex.Unlock()
 
-	userUsableGroups = make(map[string]string)
-	return json.Unmarshal([]byte(jsonStr), &userUsableGroups)
+	// Empty object wipes defaults and empties the pricing page (filter by usable groups).
+	trimmed := strings.TrimSpace(jsonStr)
+	if trimmed == "" || trimmed == "{}" || trimmed == "null" {
+		userUsableGroups = map[string]string{
+			"default": "默认分组",
+			"vip":     "vip分组",
+		}
+		return nil
+	}
+	tmp := make(map[string]string)
+	if err := common.Unmarshal([]byte(trimmed), &tmp); err != nil {
+		return err
+	}
+	if len(tmp) == 0 {
+		userUsableGroups = map[string]string{
+			"default": "默认分组",
+			"vip":     "vip分组",
+		}
+		return nil
+	}
+	userUsableGroups = tmp
+	return nil
 }
 
 func GetUsableGroupDescription(groupName string) string {

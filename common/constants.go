@@ -22,7 +22,7 @@ var TopUpLink = ""
 var themeValue atomic.Value // stores string; safe for concurrent read/write
 
 func init() {
-	themeValue.Store("classic")
+	themeValue.Store("default")
 }
 
 func GetTheme() string {
@@ -186,6 +186,10 @@ var BatchUpdateInterval int
 var RelayTimeout int // unit is second
 
 var RelayIdleConnTimeout int // unit is second
+var RelayDialTimeout int
+var RelayTLSHandshakeTimeout int
+var RelayResponseHeaderTimeout int
+var RelayExpectContinueTimeout int
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 

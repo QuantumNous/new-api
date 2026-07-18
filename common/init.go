@@ -108,6 +108,10 @@ func InitEnv() {
 	BatchUpdateInterval = GetEnvOrDefault("BATCH_UPDATE_INTERVAL", 5)
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
 	RelayIdleConnTimeout = GetEnvOrDefault("RELAY_IDLE_CONN_TIMEOUT", 90)
+	RelayDialTimeout = GetEnvOrDefault("RELAY_DIAL_TIMEOUT", 10)
+	RelayTLSHandshakeTimeout = GetEnvOrDefault("RELAY_TLS_HANDSHAKE_TIMEOUT", 10)
+	RelayResponseHeaderTimeout = GetEnvOrDefault("RELAY_RESPONSE_HEADER_TIMEOUT", 120)
+	RelayExpectContinueTimeout = GetEnvOrDefault("RELAY_EXPECT_CONTINUE_TIMEOUT", 1)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
 
@@ -185,4 +189,13 @@ func initConstantEnv() {
 		}
 	}
 	constant.TrustedRedirectDomains = trustedDomains
+
+	// Adaptive channel balance
+	constant.AdaptiveBalanceEnabled = GetEnvOrDefaultBool("ADAPTIVE_BALANCE_ENABLED", false)
+	constant.AdaptiveBalanceShadowMode = GetEnvOrDefaultBool("ADAPTIVE_BALANCE_SHADOW_MODE", false)
+	constant.ChannelCircuitBreakerEnabled = GetEnvOrDefaultBool("CHANNEL_CIRCUIT_BREAKER_ENABLED", false)
+	constant.MaxRetryChannels = GetEnvOrDefault("MAX_RETRY_CHANNELS", 3)
+	constant.ChannelCooldownSeconds = GetEnvOrDefault("CHANNEL_COOLDOWN_SECONDS", 30)
+	constant.EwmaAlpha = GetEnvOrDefaultFloat("EWMA_ALPHA", 0.1)
+	constant.MaxChannelConcurrency = GetEnvOrDefault("MAX_CHANNEL_CONCURRENCY", 10)
 }

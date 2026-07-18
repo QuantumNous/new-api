@@ -49,6 +49,7 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { getChannels, searchChannels, getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
+  CHANNEL_PAGE_SIZE_OPTIONS,
   CHANNEL_STATUS,
   CHANNEL_STATUS_OPTIONS,
 } from '../constants'
@@ -114,7 +115,7 @@ export function ChannelsTable() {
     navigate: route.useNavigate(),
     pagination: {
       defaultPage: 1,
-      defaultPageSize: isMobile ? 10 : DEFAULT_PAGE_SIZE,
+      defaultPageSize: isMobile ? 12 : DEFAULT_PAGE_SIZE,
     },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
@@ -135,6 +136,19 @@ export function ChannelsTable() {
       { columnId: 'model', searchKey: 'model', type: 'string' },
     ],
   })
+
+  useEffect(() => {
+    if (
+      !(CHANNEL_PAGE_SIZE_OPTIONS as readonly number[]).includes(
+        pagination.pageSize
+      )
+    ) {
+      onPaginationChange({
+        pageIndex: 0,
+        pageSize: isMobile ? 12 : DEFAULT_PAGE_SIZE,
+      })
+    }
+  }, [isMobile, onPaginationChange, pagination.pageSize])
 
   const handleColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (
     updater
@@ -423,6 +437,7 @@ export function ChannelsTable() {
       )}
       cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
       applyHeaderSize
+      pageSizeOptions={CHANNEL_PAGE_SIZE_OPTIONS}
       toolbarProps={{
         searchPlaceholder: t('Filter by name, ID, or key...'),
         searchDebounceMs: 500,

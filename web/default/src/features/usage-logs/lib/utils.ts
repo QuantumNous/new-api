@@ -40,6 +40,8 @@ import type {
   GetTaskLogsParams,
 } from '../types'
 
+export { buildQueryParams } from './query-params'
+
 // ============================================================================
 // Type Checkers & Utilities
 // ============================================================================
@@ -94,21 +96,6 @@ function timestampToSeconds(ms: number): number {
 /**
  * Build query parameters from filters
  */
-export function buildQueryParams(
-  params: Record<string, unknown>
-): URLSearchParams {
-  const queryParams = new URLSearchParams()
-
-  Object.entries(params).forEach(([key, value]) => {
-    // Keep 0 as a valid value, only filter out undefined, null, and empty string
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, String(value))
-    }
-  })
-
-  return queryParams
-}
-
 /**
  * Build time range parameters with default values
  * Shared logic for all log types
@@ -176,8 +163,16 @@ export function buildApiParams(config: {
   searchParams: Record<string, unknown>
   columnFilters?: Array<{ id: string; value: unknown }>
   isAdmin: boolean
+  cursor?: string
 }): GetLogsParams {
-  const { page, pageSize, searchParams, columnFilters = [], isAdmin } = config
+  const {
+    page,
+    pageSize,
+    searchParams,
+    columnFilters = [],
+    isAdmin,
+    cursor,
+  } = config
 
   // Helper to process type parameter (single value from array)
   const processType = (value: unknown): number | undefined => {
@@ -199,6 +194,8 @@ export function buildApiParams(config: {
   const params: GetLogsParams = {
     p: page,
     page_size: pageSize,
+    pagination: 'cursor',
+    ...(cursor ? { cursor } : {}),
     ...(searchParams.type ? { type: processType(searchParams.type) } : {}),
     ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
     ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),
@@ -259,8 +256,15 @@ export function buildApiParams(config: {
 export async function fetchLogsByCategory(
   config: FetchLogsConfig
 ): Promise<GetLogsResponse> {
-  const { logCategory, isAdmin, page, pageSize, searchParams, columnFilters } =
-    config
+  const {
+    logCategory,
+    isAdmin,
+    page,
+    pageSize,
+    searchParams,
+    columnFilters,
+    cursor,
+  } = config
 
   if (logCategory === 'common') {
     const params = buildApiParams({
@@ -269,6 +273,7 @@ export async function fetchLogsByCategory(
       searchParams,
       columnFilters,
       isAdmin,
+      cursor,
     })
     return isAdmin ? await getAllLogs(params) : await getUserLogs(params)
   }

@@ -23,6 +23,24 @@ import (
 	"gorm.io/gorm"
 )
 
+func asIntID(v any) int {
+	switch x := v.(type) {
+	case int:
+		return x
+	case int32:
+		return int(x)
+	case int64:
+		return int(x)
+	case float64:
+		return int(x)
+	case string:
+		n, _ := strconv.Atoi(x)
+		return n
+	default:
+		return 0
+	}
+}
+
 func validUserInfo(username string, role int) bool {
 	// check username is empty
 	if strings.TrimSpace(username) == "" {
@@ -34,12 +52,39 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+func getFreshSessionUser(userID int) (*model.User, error) {
+	if userID <= 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if model.DB == nil {
+		return nil, model.ErrDatabase
+	}
+	return model.GetUserById(userID, false)
+}
+
+func abortSessionUserRefresh(c *gin.Context, err error) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
+		})
+	} else {
+		common.SysLog("session user refresh failed: " + err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
+		})
+	}
+	c.Abort()
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	username := session.Get("username")
 	role := session.Get("role")
 	id := session.Get("id")
 	status := session.Get("status")
+	authenticatedBySession := username != nil
 	useAccessToken := false
 	if username == nil {
 		// Check access token
@@ -113,7 +158,7 @@ func authHelper(c *gin.Context, minRole int) {
 		return
 
 	}
-	if id != apiUserId {
+	if asIntID(id) != apiUserId {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdMismatch),
@@ -121,7 +166,29 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if status.(int) == common.UserStatusDisabled {
+	// Session cookies are identity hints. Authorization always comes from the
+	// current database row so bans, deletion and demotion fail closed.
+	userGroup := ""
+	if g := session.Get("group"); g != nil {
+		if gs, ok := g.(string); ok {
+			userGroup = gs
+		}
+	}
+	if authenticatedBySession {
+		full, refreshErr := getFreshSessionUser(asIntID(id))
+		if refreshErr != nil {
+			abortSessionUserRefresh(c, refreshErr)
+			return
+		}
+		username = full.Username
+		role = full.Role
+		status = full.Status
+		userGroup = full.Group
+	}
+	statusInt := asIntID(status)
+	roleInt := asIntID(role)
+	usernameStr, _ := username.(string)
+	if statusInt == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
@@ -129,7 +196,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if role.(int) < minRole {
+	if roleInt < minRole {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege),
@@ -137,7 +204,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if !validUserInfo(username.(string), role.(int)) {
+	if !validUserInfo(usernameStr, roleInt) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
@@ -145,13 +212,18 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
+	// Normalize context values after possible interface typing from sessions.
+	username = usernameStr
+	role = roleInt
+	status = statusInt
+	id = asIntID(id)
 	// 防止不同newapi版本冲突，导致数据不通用
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
 	c.Set("username", username)
 	c.Set("role", role)
 	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	c.Set("group", userGroup)
+	c.Set("user_group", userGroup)
 	c.Set("use_access_token", useAccessToken)
 
 	// 管理/root 写操作审计兜底：内聚在鉴权链路里，保证任何经过 AdminAuth/RootAuth
@@ -220,24 +292,41 @@ func WssAuth(c *gin.Context) {
 // Used for endpoints that need to be accessible from both the dashboard and API clients.
 func TokenOrUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		// Try session auth first (dashboard users)
+		// Try session auth first (dashboard users) — re-source status from DB
+		// so ban/disable takes effect before 30-day cookie expires.
 		session := sessions.Default(c)
 		if id := session.Get("id"); id != nil {
-			if status, ok := session.Get("status").(int); ok && status == common.UserStatusEnabled {
-				c.Set("id", id)
-				c.Next()
+			uid := asIntID(id)
+			full, refreshErr := getFreshSessionUser(uid)
+			if refreshErr != nil {
+				abortSessionUserRefresh(c, refreshErr)
 				return
 			}
+			if full.Status != common.UserStatusEnabled {
+				c.JSON(http.StatusForbidden, gin.H{
+					"success": false,
+					"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
+				})
+				c.Abort()
+				return
+			}
+			c.Set("id", full.Id)
+			c.Set("username", full.Username)
+			c.Set("role", full.Role)
+			c.Set("status", full.Status)
+			c.Set("group", full.Group)
+			c.Set("user_group", full.Group)
+			c.Next()
+			return
 		}
 		// Fall back to token auth (API clients)
 		TokenAuth()(c)
 	}
 }
 
-// TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
-// 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
-// 即使令牌已过期、已耗尽或已禁用，也允许访问。
-// 仍然检查用户是否被封禁。
+// TokenAuthReadOnly is used by usage/log query endpoints.
+// Rejects explicitly disabled tokens; expired/exhausted tokens may still read metadata.
+// User ban checks remain required.
 func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		key := c.Request.Header.Get("Authorization")

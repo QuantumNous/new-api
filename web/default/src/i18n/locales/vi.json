@@ -2025,7 +2025,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Buộc phản hồi JSON hợp lệ về cú pháp",
@@ -4255,6 +4255,9 @@
     "Status Code Mapping": "Ánh xạ mã trạng thái",
     "Status code mapping must use valid HTTP status codes": "Ánh xạ mã trạng thái phải dùng mã trạng thái HTTP hợp lệ",
     "Status Page Slug": "Đường dẫn phụ trang trạng thái",
+    "Estimated (no live traffic yet)": "Ước tính (chưa có traffic thật)",
+    "Live probe / relay metrics": "Số liệu thật (probe / relay)",
+    "Est. short": "Ước",
     "Status short": "TT",
     "Status:": "Trạng thái:",
     "Stay": "Ở lại",
@@ -5179,5 +5182,17 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Skip Auto Test": "Bỏ qua tự động kiểm tra",
+  "Exclude this channel from automatic batch tests; manual test still works": "Loại kênh khỏi kiểm tra hàng loạt tự động; kiểm tra thủ công vẫn dùng được",
+  "Skip auto test for selected": "Bỏ qua auto test cho mục đã chọn",
+  "Join auto test for selected": "Tham gia auto test cho mục đã chọn",
+  "{{count}} channel(s) will skip auto test": "{{count}} kênh sẽ bỏ qua auto test",
+  "{{count}} channel(s) will join auto test": "{{count}} kênh sẽ tham gia auto test",
+  "Failed to update skip auto test": "Cập nhật skip auto test thất bại",
+  "All metrics": "Tất cả",
+  "Live only": "Chỉ live",
+  "Show estimated badges when no live traffic": "Hiện badge ước tính khi chưa có traffic",
+  "Only show real probe / relay metrics": "Chỉ hiện metric probe / relay thật",
+  "Metrics source filter": "Bộ lọc nguồn metric"
 }

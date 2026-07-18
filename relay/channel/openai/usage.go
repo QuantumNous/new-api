@@ -47,7 +47,25 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 				usage.PromptTokensDetails.CachedTokens = cachedTokens
 			}
 		}
+	case constant.ChannelTypeXai:
+		// xAI stream/non-stream may put cache hits on non-standard fields.
+		if usage.PromptTokensDetails.CachedTokens == 0 {
+			if usage.InputTokensDetails != nil && usage.InputTokensDetails.CachedTokens > 0 {
+				usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
+			} else if cachedTokens, ok := extractCachedTokensFromBody(responseBody); ok {
+				usage.PromptTokensDetails.CachedTokens = cachedTokens
+			} else if usage.PromptCacheHitTokens > 0 {
+				usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
+			}
+		}
 	}
+}
+
+// ApplyUsagePostProcessing normalizes provider-specific cache token fields into
+// usage.PromptTokensDetails.CachedTokens for quota settlement. Exported for
+// channel adaptors (e.g. xAI) that build usage outside OaiStreamHandler.
+func ApplyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
+	applyUsagePostProcessing(info, usage, responseBody)
 }
 
 func extractCachedTokensFromBody(body []byte) (int, bool) {

@@ -18,11 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
-
-import type { User } from '@/features/users/types'
-import { getSelf } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
-
+import { getSelf } from '@/lib/api'
+import type { User } from '@/features/users/types'
+import { safeRedirect } from '../lib/safe-redirect'
 import { saveUserId } from '../lib/storage'
 
 function getSavedLanguage(user: User): string | undefined {
@@ -87,23 +86,31 @@ export function useAuthRedirect() {
       console.error('Failed to fetch user data:', error)
     }
 
-    // Navigate to target page
-    const targetPath = redirectTo || '/dashboard'
+    // Navigate to target page (same-app paths only)
+    const targetPath = safeRedirect(redirectTo, '/dashboard')
     navigate({ to: targetPath, replace: true })
   }
 
   /**
    * Redirect to 2FA page
    */
-  const redirectTo2FA = () => {
-    navigate({ to: '/otp', replace: true })
+  const redirectTo2FA = (redirectTo?: string) => {
+    navigate({
+      to: '/otp',
+      search: { redirect: safeRedirect(redirectTo, '/dashboard') },
+      replace: true,
+    })
   }
 
   /**
    * Redirect to login page
    */
-  const redirectToLogin = () => {
-    navigate({ to: '/sign-in', replace: true })
+  const redirectToLogin = (redirectTo?: string) => {
+    navigate({
+      to: '/sign-in',
+      search: { redirect: safeRedirect(redirectTo, '/dashboard') },
+      replace: true,
+    })
   }
 
   /**

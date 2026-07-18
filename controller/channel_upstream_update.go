@@ -231,7 +231,7 @@ func collectPendingUpstreamModelChangesFromModels(
 }
 
 func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, err error) {
-	upstreamModels, err := fetchChannelUpstreamModelIDs(channel)
+	upstreamModels, err := fetchChannelUpstreamModelIDs(context.Background(), channel)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -255,7 +255,7 @@ func getUpstreamModelUpdateMinCheckIntervalSeconds() int64 {
 	return interval
 }
 
-func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
+func fetchChannelUpstreamModelIDs(ctx context.Context, channel *model.Channel) ([]string, error) {
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
@@ -263,7 +263,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
-		models, err := ollama.FetchOllamaModels(baseURL, key)
+		models, err := ollama.FetchOllamaModels(ctx, baseURL, key)
 		if err != nil {
 			return nil, err
 		}

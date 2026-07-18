@@ -1,0 +1,39 @@
+# Backend-only image: builds without embedding frontend assets.
+# Requires go build tag frontend_external and runtime FRONTEND_MODE=disabled|redirect.
+
+FROM golang:1.26.5-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS builder
+
+ENV GO111MODULE=on CGO_ENABLED=0
+ARG TARGETOS
+ARG TARGETARCH
+ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
+ENV GOEXPERIMENT=greenteagc
+
+WORKDIR /build
+
+ADD go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+# Pure backend build: do not copy or synthesize web/*/dist; frontend_external excludes embed.
+RUN test -s VERSION \
+    && go build -trimpath -buildvcs=true -tags frontend_external \
+        -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" \
+        -o new-api
+
+FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata libasan8 wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
+
+COPY --from=builder /build/new-api /
+COPY LICENSE NOTICE THIRD-PARTY-LICENSES.md /licenses/
+
+# Default pure-backend delivery; override to redirect when a separate console origin is used.
+ENV FRONTEND_MODE=disabled
+
+EXPOSE 3000
+WORKDIR /data
+ENTRYPOINT ["/new-api"]

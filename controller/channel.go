@@ -233,7 +233,7 @@ func FetchUpstreamModels(c *gin.Context) {
 		return
 	}
 
-	ids, err := fetchChannelUpstreamModelIDs(channel)
+	ids, err := fetchChannelUpstreamModelIDs(c.Request.Context(), channel)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -870,6 +870,12 @@ type ChannelBatch struct {
 	Tag *string `json:"tag"`
 }
 
+// ChannelSkipAutoTestBatch toggles skip_auto_test on channel settings.
+type ChannelSkipAutoTestBatch struct {
+	Ids  []int `json:"ids"`
+	Skip bool  `json:"skip"`
+}
+
 func DeleteChannelBatch(c *gin.Context) {
 	channelBatch := ChannelBatch{}
 	err := c.ShouldBindJSON(&channelBatch)
@@ -1181,7 +1187,7 @@ func FetchModels(c *gin.Context) {
 	key = strings.Split(key, "\n")[0]
 
 	if req.Type == constant.ChannelTypeOllama {
-		models, err := ollama.FetchOllamaModels(baseURL, key)
+		models, err := ollama.FetchOllamaModels(c.Request.Context(), baseURL, key)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -1219,10 +1225,10 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	client := &http.Client{}
+	client := service.GetHttpClientWithTimeout(30 * time.Second)
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 
-	request, err := http.NewRequest("GET", url, nil)
+	request, err := http.NewRequestWithContext(c.Request.Context(), "GET", url, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -1301,6 +1307,48 @@ func BatchSetChannelTag(c *gin.Context) {
 		"data":    len(channelBatch.Ids),
 	})
 	return
+}
+
+// BatchSetChannelSkipAutoTest sets skip_auto_test on selected channels.
+// Manual channel tests remain available; only AutomaticallyTestChannels is gated.
+func BatchSetChannelSkipAutoTest(c *gin.Context) {
+	req := ChannelSkipAutoTestBatch{}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "invalid parameters",
+		})
+		return
+	}
+	updated := 0
+	for _, id := range req.Ids {
+		channel, err := model.GetChannelById(id, true)
+		if err != nil || channel == nil {
+			continue
+		}
+		setting := channel.GetSetting()
+		if setting.SkipAutoTest == req.Skip {
+			updated++
+			continue
+		}
+		setting.SkipAutoTest = req.Skip
+		channel.SetSetting(setting)
+		if err := channel.Update(); err != nil {
+			common.SysLog(fmt.Sprintf("batch skip_auto_test update failed id=%d: %v", id, err))
+			continue
+		}
+		updated++
+	}
+	model.InitChannelCache()
+	recordManageAudit(c, "channel.skip_auto_test_batch", map[string]interface{}{
+		"count": updated,
+		"skip":  req.Skip,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    updated,
+	})
 }
 
 func GetTagModels(c *gin.Context) {
@@ -1958,7 +2006,7 @@ func OllamaPullModel(c *gin.Context) {
 	}
 
 	key := strings.Split(channel.Key, "\n")[0]
-	err = ollama.PullOllamaModel(baseURL, key, req.ModelName)
+	err = ollama.PullOllamaModel(c.Request.Context(), baseURL, key, req.ModelName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -2036,7 +2084,7 @@ func OllamaPullModelStream(c *gin.Context) {
 	}
 
 	// 执行拉取
-	err = ollama.PullOllamaModelStream(baseURL, key, req.ModelName, progressCallback)
+	err = ollama.PullOllamaModelStream(c.Request.Context(), baseURL, key, req.ModelName, progressCallback)
 
 	if err != nil {
 		errorData, _ := json.Marshal(gin.H{
@@ -2103,7 +2151,7 @@ func OllamaDeleteModel(c *gin.Context) {
 	}
 
 	key := strings.Split(channel.Key, "\n")[0]
-	err = ollama.DeleteOllamaModel(baseURL, key, req.ModelName)
+	err = ollama.DeleteOllamaModel(c.Request.Context(), baseURL, key, req.ModelName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -2152,7 +2200,7 @@ func OllamaVersion(c *gin.Context) {
 	}
 
 	key := strings.Split(channel.Key, "\n")[0]
-	version, err := ollama.FetchOllamaVersion(baseURL, key)
+	version, err := ollama.FetchOllamaVersion(c.Request.Context(), baseURL, key)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

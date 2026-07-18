@@ -21,6 +21,11 @@ import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { logout } from '@/features/auth/api'
+import {
+  beginSignOut,
+  resetSessionVerified,
+} from '@/features/auth/lib/session-verification'
+import { clearInFlightGetRequests } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
 interface SignOutDialogProps {
@@ -33,23 +38,32 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const { auth } = useAuthStore()
 
   const handleSignOut = async () => {
+    // 标记登出中：拦截器/QueryCache 不再弹出 Session expired 或二次跳转。
+    beginSignOut()
+    clearInFlightGetRequests()
+
+    // 先清本地，再请求服务端删 cookie，最后硬跳登录页。
+    resetSessionVerified()
+    auth.reset()
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('uid')
+        window.localStorage.removeItem('user')
+      }
+    } catch {
+      /* empty */
+    }
+
     try {
       await logout()
     } catch {
       /* empty */
     }
-    auth.reset()
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('uid')
-      }
-    } catch {
-      /* empty */
-    }
+
     toast.success(t('Signed out'))
-    // Refresh the page to clear all state and update UI
     if (typeof window !== 'undefined') {
-      window.location.reload()
+      // replace 避免回退键回到已登出的鉴权页；整页跳转清空内存态 QueryCache。
+      window.location.replace('/sign-in')
     }
   }
 

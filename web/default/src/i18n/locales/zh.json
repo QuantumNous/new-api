@@ -2025,7 +2025,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4255,6 +4255,9 @@
     "Status Code Mapping": "状态码映射",
     "Status code mapping must use valid HTTP status codes": "状态码映射必须使用有效的 HTTP 状态码",
     "Status Page Slug": "状态页面 Slug",
+    "Estimated (no live traffic yet)": "示意（尚无实测流量）",
+    "Live probe / relay metrics": "实测（探测/中继）",
+    "Est. short": "示意",
     "Status short": "状态",
     "Status:": "状态：",
     "Stay": "留下来",
@@ -5179,5 +5182,17 @@
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放"
-  }
+  },
+  "Skip Auto Test": "跳过自动测试",
+  "Exclude this channel from automatic batch tests; manual test still works": "从自动批量测试中排除该渠道；手动测试仍可用",
+  "Skip auto test for selected": "选中渠道跳过自动测试",
+  "Join auto test for selected": "选中渠道参与自动测试",
+  "{{count}} channel(s) will skip auto test": "已设置 {{count}} 个渠道跳过自动测试",
+  "{{count}} channel(s) will join auto test": "已设置 {{count}} 个渠道参与自动测试",
+  "Failed to update skip auto test": "更新跳过自动测试失败",
+  "All metrics": "全部指标",
+  "Live only": "仅实测",
+  "Show estimated badges when no live traffic": "无实测时显示示意徽章",
+  "Only show real probe / relay metrics": "仅显示真实探测/转发指标",
+  "Metrics source filter": "指标来源筛选"
 }
