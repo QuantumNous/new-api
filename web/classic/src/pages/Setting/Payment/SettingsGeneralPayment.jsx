@@ -207,6 +207,10 @@ export default function SettingsGeneralPayment(props) {
                 label={t('充值方式设置')}
                 placeholder={t('为一个 JSON 文本')}
                 autosize
+                extraText={
+                  t('为一个 JSON 文本，例如：') +
+                  ' [{"name":"NowPayments","type":"nowpayment","epay_signed_timestamp":"true"}]'
+                }
               />
             </Col>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>

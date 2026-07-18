@@ -34,9 +34,10 @@ import {
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 import {
-  PaymentMethodDialog,
+  isPaymentMethodData,
   type PaymentMethodData,
-} from './payment-method-dialog'
+} from './payment-method-data'
+import { PaymentMethodDialog } from './payment-method-dialog'
 
 type PaymentMethodsVisualEditorProps = {
   value: string
@@ -119,18 +120,7 @@ export function PaymentMethodsVisualEditor({
       context: 'payment methods',
     })
 
-    return parsed.filter(
-      (item): item is PaymentMethodData =>
-        typeof item === 'object' &&
-        item !== null &&
-        'name' in item &&
-        'type' in item &&
-        typeof item.name === 'string' &&
-        typeof item.type === 'string' &&
-        (!('icon' in item) || typeof item.icon === 'string') &&
-        (!('min_topup' in item) || typeof item.min_topup === 'string') &&
-        (!('color' in item) || typeof item.color === 'string')
-    )
+    return parsed.filter(isPaymentMethodData)
   }, [value])
 
   const filteredMethods = useMemo(() => {
@@ -387,6 +377,7 @@ export function PaymentMethodsVisualEditor({
                 method.icon,
                 method.min_topup,
                 method.color,
+                method.epay_signed_timestamp,
               ]
                 .filter(Boolean)
                 .join('-')
