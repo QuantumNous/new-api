@@ -73,7 +73,7 @@ func TestAdaptorDoResponseBuffersClaudeStreamForNonStreamClient(t *testing.T) {
 		`data: {"type":"content_block_stop","index":2}`,
 		``,
 		`event: message_delta`,
-		`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":9}}`,
+		`data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":"tool-end"},"usage":{"output_tokens":9}}`,
 		``,
 		`event: message_stop`,
 		`data: {"type":"message_stop"}`,
@@ -102,7 +102,7 @@ func TestAdaptorDoResponseBuffersClaudeStreamForNonStreamClient(t *testing.T) {
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &responseObject))
 	stopSequence, exists := responseObject["stop_sequence"]
 	assert.True(t, exists)
-	assert.Nil(t, stopSequence)
+	assert.Equal(t, "tool-end", stopSequence)
 	assert.Equal(t, "msg_test", response.Id)
 	assert.Equal(t, "message", response.Type)
 	assert.Equal(t, "assistant", response.Role)
