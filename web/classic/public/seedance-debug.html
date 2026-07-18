@@ -271,7 +271,7 @@
   <main class="app">
     <header class="top">
       <div class="brand">
-        <div class="logo">四模型</div>
+        <div class="logo">五模型</div>
         <div>
           <h1>Seedance 视频调试</h1>
           <p class="sub">选择模型自动构建参数。本地图片经图床转公网 URL；Key 仅保存在本机浏览器。</p>
@@ -377,8 +377,13 @@
 
       <h2>模型</h2>
       <div class="field">
-        <label for="model">选择模型</label>
+        <label for="model">选择模型 / 协议</label>
         <select id="model"></select>
+      </div>
+      <div class="field hidden" id="customModelField">
+        <label for="customModel">自定义模型 ID</label>
+        <input id="customModel" type="text" placeholder="例如 seedance2.0 / lec-seedance-videos-stable" autocomplete="off">
+        <p class="hint">走 OpenAI Videos（同 seedance2.0）：POST /v1/videos + 图床 URL。</p>
       </div>
       <div class="model-hint" id="modelHint"></div>
 
@@ -446,10 +451,13 @@
       key: "sd4_api_key",
       apiBase: "sd4_api_base",
       model: "sd4_model",
+      customModel: "sd4_custom_model",
       tasks: "sd4_tasks",
       imageHost: "sd4_image_host",
       imageToken: "sd4_image_token",
     };
+    const CUSTOM_MODEL_VALUE = "__custom__";
+    const DEFAULT_CUSTOM_MODEL = "seedance2.0";
 
     const MODEL_PROFILES = {
       "doubao-seedance-2-0-260128": {
@@ -508,6 +516,20 @@
         showAudioWatermark: false,
         showMingizSend: false,
       },
+      "lec-seedance-videos-stable": {
+        label: "lec-seedance-videos-stable（OpenAI Videos）",
+        family: "openai",
+        hint: "OpenAI Videos 协议 · POST /v1/videos · 参考图须公网 URL（图床）；完成后用本站 /content 代理下载。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 8, 10, 12, 15],
+        defaultDuration: 15,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: false,
+      },
     };
 
     const SIZE_MAP = {
@@ -523,6 +545,8 @@
       imageHost: document.getElementById("imageHost"),
       imageToken: document.getElementById("imageToken"),
       model: document.getElementById("model"),
+      customModel: document.getElementById("customModel"),
+      customModelField: document.getElementById("customModelField"),
       modelHint: document.getElementById("modelHint"),
       mode: document.getElementById("mode"),
       modeField: document.getElementById("modeField"),
@@ -592,8 +616,20 @@
       const v = (els.apiBase.value || "").trim().replace(/\/$/, "");
       return v || window.location.origin;
     }
+    function isCustomModel() {
+      return els.model.value === CUSTOM_MODEL_VALUE;
+    }
     function profile() {
-      return MODEL_PROFILES[els.model.value] || MODEL_PROFILES["doubao-seedance-2-0-260128"];
+      if (isCustomModel()) {
+        return MODEL_PROFILES["seedance2.0"];
+      }
+      return MODEL_PROFILES[els.model.value] || MODEL_PROFILES["seedance2.0"];
+    }
+    function activeModelName() {
+      if (isCustomModel()) {
+        return (els.customModel.value || "").trim() || DEFAULT_CUSTOM_MODEL;
+      }
+      return els.model.value;
     }
     function authHeaders(extra = {}) {
       return { Authorization: `Bearer ${token()}`, ...extra };
@@ -1023,7 +1059,7 @@
     function buildAistarBody(submitAssets) {
       const size = SIZE_MAP[els.aspectRatio.value] || SIZE_MAP["16:9"];
       const body = {
-        model: els.model.value,
+        model: activeModelName(),
         prompt: promptText(),
         duration: Number(els.duration.value),
         width: size.width,
@@ -1038,7 +1074,7 @@
     function buildDoubaoBody(submitAssets) {
       const mode = els.mode.value;
       const body = {
-        model: els.model.value,
+        model: activeModelName(),
         generate_audio: els.generateAudio.value === "1",
         ratio: els.aspectRatio.value,
         resolution: els.resolution.value,
@@ -1073,7 +1109,7 @@
 
     function buildMingizJsonBody(submitAssets) {
       const body = {
-        model: els.model.value,
+        model: activeModelName(),
         prompt: promptText(),
         duration: Number(els.duration.value),
         aspect_ratio: els.aspectRatio.value,
@@ -1103,7 +1139,7 @@
           kind: "multipart",
           path: p.createPath,
           body: {
-            model: els.model.value,
+            model: activeModelName(),
             prompt: promptText(),
             duration: Number(els.duration.value),
             aspect_ratio: els.aspectRatio.value,
@@ -1136,7 +1172,12 @@
     function applyModelUI() {
       const p = profile();
       currentFamily = p.family;
-      els.modelHint.textContent = p.hint;
+      els.customModelField.classList.toggle("hidden", !isCustomModel());
+      if (isCustomModel()) {
+        els.modelHint.textContent = "自定义模型 · OpenAI Videos 协议（同 seedance2.0）。";
+      } else {
+        els.modelHint.textContent = p.hint;
+      }
       els.modeField.classList.toggle("hidden", !p.showMode);
       els.resolutionField.classList.toggle("hidden", !p.showResolution);
       els.audioWatermarkRow.classList.toggle("hidden", !p.showAudioWatermark);
@@ -1145,7 +1186,7 @@
       els.duration.innerHTML = p.durations.map((d) =>
         `<option value="${d}" ${d === (p.durations.includes(cur) ? cur : p.defaultDuration) ? "selected" : ""}>${d} 秒</option>`
       ).join("");
-      els.apiBaseHint.textContent = `当前请求：${apiBase()}${p.createPath}`;
+      els.apiBaseHint.textContent = `当前请求：${apiBase()}${p.createPath} · model=${activeModelName()}`;
       scheduleRebuild();
     }
 
@@ -1153,6 +1194,7 @@
       const tokenError = ensureTokenReady();
       if (tokenError) return tokenError;
       if (!promptText()) return "请填写提示词。";
+      if (isCustomModel() && !(els.customModel.value || "").trim()) return "请填写自定义模型 ID。";
       const missing = referencedAssets().filter((ref) => !ref.asset).map((ref) => ref.name);
       if (missing.length) return `提示词引用了不存在的素材：${missing.map((n) => "@" + n).join("、")}`;
       const p = profile();
@@ -1300,7 +1342,7 @@
         let response;
         if (plan.preferMultipart) {
           const form = new FormData();
-          form.append("model", els.model.value);
+          form.append("model", activeModelName());
           form.append("prompt", promptText());
           form.append("duration", String(Number(els.duration.value)));
           form.append("aspect_ratio", els.aspectRatio.value);
@@ -1483,7 +1525,7 @@
       const key = token() || "sk-你的令牌";
       let text = "";
       if (plan.preferMultipart) {
-        text = `curl -X POST "${apiBase()}${plan.path}" \\\n  -H "Authorization: Bearer ${key}" \\\n  -H "Accept: application/json" \\\n  -F "model=${els.model.value}" \\\n  -F "prompt=${promptText().replace(/"/g, '\\"')}" \\\n  -F "duration=${els.duration.value}" \\\n  -F "aspect_ratio=${els.aspectRatio.value}" \\\n  -F "resolution=${els.resolution.value}" \\\n  -F "reference_images=@./ref.jpg"`;
+        text = `curl -X POST "${apiBase()}${plan.path}" \\\n  -H "Authorization: Bearer ${key}" \\\n  -H "Accept: application/json" \\\n  -F "model=${activeModelName()}" \\\n  -F "prompt=${promptText().replace(/"/g, '\\"')}" \\\n  -F "duration=${els.duration.value}" \\\n  -F "aspect_ratio=${els.aspectRatio.value}" \\\n  -F "resolution=${els.resolution.value}" \\\n  -F "reference_images=@./ref.jpg"`;
       } else {
         let body = plan.body;
         try { body = JSON.parse(els.payloadPreview.value); } catch { /* keep */ }
@@ -1496,9 +1538,16 @@
     function initModels() {
       els.model.innerHTML = Object.entries(MODEL_PROFILES).map(([id, p]) =>
         `<option value="${id}">${p.label}</option>`
-      ).join("");
+      ).join("") + `<option value="${CUSTOM_MODEL_VALUE}">自定义模型（OpenAI Videos）</option>`;
       const saved = readLocal(STORAGE.model);
-      els.model.value = MODEL_PROFILES[saved] ? saved : "doubao-seedance-2-0-260128";
+      const savedCustom = readLocal(STORAGE.customModel) || DEFAULT_CUSTOM_MODEL;
+      els.customModel.value = savedCustom;
+      if (saved === CUSTOM_MODEL_VALUE || (saved && !MODEL_PROFILES[saved])) {
+        els.model.value = CUSTOM_MODEL_VALUE;
+        if (saved && saved !== CUSTOM_MODEL_VALUE) els.customModel.value = saved;
+      } else {
+        els.model.value = MODEL_PROFILES[saved] ? saved : "doubao-seedance-2-0-260128";
+      }
     }
 
     function init() {
@@ -1517,9 +1566,19 @@
     }
 
     els.model.addEventListener("change", () => {
-      saveLocal(STORAGE.model, els.model.value);
+      if (isCustomModel() && !(els.customModel.value || "").trim()) {
+        els.customModel.value = DEFAULT_CUSTOM_MODEL;
+      }
+      saveLocal(STORAGE.model, isCustomModel() ? CUSTOM_MODEL_VALUE : els.model.value);
+      saveLocal(STORAGE.customModel, (els.customModel.value || "").trim() || DEFAULT_CUSTOM_MODEL);
       applyModelUI();
-      setStatus(`已切换模型：${els.model.value}`, "ok");
+      setStatus(`已切换模型：${activeModelName()}`, "ok");
+    });
+    els.customModel.addEventListener("input", () => {
+      saveLocal(STORAGE.customModel, (els.customModel.value || "").trim() || DEFAULT_CUSTOM_MODEL);
+      els.payloadPreview.dataset.dirty = "";
+      scheduleRebuild();
+      els.apiBaseHint.textContent = `当前请求：${apiBase()}${profile().createPath} · model=${activeModelName()}`;
     });
     ["mode", "mingizSend", "duration", "aspectRatio", "resolution", "generateAudio", "watermark"].forEach((id) => {
       els[id].addEventListener("change", () => {
