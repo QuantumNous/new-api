@@ -296,6 +296,7 @@ export function ConnectToolDialog(props: Props) {
                   label={endpoint.label}
                   iconKey={endpoint.iconKey}
                   colorText={false}
+                  copyable={false}
                 />
               </button>
             )
