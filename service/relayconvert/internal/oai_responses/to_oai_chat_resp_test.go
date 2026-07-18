@@ -281,6 +281,68 @@ func TestResponsesStreamEventToChatChunksUsesTerminalDoneOutput(t *testing.T) {
 	assert.Equal(t, "tool_calls", *chunks[3].Choices[0].FinishReason)
 }
 
+func TestResponsesStreamEventToChatChunksDoesNotDuplicateToolFromTerminalOutput(t *testing.T) {
+	state := newTestResponsesStreamState()
+	outputIndex := 1
+	item := dto.ResponsesOutput{
+		Type:      responsesOutputTypeFunctionCall,
+		ID:        "fc_1",
+		CallId:    "call_1",
+		Name:      "lookup",
+		Arguments: []byte(`{"q":"x"}`),
+	}
+
+	var chunks []dto.ChatCompletionsStreamResponse
+	chunks = append(chunks, mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventOutputItemAdded,
+		OutputIndex: &outputIndex,
+		Item: &dto.ResponsesOutput{
+			Type:   item.Type,
+			ID:     item.ID,
+			CallId: item.CallId,
+			Name:   item.Name,
+		},
+	})...)
+	chunks = append(chunks, mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventFunctionArgsDelta,
+		OutputIndex: &outputIndex,
+		ItemID:      item.ID,
+		Delta:       `{"q":"x"}`,
+	})...)
+	chunks = append(chunks, mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventOutputItemDone,
+		OutputIndex: &outputIndex,
+		Item:        &item,
+	})...)
+	chunks = append(chunks, mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type: responsesEventCompleted,
+		Response: &dto.OpenAIResponsesResponse{
+			Status: []byte(`"completed"`),
+			Output: []dto.ResponsesOutput{item},
+		},
+	})...)
+
+	var toolIndexes []int
+	totalArgs := ""
+	var finishReason string
+	for _, chunk := range chunks {
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		for _, toolCall := range chunk.Choices[0].Delta.ToolCalls {
+			require.NotNil(t, toolCall.Index)
+			toolIndexes = append(toolIndexes, *toolCall.Index)
+			totalArgs += toolCall.Function.Arguments
+		}
+		if chunk.Choices[0].FinishReason != nil {
+			finishReason = *chunk.Choices[0].FinishReason
+		}
+	}
+	assert.Equal(t, []int{0, 0}, toolIndexes)
+	assert.Equal(t, `{"q":"x"}`, totalArgs)
+	assert.Equal(t, "tool_calls", finishReason)
+}
+
 func TestFinalizeResponsesToChatStreamFlushesPendingDeltaOnlyArguments(t *testing.T) {
 	state := newTestResponsesStreamState()
 	outputIndex := 2
