@@ -203,6 +203,10 @@ type createResponse struct {
 	ID string `json:"Id"`
 }
 
+type containerListItem struct {
+	ID string `json:"Id"`
+}
+
 // ----------------------------------------------------------------------------
 // engineClient – injectable do() for testability
 // ----------------------------------------------------------------------------
@@ -346,13 +350,70 @@ func selfContainerID() (string, error) {
 	return last[:12], nil
 }
 
-// InspectSelf resolves the running container ID then calls inspectContainer.
+// InspectSelf first tries the Docker-provided hostname as a container ID/name.
+// For deployments with a custom hostname, it falls back to matching the
+// hostname against all running containers.
 func (d *dockerEngineImpl) InspectSelf(ctx context.Context) (*ContainerInspect, error) {
 	id, err := selfContainerID()
 	if err != nil {
 		return nil, err
 	}
-	return d.inspectContainer(ctx, id)
+	ci, inspectErr := d.inspectContainer(ctx, id)
+	if inspectErr == nil {
+		return ci, nil
+	}
+
+	hostname := os.Getenv("HOSTNAME")
+	if hostname == "" {
+		return nil, inspectErr
+	}
+	ci, resolveErr := d.findRunningContainerByHostname(ctx, hostname)
+	if resolveErr != nil {
+		return nil, fmt.Errorf("inspect self using %q: %v; resolve by hostname: %w", id, inspectErr, resolveErr)
+	}
+	return ci, nil
+}
+
+func (d *dockerEngineImpl) findRunningContainerByHostname(ctx context.Context, hostname string) (*ContainerInspect, error) {
+	req, err := d.client.request(ctx, http.MethodGet, "/containers/json", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := d.client.call(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpError("list running containers", resp)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var containers []containerListItem
+	if err := common.Unmarshal(body, &containers); err != nil {
+		return nil, err
+	}
+
+	var match *ContainerInspect
+	for _, item := range containers {
+		if item.ID == "" {
+			continue
+		}
+		ci, err := d.inspectContainer(ctx, item.ID)
+		if err != nil || ci.Config.Hostname != hostname {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("multiple running containers use hostname %q", hostname)
+		}
+		match = ci
+	}
+	if match == nil {
+		return nil, fmt.Errorf("no running container uses hostname %q", hostname)
+	}
+	return match, nil
 }
 
 // inspectContainer calls GET /containers/{id}/json.
@@ -550,7 +611,6 @@ func (d *dockerEngineImpl) BuildImageWithBinary(ctx context.Context, baseImage, 
 	tmpName := fmt.Sprintf("new-api-update-tmp-%d", time.Now().UnixNano())
 	createBody := containerCreateBody{
 		Image: baseImage,
-		Cmd:   []string{"sleep", "3600"},
 	}
 	bodyBytes, err := common.Marshal(createBody)
 	if err != nil {

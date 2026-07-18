@@ -39,17 +39,17 @@ func (f *fakeGitHubClient) FetchBytes(_ context.Context, _ string, _ int64) ([]b
 // ----------------------------------------------------------------------------
 
 type fakeDockerEngine struct {
-	pingErr            error
-	pullErr            error
-	recreateErr        error
-	recreateLocalErr   error
-	buildErr           error
-	inspectSelf        *ContainerInspect
-	pullCalled         bool
-	recreateCalled     bool
+	pingErr             error
+	pullErr             error
+	recreateErr         error
+	recreateLocalErr    error
+	buildErr            error
+	inspectSelf         *ContainerInspect
+	pullCalled          bool
+	recreateCalled      bool
 	recreateLocalCalled bool
-	buildCalled        bool
-	buildTarget        string
+	buildCalled         bool
+	buildTarget         string
 }
 
 func (f *fakeDockerEngine) Ping(_ context.Context) error { return f.pingErr }
@@ -346,7 +346,7 @@ func TestService_Perform_Docker_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.NeedRestart, "docker update does not require separate restart")
 	assert.Equal(t, DeployModeDocker, result.DeployMode)
-	assert.True(t, fakeDocker.pullCalled)
+	assert.False(t, fakeDocker.pullCalled, "RecreateSelf must own the single registry pull")
 	assert.True(t, fakeDocker.recreateCalled)
 }
 

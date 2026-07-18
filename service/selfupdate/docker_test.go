@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -173,6 +175,45 @@ func TestEngineClient_InspectContainer_NotFound(t *testing.T) {
 	_, err := d.inspectContainer(context.Background(), "unknown")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "404")
+}
+
+func TestEngineClient_InspectSelf_FallsBackToCustomHostname(t *testing.T) {
+	const customHostname = "new-api-custom-host"
+	t.Setenv("HOSTNAME", customHostname)
+
+	mux := newFakeMux()
+	mux.handle(http.MethodGet, "/containers/"+customHostname+"/json", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "No such container", http.StatusNotFound)
+	})
+	mux.handle(http.MethodGet, "/containers/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, []map[string]any{
+			{"Id": "other-container"},
+			{"Id": "matching-container"},
+		})
+	})
+	mux.handle(http.MethodGet, "/containers/other-container/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id": "other-container",
+			"Config": map[string]any{
+				"Hostname": "another-host",
+			},
+		})
+	})
+	mux.handle(http.MethodGet, "/containers/matching-container/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id":   "matching-container",
+			"Name": "/newapi-new-api",
+			"Config": map[string]any{
+				"Hostname": customHostname,
+			},
+		})
+	})
+
+	d := &dockerEngineImpl{client: fakeEngineClient(mux)}
+	ci, err := d.InspectSelf(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "matching-container", ci.ID)
+	assert.Equal(t, "/newapi-new-api", ci.Name)
 }
 
 // ----------------------------------------------------------------------------
@@ -579,6 +620,41 @@ func TestReplacementContainerBody_NormalizesDockerGeneratedHostname(t *testing.T
 	ci.Config.Hostname = "custom-hostname"
 	body = replacementContainerBody(ci, "local/new-api:v2", false)
 	assert.Equal(t, "custom-hostname", body.Hostname)
+}
+
+func TestEngineClient_BuildImageWithBinary_PreservesImageDefaultCommand(t *testing.T) {
+	const tempContainerID = "build-temp-container"
+	mux := newFakeMux()
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		var body containerCreateBody
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, "local/new-api:v1", body.Image)
+		assert.Empty(t, body.Cmd, "the committed image must retain its base default command")
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": tempContainerID})
+	})
+	mux.handle(http.MethodPut, "/containers/"+tempContainerID+"/archive", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/", r.URL.Query().Get("path"))
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.handle(http.MethodPost, "/commit", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, tempContainerID, r.URL.Query().Get("container"))
+		assert.Equal(t, "local/new-api", r.URL.Query().Get("repo"))
+		assert.Equal(t, "v2", r.URL.Query().Get("tag"))
+		w.WriteHeader(http.StatusCreated)
+	})
+	mux.handle(http.MethodDelete, "/containers/"+tempContainerID, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	binaryPath := filepath.Join(t.TempDir(), "new-api")
+	require.NoError(t, os.WriteFile(binaryPath, []byte("test-binary"), 0o755))
+	d := &dockerEngineImpl{client: fakeEngineClient(mux)}
+	require.NoError(t, d.BuildImageWithBinary(
+		context.Background(),
+		"local/new-api:v1",
+		binaryPath,
+		"local/new-api:v2",
+	))
 }
 
 // ----------------------------------------------------------------------------

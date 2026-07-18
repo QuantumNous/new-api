@@ -344,13 +344,9 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 			image = s.cfg.DockerImage
 		}
 
-		s.setStatus(PhasePulling, "pulling new image", true, "")
-		if err := eng.PullImage(ctx, image); err != nil {
-			s.setStatus(PhaseFailed, "pull image failed", false, err.Error())
-			return nil, err
-		}
-
-		s.setStatus(PhaseApplying, "recreating container", true, "")
+		// RecreateSelf owns the pull so it can compare the image digest before
+		// and after exactly one pull.
+		s.setStatus(PhasePulling, "pulling image and preparing container recreation", true, "")
 		if err := eng.RecreateSelf(ctx, image); err != nil {
 			if errors.Is(err, ErrAlreadyUpToDate) {
 				s.setStatus(PhaseIdle, "already up to date", false, "")
