@@ -47,8 +47,10 @@ export function SectionHeading(props: SectionHeadingProps) {
   return (
     <header
       className={cn(
-        'mb-10 grid items-end gap-5 sm:mb-12',
-        props.description && 'md:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]'
+        'grid items-end gap-5',
+        props.description
+          ? 'mb-10 sm:mb-12 md:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]'
+          : 'mb-8 sm:mb-10'
       )}
     >
       <div>

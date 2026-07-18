@@ -151,14 +151,11 @@ export function FeaturedModelsSection(props: FeaturedModelsSectionProps) {
   if (!props.isLoading && props.models.length === 0) return null
 
   return (
-    <section className='px-4 py-20 sm:px-6 sm:py-24 lg:py-28'>
+    <section className='px-4 py-16 sm:px-6 sm:py-20 lg:py-24'>
       <div className='mx-auto w-full max-w-6xl'>
         <SectionHeading
           eyebrow={t('Featured models')}
           title={t('Find the right model for every task.')}
-          description={t(
-            'Compare capabilities, context, endpoints, and pricing before sending a request with one API key.'
-          )}
         />
 
         {props.isLoading ? (

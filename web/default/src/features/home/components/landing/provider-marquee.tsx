@@ -70,17 +70,8 @@ export function ProviderMarquee() {
   const { t } = useTranslation()
 
   return (
-    <div className='border-border/70 w-full border-t'>
-      <div className='mx-auto w-full max-w-6xl px-4 pt-5 pb-7 sm:px-6'>
-        <div className='text-muted-foreground mb-4 flex items-center justify-between gap-4 text-xs'>
-          <span>
-            {t('Connect to the model providers configured on this site')}
-          </span>
-          <span className='shrink-0 tabular-nums'>
-            {t('Provider')} · {PROVIDERS.length}
-          </span>
-        </div>
-
+    <div className='border-border/70 w-full min-w-0 border-t'>
+      <div className='mx-auto w-full max-w-6xl min-w-0 px-4 pt-6 pb-8 sm:px-6 sm:pb-10'>
         <div
           className='home-provider-marquee no-scrollbar overflow-hidden'
           aria-label={t('Providers available on this site')}

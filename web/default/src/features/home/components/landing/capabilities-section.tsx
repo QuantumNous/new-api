@@ -38,14 +38,11 @@ export function CapabilitiesSection() {
   const { t } = useTranslation()
 
   return (
-    <section className='bg-muted/60 px-4 py-20 sm:px-6 sm:py-24 lg:py-28'>
+    <section className='bg-muted/60 px-4 py-16 sm:px-6 sm:py-20 lg:py-24'>
       <div className='mx-auto w-full max-w-6xl'>
         <SectionHeading
           eyebrow={t('Multimodal')}
           title={t('More than text, one gateway for every model capability.')}
-          description={t(
-            'Connect text, image, audio, video, and asynchronous tasks through their supported endpoints.'
-          )}
         />
 
         <Card className='grid gap-0 rounded-lg py-0 lg:grid-cols-[1.08fr_0.92fr]'>
