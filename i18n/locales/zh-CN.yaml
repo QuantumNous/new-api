@@ -33,6 +33,28 @@ auth.user_id_format_error: "无权进行此操作，New-Api-User 格式错误"
 auth.user_id_mismatch: "无权进行此操作，New-Api-User 与登录用户不匹配"
 auth.user_banned: "用户已被封禁"
 auth.insufficient_privilege: "无权进行此操作，权限不足"
+auth.ip_parse_failed: "无法解析客户端 IP 地址"
+auth.ip_not_allowed: "您的 IP 不在令牌允许访问的列表中"
+auth.group_no_access: "无权访问 {{.Group}} 分组"
+auth.group_deprecated: "分组 {{.Group}} 已被弃用"
+auth.specific_channel_denied: "普通用户不支持指定渠道"
+
+# Rate limit middleware messages
+rate_limit.success_exceeded: "您已达到请求数限制：{{.Minutes}}分钟内最多请求{{.Count}}次"
+rate_limit.total_exceeded: "您已达到总请求数限制：{{.Minutes}}分钟内最多请求{{.Count}}次，包括失败次数，请检查您的请求是否正确"
+rate_limit.email_too_frequent_wait: "发送过于频繁，请等待 {{.Seconds}} 秒后再试"
+rate_limit.email_too_frequent: "发送过于频繁，请稍后再试"
+
+# Secure verification middleware messages
+secure_verify.not_logged_in: "未登录"
+secure_verify.required: "需要安全验证"
+secure_verify.invalid: "验证状态异常，请重新验证"
+secure_verify.expired: "验证已过期，请重新验证"
+
+# Turnstile middleware messages
+turnstile.token_empty: "Turnstile token 为空"
+turnstile.check_failed: "Turnstile 校验失败，请刷新重试！"
+turnstile.session_save_failed: "无法保存会话信息，请重试"
 
 # Token messages
 token.name_too_long: "令牌名称过长"

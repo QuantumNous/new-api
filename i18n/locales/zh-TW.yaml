@@ -33,6 +33,28 @@ auth.user_id_format_error: "無權進行此操作，New-Api-User 格式錯誤"
 auth.user_id_mismatch: "無權進行此操作，New-Api-User 與登入使用者不匹配"
 auth.user_banned: "使用者已被封禁"
 auth.insufficient_privilege: "無權進行此操作，權限不足"
+auth.ip_parse_failed: "無法解析客戶端 IP 位址"
+auth.ip_not_allowed: "您的 IP 不在令牌允許訪問的列表中"
+auth.group_no_access: "無權訪問 {{.Group}} 分組"
+auth.group_deprecated: "分組 {{.Group}} 已被棄用"
+auth.specific_channel_denied: "普通用戶不支持指定渠道"
+
+# Rate limit middleware messages
+rate_limit.success_exceeded: "您已達到請求數限制：{{.Minutes}}分鐘內最多請求{{.Count}}次"
+rate_limit.total_exceeded: "您已達到總請求數限制：{{.Minutes}}分鐘內最多請求{{.Count}}次，包括失敗次數，請檢查您的請求是否正確"
+rate_limit.email_too_frequent_wait: "發送過於頻繁，請等待 {{.Seconds}} 秒後再試"
+rate_limit.email_too_frequent: "發送過於頻繁，請稍後再試"
+
+# Secure verification middleware messages
+secure_verify.not_logged_in: "未登錄"
+secure_verify.required: "需要安全驗證"
+secure_verify.invalid: "驗證狀態異常，請重新驗證"
+secure_verify.expired: "驗證已過期，請重新驗證"
+
+# Turnstile middleware messages
+turnstile.token_empty: "Turnstile token 為空"
+turnstile.check_failed: "Turnstile 校驗失敗，請刷新重試！"
+turnstile.session_save_failed: "無法保存會話信息，請重試"
 
 # Token messages
 token.name_too_long: "令牌名稱過長"

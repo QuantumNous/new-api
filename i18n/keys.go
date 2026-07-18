@@ -38,6 +38,34 @@ const (
 	MsgAuthUserIdMismatch        = "auth.user_id_mismatch"
 	MsgAuthUserBanned            = "auth.user_banned"
 	MsgAuthInsufficientPrivilege = "auth.insufficient_privilege"
+	MsgAuthIpParseFailed         = "auth.ip_parse_failed"
+	MsgAuthIpNotAllowed          = "auth.ip_not_allowed"
+	MsgAuthGroupNoAccess         = "auth.group_no_access"
+	MsgAuthGroupDeprecated       = "auth.group_deprecated"
+	MsgAuthSpecificChannelDenied = "auth.specific_channel_denied"
+)
+
+// Rate limit middleware messages
+const (
+	MsgRateLimitSuccessExceeded = "rate_limit.success_exceeded"
+	MsgRateLimitTotalExceeded   = "rate_limit.total_exceeded"
+	MsgEmailSendTooFrequentWait = "rate_limit.email_too_frequent_wait"
+	MsgEmailSendTooFrequent     = "rate_limit.email_too_frequent"
+)
+
+// Secure verification middleware messages
+const (
+	MsgSecureVerifyNotLoggedIn = "secure_verify.not_logged_in"
+	MsgSecureVerifyRequired    = "secure_verify.required"
+	MsgSecureVerifyInvalid     = "secure_verify.invalid"
+	MsgSecureVerifyExpired     = "secure_verify.expired"
+)
+
+// Turnstile middleware messages
+const (
+	MsgTurnstileTokenEmpty        = "turnstile.token_empty"
+	MsgTurnstileCheckFailed       = "turnstile.check_failed"
+	MsgTurnstileSessionSaveFailed = "turnstile.session_save_failed"
 )
 
 // Token related messages

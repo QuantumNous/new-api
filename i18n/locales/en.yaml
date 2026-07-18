@@ -32,6 +32,28 @@ auth.user_id_format_error: "Unauthorized, New-Api-User header format error"
 auth.user_id_mismatch: "Unauthorized, New-Api-User does not match logged in user"
 auth.user_banned: "User has been banned"
 auth.insufficient_privilege: "Unauthorized, insufficient privileges"
+auth.ip_parse_failed: "Unable to parse client IP address"
+auth.ip_not_allowed: "Your IP is not in the token's allowed IP list"
+auth.group_no_access: "No permission to access group {{.Group}}"
+auth.group_deprecated: "Group {{.Group}} has been deprecated"
+auth.specific_channel_denied: "Specifying a channel is not supported for regular users"
+
+# Rate limit middleware messages
+rate_limit.success_exceeded: "You have reached the request limit: at most {{.Count}} requests within {{.Minutes}} minutes"
+rate_limit.total_exceeded: "You have reached the total request limit: at most {{.Count}} requests within {{.Minutes}} minutes (including failed requests), please check your requests"
+rate_limit.email_too_frequent_wait: "Sending too frequently, please wait {{.Seconds}} seconds and try again"
+rate_limit.email_too_frequent: "Sending too frequently, please try again later"
+
+# Secure verification middleware messages
+secure_verify.not_logged_in: "Not logged in"
+secure_verify.required: "Security verification required"
+secure_verify.invalid: "Verification state invalid, please verify again"
+secure_verify.expired: "Verification expired, please verify again"
+
+# Turnstile middleware messages
+turnstile.token_empty: "Turnstile token is empty"
+turnstile.check_failed: "Turnstile verification failed, please refresh and try again!"
+turnstile.session_save_failed: "Unable to save session information, please try again"
 
 # Token messages
 token.name_too_long: "Token name is too long"
