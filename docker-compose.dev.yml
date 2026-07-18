@@ -1,9 +1,11 @@
-# Frontend Development - Backend built from local source
+# Frontend Development - Backend built from local source (pure API, no embedded SPA)
 #
 # Usage:
 #   1. docker compose -f docker-compose.dev.yml up -d
 #   2. cd web && bun install && bun run dev
 #   3. Open http://localhost:3001 (Rsbuild dev server, API auto-proxied to :3000)
+#
+# Backend image uses Dockerfile.dev (-tags frontend_external, FRONTEND_MODE=disabled).
 #
 # Rebuild backend after Go code changes:
 #   docker compose -f docker-compose.dev.yml up -d --build new-api
@@ -13,7 +15,6 @@
 #
 # Reset data:
 #   docker compose -f docker-compose.dev.yml down -v
-
 services:
   new-api:
     build:
@@ -31,10 +32,14 @@ services:
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - BATCH_UPDATE_ENABLED=true
+      # Pure API for local bun dev (web proxies to :3000). Override to embedded only with integrated image.
+      - FRONTEND_MODE=disabled
       # Enable only when accessing the dev backend through HTTPS. SESSION_COOKIE_TRUSTED_URL is required when true.
       # - SESSION_COOKIE_SECURE=true
       # - SESSION_COOKIE_TRUSTED_URL=https://example.com,https://admin.example.com
-    depends_on:
+      # When bun/vite proxies from another host, set CORS or use same-origin proxy only.
+      # - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3001
+      # - TRUSTED_PROXY_CIDRS=127.0.0.1/32,::1/128    depends_on:
       redis:
         condition: service_started
       postgres:
