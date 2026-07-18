@@ -67,6 +67,7 @@ import {
   ADVANCED_CUSTOM_AUTH_MODE_OPTIONS,
   ADVANCED_CUSTOM_CONVERTER_OPTIONS,
   ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS,
+  ADVANCED_CUSTOM_MODEL_LIST_PATH,
   ADVANCED_CUSTOM_TEMPLATE_OPTIONS,
   type AdvancedCustomAuthMode,
   buildAdvancedCustomAuth,
@@ -215,6 +216,17 @@ export function AdvancedCustomEditorDialog({
     [routeKeys, routes]
   )
   const routeGroups = useMemo(() => buildRouteGroups(routeRows), [routeRows])
+  const usedIncomingPaths = useMemo(
+    () => new Set(routeGroups.map((routeGroup) => routeGroup.incomingPath)),
+    [routeGroups]
+  )
+  const availableIncomingPathOptions = useMemo(
+    () =>
+      ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS.filter(
+        (option) => !usedIncomingPaths.has(option.value)
+      ),
+    [usedIncomingPaths]
+  )
   const validationError = useMemo(
     () => validateAdvancedCustomConfig(normalizedConfig),
     [normalizedConfig]
@@ -250,14 +262,19 @@ export function AdvancedCustomEditorDialog({
     setRouteKeys(nextRouteKeys)
   }
 
-  const addRoute = () => {
+  const addRoute = (incomingPath: string | null) => {
+    if (!incomingPath || usedIncomingPaths.has(incomingPath)) return
     setConfig((current) => {
       const next = normalizeAdvancedCustomConfig(current)
       return {
         ...next,
         advanced_routes: [
           ...(next.advanced_routes || []),
-          createAdvancedCustomRoute(),
+          {
+            ...createAdvancedCustomRoute(),
+            incoming_path: incomingPath,
+            upstream_path: incomingPath,
+          },
         ],
       }
     })
@@ -308,6 +325,15 @@ export function AdvancedCustomEditorDialog({
     )
     const nextRoutes = routes.map((route, routeIndex) => {
       if (!groupRouteIndexes.has(routeIndex)) return route
+      if (resolvedIncomingPath === ADVANCED_CUSTOM_MODEL_LIST_PATH) {
+        return {
+          ...route,
+          incoming_path: resolvedIncomingPath,
+          upstream_path: ADVANCED_CUSTOM_MODEL_LIST_PATH,
+          converter: 'none' as const,
+          models: [],
+        }
+      }
       const converter = route.converter || 'none'
       return {
         ...route,
@@ -592,15 +618,45 @@ export function AdvancedCustomEditorDialog({
       {editMode === 'visual' ? (
         <div className='flex flex-col gap-4 p-4 lg:gap-3'>
           <div className='flex justify-end border-y py-4 lg:py-2'>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={addRoute}
+            <Select
+              items={availableIncomingPathOptions.map((option) => option.value)}
+              value={null}
+              onValueChange={(incomingPath) => {
+                if (typeof incomingPath === 'string') {
+                  addRoute(incomingPath)
+                }
+              }}
             >
-              <Plus data-icon='inline-start' />
-              {t('Add route')}
-            </Button>
+              <SelectTrigger
+                size='sm'
+                disabled={availableIncomingPathOptions.length === 0}
+              >
+                <Plus data-icon='inline-start' />
+                <SelectValue placeholder={t('Add route')} />
+              </SelectTrigger>
+              <SelectContent
+                align='end'
+                alignItemWithTrigger={false}
+                className={longSelectContentClass}
+              >
+                <SelectGroup>
+                  {availableIncomingPathOptions.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className={longSelectItemClass}
+                    >
+                      <div className='flex min-w-0 flex-col gap-1 leading-snug whitespace-normal'>
+                        <span>{t(option.label)}</span>
+                        <span className='text-muted-foreground font-mono text-xs break-all'>
+                          {option.value}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
 
           {validationError ? (
@@ -635,6 +691,7 @@ export function AdvancedCustomEditorDialog({
               <RouteGroupEditor
                 key={routeGroup.incomingPath || 'advanced-custom-empty-path'}
                 group={routeGroup}
+                usedIncomingPaths={usedIncomingPaths}
                 validationError={validationError}
                 onAddRoute={() =>
                   addRouteForIncomingPath(routeGroup.incomingPath)
@@ -690,6 +747,7 @@ export function AdvancedCustomEditorDialog({
 
 function RouteGroupEditor({
   group,
+  usedIncomingPaths,
   validationError,
   onAddRoute,
   onIncomingPathChange,
@@ -699,6 +757,7 @@ function RouteGroupEditor({
   onRouteChange,
 }: {
   group: AdvancedCustomRouteGroup
+  usedIncomingPaths: ReadonlySet<string>
   validationError: ReturnType<typeof validateAdvancedCustomConfig>
   onAddRoute: () => void
   onIncomingPathChange: (incomingPath: string | null) => void
@@ -709,6 +768,7 @@ function RouteGroupEditor({
 }) {
   const { t } = useTranslation()
   const incomingPath = group.incomingPath || '/v1/chat/completions'
+  const isModelListGroup = incomingPath === ADVANCED_CUSTOM_MODEL_LIST_PATH
   const incomingPathLabel = getAdvancedCustomIncomingPathLabel(incomingPath)
   const catchAllRoute = group.routeRows.find((routeRow) =>
     isCatchAllRoute(routeRow.route)
@@ -741,17 +801,21 @@ function RouteGroupEditor({
             <Badge variant='secondary'>
               {group.routeRows.length} {t('Routes')}
             </Badge>
-            <Badge variant={hasCatchAll ? 'outline' : 'secondary'}>
-              {hasCatchAll ? t('Fallback route') : t('Model-scoped only')}
-            </Badge>
-            {!catchAllIsLast ? (
+            {isModelListGroup ? (
+              <Badge variant='outline'>{t('OpenAI Models')}</Badge>
+            ) : (
+              <Badge variant={hasCatchAll ? 'outline' : 'secondary'}>
+                {hasCatchAll ? t('Fallback route') : t('Model-scoped only')}
+              </Badge>
+            )}
+            {!isModelListGroup && !catchAllIsLast ? (
               <Badge variant='destructive'>{t('Fallback must be last')}</Badge>
             ) : null}
           </div>
           <Select value={incomingPath} onValueChange={onIncomingPathChange}>
             <SelectTrigger className='h-9 max-w-full lg:max-w-[420px]'>
               <SelectValue className='min-w-0 truncate'>
-                {incomingPathLabel}
+                {t(incomingPathLabel)}
               </SelectValue>
             </SelectTrigger>
             <SelectContent
@@ -763,10 +827,16 @@ function RouteGroupEditor({
                   <SelectItem
                     key={option.value}
                     value={option.value}
+                    disabled={
+                      (option.value !== incomingPath &&
+                        usedIncomingPaths.has(option.value)) ||
+                      (option.value === ADVANCED_CUSTOM_MODEL_LIST_PATH &&
+                        group.routeRows.length > 1)
+                    }
                     className={longSelectItemClass}
                   >
                     <div className='flex min-w-0 flex-col gap-1 leading-snug whitespace-normal'>
-                      <span>{option.label}</span>
+                      <span>{t(option.label)}</span>
                       <span className='text-muted-foreground font-mono text-xs break-all'>
                         {option.value}
                       </span>
@@ -778,17 +848,28 @@ function RouteGroupEditor({
           </Select>
         </div>
 
-        <Button type='button' variant='outline' size='sm' onClick={onAddRoute}>
-          <Plus data-icon='inline-start' />
-          {t('Add split')}
-        </Button>
+        {!isModelListGroup ? (
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={onAddRoute}
+          >
+            <Plus data-icon='inline-start' />
+            {t('Add split')}
+          </Button>
+        ) : null}
       </div>
 
       <div className='border-t px-3 py-2'>
         <p className='text-muted-foreground text-xs leading-relaxed'>
-          {t(
-            'Routes with the same incoming path are split by client model rules. Unmatched requests use the final fallback.'
-          )}
+          {isModelListGroup
+            ? t(
+                'This route discovers upstream OpenAI models and cannot be split or matched by client model rules.'
+              )
+            : t(
+                'Routes with the same incoming path are split by client model rules. Unmatched requests use the final fallback.'
+              )}
         </p>
         {groupHasError && validationError ? (
           <p className='text-destructive mt-1 text-xs'>
@@ -880,6 +961,7 @@ function RouteEditor({
   const authMode = getAdvancedCustomAuthMode(route)
   const incomingPath =
     route.incoming_path || getDefaultAdvancedCustomIncomingPath(converter)
+  const isModelListRoute = incomingPath === ADVANCED_CUSTOM_MODEL_LIST_PATH
   const converterOptions = useMemo(
     () => getAdvancedCustomConverterOptions(incomingPath),
     [incomingPath]
@@ -897,7 +979,7 @@ function RouteEditor({
   const ConverterVisualIcon = isNativeConverter ? ArrowRight : Shuffle
   const modelsInputValue = route.models?.join(', ') || ''
   const parsedRouteModels = parseAdvancedCustomRouteModels(modelsInputValue)
-  const isFallback = parsedRouteModels.length === 0
+  const isFallback = !isModelListRoute && parsedRouteModels.length === 0
 
   const setConverter = (nextConverter: AdvancedCustomConverter) => {
     let nextIncomingPath = incomingPath
@@ -965,7 +1047,10 @@ function RouteEditor({
               <div className='text-sm font-medium'>
                 {t('Route')} {index + 1}
               </div>
-              {isFallback ? (
+              {isModelListRoute ? (
+                <Badge variant='outline'>{t('OpenAI Models')}</Badge>
+              ) : null}
+              {!isModelListRoute && isFallback ? (
                 <Badge variant='outline'>{t('Fallback')}</Badge>
               ) : null}
               <TooltipProvider delay={100}>
@@ -1033,42 +1118,50 @@ function RouteEditor({
           className='lg:gap-1'
           labelClassName='lg:sr-only'
         >
-          <Input
-            value={modelsInputValue}
-            onChange={(event) => setModelsInput(event.target.value)}
-            onBlur={(event) => normalizeModelsInput(event.target.value)}
-            placeholder={
-              isFallback
-                ? t('Leave empty for fallback')
-                : t('e.g. gpt-4o, gemini-2.5-flash')
-            }
-            aria-invalid={Boolean(errorMessage)}
-          />
-          <div className='flex flex-wrap gap-1'>
-            {isFallback ? (
-              <Badge variant='outline'>{t('Fallback')}</Badge>
-            ) : (
-              parsedRouteModels.map((model) => {
-                const ruleKind = getAdvancedCustomModelRuleKind(model)
-                const displayModel =
-                  ruleKind === 'regex'
-                    ? getAdvancedCustomRegexModelPattern(model) || model
-                    : model
-                return (
-                  <Badge
-                    key={model}
-                    variant={ruleKind === 'regex' ? 'outline' : 'secondary'}
-                    className='max-w-full gap-1.5 font-mono'
-                  >
-                    <span className='font-sans text-[10px] font-semibold tracking-normal uppercase'>
-                      {t(ruleKind === 'regex' ? 'Regex' : 'Exact')}
-                    </span>
-                    <span className='truncate'>{displayModel}</span>
-                  </Badge>
-                )
-              })
-            )}
-          </div>
+          {isModelListRoute && parsedRouteModels.length === 0 ? (
+            <div className='flex h-9 items-center'>
+              <Badge variant='outline'>{t('OpenAI Models')}</Badge>
+            </div>
+          ) : (
+            <>
+              <Input
+                value={modelsInputValue}
+                onChange={(event) => setModelsInput(event.target.value)}
+                onBlur={(event) => normalizeModelsInput(event.target.value)}
+                placeholder={
+                  isFallback
+                    ? t('Leave empty for fallback')
+                    : t('e.g. gpt-4o, gemini-2.5-flash')
+                }
+                aria-invalid={Boolean(errorMessage)}
+              />
+              <div className='flex flex-wrap gap-1'>
+                {isFallback ? (
+                  <Badge variant='outline'>{t('Fallback')}</Badge>
+                ) : (
+                  parsedRouteModels.map((model) => {
+                    const ruleKind = getAdvancedCustomModelRuleKind(model)
+                    const displayModel =
+                      ruleKind === 'regex'
+                        ? getAdvancedCustomRegexModelPattern(model) || model
+                        : model
+                    return (
+                      <Badge
+                        key={model}
+                        variant={ruleKind === 'regex' ? 'outline' : 'secondary'}
+                        className='max-w-full gap-1.5 font-mono'
+                      >
+                        <span className='font-sans text-[10px] font-semibold tracking-normal uppercase'>
+                          {t(ruleKind === 'regex' ? 'Regex' : 'Exact')}
+                        </span>
+                        <span className='truncate'>{displayModel}</span>
+                      </Badge>
+                    )
+                  })
+                )}
+              </div>
+            </>
+          )}
         </FieldBlock>
 
         <FieldBlock
@@ -1100,6 +1193,7 @@ function RouteEditor({
         >
           <Select
             value={converter}
+            disabled={isModelListRoute && converter === 'none'}
             onValueChange={(value) =>
               setConverter(value as AdvancedCustomConverter)
             }

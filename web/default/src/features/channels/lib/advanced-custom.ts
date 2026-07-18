@@ -25,6 +25,7 @@ import type {
 } from '../types'
 
 export const CHANNEL_TYPE_ADVANCED_CUSTOM = 58
+export const ADVANCED_CUSTOM_MODEL_LIST_PATH = '/v1/models'
 
 export const ADVANCED_CUSTOM_CONVERTER_OPTIONS: Array<{
   value: AdvancedCustomConverter
@@ -105,6 +106,10 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
       label: 'OpenAI Responses Compact',
     },
     {
+      value: ADVANCED_CUSTOM_MODEL_LIST_PATH,
+      label: 'OpenAI Models',
+    },
+    {
       value: '/v1/embeddings',
       label: 'OpenAI Embeddings',
     },
@@ -160,6 +165,7 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
 
 const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
   '/v1/chat/completions': 'OpenAI Chat',
+  [ADVANCED_CUSTOM_MODEL_LIST_PATH]: 'OpenAI Models',
 }
 
 export type AdvancedCustomValidationError = {
@@ -537,6 +543,7 @@ export function validateAdvancedCustomConfig(
     string,
     { catchAllIndex: number | null; models: Map<string, number> }
   >()
+  let modelListRouteIndex: number | null = null
   for (let index = 0; index < routes.length; index += 1) {
     const route = routes[index]
     const incomingPath = route.incoming_path?.trim() || ''
@@ -554,6 +561,33 @@ export function validateAdvancedCustomConfig(
       return {
         routeIndex: index,
         message: 'Incoming path must not include query',
+      }
+    }
+    if (incomingPath === ADVANCED_CUSTOM_MODEL_LIST_PATH) {
+      if (modelListRouteIndex !== null) {
+        return {
+          routeIndex: index,
+          message: 'Only one OpenAI Models route is allowed',
+        }
+      }
+      modelListRouteIndex = index
+      if (routeModels.length > 0) {
+        return {
+          routeIndex: index,
+          message: 'OpenAI Models route does not support client model rules',
+        }
+      }
+      if (converter !== 'none') {
+        return {
+          routeIndex: index,
+          message: 'OpenAI Models route must use native forwarding',
+        }
+      }
+      if (upstreamPath.includes('{model}')) {
+        return {
+          routeIndex: index,
+          message: 'OpenAI Models upstream path must not contain {model}',
+        }
       }
     }
     const routeModelsError = validateAdvancedCustomRouteModels(
@@ -592,6 +626,16 @@ export function validateAdvancedCustomConfig(
   }
 
   return null
+}
+
+export function hasValidAdvancedCustomModelListRoute(
+  config: AdvancedCustomConfig | null
+): boolean {
+  if (!config || validateAdvancedCustomConfig(config)) return false
+  const normalized = normalizeAdvancedCustomConfig(config)
+  return (normalized.advanced_routes || []).some(
+    (route) => route.incoming_path?.trim() === ADVANCED_CUSTOM_MODEL_LIST_PATH
+  )
 }
 
 export function advancedCustomConfigUsesRelativeUpstreamPath(

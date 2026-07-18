@@ -759,6 +759,9 @@ export function ChannelMutateDrawer({
   const currentUpstreamModelUpdateIgnoredModels = form.watch(
     'upstream_model_update_ignored_models'
   )
+  const shouldPreviewUnsavedModels =
+    !isEditing ||
+    (currentType === CHANNEL_TYPE_ADVANCED_CUSTOM && canEditSensitive)
   const {
     unlocked: doubaoApiEditUnlocked,
     handleClick: handleApiConfigSecretClick,
@@ -866,7 +869,7 @@ export function ChannelMutateDrawer({
     advancedCustomRouteTypeLabels.length
   const advancedCustomRouteTypeTitle =
     hiddenAdvancedCustomRouteTypeCount > 0
-      ? advancedCustomStats.routeTypeLabels.join(', ')
+      ? advancedCustomStats.routeTypeLabels.map((label) => t(label)).join(', ')
       : undefined
 
   // Get all models list
@@ -1421,8 +1424,8 @@ export function ChannelMutateDrawer({
       return
     }
 
-    // For creation mode, validate key before opening dialog
-    if (!isEditing) {
+    // Advanced Custom may use a model discovery route with no authentication.
+    if (!isEditing && type !== CHANNEL_TYPE_ADVANCED_CUSTOM) {
       const key = form.getValues('key')
       if (!key?.trim()) {
         toast.error(t('Please enter API key first'))
@@ -1433,20 +1436,30 @@ export function ChannelMutateDrawer({
     setFetchModelsDialogOpen(true)
   }, [isEditing, canEditSensitive, form, t])
 
-  const createModeFetcher = useCallback(async (): Promise<string[]> => {
+  const formPreviewFetcher = useCallback(async (): Promise<string[]> => {
     if (!canEditSensitive) {
       throw new Error(t("You don't have necessary permission"))
     }
+    const type = form.getValues('type')
+    const editingAdvancedCustom =
+      isEditing && type === CHANNEL_TYPE_ADVANCED_CUSTOM
+    if (editingAdvancedCustom && channelId === null) {
+      throw new Error(t('No channel selected'))
+    }
     const response = await fetchModels({
-      type: form.getValues('type'),
-      key: form.getValues('key'),
+      type,
+      key: isEditing ? undefined : form.getValues('key'),
+      channel_id: editingAdvancedCustom ? channelId || undefined : undefined,
       base_url: form.getValues('base_url') || '',
+      advanced_custom: form.getValues('advanced_custom'),
+      header_override: form.getValues('header_override'),
+      proxy: form.getValues('proxy'),
     })
     if (response.success && response.data) {
       return response.data
     }
-    throw new Error(response.message || 'No models fetched from upstream')
-  }, [canEditSensitive, form, t])
+    throw new Error(response.message || t('No models fetched from upstream'))
+  }, [canEditSensitive, channelId, form, isEditing, t])
 
   // Handle model operations
   const handleFillRelatedModels = useCallback(() => {
@@ -2787,10 +2800,10 @@ export function ChannelMutateDrawer({
                                                 key={label}
                                                 variant='outline'
                                                 className='max-w-[12rem]'
-                                                title={label}
+                                                title={t(label)}
                                               >
                                                 <span className='truncate'>
-                                                  {label}
+                                                  {t(label)}
                                                 </span>
                                               </Badge>
                                             )
@@ -4514,6 +4527,7 @@ export function ChannelMutateDrawer({
                                             'Periodically check for upstream model changes'
                                           )}
                                         </FormDescription>
+                                        <FormMessage />
                                       </div>
                                       <FormControl>
                                         <Switch
@@ -4682,10 +4696,14 @@ export function ChannelMutateDrawer({
         }}
         redirectModels={redirectModelList}
         redirectSourceModels={redirectModelKeyList}
-        customFetcher={!isEditing ? createModeFetcher : undefined}
-        channelName={!isEditing ? currentName?.trim() : undefined}
+        customFetcher={
+          shouldPreviewUnsavedModels ? formPreviewFetcher : undefined
+        }
+        channelName={
+          shouldPreviewUnsavedModels ? currentName?.trim() : undefined
+        }
         existingModelsOverride={
-          !isEditing
+          shouldPreviewUnsavedModels
             ? parseModelsString(form.getValues('models') || '')
             : undefined
         }
