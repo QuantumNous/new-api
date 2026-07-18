@@ -13,12 +13,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ThemeAssets holds the embedded frontend assets for both themes.
+// ThemeAssets 保存默认主题与经典主题的一体化嵌入资源。
 type ThemeAssets struct {
 	DefaultBuildFS   embed.FS
 	DefaultIndexPage []byte
 	ClassicBuildFS   embed.FS
 	ClassicIndexPage []byte
+}
+
+// Available 判断两个主题的首页是否同时存在，防止纯后端构建误入嵌入模式后 panic。
+func (assets ThemeAssets) Available() bool {
+	return len(assets.DefaultIndexPage) > 0 && len(assets.ClassicIndexPage) > 0
 }
 
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {

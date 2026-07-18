@@ -15,6 +15,31 @@ and must not be mixed into the build context.
   whether the source tree was modified.
 - Go and Bun versions are pinned in quality and release workflows.
 
+## Delivery artifacts
+
+| Artifact | How to build | Frontend assets |
+|---|---|---|
+| Integrated binary / `Dockerfile` | Default `go build` after building both web themes | Embedded dual theme |
+| Pure backend / `Dockerfile.backend` | `go build -tags frontend_external` | None; set `FRONTEND_MODE=disabled` or `redirect` |
+| Frontend SPA / `deploy/separated/Dockerfile.frontend` | Bun build of `web/default` + Nginx | Static only; proxies API to backend |
+
+Quality CI exercises all three image paths plus `nginx -t` on the rendered frontend config.
+The integrated image remains the default compatibility path.
+
+Local pure-backend example:
+
+```powershell
+go build -trimpath -buildvcs=true -tags frontend_external -o new-api-backend.exe .
+$env:FRONTEND_MODE = 'disabled'
+.\new-api-backend.exe
+```
+
+Separated compose example (from repo root):
+
+```bash
+docker compose -f deploy/separated/docker-compose.yml build
+```
+
 ## Windows release evidence
 
 From `D:\newapi\src`, build a release and generate its evidence files:
