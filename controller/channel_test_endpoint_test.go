@@ -7,7 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNormalizeChannelTestEndpointUsesResponsesCompatibilityPolicy(t *testing.T) {
@@ -23,16 +23,16 @@ func TestNormalizeChannelTestEndpointUsesResponsesCompatibilityPolicy(t *testing
 	})
 
 	channel := &model.Channel{Id: 4, Type: constant.ChannelTypeOpenAI}
-	require.Equal(
+	assert.Equal(
 		t,
 		string(constant.EndpointTypeOpenAIResponse),
 		normalizeChannelTestEndpoint(channel, "gpt-5.6-sol", ""),
 	)
-	require.Empty(
+	assert.Empty(
 		t,
 		normalizeChannelTestEndpoint(channel, "claude-3-7-sonnet", ""),
 	)
-	require.Empty(
+	assert.Empty(
 		t,
 		normalizeChannelTestEndpoint(
 			&model.Channel{Id: 5, Type: constant.ChannelTypeOpenAI},
@@ -44,7 +44,7 @@ func TestNormalizeChannelTestEndpointUsesResponsesCompatibilityPolicy(t *testing
 
 func TestNormalizeChannelTestEndpointKeepsExplicitEndpoint(t *testing.T) {
 	channel := &model.Channel{Id: 4, Type: constant.ChannelTypeOpenAI}
-	require.Equal(
+	assert.Equal(
 		t,
 		string(constant.EndpointTypeOpenAI),
 		normalizeChannelTestEndpoint(
