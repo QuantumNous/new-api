@@ -16,7 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+
+// 进程内会话校验标记：每个页面生命周期只强制 getSelf 一次。
 let sessionVerified = false
+
+// 登出进行中：抑制并发请求 401 触发的 “Session expired” 与二次跳转。
+let signingOut = false
 
 export function isSessionVerified(): boolean {
   return sessionVerified
@@ -28,4 +33,17 @@ export function markSessionVerified(): void {
 
 export function resetSessionVerified(): void {
   sessionVerified = false
+}
+
+export function beginSignOut(): void {
+  signingOut = true
+  sessionVerified = false
+}
+
+export function endSignOut(): void {
+  signingOut = false
+}
+
+export function isSigningOut(): boolean {
+  return signingOut
 }

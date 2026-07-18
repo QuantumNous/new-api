@@ -56,7 +56,11 @@ export async function login2fa(payload: TwoFAPayload) {
 
 // User logout
 export async function logout(): Promise<ApiResponse> {
-  const res = await api.get('/api/user/logout')
+  // skipErrorHandler：登出接口失败时不弹全局错误，由调用方静默处理。
+  const res = await api.get('/api/user/logout', {
+    skipErrorHandler: true,
+    disableDuplicate: true,
+  })
   return res.data
 }
 

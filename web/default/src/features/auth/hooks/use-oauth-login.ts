@@ -31,7 +31,11 @@ import {
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
 } from '../lib/oauth'
-import { resetSessionVerified } from '../lib/session-verification'
+import {
+  beginSignOut,
+  endSignOut,
+  resetSessionVerified,
+} from '../lib/session-verification'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 
 type LogoutRequestConfig = AxiosRequestConfig & {
@@ -61,6 +65,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   const resetSession = async () => {
     try {
+      beginSignOut()
       resetSessionVerified()
       auth.reset()
     } catch (_error) {
@@ -69,9 +74,12 @@ export function useOAuthLogin(status: SystemStatus | null) {
     try {
       await api.get('/api/user/logout', {
         skipErrorHandler: true,
+        disableDuplicate: true,
       } as LogoutRequestConfig)
     } catch (_error) {
       // ignore logout errors
+    } finally {
+      endSignOut()
     }
   }
 
