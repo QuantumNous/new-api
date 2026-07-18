@@ -25,3 +25,12 @@ var TaskPricePatches []string
 // TrustedRedirectDomains is a list of trusted domains for redirect URL validation.
 // Domains support subdomain matching (e.g., "example.com" matches "sub.example.com").
 var TrustedRedirectDomains []string
+
+// Adaptive channel balance settings
+var AdaptiveBalanceEnabled bool
+var AdaptiveBalanceShadowMode bool
+var ChannelCircuitBreakerEnabled bool
+var MaxRetryChannels int
+var ChannelCooldownSeconds int
+var EwmaAlpha float64
+var MaxChannelConcurrency int

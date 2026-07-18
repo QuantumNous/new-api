@@ -82,6 +82,18 @@ func (p *RetryParam) ResetRetryNextTry() {
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	// Adaptive entry. AdaptiveSelectChannel must only call
+	// cacheGetRandomSatisfiedChannelLegacy — never this function — or flags
+	// cause infinite recursion / stack overflow.
+	if constant.AdaptiveBalanceEnabled || constant.AdaptiveBalanceShadowMode {
+		return AdaptiveSelectChannel(param)
+	}
+	return cacheGetRandomSatisfiedChannelLegacy(param)
+}
+
+// cacheGetRandomSatisfiedChannelLegacy is the original random / auto-group picker.
+// Safe to call from adaptive fallbacks and candidate collection.
+func cacheGetRandomSatisfiedChannelLegacy(param *RetryParam) (*model.Channel, string, error) {
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
@@ -116,7 +128,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath)
+			channel, _ = model.GetRandomSatisfiedChannelExcluding(autoGroup, param.ModelName, priorityRetry, param.RequestPath, adaptiveUsedChannelSet(param.Ctx))
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -154,7 +166,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+		channel, err = model.GetRandomSatisfiedChannelExcluding(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath, adaptiveUsedChannelSet(param.Ctx))
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
