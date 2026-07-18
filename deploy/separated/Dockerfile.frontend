@@ -31,6 +31,7 @@ RUN chmod 755 /docker-entrypoint.sh \
 
 USER nginx
 ENV BACKEND_UPSTREAM=backend:3000 \
+    DNS_RESOLVER=127.0.0.11 \
     NGINX_PORT=8080 \
     SERVER_NAME=_ \
     CLIENT_MAX_BODY_SIZE=100m \

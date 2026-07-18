@@ -1,5 +1,9 @@
 # Nginx SPA + same-origin reverse proxy for new-api frontend delivery.
 # Placeholders are substituted by docker-entrypoint.sh via envsubst.
+#
+# Upstream uses a variable + resolver so:
+# 1) nginx -t works without the backend hostname existing (CI / cold start)
+# 2) Docker Compose service names are resolved at request time via 127.0.0.11
 
 worker_processes auto;
 error_log /var/log/nginx/error.log warn;
@@ -25,7 +29,7 @@ http {
     server_tokens off;
     client_max_body_size ${CLIENT_MAX_BODY_SIZE};
 
-    # Streaming / SSE / WebSocket-friendly upstream defaults.
+    # Streaming / SSE / WebSocket-friendly upgrade map.
     map $http_upgrade $connection_upgrade {
         default upgrade;
         ''      close;
@@ -36,10 +40,8 @@ http {
     proxy_send_timeout    ${PROXY_SEND_TIMEOUT};
     proxy_read_timeout    ${PROXY_READ_TIMEOUT};
 
-    upstream backend {
-        server ${BACKEND_UPSTREAM};
-        keepalive 32;
-    }
+    # Docker embedded DNS by default; override for non-Docker runtimes.
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
 
     server {
         listen ${NGINX_PORT};
@@ -68,9 +70,10 @@ http {
         }
 
         # Shared proxy settings for API, relay, SSE, and WebSocket paths.
-        # $request_uri preserves the original path and query string.
+        # Variable proxy_pass defers DNS lookup to request time and keeps $request_uri intact.
         location /api/ {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -83,7 +86,8 @@ http {
         }
 
         location /v1/ {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -94,13 +98,13 @@ http {
             proxy_buffering off;
             proxy_request_buffering off;
             proxy_cache off;
-            # Realtime WebSocket and streaming chat completions need long idle windows.
             proxy_read_timeout ${PROXY_READ_TIMEOUT};
             proxy_send_timeout ${PROXY_SEND_TIMEOUT};
         }
 
         location /v1beta/ {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -113,7 +117,8 @@ http {
         }
 
         location /mj/ {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -126,7 +131,8 @@ http {
 
         # Midjourney mode-prefixed paths: /:mode/mj/...
         location ~ ^/[^/]+/mj(/|$) {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -138,7 +144,8 @@ http {
         }
 
         location /pg/ {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -150,7 +157,8 @@ http {
         }
 
         location /suno/ {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -162,7 +170,8 @@ http {
         }
 
         location /kling/ {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -174,7 +183,8 @@ http {
         }
 
         location /jimeng {
-            proxy_pass http://backend$request_uri;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream$request_uri;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -187,7 +197,8 @@ http {
 
         # Backend liveness/readiness through the same origin (optional operational path).
         location = /healthz {
-            proxy_pass http://backend/healthz;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream/healthz;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -196,7 +207,8 @@ http {
         }
 
         location = /livez {
-            proxy_pass http://backend/livez;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream/livez;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -205,7 +217,8 @@ http {
         }
 
         location = /readyz {
-            proxy_pass http://backend/readyz;
+            set $backend_upstream ${BACKEND_UPSTREAM};
+            proxy_pass http://$backend_upstream/readyz;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

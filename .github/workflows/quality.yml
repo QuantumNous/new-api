@@ -141,18 +141,20 @@ jobs:
         run: docker build -f deploy/separated/Dockerfile.frontend --tag new-api-frontend:quality .
 
       - name: Validate frontend Nginx configuration
-        # Render the template with defaults and run nginx -t inside the unprivileged image.
+        # Variable proxy_pass + resolver defers DNS; use loopback upstream so nginx -t
+        # does not require a live backend hostname in this single-container job.
         run: |
           docker run --rm --entrypoint /bin/sh new-api-frontend:quality -c '
             set -eu
-            export BACKEND_UPSTREAM=backend:3000
+            export BACKEND_UPSTREAM=127.0.0.1:3000
+            export DNS_RESOLVER=127.0.0.1
             export NGINX_PORT=8080
             export SERVER_NAME=_
             export CLIENT_MAX_BODY_SIZE=100m
             export PROXY_CONNECT_TIMEOUT=60s
             export PROXY_SEND_TIMEOUT=3600s
             export PROXY_READ_TIMEOUT=3600s
-            envsubst '\''${BACKEND_UPSTREAM} ${NGINX_PORT} ${SERVER_NAME} ${CLIENT_MAX_BODY_SIZE} ${PROXY_CONNECT_TIMEOUT} ${PROXY_SEND_TIMEOUT} ${PROXY_READ_TIMEOUT}'\'' \
+            envsubst '\''${BACKEND_UPSTREAM} ${NGINX_PORT} ${SERVER_NAME} ${CLIENT_MAX_BODY_SIZE} ${PROXY_CONNECT_TIMEOUT} ${PROXY_SEND_TIMEOUT} ${PROXY_READ_TIMEOUT} ${DNS_RESOLVER}'\'' \
               < /etc/nginx/templates/nginx.conf.template > /tmp/nginx-test.conf
             nginx -t -c /tmp/nginx-test.conf
           '

@@ -53,7 +53,8 @@ FRONTEND_MODE=disabled ./new-api-backend
 |---|---|---|
 | `FRONTEND_MODE` | backend | `disabled` (pure API) or `redirect` (jump unknown pages to another origin). Backend image defaults to `disabled`. |
 | `FRONTEND_BASE_URL` | backend | Required for `redirect`; must be an absolute HTTP(S) origin with no path/query/userinfo. |
-| `BACKEND_UPSTREAM` | frontend | Nginx upstream host:port, default `backend:3000`. |
+| `BACKEND_UPSTREAM` | frontend | Nginx upstream host:port, default `backend:3000`. Resolved at request time. |
+| `DNS_RESOLVER` | frontend | Resolver for deferred upstream DNS; default Docker DNS `127.0.0.11`. |
 | `NGINX_PORT` | frontend | Listen port inside container, default `8080`. |
 | `TRUSTED_PROXY_CIDRS` | backend | Must include the frontend/proxy network so client IPs from `X-Forwarded-For` are trusted. |
 | `SESSION_COOKIE_SECURE` / `SESSION_COOKIE_TRUSTED_URL` | backend | Configure for HTTPS production entries. |
