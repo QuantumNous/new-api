@@ -14,11 +14,15 @@ func confirmPaymentComplianceForTest(t *testing.T) {
 	originalConfirmed := paymentSetting.ComplianceConfirmed
 	originalTermsVersion := paymentSetting.ComplianceTermsVersion
 	t.Cleanup(func() {
-		paymentSetting.ComplianceConfirmed = originalConfirmed
-		paymentSetting.ComplianceTermsVersion = originalTermsVersion
+		operation_setting.UpdatePaymentSetting(func(setting *operation_setting.PaymentSetting) {
+			setting.ComplianceConfirmed = originalConfirmed
+			setting.ComplianceTermsVersion = originalTermsVersion
+		})
 	})
-	paymentSetting.ComplianceConfirmed = true
-	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	operation_setting.UpdatePaymentSetting(func(setting *operation_setting.PaymentSetting) {
+		setting.ComplianceConfirmed = true
+		setting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	})
 }
 
 func TestStripeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
