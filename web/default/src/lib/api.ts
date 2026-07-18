@@ -21,7 +21,10 @@ import { t } from 'i18next'
 import { toast } from 'sonner'
 
 import { useAuthStore } from '@/stores/auth-store'
-import { resetSessionVerified } from '@/features/auth/lib/session-verification'
+import {
+  isSigningOut,
+  resetSessionVerified,
+} from '@/features/auth/lib/session-verification'
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -74,6 +77,11 @@ api.get = ((url: string, config: ApiRequestConfig = {}) => {
   return req
 }) as typeof api.get
 
+/** 登出时丢弃 GET 去重缓存，避免登出后仍 resolve 旧的鉴权请求。 */
+export function clearInFlightGetRequests(): void {
+  inFlightGet.clear()
+}
+
 // ============================================================================
 // Response Interceptor
 // ============================================================================
@@ -103,6 +111,10 @@ api.interceptors.response.use(
     const status = error?.response?.status
 
     if (status === 401) {
+      // 主动登出过程中的 401 是预期的，不提示 Session expired、不二次清状态。
+      if (isSigningOut()) {
+        return Promise.reject(error)
+      }
       try {
         resetSessionVerified()
         useAuthStore.getState().auth.reset()

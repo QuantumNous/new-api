@@ -29,7 +29,10 @@ import ReactDOM from 'react-dom/client'
 import { toast } from 'sonner'
 
 import { safeRedirect } from '@/features/auth/lib/safe-redirect'
-import { resetSessionVerified } from '@/features/auth/lib/session-verification'
+import {
+  isSigningOut,
+  resetSessionVerified,
+} from '@/features/auth/lib/session-verification'
 import { getStatus } from '@/lib/api'
 import '@/lib/dayjs'
 import { installBuildMetadata } from '@/lib/build-metadata'
@@ -90,6 +93,10 @@ const queryClient = new QueryClient({
     onError: (error) => {
       if (error instanceof AxiosError) {
         if (error.response?.status === 401) {
+          // 主动登出时由 SignOutDialog 负责跳转，避免与 Session expired 抢导航。
+          if (isSigningOut()) {
+            return
+          }
           toast.error(i18next.t('Session expired!'))
           useAuthStore.getState().auth.reset()
           resetSessionVerified()
