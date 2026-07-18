@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { type ColumnDef } from '@tanstack/react-table'
+import type {
+  ColumnDef,
+  OnChangeFn,
+  PaginationState,
+} from '@tanstack/react-table'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -35,6 +40,7 @@ import {
   DEFAULT_LOGS_DATA,
   LOG_TYPE_ALL_VALUE,
   LOG_TYPE_ENUM,
+  USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS,
 } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
@@ -43,7 +49,7 @@ import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
-import { useLogsViewScope } from './usage-logs-provider'
+import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
@@ -64,7 +70,14 @@ function getColumnVisibilityStorageKey(
 }
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
-  const values = Array.isArray(value) ? value : value ? [value] : []
+  let values: unknown[]
+  if (Array.isArray(value)) {
+    values = value
+  } else if (value) {
+    values = [value]
+  } else {
+    values = []
+  }
   return values.filter((item) => String(item) !== LOG_TYPE_ALL_VALUE)
 }
 
@@ -75,6 +88,7 @@ interface UsageLogsTableProps {
 export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const { isAdminView: isAdmin } = useLogsViewScope()
+  const { autoRefresh, setAutoRefresh } = useUsageLogsContext()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
 
@@ -150,7 +164,23 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       }
       return undefined
     },
+    refetchInterval:
+      autoRefresh && pagination.pageIndex === 0
+        ? USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS
+        : false,
+    refetchIntervalInBackground: false,
   })
+
+  const handlePaginationChange = useCallback<OnChangeFn<PaginationState>>(
+    (updater) => {
+      const next = typeof updater === 'function' ? updater(pagination) : updater
+      if (autoRefresh && next.pageIndex > 0) {
+        setAutoRefresh(false)
+      }
+      onPaginationChange(updater)
+    },
+    [autoRefresh, onPaginationChange, pagination, setAutoRefresh]
+  )
 
   const logs = data?.items || []
   const columns = useColumnsByCategory(logCategory, isAdmin)
@@ -166,7 +196,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ),
     pagination,
     enableRowSelection: false,
-    onPaginationChange,
+    onPaginationChange: handlePaginationChange,
     onColumnFiltersChange,
     manualPagination: true,
     manualFiltering: true,

@@ -44,6 +44,9 @@ export const DEFAULT_LOGS_DATA = {
   total: 0,
 }
 
+/** Polling interval used while live refresh is enabled. */
+export const USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS = 5_000
+
 // ============================================================================
 // Log Type Enum
 // ============================================================================

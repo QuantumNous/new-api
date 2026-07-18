@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
@@ -58,7 +60,9 @@ const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
 function UsageLogsContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const params = route.useParams()
+  const searchParams = route.useSearch()
   const activeCategory: UsageLogsSectionId =
     params.section && isUsageLogsSectionId(params.section)
       ? params.section
@@ -70,6 +74,8 @@ function UsageLogsContent() {
     affinityTarget,
     affinityDialogOpen,
     setAffinityDialogOpen,
+    autoRefresh,
+    setAutoRefresh,
   } = useUsageLogsContext()
   const { canManageScope, viewScope, setViewScope } = useLogsViewScope()
   const tabNavGroups = useMemo<NavGroup[]>(
@@ -117,6 +123,25 @@ function UsageLogsContent() {
     [setViewScope]
   )
 
+  const handleAutoRefreshChange = useCallback(
+    async (enabled: boolean) => {
+      setAutoRefresh(enabled)
+      if (!enabled) return
+
+      await navigate({
+        to: '/usage-logs/$section',
+        params: { section: activeCategory },
+        search: { ...searchParams, page: 1 },
+        replace: true,
+      })
+      void queryClient.invalidateQueries({ queryKey: ['logs'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['usage-logs-stats'],
+      })
+    },
+    [activeCategory, navigate, queryClient, searchParams, setAutoRefresh]
+  )
+
   const pageMeta =
     activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
   const showTaskSwitcher =
@@ -128,16 +153,31 @@ function UsageLogsContent() {
         <SectionPageLayout.Title>
           {t(pageMeta.titleKey)}
         </SectionPageLayout.Title>
-        {canManageScope && (
-          <SectionPageLayout.Actions>
-            <Tabs value={viewScope} onValueChange={handleViewScopeChange}>
-              <TabsList>
-                <TabsTrigger value='all'>{t('All')}</TabsTrigger>
-                <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </SectionPageLayout.Actions>
-        )}
+        <SectionPageLayout.Actions>
+          <div className='flex flex-wrap items-center gap-3'>
+            {canManageScope && (
+              <Tabs value={viewScope} onValueChange={handleViewScopeChange}>
+                <TabsList>
+                  <TabsTrigger value='all'>{t('All')}</TabsTrigger>
+                  <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
+            <label
+              htmlFor='usage-logs-auto-refresh'
+              className='border-border/70 bg-card flex items-center gap-2 rounded-md border px-3 py-1.5'
+            >
+              <span className='text-muted-foreground text-xs'>
+                {t('Auto refresh')}
+              </span>
+              <Switch
+                id='usage-logs-auto-refresh'
+                checked={autoRefresh}
+                onCheckedChange={handleAutoRefreshChange}
+              />
+            </label>
+          </div>
+        </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='flex h-full min-h-0 flex-col gap-4'>
             {showTaskSwitcher && (
