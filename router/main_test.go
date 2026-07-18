@@ -99,6 +99,9 @@ func TestIsNonSPARequestPath(t *testing.T) {
 		"/about",
 		"/sign-in",
 		"/static/js/index.js",
+		"/dashboard",
+		"/dashboard/overview",
+		"/dashboard/detail",
 	} {
 		require.Falsef(t, isNonSPARequestPath(path), "expected SPA-capable: %s", path)
 	}

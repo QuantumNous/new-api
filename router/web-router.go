@@ -28,6 +28,10 @@ func (assets ThemeAssets) Available() bool {
 
 // nonSPAPathPrefixes 是绝不能回退到 SPA HTML 的后端/运维路径前缀。
 // 未注册时必须返回 API 风格 404，避免 /metrics 等被 index.html 伪装成 200。
+//
+// 注意：前端控制台路由是 /dashboard 与 /dashboard/$section（如 /dashboard/overview）。
+// 这里只能拦截 OpenAI 兼容账单 API 前缀 /dashboard/billing，不能把整个 /dashboard
+// 标成 non-SPA，否则登录后跳转会拿到 JSON 404 而不是 SPA HTML。
 var nonSPAPathPrefixes = []string{
 	"/api",
 	"/v1",
@@ -39,7 +43,7 @@ var nonSPAPathPrefixes = []string{
 	"/suno",
 	"/kling",
 	"/jimeng",
-	"/dashboard",
+	"/dashboard/billing",
 	"/healthz",
 	"/livez",
 	"/readyz",
