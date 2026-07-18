@@ -39,7 +39,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
-import { getCommonHeaders } from '@/lib/api'
+import { getFreshAuthHeaders } from '@/lib/api'
 
 import {
   deleteOllamaModel,
@@ -245,11 +245,12 @@ export function OllamaModelsDialog({
     setPullProgress({ status: 'starting', completed: 0, total: 0 })
 
     try {
+      const authHeaders = await getFreshAuthHeaders()
       const response = await fetch('/api/channel/ollama/pull/stream', {
         method: 'POST',
         credentials: 'include',
         headers: {
-          ...getCommonHeaders(),
+          ...authHeaders,
           Accept: 'text/event-stream',
         },
         body: JSON.stringify({

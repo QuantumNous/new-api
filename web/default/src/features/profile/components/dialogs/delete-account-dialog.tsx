@@ -27,8 +27,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { api } from '@/lib/api'
-import { useAuthStore } from '@/stores/auth-store'
+import { logout } from '@/features/auth/api'
+import { clearAuthentication } from '@/lib/api'
 
 import { deleteUserAccount } from '../../api'
 
@@ -49,7 +49,6 @@ export function DeleteAccountDialog({
 }: DeleteAccountDialogProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { reset } = useAuthStore((state) => state.auth)
   const [loading, setLoading] = useState(false)
   const [confirmation, setConfirmation] = useState('')
 
@@ -68,18 +67,17 @@ export function DeleteAccountDialog({
 
         // Logout and redirect
         try {
-          await api.get('/api/user/logout')
+          await logout()
         } catch {
           // Ignore logout errors
         }
 
-        reset()
-        localStorage.removeItem('user')
+        clearAuthentication()
         navigate({ to: '/sign-in' })
       } else {
         toast.error(response.message || t('Failed to delete account'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to delete account'))
     } finally {
       setLoading(false)

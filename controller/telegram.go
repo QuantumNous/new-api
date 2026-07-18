@@ -13,10 +13,12 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const (
@@ -24,11 +26,54 @@ const (
 	// so captured callbacks cannot be reused indefinitely.
 	telegramAuthorizationMaxAge     = 5 * time.Minute
 	telegramAuthorizationFutureSkew = 2 * time.Minute
+	telegramBindFlowTTL             = 5 * time.Minute
 )
+
+var (
+	errTelegramAccountAlreadyBound = errors.New("telegram account is already bound")
+	errTelegramBindUserDeleted     = errors.New("telegram bind user was deleted")
+	errTelegramBindUserDisabled    = errors.New("telegram bind user is disabled")
+)
+
+func TelegramBindStart(c *gin.Context) {
+	if !common.TelegramOAuthEnabled {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "管理员未开启通过 Telegram 登录以及注册",
+			"success": false,
+		})
+		return
+	}
+	identity, ok := middleware.GetSessionAuthIdentity(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "未登录"})
+		return
+	}
+	expiresAt := time.Now().Add(telegramBindFlowTTL)
+	flowToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose:   model.AuthFlowPurposeTelegramBind,
+		UserId:    identity.UserID,
+		SessionId: identity.SessionID,
+		ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	callbackURL := "/api/oauth/telegram/bind/" + flowToken
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"flow_token":   flowToken,
+			"callback_url": callbackURL,
+			"expires_at":   expiresAt.Unix(),
+		},
+	})
+}
 
 func TelegramBind(c *gin.Context) {
 	if !common.TelegramOAuthEnabled {
-		c.JSON(200, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"message": "管理员未开启通过 Telegram 登录以及注册",
 			"success": false,
 		})
@@ -44,41 +89,108 @@ func TelegramBind(c *gin.Context) {
 		})
 		return
 	}
-	if model.IsTelegramIdAlreadyTaken(telegramId) {
-		c.JSON(200, gin.H{
-			"message": "该 Telegram 账户已被绑定",
+	pendingFlow, err := model.GetAuthFlow(c.Param("flow_token"), model.AuthFlowMatch{
+		Purpose: model.AuthFlowPurposeTelegramBind,
+	})
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"message": "绑定流程已过期或已使用",
 			"success": false,
 		})
+		return
+	}
+	if _, err := service.ValidateSessionReference(pendingFlow.UserId, pendingFlow.SessionId); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"message": "创建绑定的登录会话已失效",
+			"success": false,
+		})
+		return
+	}
+	assertion, assertionExpiresAt, err := telegramAuthorizationClaim(params, time.Now())
+	if err != nil {
+		common.SysLog("TelegramBind authorization claim failed: " + err.Error())
+		c.JSON(http.StatusForbidden, gin.H{"message": "无效的请求", "success": false})
+		return
+	}
+	_, err = model.ConsumeAuthFlowWithAction(c.Param("flow_token"), model.AuthFlowMatch{
+		Purpose:   model.AuthFlowPurposeTelegramBind,
+		UserId:    pendingFlow.UserId,
+		SessionId: pendingFlow.SessionId,
+	}, func(tx *gorm.DB, flow *model.AuthFlow) error {
+		if err := model.ClaimExternalAuthAssertionWithTx(tx, model.AuthFlowPurposeTelegramAssertion, assertion, assertionExpiresAt); err != nil {
+			return err
+		}
+
+		var session model.UserSession
+		if err := tx.Where("sid = ? AND user_id = ?", flow.SessionId, flow.UserId).First(&session).Error; err != nil {
+			return service.ErrLoginSessionRevoked
+		}
+		if session.Status != model.UserSessionStatusActive || session.RevokedAt != 0 || session.ExpiresAt <= time.Now().Unix() {
+			return service.ErrLoginSessionRevoked
+		}
+
+		var user model.User
+		if err := tx.First(&user, flow.UserId).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errTelegramBindUserDeleted
+			}
+			return err
+		}
+		if user.Status != common.UserStatusEnabled {
+			return errTelegramBindUserDisabled
+		}
+		if session.UserAuthVersion != user.AuthVersion {
+			return service.ErrLoginSessionRevoked
+		}
+		if user.TelegramId != "" {
+			return errTelegramAccountAlreadyBound
+		}
+		if err := model.ClaimExternalIdentityWithTx(
+			tx,
+			model.ExternalIdentityProviderTelegram,
+			telegramId,
+			user.Id,
+		); err != nil {
+			if errors.Is(err, model.ErrExternalIdentityAlreadyClaimed) {
+				return errTelegramAccountAlreadyBound
+			}
+			return err
+		}
+		result := tx.Model(&model.User{}).
+			Where("id = ? AND status = ? AND auth_version = ? AND telegram_id = ?", user.Id, common.UserStatusEnabled, user.AuthVersion, "").
+			Update("telegram_id", telegramId)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errTelegramAccountAlreadyBound
+		}
+		return nil
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, errTelegramAccountAlreadyBound):
+			c.JSON(http.StatusOK, gin.H{"message": "该 Telegram 账户已被绑定", "success": false})
+		case errors.Is(err, errTelegramBindUserDeleted):
+			c.JSON(http.StatusOK, gin.H{"message": "用户已注销", "success": false})
+		case errors.Is(err, errTelegramBindUserDisabled):
+			c.JSON(http.StatusForbidden, gin.H{"message": "用户已被禁用", "success": false})
+		case errors.Is(err, service.ErrLoginSessionRevoked):
+			c.JSON(http.StatusForbidden, gin.H{"message": "创建绑定的登录会话已失效", "success": false})
+		case errors.Is(err, model.ErrAuthFlowInvalid), errors.Is(err, model.ErrAuthFlowExpired), errors.Is(err, model.ErrAuthFlowConsumed):
+			c.JSON(http.StatusForbidden, gin.H{"message": "绑定流程已过期或已使用", "success": false})
+		default:
+			common.ApiError(c, err)
+		}
 		return
 	}
 
-	session := sessions.Default(c)
-	id := session.Get("id")
-	user := model.User{Id: id.(int)}
-	if err := user.FillUserById(); err != nil {
-		c.JSON(200, gin.H{
-			"message": err.Error(),
-			"success": false,
-		})
+	if common.GetTheme() == "default" {
+		callback := "/oauth/telegram?telegram_bind=success&flow_token=" + url.QueryEscape(c.Param("flow_token"))
+		c.Redirect(http.StatusFound, callback)
 		return
 	}
-	if user.Id == 0 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "用户已注销",
-		})
-		return
-	}
-	user.TelegramId = telegramId
-	if err := user.Update(false); err != nil {
-		c.JSON(200, gin.H{
-			"message": err.Error(),
-			"success": false,
-		})
-		return
-	}
-
-	c.Redirect(302, common.ThemeAwarePath("/console/personal"))
+	c.Redirect(http.StatusFound, "/console/personal")
 }
 
 func TelegramLogin(c *gin.Context) {
@@ -108,7 +220,39 @@ func TelegramLogin(c *gin.Context) {
 		})
 		return
 	}
+	if err := claimTelegramAuthorization(params, time.Now()); err != nil {
+		common.SysLog("TelegramLogin assertion replay rejected: " + err.Error())
+		c.JSON(http.StatusForbidden, gin.H{
+			"message": "该登录凭据已被使用",
+			"success": false,
+		})
+		return
+	}
 	setupLogin(&user, c)
+}
+
+func claimTelegramAuthorization(params url.Values, now time.Time) error {
+	assertion, expiresAt, err := telegramAuthorizationClaim(params, now)
+	if err != nil {
+		return err
+	}
+	return model.ClaimExternalAuthAssertion(model.AuthFlowPurposeTelegramAssertion, assertion, expiresAt)
+}
+
+func telegramAuthorizationClaim(params url.Values, now time.Time) (string, time.Time, error) {
+	authDate, err := strconv.ParseInt(params.Get("auth_date"), 10, 64)
+	if err != nil {
+		return "", time.Time{}, errors.New("telegram authorization date is invalid")
+	}
+	hashBytes, err := hex.DecodeString(params.Get("hash"))
+	if err != nil {
+		return "", time.Time{}, errors.New("telegram authorization signature is invalid")
+	}
+	expiresAt := time.Unix(authDate, 0).Add(telegramAuthorizationMaxAge)
+	if !expiresAt.After(now) {
+		return "", time.Time{}, errors.New("telegram authorization has expired")
+	}
+	return hex.EncodeToString(hashBytes), expiresAt, nil
 }
 
 func verifyTelegramAuthorization(params url.Values, token string, now time.Time) (string, error) {

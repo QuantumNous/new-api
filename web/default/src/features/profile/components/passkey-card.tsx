@@ -117,6 +117,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
     setRestrictedMethod('2fa')
     await startVerification(register, {
+      scope: 'passkey.register',
       preferredMethod: '2fa',
       title: t('Security verification'),
       description: t(
@@ -151,6 +152,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
     setConfirmOpen(false)
     setRestrictedMethod(required)
     await startVerification(remove, {
+      scope: 'passkey.delete',
       preferredMethod: required,
       title: t('Security verification'),
       description: t(

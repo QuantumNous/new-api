@@ -295,13 +295,14 @@ export async function deleteDisabledChannels(): Promise<{
  */
 export async function getChannelKey(
   id: number,
-  code?: string
+  proofToken?: string
 ): Promise<{ success: boolean; message?: string; data?: { key: string } }> {
-  const payload = code ? { code } : undefined
   const res = await api.post(
     `/api/channel/${id}/key`,
-    payload,
-    channelActionConfig()
+    undefined,
+    channelActionConfig({
+      headers: proofToken ? { 'X-Security-Proof': proofToken } : undefined,
+    })
   )
   return res.data
 }

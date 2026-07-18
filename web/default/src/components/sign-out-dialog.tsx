@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { logout } from '@/features/auth/api'
-import { useAuthStore } from '@/stores/auth-store'
+import { clearAuthentication } from '@/lib/auth-session'
 
 interface SignOutDialogProps {
   open: boolean
@@ -30,26 +31,28 @@ interface SignOutDialogProps {
 
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const { t } = useTranslation()
-  const { auth } = useAuthStore()
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const handleSignOut = async () => {
+    setIsSigningOut(true)
     try {
-      await logout()
-    } catch {
-      /* empty */
-    }
-    auth.reset()
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('uid')
+      const response = await logout()
+      if (!response.success) {
+        toast.error(response.message || t('Failed to sign out session'))
+        return
       }
-    } catch {
-      /* empty */
-    }
-    toast.success(t('Signed out'))
-    // Refresh the page to clear all state and update UI
-    if (typeof window !== 'undefined') {
-      window.location.reload()
+
+      clearAuthentication()
+      toast.success(t('Signed out'))
+      if (typeof window !== 'undefined') {
+        window.location.replace('/sign-in')
+      }
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to sign out session')
+      )
+    } finally {
+      setIsSigningOut(false)
     }
   }
 
@@ -63,6 +66,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
       )}
       confirmText={t('Sign out')}
       handleConfirm={handleSignOut}
+      isLoading={isSigningOut}
       className='sm:max-w-sm'
     />
   )

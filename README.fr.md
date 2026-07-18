@@ -313,7 +313,9 @@ docker run --name new-api -d --restart always \
 
 | Nom de variable | Description | Valeur par défaut |
 |--------|------|--------|
-| `SESSION_SECRET` | Secret de session (requis pour le déploiement multi-machines) |
+| `SESSION_SECRET` | Secret de signature d’authentification, identique sur tous les nœuds | - |
+| `SESSION_COOKIE_SECURE` | `false`/non défini désactive l’OriginGuard de refresh/logout pour les proxys HTTP locaux ; `true` active le cookie Secure et le contrôle strict de l’Origin | `false` |
+| `SESSION_COOKIE_TRUSTED_URL` | Obligatoire en mode Secure : Origins HTTPS exactes autorisées pour refresh/logout, séparées par des virgules ; ce n’est pas une liste CORS relay | - |
 | `CRYPTO_SECRET` | Secret de chiffrement (requis pour Redis) | - |
 | `SQL_DSN` | Chaine de connexion à la base de données | - |
 | `REDIS_CONN_STRING` | Chaine de connexion Redis | - |
@@ -395,8 +397,10 @@ docker run --name new-api -d --restart always \
 ### ⚠️ Considérations sur le déploiement multi-machines
 
 > [!WARNING]
-> - **Doit définir** `SESSION_SECRET` - Sinon l'état de connexion sera incohérent sur plusieurs machines
+> - **La même valeur** `SESSION_SECRET` doit être définie sur chaque nœud, sinon les Access Tokens, sessions Refresh et flux temporaires ne peuvent pas être vérifiés de façon cohérente
 > - **Redis partagé doit définir** `CRYPTO_SECRET` - Sinon les données ne pourront pas être déchiffrées
+
+Consultez [Authentification utilisateur et sessions de connexion](./docs/authentication.md) pour les contrats de token, de vérification Origin et de PAT.
 
 ### 🔄 Nouvelle tentative de canal et cache
 

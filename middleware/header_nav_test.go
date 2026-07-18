@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func withHeaderNavModules(t *testing.T, raw string) {
@@ -39,40 +40,39 @@ func performHeaderNavRequest(t *testing.T, handler gin.HandlerFunc, authenticate
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("header-nav-test"))))
-	router.GET("/login", func(c *gin.Context) {
-		session := sessions.Default(c)
-		session.Set("username", "tester")
-		session.Set("role", common.RoleCommonUser)
-		session.Set("id", 1)
-		session.Set("status", common.UserStatusEnabled)
-		session.Set("group", "default")
-		if err := session.Save(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false})
-			return
-		}
-		c.Status(http.StatusNoContent)
-	})
 	router.GET("/api/test", handler, func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
 
-	var cookies []*http.Cookie
+	var accessToken string
 	if authenticated {
-		loginRecorder := httptest.NewRecorder()
-		loginRequest := httptest.NewRequest(http.MethodGet, "/login", nil)
-		router.ServeHTTP(loginRecorder, loginRequest)
-		require.Equal(t, http.StatusNoContent, loginRecorder.Code)
-		cookies = loginRecorder.Result().Cookies()
+		previousDB, previousRedis := model.DB, common.RedisEnabled
+		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		require.NoError(t, err)
+		require.NoError(t, db.AutoMigrate(&model.User{}))
+		model.DB = db
+		common.RedisEnabled = false
+		t.Cleanup(func() {
+			model.DB = previousDB
+			common.RedisEnabled = previousRedis
+		})
+		accessToken = "header-nav-pat"
+		user := model.User{
+			Username:    "tester",
+			Password:    "unused-password-hash",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AuthVersion: 1,
+		}
+		user.SetAccessToken(accessToken)
+		require.NoError(t, db.Create(&user).Error)
 	}
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	if authenticated {
-		request.Header.Set("New-Api-User", "1")
-		for _, cookie := range cookies {
-			request.AddCookie(cookie)
-		}
+		request.Header.Set("Authorization", "Bearer "+accessToken)
 	}
 	router.ServeHTTP(recorder, request)
 	return recorder

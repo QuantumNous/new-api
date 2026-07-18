@@ -18,6 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 export type VerificationMethod = '2fa' | 'passkey'
 
+export type SecurityProofScope =
+  | 'channel.key.read'
+  | 'passkey.register'
+  | 'passkey.delete'
+
+export interface SecurityProof {
+  proof_token: string
+  expires_at: number
+  method: VerificationMethod
+  scope: SecurityProofScope
+}
+
 export interface VerificationMethods {
   has2FA: boolean
   hasPasskey: boolean
@@ -26,6 +38,7 @@ export interface VerificationMethods {
 
 export interface SecureVerificationState {
   method: VerificationMethod | null
+  scope?: SecurityProofScope
   loading: boolean
   code: string
   title?: string
@@ -40,6 +53,7 @@ export interface UseSecureVerificationOptions {
 }
 
 export interface StartVerificationOptions {
+  scope: SecurityProofScope
   preferredMethod?: VerificationMethod
   title?: string
   description?: string

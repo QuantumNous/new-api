@@ -17,10 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Send } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { TELEGRAM_BIND_RESULT_MESSAGE } from '@/features/auth/constants'
+
+import { startTelegramBind } from '../../api'
 
 // ============================================================================
 // Telegram Bind Dialog Component
@@ -37,8 +44,98 @@ export function TelegramBindDialog({
   open,
   onOpenChange,
   botName,
+  onSuccess,
 }: TelegramBindDialogProps) {
   const { t } = useTranslation()
+  const widgetRef = useRef<HTMLDivElement>(null)
+  const [callbackUrl, setCallbackUrl] = useState<string | null>(null)
+  const [flowToken, setFlowToken] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const createBindFlow = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await startTelegramBind()
+      if (!response.success || !response.data?.callback_url) {
+        throw new Error(
+          response.message || t('Failed to start Telegram binding')
+        )
+      }
+      setFlowToken(response.data.flow_token)
+      setCallbackUrl(
+        new URL(response.data.callback_url, window.location.origin).toString()
+      )
+    } catch (bindError: unknown) {
+      setError(
+        bindError instanceof Error
+          ? bindError.message
+          : t('Failed to start Telegram binding')
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [t])
+
+  useEffect(() => {
+    if (!open) {
+      setCallbackUrl(null)
+      setFlowToken(null)
+      setError(null)
+      return
+    }
+    void createBindFlow()
+  }, [createBindFlow, open])
+
+  useEffect(() => {
+    if (!open || !flowToken) return
+
+    const handleBindResult = (event: MessageEvent<unknown>) => {
+      if (event.origin !== window.location.origin) return
+      const result = event.data as {
+        type?: string
+        flow_token?: string
+        success?: boolean
+        message?: string
+      } | null
+      if (
+        !result ||
+        result.type !== TELEGRAM_BIND_RESULT_MESSAGE ||
+        result.flow_token !== flowToken
+      ) {
+        return
+      }
+      if (!result.success) {
+        setError(result.message || t('Failed to start Telegram binding'))
+        return
+      }
+      toast.success(t('Binding successful!'))
+      onSuccess()
+      onOpenChange(false)
+    }
+
+    window.addEventListener('message', handleBindResult)
+    return () => window.removeEventListener('message', handleBindResult)
+  }, [flowToken, onOpenChange, onSuccess, open, t])
+
+  useEffect(() => {
+    const container = widgetRef.current
+    if (!container || !callbackUrl) return
+
+    container.replaceChildren()
+    const script = document.createElement('script')
+    script.async = true
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
+    script.setAttribute('data-telegram-login', botName.replace(/^@/, ''))
+    script.setAttribute('data-size', 'large')
+    script.setAttribute('data-auth-url', callbackUrl)
+    script.setAttribute('data-request-access', 'write')
+    container.appendChild(script)
+
+    return () => container.replaceChildren()
+  }, [botName, callbackUrl])
+
   return (
     <Dialog
       open={open}
@@ -76,13 +173,16 @@ export function TelegramBindDialog({
             </p>
           </div>
 
-          {/* Telegram Login Widget will be injected here by react-telegram-login */}
-          <div id='telegram-login-widget' className='flex justify-center'>
-            {/* This would require the react-telegram-login library */}
-            <div className='text-muted-foreground rounded-lg border border-dashed px-6 py-3 text-sm'>
-              {t('Telegram Login Widget')}
+          {loading && <Skeleton className='h-10 w-52' />}
+          {error && (
+            <div className='flex flex-col items-center gap-3 text-center'>
+              <p className='text-destructive text-sm'>{error}</p>
+              <Button type='button' variant='outline' onClick={createBindFlow}>
+                {t('Retry')}
+              </Button>
             </div>
-          </div>
+          )}
+          <div ref={widgetRef} className='flex min-h-10 justify-center' />
         </div>
 
         <p className='text-muted-foreground text-center text-xs'>

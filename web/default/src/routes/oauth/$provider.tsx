@@ -24,16 +24,28 @@ import {
 } from '@tanstack/react-router'
 import type { AxiosRequestConfig } from 'axios'
 import i18next from 'i18next'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
-import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
-import { api, getSelf } from '@/lib/api'
-import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import {
+  OAUTH_BIND_CALLBACK_MESSAGE,
+  OAUTH_BIND_RESULT_MESSAGE,
+  TELEGRAM_BIND_RESULT_MESSAGE,
+} from '@/features/auth/constants'
+import { startOAuthBindResponseDeadline } from '@/features/auth/lib/oauth-bind-window'
+import { api, applyAuthBundle, isAuthBundle } from '@/lib/api'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
+}
+
+interface OAuthBindingResult {
+  type: typeof OAUTH_BIND_RESULT_MESSAGE
+  provider: string
+  state: string
+  success: boolean
+  message?: string
 }
 
 function OAuthCallback() {
@@ -44,201 +56,157 @@ function OAuthCallback() {
   const search = useSearch({ from: '/oauth/$provider' }) as {
     code?: string
     state?: string
+    error?: string
+    error_description?: string
     redirect?: string
+    telegram_bind?: string
+    flow_token?: string
   }
-  const [mode, setMode] = useState<'login' | 'bind'>(() => {
-    if (typeof window === 'undefined') return 'login'
-    return window.opener ? 'bind' : 'login'
-  })
+  const mode: 'login' | 'bind' =
+    typeof window !== 'undefined' && window.opener ? 'bind' : 'login'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMode(window.opener ? 'bind' : 'login')
-  }, [])
 
-  useEffect(() => {
-    ;(async () => {
-      const safeNavigate = (target: string) => {
-        navigate({ to: target as never, replace: true })
-        if (typeof window !== 'undefined') {
-          setTimeout(() => {
-            const normalizedTarget = target.startsWith('/')
-              ? target
-              : `/${target}`
-            const currentPath =
-              window.location.pathname + window.location.search
-            if (
-              currentPath !== normalizedTarget &&
-              currentPath !== `${normalizedTarget}/`
-            ) {
-              window.location.replace(target)
-            }
-          }, 100)
-        }
-      }
-
-      if (!search?.code) {
-        toast.error(i18next.t('Missing code'))
-        safeNavigate('/sign-in')
+    const code = search.code ?? ''
+    const state = search.state ?? ''
+    if (mode === 'bind') {
+      const opener = window.opener
+      if (!opener || opener.closed) {
+        toast.error(i18next.t('OAuth binding window is no longer available'))
         return
       }
-      const isBindingFlow =
-        typeof window !== 'undefined' ? Boolean(window.opener) : mode === 'bind'
-      if (isBindingFlow && mode !== 'bind') {
-        setMode('bind')
-      } else if (!isBindingFlow && mode !== 'login') {
-        setMode('login')
-      }
-      const notifyBindingResult = (status: 'success' | 'error') => {
-        if (typeof window === 'undefined') return
-        try {
-          window.localStorage.setItem(
-            OAUTH_BIND_STORAGE_KEY,
-            JSON.stringify({
-              provider,
-              status,
-              timestamp: Date.now(),
-            })
-          )
-        } catch (_error) {
-          // ignore storage write failures
-          void _error
-        }
-      }
 
-      const closeBindingWindow = () => {
-        if (typeof window === 'undefined') return
+      if (
+        provider === 'telegram' &&
+        search.telegram_bind === 'success' &&
+        search.flow_token
+      ) {
+        opener.postMessage(
+          {
+            type: TELEGRAM_BIND_RESULT_MESSAGE,
+            flow_token: search.flow_token,
+            success: true,
+          },
+          window.location.origin
+        )
         window.close()
-        setTimeout(() => {
-          if (!window.closed) {
-            window.location.replace('/_authenticated/profile/')
-          }
-        }, 200)
+        return
       }
 
-      const finalizeLogin = async (): Promise<boolean> => {
-        try {
-          const selfResponse = (await getSelf()) as {
-            success?: boolean
-            data?: AuthUser | null
-          }
-          if (selfResponse?.success && selfResponse.data) {
-            useAuthStore.getState().auth.setUser(selfResponse.data)
-            try {
-              if (
-                typeof window !== 'undefined' &&
-                selfResponse.data?.id != null
-              ) {
-                window.localStorage.setItem('uid', String(selfResponse.data.id))
-              }
-            } catch (_error) {
-              void _error
-            }
-            return true
-          }
-        } catch (_error) {
-          void _error
-        }
-        return false
-      }
-
-      const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
-        safeNavigate(to)
-        toast.success(i18next.t('Signed in successfully!'))
-      }
-
-      const handleBindingFailure = (message: string) => {
-        notifyBindingResult('error')
-        toast.error(message)
-      }
-
-      const handleLoginFailure = async (message: string) => {
-        if (await finalizeLogin()) {
-          redirectAfterLogin()
+      let cancelResultTimeout: () => void = () => undefined
+      let delayedClose: number | undefined
+      const handleBindingResult = (event: MessageEvent<unknown>) => {
+        if (
+          event.origin !== window.location.origin ||
+          event.source !== opener
+        ) {
           return
         }
-        toast.error(message)
-        safeNavigate('/sign-in')
+        const result = event.data as Partial<OAuthBindingResult> | null
+        if (
+          !result ||
+          result.type !== OAUTH_BIND_RESULT_MESSAGE ||
+          result.provider !== provider ||
+          result.state !== state
+        ) {
+          return
+        }
+        cancelResultTimeout()
+        if (result.success) {
+          toast.success(i18next.t('Binding successful!'))
+          window.close()
+          return
+        }
+        toast.error(result.message || i18next.t('OAuth failed'))
+        delayedClose = window.setTimeout(() => window.close(), 1500)
       }
 
+      window.addEventListener('message', handleBindingResult)
+      cancelResultTimeout = startOAuthBindResponseDeadline(() => {
+        toast.error(i18next.t('OAuth binding timed out. Please try again.'))
+        delayedClose = window.setTimeout(() => window.close(), 1500)
+      })
+      opener.postMessage(
+        {
+          type: OAUTH_BIND_CALLBACK_MESSAGE,
+          provider,
+          code,
+          state,
+          error: search.error,
+          errorDescription: search.error_description,
+        },
+        window.location.origin
+      )
+      return () => {
+        window.removeEventListener('message', handleBindingResult)
+        cancelResultTimeout()
+        if (delayedClose !== undefined) window.clearTimeout(delayedClose)
+      }
+    }
+
+    const safeNavigate = (target: string) => {
+      navigate({ to: target as never, replace: true })
+      setTimeout(() => {
+        const normalizedTarget = target.startsWith('/') ? target : `/${target}`
+        const currentPath = window.location.pathname + window.location.search
+        if (
+          currentPath !== normalizedTarget &&
+          currentPath !== `${normalizedTarget}/`
+        ) {
+          window.location.replace(target)
+        }
+      }, 100)
+    }
+
+    if (!code && !search.error) {
+      toast.error(i18next.t('Missing code'))
+      safeNavigate('/sign-in')
+      return
+    }
+
+    void (async () => {
       try {
         const config: OAuthRequestConfig = {
-          params: { code: search.code, state: search.state },
+          params: {
+            code: code || undefined,
+            state,
+            error: search.error,
+            error_description: search.error_description,
+          },
           skipBusinessError: true,
         }
-        const res = await api.get(`/api/oauth/${provider}`, config)
-        if (res?.data?.success) {
-          const { message } = res.data
-          const loginUser = (res.data?.data ?? null) as AuthUser | null
-          // Check if this is a bind operation
-          if (message === 'bind') {
-            toast.success(i18next.t('Binding successful!'))
-            notifyBindingResult('success')
-            if (isBindingFlow) {
-              // Close the callback window if we opened a new tab for binding
-              closeBindingWindow()
-            } else {
-              safeNavigate('/_authenticated/profile/')
-            }
-            return
-          }
-          // Otherwise it's a login, use payload user if available
-          if (loginUser) {
-            useAuthStore.getState().auth.setUser(loginUser)
-            try {
-              if (typeof window !== 'undefined' && loginUser.id != null) {
-                window.localStorage.setItem('uid', String(loginUser.id))
-              }
-            } catch (_error) {
-              void _error
-            }
-            redirectAfterLogin()
-            return
-          }
-          if (await finalizeLogin()) {
-            redirectAfterLogin()
-            return
-          }
-          toast.error(res?.data?.message || i18next.t('OAuth failed'))
-          safeNavigate('/sign-in')
+        const response = await api.get(`/api/oauth/${provider}`, config)
+        if (response.data?.success && isAuthBundle(response.data?.data)) {
+          applyAuthBundle(response.data.data)
+          safeNavigate(search.redirect || '/dashboard')
+          toast.success(i18next.t('Signed in successfully!'))
           return
         }
-        const message = res?.data?.message || 'OAuth failed'
-        if (!res?.data?.success && !isBindingFlow) {
-          // When logging in with an already bound GitHub account, backend may return this message
-          if (message === '该 GitHub 账户已被绑定') {
-            if (await finalizeLogin()) {
-              redirectAfterLogin()
-              return
-            }
-          }
-        }
-        if (isBindingFlow) {
-          handleBindingFailure(message)
-        } else {
-          await handleLoginFailure(message)
-        }
-        return
-      } catch (error) {
-        const message = ((error &&
-          typeof error === 'object' &&
-          'response' in error &&
-          (error as { response?: { data?: { message?: string } } }).response
-            ?.data?.message) ??
-          (error instanceof Error ? error.message : undefined) ??
-          'OAuth failed') as string
-
-        if (isBindingFlow) {
-          handleBindingFailure(message)
-          return
-        }
-        await handleLoginFailure(message)
-        return
+        toast.error(response.data?.message || i18next.t('OAuth failed'))
+      } catch (error: unknown) {
+        const responseMessage = (
+          error as { response?: { data?: { message?: string } } }
+        ).response?.data?.message
+        toast.error(
+          responseMessage ||
+            (error instanceof Error ? error.message : i18next.t('OAuth failed'))
+        )
       }
+      safeNavigate('/sign-in')
     })()
-  }, [mode, navigate, provider, search])
+  }, [
+    mode,
+    navigate,
+    provider,
+    search.code,
+    search.error,
+    search.error_description,
+    search.flow_token,
+    search.redirect,
+    search.state,
+    search.telegram_bind,
+  ])
 
   return <OAuthCallbackScreen provider={provider} mode={mode} />
 }

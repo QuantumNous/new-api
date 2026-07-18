@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import type { LoginSession } from '@/stores/auth-store'
 
 import type {
   ApiResponse,
@@ -46,7 +47,9 @@ export async function getUserProfile(): Promise<ApiResponse<UserProfile>> {
 export async function updateUserProfile(
   data: UpdateUserRequest
 ): Promise<ApiResponse> {
-  const res = await api.put('/api/user/self', data)
+  const res = await api.put('/api/user/self', data, {
+    acceptAuthRotation: Boolean(data.password),
+  })
   return res.data
 }
 
@@ -125,7 +128,39 @@ export async function bindEmail(
  * Bind WeChat account
  */
 export async function bindWeChat(code: string): Promise<ApiResponse> {
-  const res = await api.get(`/api/oauth/wechat/bind?code=${code}`)
+  const res = await api.post('/api/oauth/wechat/bind', { code })
+  return res.data
+}
+
+export interface TelegramBindFlow {
+  flow_token: string
+  callback_url: string
+  expires_at: number
+}
+
+export async function startTelegramBind(): Promise<
+  ApiResponse<TelegramBindFlow>
+> {
+  const res = await api.post('/api/oauth/telegram/bind/start')
+  return res.data
+}
+
+// ============================================================================
+// Login Session APIs
+// ============================================================================
+
+export async function getLoginSessions(): Promise<ApiResponse<LoginSession[]>> {
+  const res = await api.get('/api/user/sessions')
+  return res.data
+}
+
+export async function revokeLoginSession(sid: string): Promise<ApiResponse> {
+  const res = await api.delete(`/api/user/sessions/${encodeURIComponent(sid)}`)
+  return res.data
+}
+
+export async function revokeOtherLoginSessions(): Promise<ApiResponse> {
+  const res = await api.post('/api/user/sessions/revoke-others')
   return res.data
 }
 

@@ -16,8 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import axios from 'axios'
 
+import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
+
+import { getAffiliateCode } from './lib/storage'
 import type {
   LoginPayload,
   LoginResponse,
@@ -43,21 +47,68 @@ export async function login(payload: LoginPayload) {
     {
       username: payload.username,
       password: payload.password,
-    }
+    },
+    { skipAuthRefresh: true }
   )
   return res.data
 }
 
 // Two-factor authentication login
 export async function login2fa(payload: TwoFAPayload) {
-  const res = await api.post<Login2FAResponse>('/api/user/login/2fa', payload)
+  const res = await api.post<Login2FAResponse>('/api/user/login/2fa', payload, {
+    skipAuthRefresh: true,
+  })
   return res.data
+}
+
+interface LogoutRuntime {
+  getExpectedSID: () => string | undefined
+  request: (expectedSID?: string) => Promise<ApiResponse>
+  refresh: () => Promise<RefreshOutcome>
+}
+
+export async function executeLogout(
+  runtime: LogoutRuntime,
+  allowMismatchRecovery = true
+): Promise<ApiResponse> {
+  try {
+    return await runtime.request(runtime.getExpectedSID())
+  } catch (error: unknown) {
+    const code = axios.isAxiosError(error)
+      ? error.response?.data?.code
+      : undefined
+    if (
+      allowMismatchRecovery &&
+      axios.isAxiosError(error) &&
+      error.response?.status === 409 &&
+      code === 'AUTH_SESSION_MISMATCH'
+    ) {
+      const outcome = await runtime.refresh()
+      if (outcome.kind === 'authenticated') {
+        return executeLogout(runtime, false)
+      }
+      if (outcome.kind === 'anonymous') {
+        return { success: true, message: '' }
+      }
+    }
+    throw error
+  }
 }
 
 // User logout
 export async function logout(): Promise<ApiResponse> {
-  const res = await api.get('/api/user/logout')
-  return res.data
+  return executeLogout({
+    getExpectedSID: () => useAuthStore.getState().auth.session?.sid,
+    request: async (sid) => {
+      const res = await api.post('/api/user/auth/logout', undefined, {
+        headers: sid ? { 'X-Auth-Session': sid } : undefined,
+        skipAuthRefresh: true,
+        skipErrorHandler: true,
+      })
+      return res.data
+    },
+    refresh: refreshAuthentication,
+  })
 }
 
 // ----------------------------------------------------------------------------
@@ -86,12 +137,23 @@ export async function githubOAuthStart(clientId: string, state: string) {
 }
 
 // Get OAuth state for CSRF protection
-export async function getOAuthState(): Promise<string> {
-  const aff =
-    typeof window !== 'undefined' ? (localStorage.getItem('aff') ?? '') : ''
-  const res = await api.get('/api/oauth/state', { params: { aff } })
-  if (res.data?.success) return res.data.data
-  return ''
+export async function createOAuthFlow(
+  provider: string,
+  intent: 'login' | 'bind'
+): Promise<string> {
+  const aff = intent === 'login' ? getAffiliateCode() : ''
+  const res = await api.post(
+    '/api/oauth/state',
+    { provider, intent, aff: aff || undefined },
+    { skipAuthRefresh: intent === 'login' }
+  )
+  if (res.data?.success) {
+    if (typeof res.data.data === 'string') return res.data.data
+    if (typeof res.data.data?.flow_token === 'string') {
+      return res.data.data.flow_token
+    }
+  }
+  throw new Error(res.data?.message || 'Failed to initialize OAuth')
 }
 
 // WeChat login by authorization code

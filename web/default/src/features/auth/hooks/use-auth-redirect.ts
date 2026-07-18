@@ -19,24 +19,20 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
 
-import type { User } from '@/features/users/types'
-import { getSelf } from '@/lib/api'
-import { useAuthStore } from '@/stores/auth-store'
+import { applyAuthBundle } from '@/lib/api'
+import type { AuthBundle, AuthUser } from '@/stores/auth-store'
 
-import { saveUserId } from '../lib/storage'
-
-function getSavedLanguage(user: User): string | undefined {
-  const userData = user as Record<string, unknown>
-  if (typeof userData.language === 'string') {
-    return userData.language
+function getSavedLanguage(user: AuthUser): string | undefined {
+  if (typeof user.language === 'string') {
+    return user.language
   }
 
-  if (typeof userData.setting !== 'string') {
+  if (typeof user.setting !== 'string') {
     return undefined
   }
 
   try {
-    const setting = JSON.parse(userData.setting) as { language?: unknown }
+    const setting = JSON.parse(user.setting) as { language?: unknown }
     return typeof setting.language === 'string' ? setting.language : undefined
   } catch {
     return undefined
@@ -48,7 +44,6 @@ function getSavedLanguage(user: User): string | undefined {
  */
 export function useAuthRedirect() {
   const navigate = useNavigate()
-  const { auth } = useAuthStore()
 
   /**
    * Handle successful login
@@ -56,35 +51,13 @@ export function useAuthRedirect() {
    * @param redirectTo - Redirect path after login
    */
   const handleLoginSuccess = async (
-    userData?: { id?: number } | null,
+    bundle: AuthBundle,
     redirectTo?: string
   ) => {
-    // Save user ID if available
-    if (userData?.id) {
-      saveUserId(userData.id)
-    }
-
-    // Fetch and set user data
-    try {
-      const self = await getSelf()
-      if (self?.success && self.data) {
-        const user = self.data as User
-        auth.setUser(user)
-
-        // Update user ID if not already set
-        if (user.id) {
-          saveUserId(user.id)
-        }
-
-        // Restore saved language preference
-        const savedLang = getSavedLanguage(user)
-        if (savedLang && savedLang !== i18n.language) {
-          i18n.changeLanguage(savedLang)
-        }
-      }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch user data:', error)
+    applyAuthBundle(bundle)
+    const savedLang = getSavedLanguage(bundle.user)
+    if (savedLang && savedLang !== i18n.language) {
+      await i18n.changeLanguage(savedLang)
     }
 
     // Navigate to target page

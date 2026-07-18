@@ -313,7 +313,9 @@ docker run --name new-api -d --restart always \
 
 | Variable Name | Description | Default Value |
 |--------|------|--------|
-| `SESSION_SECRET` | Session secret (required for multi-machine deployment) | - |
+| `SESSION_SECRET` | Authentication signing secret; must be identical on every node | - |
+| `SESSION_COOKIE_SECURE` | `false`/unset disables the refresh/logout OriginGuard for local HTTP dev proxies; `true` enables the Secure cookie and strict Origin checks | `false` |
+| `SESSION_COOKIE_TRUSTED_URL` | Required with Secure mode: comma-separated exact HTTPS Origins allowed to call refresh/logout; not a relay CORS allowlist | - |
 | `CRYPTO_SECRET` | Encryption secret (required for Redis) | - |
 | `SQL_DSN` | Database connection string | - |
 | `REDIS_CONN_STRING` | Redis connection string | - |
@@ -396,8 +398,10 @@ docker run --name new-api -d --restart always \
 ### ⚠️ Multi-machine Deployment Considerations
 
 > [!WARNING]
-> - **Must set** `SESSION_SECRET` - Otherwise login status inconsistent
+> - **Must set the same** `SESSION_SECRET` on every node - Otherwise Access Tokens, refresh sessions and temporary authentication flows cannot be verified consistently
 > - **Shared Redis must set** `CRYPTO_SECRET` - Otherwise data cannot be decrypted
+
+See [User authentication and login sessions](./docs/authentication.md) for the token, Origin-check and PAT contracts.
 
 ### 🔄 Channel Retry and Cache
 

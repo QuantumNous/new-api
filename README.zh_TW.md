@@ -313,7 +313,9 @@ docker run --name new-api -d --restart always \
 
 | 變數名 | 說明                                                           | 預設值 |
 |--------|--------------------------------------------------------------|--------|
-| `SESSION_SECRET` | 會話密鑰（多機部署必須）                                                 | - |
+| `SESSION_SECRET` | 鑑權簽章密鑰；所有節點必須保持一致                                           | - |
+| `SESSION_COOKIE_SECURE` | `false`/未設定時關閉 refresh/logout OriginGuard 以相容本機 HTTP 開發代理；`true` 時啟用 Secure Cookie 和嚴格 Origin 驗證 | `false` |
+| `SESSION_COOKIE_TRUSTED_URL` | Secure 模式必填：允許呼叫 refresh/logout 的精確 HTTPS Origin，多個值以英文逗號分隔；不是 relay CORS 白名單 | - |
 | `CRYPTO_SECRET` | 加密密鑰（Redis 必須）                                               | - |
 | `SQL_DSN` | 資料庫連接字符串                                                     | - |
 | `REDIS_CONN_STRING` | Redis 連接字符串                                                  | - |
@@ -395,8 +397,10 @@ docker run --name new-api -d --restart always \
 ### ⚠️ 多機部署注意事項
 
 > [!WARNING]
-> - **必須設置** `SESSION_SECRET` - 否則登錄狀態不一致
+> - 所有節點**必須設定相同的** `SESSION_SECRET` - 否則 Access Token、Refresh 工作階段和臨時鑑權流程無法一致驗證
 > - **公用 Redis 必須設置** `CRYPTO_SECRET` - 否則數據無法解密
+
+Token、Origin 驗證和 PAT 契約請參閱[使用者鑑權與登入工作階段](./docs/authentication.md)。
 
 ### 🔄 管道重試與快取
 

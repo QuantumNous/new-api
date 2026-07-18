@@ -22,8 +22,7 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { wechatLoginByCode } from '@/features/auth/api'
-import { getSelf } from '@/lib/api'
-import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import { applyAuthBundle, isAuthBundle } from '@/lib/api'
 
 function OAuthComponent() {
   const navigate = useNavigate()
@@ -38,14 +37,13 @@ function OAuthComponent() {
     ;(async () => {
       try {
         if (search?.provider === 'wechat' && search.code) {
-          await wechatLoginByCode(search.code)
-        }
-        const res = await getSelf()
-        if (res?.success) {
-          useAuthStore.getState().auth.setUser(res.data as AuthUser)
-          const target = search?.redirect || '/dashboard'
-          navigate({ to: target, replace: true })
-          return
+          const res = await wechatLoginByCode(search.code)
+          if (res?.success && isAuthBundle(res.data)) {
+            applyAuthBundle(res.data)
+            const target = search?.redirect || '/dashboard'
+            navigate({ to: target, replace: true })
+            return
+          }
         }
       } catch {
         /* empty */

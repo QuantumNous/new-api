@@ -1341,43 +1341,48 @@ export function ChannelMutateDrawer({
     }
   }
 
-  const fetchChannelKey = useCallback(async () => {
-    if (!channelId) {
-      throw new Error('Channel is not selected')
-    }
-
-    setIsChannelKeyLoading(true)
-    try {
-      const res = await getChannelKey(channelId)
-      if (!res.success) {
-        throw new Error(res.message || t('Failed to fetch channel key'))
+  const fetchChannelKey = useCallback(
+    async (proofToken?: string) => {
+      if (!channelId) {
+        throw new Error('Channel is not selected')
       }
 
-      const keyValue = res.data?.key ?? ''
-      setChannelKey(keyValue)
-      toast.success(t('Channel key unlocked'))
-      return res
-    } finally {
-      setIsChannelKeyLoading(false)
-    }
-  }, [channelId, t])
+      setIsChannelKeyLoading(true)
+      try {
+        const res = await getChannelKey(channelId, proofToken)
+        if (!res.success) {
+          throw new Error(res.message || t('Failed to fetch channel key'))
+        }
+
+        const keyValue = res.data?.key ?? ''
+        setChannelKey(keyValue)
+        toast.success(t('Channel key unlocked'))
+        return res
+      } finally {
+        setIsChannelKeyLoading(false)
+      }
+    },
+    [channelId, t]
+  )
 
   const handleRevealKey = useCallback(async () => {
     if (!channelId) return
 
     try {
       await withVerification(fetchChannelKey, {
+        scope: 'channel.key.read',
         preferredMethod: 'passkey',
-        title: 'Verify to view channel key',
-        description:
-          'Use Passkey or 2FA to confirm your identity before revealing this channel key.',
+        title: t('Verify to view channel key'),
+        description: t(
+          'Use Passkey or 2FA to confirm your identity before revealing this channel key.'
+        ),
       })
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message)
       }
     }
-  }, [channelId, withVerification, fetchChannelKey])
+  }, [channelId, withVerification, fetchChannelKey, t])
 
   const handleRefreshCodexCredential = useCallback(async () => {
     if (!channelId) return

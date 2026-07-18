@@ -81,95 +81,110 @@ export function usePasskeyManagement(
       .catch(() => setSupported(false))
   }, [])
 
-  const register = useCallback(async () => {
-    if (!supported) {
-      toast.error(i18next.t('This device does not support Passkey'))
-      return false
-    }
-    if (!navigator?.credentials) {
-      toast.error(i18next.t('Passkey is not supported in this environment'))
-      return false
-    }
+  const register = useCallback(
+    async (proofToken?: string) => {
+      if (!supported) {
+        toast.error(i18next.t('This device does not support Passkey'))
+        return false
+      }
+      if (!navigator?.credentials) {
+        toast.error(i18next.t('Passkey is not supported in this environment'))
+        return false
+      }
 
-    setRegistering(true)
-    try {
-      const beginResponse = await beginPasskeyRegistration()
-      if (!beginResponse.success) {
+      setRegistering(true)
+      try {
+        const beginResponse = await beginPasskeyRegistration(proofToken)
+        if (!beginResponse.success) {
+          toast.error(
+            beginResponse.message ||
+              i18next.t('Failed to start Passkey registration')
+          )
+          return false
+        }
+
+        const publicKey = prepareCredentialCreationOptions(
+          beginResponse.data?.options ?? beginResponse.data
+        )
+        const flowToken = beginResponse.data?.flow_token
+        if (!flowToken) {
+          toast.error(i18next.t('Registration flow expired. Please try again.'))
+          return false
+        }
+
+        const credential = (await createCredential(
+          publicKey
+        )) as PublicKeyCredential | null
+        if (!credential) {
+          toast.error(i18next.t('Passkey registration was cancelled'))
+          return false
+        }
+
+        const attestation = buildRegistrationResult(credential)
+        if (!attestation) {
+          toast.error(i18next.t('Invalid Passkey registration response'))
+          return false
+        }
+
+        const finishResponse = await finishPasskeyRegistration(
+          flowToken,
+          attestation,
+          proofToken
+        )
+        if (!finishResponse.success) {
+          toast.error(
+            finishResponse.message || i18next.t('Failed to register Passkey')
+          )
+          return false
+        }
+
+        toast.success(i18next.t('Passkey registered successfully'))
+        await fetchStatus()
+        return true
+      } catch (error: unknown) {
+        if (error instanceof DOMException && error.name === 'NotAllowedError') {
+          toast.info(i18next.t('Passkey registration was cancelled'))
+          return false
+        }
+        // eslint-disable-next-line no-console
+        console.error('[Passkey] Registration error', error)
         toast.error(
-          beginResponse.message ||
-            i18next.t('Failed to start Passkey registration')
+          error instanceof Error
+            ? error.message
+            : i18next.t('Failed to register Passkey')
         )
         return false
+      } finally {
+        setRegistering(false)
       }
+    },
+    [supported, fetchStatus]
+  )
 
-      const publicKey = prepareCredentialCreationOptions(
-        beginResponse.data?.options ?? beginResponse.data
-      )
+  const remove = useCallback(
+    async (proofToken?: string) => {
+      setRemoving(true)
+      try {
+        const res = await deletePasskey(proofToken)
+        if (!res.success) {
+          toast.error(res.message || i18next.t('Failed to remove Passkey'))
+          return false
+        }
 
-      const credential = (await createCredential(
-        publicKey
-      )) as PublicKeyCredential | null
-      if (!credential) {
-        toast.error(i18next.t('Passkey registration was cancelled'))
+        toast.success(i18next.t('Passkey removed successfully'))
+        await fetchStatus()
+        return true
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[Passkey] Removal error', error)
+        toast.error(i18next.t('Failed to remove Passkey'))
         return false
+      } finally {
+        setRemoving(false)
       }
-
-      const attestation = buildRegistrationResult(credential)
-      if (!attestation) {
-        toast.error(i18next.t('Invalid Passkey registration response'))
-        return false
-      }
-
-      const finishResponse = await finishPasskeyRegistration(attestation)
-      if (!finishResponse.success) {
-        toast.error(
-          finishResponse.message || i18next.t('Failed to register Passkey')
-        )
-        return false
-      }
-
-      toast.success(i18next.t('Passkey registered successfully'))
-      await fetchStatus()
-      return true
-    } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === 'NotAllowedError') {
-        toast.info(i18next.t('Passkey registration was cancelled'))
-        return false
-      }
-      // eslint-disable-next-line no-console
-      console.error('[Passkey] Registration error', error)
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : i18next.t('Failed to register Passkey')
-      )
-      return false
-    } finally {
-      setRegistering(false)
-    }
-  }, [supported, fetchStatus])
-
-  const remove = useCallback(async () => {
-    setRemoving(true)
-    try {
-      const res = await deletePasskey()
-      if (!res.success) {
-        toast.error(res.message || i18next.t('Failed to remove Passkey'))
-        return false
-      }
-
-      toast.success(i18next.t('Passkey removed successfully'))
-      await fetchStatus()
-      return true
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('[Passkey] Removal error', error)
-      toast.error(i18next.t('Failed to remove Passkey'))
-      return false
-    } finally {
-      setRemoving(false)
-    }
-  }, [fetchStatus])
+    },
+    [fetchStatus]
+  )
 
   const enabled = useMemo(() => Boolean(status?.enabled), [status])
   const lastUsed = useMemo(() => status?.last_used_at ?? null, [status])

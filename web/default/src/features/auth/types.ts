@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { User } from '@/features/users/types'
+import type { AuthBundle } from '@/stores/auth-store'
 
 // ============================================================================
 // API Payloads
@@ -30,6 +30,7 @@ export interface LoginPayload {
 
 export interface TwoFAPayload {
   code: string
+  flow_token: string
 }
 
 export interface RegisterPayload {
@@ -63,22 +64,25 @@ export interface BindEmailPayload {
 export interface LoginResponse {
   success: boolean
   message: string
-  data?: {
-    require_2fa?: boolean
-    id?: number
-  }
+  data?:
+    | AuthBundle
+    | {
+        require_2fa?: boolean
+        flow_token?: string
+        expires_at?: number
+      }
 }
 
 export interface Login2FAResponse {
   success: boolean
   message: string
-  data?: User
+  data?: AuthBundle
 }
 
-export interface ApiResponse {
+export interface ApiResponse<T = unknown> {
   success: boolean
   message: string
-  data?: unknown
+  data?: T
 }
 
 // ============================================================================

@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
+
 import { api, get2FAStatus } from '@/lib/api'
 import {
   buildAssertionResult,
@@ -28,7 +30,12 @@ import {
   finishPasskeyVerification,
   getPasskeyStatus,
 } from '../passkey'
-import type { VerificationMethod, VerificationMethods } from './types'
+import type {
+  SecurityProof,
+  SecurityProofScope,
+  VerificationMethod,
+  VerificationMethods,
+} from './types'
 
 /**
  * Fetch available verification methods for the current user.
@@ -69,91 +76,112 @@ export async function checkVerificationMethods(): Promise<VerificationMethods> {
  */
 export async function verify(
   method: VerificationMethod,
+  scope: SecurityProofScope,
   code?: string
-): Promise<void> {
+): Promise<SecurityProof> {
   switch (method) {
     case '2fa':
-      return verifyTwoFA(code)
+      return verifyTwoFA(scope, code)
     case 'passkey':
-      return verifyPasskey()
+      return verifyPasskey(scope)
     default:
-      throw new Error(`Unsupported verification method: ${method}`)
+      throw new Error(
+        i18next.t('Unsupported verification method: {{method}}', { method })
+      )
   }
 }
 
 /**
  * Perform 2FA verification flow.
  */
-async function verifyTwoFA(code?: string | null): Promise<void> {
+async function verifyTwoFA(
+  scope: SecurityProofScope,
+  code?: string | null
+): Promise<SecurityProof> {
   const trimmed = code?.trim()
   if (!trimmed) {
-    throw new Error('Please enter the verification code or backup code')
+    throw new Error(
+      i18next.t('Please enter the verification code or backup code')
+    )
   }
 
   const res = await api.post('/api/verify', {
     method: '2fa',
     code: trimmed,
+    scope,
   })
 
   if (!res.data?.success) {
-    throw new Error(res.data?.message || 'Verification failed')
+    throw new Error(res.data?.message || i18next.t('Verification failed'))
   }
+  if (!res.data.data?.proof_token) {
+    throw new Error(i18next.t('Verification proof was not returned'))
+  }
+  return res.data.data as SecurityProof
 }
 
 /**
  * Perform Passkey verification flow.
  */
-async function verifyPasskey(): Promise<void> {
+async function verifyPasskey(
+  scope: SecurityProofScope
+): Promise<SecurityProof> {
   if (typeof navigator === 'undefined' || !navigator.credentials) {
-    throw new Error('Passkey verification is not supported in this environment')
+    throw new Error(
+      i18next.t('Passkey verification is not supported in this environment')
+    )
   }
 
   try {
-    const beginResponse = await beginPasskeyVerification()
+    const beginResponse = await beginPasskeyVerification(scope)
     if (!beginResponse.success) {
-      throw new Error(beginResponse.message || 'Failed to start verification')
+      throw new Error(
+        beginResponse.message || i18next.t('Failed to start verification')
+      )
     }
 
     const publicKey = prepareCredentialRequestOptions(
       beginResponse.data?.options ?? beginResponse.data
     )
+    const flowToken = beginResponse.data?.flow_token
+    if (!flowToken) {
+      throw new Error(i18next.t('Verification flow expired'))
+    }
 
     const credential = (await navigator.credentials.get({
       publicKey,
     })) as PublicKeyCredential | null
 
     if (!credential) {
-      throw new Error('Passkey verification was cancelled')
+      throw new Error(i18next.t('Passkey verification was cancelled'))
     }
 
     const assertion = buildAssertionResult(credential)
     if (!assertion) {
-      throw new Error('Unable to build Passkey assertion')
+      throw new Error(i18next.t('Unable to build Passkey assertion'))
     }
 
-    const finishResponse = await finishPasskeyVerification(assertion)
+    const finishResponse = await finishPasskeyVerification(flowToken, assertion)
     if (!finishResponse.success) {
-      throw new Error(finishResponse.message || 'Passkey verification failed')
-    }
-
-    const verifyResponse = await api.post('/api/verify', {
-      method: 'passkey',
-    })
-
-    if (!verifyResponse.data?.success) {
       throw new Error(
-        verifyResponse.data?.message || 'Failed to complete verification'
+        finishResponse.message || i18next.t('Passkey verification failed')
       )
     }
+
+    if (!finishResponse.data?.proof_token) {
+      throw new Error(i18next.t('Verification proof was not returned'))
+    }
+    return finishResponse.data
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'NotAllowedError') {
-      throw new Error('Passkey verification was cancelled or timed out', {
-        cause: error,
-      })
+      throw new Error(
+        i18next.t('Passkey verification was cancelled or timed out'),
+        { cause: error }
+      )
     }
     if (error instanceof DOMException && error.name === 'InvalidStateError') {
       throw new Error(
-        'Passkey verification is not available in the current state',
+        i18next.t('Passkey verification is not available in the current state'),
         { cause: error }
       )
     }

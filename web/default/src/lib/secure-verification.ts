@@ -42,6 +42,11 @@ export function isVerificationRequiredError(
     'VERIFICATION_REQUIRED',
     'VERIFICATION_EXPIRED',
     'VERIFICATION_INVALID',
+    'SECURITY_PROOF_REQUIRED',
+    'SECURITY_PROOF_EXPIRED',
+    'SECURITY_PROOF_INVALID',
+    'SECURITY_PROOF_SCOPE_MISMATCH',
+    'SECURITY_PROOF_METHOD_MISMATCH',
   ])
 
   return verificationCodes.has(code)
