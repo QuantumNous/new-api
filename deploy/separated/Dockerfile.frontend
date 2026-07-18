@@ -1,0 +1,45 @@
+# Frontend-only image: builds web/default and serves via non-root Nginx with same-origin API proxy.
+# Build context MUST be the authoritative repository root (D:\newapi\src).
+
+FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder
+
+WORKDIR /build/web
+COPY web/package.json web/bun.lock ./
+COPY web/default/package.json ./default/package.json
+COPY web/classic/package.json ./classic/package.json
+RUN bun install --frozen-lockfile
+COPY ./web/default ./default
+COPY ./VERSION /build/VERSION
+RUN test -s /build/VERSION \
+    && cd default \
+    && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
+
+# nginxinc unprivileged image listens on 8080 and runs as non-root by default.
+# Pin major.minor; digest may be tightened once CI can resolve it on the build host.
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+
+USER root
+RUN apk add --no-cache curl gettext \
+    && mkdir -p /etc/nginx/templates /var/log/nginx \
+    && chown -R nginx:nginx /etc/nginx /var/cache/nginx /var/log/nginx /usr/share/nginx/html
+
+COPY --from=builder /build/web/default/dist /usr/share/nginx/html
+COPY deploy/separated/nginx.conf.template /etc/nginx/templates/nginx.conf.template
+COPY deploy/separated/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod 755 /docker-entrypoint.sh \
+    && chown -R nginx:nginx /usr/share/nginx/html
+
+USER nginx
+ENV BACKEND_UPSTREAM=backend:3000 \
+    NGINX_PORT=8080 \
+    SERVER_NAME=_ \
+    CLIENT_MAX_BODY_SIZE=100m \
+    PROXY_CONNECT_TIMEOUT=60s \
+    PROXY_SEND_TIMEOUT=3600s \
+    PROXY_READ_TIMEOUT=3600s
+
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -fsS "http://127.0.0.1:${NGINX_PORT}/frontend-healthz" | grep -q '"status":"ok"'
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

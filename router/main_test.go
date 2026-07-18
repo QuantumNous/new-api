@@ -25,6 +25,66 @@ func TestParsePlane(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestParseFrontendMode 验证前端交付模式的兼容默认值与非法值拒绝逻辑。
+func TestParseFrontendMode(t *testing.T) {
+	for input, expected := range map[string]frontendMode{
+		"":         frontendModeAuto,
+		"AUTO":     frontendModeAuto,
+		"embedded": frontendModeEmbedded,
+		"redirect": frontendModeRedirect,
+		"disabled": frontendModeDisabled,
+	} {
+		actual, err := parseFrontendMode(input)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	}
+	_, err := parseFrontendMode("static")
+	require.Error(t, err)
+}
+
+// TestFrontendModeRequiresAssetsOrExplicitExternalDelivery 验证纯后端构建不会误入嵌入资源路径。
+func TestFrontendModeRequiresAssetsOrExplicitExternalDelivery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Setenv("FRONTEND_MODE", "embedded")
+	err := SetRouterForPlane(gin.New(), ThemeAssets{}, PlaneManagement)
+	require.ErrorContains(t, err, "embedded frontend assets are unavailable")
+
+	t.Setenv("FRONTEND_MODE", "disabled")
+	require.NoError(t, SetRouterForPlane(gin.New(), ThemeAssets{}, PlaneManagement))
+}
+
+// TestExplicitFrontendRedirectWorksOnMaster 验证明示 redirect 可覆盖旧版 master 自动嵌入行为。
+func TestExplicitFrontendRedirectWorksOnMaster(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousMaster := common.IsMasterNode
+	common.IsMasterNode = true
+	t.Cleanup(func() { common.IsMasterNode = previousMaster })
+	t.Setenv("FRONTEND_MODE", "redirect")
+	t.Setenv("FRONTEND_BASE_URL", "https://console.example/")
+
+	engine := gin.New()
+	require.NoError(t, SetRouterForPlane(engine, ThemeAssets{}, PlaneManagement))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/settings?tab=security", nil)
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusMovedPermanently, recorder.Code)
+	require.Equal(t, "https://console.example/settings?tab=security", recorder.Header().Get("Location"))
+}
+
+// TestFrontendRedirectRejectsNonOriginURL 验证跳转配置不能携带路径或非 HTTP(S) 协议。
+func TestFrontendRedirectRejectsNonOriginURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Setenv("FRONTEND_MODE", "redirect")
+
+	t.Setenv("FRONTEND_BASE_URL", "https://console.example/admin")
+	require.Error(t, SetRouterForPlane(gin.New(), ThemeAssets{}, PlaneManagement))
+
+	t.Setenv("FRONTEND_BASE_URL", "javascript:alert(1)")
+	require.Error(t, SetRouterForPlane(gin.New(), ThemeAssets{}, PlaneManagement))
+}
+
 func TestSetRouterForPlaneIsolatesRelayAndManagementRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	hasRoute := func(engine *gin.Engine, method, path string) bool {

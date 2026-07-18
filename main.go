@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 	"log"
@@ -40,18 +38,6 @@ import (
 
 	_ "net/http/pprof"
 )
-
-//go:embed web/default/dist
-var buildFS embed.FS
-
-//go:embed web/default/dist/index.html
-var indexPage []byte
-
-//go:embed web/classic/dist
-var classicBuildFS embed.FS
-
-//go:embed web/classic/dist/index.html
-var classicIndexPage []byte
 
 func main() {
 	startTime := time.Now()
@@ -262,16 +248,9 @@ func main() {
 	})
 	server.Use(sessions.Sessions("session", store))
 
-	InjectUmamiAnalytics()
-	InjectGoogleAnalytics()
-
 	// 设置路由
-	if err := router.SetRouterForPlane(server, router.ThemeAssets{
-		DefaultBuildFS:   buildFS,
-		DefaultIndexPage: indexPage,
-		ClassicBuildFS:   classicBuildFS,
-		ClassicIndexPage: classicIndexPage,
-	}, plane); err != nil {
+	// 统一通过构建适配器取得前端资源，使后端镜像可以选择完全不嵌入静态文件。
+	if err := router.SetRouterForPlane(server, prepareFrontendAssets(), plane); err != nil {
 		common.FatalLog("failed to configure router: " + err.Error())
 		return
 	}
@@ -323,51 +302,6 @@ func newHTTPServer(addr string, handler http.Handler) *http.Server {
 		IdleTimeout:       time.Duration(common.GetEnvOrDefault("HTTP_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
 		MaxHeaderBytes:    common.GetEnvOrDefault("HTTP_MAX_HEADER_BYTES", 1<<20),
 	}
-}
-
-func InjectUmamiAnalytics() {
-	analyticsInjectBuilder := &strings.Builder{}
-	if os.Getenv("UMAMI_WEBSITE_ID") != "" {
-		umamiSiteID := os.Getenv("UMAMI_WEBSITE_ID")
-		umamiScriptURL := os.Getenv("UMAMI_SCRIPT_URL")
-		if umamiScriptURL == "" {
-			umamiScriptURL = "https://analytics.umami.is/script.js"
-		}
-		analyticsInjectBuilder.WriteString("<script defer src=\"")
-		analyticsInjectBuilder.WriteString(umamiScriptURL)
-		analyticsInjectBuilder.WriteString("\" data-website-id=\"")
-		analyticsInjectBuilder.WriteString(umamiSiteID)
-		analyticsInjectBuilder.WriteString("\"></script>")
-	}
-	analyticsInjectBuilder.WriteString("<!--Umami QuantumNous-->\n")
-	analyticsInject := []byte(analyticsInjectBuilder.String())
-	placeholder := []byte("<!--umami-->\n")
-	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
-	classicIndexPage = bytes.ReplaceAll(classicIndexPage, placeholder, analyticsInject)
-}
-
-func InjectGoogleAnalytics() {
-	analyticsInjectBuilder := &strings.Builder{}
-	if os.Getenv("GOOGLE_ANALYTICS_ID") != "" {
-		gaID := os.Getenv("GOOGLE_ANALYTICS_ID")
-		// Google Analytics 4 (gtag.js)
-		analyticsInjectBuilder.WriteString("<script async src=\"https://www.googletagmanager.com/gtag/js?id=")
-		analyticsInjectBuilder.WriteString(gaID)
-		analyticsInjectBuilder.WriteString("\"></script>")
-		analyticsInjectBuilder.WriteString("<script>")
-		analyticsInjectBuilder.WriteString("window.dataLayer = window.dataLayer || [];")
-		analyticsInjectBuilder.WriteString("function gtag(){dataLayer.push(arguments);}")
-		analyticsInjectBuilder.WriteString("gtag('js', new Date());")
-		analyticsInjectBuilder.WriteString("gtag('config', '")
-		analyticsInjectBuilder.WriteString(gaID)
-		analyticsInjectBuilder.WriteString("');")
-		analyticsInjectBuilder.WriteString("</script>")
-	}
-	analyticsInjectBuilder.WriteString("<!--Google Analytics QuantumNous-->\n")
-	analyticsInject := []byte(analyticsInjectBuilder.String())
-	placeholder := []byte("<!--Google Analytics-->\n")
-	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
-	classicIndexPage = bytes.ReplaceAll(classicIndexPage, placeholder, analyticsInject)
 }
 
 func InitResources() error {

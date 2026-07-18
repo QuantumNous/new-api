@@ -49,10 +49,19 @@ jobs:
       - name: Build
         run: go build -trimpath -buildvcs=true ./...
 
+      - name: Build pure backend without embedded frontend
+        # frontend_external excludes //go:embed web/*/dist so the backend can ship without Bun assets.
+        run: go build -trimpath -buildvcs=true -tags frontend_external .
+
       - name: Test
         env:
           GOSUMDB: sum.golang.org
         run: go test -count=1 ./...
+
+      - name: Test pure backend package with frontend_external
+        env:
+          GOSUMDB: sum.golang.org
+        run: go test -count=1 -tags frontend_external .
 
       - name: Vet
         run: go vet ./...
@@ -122,5 +131,28 @@ jobs:
       - name: Check out
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Build pinned image
+      - name: Build pinned integrated image
         run: docker build --tag new-api:quality .
+
+      - name: Build pure backend image
+        run: docker build -f Dockerfile.backend --tag new-api-backend:quality .
+
+      - name: Build separated frontend image
+        run: docker build -f deploy/separated/Dockerfile.frontend --tag new-api-frontend:quality .
+
+      - name: Validate frontend Nginx configuration
+        # Render the template with defaults and run nginx -t inside the unprivileged image.
+        run: |
+          docker run --rm --entrypoint /bin/sh new-api-frontend:quality -c '
+            set -eu
+            export BACKEND_UPSTREAM=backend:3000
+            export NGINX_PORT=8080
+            export SERVER_NAME=_
+            export CLIENT_MAX_BODY_SIZE=100m
+            export PROXY_CONNECT_TIMEOUT=60s
+            export PROXY_SEND_TIMEOUT=3600s
+            export PROXY_READ_TIMEOUT=3600s
+            envsubst '\''${BACKEND_UPSTREAM} ${NGINX_PORT} ${SERVER_NAME} ${CLIENT_MAX_BODY_SIZE} ${PROXY_CONNECT_TIMEOUT} ${PROXY_SEND_TIMEOUT} ${PROXY_READ_TIMEOUT}'\'' \
+              < /etc/nginx/templates/nginx.conf.template > /tmp/nginx-test.conf
+            nginx -t -c /tmp/nginx-test.conf
+          '
