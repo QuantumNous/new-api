@@ -35,7 +35,7 @@ jobs:
       - name: Build embedded frontend assets
         working-directory: web
         env:
-        DISABLE_ESLINT_PLUGIN: 'true'
+          DISABLE_ESLINT_PLUGIN: 'true'
         run: |
           bun install --frozen-lockfile
           (cd default && bun run build)
