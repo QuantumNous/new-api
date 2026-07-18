@@ -218,13 +218,17 @@ func CalculateImageTaskQuotaWithCount(task *model.Task, usage *dto.Usage, actual
 		},
 	}
 	priceData.ReplaceOtherRatios(billing.OtherRatios)
+	billingRequestInput, err := billing.ResolveBillingRequestInput()
+	if err != nil {
+		return 0, nil, fmt.Errorf("decrypt task billing request input: %w", err)
+	}
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName:       billing.OriginModelName,
 		StartTime:             time.Now(),
 		FinalPreConsumedQuota: task.Quota,
 		PriceData:             priceData,
 		TieredBillingSnapshot: billing.TieredBillingSnapshot,
-		BillingRequestInput:   billing.BillingRequestInput,
+		BillingRequestInput:   billingRequestInput,
 	}
 	billingUsage := effectiveBillingUsage(usage)
 	summary := calculateTextQuotaSummary(&gin.Context{}, relayInfo, billingUsage)

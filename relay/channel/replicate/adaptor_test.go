@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -120,6 +121,110 @@ func TestConvertImageRequestAcceptsMaximumNestedNumOutputs(t *testing.T) {
 	input, ok := payload["input"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, float64(dto.MaxImageN), input["num_outputs"])
+}
+
+func TestConvertImageRequestRejectsUnifiedImagesInsteadOfDroppingThem(t *testing.T) {
+	request := dto.ImageRequest{
+		Model:  ModelFlux11Pro,
+		Prompt: "restyle the source",
+		Images: json.RawMessage(`["https://cdn.example.com/inputs/source.png"]`),
+	}
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesGenerations,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: ModelFlux11Pro,
+		},
+	}
+
+	_, err := (&Adaptor{}).ConvertImageRequest(
+		gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()),
+		info,
+		request,
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not support unified image inputs")
+}
+
+func TestConvertImageRequestRejectsUnsupportedEditInputs(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		request dto.ImageRequest
+		message string
+	}{
+		{
+			name: "multiple images",
+			request: dto.ImageRequest{
+				Model:  ModelFlux11Pro,
+				Prompt: "restyle both sources",
+				Images: json.RawMessage(`["https://cdn.example.com/one.png","https://cdn.example.com/two.png"]`),
+			},
+			message: "only one input image",
+		},
+		{
+			name: "mask",
+			request: dto.ImageRequest{
+				Model:  ModelFlux11Pro,
+				Prompt: "restyle the masked area",
+				Images: json.RawMessage(`["https://cdn.example.com/source.png"]`),
+				Mask:   json.RawMessage(`"https://cdn.example.com/mask.png"`),
+			},
+			message: "do not support masks",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				RelayMode: relayconstant.RelayModeImagesEdits,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					UpstreamModelName: ModelFlux11Pro,
+				},
+			}
+
+			_, err := (&Adaptor{}).ConvertImageRequest(
+				gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()),
+				info,
+				test.request,
+			)
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), test.message)
+		})
+	}
+}
+
+func TestValidateImageEditInputsRejectsUnsupportedMultipartShapes(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		form    *multipart.Form
+		message string
+	}{
+		{
+			name: "multiple images",
+			form: &multipart.Form{Value: map[string][]string{
+				"image[]": {"https://cdn.example.com/one.png", "https://cdn.example.com/two.png"},
+			}},
+			message: "only one input image",
+		},
+		{
+			name: "mask",
+			form: &multipart.Form{File: map[string][]*multipart.FileHeader{
+				"image": {{Filename: "source.png"}},
+				"mask":  {{Filename: "mask.png"}},
+			}},
+			message: "do not support masks",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+			c.Request.MultipartForm = test.form
+
+			err := ValidateImageEditInputs(c, dto.ImageRequest{})
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), test.message)
+		})
+	}
 }
 
 func TestDoResponsePollsStartingPrediction(t *testing.T) {

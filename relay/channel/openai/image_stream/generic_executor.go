@@ -16,11 +16,26 @@ import (
 // PassThroughBody is optional; when present it is forwarded without conversion,
 // matching the synchronous image relay behavior.
 type GenericImageExecutionRequest struct {
-	RelayInfo        *relaycommon.RelayInfo
-	ImageRequest     *dto.ImageRequest
-	PassThroughBody  []byte
-	UpstreamResponse *GenericImageUpstreamResponse
-	Checkpoint       func(*GenericImageUpstreamResponse) error
+	RelayInfo          *relaycommon.RelayInfo
+	ImageRequest       *dto.ImageRequest
+	PassThroughBody    []byte
+	UpstreamResponse   *GenericImageUpstreamResponse
+	Checkpoint         func(*GenericImageUpstreamResponse) error
+	BeforeProviderCall func() error
+	// BeforeResponseRead is called after a successful provider response arrives
+	// and immediately before its potentially large body is materialized. Async
+	// workers use it to acquire the output-memory lease without serializing the
+	// upstream generation wait itself.
+	BeforeResponseRead func() error
+	// AfterResponseCheckpoint runs after the provider response is durably
+	// checkpointed and before provider-specific response handling or polling.
+	// The byte count lets workers release a lease held only for a small task-ID
+	// checkpoint while retaining it for a large immediate image response.
+	AfterResponseCheckpoint func(int)
+	// BeforeResultWrite runs before the adaptor writes its normalized final image
+	// response. Polling adaptors therefore reacquire the output lease only after
+	// their upstream generation wait completes.
+	BeforeResultWrite func() error
 }
 
 // GenericImageUpstreamResponse is the provider response captured before an
@@ -33,6 +48,11 @@ type GenericImageUpstreamResponse struct {
 }
 
 var ErrGenericImageCheckpoint = errors.New("persist generic image provider response")
+
+// ErrGenericImageDefinitiveResponse marks an explicit non-success HTTP response.
+// The provider rejected the request, so the worker may safely clear its pre-call
+// fence and apply the normal status-based retry policy.
+var ErrGenericImageDefinitiveResponse = errors.New("provider returned a definitive image response")
 
 // GenericImageExecutionResult is the normalized output of a regular image
 // adaptor before durable materialization and object-storage delivery.

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service"
 )
@@ -25,10 +26,16 @@ type genericImageHTTPClient interface {
 
 type genericImagePutFunc func(context.Context, []byte, string) (string, string, error)
 
+type stagedGenericImageSource struct {
+	storage common.BodyStorage
+	format  string
+}
+
 type genericImageMaterializationLimits struct {
-	maxImages     int
-	maxImageBytes int64
-	maxTotalBytes int64
+	maxImages      int
+	maxImageBytes  int64
+	maxTotalBytes  int64
+	allowedFormats map[string]struct{}
 }
 
 var errEmptyGenericImageData = errors.New("image data is empty")
@@ -42,6 +49,7 @@ var defaultGenericImageMaterializationLimits = genericImageMaterializationLimits
 var defaultGenericImageStorageLimits = genericImageMaterializationLimits{
 	maxImages:     dto.MaxImageN,
 	maxImageBytes: maxStoredGenericImageBytes,
+	maxTotalBytes: maxStoredGenericImageTotalBytes,
 }
 
 var getGenericImageSourceClient = func() genericImageHTTPClient {
@@ -94,8 +102,42 @@ func materializeGenericImageResponseWithDependencies(
 	client genericImageHTTPClient,
 	limits genericImageMaterializationLimits,
 ) (*dto.ImageResponse, error) {
-	materialized, _, _, err := readGenericImageResponseSources(ctx, response, client, limits)
-	return materialized, err
+	if err := validateGenericImageResponse(response, client, limits); err != nil {
+		return nil, err
+	}
+	materialized := &dto.ImageResponse{
+		Created: response.Created,
+		Data:    make([]dto.ImageData, 0, len(response.Data)),
+	}
+	var totalBytes int64
+	for index, item := range response.Data {
+		remainingBytes := limits.maxImageBytes
+		if limits.maxTotalBytes > 0 {
+			remainingBytes = limits.maxTotalBytes - totalBytes
+			if remainingBytes <= 0 {
+				return nil, permanentGenericImageStorageError(fmt.Errorf("image response exceeds %d total bytes", limits.maxTotalBytes))
+			}
+		}
+		raw, err := readGenericImageSource(ctx, client, item, limits.maxImageBytes, remainingBytes)
+		if err != nil {
+			return nil, wrapGenericImageStorageError(index, err)
+		}
+		format, ok := strictGenericImageFormat(raw)
+		if !ok {
+			return nil, permanentGenericImageStorageError(fmt.Errorf("image data[%d] has unsupported magic bytes", index))
+		}
+		if len(limits.allowedFormats) > 0 {
+			if _, allowed := limits.allowedFormats[format]; !allowed {
+				return nil, permanentGenericImageStorageError(fmt.Errorf("image data[%d] format %s is not supported for this operation", index, format))
+			}
+		}
+		totalBytes += int64(len(raw))
+		materialized.Data = append(materialized.Data, dto.ImageData{
+			B64Json:       base64.StdEncoding.EncodeToString(raw),
+			RevisedPrompt: item.RevisedPrompt,
+		})
+	}
+	return materialized, nil
 }
 
 func buildStoredGenericImageResponseWithDependencies(
@@ -108,48 +150,26 @@ func buildStoredGenericImageResponseWithDependencies(
 	if putImage == nil {
 		return nil, permanentGenericImageStorageError(errors.New("image object storage uploader is required"))
 	}
+	staged, err := stageGenericImageSources(ctx, response, client, limits)
+	if err != nil {
+		return nil, &genericImageSourceError{err: err}
+	}
+	defer closeStagedGenericImageSources(staged)
 
-	if response == nil {
-		return nil, permanentGenericImageStorageError(errors.New("image response is required"))
-	}
-	if len(response.Data) == 0 {
-		return nil, permanentGenericImageStorageError(errors.New("image response contains no data"))
-	}
-	if len(response.Data) > limits.maxImages {
-		return nil, permanentGenericImageStorageError(fmt.Errorf("image response contains %d images (max %d)", len(response.Data), limits.maxImages))
-	}
-	if client == nil {
-		return nil, permanentGenericImageStorageError(errors.New("image fetch client is required"))
-	}
-
-	// Process one image at a time so a valid multi-image request is not forced
-	// through a single aggregate base64/SQL artifact. Provider metadata is
-	// intentionally omitted because it commonly repeats temporary URLs or image
-	// base64 that must not appear in the durable result.
+	// Every source is validated and spooled to disk before the first PUT. Uploads
+	// then read one spool at a time, preserving the no-invalid-later-source
+	// guarantee without retaining all decoded images or fetching a provider URL
+	// twice (temporary result URLs may be single-use or expire immediately).
 	stored := &dto.ImageResponse{
 		Created: response.Created,
 		Data:    make([]dto.ImageData, 0, len(response.Data)),
 	}
-	var totalBytes int64
-	for index, item := range response.Data {
-		remainingBytes := limits.maxImageBytes
-		if limits.maxTotalBytes > 0 {
-			remainingBytes = limits.maxTotalBytes - totalBytes
-			if remainingBytes <= 0 {
-				return nil, &genericImageSourceError{err: permanentGenericImageStorageError(fmt.Errorf("image response exceeds %d total bytes", limits.maxTotalBytes))}
-			}
-		}
-		raw, err := readGenericImageSource(ctx, client, item, limits.maxImageBytes, remainingBytes)
+	for index, source := range staged {
+		raw, err := source.storage.Bytes()
 		if err != nil {
-			return nil, &genericImageSourceError{err: wrapGenericImageStorageError(index, err)}
+			return nil, &genericImageSourceError{err: &imageStorageError{err: fmt.Errorf("read spooled image data[%d]: %w", index, err)}}
 		}
-		format, ok := strictGenericImageFormat(raw)
-		if !ok {
-			return nil, &genericImageSourceError{err: permanentGenericImageStorageError(fmt.Errorf("image data[%d] has unsupported magic bytes", index))}
-		}
-		totalBytes += int64(len(raw))
-
-		url, _, err := putImage(ctx, raw, format)
+		url, _, err := putImage(ctx, raw, source.format)
 		if err != nil {
 			var putErr *r2PutError
 			return nil, &imageStorageError{
@@ -162,64 +182,95 @@ func buildStoredGenericImageResponseWithDependencies(
 		}
 		stored.Data = append(stored.Data, dto.ImageData{
 			Url:           url,
-			RevisedPrompt: item.RevisedPrompt,
+			RevisedPrompt: response.Data[index].RevisedPrompt,
 		})
 	}
 
 	return stored, nil
 }
 
-func readGenericImageResponseSources(
+func stageGenericImageSources(
 	ctx context.Context,
 	response *dto.ImageResponse,
 	client genericImageHTTPClient,
 	limits genericImageMaterializationLimits,
-) (*dto.ImageResponse, [][]byte, []string, error) {
-	if response == nil {
-		return nil, nil, nil, permanentGenericImageStorageError(errors.New("image response is required"))
-	}
-	if len(response.Data) == 0 {
-		return nil, nil, nil, permanentGenericImageStorageError(errors.New("image response contains no data"))
-	}
-	if len(response.Data) > limits.maxImages {
-		return nil, nil, nil, permanentGenericImageStorageError(fmt.Errorf("image response contains %d images (max %d)", len(response.Data), limits.maxImages))
-	}
-	if client == nil {
-		return nil, nil, nil, permanentGenericImageStorageError(errors.New("image fetch client is required"))
+) ([]stagedGenericImageSource, error) {
+	if err := validateGenericImageResponse(response, client, limits); err != nil {
+		return nil, err
 	}
 
-	// Provider metadata is intentionally omitted from durable async results. It
-	// commonly embeds temporary provider URLs or a second copy of image base64,
-	// neither of which belongs in the object-storage-only response contract.
-	materialized := &dto.ImageResponse{
-		Created: response.Created,
-		Data:    make([]dto.ImageData, 0, len(response.Data)),
-	}
-	sources := make([][]byte, 0, len(response.Data))
-	formats := make([]string, 0, len(response.Data))
+	staged := make([]stagedGenericImageSource, 0, len(response.Data))
 	var totalBytes int64
 	for index, item := range response.Data {
-		remainingBytes := limits.maxTotalBytes - totalBytes
-		if remainingBytes <= 0 {
-			return nil, nil, nil, permanentGenericImageStorageError(fmt.Errorf("image response exceeds %d total bytes", limits.maxTotalBytes))
-		}
-		raw, err := readGenericImageSource(ctx, client, item, limits.maxImageBytes, remainingBytes)
+		raw, format, err := readValidatedGenericImageSource(ctx, client, item, index, totalBytes, limits)
 		if err != nil {
-			return nil, nil, nil, wrapGenericImageStorageError(index, err)
+			closeStagedGenericImageSources(staged)
+			return nil, err
 		}
-		format, ok := strictGenericImageFormat(raw)
-		if !ok {
-			return nil, nil, nil, permanentGenericImageStorageError(fmt.Errorf("image data[%d] has unsupported magic bytes", index))
+		storage, err := common.CreateDiskBodyStorageFromReader(bytes.NewReader(raw), int64(len(raw)))
+		if err != nil {
+			closeStagedGenericImageSources(staged)
+			return nil, &imageStorageError{err: fmt.Errorf("spool image data[%d]: %w", index, err)}
 		}
 		totalBytes += int64(len(raw))
-		sources = append(sources, raw)
-		formats = append(formats, format)
-		materialized.Data = append(materialized.Data, dto.ImageData{
-			B64Json:       base64.StdEncoding.EncodeToString(raw),
-			RevisedPrompt: item.RevisedPrompt,
-		})
+		staged = append(staged, stagedGenericImageSource{storage: storage, format: format})
 	}
-	return materialized, sources, formats, nil
+	return staged, nil
+}
+
+func closeStagedGenericImageSources(staged []stagedGenericImageSource) {
+	for _, source := range staged {
+		if source.storage != nil {
+			_ = source.storage.Close()
+		}
+	}
+}
+
+func readValidatedGenericImageSource(
+	ctx context.Context,
+	client genericImageHTTPClient,
+	item dto.ImageData,
+	index int,
+	totalBytes int64,
+	limits genericImageMaterializationLimits,
+) ([]byte, string, error) {
+	remainingBytes := limits.maxImageBytes
+	if limits.maxTotalBytes > 0 {
+		remainingBytes = limits.maxTotalBytes - totalBytes
+		if remainingBytes <= 0 {
+			return nil, "", permanentGenericImageStorageError(fmt.Errorf("image response exceeds %d total bytes", limits.maxTotalBytes))
+		}
+	}
+	raw, err := readGenericImageSource(ctx, client, item, limits.maxImageBytes, remainingBytes)
+	if err != nil {
+		return nil, "", wrapGenericImageStorageError(index, err)
+	}
+	format, ok := strictGenericImageFormat(raw)
+	if !ok {
+		return nil, "", permanentGenericImageStorageError(fmt.Errorf("image data[%d] has unsupported magic bytes", index))
+	}
+	if len(limits.allowedFormats) > 0 {
+		if _, allowed := limits.allowedFormats[format]; !allowed {
+			return nil, "", permanentGenericImageStorageError(fmt.Errorf("image data[%d] format %s is not supported for this operation", index, format))
+		}
+	}
+	return raw, format, nil
+}
+
+func validateGenericImageResponse(response *dto.ImageResponse, client genericImageHTTPClient, limits genericImageMaterializationLimits) error {
+	if response == nil {
+		return permanentGenericImageStorageError(errors.New("image response is required"))
+	}
+	if len(response.Data) == 0 {
+		return permanentGenericImageStorageError(errors.New("image response contains no data"))
+	}
+	if len(response.Data) > limits.maxImages {
+		return permanentGenericImageStorageError(fmt.Errorf("image response contains %d images (max %d)", len(response.Data), limits.maxImages))
+	}
+	if client == nil {
+		return permanentGenericImageStorageError(errors.New("image fetch client is required"))
+	}
+	return nil
 }
 
 func readGenericImageSource(ctx context.Context, client genericImageHTTPClient, item dto.ImageData, maxImageBytes, remainingBytes int64) ([]byte, error) {
@@ -243,7 +294,7 @@ func readGenericImageSource(ctx context.Context, client genericImageHTTPClient, 
 	request.Header.Set("Accept", "image/png,image/jpeg,image/webp,image/gif")
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, &imageStorageError{err: fmt.Errorf("fetch image URL: %w", err)}
+		return nil, &imageStorageError{err: fmt.Errorf("fetch image URL: %s", common.MaskSensitiveInfo(err.Error()))}
 	}
 	defer response.Body.Close()
 	if response.StatusCode/100 != 2 {

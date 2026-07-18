@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"time"
@@ -21,6 +23,12 @@ import (
 
 const KeyRequestBody = "key_request_body"
 const KeyBodyStorage = "key_body_storage"
+
+const asyncImageDataURIContentType = "application/x-new-api-image-data-uri"
+
+const keyAsyncImageMultipartStorage = "key_async_image_multipart_storage"
+
+const maxAsyncImageEditBodyBytes int64 = 64 << 20
 
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
@@ -115,6 +123,12 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 		maxMB = 128 // 默认 128MB
 	}
 	maxBytes := int64(maxMB) << 20
+	isAsyncImageEditMultipart := c.Request != nil &&
+		(c.Request.URL.Path == "/v1/images/edits" || c.Request.URL.Path == "/v1/edits") &&
+		strings.Contains(strings.ToLower(c.Request.Header.Get("Content-Type")), "multipart/form-data")
+	if isAsyncImageEditMultipart && maxBytes > maxAsyncImageEditBodyBytes {
+		maxBytes = maxAsyncImageEditBodyBytes
+	}
 
 	contentLength := c.Request.ContentLength
 
@@ -124,13 +138,19 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 	// 卡死，接近 Content-Length 则是尾部被截断。io.ReadAll 出错时会丢弃已读数据，
 	// 所以只能在这里数。
 	counter := &countingReader{r: c.Request.Body}
-	storage, err := CreateBodyStorageFromReader(counter, contentLength, maxBytes)
+	var storage BodyStorage
+	var err error
+	if isAsyncImageEditMultipart {
+		storage, err = CreateDiskBodyStorageFromReader(counter, maxBytes)
+	} else {
+		storage, err = CreateBodyStorageFromReader(counter, contentLength, maxBytes)
+	}
 	_ = c.Request.Body.Close()
 
 	if err != nil {
 		SetContextKey(c, constant.ContextKeyRequestBodyReadBytes, counter.n)
 		if IsRequestBodyTooLargeError(err) {
-			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
+			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxBytes>>20))
 		}
 		return nil, err
 	}
@@ -156,6 +176,16 @@ func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
 
 // CleanupBodyStorage 清理请求体存储（应在请求结束时调用）
 func CleanupBodyStorage(c *gin.Context) {
+	if c != nil && c.Request != nil && c.Request.MultipartForm != nil {
+		_ = c.Request.MultipartForm.RemoveAll()
+		c.Request.MultipartForm = nil
+	}
+	if storage, exists := c.Get(keyAsyncImageMultipartStorage); exists && storage != nil {
+		if bs, ok := storage.(BodyStorage); ok {
+			_ = bs.Close()
+		}
+		c.Set(keyAsyncImageMultipartStorage, nil)
+	}
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
 		if bs, ok := storage.(BodyStorage); ok {
 			bs.Close()
@@ -317,11 +347,10 @@ func init() {
 }
 
 func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
-	storage, err := GetBodyStorage(c)
-	if err != nil {
-		return nil, err
+	if c != nil && c.Request != nil && c.Request.MultipartForm != nil {
+		return c.Request.MultipartForm, nil
 	}
-	requestBody, err := storage.Bytes()
+	storage, err := GetBodyStorage(c)
 	if err != nil {
 		return nil, err
 	}
@@ -340,11 +369,28 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 		return nil, err
 	}
 
-	reader := multipart.NewReader(bytes.NewReader(requestBody), boundary)
-	form, err := reader.ReadForm(multipartMemoryLimit())
+	if _, err := storage.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	parseStorage := BodyStorage(storage)
+	parseBoundary := boundary
+	memoryLimit := multipartMemoryLimit()
+	if isAsyncImageEditMultipartRequest(c.Request) {
+		transformed, transformedBoundary, err := transformAsyncImageEditMultipart(storage, boundary)
+		if err != nil {
+			return nil, err
+		}
+		c.Set(keyAsyncImageMultipartStorage, transformed)
+		parseStorage = transformed
+		parseBoundary = transformedBoundary
+		memoryLimit = 0
+	}
+	reader := multipart.NewReader(ReaderOnly(parseStorage), parseBoundary)
+	form, err := reader.ReadForm(memoryLimit)
 	if err != nil {
 		return nil, err
 	}
+	c.Request.MultipartForm = form
 
 	// Reset request body
 	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
@@ -352,6 +398,89 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 	}
 	c.Request.Body = io.NopCloser(storage)
 	return form, nil
+}
+
+func isAsyncImageEditMultipartRequest(request *http.Request) bool {
+	return request != nil && request.URL != nil &&
+		(request.URL.Path == "/v1/images/edits" || request.URL.Path == "/v1/edits") &&
+		strings.Contains(strings.ToLower(request.Header.Get("Content-Type")), "multipart/form-data")
+}
+
+func transformAsyncImageEditMultipart(storage BodyStorage, boundary string) (BodyStorage, string, error) {
+	if _, err := storage.Seek(0, io.SeekStart); err != nil {
+		return nil, "", err
+	}
+	pipeReader, pipeWriter := io.Pipe()
+	writer := multipart.NewWriter(pipeWriter)
+	transformedBoundary := writer.Boundary()
+	writeErr := make(chan error, 1)
+	go func() {
+		reader := multipart.NewReader(ReaderOnly(storage), boundary)
+		var resultErr error
+		for {
+			part, err := reader.NextPart()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				resultErr = err
+				break
+			}
+			header := make(textproto.MIMEHeader, len(part.Header))
+			for key, values := range part.Header {
+				header[key] = append([]string(nil), values...)
+			}
+			partReader := bufio.NewReader(part)
+			prefix, _ := partReader.Peek(len("data:"))
+			fieldName := part.FormName()
+			isImageField := fieldName == "image" || fieldName == "image[]" || strings.HasPrefix(fieldName, "image[") || fieldName == "mask"
+			if part.FileName() == "" && isImageField && strings.EqualFold(string(prefix), "data:") {
+				header.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{
+					"name":     fieldName,
+					"filename": "input.data-uri",
+				}))
+				header.Set("Content-Type", asyncImageDataURIContentType)
+			}
+			target, err := writer.CreatePart(header)
+			if err == nil {
+				_, err = io.Copy(target, partReader)
+			}
+			closeErr := part.Close()
+			if err != nil {
+				resultErr = err
+				break
+			}
+			if closeErr != nil {
+				resultErr = closeErr
+				break
+			}
+		}
+		if resultErr == nil {
+			resultErr = writer.Close()
+		} else {
+			_ = writer.Close()
+		}
+		_ = pipeWriter.CloseWithError(resultErr)
+		writeErr <- resultErr
+		close(writeErr)
+	}()
+	transformed, err := CreateDiskBodyStorageFromReader(pipeReader, maxAsyncImageEditBodyBytes+(1<<20))
+	if err != nil {
+		_ = pipeReader.CloseWithError(err)
+	}
+	writerErr := <-writeErr
+	if err != nil {
+		return nil, "", fmt.Errorf("spool async image edit multipart: %w", err)
+	}
+	if writerErr != nil {
+		_ = transformed.Close()
+		return nil, "", fmt.Errorf("transform async image edit multipart: %w", writerErr)
+	}
+	return transformed, transformedBoundary, nil
+}
+
+func IsAsyncImageDataURIFile(header textproto.MIMEHeader) bool {
+	return strings.EqualFold(strings.TrimSpace(header.Get("Content-Type")), asyncImageDataURIContentType)
 }
 
 func processFormMap(formMap map[string]any, v any) error {

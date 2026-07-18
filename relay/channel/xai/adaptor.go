@@ -2,6 +2,7 @@ package xai
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -38,6 +39,11 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if imageURLs, err := request.ImageInputURLs(); err != nil {
+		return nil, fmt.Errorf("invalid unified image input: %w", err)
+	} else if len(imageURLs) > 0 {
+		return nil, fmt.Errorf("xai model %s does not support unified image inputs", request.Model)
+	}
 	xaiRequest := ImageRequest{
 		Model:          request.Model,
 		Prompt:         request.Prompt,

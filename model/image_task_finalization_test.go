@@ -1,12 +1,16 @@
 package model
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
@@ -79,7 +83,13 @@ func useImageTaskTestRedis(t *testing.T) *miniredis.Miniredis {
 
 func TestFinalizeImageTaskSuccessDeltaAndIdempotency(t *testing.T) {
 	truncateTables(t)
+	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "true")
 	user, token, channel, task := seedImageTaskBillingState(t, "success", 100)
+	task.PrivateData.BillingContext = &TaskBillingContext{BillingRequestInput: &billingexpr.RequestInput{
+		Headers: map[string]string{"X-Trace-Id": "finalization-trace-secret"},
+		Body:    []byte(`{"prompt":"finalization-prompt-secret"}`),
+	}}
+	require.NoError(t, DB.Model(task).Update("private_data", task.PrivateData).Error)
 	task.CheckpointData = []byte(`{"api_key":"must-not-survive-finalization"}`)
 	require.NoError(t, DB.Model(task).Update("checkpoint_data", task.CheckpointData).Error)
 	require.NoError(t, DB.Create(&ImageTaskArtifactChunk{
@@ -121,6 +131,12 @@ func TestFinalizeImageTaskSuccessDeltaAndIdempotency(t *testing.T) {
 	assert.Empty(t, stored.PrivateData.BillingFinalStatus)
 	assert.Zero(t, stored.PrivateData.BillingActualQuota)
 	assert.Empty(t, stored.CheckpointData)
+	require.NotNil(t, stored.PrivateData.BillingContext)
+	assert.Nil(t, stored.PrivateData.BillingContext.BillingRequestInput)
+	assert.Empty(t, stored.PrivateData.BillingContext.EncryptedBillingRequestInput)
+	var storedPrivateData []byte
+	require.NoError(t, DB.Raw("SELECT private_data FROM tasks WHERE id = ?", task.ID).Row().Scan(&storedPrivateData))
+	assert.NotContains(t, string(storedPrivateData), "billing_request_input_encrypted")
 	var artifactChunks int64
 	require.NoError(t, DB.Model(&ImageTaskArtifactChunk{}).Where("task_id = ?", task.TaskID).Count(&artifactChunks).Error)
 	assert.Zero(t, artifactChunks)
@@ -407,6 +423,116 @@ func TestFinalizeImageTaskRedisFirstPrepareCreatesMarker(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 860, cachedToken.RemainQuota)
 	assert.Equal(t, "committed", redisServer.HGet("billing:image-task-cache:"+task.TaskID, "state"))
+}
+
+func TestFinalizeImageTaskRecoversAfterCommitMarkerExpires(t *testing.T) {
+	truncateTables(t)
+	redisServer := useImageTaskTestRedis(t)
+
+	user, token, _, task := seedImageTaskBillingState(t, "expired-commit-marker", 100)
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 140)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	coordinator := imageTaskCacheCoordinator{
+		prepare: prepareImageTaskCacheAdjustment,
+		commit: func(imageTaskCacheAdjustment) error {
+			return errors.New("injected stop after billing database commit")
+		},
+	}
+	first, err := finalizeImageTaskWithCache(task.TaskID, coordinator)
+	require.ErrorContains(t, err, "injected stop after billing database commit")
+	assert.Nil(t, first)
+
+	var stored Task
+	require.NoError(t, DB.First(&stored, task.ID).Error)
+	assert.Equal(t, TaskStatus(TaskStatusFinalizing), stored.Status)
+	assert.True(t, stored.PrivateData.BillingDBApplied)
+	markerKey := "billing:image-task-cache:" + task.TaskID
+	assert.Equal(t, "prepared", redisServer.HGet(markerKey, "state"))
+	assert.Equal(t, "-40", redisServer.HGet(getUserCacheKey(user.Id), "ImageTaskBilling:"+task.TaskID))
+	assert.Equal(t, "-40", redisServer.HGet("token:"+common.GenerateHMAC(token.Key), "ImageTaskBilling:"+task.TaskID))
+
+	// Cache activity can extend shared user/token hashes beyond this task's
+	// marker. Expire only the marker to reproduce that recovery boundary.
+	redisServer.SetTTL(markerKey, time.Second)
+	redisServer.FastForward(2 * time.Second)
+	assert.False(t, redisServer.Exists(markerKey))
+	assert.True(t, redisServer.Exists(getUserCacheKey(user.Id)))
+	assert.True(t, redisServer.Exists("token:"+common.GenerateHMAC(token.Key)))
+
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+	assert.Equal(t, TaskStatus(TaskStatusSuccess), finalized.Task.Status)
+	assert.Empty(t, redisServer.HGet(getUserCacheKey(user.Id), "ImageTaskBilling:"+task.TaskID))
+	assert.Empty(t, redisServer.HGet("token:"+common.GenerateHMAC(token.Key), "ImageTaskBilling:"+task.TaskID))
+	assert.False(t, redisServer.Exists(imageTaskUserQuotaPinsKey(user.Id)))
+	assert.False(t, redisServer.Exists(imageTaskTokenQuotaPinsKey(common.GenerateHMAC(token.Key))))
+
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 860, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 860, cachedToken.RemainQuota)
+}
+
+func TestFinalizeImageTaskMissingTagPreservesConcurrentCacheDelta(t *testing.T) {
+	truncateTables(t)
+	redisServer := useImageTaskTestRedis(t)
+
+	user, token, _, task := seedImageTaskBillingState(t, "missing-tag-concurrent-delta", 100)
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 140)
+	require.NoError(t, err)
+	require.True(t, won)
+	coordinator := imageTaskCacheCoordinator{
+		prepare: prepareImageTaskCacheAdjustment,
+		commit: func(imageTaskCacheAdjustment) error {
+			return errors.New("injected stop after billing database commit")
+		},
+	}
+	first, err := finalizeImageTaskWithCache(task.TaskID, coordinator)
+	require.ErrorContains(t, err, "injected stop after billing database commit")
+	assert.Nil(t, first)
+
+	markerKey := "billing:image-task-cache:" + task.TaskID
+	userCacheKey := getUserCacheKey(user.Id)
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	tokenCacheKey := "token:" + tokenHMAC
+	taskField := "ImageTaskBilling:" + task.TaskID
+	ctx := context.Background()
+	require.NoError(t, common.RDB.HDel(ctx, userCacheKey, taskField).Err())
+	require.NoError(t, common.RDB.HDel(ctx, tokenCacheKey, taskField).Err())
+	require.NoError(t, common.RDB.HIncrBy(ctx, userCacheKey, "Quota", -7).Err())
+	require.NoError(t, common.RDB.HIncrBy(ctx, tokenCacheKey, constant.TokenFiledRemainQuota, -7).Err())
+	require.NoError(t, common.RDB.Del(ctx, markerKey).Err())
+
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.Error(t, err)
+	assert.Nil(t, finalized)
+	permanent, ok := IsPermanentImageTaskFinalizationError(err)
+	require.True(t, ok)
+	assert.True(t, permanent.BillingDBApplied)
+	assert.ErrorIs(t, permanent, errImageTaskQuotaCacheConflict)
+	var stored Task
+	require.NoError(t, DB.First(&stored, task.ID).Error)
+	assert.Equal(t, TaskStatus(TaskStatusFinalizing), stored.Status)
+	assert.True(t, stored.PrivateData.BillingDBApplied)
+	assert.True(t, redisServer.Exists(userCacheKey))
+	assert.True(t, redisServer.Exists(tokenCacheKey))
+	assert.Equal(t, "853", redisServer.HGet(userCacheKey, "Quota"))
+	assert.Equal(t, "853", redisServer.HGet(tokenCacheKey, constant.TokenFiledRemainQuota))
+	assert.Equal(t, fmt.Sprintf("%d", common.UserStatusDisabled), redisServer.HGet(userCacheKey, "Status"))
+	assert.Equal(t, fmt.Sprintf("%d", common.TokenStatusDisabled), redisServer.HGet(tokenCacheKey, "Status"))
+	userPinned, err := redisServer.SIsMember(imageTaskUserQuotaPinsKey(user.Id), task.TaskID)
+	require.NoError(t, err)
+	assert.True(t, userPinned)
+	tokenPinned, err := redisServer.SIsMember(imageTaskTokenQuotaPinsKey(tokenHMAC), task.TaskID)
+	require.NoError(t, err)
+	assert.True(t, tokenPinned)
+	assert.True(t, redisServer.Exists(imageTaskUserQuotaInvalidationKey(user.Id)))
+	assert.True(t, redisServer.Exists(imageTaskTokenQuotaInvalidationKey(tokenHMAC)))
 }
 
 func TestFinalizeImageTaskFlushesPendingQuotaBeforePositiveDelta(t *testing.T) {

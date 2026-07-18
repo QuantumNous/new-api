@@ -61,7 +61,7 @@ func DoWorkerRequestWithContext(ctx context.Context, req *WorkerRequest) (*http.
 
 func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response, err error) {
 	if system_setting.EnableWorker() {
-		common.SysLog(fmt.Sprintf("downloading file from worker: %s, reason: %s", originUrl, strings.Join(reason, ", ")))
+		common.SysLog(fmt.Sprintf("downloading file from worker: %s, reason: %s", common.MaskSensitiveInfo(originUrl), strings.Join(reason, ", ")))
 		req := &WorkerRequest{
 			URL: originUrl,
 			Key: system_setting.WorkerValidKey,

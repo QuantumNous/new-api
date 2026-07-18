@@ -1,7 +1,9 @@
 package image_stream
 
-// Entry point for gpt-image-* model requests on the /v1/images/{generations,edits}
-// classic OpenAI surface. Bypasses the standard adaptor.DoRequest path and
+// Legacy synchronous entry point for gpt-image-* requests on
+// /v1/images/edits. New text-to-image and image-to-image integrations use the
+// durable /v1/images/generations task path. This handler bypasses the standard
+// adaptor.DoRequest path and
 // instead:
 //
 //   1. Re-shapes the request into a /v1/responses + stream:true payload
@@ -51,11 +53,9 @@ func ShouldRunAsync(_ string, _ *bool) bool {
 	return true
 }
 
-// HandleImageStream is the entry point for both /v1/images/generations and
-// /v1/images/edits when the request model matches the gpt-image-* family.
-// The two relay modes share everything except request building, so the
-// outer flow (early flush → upstream POST → SSE aggregate → envelope →
-// billing) is centralized below.
+// HandleImageStream retains the legacy multipart edit implementation. The
+// generation branch remains for compatibility with direct internal callers;
+// HTTP generation requests are submitted through SubmitAsyncImage.
 func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ImageRequest) *types.NewAPIError {
 	if info.ChannelBaseUrl == "" {
 		return types.NewError(
@@ -76,7 +76,16 @@ func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Ima
 				types.ErrOptionWithSkipRetry(),
 			)
 		}
-		upstreamReq = buildGenerationsRequest(req, info.UpstreamModelName)
+		var buildErr error
+		upstreamReq, buildErr = buildGenerationsRequestWithError(req, info.UpstreamModelName)
+		if buildErr != nil {
+			return types.NewErrorWithStatusCode(
+				buildErr,
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
 
 	case relayconstant.RelayModeImagesEdits:
 		if !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {

@@ -461,6 +461,9 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 			return err
 		}
 		if task.Status == TaskStatusSuccess || task.Status == TaskStatusFailure {
+			if err := scheduleImageInputCleanupTx(tx, task.TaskID, common.GetTimestamp()); err != nil {
+				return err
+			}
 			result.Task = &task
 			result.PreviousQuota = task.Quota
 			result.ActualQuota = task.Quota
@@ -550,10 +553,16 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 		task.PrivateData.BillingFinalStatus = ""
 		task.PrivateData.BillingActualQuota = 0
 		task.PrivateData.BillingDBApplied = false
+		if task.PrivateData.BillingContext != nil {
+			task.PrivateData.BillingContext.ClearBillingRequestInput()
+		}
 		task.FinalizeAttempts = 0
 		task.FinalizeNextRetryAt = 0
 		task.FinalizeError = ""
 		if err := deleteImageTaskArtifactTx(tx, task.TaskID); err != nil {
+			return err
+		}
+		if err := scheduleImageInputCleanupTx(tx, task.TaskID, now); err != nil {
 			return err
 		}
 		if err := enqueueImageTaskBillingLogTx(tx, &task, previousQuota, reason); err != nil {

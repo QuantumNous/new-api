@@ -302,6 +302,20 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 	return storage, nil
 }
 
+// CreateDiskBodyStorageFromReader always spools a bounded request body to a
+// private temporary file. Large multipart image edits use this independently
+// of the optional global disk-cache setting so concurrent uploads cannot each
+// retain the full request body in heap memory.
+func CreateDiskBodyStorageFromReader(reader io.Reader, maxBytes int64) (BodyStorage, error) {
+	if reader == nil {
+		return nil, fmt.Errorf("body reader is required")
+	}
+	if maxBytes <= 0 {
+		return nil, fmt.Errorf("body size limit must be positive")
+	}
+	return newDiskStorageFromReader(reader, maxBytes, GetDiskCachePath())
+}
+
 // ReaderOnly wraps an io.Reader to hide io.Closer, preventing http.NewRequest
 // from type-asserting io.ReadCloser and closing the underlying BodyStorage.
 func ReaderOnly(r io.Reader) io.Reader {

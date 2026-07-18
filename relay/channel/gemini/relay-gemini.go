@@ -22,6 +22,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const maxGeminiNativeImageResponseBytes = 56 << 20
+
 func buildUsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) dto.Usage {
 	usage := relayconvert.UsageFromGeminiMetadata(metadata, fallbackPromptTokens)
 	if usage == nil {
@@ -95,7 +97,7 @@ func geminiResponseInlineImageCount(response *dto.GeminiChatResponse) int {
 	count := 0
 	for _, candidate := range response.Candidates {
 		for _, part := range candidate.Content.Parts {
-			if part.InlineData != nil && part.InlineData.MimeType != "" {
+			if !part.Thought && part.InlineData != nil && part.InlineData.MimeType != "" {
 				count++
 			}
 		}
@@ -471,6 +473,161 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 
 	return usage, nil
+}
+
+// convertToOaiImageResponse extracts image inlineData parts from a native
+// Gemini generateContent response and presents them in the OpenAI Images API
+// envelope used by the generic asynchronous image executor.
+func convertToOaiImageResponse(geminiResponse *dto.GeminiChatResponse) (*dto.ImageResponse, error) {
+	if geminiResponse == nil {
+		return nil, errors.New("Gemini image response is nil")
+	}
+
+	openAIResponse := &dto.ImageResponse{
+		Created: common.GetTimestamp(),
+		Data:    make([]dto.ImageData, 0),
+	}
+	for _, candidate := range geminiResponse.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.Thought {
+				continue
+			}
+			if part.InlineData != nil && part.InlineData.Data != "" {
+				mimeType := strings.TrimSpace(strings.ToLower(part.InlineData.MimeType))
+				if strings.HasPrefix(mimeType, "image/") {
+					openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
+						B64Json: part.InlineData.Data,
+					})
+				}
+				continue
+			}
+			if part.FileData != nil {
+				mimeType := strings.TrimSpace(strings.ToLower(part.FileData.MimeType))
+				if !strings.HasPrefix(mimeType, "image/") {
+					continue
+				}
+				fileURI := strings.TrimSpace(part.FileData.FileUri)
+				if fileURI == "" {
+					continue
+				}
+				lowerURI := strings.ToLower(fileURI)
+				if !strings.HasPrefix(lowerURI, "http://") &&
+					!strings.HasPrefix(lowerURI, "https://") &&
+					!strings.HasPrefix(lowerURI, "data:") {
+					return nil, fmt.Errorf("unsupported Gemini image file URI scheme: %q", fileURI)
+				}
+				openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
+					Url: fileURI,
+				})
+			}
+		}
+	}
+	if len(openAIResponse.Data) == 0 {
+		return nil, errors.New("no images found in Gemini response")
+	}
+	return openAIResponse, nil
+}
+
+// ChatImageHandler normalizes native Gemini image-model responses. Native
+// image models use generateContent rather than Imagen's predict envelope, so
+// their output images arrive as inlineData parts on candidate content.
+func ChatImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxGeminiNativeImageResponseBytes+1))
+	if readErr != nil {
+		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	service.CloseResponseBodyGracefully(resp)
+	if len(responseBody) > maxGeminiNativeImageResponseBytes {
+		return nil, types.NewOpenAIError(errors.New("Gemini image response is too large"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
+
+	var geminiResponse dto.GeminiChatResponse
+	if jsonErr := common.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
+		return nil, types.NewOpenAIError(jsonErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	openAIResponse, convertErr := convertToOaiImageResponse(&geminiResponse)
+	if convertErr != nil {
+		return nil, types.NewOpenAIError(convertErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	var usage dto.Usage
+	if metadata := geminiResponse.GetUsageMetadata(); dto.HasGeminiUsageMetadataTokens(metadata) {
+		usage = buildUsageFromGeminiMetadata(metadata, info.GetEstimatePromptTokens())
+	} else {
+		imageTokens, ok := nativeImageFallbackTokensPerImage(info)
+		if !ok {
+			return nil, types.NewOpenAIError(errors.New("Gemini image response is missing usage metadata for an unsupported fallback model"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+		}
+		promptTokens := info.GetEstimatePromptTokens()
+		completionTokens := imageTokens * len(openAIResponse.Data)
+		usage = dto.Usage{
+			PromptTokens:     promptTokens,
+			CompletionTokens: completionTokens,
+			TotalTokens:      promptTokens + completionTokens,
+		}
+		attachEstimatedGeminiBillingUsage(&usage)
+	}
+
+	jsonResponse, marshalErr := common.Marshal(openAIResponse)
+	if marshalErr != nil {
+		return nil, types.NewError(marshalErr, types.ErrorCodeBadResponseBody)
+	}
+	statusCode := resp.StatusCode
+	if statusCode <= 0 {
+		statusCode = http.StatusOK
+	}
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(statusCode)
+	if _, writeErr := c.Writer.Write(jsonResponse); writeErr != nil {
+		return nil, types.NewOpenAIError(writeErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	return &usage, nil
+}
+
+func nativeImageFallbackTokensPerImage(info *relaycommon.RelayInfo) (int, bool) {
+	if info == nil {
+		return 0, false
+	}
+	model := normalizeGeminiModelName(info.UpstreamModelName)
+	if model == "" {
+		model = normalizeGeminiModelName(info.OriginModelName)
+	}
+	resolution := "1K"
+	if request, ok := info.Request.(*dto.ImageRequest); ok && request != nil {
+		if config, err := nativeImageConfigForRequest(*request); err == nil && config["image_size"] != "" {
+			resolution = strings.ToUpper(config["image_size"])
+		}
+	}
+	switch model {
+	case "nano-banana-2", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview":
+		switch resolution {
+		case "512", "0.5K":
+			return 747, true
+		case "2K":
+			return 1680, true
+		case "4K":
+			return 2520, true
+		default:
+			return 1120, true
+		}
+	case "gemini-3.1-flash-lite-image", "gemini-3.1-flash-lite-image-preview", "nano-banana-2-lite":
+		return 1120, true
+	case "nano-banana-pro", "nano-banana-pro-preview", "gemini-3-pro-image", "gemini-3-pro-image-preview", "gemini-3.1-pro-image":
+		if resolution == "4K" {
+			return 2000, true
+		}
+		return 1120, true
+	case "nano-banana", "gemini-2.5-flash-image", "gemini-2.5-flash-image-preview":
+		return 1290, true
+	default:
+		return 0, false
+	}
+}
+
+// GeminiNativeImageHandler is the descriptive alias used by callers that do
+// not need the historical ChatImageHandler name.
+func GeminiNativeImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	return ChatImageHandler(c, info, resp)
 }
 
 type GeminiModelsResponse struct {

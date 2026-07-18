@@ -19,12 +19,16 @@ import (
 	"net/http"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/service"
 )
 
 const (
 	maxImageBytes        = 25 * 1024 * 1024 // 25 MiB per image
+	maxImageTotalBytes   = 64 * 1024 * 1024
 	maxImagesPerRequest  = 16
 	imageFetchTimeoutSec = 20
 )
@@ -36,6 +40,29 @@ var dataURIPrefix = regexp.MustCompile(`^data:(image/(?:png|jpeg|jpg|webp))(?:;[
 type NormalizedImage struct {
 	DataURI string
 	Mime    string
+	Size    int64
+}
+
+// Decode returns the bounded raw image bytes represented by DataURI. Keeping
+// this operation on the normalized value avoids each caller reimplementing an
+// unbounded base64 decode.
+func (image NormalizedImage) Decode() ([]byte, error) {
+	comma := strings.IndexByte(image.DataURI, ',')
+	if comma < 0 {
+		return nil, errors.New("normalized image has an invalid data URI")
+	}
+	encoded := image.DataURI[comma+1:]
+	if image.Size <= 0 || image.Size > maxImageBytes || len(encoded) > (maxImageBytes*4/3)+1024 {
+		return nil, fmt.Errorf("normalized image exceeds %d bytes", maxImageBytes)
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode normalized image: %w", err)
+	}
+	if int64(len(raw)) != image.Size {
+		return nil, errors.New("normalized image size does not match decoded data")
+	}
+	return raw, nil
 }
 
 // CollectAndNormalizeImages walks the multipart form, extracts every
@@ -89,12 +116,17 @@ func CollectAndNormalizeImages(ctx context.Context, mf *multipart.Form) ([]Norma
 	}
 
 	var out []NormalizedImage
+	var totalBytes int64
 
 	for _, pf := range files {
 		ni, err := normalizeFile(pf.fh)
 		if err != nil {
 			return nil, fmt.Errorf("image #%s[%d]: %w", pf.fieldName, pf.index, err)
 		}
+		if totalBytes+ni.Size > maxImageTotalBytes {
+			return nil, fmt.Errorf("image inputs exceed %d total bytes", maxImageTotalBytes)
+		}
+		totalBytes += ni.Size
 		out = append(out, ni)
 	}
 	for _, pv := range values {
@@ -102,6 +134,10 @@ func CollectAndNormalizeImages(ctx context.Context, mf *multipart.Form) ([]Norma
 		if err != nil {
 			return nil, fmt.Errorf("image #%s[%d]: %w", pv.fieldName, pv.index, err)
 		}
+		if totalBytes+ni.Size > maxImageTotalBytes {
+			return nil, fmt.Errorf("image inputs exceed %d total bytes", maxImageTotalBytes)
+		}
+		totalBytes += ni.Size
 		out = append(out, ni)
 	}
 	return out, nil
@@ -111,7 +147,30 @@ func isImageFieldName(name string) bool {
 	if name == "image" || name == "image[]" {
 		return true
 	}
-	return strings.HasPrefix(name, "image[")
+	_, ok := indexedImageFieldNumber(name)
+	return ok
+}
+
+func indexedImageFieldNumber(name string) (int, bool) {
+	if !strings.HasPrefix(name, "image[") || !strings.HasSuffix(name, "]") {
+		return 0, false
+	}
+	indexText := name[len("image[") : len(name)-1]
+	if indexText == "" {
+		return 0, false
+	}
+	index, err := strconv.Atoi(indexText)
+	if err != nil || index < 0 || strconv.Itoa(index) != indexText {
+		return 0, false
+	}
+	return index, true
+}
+
+func imageFieldStyle(name string) string {
+	if _, ok := indexedImageFieldNumber(name); ok {
+		return "image[N]"
+	}
+	return name
 }
 
 func normalizeStringValue(ctx context.Context, raw string) (NormalizedImage, error) {
@@ -130,11 +189,29 @@ func normalizeDataURI(raw string) (NormalizedImage, error) {
 	if m == nil {
 		return NormalizedImage{}, errors.New("data URI must be image/png|jpeg|webp")
 	}
+	comma := strings.IndexByte(raw, ',')
+	if comma < 0 || !strings.Contains(strings.ToLower(raw[:comma]), ";base64") {
+		return NormalizedImage{}, errors.New("data URI must use base64 encoding")
+	}
+	encoded := raw[comma+1:]
+	if len(encoded) > (maxImageBytes*4/3)+1024 {
+		return NormalizedImage{}, fmt.Errorf("image too large: >%d bytes", maxImageBytes)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return NormalizedImage{}, fmt.Errorf("invalid image data URI: %w", err)
+	}
+	if len(decoded) > maxImageBytes {
+		return NormalizedImage{}, fmt.Errorf("image too large: >%d bytes", maxImageBytes)
+	}
+	if len(decoded) == 0 {
+		return NormalizedImage{}, errors.New("empty image data URI")
+	}
 	mime := strings.ToLower(m[1])
 	if mime == "image/jpg" {
 		mime = "image/jpeg"
 	}
-	return NormalizedImage{DataURI: raw, Mime: mime}, nil
+	return NormalizedImage{DataURI: raw, Mime: mime, Size: int64(len(decoded))}, nil
 }
 
 func fetchAndNormalize(ctx context.Context, url string) (NormalizedImage, error) {
@@ -144,7 +221,10 @@ func fetchAndNormalize(ctx context.Context, url string) (NormalizedImage, error)
 	if err != nil {
 		return NormalizedImage{}, fmt.Errorf("build url request: %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	if err := service.ValidateSSRFProtectedFetchURL(url); err != nil {
+		return NormalizedImage{}, fmt.Errorf("image url is not allowed: %w", err)
+	}
+	resp, err := service.GetDirectSSRFProtectedHTTPClient().Do(req)
 	if err != nil {
 		return NormalizedImage{}, fmt.Errorf("fetch image url: %w", err)
 	}
@@ -168,6 +248,7 @@ func fetchAndNormalize(ctx context.Context, url string) (NormalizedImage, error)
 	return NormalizedImage{
 		DataURI: "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(body),
 		Mime:    mime,
+		Size:    int64(len(body)),
 	}, nil
 }
 
@@ -203,6 +284,7 @@ func normalizeFile(fh *multipart.FileHeader) (NormalizedImage, error) {
 	return NormalizedImage{
 		DataURI: "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(body),
 		Mime:    mime,
+		Size:    int64(len(body)),
 	}, nil
 }
 

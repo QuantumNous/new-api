@@ -127,12 +127,14 @@ func TestBuildStoredGenericImageResponseFetchesURLWithContext(t *testing.T) {
 	assert.Equal(t, "https://cdn.example.com/result.gif", stored.Data[0].Url)
 }
 
-func TestBuildStoredGenericImageResponseUploadsEachImageBeforeFetchingNext(t *testing.T) {
+func TestBuildStoredGenericImageResponseValidatesAllSourcesBeforeUploading(t *testing.T) {
 	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 1}
 	jpeg := []byte{0xff, 0xd8, 0xff, 2}
 	uploads := 0
+	fetches := 0
 	client := &http.Client{Transport: genericImageRoundTripFunc(func(_ *http.Request) (*http.Response, error) {
-		assert.Equal(t, 1, uploads, "the first image must be released to object storage before the next source is fetched")
+		fetches++
+		assert.Zero(t, uploads, "no object may be uploaded before every source passes validation")
 		return &http.Response{
 			StatusCode:    http.StatusOK,
 			ContentLength: int64(len(jpeg)),
@@ -149,6 +151,7 @@ func TestBuildStoredGenericImageResponseUploadsEachImageBeforeFetchingNext(t *te
 		}},
 		client,
 		func(_ context.Context, _ []byte, format string) (string, string, error) {
+			assert.Equal(t, 1, fetches)
 			uploads++
 			return fmt.Sprintf("https://cdn.example.com/%d.%s", uploads, format), format, nil
 		},
@@ -156,8 +159,65 @@ func TestBuildStoredGenericImageResponseUploadsEachImageBeforeFetchingNext(t *te
 	)
 
 	require.NoError(t, err)
+	assert.Equal(t, 1, fetches)
 	assert.Equal(t, 2, uploads)
 	require.Len(t, stored.Data, 2)
+}
+
+func TestBuildStoredGenericImageResponseDoesNotUploadPartialAggregate(t *testing.T) {
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 1, 2, 3, 4}
+	uploads := 0
+
+	_, err := buildStoredGenericImageResponseWithDependencies(
+		context.Background(),
+		&dto.ImageResponse{Data: []dto.ImageData{
+			{B64Json: base64.StdEncoding.EncodeToString(png)},
+			{B64Json: base64.StdEncoding.EncodeToString(png)},
+		}},
+		&http.Client{},
+		func(_ context.Context, _ []byte, format string) (string, string, error) {
+			uploads++
+			return "https://cdn.example.com/result." + format, format, nil
+		},
+		genericImageMaterializationLimits{
+			maxImages:     2,
+			maxImageBytes: int64(len(png)),
+			maxTotalBytes: int64(len(png)*2 - 1),
+		},
+	)
+
+	require.Error(t, err)
+	assert.Zero(t, uploads)
+	assert.Contains(t, err.Error(), "total byte limit")
+}
+
+func TestBuildStoredGenericImageResponseRejectsDisallowedInputFormatBeforeUpload(t *testing.T) {
+	gif := []byte{'G', 'I', 'F', '8', '9', 'a', 1}
+	uploads := 0
+
+	_, err := buildStoredGenericImageResponseWithDependencies(
+		context.Background(),
+		&dto.ImageResponse{Data: []dto.ImageData{{B64Json: base64.StdEncoding.EncodeToString(gif)}}},
+		&http.Client{},
+		func(_ context.Context, _ []byte, format string) (string, string, error) {
+			uploads++
+			return "https://cdn.example.com/result." + format, format, nil
+		},
+		genericImageMaterializationLimits{
+			maxImages:     1,
+			maxImageBytes: 32,
+			maxTotalBytes: 32,
+			allowedFormats: map[string]struct{}{
+				"png":  {},
+				"jpg":  {},
+				"webp": {},
+			},
+		},
+	)
+
+	require.Error(t, err)
+	assert.Zero(t, uploads)
+	assert.Contains(t, err.Error(), "format gif is not supported")
 }
 
 func TestMaterializedGenericImageResponseSurvivesProviderURLExpiry(t *testing.T) {

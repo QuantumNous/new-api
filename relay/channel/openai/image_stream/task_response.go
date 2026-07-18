@@ -87,7 +87,7 @@ func imageTaskStatus(status string) string {
 		return "completed"
 	case string(model.TaskStatusFailure):
 		return "failed"
-	case string(model.TaskStatusInProgress), string(model.TaskStatusFinalizing):
+	case string(model.TaskStatusInProgress), string(model.TaskStatusCheckpointPending), string(model.TaskStatusFinalizing):
 		return "in_progress"
 	default:
 		return "queued"

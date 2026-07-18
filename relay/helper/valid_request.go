@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -172,6 +173,12 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			c.Request.PostForm = formData
 			imageRequest.Prompt = formData.Get("prompt")
 			imageRequest.Model = formData.Get("model")
+			if imageRequest.Model == "" {
+				return nil, errors.New("model is required")
+			}
+			if strings.TrimSpace(imageRequest.Prompt) == "" {
+				return nil, errors.New("prompt is required")
+			}
 			if nValue := strings.TrimSpace(formData.Get("n")); nValue != "" {
 				n, err := strconv.Atoi(nValue)
 				if err != nil || n <= 0 || n > dto.MaxImageN {
@@ -181,6 +188,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			}
 			imageRequest.Quality = formData.Get("quality")
 			imageRequest.Size = formData.Get("size")
+			imageRequest.ResponseFormat = formData.Get("response_format")
 			if streamValue := strings.TrimSpace(formData.Get("stream")); streamValue != "" {
 				stream, err := strconv.ParseBool(streamValue)
 				if err != nil {
@@ -188,8 +196,61 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				}
 				imageRequest.Stream = common.GetPointer(stream)
 			}
+			if asyncValue := strings.TrimSpace(formData.Get("async")); asyncValue != "" {
+				async, err := strconv.ParseBool(asyncValue)
+				if err != nil {
+					return nil, fmt.Errorf("invalid async value: %w", err)
+				}
+				imageRequest.Async = common.GetPointer(async)
+			}
+			imageRequest.WebhookURL = strings.TrimSpace(formData.Get("webhook_url"))
+			callbackURL := strings.TrimSpace(formData.Get("callBackUrl"))
+			if callbackURL != "" {
+				if imageRequest.WebhookURL != "" && imageRequest.WebhookURL != callbackURL {
+					return nil, errors.New("conflicting callback URL values")
+				}
+				imageRequest.WebhookURL = callbackURL
+			}
+			imageRequest.WebhookSecret = formData.Get("webhook_secret")
+			for _, field := range []struct {
+				name   string
+				target *json.RawMessage
+			}{
+				{name: "style", target: &imageRequest.Style},
+				{name: "user", target: &imageRequest.User},
+				{name: "background", target: &imageRequest.Background},
+				{name: "moderation", target: &imageRequest.Moderation},
+				{name: "output_format", target: &imageRequest.OutputFormat},
+				{name: "input_fidelity", target: &imageRequest.InputFidelity},
+			} {
+				if value := formData.Get(field.name); value != "" {
+					encoded, err := common.Marshal(value)
+					if err != nil {
+						return nil, fmt.Errorf("encode %s: %w", field.name, err)
+					}
+					*field.target = json.RawMessage(encoded)
+				}
+			}
+			for _, field := range []struct {
+				name   string
+				target *json.RawMessage
+			}{
+				{name: "output_compression", target: &imageRequest.OutputCompression},
+				{name: "partial_images", target: &imageRequest.PartialImages},
+			} {
+				if value := strings.TrimSpace(formData.Get(field.name)); value != "" {
+					if _, err := strconv.Atoi(value); err != nil {
+						return nil, fmt.Errorf("%s must be an integer", field.name)
+					}
+					*field.target = json.RawMessage(value)
+				}
+			}
 			if imageValue := formData.Get("image"); imageValue != "" {
-				imageRequest.Image, _ = common.Marshal(imageValue)
+				encoded, err := common.Marshal(imageValue)
+				if err != nil {
+					return nil, fmt.Errorf("encode image: %w", err)
+				}
+				imageRequest.Image = json.RawMessage(encoded)
 			}
 
 			if imageRequest.Model == "gpt-image-1" {
@@ -205,6 +266,47 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			if hasWatermark {
 				watermark := formData.Get("watermark") == "true"
 				imageRequest.Watermark = &watermark
+			}
+			for _, field := range []struct {
+				name   string
+				target *json.RawMessage
+			}{
+				{name: "extra_fields", target: &imageRequest.ExtraFields},
+				{name: "watermark_enabled", target: &imageRequest.WatermarkEnabled},
+				{name: "user_id", target: &imageRequest.UserId},
+			} {
+				if value := formData.Get(field.name); value != "" {
+					encoded, err := common.Marshal(value)
+					if err != nil {
+						return nil, fmt.Errorf("encode %s: %w", field.name, err)
+					}
+					*field.target = json.RawMessage(encoded)
+				}
+			}
+			imageRequest.Extra = make(map[string]json.RawMessage)
+			knownFields := map[string]struct{}{
+				"model": {}, "prompt": {}, "n": {}, "size": {}, "quality": {}, "response_format": {},
+				"stream": {}, "async": {}, "webhook_url": {}, "webhook_secret": {}, "callBackUrl": {},
+				"style": {}, "user": {}, "background": {}, "moderation": {}, "output_format": {},
+				"output_compression": {}, "partial_images": {}, "input_fidelity": {}, "watermark": {},
+				"extra_fields": {}, "watermark_enabled": {}, "user_id": {}, "image": {}, "image[]": {}, "mask": {},
+			}
+			for name, values := range form.Value {
+				if _, known := knownFields[name]; known || len(values) == 0 {
+					continue
+				}
+				var value any = values[0]
+				if len(values) > 1 {
+					value = append([]string(nil), values...)
+				}
+				encoded, err := common.Marshal(value)
+				if err != nil {
+					return nil, fmt.Errorf("encode %s: %w", name, err)
+				}
+				imageRequest.Extra[name] = json.RawMessage(encoded)
+			}
+			if len(imageRequest.Extra) == 0 {
+				imageRequest.Extra = nil
 			}
 			break
 		}

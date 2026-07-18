@@ -66,16 +66,29 @@ func SetRelayRouter(router *gin.Engine) {
 
 	imageGenerationSubmitRouter := router.Group("/v1/images/generations")
 	imageGenerationSubmitRouter.Use(middleware.RouteTag("relay"))
-	imageGenerationSubmitRouter.Use(middleware.TokenAuthReadOnly())
 	imageGenerationSubmitRouter.POST(
 		"",
-		controller.ReplayAsyncImageGeneration,
 		middleware.SystemPerformanceCheck(),
 		middleware.TokenAuth(),
 		middleware.ModelRequestRateLimit(),
+		controller.ReplayAsyncImageGeneration,
 		middleware.Distribute(),
 		func(c *gin.Context) { controller.Relay(c, types.RelayFormatOpenAIImage) },
 	)
+
+	imageEditSubmitRouter := router.Group("/v1")
+	imageEditSubmitRouter.Use(middleware.RouteTag("relay"))
+	for _, path := range []string{"/edits", "/images/edits"} {
+		imageEditSubmitRouter.POST(
+			path,
+			middleware.SystemPerformanceCheck(),
+			middleware.TokenAuth(),
+			middleware.ModelRequestRateLimit(),
+			controller.ReplayAsyncImageGeneration,
+			middleware.Distribute(),
+			func(c *gin.Context) { controller.Relay(c, types.RelayFormatOpenAIImage) },
+		)
+	}
 
 	playgroundRouter := router.Group("/pg")
 	playgroundRouter.Use(middleware.RouteTag("relay"))
@@ -124,14 +137,6 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 		httpRouter.POST("/responses/compact", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
-		})
-
-		// image related routes
-		httpRouter.POST("/edits", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
-		httpRouter.POST("/images/edits", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
 
 		// embedding related routes

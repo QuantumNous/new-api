@@ -71,7 +71,10 @@ func Path2RelayMode(path string) int {
 	} else if strings.HasPrefix(path, "/v1/images/edits") {
 		relayMode = RelayModeImagesEdits
 	} else if strings.HasPrefix(path, "/v1/edits") {
-		relayMode = RelayModeEdits
+		// /v1/edits is retained as an alias of the OpenAI image-edit route.
+		// The router binds it to RelayFormatOpenAIImage, so classifying it as the
+		// retired text-edits mode would send an ImageRequest through TextHelper.
+		relayMode = RelayModeImagesEdits
 	} else if strings.HasPrefix(path, "/v1/responses/compact") {
 		relayMode = RelayModeResponsesCompact
 	} else if strings.HasPrefix(path, "/v1/responses") {

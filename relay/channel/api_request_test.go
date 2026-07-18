@@ -186,7 +186,7 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.False(t, exists)
 
 	upstreamReq := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses", nil)
-	applyHeaderOverrideToRequest(upstreamReq, headers)
+	ApplyHeaderOverrideToRequest(upstreamReq, headers)
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))

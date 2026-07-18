@@ -58,6 +58,31 @@ func TestAdvancedCustomValidateResponsesToChatConverterPath(t *testing.T) {
 	}
 }
 
+func TestValidateAdvancedCustomUpstreamTargetRejectsEmbeddedCredentials(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+	}{
+		{name: "userinfo", target: "https://user:password@example.com/v1/images"},
+		{name: "api key query", target: "https://example.com/v1/images?api_key=secret"},
+		{name: "signed query", target: "https://example.com/v1/images?X-Amz-Signature=secret"},
+		{name: "fragment", target: "https://example.com/v1/images#secret"},
+		{name: "relative api key query", target: "/v1/images?api_key=secret"},
+		{name: "relative signed query", target: "/v1/images?X-Amz-Signature=secret"},
+		{name: "relative fragment", target: "/v1/images#secret"},
+		{name: "malformed credential query", target: "https://example.com/v1/images?api_key=secret;foo=bar"},
+		{name: "malformed relative credential query", target: "/v1/images?api_key=secret;foo=bar"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Error(t, validateAdvancedCustomUpstreamTarget(0, test.target))
+		})
+	}
+
+	require.NoError(t, validateAdvancedCustomUpstreamTarget(0, "https://example.com/v1/images?api-version=2026-01-01"))
+	require.NoError(t, validateAdvancedCustomUpstreamTarget(0, "/v1/images?api-version=2026-01-01"))
+}
+
 func TestAdvancedCustomValidateDuplicateIncomingPathWithDisjointModels(t *testing.T) {
 	config := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{

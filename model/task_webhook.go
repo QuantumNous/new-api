@@ -43,6 +43,18 @@ func (webhook *TaskWebhook) DeliveryID() string {
 }
 
 func (webhook *TaskWebhook) BeforeCreate(_ *gorm.DB) error {
+	if common.AsyncImageEncryptedWritesEnabled() {
+		encryptedURL, err := common.EncryptString(webhook.URL)
+		if err != nil {
+			return err
+		}
+		encryptedSecret, err := common.EncryptString(webhook.Secret)
+		if err != nil {
+			return err
+		}
+		webhook.URL = encryptedURL
+		webhook.Secret = encryptedSecret
+	}
 	now := common.GetTimestamp()
 	if webhook.Status == "" {
 		webhook.Status = TaskWebhookStatusPending
@@ -54,6 +66,24 @@ func (webhook *TaskWebhook) BeforeCreate(_ *gorm.DB) error {
 		webhook.UpdatedAt = now
 	}
 	return nil
+}
+
+// DeliveryCredentials decrypts a single claimed row. Decryption is
+// intentionally not a GORM AfterFind callback: one damaged or old-key row must
+// never make the database query fail and block every later webhook in the queue.
+func (webhook *TaskWebhook) DeliveryCredentials() (string, string, error) {
+	if webhook == nil {
+		return "", "", errors.New("task webhook is required")
+	}
+	webhookURL, err := common.DecryptString(webhook.URL)
+	if err != nil {
+		return "", "", err
+	}
+	secret, err := common.DecryptString(webhook.Secret)
+	if err != nil {
+		return "", "", err
+	}
+	return webhookURL, secret, nil
 }
 
 func InsertTaskWithWebhook(task *Task, webhook *TaskWebhook) error {
@@ -98,13 +128,15 @@ func HasPendingImageWork(staleInProgressCutoff int64) bool {
 	err := DB.Model(&Task{}).
 		Where("platform = ?", constant.TaskPlatformOpenAIImage).
 		Where(
-			"(status = ? AND worker_next_retry_at <= ? AND provider_next_retry_at <= ? AND download_next_retry_at <= ? AND upload_next_retry_at <= ?) OR (status = ? AND start_time <= ?) OR (status = ? AND finalize_next_retry_at <= ?)",
+			"(status = ? AND worker_next_retry_at <= ? AND provider_next_retry_at <= ? AND download_next_retry_at <= ? AND upload_next_retry_at <= ?) OR (status = ? AND start_time <= ?) OR (status = ? AND updated_at <= ?) OR (status = ? AND finalize_next_retry_at <= ?)",
 			TaskStatusNotStart,
 			common.GetTimestamp(),
 			common.GetTimestamp(),
 			common.GetTimestamp(),
 			common.GetTimestamp(),
 			TaskStatusInProgress,
+			staleInProgressCutoff,
+			TaskStatusCheckpointPending,
 			staleInProgressCutoff,
 			TaskStatusFinalizing,
 			common.GetTimestamp(),
@@ -123,8 +155,89 @@ func HasPendingImageWork(staleInProgressCutoff int64) bool {
 	return err == nil && webhookID != 0
 }
 
+// BeginImageTaskProviderCall durably crosses the last safe retry boundary
+// before a worker sends a request upstream. CHECKPOINT_PENDING is deliberately
+// not claimable or stale-requeueable: after this commit, only the same live
+// worker may either checkpoint the response or resolve an error known to have
+// happened before a response was received.
+func (task *Task) BeginImageTaskProviderCall(checkpointData []byte) (bool, error) {
+	if task == nil || task.ID == 0 || task.TaskID == "" {
+		return false, errors.New("persisted image task is required")
+	}
+	if len(checkpointData) == 0 {
+		return false, errors.New("image task provider call checkpoint is required")
+	}
+	now := common.GetTimestamp()
+	result := DB.Model(&Task{}).
+		Where(
+			"id = ? AND task_id = ? AND platform = ? AND status = ? AND attempt = ?",
+			task.ID,
+			task.TaskID,
+			constant.TaskPlatformOpenAIImage,
+			TaskStatusInProgress,
+			task.Attempt,
+		).
+		Updates(map[string]any{
+			"status":          TaskStatusCheckpointPending,
+			"progress":        "20%",
+			"checkpoint_data": checkpointData,
+			"updated_at":      now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return false, nil
+	}
+	task.Status = TaskStatusCheckpointPending
+	task.Progress = "20%"
+	task.CheckpointData = append(task.CheckpointData[:0], checkpointData...)
+	task.UpdatedAt = now
+	return true, nil
+}
+
 func (task *Task) MarkImageSubmissionRetry(nextRetryAt int64, lastError string) (bool, error) {
 	return task.markImageProviderRetry(nextRetryAt, lastError, "10%")
+}
+
+// ReopenRejectedImageProviderCall clears a CHECKPOINT_PENDING pre-call fence
+// only after the live worker received a definitive HTTP rejection. Transport,
+// response-read, and checkpoint failures must never use this path because the
+// provider may already have accepted the generation.
+func (task *Task) ReopenRejectedImageProviderCall(checkpointData []byte) (bool, error) {
+	if task == nil || task.ID == 0 || task.TaskID == "" {
+		return false, errors.New("persisted image task is required")
+	}
+	if len(checkpointData) == 0 {
+		return false, errors.New("reopened image task checkpoint is required")
+	}
+	now := common.GetTimestamp()
+	result := DB.Model(&Task{}).
+		Where(
+			"id = ? AND task_id = ? AND platform = ? AND status = ? AND attempt = ?",
+			task.ID,
+			task.TaskID,
+			constant.TaskPlatformOpenAIImage,
+			TaskStatusCheckpointPending,
+			task.Attempt,
+		).
+		Updates(map[string]any{
+			"status":          TaskStatusInProgress,
+			"progress":        "10%",
+			"checkpoint_data": checkpointData,
+			"updated_at":      now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return false, nil
+	}
+	task.Status = TaskStatusInProgress
+	task.Progress = "10%"
+	task.CheckpointData = append(task.CheckpointData[:0], checkpointData...)
+	task.UpdatedAt = now
+	return true, nil
 }
 
 func (task *Task) MarkImageProviderRetry(nextRetryAt int64, lastError string) (bool, error) {
@@ -261,6 +374,27 @@ func RequeueStaleInProgressImageTasks(cutoff int64, now int64) error {
 		}).Error
 }
 
+// FindCheckpointPendingImageTasks returns provider calls that crossed the
+// durable pre-call fence but never stored a response. They are intentionally
+// separate from stale IN_PROGRESS recovery so they can be failed/refunded
+// without ever becoming provider-submittable again.
+func FindCheckpointPendingImageTasks(cutoff int64, limit int) ([]*Task, error) {
+	if limit <= 0 {
+		limit = 1
+	}
+	var tasks []*Task
+	err := DB.Where(
+		"platform = ? AND status = ? AND updated_at <= ?",
+		constant.TaskPlatformOpenAIImage,
+		TaskStatusCheckpointPending,
+		cutoff,
+	).
+		Order("id asc").
+		Limit(limit).
+		Find(&tasks).Error
+	return tasks, err
+}
+
 func (task *Task) MarkImageUploadRetry(nextRetryAt int64, lastError string) (bool, error) {
 	if task == nil || task.ID == 0 {
 		return false, errors.New("persisted image task is required")
@@ -369,6 +503,20 @@ func FindFinalizingImageTasks(limit int) ([]*Task, error) {
 // target only if this is still the current worker claim. Attempt fencing keeps
 // a worker from an earlier claim generation from committing after requeue.
 func (task *Task) TransitionImageTaskToFinalizing(targetStatus TaskStatus, actualQuota int) (bool, error) {
+	return task.transitionImageTaskToFinalizingFrom(TaskStatusInProgress, targetStatus, actualQuota)
+}
+
+// TransitionCheckpointPendingImageTaskToFinalizing is the only restart path
+// out of an ambiguous provider call. It refunds the reservation as a failure
+// without reopening provider submission.
+func (task *Task) TransitionCheckpointPendingImageTaskToFinalizing(targetStatus TaskStatus, actualQuota int) (bool, error) {
+	if targetStatus != TaskStatusFailure || actualQuota != 0 {
+		return false, errors.New("checkpoint-pending image tasks can only finalize as a zero-quota failure")
+	}
+	return task.transitionImageTaskToFinalizingFrom(TaskStatusCheckpointPending, targetStatus, actualQuota)
+}
+
+func (task *Task) transitionImageTaskToFinalizingFrom(fromStatus TaskStatus, targetStatus TaskStatus, actualQuota int) (bool, error) {
 	if task == nil || task.ID == 0 || task.TaskID == "" {
 		return false, errors.New("persisted image task is required")
 	}
@@ -409,7 +557,7 @@ func (task *Task) TransitionImageTaskToFinalizing(targetStatus TaskStatus, actua
 			task.ID,
 			task.TaskID,
 			constant.TaskPlatformOpenAIImage,
-			TaskStatusInProgress,
+			fromStatus,
 			task.Attempt,
 		).
 		Select("*").

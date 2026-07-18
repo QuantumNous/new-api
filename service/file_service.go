@@ -163,7 +163,7 @@ func loadFromURL(c *gin.Context, url string, reason ...string) (*types.CachedFil
 	}
 	resp, err := DoDownloadRequest(url, reason...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download file from %s: %w", url, err)
+		return nil, fmt.Errorf("failed to download file from %s: %w", common.MaskSensitiveInfo(url), err)
 	}
 	defer resp.Body.Close()
 

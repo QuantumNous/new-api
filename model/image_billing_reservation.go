@@ -1,9 +1,11 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -19,7 +21,10 @@ const (
 	ImageBillingReservationRefunded  ImageBillingReservationStatus = "refunded"
 )
 
-var ErrImageBillingReservationNotPreparing = errors.New("image billing reservation is not preparing")
+var (
+	ErrImageBillingReservationNotPreparing      = errors.New("image billing reservation is not preparing")
+	ErrImageBillingReservationQuotaInsufficient = errors.New("image billing reservation quota is insufficient")
+)
 
 // ImageBillingReservation is the durable ownership record for quota deducted
 // before an async image task becomes runnable. Each non-zero reserved leg is
@@ -30,6 +35,7 @@ type ImageBillingReservation struct {
 	RequestID            string                        `json:"request_id" gorm:"type:varchar(64);index"`
 	UserID               int                           `json:"user_id" gorm:"index"`
 	TokenID              int                           `json:"token_id" gorm:"index"`
+	TokenCacheKeyHash    string                        `json:"-" gorm:"type:varchar(64);not null;default:''"`
 	TokenRequired        bool                          `json:"token_required"`
 	ExpectedQuota        int                           `json:"expected_quota"`
 	FundingSource        string                        `json:"funding_source" gorm:"type:varchar(20)"`
@@ -39,8 +45,295 @@ type ImageBillingReservation struct {
 	SubscriptionReserved int64                         `json:"subscription_reserved"`
 	Status               ImageBillingReservationStatus `json:"status" gorm:"type:varchar(20);index:idx_image_billing_reservation_due,priority:1"`
 	FailureReason        string                        `json:"failure_reason" gorm:"type:text"`
+	CacheReconciledAt    int64                         `json:"cache_reconciled_at" gorm:"bigint;not null;default:0;index"`
 	CreatedAt            int64                         `json:"created_at" gorm:"bigint"`
 	UpdatedAt            int64                         `json:"updated_at" gorm:"bigint;index:idx_image_billing_reservation_due,priority:2"`
+}
+
+func imageReservationCacheField(taskID string) string {
+	return "ImageTaskReservation:" + taskID
+}
+
+func imageReservationCachePinMember(taskID string) string {
+	return "reservation:" + taskID
+}
+
+func applyImageReservationCacheDebit(cacheKey string, pinsKey string, quotaField string, unlimitedField string, taskID string, amount int64) (bool, error) {
+	if !common.RedisEnabled {
+		return false, nil
+	}
+	if common.RDB == nil {
+		return false, errors.New("redis is enabled but unavailable")
+	}
+	if cacheKey == "" || pinsKey == "" || quotaField == "" || taskID == "" || amount <= 0 || amount > int64(common.MaxQuota) {
+		return false, errors.New("image reservation cache debit is invalid")
+	}
+
+	const script = `
+if redis.call('TTL', KEYS[1]) <= 0 then
+  return -2
+end
+local current = tonumber(redis.call('HGET', KEYS[1], ARGV[1]))
+if current == nil then
+  return -2
+end
+local amount = tonumber(ARGV[4])
+local tagged = redis.call('HGET', KEYS[1], ARGV[3])
+if tagged then
+  if tonumber(tagged) ~= amount then
+    return -3
+  end
+  redis.call('SADD', KEYS[2], ARGV[7])
+  redis.call('EXPIRE', KEYS[2], ARGV[8])
+  redis.call('EXPIRE', KEYS[1], ARGV[8])
+  return 2
+end
+local unlimited = false
+if ARGV[2] ~= '' then
+  unlimited = redis.call('HGET', KEYS[1], ARGV[2]) == 'true'
+end
+if not unlimited and current < amount then
+  return -1
+end
+local next_quota = current - amount
+if next_quota < tonumber(ARGV[5]) or next_quota > tonumber(ARGV[6]) then
+  return -3
+end
+redis.call('HINCRBY', KEYS[1], ARGV[1], -amount)
+redis.call('HSET', KEYS[1], ARGV[3], amount)
+redis.call('SADD', KEYS[2], ARGV[7])
+redis.call('EXPIRE', KEYS[2], ARGV[8])
+redis.call('EXPIRE', KEYS[1], ARGV[8])
+return 1
+`
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result, err := common.RDB.Eval(
+		ctx,
+		script,
+		[]string{cacheKey, pinsKey},
+		quotaField,
+		unlimitedField,
+		imageReservationCacheField(taskID),
+		amount,
+		common.MinQuota,
+		common.MaxQuota,
+		imageReservationCachePinMember(taskID),
+		imageTaskQuotaCacheHoldSeconds,
+	).Int64()
+	if err != nil {
+		return false, fmt.Errorf("apply image reservation cache debit: %w", err)
+	}
+	switch result {
+	case 1:
+		return true, nil
+	case 2:
+		return false, nil
+	case -1:
+		return false, ErrImageBillingReservationQuotaInsufficient
+	case -2:
+		return false, errors.New("image reservation quota cache is unavailable")
+	default:
+		return false, errors.New("image reservation quota cache conflicts with task state")
+	}
+}
+
+func releaseImageReservationCacheDebit(cacheKey string, pinsKey string, invalidationKey string, quotaField string, taskID string, restore bool) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	if common.RDB == nil {
+		return errors.New("redis is enabled but unavailable")
+	}
+	if cacheKey == "" || pinsKey == "" || invalidationKey == "" || quotaField == "" || taskID == "" {
+		return errors.New("image reservation cache refund is invalid")
+	}
+	cacheTTL := common.RedisKeyCacheSeconds()
+	if cacheTTL <= 0 {
+		cacheTTL = 1
+	}
+	restoreFlag := 0
+	if restore {
+		restoreFlag = 1
+	}
+
+	const script = `
+local function release_pin()
+  redis.call('SREM', KEYS[2], ARGV[5])
+  if redis.call('SCARD', KEYS[2]) == 0 then
+    redis.call('DEL', KEYS[2])
+    if redis.call('EXISTS', KEYS[3]) == 1 then
+      redis.call('DEL', KEYS[1])
+      redis.call('DEL', KEYS[3])
+    elseif redis.call('EXISTS', KEYS[1]) == 1 then
+      redis.call('EXPIRE', KEYS[1], ARGV[6])
+    end
+  end
+end
+if redis.call('EXISTS', KEYS[1]) == 0 then
+  release_pin()
+  return 0
+end
+local tagged = redis.call('HGET', KEYS[1], ARGV[2])
+if not tagged then
+  release_pin()
+  return 0
+end
+if ARGV[7] == '0' then
+  redis.call('HDEL', KEYS[1], ARGV[2])
+  release_pin()
+  return 1
+end
+local amount = tonumber(tagged)
+local current = tonumber(redis.call('HGET', KEYS[1], ARGV[1]))
+if not amount or amount <= 0 or amount > tonumber(ARGV[3]) or current == nil then
+  return -1
+end
+local next_quota = current + amount
+if next_quota < tonumber(ARGV[4]) or next_quota > tonumber(ARGV[3]) then
+  return -1
+end
+redis.call('HINCRBY', KEYS[1], ARGV[1], amount)
+redis.call('HDEL', KEYS[1], ARGV[2])
+release_pin()
+return 1
+`
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result, err := common.RDB.Eval(
+		ctx,
+		script,
+		[]string{cacheKey, pinsKey, invalidationKey},
+		quotaField,
+		imageReservationCacheField(taskID),
+		common.MaxQuota,
+		common.MinQuota,
+		imageReservationCachePinMember(taskID),
+		cacheTTL,
+		restoreFlag,
+	).Int64()
+	if err != nil {
+		return fmt.Errorf("restore image reservation cache debit: %w", err)
+	}
+	if result < 0 {
+		return errors.New("image reservation quota cache conflicts with task state")
+	}
+	return nil
+}
+
+func restoreImageReservationCacheDebit(cacheKey string, pinsKey string, invalidationKey string, quotaField string, taskID string) error {
+	return releaseImageReservationCacheDebit(cacheKey, pinsKey, invalidationKey, quotaField, taskID, true)
+}
+
+func removeImageReservationCacheTags(taskID string, userID int, tokenKey string) error {
+	tokenHMAC := ""
+	if tokenKey != "" {
+		tokenHMAC = common.GenerateHMAC(tokenKey)
+	}
+	return removeImageReservationCacheTagsByHash(taskID, userID, tokenHMAC)
+}
+
+func removeImageReservationCacheTagsByHash(taskID string, userID int, tokenHMAC string) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	if common.RDB == nil {
+		return errors.New("redis is enabled but unavailable")
+	}
+	if taskID == "" || userID <= 0 {
+		return errors.New("image reservation cache identity is invalid")
+	}
+
+	if err := releaseImageReservationCacheDebit(
+		getUserCacheKey(userID),
+		imageTaskUserQuotaPinsKey(userID),
+		imageTaskUserQuotaInvalidationKey(userID),
+		"Quota",
+		taskID,
+		false,
+	); err != nil {
+		return err
+	}
+	if tokenHMAC == "" {
+		return nil
+	}
+	return releaseImageReservationCacheDebit(
+		fmt.Sprintf("token:%s", tokenHMAC),
+		imageTaskTokenQuotaPinsKey(tokenHMAC),
+		imageTaskTokenQuotaInvalidationKey(tokenHMAC),
+		constant.TokenFiledRemainQuota,
+		taskID,
+		false,
+	)
+}
+
+func reconcileActiveImageBillingReservationCache(reservation *ImageBillingReservation, tokenHMAC string) error {
+	if reservation == nil || reservation.ID == 0 || reservation.TaskID == "" {
+		return errors.New("active image billing reservation is required")
+	}
+	if reservation.Status != ImageBillingReservationActive {
+		return errors.New("image billing reservation is not active")
+	}
+	if reservation.CacheReconciledAt > 0 {
+		return nil
+	}
+	if reservation.TokenReserved > 0 && tokenHMAC == "" {
+		return errors.New("active image billing reservation token key is unavailable")
+	}
+	if err := removeImageReservationCacheTagsByHash(reservation.TaskID, reservation.UserID, tokenHMAC); err != nil {
+		return err
+	}
+
+	now := common.GetTimestamp()
+	result := DB.Model(&ImageBillingReservation{}).
+		Where("id = ? AND status = ? AND cache_reconciled_at = 0", reservation.ID, ImageBillingReservationActive).
+		Updates(map[string]any{
+			"cache_reconciled_at": now,
+			"updated_at":          now,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 1 {
+		reservation.CacheReconciledAt = now
+		reservation.UpdatedAt = now
+	}
+	return nil
+}
+
+func activeImageBillingReservationTokenHash(reservation *ImageBillingReservation) (string, error) {
+	if reservation == nil || reservation.TokenID <= 0 || reservation.TokenReserved <= 0 {
+		return "", nil
+	}
+	if reservation.TokenCacheKeyHash != "" {
+		return reservation.TokenCacheKeyHash, nil
+	}
+	var token Token
+	if err := DB.Unscoped().Where("id = ?", reservation.TokenID).First(&token).Error; err != nil {
+		return "", err
+	}
+	if token.Key == "" {
+		return "", errors.New("active image billing reservation token key is empty")
+	}
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	result := DB.Model(&ImageBillingReservation{}).
+		Where("id = ? AND status = ? AND (token_cache_key_hash IS NULL OR token_cache_key_hash = ?)", reservation.ID, ImageBillingReservationActive, "").
+		Update("token_cache_key_hash", tokenHMAC)
+	if result.Error != nil {
+		return "", result.Error
+	}
+	if result.RowsAffected == 0 {
+		var current ImageBillingReservation
+		if err := DB.Select("token_cache_key_hash").Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationActive).First(&current).Error; err != nil {
+			return "", err
+		}
+		if current.TokenCacheKeyHash == "" {
+			return "", errors.New("active image billing reservation token cache identity is unavailable")
+		}
+		tokenHMAC = current.TokenCacheKeyHash
+	}
+	reservation.TokenCacheKeyHash = tokenHMAC
+	return tokenHMAC, nil
 }
 
 func (reservation *ImageBillingReservation) BeforeCreate(_ *gorm.DB) error {
@@ -76,10 +369,23 @@ func InsertPreparedImageTask(task *Task, webhook *TaskWebhook, reservation *Imag
 		return errors.New("image billing reservation quota is out of range")
 	}
 	reservation.Status = ImageBillingReservationPreparing
+	reservation.CacheReconciledAt = 0
 
 	return DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(task).Error; err != nil {
 			return err
+		}
+		if reservation.TokenID > 0 && reservation.TokenCacheKeyHash == "" {
+			var token Token
+			if err := tx.Unscoped().
+				Where("id = ? AND user_id = ?", reservation.TokenID, reservation.UserID).
+				First(&token).Error; err != nil {
+				return err
+			}
+			if token.Key == "" {
+				return errors.New("image billing reservation token key is empty")
+			}
+			reservation.TokenCacheKeyHash = common.GenerateHMAC(token.Key)
 		}
 		if webhook != nil {
 			webhook.TaskID = task.TaskID
@@ -119,15 +425,35 @@ func ReserveImageTaskWalletQuota(taskID string, userID int, quota int) error {
 			if err := ensureUserQuotaCache(userID); err != nil {
 				return err
 			}
-			if err := cacheTryDecrUserQuota(userID, int64(quota)); err != nil {
+			var err error
+			cacheDebited, err = applyImageReservationCacheDebit(
+				getUserCacheKey(userID),
+				imageTaskUserQuotaPinsKey(userID),
+				"Quota",
+				"",
+				taskID,
+				int64(quota),
+			)
+			if err != nil {
+				if errors.Is(err, ErrImageBillingReservationQuotaInsufficient) {
+					return fmt.Errorf("%w: user quota is not enough", err)
+				}
 				return err
 			}
-			cacheDebited = true
 		}
 
 		applied, err := reserveImageTaskWalletQuotaDB(taskID, userID, quota)
-		if cacheDebited && (!applied || err != nil) {
-			if cacheErr := cacheIncrUserQuota(userID, int64(quota)); cacheErr != nil {
+		// Once the transaction callback applied the DB debit, a returned commit
+		// error is ambiguous: the server may still have committed it. Keep the
+		// tagged cache debit for terminal recovery instead of risking over-credit.
+		if cacheDebited && !applied {
+			if cacheErr := restoreImageReservationCacheDebit(
+				getUserCacheKey(userID),
+				imageTaskUserQuotaPinsKey(userID),
+				imageTaskUserQuotaInvalidationKey(userID),
+				"Quota",
+				taskID,
+			); cacheErr != nil {
 				common.SysLog("failed to compensate image wallet reservation cache: " + cacheErr.Error())
 			}
 		}
@@ -177,7 +503,7 @@ func reserveImageTaskWalletQuotaDB(taskID string, userID int, quota int) (bool, 
 			return debit.Error
 		}
 		if debit.RowsAffected != 1 {
-			return errors.New("user quota is not enough")
+			return fmt.Errorf("%w: user quota is not enough", ErrImageBillingReservationQuotaInsufficient)
 		}
 		applied = true
 		return nil
@@ -201,15 +527,32 @@ func ReserveImageTaskTokenQuota(taskID string, tokenID int, key string, quota in
 				if err := ensureTokenQuotaCache(tokenID, key); err != nil {
 					return err
 				}
-				if err := cacheTryDecrTokenQuota(key, int64(quota)); err != nil {
+				var err error
+				cacheDebited, err = applyImageReservationCacheDebit(
+					fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
+					imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
+					constant.TokenFiledRemainQuota,
+					"UnlimitedQuota",
+					taskID,
+					int64(quota),
+				)
+				if err != nil {
+					if errors.Is(err, ErrImageBillingReservationQuotaInsufficient) {
+						return errors.New("token quota is not enough")
+					}
 					return err
 				}
-				cacheDebited = true
 			}
 
 			applied, err := reserveImageTaskTokenQuotaDB(taskID, tokenID, quota)
-			if cacheDebited && (!applied || err != nil) {
-				if cacheErr := cacheIncrTokenQuota(key, int64(quota)); cacheErr != nil {
+			if cacheDebited && !applied {
+				if cacheErr := restoreImageReservationCacheDebit(
+					fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
+					imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
+					imageTaskTokenQuotaInvalidationKey(common.GenerateHMAC(key)),
+					constant.TokenFiledRemainQuota,
+					taskID,
+				); cacheErr != nil {
 					common.SysLog("failed to compensate image token reservation cache: " + cacheErr.Error())
 				}
 			}
@@ -383,14 +726,18 @@ func RefundImageTaskWalletQuota(taskID string, userID int) error {
 		return errors.New("task id and user id are required")
 	}
 	return withFlushedBatchQuota(BatchUpdateTypeUserQuota, userID, increaseUserQuota, func() error {
-		refunded, amount, err := refundImageTaskWalletQuotaDB(taskID, userID)
+		_, _, err := refundImageTaskWalletQuotaDB(taskID, userID)
 		if err != nil {
 			return err
 		}
-		if refunded && common.RedisEnabled {
-			if cacheErr := cacheIncrUserQuota(userID, int64(amount)); cacheErr != nil {
-				common.SysLog("failed to update image wallet refund cache: " + cacheErr.Error())
-			}
+		if common.RedisEnabled {
+			return restoreImageReservationCacheDebit(
+				getUserCacheKey(userID),
+				imageTaskUserQuotaPinsKey(userID),
+				imageTaskUserQuotaInvalidationKey(userID),
+				"Quota",
+				taskID,
+			)
 		}
 		return nil
 	})
@@ -442,14 +789,18 @@ func RefundImageTaskTokenQuota(taskID string, tokenID int, key string) error {
 	}
 	return withTokenQuotaCacheLock(key, func() error {
 		return withFlushedBatchQuota(BatchUpdateTypeTokenQuota, tokenID, increaseTokenQuota, func() error {
-			refunded, amount, err := refundImageTaskTokenQuotaDB(taskID, tokenID)
+			_, _, err := refundImageTaskTokenQuotaDB(taskID, tokenID)
 			if err != nil {
 				return err
 			}
-			if refunded && common.RedisEnabled {
-				if cacheErr := cacheIncrTokenQuota(key, int64(amount)); cacheErr != nil {
-					common.SysLog("failed to update image token refund cache: " + cacheErr.Error())
-				}
+			if common.RedisEnabled {
+				return restoreImageReservationCacheDebit(
+					fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
+					imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
+					imageTaskTokenQuotaInvalidationKey(common.GenerateHMAC(key)),
+					constant.TokenFiledRemainQuota,
+					taskID,
+				)
 			}
 			return nil
 		})
@@ -499,13 +850,30 @@ func refundImageTaskTokenQuotaDB(taskID string, tokenID int) (bool, int, error) 
 }
 
 // ActivatePreparedImageTask transfers ownership of all recorded reservation
-// legs to the runnable task in the same transaction.
-func ActivatePreparedImageTask(task *Task) (bool, error) {
+// legs and persists any private-input cleanup row in the same transaction.
+func ActivatePreparedImageTask(task *Task, cleanups ...*ImageInputCleanup) (bool, error) {
 	if task == nil || task.ID == 0 || task.TaskID == "" {
 		return false, errors.New("persisted prepared image task is required")
 	}
+	if len(cleanups) > 1 {
+		return false, errors.New("prepared image task accepts at most one input cleanup")
+	}
+	var cleanup *ImageInputCleanup
+	if len(cleanups) == 1 {
+		cleanup = cleanups[0]
+	}
 	activated := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		var lockedTask Task
+		if err := lockForUpdate(tx).
+			Select("id", "task_id", "platform", "status").
+			Where("id = ? AND task_id = ?", task.ID, task.TaskID).
+			First(&lockedTask).Error; err != nil {
+			return err
+		}
+		if lockedTask.Platform != constant.TaskPlatformOpenAIImage {
+			return errors.New("prepared image task platform is invalid")
+		}
 		var reservation ImageBillingReservation
 		if err := lockForUpdate(tx).Where("task_id = ?", task.TaskID).First(&reservation).Error; err != nil {
 			return err
@@ -515,6 +883,9 @@ func ActivatePreparedImageTask(task *Task) (bool, error) {
 		}
 		if reservation.Status != ImageBillingReservationPreparing {
 			return ErrImageBillingReservationNotPreparing
+		}
+		if lockedTask.Status != TaskStatusReserving {
+			return errors.New("prepared image task is no longer reserving")
 		}
 		if reservation.UserID != task.UserId {
 			return errors.New("activated image task does not match billing reservation")
@@ -564,9 +935,10 @@ func ActivatePreparedImageTask(task *Task) (bool, error) {
 		ledger := tx.Model(&ImageBillingReservation{}).
 			Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationPreparing).
 			Updates(map[string]any{
-				"status":         ImageBillingReservationActive,
-				"expected_quota": reservation.ExpectedQuota,
-				"updated_at":     candidate.UpdatedAt,
+				"status":              ImageBillingReservationActive,
+				"expected_quota":      reservation.ExpectedQuota,
+				"cache_reconciled_at": 0,
+				"updated_at":          candidate.UpdatedAt,
 			})
 		if ledger.Error != nil {
 			return ledger.Error
@@ -574,11 +946,33 @@ func ActivatePreparedImageTask(task *Task) (bool, error) {
 		if ledger.RowsAffected != 1 {
 			return errors.New("image billing reservation activation lost")
 		}
+		if err := activateImageInputCleanupTx(tx, &candidate, cleanup, candidate.UpdatedAt); err != nil {
+			return err
+		}
 		*task = candidate
 		activated = true
 		return nil
 	})
-	return activated, err
+	if err != nil {
+		return false, err
+	}
+	activeReservation, queryErr := GetImageBillingReservation(task.TaskID)
+	if queryErr != nil {
+		common.SysLog("failed to load active image reservation for cache reconciliation: " + queryErr.Error())
+		return activated, nil
+	}
+	if activeReservation.Status != ImageBillingReservationActive {
+		return activated, nil
+	}
+	tokenHMAC, tokenErr := activeImageBillingReservationTokenHash(activeReservation)
+	if tokenErr != nil {
+		common.SysLog("failed to load token for active image reservation cache reconciliation: " + tokenErr.Error())
+		return activated, nil
+	}
+	if cacheErr := reconcileActiveImageBillingReservationCache(activeReservation, tokenHMAC); cacheErr != nil {
+		common.SysLog("failed to reconcile active image reservation cache: " + cacheErr.Error())
+	}
+	return activated, nil
 }
 
 // RecoverStaleImageBillingReservations refunds stale pre-activation tasks.
@@ -591,6 +985,37 @@ func RecoverStaleImageBillingReservations(cutoff int64, limit int, reason string
 	if limit <= 0 {
 		limit = 1
 	}
+	var firstErr error
+	var active []ImageBillingReservation
+	if err := DB.Where("status = ? AND cache_reconciled_at = 0 AND updated_at <= ?", ImageBillingReservationActive, cutoff).
+		Order("updated_at asc, id asc").
+		Limit(limit).
+		Find(&active).Error; err != nil {
+		return 0, err
+	}
+	for i := range active {
+		tokenHMAC, err := activeImageBillingReservationTokenHash(&active[i])
+		if err == nil {
+			err = reconcileActiveImageBillingReservationCache(&active[i], tokenHMAC)
+		}
+		if err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("reconcile active image billing reservation %s: %w", active[i].TaskID, err)
+		}
+	}
+
+	var unreconciled []ImageBillingReservation
+	if err := DB.Where("status = ? AND cache_reconciled_at = 0", ImageBillingReservationRefunded).
+		Order("id asc").
+		Limit(limit).
+		Find(&unreconciled).Error; err != nil {
+		return 0, err
+	}
+	for i := range unreconciled {
+		if _, err := RefundImageBillingReservation(unreconciled[i].TaskID, reason); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("reconcile refunded image billing reservation %s: %w", unreconciled[i].TaskID, err)
+		}
+	}
+
 	var reservations []ImageBillingReservation
 	if err := DB.Where("status = ? AND updated_at <= ?", ImageBillingReservationPreparing, cutoff).
 		Order("id asc").
@@ -600,7 +1025,6 @@ func RecoverStaleImageBillingReservations(cutoff int64, limit int, reason string
 	}
 
 	recovered := 0
-	var firstErr error
 	for i := range reservations {
 		applied, err := RefundImageBillingReservation(reservations[i].TaskID, reason)
 		if err != nil {
@@ -614,6 +1038,48 @@ func RecoverStaleImageBillingReservations(cutoff int64, limit int, reason string
 		}
 	}
 	return recovered, firstErr
+}
+
+func reconcileRefundedImageBillingReservationCache(reservation *ImageBillingReservation, tokenKey string) error {
+	if reservation == nil || reservation.ID == 0 || reservation.TaskID == "" {
+		return errors.New("refunded image billing reservation is required")
+	}
+	if reservation.Status != ImageBillingReservationRefunded {
+		return errors.New("image billing reservation is not refunded")
+	}
+	if reservation.CacheReconciledAt > 0 {
+		return nil
+	}
+	if common.RedisEnabled {
+		if err := restoreImageReservationCacheDebit(
+			getUserCacheKey(reservation.UserID),
+			imageTaskUserQuotaPinsKey(reservation.UserID),
+			imageTaskUserQuotaInvalidationKey(reservation.UserID),
+			"Quota",
+			reservation.TaskID,
+		); err != nil {
+			return fmt.Errorf("restore image wallet reservation cache: %w", err)
+		}
+		if tokenKey != "" {
+			if err := restoreImageReservationCacheDebit(
+				fmt.Sprintf("token:%s", common.GenerateHMAC(tokenKey)),
+				imageTaskTokenQuotaPinsKey(common.GenerateHMAC(tokenKey)),
+				imageTaskTokenQuotaInvalidationKey(common.GenerateHMAC(tokenKey)),
+				constant.TokenFiledRemainQuota,
+				reservation.TaskID,
+			); err != nil {
+				return fmt.Errorf("restore image token reservation cache: %w", err)
+			}
+		}
+	}
+
+	result := DB.Model(&ImageBillingReservation{}).
+		Where("id = ? AND status = ? AND cache_reconciled_at = 0", reservation.ID, ImageBillingReservationRefunded).
+		Update("cache_reconciled_at", common.GetTimestamp())
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
 }
 
 // RefundImageBillingReservation atomically refunds every recorded preparing
@@ -638,34 +1104,18 @@ func RefundImageBillingReservation(taskID string, reason string) (bool, error) {
 	}
 
 	applied := false
-	walletRefunded := 0
-	tokenRefunded := 0
 	refund := func() error {
-		return withFlushedBatchQuota(BatchUpdateTypeUserQuota, reservation.UserID, increaseUserQuota, func() error {
-			return withFlushedBatchQuota(BatchUpdateTypeTokenQuota, reservation.TokenID, increaseTokenQuota, func() error {
-				var txErr error
-				applied, walletRefunded, tokenRefunded, txErr = refundImageBillingReservationDB(taskID, reason)
-				if txErr != nil || !applied || !common.RedisEnabled {
-					return txErr
-				}
-				if walletRefunded > 0 {
-					if cacheErr := cacheIncrUserQuota(reservation.UserID, int64(walletRefunded)); cacheErr != nil {
-						common.SysLog("failed to update recovered image wallet cache: " + cacheErr.Error())
-						if invalidateErr := invalidateUserCache(reservation.UserID); invalidateErr != nil {
-							common.SysLog("failed to invalidate recovered image wallet cache: " + invalidateErr.Error())
-						}
-					}
-				}
-				if tokenRefunded > 0 && tokenKey != "" {
-					if cacheErr := cacheIncrTokenQuota(tokenKey, int64(tokenRefunded)); cacheErr != nil {
-						common.SysLog("failed to update recovered image token cache: " + cacheErr.Error())
-						if invalidateErr := cacheDeleteToken(tokenKey); invalidateErr != nil {
-							common.SysLog("failed to invalidate recovered image token cache: " + invalidateErr.Error())
-						}
-					}
-				}
-				return nil
-			})
+		return withFlushedImageQuotaBatches(reservation.UserID, reservation.TokenID, func() error {
+			var txErr error
+			applied, _, _, txErr = refundImageBillingReservationDB(taskID, reason)
+			if txErr != nil {
+				return txErr
+			}
+			reservation, txErr = GetImageBillingReservation(taskID)
+			if txErr != nil || reservation.Status != ImageBillingReservationRefunded {
+				return txErr
+			}
+			return reconcileRefundedImageBillingReservationCache(reservation, tokenKey)
 		})
 	}
 	if tokenKey != "" {
@@ -673,10 +1123,10 @@ func RefundImageBillingReservation(taskID string, reason string) (bool, error) {
 	} else {
 		err = refund()
 	}
-	if err != nil || !applied {
+	if err != nil {
 		return applied, err
 	}
-	return true, nil
+	return applied, nil
 }
 
 func refundImageBillingReservationDB(taskID string, reason string) (bool, int, int, error) {
@@ -684,6 +1134,16 @@ func refundImageBillingReservationDB(taskID string, reason string) (bool, int, i
 	walletRefunded := 0
 	tokenRefunded := 0
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		var task Task
+		if err := lockForUpdate(tx).
+			Select("id", "task_id", "platform", "status").
+			Where("task_id = ?", taskID).
+			First(&task).Error; err != nil {
+			return err
+		}
+		if task.Platform != constant.TaskPlatformOpenAIImage {
+			return errors.New("image billing reservation task platform is invalid")
+		}
 		var reservation ImageBillingReservation
 		if err := lockForUpdate(tx).Where("task_id = ?", taskID).First(&reservation).Error; err != nil {
 			return err
@@ -693,6 +1153,9 @@ func refundImageBillingReservationDB(taskID string, reason string) (bool, int, i
 		}
 		if reservation.Status != ImageBillingReservationPreparing {
 			return nil
+		}
+		if task.Status != TaskStatusReserving {
+			return errors.New("image billing reservation task is no longer reserving")
 		}
 
 		if reservation.SubscriptionReserved > 0 {
@@ -746,15 +1209,22 @@ func refundImageBillingReservationDB(taskID string, reason string) (bool, int, i
 		if ledger.RowsAffected != 1 {
 			return errors.New("image billing reservation refund lost")
 		}
-		if err := tx.Model(&Task{}).
-			Where("task_id = ? AND platform = ? AND status = ?", taskID, constant.TaskPlatformOpenAIImage, TaskStatusReserving).
+		taskUpdate := tx.Model(&Task{}).
+			Where("id = ? AND task_id = ? AND platform = ? AND status = ?", task.ID, taskID, constant.TaskPlatformOpenAIImage, TaskStatusReserving).
 			Updates(map[string]any{
 				"status":      TaskStatusFailure,
 				"progress":    "100%",
 				"fail_reason": reason,
 				"finish_time": now,
 				"updated_at":  now,
-			}).Error; err != nil {
+			})
+		if taskUpdate.Error != nil {
+			return taskUpdate.Error
+		}
+		if taskUpdate.RowsAffected != 1 {
+			return errors.New("image billing reservation task terminalization lost")
+		}
+		if err := scheduleImageInputCleanupTx(tx, taskID, now); err != nil {
 			return err
 		}
 		applied = true
@@ -769,7 +1239,14 @@ func HasStaleImageBillingReservations(cutoff int64) bool {
 	}
 	var id int64
 	err := DB.Model(&ImageBillingReservation{}).
-		Where("status = ? AND updated_at <= ?", ImageBillingReservationPreparing, cutoff).
+		Where(
+			"(status = ? AND updated_at <= ?) OR (status = ? AND cache_reconciled_at = 0 AND updated_at <= ?) OR (status = ? AND cache_reconciled_at = 0)",
+			ImageBillingReservationPreparing,
+			cutoff,
+			ImageBillingReservationActive,
+			cutoff,
+			ImageBillingReservationRefunded,
+		).
 		Limit(1).
 		Pluck("id", &id).Error
 	return err == nil && id != 0

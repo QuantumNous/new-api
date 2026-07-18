@@ -27,6 +27,13 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 	parametersNProvided := false
 	imageRequest.Model = request.Model
 	imageRequest.ResponseFormat = request.ResponseFormat
+	imageURLs, err := request.ImageInputURLs()
+	if err != nil {
+		return nil, fmt.Errorf("invalid unified image input: %w", err)
+	}
+	if len(imageURLs) > 0 && !isSync {
+		return nil, fmt.Errorf("model %s does not support unified image inputs on the Ali text-to-image endpoint", request.Model)
+	}
 	if request.Extra != nil {
 		if val, ok := request.Extra["parameters"]; ok {
 			err := common.Unmarshal(val, &imageRequest.Parameters)
@@ -74,15 +81,16 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 	// 同步图片模型和异步图片模型请求格式不一样
 	if isSync {
 		if imageRequest.Input == nil {
+			content := make([]AliMediaContent, 0, len(imageURLs)+1)
+			for _, imageURL := range imageURLs {
+				content = append(content, AliMediaContent{Image: imageURL})
+			}
+			content = append(content, AliMediaContent{Text: request.Prompt})
 			imageRequest.Input = AliImageInput{
 				Messages: []AliMessage{
 					{
-						Role: "user",
-						Content: []AliMediaContent{
-							{
-								Text: request.Prompt,
-							},
-						},
+						Role:    "user",
+						Content: content,
 					},
 				},
 			}

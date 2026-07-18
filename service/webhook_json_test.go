@@ -2,9 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,12 +24,14 @@ func TestSendJSONWebhookWithClientSignsExactPayload(t *testing.T) {
 	var receivedBody []byte
 	var receivedSignature string
 	var receivedDeliveryID string
+	var receivedTimestamp string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		receivedBody, err = io.ReadAll(r.Body)
 		require.NoError(t, err)
 		receivedSignature = r.Header.Get("X-Webhook-Signature")
 		receivedDeliveryID = r.Header.Get(WebhookDeliveryIDHeader)
+		receivedTimestamp = r.Header.Get(WebhookTimestampHeader)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		w.WriteHeader(http.StatusNoContent)
 	}))
@@ -44,11 +43,31 @@ func TestSendJSONWebhookWithClientSignsExactPayload(t *testing.T) {
 	require.NoError(t, common.Unmarshal(receivedBody, &decoded))
 	assert.Equal(t, "task_123", decoded["task_id"])
 
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, err := mac.Write(receivedBody)
-	require.NoError(t, err)
-	assert.Equal(t, hex.EncodeToString(mac.Sum(nil)), receivedSignature)
+	assert.NotEmpty(t, receivedTimestamp)
+	assert.Equal(t, generateVersionedSignature(secret, receivedTimestamp, "task_123", receivedBody), receivedSignature)
+	assert.NotEqual(t, generateVersionedSignature(secret, receivedTimestamp, "task_changed", receivedBody), receivedSignature)
 	assert.Equal(t, "task_123", receivedDeliveryID)
+}
+
+func TestSendJSONWebhookWithClientPreservesLegacyBodySignatureWithoutDeliveryID(t *testing.T) {
+	secret := "legacy-webhook-secret"
+	payload := map[string]string{"status": "ok"}
+	var receivedBody []byte
+	var receivedSignature string
+	var receivedTimestamp string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		receivedBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		receivedSignature = r.Header.Get("X-Webhook-Signature")
+		receivedTimestamp = r.Header.Get(WebhookTimestampHeader)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	require.NoError(t, sendJSONWebhookWithClient(context.Background(), server.Client(), server.URL, secret, "", payload))
+	assert.Equal(t, generateSignature(secret, receivedBody), receivedSignature)
+	assert.Empty(t, receivedTimestamp)
 }
 
 func TestSendJSONWebhookWithClientRejectsNonSuccess(t *testing.T) {
@@ -68,6 +87,7 @@ func TestSendJSONWebhookWithClientRejectsRedirectWithoutForwardingSignature(t *t
 		redirected = true
 		assert.Empty(t, r.Header.Get("X-Webhook-Signature"))
 		assert.Empty(t, r.Header.Get(WebhookDeliveryIDHeader))
+		assert.Empty(t, r.Header.Get(WebhookTimestampHeader))
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer target.Close()
@@ -98,7 +118,7 @@ func TestSendJSONWebhookWithClientHonorsContextDeadline(t *testing.T) {
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
-func TestValidateJSONWebhookURLMatchesWorkerSchemePolicy(t *testing.T) {
+func TestValidateJSONWebhookURLAlwaysRequiresHTTPS(t *testing.T) {
 	oldWorkerURL := system_setting.WorkerUrl
 	oldAllowHTTP := system_setting.WorkerAllowHttpImageRequestEnabled
 	system_setting.WorkerUrl = "https://worker.example.com"
@@ -114,7 +134,9 @@ func TestValidateJSONWebhookURLMatchesWorkerSchemePolicy(t *testing.T) {
 	require.NoError(t, ValidateJSONWebhookURL("https://8.8.8.8/webhook"))
 
 	system_setting.WorkerAllowHttpImageRequestEnabled = true
-	require.NoError(t, ValidateJSONWebhookURL("http://8.8.8.8/webhook"))
+	err = ValidateJSONWebhookURL("http://8.8.8.8/webhook")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "https")
 }
 
 func TestValidateJSONWebhookURLRejectsPrivateTargetsWhenGeneralProtectionDisabled(t *testing.T) {
@@ -128,7 +150,7 @@ func TestValidateJSONWebhookURLRejectsPrivateTargetsWhenGeneralProtectionDisable
 	fetchSetting.ApplyIPFilterForDomain = false
 	t.Cleanup(func() { *fetchSetting = original })
 
-	err := ValidateJSONWebhookURL("http://127.0.0.1/webhook")
+	err := ValidateJSONWebhookURL("https://127.0.0.1/webhook")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "private IP address not allowed")
 	require.NoError(t, ValidateJSONWebhookURL("https://8.8.8.8/webhook"))

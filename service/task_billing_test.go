@@ -46,6 +46,7 @@ func TestMain(m *testing.M) {
 		&model.Task{},
 		&model.TaskWebhook{},
 		&model.ImageBillingReservation{},
+		&model.ImageInputCleanup{},
 		&model.User{},
 		&model.Token{},
 		&model.Log{},
@@ -73,6 +74,7 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM tasks")
 		model.DB.Exec("DELETE FROM task_webhooks")
 		model.DB.Exec("DELETE FROM image_billing_reservations")
+		model.DB.Exec("DELETE FROM image_input_cleanups")
 		model.DB.Exec("DELETE FROM users")
 		model.DB.Exec("DELETE FROM tokens")
 		model.DB.Exec("DELETE FROM logs")

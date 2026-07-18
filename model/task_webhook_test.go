@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -12,6 +13,7 @@ import (
 
 func TestInsertTaskWithWebhookAndClaimImageTask(t *testing.T) {
 	truncateTables(t)
+	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "true")
 	require.NoError(t, DB.AutoMigrate(&TaskWebhook{}))
 
 	task := &Task{
@@ -29,6 +31,20 @@ func TestInsertTaskWithWebhookAndClaimImageTask(t *testing.T) {
 	}
 
 	require.NoError(t, InsertTaskWithWebhook(task, webhook))
+	var stored struct {
+		URL    string
+		Secret string
+	}
+	require.NoError(t, DB.Model(&TaskWebhook{}).Select("url", "secret").Where("id = ?", webhook.ID).Scan(&stored).Error)
+	assert.True(t, strings.HasPrefix(stored.URL, "enc:v1:"))
+	assert.NotEqual(t, "https://example.com/hook", stored.URL)
+	storedSecret := stored.Secret
+	assert.True(t, strings.HasPrefix(storedSecret, "enc:v1:"))
+	assert.NotEqual(t, "secret", storedSecret)
+	webhookURL, secret, err := webhook.DeliveryCredentials()
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/hook", webhookURL)
+	assert.Equal(t, "secret", secret)
 
 	pending, err := FindPendingImageTasks(10)
 	require.NoError(t, err)
@@ -46,6 +62,25 @@ func TestInsertTaskWithWebhookAndClaimImageTask(t *testing.T) {
 	require.Len(t, due, 1)
 	assert.Equal(t, task.TaskID, due[0].TaskID)
 	assert.Equal(t, TaskWebhookStatusPending, due[0].Status)
+}
+
+func TestTaskWebhookReaderFirstModeWritesLegacyCredentials(t *testing.T) {
+	truncateTables(t)
+	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "false")
+	hook := &TaskWebhook{
+		TaskID: "task_image_webhook_reader_first",
+		URL:    "https://example.com/reader-first",
+		Secret: "reader-first-secret",
+	}
+	require.NoError(t, DB.Create(hook).Error)
+	var stored TaskWebhook
+	require.NoError(t, DB.First(&stored, hook.ID).Error)
+	assert.Equal(t, hook.URL, stored.URL)
+	assert.Equal(t, hook.Secret, stored.Secret)
+	webhookURL, secret, err := stored.DeliveryCredentials()
+	require.NoError(t, err)
+	assert.Equal(t, hook.URL, webhookURL)
+	assert.Equal(t, hook.Secret, secret)
 }
 
 func TestTaskWebhookRetryAndDeliveryLifecycle(t *testing.T) {
@@ -206,6 +241,36 @@ func TestRequeueStaleInProgressImageTasksLeavesActiveClaimsAlone(t *testing.T) {
 	assert.Equal(t, now-30, active.StartTime)
 	require.NoError(t, DB.Model(stale).Update("status", TaskStatusSuccess).Error)
 	assert.False(t, HasPendingImageWork(cutoff))
+}
+
+func TestRequeueStaleInProgressImageTasksNeverReopensCheckpointPendingCall(t *testing.T) {
+	truncateTables(t)
+	now := common.GetTimestamp()
+	task := &Task{
+		TaskID:     "task_image_checkpoint_pending",
+		Platform:   constant.TaskPlatformOpenAIImage,
+		Status:     TaskStatusCheckpointPending,
+		Attempt:    1,
+		StartTime:  now - 3600,
+		SubmitTime: now - 3600,
+		UpdatedAt:  now - 3600,
+		Progress:   "20%",
+	}
+	require.NoError(t, DB.Create(task).Error)
+
+	require.True(t, HasPendingImageWork(now-600))
+	require.NoError(t, RequeueStaleInProgressImageTasks(now-600, now))
+	require.NoError(t, DB.First(task, task.ID).Error)
+	assert.Equal(t, TaskStatusCheckpointPending, task.Status)
+	assert.Equal(t, "20%", task.Progress)
+
+	pending, err := FindPendingImageTasks(10)
+	require.NoError(t, err)
+	assert.Empty(t, pending)
+	ambiguous, err := FindCheckpointPendingImageTasks(now, 10)
+	require.NoError(t, err)
+	require.Len(t, ambiguous, 1)
+	assert.Equal(t, task.TaskID, ambiguous[0].TaskID)
 }
 
 func TestImageTaskProviderDownloadAndUploadRetriesAreIndependent(t *testing.T) {

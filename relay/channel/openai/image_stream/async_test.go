@@ -1,21 +1,29 @@
 package image_stream
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -32,6 +40,114 @@ func (fn asyncImageRoundTripFunc) RoundTrip(request *http.Request) (*http.Respon
 	return fn(request)
 }
 
+func TestAsyncImageOutputLeaseIsIdempotentAndContextAware(t *testing.T) {
+	previousSemaphore := asyncImageOutputMaterializationSemaphore
+	asyncImageOutputMaterializationSemaphore = make(chan struct{}, 1)
+	t.Cleanup(func() { asyncImageOutputMaterializationSemaphore = previousSemaphore })
+
+	first := &asyncImageOutputLease{}
+	require.NoError(t, first.acquire(context.Background()))
+	require.NoError(t, first.acquire(context.Background()))
+	assert.Len(t, asyncImageOutputMaterializationSemaphore, 1)
+
+	blockedCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	second := &asyncImageOutputLease{}
+	require.ErrorIs(t, second.acquire(blockedCtx), context.Canceled)
+	assert.False(t, second.held)
+
+	first.release()
+	first.release()
+	assert.Empty(t, asyncImageOutputMaterializationSemaphore)
+	require.NoError(t, second.acquire(context.Background()))
+	second.release()
+	assert.Empty(t, asyncImageOutputMaterializationSemaphore)
+}
+
+func TestAsyncImagePersistedArtifactLoadHoldsOutputLeaseAndReleasesOnCancellation(t *testing.T) {
+	previousSemaphore := asyncImageOutputMaterializationSemaphore
+	asyncImageOutputMaterializationSemaphore = make(chan struct{}, 1)
+	t.Cleanup(func() { asyncImageOutputMaterializationSemaphore = previousSemaphore })
+
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 1}
+	artifact, err := common.Marshal(genericImageArtifact{
+		Response: &dto.ImageResponse{Data: []dto.ImageData{{B64Json: base64.StdEncoding.EncodeToString(png)}}},
+	})
+	require.NoError(t, err)
+	payloadData, err := common.Marshal(asyncImageTaskPayload{
+		Version:        asyncImagePayloadVersion,
+		Executor:       AsyncImageExecutorAdaptor,
+		ArtifactStored: true,
+		Request:        &dto.ImageRequest{Model: "image-model", Prompt: "draw"},
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	previousLoad := loadAsyncImageTaskArtifact
+	loadAsyncImageTaskArtifact = func(taskID string) ([]byte, error) {
+		assert.Equal(t, "task_output_lease", taskID)
+		assert.Len(t, asyncImageOutputMaterializationSemaphore, 1, "the lease must be held before loading a large SQL artifact")
+		cancel()
+		return artifact, nil
+	}
+	t.Cleanup(func() { loadAsyncImageTaskArtifact = previousLoad })
+
+	completed, executeErr := executeAsyncImageTask(ctx, &model.Task{
+		TaskID:   "task_output_lease",
+		Status:   model.TaskStatusInProgress,
+		Data:     payloadData,
+		Progress: "70%",
+	})
+
+	assert.False(t, completed)
+	require.ErrorIs(t, executeErr, context.Canceled)
+	assert.Empty(t, asyncImageOutputMaterializationSemaphore, "every return path must release the output lease")
+}
+
+func TestAsyncImageResponsesPersistedArtifactLoadHoldsOutputLeaseAndReleasesOnCancellation(t *testing.T) {
+	previousSemaphore := asyncImageOutputMaterializationSemaphore
+	asyncImageOutputMaterializationSemaphore = make(chan struct{}, 1)
+	t.Cleanup(func() { asyncImageOutputMaterializationSemaphore = previousSemaphore })
+
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 2}
+	artifact, err := common.Marshal(UpstreamResponse{
+		Output: []UpstreamItem{{
+			Type:         "image_generation_call",
+			Result:       base64.StdEncoding.EncodeToString(png),
+			OutputFormat: "png",
+		}},
+	})
+	require.NoError(t, err)
+	payloadData, err := common.Marshal(asyncImageTaskPayload{
+		Version:        asyncImagePayloadVersion,
+		Executor:       AsyncImageExecutorResponses,
+		ArtifactStored: true,
+		Request:        &dto.ImageRequest{Model: "gpt-image-1", Prompt: "draw"},
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	previousLoad := loadAsyncImageTaskArtifact
+	loadAsyncImageTaskArtifact = func(taskID string) ([]byte, error) {
+		assert.Equal(t, "task_responses_output_lease", taskID)
+		assert.Len(t, asyncImageOutputMaterializationSemaphore, 1, "the lease must be held before loading a Responses SQL artifact")
+		cancel()
+		return artifact, nil
+	}
+	t.Cleanup(func() { loadAsyncImageTaskArtifact = previousLoad })
+
+	completed, executeErr := executeAsyncImageTask(ctx, &model.Task{
+		TaskID:   "task_responses_output_lease",
+		Status:   model.TaskStatusInProgress,
+		Data:     payloadData,
+		Progress: "70%",
+	})
+
+	assert.False(t, completed)
+	require.ErrorIs(t, executeErr, context.Canceled)
+	assert.Empty(t, asyncImageOutputMaterializationSemaphore, "Responses cancellation must release the output lease")
+}
+
 func setupAsyncImageSubmitTestDB(t *testing.T) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
@@ -44,6 +160,7 @@ func setupAsyncImageSubmitTestDB(t *testing.T) {
 		&model.ImageBillingReservation{},
 		&model.ImageTaskBillingLogOutbox{},
 		&model.ImageTaskBillingLogReceipt{},
+		&model.ImageInputCleanup{},
 		&model.SystemTask{},
 		&model.SystemTaskLock{},
 	))
@@ -68,7 +185,19 @@ func setupAsyncImageSubmitTestDB(t *testing.T) {
 	t.Setenv("CLOUDFLARE_R2_SECRET_ACCESS_KEY", "test-secret-key")
 	t.Setenv("CLOUDFLARE_R2_ACCOUNT_ID", "test-account")
 	t.Setenv("CLOUDFLARE_R2_BUCKET", "test-bucket")
+	t.Setenv("CLOUDFLARE_R2_INPUT_BUCKET", "test-input-bucket")
 	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example.com")
+	t.Setenv("CRYPTO_SECRET", "test-crypto-secret")
+	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "true")
+}
+
+func decodeStoredAsyncImagePayload(t *testing.T, checkpoint json.RawMessage) asyncImageTaskPayload {
+	t.Helper()
+	plaintext, err := model.DecryptImageTaskArtifactCheckpoint(checkpoint)
+	require.NoError(t, err)
+	var payload asyncImageTaskPayload
+	require.NoError(t, common.Unmarshal(plaintext, &payload))
+	return payload
 }
 
 func newAsyncImageSubmitRelayInfo(user *model.User, token *model.Token, quota int) *relaycommon.RelayInfo {
@@ -83,7 +212,10 @@ func newAsyncImageSubmitRelayInfo(user *model.User, token *model.Token, quota in
 		ForcePreConsume: true,
 		Request:         request,
 		PriceData:       types.PriceData{QuotaToPreConsume: quota},
-		UserSetting:     dto.UserSetting{BillingPreference: "wallet_only"},
+		UserSetting: dto.UserSetting{
+			BillingPreference:     "wallet_only",
+			QuotaWarningThreshold: -1,
+		},
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType:       constant.ChannelTypeOpenAI,
 			ChannelId:         7,
@@ -126,7 +258,7 @@ func TestSubmitAsyncImageActivatesOnlyAfterDurableBillingReservation(t *testing.
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 
-	apiErr := SubmitAsyncImage(c, info, info.Request.(*dto.ImageRequest))
+	apiErr := SubmitAsyncImage(c, info, info.Request.(*dto.ImageRequest), nil)
 	require.Nil(t, apiErr)
 	assert.Equal(t, http.StatusAccepted, recorder.Code)
 	assert.Equal(t, "2", recorder.Header().Get("Retry-After"))
@@ -139,8 +271,7 @@ func TestSubmitAsyncImageActivatesOnlyAfterDurableBillingReservation(t *testing.
 	assert.Equal(t, "wallet", task.PrivateData.BillingSource)
 	assert.Empty(t, task.PrivateData.Key)
 	assert.Equal(t, common.GenerateHMAC(info.ApiKey), task.PrivateData.ChannelKeyHash)
-	var payload asyncImageTaskPayload
-	require.NoError(t, common.Unmarshal(task.CheckpointData, &payload))
+	payload := decodeStoredAsyncImagePayload(t, task.CheckpointData)
 	assert.Equal(t, asyncImagePayloadVersion, payload.Version)
 	assert.Empty(t, payload.ChannelBaseURL)
 	assert.Empty(t, payload.ChannelProxy)
@@ -159,6 +290,228 @@ func TestSubmitAsyncImageActivatesOnlyAfterDurableBillingReservation(t *testing.
 	assert.Equal(t, 120, token.UsedQuota)
 }
 
+func TestSubmitAsyncImageEncryptsPromptAndBillingRequestSnapshotAtRest(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	user, token := seedAsyncImageSubmitIdentity(t)
+	info := newAsyncImageSubmitRelayInfo(user, token, 120)
+	request := info.Request.(*dto.ImageRequest)
+	request.Prompt = "checkpoint-prompt-secret"
+	request.User = json.RawMessage(`"request-user-secret"`)
+	billingBody := []byte(`{"model":"gpt-image-2","prompt":"checkpoint-prompt-secret","user":"billing-user-secret"}`)
+	info.BillingRequestInput = &billingexpr.RequestInput{
+		Headers: map[string]string{"X-Trace-Id": "billing-trace-secret"},
+		Body:    billingBody,
+	}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	apiErr := SubmitAsyncImage(c, info, request, nil)
+	require.Nil(t, apiErr)
+
+	var rawCheckpoint, rawPrivateData []byte
+	row := model.DB.Raw("SELECT checkpoint_data, private_data FROM tasks WHERE platform = ?", constant.TaskPlatformOpenAIImage).Row()
+	require.NoError(t, row.Scan(&rawCheckpoint, &rawPrivateData))
+	for _, secret := range []string{
+		"checkpoint-prompt-secret",
+		"request-user-secret",
+		"billing-user-secret",
+		"billing-trace-secret",
+		base64.StdEncoding.EncodeToString(billingBody),
+	} {
+		assert.NotContains(t, string(rawCheckpoint), secret)
+		assert.NotContains(t, string(rawPrivateData), secret)
+	}
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	payload := decodeStoredAsyncImagePayload(t, task.CheckpointData)
+	require.NotNil(t, payload.Request)
+	assert.Equal(t, request.Prompt, payload.Request.Prompt)
+	assert.JSONEq(t, string(request.User), string(payload.Request.User))
+
+	require.NotNil(t, task.PrivateData.BillingContext)
+	assert.Nil(t, task.PrivateData.BillingContext.BillingRequestInput)
+	assert.NotEmpty(t, task.PrivateData.BillingContext.EncryptedBillingRequestInput)
+	restoredBillingInput, err := task.PrivateData.BillingContext.ResolveBillingRequestInput()
+	require.NoError(t, err)
+	require.NotNil(t, restoredBillingInput)
+	assert.Equal(t, billingBody, restoredBillingInput.Body)
+	assert.Equal(t, "billing-trace-secret", restoredBillingInput.Headers["X-Trace-Id"])
+}
+
+func TestSubmitAsyncImageDoesNotPersistStagedMaskSourceInBillingSnapshot(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	user, token := seedAsyncImageSubmitIdentity(t)
+	info := newAsyncImageSubmitRelayInfo(user, token, 120)
+	info.RelayMode = relayconstant.RelayModeImagesEdits
+	request := info.Request.(*dto.ImageRequest)
+	request.Images = json.RawMessage(`["data:image/png;base64,cHJpdmF0ZS1pbWFnZQ=="]`)
+	request.Image = json.RawMessage(`"data:image/png;base64,cHJpdmF0ZS1pbWFnZQ=="`)
+	request.Mask = json.RawMessage(`"data:image/png;base64,cHJpdmF0ZS1tYXNr"`)
+	info.BillingRequestInput = &billingexpr.RequestInput{Body: []byte(`{
+		"model":"gpt-image-2",
+		"prompt":"edit",
+		"images":["data:image/png;base64,cHJpdmF0ZS1pbWFnZQ=="],
+		"mask":"data:image/png;base64,cHJpdmF0ZS1tYXNr",
+		"input":{
+			"image_input":["data:image/png;base64,cHJpdmF0ZS1pbWFnZQ=="],
+			"mask":"data:image/png;base64,bmVzdGVkLXByaXZhdGUtbWFzaw=="
+		}
+	}`)}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+
+	apiErr := SubmitAsyncImage(
+		c,
+		info,
+		request,
+		&PreparedAsyncImageInputs{ObjectKeys: []string{"inputs/source.png"}, MaskObjectKey: "inputs/mask.png"},
+		&PreparedAsyncImageRequest{ConfigurationStored: true, RelayMode: relayconstant.RelayModeImagesEdits},
+	)
+	require.Nil(t, apiErr)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	restoredBillingInput, err := task.PrivateData.BillingContext.ResolveBillingRequestInput()
+	require.NoError(t, err)
+	require.NotNil(t, restoredBillingInput)
+	assert.NotContains(t, string(restoredBillingInput.Body), "cHJpdmF0ZS1pbWFnZQ==")
+	assert.NotContains(t, string(restoredBillingInput.Body), "cHJpdmF0ZS1tYXNr")
+	assert.NotContains(t, string(restoredBillingInput.Body), "bmVzdGVkLXByaXZhdGUtbWFzaw==")
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(restoredBillingInput.Body, &fields))
+	assert.JSONEq(t, `"r2-input"`, string(fields["mask"]))
+	var nestedInput map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(fields["input"], &nestedInput))
+	assert.JSONEq(t, `"r2-input"`, string(nestedInput["mask"]))
+}
+
+func TestRunAsyncImageWorkContinuesPastUnrecoverableStaleReservation(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	staleAt := time.Now().Add(-2 * asyncImageReservationStaleAfter).Unix()
+	task := &model.Task{
+		TaskID:     "task_poison_stale_reservation",
+		Platform:   constant.TaskPlatformOpenAIImage,
+		UserId:     999999,
+		Status:     model.TaskStatusReserving,
+		Progress:   "0%",
+		SubmitTime: staleAt,
+		CreatedAt:  staleAt,
+		UpdatedAt:  staleAt,
+	}
+	require.NoError(t, model.DB.Create(task).Error)
+	require.NoError(t, model.DB.Create(&model.ImageBillingReservation{
+		TaskID:         task.TaskID,
+		UserID:         task.UserId,
+		ExpectedQuota:  1,
+		WalletReserved: 1,
+		FundingSource:  "wallet",
+		Status:         model.ImageBillingReservationPreparing,
+		CreatedAt:      staleAt,
+		UpdatedAt:      staleAt,
+	}).Error)
+
+	result, err := runAsyncImageWork(context.Background())
+
+	require.NoError(t, err)
+	assert.Zero(t, result.Completed)
+	var stored model.ImageBillingReservation
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	assert.Equal(t, model.ImageBillingReservationPreparing, stored.Status)
+}
+
+func TestSubmitAsyncImageReservesQuotaBeforeStoringInputs(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	user, token := seedAsyncImageSubmitIdentity(t)
+	info := newAsyncImageSubmitRelayInfo(user, token, 120)
+	request := info.Request.(*dto.ImageRequest)
+	request.Images = json.RawMessage(`["https://source.example.com/reference.png"]`)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	originalStore := storeAsyncImageSources
+	t.Cleanup(func() { storeAsyncImageSources = originalStore })
+	storeObserved := false
+	storeAsyncImageSources = func(_ context.Context, response *dto.ImageResponse) (*storedAsyncImageSources, error) {
+		storeObserved = true
+		require.Len(t, response.Data, 1)
+		assert.Equal(t, "https://source.example.com/reference.png", response.Data[0].Url)
+
+		var reservingTask model.Task
+		require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&reservingTask).Error)
+		assert.Equal(t, model.TaskStatus(model.TaskStatusReserving), reservingTask.Status)
+		assert.Empty(t, reservingTask.CheckpointData)
+		reservation, err := model.GetImageBillingReservation(reservingTask.TaskID)
+		require.NoError(t, err)
+		assert.Equal(t, model.ImageBillingReservationPreparing, reservation.Status)
+		assert.Equal(t, 120, reservation.WalletReserved)
+		assert.Equal(t, 120, reservation.TokenReserved)
+		require.NoError(t, model.DB.First(user, user.Id).Error)
+		assert.Equal(t, 880, user.Quota)
+		require.NoError(t, model.DB.First(token, token.Id).Error)
+		assert.Equal(t, 880, token.RemainQuota)
+
+		return &storedAsyncImageSources{
+			URLs:       []string{"https://private.example.com/input.png?X-Amz-Signature=temporary-secret"},
+			ObjectKeys: []string{"inputs/reference.png"},
+		}, nil
+	}
+
+	apiErr := SubmitAsyncImage(c, info, request, nil)
+
+	require.Nil(t, apiErr)
+	assert.True(t, storeObserved)
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusNotStart), task.Status)
+	assert.NotContains(t, string(task.CheckpointData), "temporary-secret")
+	payload := decodeStoredAsyncImagePayload(t, task.CheckpointData)
+	assert.Equal(t, []string{"inputs/reference.png"}, payload.InputObjectKeys)
+	var cleanup model.ImageInputCleanup
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&cleanup).Error)
+	assert.Equal(t, model.ImageInputCleanupWaiting, cleanup.Status)
+	assert.False(t, model.HasDueImageInputCleanups(common.GetTimestamp()))
+}
+
+func TestSubmitAsyncImageInputStorageFailureRefundsDurableReservation(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	user, token := seedAsyncImageSubmitIdentity(t)
+	info := newAsyncImageSubmitRelayInfo(user, token, 120)
+	request := info.Request.(*dto.ImageRequest)
+	request.Images = json.RawMessage(`["https://source.example.com/reference.png"]`)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	originalStore := storeAsyncImageSources
+	t.Cleanup(func() { storeAsyncImageSources = originalStore })
+	storeAsyncImageSources = func(_ context.Context, _ *dto.ImageResponse) (*storedAsyncImageSources, error) {
+		return nil, errors.New("input storage unavailable")
+	}
+
+	apiErr := SubmitAsyncImage(c, info, request, nil)
+
+	require.NotNil(t, apiErr)
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusFailure), task.Status)
+	reservation, err := model.GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, model.ImageBillingReservationRefunded, reservation.Status)
+	require.NoError(t, model.DB.First(user, user.Id).Error)
+	assert.Equal(t, 1000, user.Quota)
+	require.NoError(t, model.DB.First(token, token.Id).Error)
+	assert.Equal(t, 1000, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	applied, err := model.RefundImageBillingReservation(task.TaskID, "duplicate refund")
+	require.NoError(t, err)
+	assert.False(t, applied)
+}
+
 func TestSubmitAsyncImageInsufficientQuotaTerminalizesPreparedTask(t *testing.T) {
 	setupAsyncImageSubmitTestDB(t)
 	user, token := seedAsyncImageSubmitIdentity(t)
@@ -167,7 +520,7 @@ func TestSubmitAsyncImageInsufficientQuotaTerminalizesPreparedTask(t *testing.T)
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 
-	apiErr := SubmitAsyncImage(c, info, info.Request.(*dto.ImageRequest))
+	apiErr := SubmitAsyncImage(c, info, info.Request.(*dto.ImageRequest), nil)
 	require.NotNil(t, apiErr)
 
 	var task model.Task
@@ -192,7 +545,7 @@ func TestSubmitAsyncImageDoesNotPersistChannelEgressSecrets(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 
-	apiErr := SubmitAsyncImage(c, info, info.Request.(*dto.ImageRequest), &PreparedAsyncImageRequest{
+	apiErr := SubmitAsyncImage(c, info, info.Request.(*dto.ImageRequest), nil, &PreparedAsyncImageRequest{
 		Body:                []byte(`{"model":"gpt-image-2","prompt":"a lighthouse in rain"}`),
 		ContentType:         "application/json",
 		RequestURLPath:      "/v1/images/generations",
@@ -205,7 +558,11 @@ func TestSubmitAsyncImageDoesNotPersistChannelEgressSecrets(t *testing.T) {
 			"Authorization": "Bearer header-secret",
 			"X-Trace-Mode":  "submitted",
 		},
-		ChannelSetting: &dto.ChannelSettings{Proxy: "http://proxy-user:proxy-secret@proxy.example.com"},
+		ChannelSetting: &dto.ChannelSettings{
+			Proxy:                "http://proxy-user:proxy-secret@proxy.example.com",
+			SystemPrompt:         "operator-system-prompt-secret",
+			SystemPromptOverride: true,
+		},
 		ChannelOtherSettings: &dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{
 			Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/images/generations", UpstreamPath: "/images"}},
 		}},
@@ -223,22 +580,24 @@ func TestSubmitAsyncImageDoesNotPersistChannelEgressSecrets(t *testing.T) {
 
 	var task model.Task
 	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
-	var payload asyncImageTaskPayload
-	require.NoError(t, common.Unmarshal(task.CheckpointData, &payload))
+	payload := decodeStoredAsyncImagePayload(t, task.CheckpointData)
 	require.NotNil(t, payload.PreparedRequest)
 	assert.Empty(t, payload.PreparedRequest.ChannelBaseURL)
-	assert.Equal(t, map[string]interface{}{"X-Trace-Mode": "submitted"}, payload.PreparedRequest.HeadersOverride)
+	assert.Empty(t, payload.PreparedRequest.HeadersOverride)
 	require.NotNil(t, payload.PreparedRequest.ChannelSetting)
 	assert.Empty(t, payload.PreparedRequest.ChannelSetting.Proxy)
+	assert.Empty(t, payload.PreparedRequest.ChannelSetting.SystemPrompt)
+	assert.False(t, payload.PreparedRequest.ChannelSetting.SystemPromptOverride)
 	require.NotNil(t, payload.PreparedRequest.ChannelOtherSettings)
 	assert.Nil(t, payload.PreparedRequest.ChannelOtherSettings.AdvancedCustom)
-	require.NotNil(t, payload.PreparedRequest.AdvancedRoute)
-	assert.Nil(t, payload.PreparedRequest.AdvancedRoute.Auth)
+	assert.Nil(t, payload.PreparedRequest.AdvancedRoute)
+	assert.NotEmpty(t, payload.PreparedRequest.AdvancedRouteHash)
 
 	checkpoint := string(task.CheckpointData)
 	assert.NotContains(t, checkpoint, "base-secret")
 	assert.NotContains(t, checkpoint, "header-secret")
 	assert.NotContains(t, checkpoint, "proxy-secret")
+	assert.NotContains(t, checkpoint, "operator-system-prompt-secret")
 	assert.NotContains(t, checkpoint, "route-secret")
 	privateData, err := common.Marshal(task.PrivateData)
 	require.NoError(t, err)
@@ -288,7 +647,10 @@ func TestAsyncImageAdaptorRetryUsesMaterializedArtifactAfterProviderURLExpires(t
 	var executorCalls atomic.Int32
 	genericImageExecutorRegistry.Lock()
 	previousExecutor := genericImageExecutorRegistry.executor
-	genericImageExecutorRegistry.executor = func(_ context.Context, _ *GenericImageExecutionRequest) (*GenericImageExecutionResult, *types.NewAPIError) {
+	genericImageExecutorRegistry.executor = func(_ context.Context, request *GenericImageExecutionRequest) (*GenericImageExecutionResult, *types.NewAPIError) {
+		if request.BeforeProviderCall != nil {
+			require.NoError(t, request.BeforeProviderCall())
+		}
 		executorCalls.Add(1)
 		return &GenericImageExecutionResult{
 			Response: &dto.ImageResponse{
@@ -365,8 +727,11 @@ func TestAsyncImageAdaptorRetryUsesMaterializedArtifactAfterProviderURLExpires(t
 
 	var persisted model.Task
 	require.NoError(t, model.DB.First(&persisted, task.ID).Error)
+	assert.NotContains(t, string(persisted.CheckpointData), providerServer.URL)
+	checkpointData, err := model.DecryptImageTaskArtifactCheckpoint(persisted.CheckpointData)
+	require.NoError(t, err)
 	var persistedPayload asyncImageTaskPayload
-	require.NoError(t, common.Unmarshal(persisted.CheckpointData, &persistedPayload))
+	require.NoError(t, common.Unmarshal(checkpointData, &persistedPayload))
 	assert.True(t, persistedPayload.ArtifactStored)
 	assert.False(t, persistedPayload.ProviderStored)
 	assert.Equal(t, "70%", persisted.Progress)
@@ -402,6 +767,208 @@ func TestAsyncImageAdaptorRetryUsesMaterializedArtifactAfterProviderURLExpires(t
 	assert.False(t, completed)
 	assert.Equal(t, int32(1), executorCalls.Load())
 	assert.Equal(t, int32(1), providerURLRequests.Load())
+}
+
+func TestAsyncImageAdaptorCheckpointFailureNeverCallsProviderTwice(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.ImageTaskArtifactChunk{}, &model.Log{}))
+
+	previousMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() { common.MemoryCacheEnabled = previousMemoryCacheEnabled })
+
+	baseURL := "https://upstream.example.com"
+	channel := &model.Channel{
+		Type:        constant.ChannelTypeOpenAI,
+		Key:         "upstream-key",
+		Status:      common.ChannelStatusEnabled,
+		Name:        "checkpoint failure test",
+		CreatedTime: 1700000010,
+		BaseURL:     &baseURL,
+		Models:      "dall-e-3",
+		Group:       "default",
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	user := &model.User{Username: "checkpoint-failure-user", Quota: 0, Status: common.UserStatusEnabled, Group: "default"}
+	require.NoError(t, model.DB.Create(user).Error)
+
+	payload := asyncImageTaskPayload{
+		Version:  asyncImagePayloadVersion,
+		Executor: AsyncImageExecutorAdaptor,
+		Request:  &dto.ImageRequest{Model: "dall-e-3", Prompt: "checkpoint once"},
+		PreparedRequest: &PreparedAsyncImageRequest{
+			Body:              []byte(`{"model":"dall-e-3","prompt":"checkpoint once"}`),
+			ContentType:       "application/json",
+			RequestURLPath:    "/v1/images/generations",
+			ChannelBaseURL:    baseURL,
+			APIType:           constant.APITypeOpenAI,
+			ChannelType:       constant.ChannelTypeOpenAI,
+			ChannelCreateTime: channel.CreatedTime,
+		},
+	}
+	task := &model.Task{
+		TaskID:    "task_checkpoint_failure_once",
+		Platform:  constant.TaskPlatformOpenAIImage,
+		UserId:    user.Id,
+		ChannelId: channel.Id,
+		Quota:     0,
+		Status:    model.TaskStatusInProgress,
+		Attempt:   1,
+		Progress:  "10%",
+		Properties: model.Properties{
+			OriginModelName:   "dall-e-3",
+			UpstreamModelName: "dall-e-3",
+		},
+		PrivateData: model.TaskPrivateData{
+			ChannelKeyHash: common.GenerateHMAC(channel.Key),
+			BillingContext: &model.TaskBillingContext{PerCallBilling: true},
+		},
+	}
+	task.SetCheckpointData(payload)
+	require.NoError(t, model.DB.Create(task).Error)
+
+	var providerCalls atomic.Int32
+	genericImageExecutorRegistry.Lock()
+	previousExecutor := genericImageExecutorRegistry.executor
+	genericImageExecutorRegistry.executor = func(_ context.Context, request *GenericImageExecutionRequest) (*GenericImageExecutionResult, *types.NewAPIError) {
+		if request.BeforeProviderCall != nil {
+			require.NoError(t, request.BeforeProviderCall())
+		}
+		providerCalls.Add(1)
+		providerResponse := &GenericImageUpstreamResponse{
+			StatusCode: http.StatusOK,
+			Body:       json.RawMessage(`{"created":1,"data":[{"b64_json":"iVBORw0KGgo="}]}`),
+		}
+		if err := request.Checkpoint(providerResponse); err != nil {
+			return nil, types.NewError(fmt.Errorf("%w: %w", ErrGenericImageCheckpoint, err), types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+		}
+		return nil, types.NewError(errors.New("checkpoint unexpectedly succeeded"), types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+	}
+	genericImageExecutorRegistry.Unlock()
+	t.Cleanup(func() {
+		genericImageExecutorRegistry.Lock()
+		genericImageExecutorRegistry.executor = previousExecutor
+		genericImageExecutorRegistry.Unlock()
+	})
+
+	previousPersist := persistAsyncImageTaskArtifact
+	persistAsyncImageTaskArtifact = func(_ *model.Task, _ []byte, _ []byte, _ string) (bool, error) {
+		return false, errors.New("injected checkpoint persistence failure")
+	}
+	t.Cleanup(func() { persistAsyncImageTaskArtifact = previousPersist })
+
+	previousLogDB := model.LOG_DB
+	model.LOG_DB = model.DB
+	t.Cleanup(func() { model.LOG_DB = previousLogDB })
+
+	completed, err := executeAsyncImageTask(context.Background(), task)
+	require.NoError(t, err)
+	assert.False(t, completed)
+	assert.Equal(t, int32(1), providerCalls.Load())
+
+	var stored model.Task
+	require.NoError(t, model.DB.First(&stored, task.ID).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusFailure), stored.Status)
+	assert.Contains(t, stored.FailReason, "ambiguous")
+
+	// Neither stale-claim recovery nor another worker pass may reopen provider
+	// submission after the failed post-response checkpoint.
+	require.NoError(t, model.RequeueStaleInProgressImageTasks(time.Now().Unix(), time.Now().Unix()))
+	_, err = recoverCheckpointPendingImageTasks(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), providerCalls.Load())
+}
+
+func TestAsyncImageResponsesCheckpointFailureNeverCallsProviderTwice(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.ImageTaskArtifactChunk{}, &model.Log{}))
+
+	previousMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() { common.MemoryCacheEnabled = previousMemoryCacheEnabled })
+
+	imageResult := base64.StdEncoding.EncodeToString([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x01})
+	var providerCalls atomic.Int32
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		providerCalls.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, writeErr := fmt.Fprintf(w,
+			"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"image_generation_call\",\"result\":%q}}\n\n"+
+				"data: {\"type\":\"response.completed\",\"response\":{\"model\":\"gpt-image-1\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n",
+			imageResult,
+		)
+		require.NoError(t, writeErr)
+	}))
+	defer provider.Close()
+
+	baseURL := provider.URL
+	channel := &model.Channel{
+		Type:        constant.ChannelTypeOpenAI,
+		Key:         "responses-key",
+		Status:      common.ChannelStatusEnabled,
+		Name:        "responses checkpoint failure test",
+		CreatedTime: 1700000020,
+		BaseURL:     &baseURL,
+		Models:      "gpt-image-1",
+		Group:       "default",
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	user := &model.User{Username: "responses-checkpoint-failure-user", Quota: 0, Status: common.UserStatusEnabled, Group: "default"}
+	require.NoError(t, model.DB.Create(user).Error)
+	payload := asyncImageTaskPayload{
+		Version:           asyncImagePayloadVersion,
+		Executor:          AsyncImageExecutorResponses,
+		RelayMode:         relayconstant.RelayModeImagesGenerations,
+		Request:           &dto.ImageRequest{Model: "gpt-image-1", Prompt: "checkpoint once"},
+		ChannelType:       channel.Type,
+		ChannelCreateTime: channel.CreatedTime,
+	}
+	task := &model.Task{
+		TaskID:    "task_responses_checkpoint_failure_once",
+		Platform:  constant.TaskPlatformOpenAIImage,
+		UserId:    user.Id,
+		ChannelId: channel.Id,
+		Quota:     0,
+		Status:    model.TaskStatusInProgress,
+		Attempt:   1,
+		Progress:  "10%",
+		Properties: model.Properties{
+			OriginModelName:   "gpt-image-1",
+			UpstreamModelName: "gpt-image-1",
+		},
+		PrivateData: model.TaskPrivateData{
+			ChannelKeyHash: common.GenerateHMAC(channel.Key),
+			BillingContext: &model.TaskBillingContext{PerCallBilling: true},
+		},
+	}
+	task.SetCheckpointData(payload)
+	require.NoError(t, model.DB.Create(task).Error)
+
+	previousPersist := persistAsyncImageTaskArtifact
+	persistAsyncImageTaskArtifact = func(_ *model.Task, _ []byte, _ []byte, _ string) (bool, error) {
+		return false, errors.New("injected Responses checkpoint persistence failure")
+	}
+	t.Cleanup(func() { persistAsyncImageTaskArtifact = previousPersist })
+
+	previousLogDB := model.LOG_DB
+	model.LOG_DB = model.DB
+	t.Cleanup(func() { model.LOG_DB = previousLogDB })
+
+	completed, err := executeAsyncImageTask(context.Background(), task)
+	require.NoError(t, err)
+	assert.False(t, completed)
+	assert.Equal(t, int32(1), providerCalls.Load())
+
+	var stored model.Task
+	require.NoError(t, model.DB.First(&stored, task.ID).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusFailure), stored.Status)
+	assert.Contains(t, stored.FailReason, "ambiguous")
+
+	// A later recovery pass cannot reopen the terminal task or contact upstream.
+	persistAsyncImageTaskArtifact = previousPersist
+	_, err = recoverCheckpointPendingImageTasks(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), providerCalls.Load())
 }
 
 func TestMergeUsageDoesNotMutateUpstreamUsage(t *testing.T) {
@@ -600,6 +1167,14 @@ func TestR2ConfigRequiresPublicBaseForAsyncDelivery(t *testing.T) {
 
 	config.PublicBase = "https://cdn.example.com"
 	assert.True(t, config.Enabled())
+	config.PublicBase = "https://account.r2.cloudflarestorage.com"
+	assert.False(t, config.Enabled(), "the S3 API endpoint is not a public delivery URL")
+	config.PublicBase = "https://cdn.example.com"
+	assert.False(t, config.InputEnabled())
+	config.InputBucket = "private-inputs"
+	assert.True(t, config.InputEnabled())
+	config.InputBucket = config.Bucket
+	assert.False(t, config.InputEnabled())
 }
 
 func TestR2PutObjectUploadsBytesAndReturnsPublicURL(t *testing.T) {
@@ -655,10 +1230,100 @@ func TestR2PutObjectRejectsS3ErrorResponse(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid bucket")
 }
 
+func TestR2PutInputImageReturnsFiniteSignedPrivateURL(t *testing.T) {
+	raw := append([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}, []byte("reference")...)
+	var putPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, http.MethodPut, request.Method)
+		putPaths = append(putPaths, request.URL.Path)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	config := R2Config{
+		AccessKeyID:     "access-key",
+		SecretAccessKey: "secret-key",
+		AccountID:       "account",
+		Bucket:          "images",
+		InputBucket:     "private-inputs",
+		PublicBase:      "https://public.example.com",
+		Endpoint:        server.URL,
+	}
+	signedURL, key, format, err := config.PutInputImageDeduped(context.Background(), raw, "png")
+	require.NoError(t, err)
+	assert.Regexp(t, `^inputs/[0-9a-f]{32}/`+sha256HexBytes(raw)+`\.png$`, key)
+	assert.Equal(t, "png", format)
+	assert.NotContains(t, signedURL, config.PublicBase)
+
+	parsed, err := url.Parse(signedURL)
+	require.NoError(t, err)
+	assert.Equal(t, "/private-inputs/"+key, parsed.Path)
+	assert.Equal(t, fmt.Sprint(int64(asyncImageInputURLTTL/time.Second)), parsed.Query().Get("X-Amz-Expires"))
+	assert.Greater(t, asyncImageInputURLTTL, 5*time.Minute)
+	assert.LessOrEqual(t, asyncImageInputURLTTL, 10*time.Minute)
+	assert.NotEmpty(t, parsed.Query().Get("X-Amz-Credential"))
+	assert.NotEmpty(t, parsed.Query().Get("X-Amz-Signature"))
+
+	_, secondKey, _, err := config.PutInputImageDeduped(context.Background(), raw, "png")
+	require.NoError(t, err)
+	assert.NotEqual(t, key, secondKey)
+	assert.Equal(t, []string{"/private-inputs/" + key, "/private-inputs/" + secondKey}, putPaths)
+}
+
+func TestHydrateAsyncImageInputObjectsCreatesFreshSignedURLs(t *testing.T) {
+	t.Setenv("CLOUDFLARE_R2_ACCESS_KEY_ID", "access-key")
+	t.Setenv("CLOUDFLARE_R2_SECRET_ACCESS_KEY", "secret-key")
+	t.Setenv("CLOUDFLARE_R2_ACCOUNT_ID", "account")
+	t.Setenv("CLOUDFLARE_R2_BUCKET", "images")
+	t.Setenv("CLOUDFLARE_R2_INPUT_BUCKET", "private-inputs")
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example.com")
+	original := &dto.ImageRequest{Model: "nano-banana-2", Prompt: "edit"}
+
+	hydrated, err := hydrateAsyncImageInputObjects(context.Background(), original, []string{"inputs/reference.png"})
+
+	require.NoError(t, err)
+	urls, err := hydrated.ImageInputURLs()
+	require.NoError(t, err)
+	require.Len(t, urls, 1)
+	parsed, err := url.Parse(urls[0])
+	require.NoError(t, err)
+	assert.Equal(t, "/private-inputs/inputs/reference.png", parsed.Path)
+	assert.NotEmpty(t, parsed.Query().Get("X-Amz-Signature"))
+	assert.Empty(t, original.Images)
+}
+
+func TestSubmitAsyncImagePersistsInputKeysInsteadOfSignedURLs(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	user, token := seedAsyncImageSubmitIdentity(t)
+	info := newAsyncImageSubmitRelayInfo(user, token, 120)
+	request := info.Request.(*dto.ImageRequest)
+	signedURL := "https://account.r2.cloudflarestorage.com/private-inputs/inputs/reference.png?X-Amz-Signature=temporary-secret"
+	request.Images = json.RawMessage(`["` + signedURL + `"]`)
+	request.Image = json.RawMessage(`"` + signedURL + `"`)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	apiErr := SubmitAsyncImage(c, info, request, &PreparedAsyncImageInputs{ObjectKeys: []string{"inputs/reference.png"}})
+
+	require.Nil(t, apiErr)
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	assert.NotContains(t, string(task.CheckpointData), "temporary-secret")
+	payload := decodeStoredAsyncImagePayload(t, task.CheckpointData)
+	assert.Equal(t, []string{"inputs/reference.png"}, payload.InputObjectKeys)
+	assert.Empty(t, payload.Request.Images)
+	assert.Empty(t, payload.Request.Image)
+	var cleanup model.ImageInputCleanup
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&cleanup).Error)
+	assert.Equal(t, model.ImageInputCleanupWaiting, cleanup.Status)
+}
+
 func TestValidateAsyncImageRequestSupportsAllAsyncImageDelivery(t *testing.T) {
 	zero := uint(0)
 	tooMany := uint(dto.MaxImageN + 1)
 	stream := true
+	longPrompt := strings.Repeat("p", dto.MaxUnifiedImagePromptLength+1)
 	tests := []struct {
 		name    string
 		request *dto.ImageRequest
@@ -668,6 +1333,7 @@ func TestValidateAsyncImageRequestSupportsAllAsyncImageDelivery(t *testing.T) {
 		{name: "streaming", request: &dto.ImageRequest{Prompt: "cat", Stream: &stream}, message: "stream=true"},
 		{name: "zero images", request: &dto.ImageRequest{Prompt: "cat", N: &zero}, message: "between 1"},
 		{name: "too many images", request: &dto.ImageRequest{Prompt: "cat", N: &tooMany}, message: "between 1"},
+		{name: "prompt too long", request: &dto.ImageRequest{Prompt: longPrompt}, message: "prompt is too long"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -677,8 +1343,280 @@ func TestValidateAsyncImageRequestSupportsAllAsyncImageDelivery(t *testing.T) {
 		})
 	}
 	assert.NoError(t, validateAsyncImageRequest(&dto.ImageRequest{Prompt: "cat"}))
+	assert.NoError(t, validateAsyncImageRequest(&dto.ImageRequest{Prompt: strings.Repeat("图", dto.MaxUnifiedImagePromptLength)}))
+	assert.ErrorContains(t, validateAsyncImageRequest(&dto.ImageRequest{Prompt: strings.Repeat("图", dto.MaxUnifiedImagePromptLength+1)}), "prompt is too long")
 	two := uint(2)
 	assert.NoError(t, validateAsyncImageRequest(&dto.ImageRequest{Prompt: "cat", N: &two, ResponseFormat: "b64_json"}))
+}
+
+func TestValidateAsyncImageModelInputEnforcesProviderContracts(t *testing.T) {
+	require.ErrorContains(t,
+		validateAsyncImageModelInput("gpt-image-2-image-to-image", "gpt-image-2", &dto.ImageRequest{Prompt: "edit"}),
+		"input_urls is required",
+	)
+
+	images := make([]string, 15)
+	for index := range images {
+		images[index] = fmt.Sprintf("https://example.com/%d.png", index)
+	}
+	encoded, err := common.Marshal(images)
+	require.NoError(t, err)
+	require.ErrorContains(t,
+		validateAsyncImageModelInput("nano-banana-2", "gemini-3.1-flash-image-preview", &dto.ImageRequest{
+			Prompt: "compose",
+			Images: encoded,
+		}),
+		"at most 14",
+	)
+
+	require.NoError(t, validateAsyncImageModelInput(
+		"gpt-image-2-image-to-image",
+		"gpt-image-2",
+		&dto.ImageRequest{Prompt: "edit", Images: json.RawMessage(`["https://example.com/source.png"]`)},
+	))
+	require.ErrorContains(t,
+		validateAsyncImageModelInput("public-alias", "mapped-model", &dto.ImageRequest{
+			Model:  "gpt-image-2-image-to-image",
+			Prompt: "edit",
+		}),
+		"input_urls is required",
+	)
+}
+
+func TestValidateAsyncImageSubmissionRejectsProviderNativeInput(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:  "qwen-image-edit-plus",
+		Prompt: "restyle the source",
+		Extra: map[string]json.RawMessage{
+			"input": json.RawMessage(`{
+				"messages":[{"role":"user","content":[{"image":"data:image/png;base64,secret"}]}]
+			}`),
+		},
+	}
+
+	err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "use input.prompt and input.image_input")
+}
+
+func TestValidateAsyncImageSubmissionBoundsAndSanitizesExtensionFields(t *testing.T) {
+	t.Run("oversized", func(t *testing.T) {
+		request := &dto.ImageRequest{
+			Model:  "image-model",
+			Prompt: "draw",
+			Extra: map[string]json.RawMessage{
+				"payload": json.RawMessage(`"` + strings.Repeat("x", maxAsyncImageRequestExtensionBytes) + `"`),
+			},
+		}
+
+		err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "extension fields exceed")
+	})
+
+	t.Run("sensitive key", func(t *testing.T) {
+		request := &dto.ImageRequest{
+			Model:  "image-model",
+			Prompt: "draw",
+			Extra: map[string]json.RawMessage{
+				"provider_secret": json.RawMessage(`"do-not-store"`),
+			},
+		}
+
+		err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "credentials or secrets")
+	})
+
+	t.Run("nested sensitive key", func(t *testing.T) {
+		request := &dto.ImageRequest{
+			Model:       "image-model",
+			Prompt:      "draw",
+			ExtraFields: json.RawMessage(`{"provider":{"api_key":"do-not-store"}}`),
+		}
+
+		err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "credentials or secrets")
+	})
+
+	for _, key := range []string{"apiSecret", "secretKey", "bearerToken"} {
+		t.Run("camel case sensitive key "+key, func(t *testing.T) {
+			request := &dto.ImageRequest{
+				Model:  "image-model",
+				Prompt: "draw",
+				Extra: map[string]json.RawMessage{
+					key: json.RawMessage(`"do-not-store"`),
+				},
+			}
+
+			err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "credentials or secrets")
+		})
+	}
+
+	for _, key := range []string{"imageURL", "inputImageURL", "referenceImageURL", "imageURI"} {
+		t.Run("acronym image key "+key, func(t *testing.T) {
+			request := &dto.ImageRequest{
+				Model:  "image-model",
+				Prompt: "draw",
+				Extra: map[string]json.RawMessage{
+					key: json.RawMessage(`"opaque-provider-value"`),
+				},
+			}
+
+			err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "use input.image_input")
+		})
+	}
+
+	t.Run("unknown extension URL", func(t *testing.T) {
+		request := &dto.ImageRequest{
+			Model:  "image-model",
+			Prompt: "draw",
+			Extra: map[string]json.RawMessage{
+				"photo": json.RawMessage(`"https://example.com/private-reference.png?token=secret"`),
+			},
+		}
+
+		err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "use input.image_input")
+	})
+
+	pngBase64 := base64.StdEncoding.EncodeToString([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'})
+	for _, tt := range []struct {
+		name  string
+		value string
+	}{
+		{name: "protocol relative URL", value: "//source.example.com/reference.png"},
+		{name: "ftp URL", value: "ftp://source.example.com/reference.png"},
+		{name: "object storage URI", value: "s3://private-bucket/reference.png"},
+		{name: "raw image base64", value: pngBase64},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			encoded, marshalErr := common.Marshal(tt.value)
+			require.NoError(t, marshalErr)
+			request := &dto.ImageRequest{
+				Model:  "image-model",
+				Prompt: "draw",
+				Extra: map[string]json.RawMessage{
+					"photo": encoded,
+				},
+			}
+
+			err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "use input.image_input")
+		})
+	}
+
+	t.Run("provider image alias", func(t *testing.T) {
+		request := &dto.ImageRequest{
+			Model:       "black-forest-labs/flux",
+			Prompt:      "restyle",
+			ExtraFields: json.RawMessage(`{"image_prompt":"data:image/png;base64,c2VjcmV0"}`),
+		}
+
+		err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "use input.image_input")
+	})
+
+	t.Run("nested unified image alias", func(t *testing.T) {
+		var request dto.ImageRequest
+		require.NoError(t, common.Unmarshal([]byte(`{
+			"model":"image-model",
+			"input":{"prompt":"restyle","reference_image":"https://example.com/source.png"}
+		}`), &request))
+
+		err := ValidateAsyncImageSubmission(request.Model, request.Model, &request)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "use input.image_input")
+	})
+
+	t.Run("mask extension", func(t *testing.T) {
+		request := &dto.ImageRequest{
+			Model:  "image-model",
+			Prompt: "edit",
+			Mask:   json.RawMessage(`"data:image/png;base64,bWFzaw=="`),
+		}
+
+		err := ValidateAsyncImageSubmission(request.Model, request.Model, request)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("ordinary provider options", func(t *testing.T) {
+		request := &dto.ImageRequest{
+			Model:       "image-model",
+			Prompt:      "draw",
+			ExtraFields: json.RawMessage(`{"seed":123,"guidance_scale":7.5}`),
+			Extra: map[string]json.RawMessage{
+				"negative_prompt": json.RawMessage(`"rain"`),
+			},
+		}
+
+		assert.NoError(t, ValidateAsyncImageSubmission(request.Model, request.Model, request))
+	})
+}
+
+func TestValidateAsyncImageSubmissionUsesMappedGPTModelConstraints(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:  "gpt-image-2",
+		Prompt: "draw",
+		Size:   "1440x1440",
+	}
+	require.NoError(t, ValidateAsyncImageSubmission("gpt-image-1", "gpt-image-2", request))
+
+	request.Model = "gpt-image-1"
+	err := ValidateAsyncImageSubmission("gpt-image-2", "gpt-image-1", request)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not supported")
+}
+
+func TestValidateAsyncImageSubmissionBoundsGeminiThreeReferenceImages(t *testing.T) {
+	urls := make([]string, 15)
+	for index := range urls {
+		urls[index] = fmt.Sprintf("https://example.com/reference-%d.png", index)
+	}
+	encoded, err := common.Marshal(urls)
+	require.NoError(t, err)
+
+	for _, model := range []string{
+		"nano-banana-2",
+		"gemini-3-pro-image",
+		"models/gemini-3.1-flash-image",
+	} {
+		request := &dto.ImageRequest{Model: model, Prompt: "edit", Images: json.RawMessage(encoded)}
+		err := ValidateAsyncImageSubmission(model, model, request)
+		require.Error(t, err, model)
+		assert.Contains(t, err.Error(), "at most 14", model)
+	}
+}
+
+func TestEncodeAsyncImageTaskPayloadBoundsCheckpoint(t *testing.T) {
+	_, err := encodeAsyncImageTaskPayload(asyncImageTaskPayload{
+		Request: &dto.ImageRequest{Model: "image-model", Prompt: "draw"},
+		PreparedRequest: &PreparedAsyncImageRequest{
+			Body: bytes.Repeat([]byte("x"), maxAsyncImageCheckpointBytes),
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "task payload exceeds")
 }
 
 func TestShouldRunAsyncForEveryImageGeneration(t *testing.T) {
@@ -689,6 +1627,55 @@ func TestShouldRunAsyncForEveryImageGeneration(t *testing.T) {
 	disabled := false
 	assert.True(t, ShouldRunAsync("mapped-image-alias", &enabled))
 	assert.True(t, ShouldRunAsync("gpt-image-2", &disabled))
+}
+
+func TestValidateAsyncImageDeliveryRequiresStableCryptoSecret(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	t.Setenv("CRYPTO_SECRET", "")
+	t.Setenv("SESSION_SECRET", "session-secret-is-not-an-async-image-key")
+
+	apiErr := ValidateAsyncImageDelivery(&dto.ImageRequest{Model: "gpt-image-2", Prompt: "cat"})
+
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusServiceUnavailable, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Error(), "stable CRYPTO_SECRET")
+}
+
+func TestValidateAsyncImageDeliveryRejectsPlaintextWrites(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "false")
+
+	apiErr := ValidateAsyncImageDelivery(&dto.ImageRequest{Model: "gpt-image-2", Prompt: "cat"})
+
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusServiceUnavailable, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Error(), "ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED=true")
+}
+
+func TestValidateAsyncImageDeliveryAllowsEncryptedWritesWithDedicatedSecret(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+
+	apiErr := ValidateAsyncImageDelivery(&dto.ImageRequest{Model: "gpt-image-2", Prompt: "cat"})
+
+	require.Nil(t, apiErr)
+}
+
+func TestSanitizeAsyncImageClientHeadersUsesExplicitAllowlist(t *testing.T) {
+	headers := http.Header{
+		"X-Trace-Id":              []string{"trace-123"},
+		"Traceparent":             []string{"00-abc-def-01"},
+		"Cf-Access-Jwt-Assertion": []string{"infrastructure-secret"},
+		"X-Ssl-Client-Cert":       []string{"client-certificate"},
+		"Authorization":           []string{"Bearer client-secret"},
+	}
+
+	sanitized := SanitizeAsyncImageClientHeaders(headers)
+
+	assert.Equal(t, "trace-123", sanitized["X-Trace-Id"])
+	assert.Equal(t, "00-abc-def-01", sanitized["Traceparent"])
+	assert.NotContains(t, sanitized, "Cf-Access-Jwt-Assertion")
+	assert.NotContains(t, sanitized, "X-Ssl-Client-Cert")
+	assert.NotContains(t, sanitized, "Authorization")
 }
 
 func TestAsyncImageIdempotencyIncludesGatewayAndExtraFields(t *testing.T) {
@@ -725,6 +1712,120 @@ func TestAsyncImageIdempotencyIncludesGatewayAndExtraFields(t *testing.T) {
 	assert.NotEqual(t, hash, extraHash)
 }
 
+func TestAsyncImageMultipartIdempotencyConflictsWhenImageChanges(t *testing.T) {
+	buildContext := func(t *testing.T, imageBytes []byte) *gin.Context {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		require.NoError(t, writer.SetBoundary("stable-idempotency-boundary"))
+		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+		require.NoError(t, writer.WriteField("prompt", "restyle"))
+		part, err := writer.CreateFormFile("image", "source.png")
+		require.NoError(t, err)
+		_, err = part.Write(imageBytes)
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
+
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+		c.Request.Header.Set("Idempotency-Key", "same-edit-key")
+		return c
+	}
+
+	request := &dto.ImageRequest{Model: "gpt-image-1", Prompt: "restyle"}
+	firstContext := buildContext(t, []byte("first-image"))
+	defer common.CleanupBodyStorage(firstContext)
+	_, firstHash, err := asyncImageIdempotency(firstContext, request)
+	require.NoError(t, err)
+
+	secondContext := buildContext(t, []byte("second-image"))
+	defer common.CleanupBodyStorage(secondContext)
+	_, secondHash, err := asyncImageIdempotency(secondContext, request)
+	require.NoError(t, err)
+	require.NotEqual(t, firstHash, secondHash)
+
+	task := &model.Task{Status: model.TaskStatusNotStart, PrivateData: model.TaskPrivateData{ClientRequestHash: firstHash}}
+	apiErr := writeReplayedAsyncImageTask(secondContext, task, secondHash)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusConflict, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Error(), "different request")
+}
+
+func TestAsyncImageMultipartIdempotencyIgnoresBoundaryHeadersAndPartOrder(t *testing.T) {
+	buildContext := func(t *testing.T, boundary, filename string, fileFirst bool) *gin.Context {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		require.NoError(t, writer.SetBoundary(boundary))
+		writeFile := func() {
+			part, err := writer.CreateFormFile("image", filename)
+			require.NoError(t, err)
+			_, err = part.Write([]byte("same-image-bytes"))
+			require.NoError(t, err)
+		}
+		if fileFirst {
+			writeFile()
+		}
+		require.NoError(t, writer.WriteField("prompt", "restyle"))
+		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+		if !fileFirst {
+			writeFile()
+		}
+		require.NoError(t, writer.Close())
+
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+		c.Request.Header.Set("Idempotency-Key", "same-edit-key")
+		t.Cleanup(func() { common.CleanupBodyStorage(c) })
+		return c
+	}
+
+	request := &dto.ImageRequest{Model: "gpt-image-1", Prompt: "restyle"}
+	first := buildContext(t, "first-boundary", "first-name.png", false)
+	_, firstHash, err := asyncImageIdempotency(first, request)
+	require.NoError(t, err)
+
+	second := buildContext(t, "second-boundary", "renamed-input.webp", true)
+	_, secondHash, err := asyncImageIdempotency(second, request)
+	require.NoError(t, err)
+
+	assert.Equal(t, firstHash, secondHash)
+}
+
+func TestAsyncImageMultipartIdempotencyPreservesRepeatedImageOrder(t *testing.T) {
+	buildContext := func(t *testing.T, images ...string) *gin.Context {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+		require.NoError(t, writer.WriteField("prompt", "combine"))
+		for index, image := range images {
+			part, err := writer.CreateFormFile("image[]", fmt.Sprintf("source-%d.png", index))
+			require.NoError(t, err)
+			_, err = part.Write([]byte(image))
+			require.NoError(t, err)
+		}
+		require.NoError(t, writer.Close())
+
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+		c.Request.Header.Set("Idempotency-Key", "ordered-edit")
+		t.Cleanup(func() { common.CleanupBodyStorage(c) })
+		return c
+	}
+
+	request := &dto.ImageRequest{Model: "gpt-image-1", Prompt: "combine"}
+	first := buildContext(t, "foreground", "background")
+	_, firstHash, err := asyncImageIdempotency(first, request)
+	require.NoError(t, err)
+
+	second := buildContext(t, "background", "foreground")
+	_, secondHash, err := asyncImageIdempotency(second, request)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, firstHash, secondHash)
+}
+
 func TestAsyncImageIdempotencyCanonicalizesImageDefaults(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
@@ -738,6 +1839,31 @@ func TestAsyncImageIdempotencyCanonicalizesImageDefaults(t *testing.T) {
 	_, explicitHash, err := asyncImageIdempotency(c, explicit)
 	require.NoError(t, err)
 	assert.Equal(t, baseHash, explicitHash)
+
+	for _, test := range []struct {
+		model   string
+		quality string
+	}{
+		{model: "dall-e"},
+		{model: "dall-e-2"},
+		{model: "dall-e-3", quality: "standard"},
+	} {
+		t.Run(test.model, func(t *testing.T) {
+			base := &dto.ImageRequest{Model: test.model, Prompt: "cat"}
+			_, baseHash, err := asyncImageIdempotency(c, base)
+			require.NoError(t, err)
+			explicit := &dto.ImageRequest{
+				Model:   test.model,
+				Prompt:  "cat",
+				N:       &one,
+				Size:    "1024x1024",
+				Quality: test.quality,
+			}
+			_, explicitHash, err := asyncImageIdempotency(c, explicit)
+			require.NoError(t, err)
+			assert.Equal(t, baseHash, explicitHash)
+		})
+	}
 }
 
 func TestAsyncImageIdempotencyIgnoresLegacyAsyncFlag(t *testing.T) {
@@ -826,9 +1952,13 @@ func TestDeliverDueImageWebhooksKeepsDeliveryIDAcrossRetries(t *testing.T) {
 
 	previousSender := sendAsyncImageWebhook
 	var deliveryIDs []string
+	var deliveryURLs []string
+	var deliverySecrets []string
 	attempt := 0
-	sendAsyncImageWebhook = func(_ context.Context, _ string, _ string, deliveryID string, _ any) error {
+	sendAsyncImageWebhook = func(_ context.Context, webhookURL string, secret string, deliveryID string, _ any) error {
 		deliveryIDs = append(deliveryIDs, deliveryID)
+		deliveryURLs = append(deliveryURLs, webhookURL)
+		deliverySecrets = append(deliverySecrets, secret)
 		attempt++
 		if attempt == 1 {
 			return errors.New("temporary delivery failure")
@@ -851,8 +1981,55 @@ func TestDeliverDueImageWebhooksKeepsDeliveryIDAcrossRetries(t *testing.T) {
 	require.Len(t, deliveryIDs, 2)
 	assert.Equal(t, task.TaskID, deliveryIDs[0])
 	assert.Equal(t, deliveryIDs[0], deliveryIDs[1])
+	assert.Equal(t, []string{"https://example.com/hook", "https://example.com/hook"}, deliveryURLs)
+	assert.Equal(t, []string{"webhook-secret", "webhook-secret"}, deliverySecrets)
 	require.NoError(t, model.DB.First(hook, hook.ID).Error)
 	assert.Equal(t, model.TaskWebhookStatusDelivered, hook.Status)
+}
+
+func TestDeliverDueImageWebhooksQuarantinesUnreadableCredentialsPerRow(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	now := common.GetTimestamp()
+	badTask := &model.Task{
+		TaskID:     "task_webhook_bad_credentials",
+		Platform:   constant.TaskPlatformOpenAIImage,
+		Status:     model.TaskStatusSuccess,
+		SubmitTime: now,
+	}
+	goodTask := &model.Task{
+		TaskID:     "task_webhook_good_credentials",
+		Platform:   constant.TaskPlatformOpenAIImage,
+		Status:     model.TaskStatusSuccess,
+		SubmitTime: now,
+	}
+	require.NoError(t, model.DB.Create(badTask).Error)
+	require.NoError(t, model.DB.Create(goodTask).Error)
+	badHook := &model.TaskWebhook{TaskID: badTask.TaskID, URL: "https://bad.example.com/hook", Secret: "bad-secret"}
+	goodHook := &model.TaskWebhook{TaskID: goodTask.TaskID, URL: "https://good.example.com/hook", Secret: "good-secret"}
+	require.NoError(t, model.DB.Create(badHook).Error)
+	require.NoError(t, model.DB.Create(goodHook).Error)
+	require.NoError(t, model.DB.Model(&model.TaskWebhook{}).Where("id = ?", badHook.ID).Update("url", "enc:v1:not-base64").Error)
+
+	previousSender := sendAsyncImageWebhook
+	var calls atomic.Int32
+	sendAsyncImageWebhook = func(_ context.Context, webhookURL string, secret string, _ string, _ any) error {
+		calls.Add(1)
+		assert.Equal(t, "https://good.example.com/hook", webhookURL)
+		assert.Equal(t, "good-secret", secret)
+		return nil
+	}
+	t.Cleanup(func() { sendAsyncImageWebhook = previousSender })
+
+	delivered, retried, err := deliverDueImageWebhooks(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, delivered)
+	assert.Zero(t, retried)
+	assert.Equal(t, int32(1), calls.Load())
+	require.NoError(t, model.DB.First(badHook, badHook.ID).Error)
+	assert.Equal(t, model.TaskWebhookStatusFailed, badHook.Status)
+	assert.Equal(t, "webhook credentials decryption failed", badHook.LastError)
+	require.NoError(t, model.DB.First(goodHook, goodHook.ID).Error)
+	assert.Equal(t, model.TaskWebhookStatusDelivered, goodHook.Status)
 }
 
 func TestImageTaskChannelKeyKeepsSubmittedKey(t *testing.T) {
@@ -929,6 +2106,115 @@ func TestLoadAsyncImageChannelAcceptsOpenAICompatibleFallbackAPITypes(t *testing
 	}
 }
 
+func TestLoadAsyncImageChannelRejectsExecutionOverrideDrift(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
+	previousMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() { common.MemoryCacheEnabled = previousMemoryCacheEnabled })
+
+	baseURL := "https://images.example.com"
+	paramOverride := `{"n":2}`
+	headerOverride := `{"X-Provider-Option":"submitted"}`
+	channel := &model.Channel{
+		Type:           constant.ChannelTypeOpenAI,
+		Key:            "submitted-key",
+		Status:         common.ChannelStatusEnabled,
+		CreatedTime:    1700000200,
+		BaseURL:        &baseURL,
+		ParamOverride:  &paramOverride,
+		HeaderOverride: &headerOverride,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	fingerprint, err := AsyncImageExecutionOverrideFingerprint(channel.GetParamOverride(), channel.GetHeaderOverride())
+	require.NoError(t, err)
+	task := &model.Task{
+		ChannelId: channel.Id,
+		PrivateData: model.TaskPrivateData{
+			ChannelKeyHash: common.GenerateHMAC(channel.Key),
+		},
+	}
+	prepared := &PreparedAsyncImageRequest{
+		APIType:                 constant.APITypeOpenAI,
+		ChannelType:             channel.Type,
+		ChannelCreateTime:       channel.CreatedTime,
+		ChannelBaseURL:          baseURL,
+		ExecutionOverrideHash:   fingerprint,
+		ExecutionOverrideStored: true,
+	}
+
+	_, _, err = loadAsyncImageChannel(task, prepared, false)
+	require.NoError(t, err)
+
+	changedOverride := `{"n":3}`
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("param_override", changedOverride).Error)
+	_, _, err = loadAsyncImageChannel(task, prepared, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "overrides changed")
+}
+
+func TestLoadAsyncImageChannelRejectsAdvancedRouteDriftWithoutPersistingTarget(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
+	previousMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() { common.MemoryCacheEnabled = previousMemoryCacheEnabled })
+
+	baseURL := "https://images.example.com"
+	route := dto.AdvancedCustomRoute{
+		IncomingPath: "/v1/images/generations",
+		UpstreamPath: "https://provider.example.com/hooks/path-secret/images/{model}",
+		Converter:    "none",
+		Auth: &dto.AdvancedCustomRouteAuth{
+			Type:  dto.AdvancedCustomAuthTypeHeader,
+			Name:  "X-Provider-Key",
+			Value: "header-secret",
+		},
+	}
+	settings, err := common.Marshal(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{route}}})
+	require.NoError(t, err)
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeAdvancedCustom,
+		Key:           "submitted-key",
+		Status:        common.ChannelStatusEnabled,
+		CreatedTime:   1700000300,
+		BaseURL:       &baseURL,
+		OtherSettings: string(settings),
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	routeHash, err := AsyncImageAdvancedRouteFingerprint(route)
+	require.NoError(t, err)
+	task := &model.Task{
+		ChannelId:   channel.Id,
+		Properties:  model.Properties{OriginModelName: "image-alias"},
+		PrivateData: model.TaskPrivateData{ChannelKeyHash: common.GenerateHMAC(channel.Key)},
+	}
+	prepared := &PreparedAsyncImageRequest{
+		APIType:                 constant.APITypeAdvancedCustom,
+		ChannelType:             channel.Type,
+		ChannelCreateTime:       channel.CreatedTime,
+		RequestURLPath:          "/v1/images/generations",
+		AdvancedRouteHash:       routeHash,
+		ExecutionOverrideHash:   common.GenerateHMAC(`{}`),
+		ExecutionOverrideStored: false,
+	}
+
+	_, _, err = loadAsyncImageChannel(task, prepared, false)
+	require.NoError(t, err)
+	encoded, err := common.Marshal(prepared)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "path-secret")
+	assert.NotContains(t, string(encoded), "header-secret")
+
+	route.UpstreamPath = "https://provider.example.com/hooks/rotated/images/{model}"
+	changedSettings, err := common.Marshal(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{route}}})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("settings", string(changedSettings)).Error)
+	_, _, err = loadAsyncImageChannel(task, prepared, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "route changed")
+}
+
 func TestGenericAsyncImageRelayInfoUsesTaskIDAsProviderIdempotencyKey(t *testing.T) {
 	headerOverride := `{"X-Custom":"preserved"}`
 	channel := &model.Channel{
@@ -989,10 +2275,11 @@ func TestGenericAsyncImageRelayInfoUsesSubmittedChannelConfiguration(t *testing.
 	require.NotNil(t, info.ChannelMeta)
 	assert.Equal(t, "submitted-api-version", info.ChannelMeta.ApiVersion)
 	assert.Equal(t, "submitted-organization", info.ChannelMeta.Organization)
+	assert.Equal(t, channel.GetParamOverride(), info.ChannelMeta.ParamOverride)
 	assert.Empty(t, info.ChannelMeta.ChannelSetting.Proxy)
 	assert.True(t, info.ChannelMeta.ChannelOtherSettings.DisableTaskPollingSleep)
-	assert.Equal(t, "preserved", info.ChannelMeta.HeadersOverride["X-Submitted"])
-	assert.NotContains(t, info.ChannelMeta.HeadersOverride, "X-Current")
+	assert.NotContains(t, info.ChannelMeta.HeadersOverride, "X-Submitted")
+	assert.Equal(t, "changed", info.ChannelMeta.HeadersOverride["X-Current"])
 	assert.Equal(t, "Bearer current-secret", info.ChannelMeta.HeadersOverride["Authorization"])
 	assert.Equal(t, task.TaskID, info.ChannelMeta.HeadersOverride["Idempotency-Key"])
 	assert.NotContains(t, prepared.HeadersOverride, "Idempotency-Key")
@@ -1037,14 +2324,17 @@ func TestRetryableAsyncImageSubmissionError(t *testing.T) {
 	}
 }
 
-func TestGenericAsyncImageRelayInfoUsesSnapshottedAdvancedRoute(t *testing.T) {
+func TestGenericAsyncImageRelayInfoUsesCurrentFingerprintValidatedAdvancedRoute(t *testing.T) {
+	currentRoute := dto.AdvancedCustomRoute{
+		IncomingPath: "/v1/images/generations",
+		UpstreamPath: "https://changed.example.com/images",
+		Converter:    "none",
+	}
 	currentSettings, err := common.Marshal(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{
-		Routes: []dto.AdvancedCustomRoute{{
-			IncomingPath: "/v1/images/generations",
-			UpstreamPath: "https://changed.example.com/images",
-			Converter:    "none",
-		}},
+		Routes: []dto.AdvancedCustomRoute{currentRoute},
 	}})
+	require.NoError(t, err)
+	routeHash, err := AsyncImageAdvancedRouteFingerprint(currentRoute)
 	require.NoError(t, err)
 	channel := &model.Channel{
 		Id:            10,
@@ -1060,23 +2350,19 @@ func TestGenericAsyncImageRelayInfoUsesSnapshottedAdvancedRoute(t *testing.T) {
 		},
 	}
 	prepared := &PreparedAsyncImageRequest{
-		APIType:        constant.APITypeAdvancedCustom,
-		ContentType:    "application/json",
-		ChannelBaseURL: "https://submitted.example.com",
-		AdvancedRoute: &dto.AdvancedCustomRoute{
-			IncomingPath: "/v1/images/generations",
-			UpstreamPath: "https://submitted.example.com/images/{model}",
-			Converter:    "none",
-		},
+		APIType:           constant.APITypeAdvancedCustom,
+		ContentType:       "application/json",
+		RequestURLPath:    "/v1/images/generations",
+		AdvancedRouteHash: routeHash,
 	}
 
 	info := genericAsyncImageRelayInfo(task, channel, "upstream-key", prepared)
 
-	assert.Equal(t, "https://submitted.example.com", info.ChannelMeta.ChannelBaseUrl)
+	assert.Equal(t, "https://changed.example.com", info.ChannelMeta.ChannelBaseUrl)
 	require.NotNil(t, info.ChannelMeta.ChannelOtherSettings.AdvancedCustom)
 	route, ok := info.ChannelMeta.ChannelOtherSettings.AdvancedCustom.MatchPathForModel("/v1/images/generations", "image-alias")
 	require.True(t, ok)
-	assert.Equal(t, "https://submitted.example.com/images/{model}", route.UpstreamPath)
+	assert.Equal(t, currentRoute.UpstreamPath, route.UpstreamPath)
 }
 
 func TestDecodeAsyncImageTaskPayloadRecoversCheckpointAndLegacyRequest(t *testing.T) {
@@ -1096,6 +2382,22 @@ func TestDecodeAsyncImageTaskPayloadRecoversCheckpointAndLegacyRequest(t *testin
 	assert.Equal(t, "checkpoint prompt", payload.Request.Prompt)
 	assert.Equal(t, "persisted-result", payload.Upstream.Output[0].Result)
 	assert.JSONEq(t, `123`, string(payload.Request.Extra["seed"]))
+	assert.Equal(t, relayconstant.RelayModeImagesGenerations, payload.RelayMode)
+
+	editCheckpoint, err := common.Marshal(asyncImageTaskPayload{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+		Request:   &dto.ImageRequest{Model: "gpt-image-1", Prompt: "edit prompt"},
+		PreparedRequest: &PreparedAsyncImageRequest{
+			RelayMode:      relayconstant.RelayModeImagesEdits,
+			RequestURLPath: "/v1/images/edits",
+		},
+	})
+	require.NoError(t, err)
+	editPayload, err := decodeAsyncImageTaskPayload(editCheckpoint)
+	require.NoError(t, err)
+	assert.Equal(t, relayconstant.RelayModeImagesEdits, editPayload.RelayMode)
+	require.NotNil(t, editPayload.PreparedRequest)
+	assert.Equal(t, relayconstant.RelayModeImagesEdits, editPayload.PreparedRequest.RelayMode)
 
 	legacy, err := common.Marshal(&dto.ImageRequest{Model: "gpt-image-2", Prompt: "legacy prompt"})
 	require.NoError(t, err)
@@ -1104,6 +2406,7 @@ func TestDecodeAsyncImageTaskPayloadRecoversCheckpointAndLegacyRequest(t *testin
 	require.NotNil(t, payload.Request)
 	assert.Equal(t, "legacy prompt", payload.Request.Prompt)
 	assert.Nil(t, payload.Upstream)
+	assert.Equal(t, relayconstant.RelayModeImagesGenerations, payload.RelayMode)
 }
 
 func TestAsyncImagePassThroughCountValidatesProviderFields(t *testing.T) {
@@ -1119,6 +2422,7 @@ func TestAsyncImagePassThroughCountValidatesProviderFields(t *testing.T) {
 		{name: "replicate", body: `{"input":{"num_outputs":4}}`, wantCount: 4, wantFound: true},
 		{name: "ali", body: `{"parameters":{"n":3}}`, wantCount: 3, wantFound: true},
 		{name: "gemini", body: `{"parameters":{"sampleCount":5}}`, wantCount: 5, wantFound: true},
+		{name: "gemini native", body: `{"generationConfig":{"candidateCount":6}}`, wantCount: 6, wantFound: true},
 		{name: "absent", body: `{"prompt":"cat"}`},
 		{name: "zero", body: `{"batch_size":0}`, wantError: "between 1"},
 		{name: "overflow", body: `{"input":{"num_outputs":129}}`, wantError: "between 1"},
@@ -1150,7 +2454,7 @@ func TestPersistedAsyncImageRequestOmitsDeliveryFields(t *testing.T) {
 		WebhookSecret: "do-not-store-with-task",
 	}
 
-	encoded, err := common.Marshal(asyncImageTaskPayload{Request: persistedAsyncImageRequest(request)})
+	encoded, err := common.Marshal(asyncImageTaskPayload{Request: persistedAsyncImageRequest(request, nil)})
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), "do-not-store-with-task")
 	assert.NotContains(t, string(encoded), "example.com/hook")
@@ -1162,9 +2466,18 @@ func TestSanitizeAsyncBillingRequestBodyRemovesDeliverySecrets(t *testing.T) {
   "prompt":"cat",
   "quality":"high",
   "async":true,
+  "callBackUrl":"https://example.com/legacy-hook",
   "webhook_url":"https://example.com/hook",
   "webhook_secret":"do-not-persist",
-  "parameters":{"seed":123}
+  "parameters":{"seed":123},
+  "input":{
+    "prompt":"cat",
+    "async":false,
+    "callBackUrl":"https://example.com/nested-hook",
+    "webhook_url":"https://example.com/nested-webhook",
+    "webhook_secret":"nested-secret",
+    "resolution":"2K"
+  }
 }`)
 
 	sanitized, err := sanitizeAsyncBillingRequestBody(body)
@@ -1174,11 +2487,91 @@ func TestSanitizeAsyncBillingRequestBodyRemovesDeliverySecrets(t *testing.T) {
 	var fields map[string]json.RawMessage
 	require.NoError(t, common.Unmarshal(sanitized, &fields))
 	assert.NotContains(t, fields, "async")
+	assert.NotContains(t, fields, "callBackUrl")
 	assert.NotContains(t, fields, "webhook_url")
 	assert.NotContains(t, fields, "webhook_secret")
 	assert.Contains(t, fields, "prompt")
 	assert.Contains(t, fields, "quality")
 	assert.Contains(t, fields, "parameters")
+	var input map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(fields["input"], &input))
+	assert.NotContains(t, input, "async")
+	assert.NotContains(t, input, "callBackUrl")
+	assert.NotContains(t, input, "webhook_url")
+	assert.NotContains(t, input, "webhook_secret")
+	assert.Contains(t, input, "prompt")
+	assert.Contains(t, input, "resolution")
+}
+
+func TestSanitizeAsyncBillingRequestBodyReplacesOriginalImageSources(t *testing.T) {
+	body := []byte(`{
+		"prompt":"edit",
+		"images":["https://source.example.com/image.png?signature=secret"],
+		"input":{
+			"prompt":"edit",
+			"input_urls":["data:image/png;base64,private-image"]
+		}
+	}`)
+	stored := &dto.ImageRequest{
+		Images: json.RawMessage(`["https://cdn.example.com/images/stored.png"]`),
+		Image:  json.RawMessage(`"https://cdn.example.com/images/stored.png"`),
+	}
+
+	sanitized, err := sanitizeAsyncBillingRequestBody(body, stored)
+	require.NoError(t, err)
+	assert.NotContains(t, string(sanitized), "signature=secret")
+	assert.NotContains(t, string(sanitized), "private-image")
+	assert.Contains(t, string(sanitized), "https://cdn.example.com/images/stored.png")
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(sanitized, &fields))
+	assert.JSONEq(t, string(stored.Images), string(fields["images"]))
+	var input map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(fields["input"], &input))
+	assert.JSONEq(t, string(stored.Images), string(input["input_urls"]))
+}
+
+func TestSanitizeAsyncBillingRequestBodyForTaskDoesNotPersistSignedInputURLs(t *testing.T) {
+	body := []byte(`{
+		"prompt":"edit",
+		"images":["https://source.example.com/image.png?signature=secret"],
+		"input":{"input_urls":["https://private-inputs.example/inputs/hash.png?X-Amz-Signature=secret"]}
+	}`)
+	stored := &dto.ImageRequest{
+		Images: json.RawMessage(`[
+			"https://account.r2.cloudflarestorage.com/private-inputs/inputs/hash.png?X-Amz-Signature=temporary"
+		]`),
+		Image: json.RawMessage(`"https://account.r2.cloudflarestorage.com/private-inputs/inputs/hash.png?X-Amz-Signature=temporary"`),
+	}
+
+	sanitized, err := sanitizeAsyncBillingRequestBodyForTask(body, stored, []string{"inputs/hash.png"}, "")
+
+	require.NoError(t, err)
+	assert.NotContains(t, string(sanitized), "X-Amz-Signature")
+	assert.NotContains(t, string(sanitized), "signature=secret")
+	assert.Contains(t, string(sanitized), "r2-input")
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(sanitized, &fields))
+	assert.JSONEq(t, `["r2-input"]`, string(fields["images"]))
+}
+
+func TestSanitizeAsyncBillingRequestBodyForTaskReplacesStagedMasks(t *testing.T) {
+	body := []byte(`{
+		"mask":"data:image/png;base64,top-level-private-mask",
+		"input":{"mask":"data:image/png;base64,nested-private-mask"}
+	}`)
+
+	sanitized, err := sanitizeAsyncBillingRequestBodyForTask(body, &dto.ImageRequest{}, nil, "inputs/mask.png")
+
+	require.NoError(t, err)
+	assert.NotContains(t, string(sanitized), "top-level-private-mask")
+	assert.NotContains(t, string(sanitized), "nested-private-mask")
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(sanitized, &fields))
+	assert.JSONEq(t, `"r2-input"`, string(fields["mask"]))
+	var input map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(fields["input"], &input))
+	assert.JSONEq(t, `"r2-input"`, string(input["mask"]))
 }
 
 func TestSanitizeAsyncBillingRequestBodyRejectsMalformedJSON(t *testing.T) {

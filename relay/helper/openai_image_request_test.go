@@ -72,6 +72,68 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 	})
 }
 
+func TestGetAndValidOpenAIImageRequestMultipartAsyncControlsForEditAliases(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, path := range []string{"/v1/images/edits", "/v1/edits"} {
+		t.Run(path, func(t *testing.T) {
+			var body bytes.Buffer
+			writer := multipart.NewWriter(&body)
+			require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+			require.NoError(t, writer.WriteField("prompt", "edit this image"))
+			require.NoError(t, writer.WriteField("async", "false"))
+			require.NoError(t, writer.WriteField("callBackUrl", "https://8.8.8.8/image-ready"))
+			require.NoError(t, writer.WriteField("webhook_secret", "delivery-secret"))
+			require.NoError(t, writer.WriteField("output_format", "png"))
+			require.NoError(t, writer.WriteField("output_compression", "90"))
+			part, err := writer.CreateFormFile("image", "input.png")
+			require.NoError(t, err)
+			_, err = part.Write([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'})
+			require.NoError(t, err)
+			require.NoError(t, writer.Close())
+
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, path, &body)
+			c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+			defer common.CleanupBodyStorage(c)
+
+			req, err := GetAndValidOpenAIImageRequest(c, relayconstant.Path2RelayMode(path))
+			require.NoError(t, err)
+			require.NotNil(t, req.Async)
+			require.False(t, *req.Async)
+			require.Equal(t, "https://8.8.8.8/image-ready", req.WebhookURL)
+			require.Equal(t, "delivery-secret", req.WebhookSecret)
+			require.JSONEq(t, `"png"`, string(req.OutputFormat))
+			require.JSONEq(t, `90`, string(req.OutputCompression))
+		})
+	}
+}
+
+func TestGetAndValidOpenAIImageRequestAcceptsMultipartMask(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+	require.NoError(t, writer.WriteField("prompt", "edit this image"))
+	image, err := writer.CreateFormFile("image", "input.png")
+	require.NoError(t, err)
+	_, err = image.Write([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'})
+	require.NoError(t, err)
+	mask, err := writer.CreateFormFile("mask", "mask.png")
+	require.NoError(t, err)
+	_, err = mask.Write([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'})
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	defer common.CleanupBodyStorage(c)
+
+	request, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+	require.NoError(t, err)
+	require.Equal(t, "gpt-image-1", request.Model)
+	require.Len(t, c.Request.MultipartForm.File["mask"], 1)
+}
+
 // TestGetAndValidOpenAIImageRequestNBounds guards the billing invariant that
 // the image generation count can never reach quota calculation with a value
 // large enough to overflow int64 into a negative charge.

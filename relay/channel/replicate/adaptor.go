@@ -76,6 +76,11 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if info == nil {
 		return nil, errors.New("replicate adaptor: relay info is nil")
 	}
+	if info.RelayMode == relayconstant.RelayModeImagesEdits {
+		if err := ValidateImageEditInputs(c, request); err != nil {
+			return nil, err
+		}
+	}
 	if strings.TrimSpace(request.Prompt) == "" {
 		if v := c.PostForm("prompt"); strings.TrimSpace(v) != "" {
 			request.Prompt = v
@@ -83,6 +88,13 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 	if strings.TrimSpace(request.Prompt) == "" {
 		return nil, errors.New("replicate adaptor: prompt is required")
+	}
+	imageURLs, err := request.ImageInputURLs()
+	if err != nil {
+		return nil, fmt.Errorf("replicate adaptor: invalid unified image input: %w", err)
+	}
+	if len(imageURLs) > 0 && info.RelayMode != relayconstant.RelayModeImagesEdits {
+		return nil, errors.New("replicate adaptor: the configured model does not support unified image inputs")
 	}
 
 	modelName := strings.TrimSpace(info.UpstreamModelName)
@@ -133,9 +145,14 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	if info.RelayMode == relayconstant.RelayModeImagesEdits {
-		imageURL, err := uploadFileFromForm(c, info, "image", "image[]", "image_prompt")
-		if err != nil {
-			return nil, err
+		imageURL := ""
+		if len(imageURLs) > 0 {
+			imageURL = imageURLs[0]
+		} else {
+			imageURL, err = uploadFileFromForm(c, info, "image", "image[]", "image_prompt")
+			if err != nil {
+				return nil, err
+			}
 		}
 		if imageURL == "" {
 			return nil, errors.New("replicate adaptor: image file is required for edits")
@@ -189,6 +206,73 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return map[string]any{
 		"input": inputPayload,
 	}, nil
+}
+
+// ValidateImageEditInputs rejects input shapes that the Replicate image edit
+// mapping cannot preserve. The adaptor maps exactly one image to image_prompt
+// and has no reliable provider-neutral mapping for OpenAI masks.
+func ValidateImageEditInputs(c *gin.Context, request dto.ImageRequest) error {
+	imageURLs, err := request.ImageInputURLs()
+	if err != nil {
+		return fmt.Errorf("replicate adaptor: invalid unified image input: %w", err)
+	}
+	if len(imageURLs) == 0 && len(strings.TrimSpace(string(request.Image))) > 0 && common.GetJsonType(request.Image) != "null" {
+		probe := request
+		probe.Images = append(json.RawMessage(nil), request.Image...)
+		imageURLs, err = probe.ImageInputURLs()
+		if err != nil {
+			return fmt.Errorf("replicate adaptor: invalid image input: %w", err)
+		}
+	}
+
+	imageCount := len(imageURLs)
+	hasMask := len(bytes.TrimSpace(request.Mask)) > 0 && common.GetJsonType(request.Mask) != "null"
+	if c != nil && c.Request != nil && c.Request.MultipartForm != nil {
+		multipartImageCount := 0
+		for field, files := range c.Request.MultipartForm.File {
+			if field == "mask" && len(files) > 0 {
+				hasMask = true
+			}
+			if isReplicateImageInputField(field) {
+				multipartImageCount += len(files)
+			}
+		}
+		for field, values := range c.Request.MultipartForm.Value {
+			for _, value := range values {
+				if strings.TrimSpace(value) == "" {
+					continue
+				}
+				if field == "mask" {
+					hasMask = true
+				}
+				if isReplicateImageInputField(field) {
+					multipartImageCount++
+				}
+			}
+		}
+		if multipartImageCount > 0 {
+			imageCount = multipartImageCount
+		}
+	}
+	if hasMask {
+		return errors.New("replicate adaptor: image edits do not support masks")
+	}
+	if imageCount > 1 {
+		return errors.New("replicate adaptor: image edits support only one input image")
+	}
+	return nil
+}
+
+func isReplicateImageInputField(name string) bool {
+	if name == "image" || name == "image[]" || name == "image_prompt" {
+		return true
+	}
+	if !strings.HasPrefix(name, "image[") || !strings.HasSuffix(name, "]") {
+		return false
+	}
+	indexText := name[len("image[") : len(name)-1]
+	index, err := strconv.Atoi(indexText)
+	return err == nil && index >= 0 && strconv.Itoa(index) == indexText
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

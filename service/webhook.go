@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,33 +30,43 @@ type WebhookPayload struct {
 const (
 	webhookDeliveryTimeout  = 15 * time.Second
 	WebhookDeliveryIDHeader = "X-Webhook-Delivery-Id"
+	WebhookTimestampHeader  = "X-Webhook-Timestamp"
+	webhookSignatureVersion = "v1"
 )
 
-// generateSignature 生成 webhook 签名
+// generateSignature preserves the existing notification-webhook contract.
 func generateSignature(secret string, payload []byte) string {
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write(payload)
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// ValidateJSONWebhookURL applies the SSRF policy and preserves the deployment's
-// existing HTTPS-only callback policy when the worker feature is enabled.
+func generateVersionedSignature(secret string, timestamp string, deliveryID string, payload []byte) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(webhookSignatureVersion))
+	h.Write([]byte("."))
+	h.Write([]byte(timestamp))
+	h.Write([]byte("."))
+	h.Write([]byte(deliveryID))
+	h.Write([]byte("."))
+	h.Write(payload)
+	return webhookSignatureVersion + "=" + hex.EncodeToString(h.Sum(nil))
+}
+
+// ValidateJSONWebhookURL applies the SSRF policy and requires encrypted
+// transport for async callback payloads and signatures.
 func ValidateJSONWebhookURL(webhookURL string) error {
 	parsed, err := url.Parse(webhookURL)
 	if err != nil {
 		return err
 	}
-	if system_setting.EnableWorker() &&
-		!system_setting.WorkerAllowHttpImageRequestEnabled &&
-		!strings.EqualFold(parsed.Scheme, "https") {
-		return fmt.Errorf("worker webhook transport only supports https URLs")
+	if !strings.EqualFold(parsed.Scheme, "https") {
+		return fmt.Errorf("async image webhook transport only supports https URLs")
 	}
 	return validateWebhookFetchURL(webhookURL)
 }
 
-// SendJSONWebhook delivers an arbitrary JSON payload using the same webhook
-// transport and SSRF policy as notification webhooks. The signature is the
-// lowercase hexadecimal HMAC-SHA256 of the exact request body.
+// SendJSONWebhook preserves the original body-only signature contract.
 func SendJSONWebhook(ctx context.Context, webhookURL string, secret string, payload any) error {
 	return SendJSONWebhookWithDeliveryID(ctx, webhookURL, secret, "", payload)
 }
@@ -96,9 +107,13 @@ func sendJSONWebhookBytesWithClient(ctx context.Context, client *http.Client, we
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if deliveryID != "" {
+		timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+		req.Header.Set(WebhookTimestampHeader, timestamp)
 		req.Header.Set(WebhookDeliveryIDHeader, deliveryID)
-	}
-	if secret != "" {
+		if secret != "" {
+			req.Header.Set("X-Webhook-Signature", generateVersionedSignature(secret, timestamp, deliveryID, payload))
+		}
+	} else if secret != "" {
 		req.Header.Set("X-Webhook-Signature", generateSignature(secret, payload))
 	}
 

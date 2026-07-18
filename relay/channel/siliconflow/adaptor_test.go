@@ -73,3 +73,49 @@ func TestConvertImageRequestAcceptsMaximumBatchSize(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint(dto.MaxImageN), payload.BatchSize)
 }
+
+func TestConvertImageRequestMapsUnifiedImages(t *testing.T) {
+	request := dto.ImageRequest{
+		Model:  "black-forest-labs/FLUX.1-kontext-dev",
+		Prompt: "restyle the product",
+		Images: json.RawMessage(`[
+			"https://cdn.example.com/one.png",
+			"https://cdn.example.com/two.png",
+			"https://cdn.example.com/three.png"
+		]`),
+	}
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(
+		gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()),
+		&relaycommon.RelayInfo{},
+		request,
+	)
+	require.NoError(t, err)
+
+	payload, ok := converted.(*SFImageRequest)
+	require.True(t, ok)
+	require.Equal(t, "https://cdn.example.com/one.png", payload.Image)
+	require.Equal(t, "https://cdn.example.com/two.png", payload.Image2)
+	require.Equal(t, "https://cdn.example.com/three.png", payload.Image3)
+}
+
+func TestConvertImageRequestRejectsTooManyUnifiedImages(t *testing.T) {
+	request := dto.ImageRequest{
+		Model:  "black-forest-labs/FLUX.1-kontext-dev",
+		Prompt: "restyle the product",
+		Images: json.RawMessage(`[
+			"https://cdn.example.com/one.png",
+			"https://cdn.example.com/two.png",
+			"https://cdn.example.com/three.png",
+			"https://cdn.example.com/four.png"
+		]`),
+	}
+
+	_, err := (&Adaptor{}).ConvertImageRequest(
+		gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()),
+		&relaycommon.RelayInfo{},
+		request,
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "at most 3")
+}

@@ -39,6 +39,7 @@ func TestMain(m *testing.M) {
 		&TaskWebhook{},
 		&ImageBillingReservation{},
 		&ImageTaskArtifactChunk{},
+		&ImageInputCleanup{},
 		&ImageTaskBillingLogOutbox{},
 		&ImageTaskBillingLogReceipt{},
 		&User{},
@@ -73,6 +74,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM task_webhooks")
 		DB.Exec("DELETE FROM image_billing_reservations")
 		DB.Exec("DELETE FROM image_task_artifact_chunks")
+		DB.Exec("DELETE FROM image_input_cleanups")
 		DB.Exec("DELETE FROM image_task_billing_log_outboxes")
 		DB.Exec("DELETE FROM image_task_billing_log_receipts")
 		DB.Exec("DELETE FROM tasks")

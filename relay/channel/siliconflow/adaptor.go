@@ -37,6 +37,13 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	imageURLs, err := request.ImageInputURLs()
+	if err != nil {
+		return nil, fmt.Errorf("invalid unified image input: %w", err)
+	}
+	if len(imageURLs) > 3 {
+		return nil, errors.New("siliconflow image generation supports at most 3 input images")
+	}
 	if rawBatchSize, ok := request.Extra["batch_size"]; ok {
 		var batchSize int
 		if err := common.Unmarshal(rawBatchSize, &batchSize); err != nil || batchSize <= 0 || batchSize > dto.MaxImageN {
@@ -56,6 +63,15 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	sfRequest.Model = request.Model
 	sfRequest.Prompt = request.Prompt
+	if len(imageURLs) > 0 {
+		sfRequest.Image = imageURLs[0]
+		if len(imageURLs) > 1 {
+			sfRequest.Image2 = imageURLs[1]
+		}
+		if len(imageURLs) > 2 {
+			sfRequest.Image3 = imageURLs[2]
+		}
+	}
 	// 优先使用image_size/batch_size，否则使用OpenAI标准的size/n
 	if sfRequest.ImageSize == "" {
 		sfRequest.ImageSize = request.Size

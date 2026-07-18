@@ -1,13 +1,96 @@
 package model
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+type failNextEvalRedisHook struct {
+	failed atomic.Bool
+}
+
+func (hook *failNextEvalRedisHook) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
+	if cmd.Name() == "eval" && hook.failed.CompareAndSwap(false, true) {
+		return ctx, errors.New("injected Redis reconciliation failure")
+	}
+	return ctx, nil
+}
+
+func (*failNextEvalRedisHook) AfterProcess(context.Context, redis.Cmder) error { return nil }
+
+func (*failNextEvalRedisHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (*failNextEvalRedisHook) AfterProcessPipeline(context.Context, []redis.Cmder) error { return nil }
+
+type observeSecondRedisSetHook struct {
+	sets      atomic.Int32
+	attempted chan struct{}
+	once      sync.Once
+}
+
+func (hook *observeSecondRedisSetHook) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
+	if cmd.Name() == "set" && hook.sets.Add(1) == 2 {
+		hook.once.Do(func() { close(hook.attempted) })
+	}
+	return ctx, nil
+}
+
+func (*observeSecondRedisSetHook) AfterProcess(context.Context, redis.Cmder) error { return nil }
+
+func (*observeSecondRedisSetHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (*observeSecondRedisSetHook) AfterProcessPipeline(context.Context, []redis.Cmder) error {
+	return nil
+}
+
+type ambiguousCommitPool struct {
+	gorm.ConnPool
+}
+
+func (pool *ambiguousCommitPool) BeginTx(ctx context.Context, opts *sql.TxOptions) (gorm.ConnPool, error) {
+	beginner, ok := pool.ConnPool.(interface {
+		BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
+	})
+	if !ok {
+		return nil, errors.New("test database cannot begin transactions")
+	}
+	tx, err := beginner.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &ambiguousCommitTx{ConnPool: tx}, nil
+}
+
+type ambiguousCommitTx struct {
+	gorm.ConnPool
+}
+
+func (tx *ambiguousCommitTx) Commit() error {
+	if err := tx.ConnPool.(gorm.TxCommitter).Commit(); err != nil {
+		return err
+	}
+	return errors.New("injected ambiguous commit result")
+}
+
+func (tx *ambiguousCommitTx) Rollback() error {
+	return tx.ConnPool.(gorm.TxCommitter).Rollback()
+}
 
 func seedPreparedImageBillingReservation(t *testing.T, suffix string, quota int) (*User, *Token, *Task) {
 	t.Helper()
@@ -53,8 +136,18 @@ func seedPreparedImageBillingReservation(t *testing.T, suffix string, quota int)
 	return user, token, task
 }
 
+func populateImageReservationTestCache(t *testing.T, redisServer interface{ SetTTL(string, time.Duration) }, user *User, token *Token) {
+	t.Helper()
+	require.NoError(t, populateUserCache(*user))
+	require.NoError(t, cacheSetToken(*token))
+	redisServer.SetTTL(getUserCacheKey(user.Id), time.Minute)
+	redisServer.SetTTL("token:"+common.GenerateHMAC(token.Key), time.Minute)
+}
+
 func TestImageBillingReservationWalletTokenRecoveryIsIdempotent(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
 	user, token, task := seedPreparedImageBillingReservation(t, "recover", 100)
+	populateImageReservationTestCache(t, redisServer, user, token)
 
 	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
 	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
@@ -66,6 +159,12 @@ func TestImageBillingReservationWalletTokenRecoveryIsIdempotent(t *testing.T) {
 	require.NoError(t, DB.First(token, token.Id).Error)
 	assert.Equal(t, 900, token.RemainQuota)
 	assert.Equal(t, 100, token.UsedQuota)
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedToken.RemainQuota)
 
 	reservation, err := GetImageBillingReservation(task.TaskID)
 	require.NoError(t, err)
@@ -94,6 +193,412 @@ func TestImageBillingReservationWalletTokenRecoveryIsIdempotent(t *testing.T) {
 	require.NoError(t, DB.First(task, task.ID).Error)
 	assert.Equal(t, TaskStatus(TaskStatusFailure), task.Status)
 	assert.Equal(t, "submission abandoned", task.FailReason)
+	cachedUser, err = cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cachedUser.Quota)
+	cachedToken, err = cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cachedToken.RemainQuota)
+	assert.Empty(t, redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+	assert.Empty(t, redisServer.HGet("token:"+common.GenerateHMAC(token.Key), imageReservationCacheField(task.TaskID)))
+	assert.Positive(t, reservation.CacheReconciledAt)
+}
+
+func TestImageBillingReservationRefundSchedulesPreparedInputCleanup(t *testing.T) {
+	user, token, task := seedPreparedImageBillingReservation(t, "refund-input-cleanup", 100)
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	require.NoError(t, PersistPreparedImageInputCleanup(task.TaskID, []string{"inputs/reference/refund.png"}))
+
+	applied, err := RefundImageBillingReservation(task.TaskID, "staging failed")
+	require.NoError(t, err)
+	require.True(t, applied)
+
+	var cleanup ImageInputCleanup
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&cleanup).Error)
+	assert.Equal(t, ImageInputCleanupPending, cleanup.Status)
+	assert.Positive(t, cleanup.NextAttemptAt)
+}
+
+func TestImageBillingReservationRecoversTaggedRedisOnlyDebits(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "unrecorded-cache-debit", 100)
+
+	require.NoError(t, populateUserCache(*user))
+	require.NoError(t, cacheSetToken(*token))
+	redisServer.SetTTL(getUserCacheKey(user.Id), time.Minute)
+	redisServer.SetTTL("token:"+common.GenerateHMAC(token.Key), time.Minute)
+	// Simulate a process stopping after each atomic cache debit was tagged but
+	// before either durable reservation leg was written.
+	applied, err := applyImageReservationCacheDebit(
+		getUserCacheKey(user.Id),
+		imageTaskUserQuotaPinsKey(user.Id),
+		"Quota",
+		"",
+		task.TaskID,
+		100,
+	)
+	require.NoError(t, err)
+	require.True(t, applied)
+	applied, err = applyImageReservationCacheDebit(
+		"token:"+common.GenerateHMAC(token.Key),
+		imageTaskTokenQuotaPinsKey(common.GenerateHMAC(token.Key)),
+		constant.TokenFiledRemainQuota,
+		"UnlimitedQuota",
+		task.TaskID,
+		100,
+	)
+	require.NoError(t, err)
+	require.True(t, applied)
+	redisServer.FastForward(2 * time.Minute)
+	assert.True(t, redisServer.Exists(getUserCacheKey(user.Id)))
+	assert.True(t, redisServer.Exists("token:"+common.GenerateHMAC(token.Key)))
+	assert.True(t, redisServer.Exists(imageTaskUserQuotaPinsKey(user.Id)))
+	assert.True(t, redisServer.Exists(imageTaskTokenQuotaPinsKey(common.GenerateHMAC(token.Key))))
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedToken.RemainQuota)
+
+	reservation, err := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Zero(t, reservation.WalletReserved)
+	assert.Zero(t, reservation.TokenReserved)
+
+	applied, err = RefundImageBillingReservation(task.TaskID, "submission abandoned before database debit")
+	require.NoError(t, err)
+	require.True(t, applied)
+	assert.True(t, redisServer.Exists(getUserCacheKey(user.Id)))
+	assert.True(t, redisServer.Exists("token:"+common.GenerateHMAC(token.Key)))
+	cachedUser, err = cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cachedUser.Quota)
+	cachedToken, err = cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cachedToken.RemainQuota)
+	reservation, err = GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Positive(t, reservation.CacheReconciledAt)
+	assert.False(t, redisServer.Exists(imageTaskUserQuotaPinsKey(user.Id)))
+	assert.False(t, redisServer.Exists(imageTaskTokenQuotaPinsKey(common.GenerateHMAC(token.Key))))
+}
+
+func TestImageBillingReservationPinsTaggedDebitsAcrossCacheInvalidation(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "pinned-invalidation", 100)
+	populateImageReservationTestCache(t, redisServer, user, token)
+
+	applied, err := applyImageReservationCacheDebit(
+		getUserCacheKey(user.Id),
+		imageTaskUserQuotaPinsKey(user.Id),
+		"Quota",
+		"",
+		task.TaskID,
+		100,
+	)
+	require.NoError(t, err)
+	require.True(t, applied)
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	applied, err = applyImageReservationCacheDebit(
+		"token:"+tokenHMAC,
+		imageTaskTokenQuotaPinsKey(tokenHMAC),
+		constant.TokenFiledRemainQuota,
+		"UnlimitedQuota",
+		task.TaskID,
+		100,
+	)
+	require.NoError(t, err)
+	require.True(t, applied)
+
+	require.NoError(t, invalidateUserCache(user.Id))
+	require.NoError(t, cacheDeleteToken(token.Key))
+	assert.True(t, redisServer.Exists(getUserCacheKey(user.Id)))
+	assert.True(t, redisServer.Exists("token:"+tokenHMAC))
+	assert.Equal(t, "100", redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+	assert.Equal(t, "100", redisServer.HGet("token:"+tokenHMAC, imageReservationCacheField(task.TaskID)))
+	assert.True(t, redisServer.Exists(imageTaskUserQuotaInvalidationKey(user.Id)))
+	assert.True(t, redisServer.Exists(imageTaskTokenQuotaInvalidationKey(tokenHMAC)))
+
+	// Retrying the reservation after the invalidation races with the pre-DB
+	// cache phase records each durable leg without applying a second cache debit.
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+	applied, err = RefundImageBillingReservation(task.TaskID, "recover invalidated reservation")
+	require.NoError(t, err)
+	require.True(t, applied)
+
+	// The independent invalidations are honored only after the final pin release.
+	assert.False(t, redisServer.Exists(getUserCacheKey(user.Id)))
+	assert.False(t, redisServer.Exists("token:"+tokenHMAC))
+	assert.False(t, redisServer.Exists(imageTaskUserQuotaPinsKey(user.Id)))
+	assert.False(t, redisServer.Exists(imageTaskTokenQuotaPinsKey(tokenHMAC)))
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, 1000, user.Quota)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, 1000, token.RemainQuota)
+}
+
+func TestImageBillingReservationReleasePreservesFinalizationPin(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, _, task := seedPreparedImageBillingReservation(t, "reservation-pin-namespace", 100)
+	require.NoError(t, populateUserCache(*user))
+	redisServer.SetTTL(getUserCacheKey(user.Id), time.Minute)
+
+	pinsKey := imageTaskUserQuotaPinsKey(user.Id)
+	applied, err := applyImageReservationCacheDebit(
+		getUserCacheKey(user.Id),
+		pinsKey,
+		"Quota",
+		"",
+		task.TaskID,
+		100,
+	)
+	require.NoError(t, err)
+	require.True(t, applied)
+	require.NoError(t, common.RDB.SAdd(context.Background(), pinsKey, task.TaskID).Err())
+
+	require.NoError(t, releaseImageReservationCacheDebit(
+		getUserCacheKey(user.Id),
+		pinsKey,
+		imageTaskUserQuotaInvalidationKey(user.Id),
+		"Quota",
+		task.TaskID,
+		false,
+	))
+
+	reservationPinned, err := redisServer.SIsMember(pinsKey, imageReservationCachePinMember(task.TaskID))
+	require.NoError(t, err)
+	assert.False(t, reservationPinned)
+	finalizationPinned, err := redisServer.SIsMember(pinsKey, task.TaskID)
+	require.NoError(t, err)
+	assert.True(t, finalizationPinned)
+	assert.Equal(t, "900", redisServer.HGet(getUserCacheKey(user.Id), "Quota"))
+	assert.Empty(t, redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+}
+
+func TestImageBillingReservationRefundPreservesConcurrentUnrelatedCacheDebits(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "concurrent-cache-debit", 100)
+	populateImageReservationTestCache(t, redisServer, user, token)
+
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+	require.NoError(t, cacheDecrUserQuota(user.Id, 30))
+	require.NoError(t, cacheDecrTokenQuota(token.Key, 30))
+
+	applied, err := RefundImageBillingReservation(task.TaskID, "submission abandoned while unrelated debits continue")
+	require.NoError(t, err)
+	require.True(t, applied)
+
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 970, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 970, cachedToken.RemainQuota)
+
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	assert.True(t, redisServer.Exists(getUserCacheKey(user.Id)))
+	assert.True(t, redisServer.Exists("token:"+tokenHMAC))
+	assert.Empty(t, redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+	assert.Empty(t, redisServer.HGet("token:"+tokenHMAC, imageReservationCacheField(task.TaskID)))
+}
+
+func TestImageBillingReservationRefundWaitsForTokenSnapshotLock(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "token-snapshot-lock", 100)
+	populateImageReservationTestCache(t, redisServer, user, token)
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+
+	hook := &observeSecondRedisSetHook{attempted: make(chan struct{})}
+	common.RDB.AddHook(hook)
+	lockHeld := make(chan struct{})
+	releaseLock := make(chan struct{})
+	lockDone := make(chan error, 1)
+	go func() {
+		lockDone <- withTokenQuotaCacheLock(token.Key, func() error {
+			close(lockHeld)
+			<-releaseLock
+			return nil
+		})
+	}()
+	<-lockHeld
+
+	type refundResult struct {
+		applied bool
+		err     error
+	}
+	refundDone := make(chan refundResult, 1)
+	go func() {
+		applied, err := RefundImageBillingReservation(task.TaskID, "wait for token snapshot update")
+		refundDone <- refundResult{applied: applied, err: err}
+	}()
+	<-hook.attempted
+
+	reservation, err := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, ImageBillingReservationPreparing, reservation.Status)
+	close(releaseLock)
+	require.NoError(t, <-lockDone)
+	result := <-refundDone
+	require.NoError(t, result.err)
+	require.True(t, result.applied)
+
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cachedToken.RemainQuota)
+}
+
+func TestImageBillingReservationRetriesCacheReconciliationAfterRedisFailure(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "cache-retry", 100)
+	populateImageReservationTestCache(t, redisServer, user, token)
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+
+	healthyClient := common.RDB
+	failedClient := redis.NewClient(&redis.Options{
+		Addr: redisServer.Addr(),
+	})
+	failedClient.AddHook(&failNextEvalRedisHook{})
+	common.RDB = failedClient
+	applied, err := RefundImageBillingReservation(task.TaskID, "cache temporarily unavailable")
+	require.True(t, applied)
+	require.ErrorContains(t, err, "restore image wallet reservation cache")
+	common.RDB = healthyClient
+	require.NoError(t, failedClient.Close())
+
+	reservation, err := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, ImageBillingReservationRefunded, reservation.Status)
+	assert.Zero(t, reservation.CacheReconciledAt)
+
+	recovered, err := RecoverStaleImageBillingReservations(common.GetTimestamp(), 10, "retry cache reconciliation")
+	require.NoError(t, err)
+	assert.Zero(t, recovered)
+	reservation, err = GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Positive(t, reservation.CacheReconciledAt)
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cachedToken.RemainQuota)
+}
+
+func TestActiveImageBillingReservationRetriesCacheReconciliationAfterFixedPriceFinalization(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "active-cache-retry", 100)
+	populateImageReservationTestCache(t, redisServer, user, token)
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+
+	healthyClient := common.RDB
+	failedClient := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
+	failedClient.AddHook(&failNextEvalRedisHook{})
+	common.RDB = failedClient
+	task.Quota = 100
+	activated, err := ActivatePreparedImageTask(task)
+	require.NoError(t, err)
+	require.True(t, activated)
+	common.RDB = healthyClient
+	require.NoError(t, failedClient.Close())
+
+	reservation, err := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, ImageBillingReservationActive, reservation.Status)
+	assert.Zero(t, reservation.CacheReconciledAt)
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	assert.Equal(t, tokenHMAC, reservation.TokenCacheKeyHash)
+	// Older active rows predate the persisted cache identity. Recovery backfills
+	// it before touching Redis so a later token deletion cannot strand the pin.
+	require.NoError(t, DB.Model(&ImageBillingReservation{}).
+		Where("id = ?", reservation.ID).
+		Update("token_cache_key_hash", "").Error)
+	assert.Equal(t, "100", redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+	assert.Equal(t, "100", redisServer.HGet("token:"+tokenHMAC, imageReservationCacheField(task.TaskID)))
+
+	// A fixed-price task has no final cache delta, so finalization cannot
+	// incidentally release the reservation namespace's tag or pin.
+	task.Status = TaskStatusInProgress
+	task.Attempt = 1
+	task.StartTime = common.GetTimestamp()
+	require.NoError(t, DB.Model(task).Select("status", "attempt", "start_time").Updates(task).Error)
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 100)
+	require.NoError(t, err)
+	require.True(t, won)
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+	assert.Equal(t, TaskStatus(TaskStatusSuccess), finalized.Task.Status)
+	userReservationPinned, err := redisServer.SIsMember(imageTaskUserQuotaPinsKey(user.Id), imageReservationCachePinMember(task.TaskID))
+	require.NoError(t, err)
+	assert.True(t, userReservationPinned)
+	tokenReservationPinned, err := redisServer.SIsMember(imageTaskTokenQuotaPinsKey(tokenHMAC), imageReservationCachePinMember(task.TaskID))
+	require.NoError(t, err)
+	assert.True(t, tokenReservationPinned)
+
+	require.NoError(t, DB.Model(&ImageBillingReservation{}).Where("task_id = ?", task.TaskID).Update("updated_at", int64(1)).Error)
+	assert.True(t, HasStaleImageBillingReservations(common.GetTimestamp()))
+	recovered, err := RecoverStaleImageBillingReservations(common.GetTimestamp(), 10, "retry active cache reconciliation")
+	require.NoError(t, err)
+	assert.Zero(t, recovered)
+
+	reservation, err = GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Positive(t, reservation.CacheReconciledAt)
+	assert.Equal(t, tokenHMAC, reservation.TokenCacheKeyHash)
+	assert.Empty(t, redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+	assert.Empty(t, redisServer.HGet("token:"+tokenHMAC, imageReservationCacheField(task.TaskID)))
+	assert.False(t, redisServer.Exists(imageTaskUserQuotaPinsKey(user.Id)))
+	assert.False(t, redisServer.Exists(imageTaskTokenQuotaPinsKey(tokenHMAC)))
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedToken.RemainQuota)
+}
+
+func TestImageBillingReservationKeepsTaggedDebitWhenCommitResultIsAmbiguous(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "ambiguous-commit", 100)
+	populateImageReservationTestCache(t, redisServer, user, token)
+
+	originalDB := DB
+	t.Cleanup(func() { DB = originalDB })
+	faultDB := originalDB.Session(&gorm.Session{NewDB: true, Context: context.Background()})
+	faultPool := &ambiguousCommitPool{ConnPool: originalDB.Config.ConnPool}
+	faultDB.Config.ConnPool = faultPool
+	faultDB.Statement.ConnPool = faultPool
+	DB = faultDB
+	err := ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100)
+	DB = originalDB
+	require.ErrorContains(t, err, "injected ambiguous commit result")
+
+	// The database commit succeeded even though its result was reported as an
+	// error. The tagged Redis debit must remain until terminal recovery decides
+	// whether the durable leg exists.
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, 900, user.Quota)
+	reservation, err := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, 100, reservation.WalletReserved)
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedUser.Quota)
+	assert.Equal(t, "100", redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+
+	applied, err := RefundImageBillingReservation(task.TaskID, "recover ambiguous commit")
+	require.NoError(t, err)
+	require.True(t, applied)
+	cachedUser, err = cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cachedUser.Quota)
 }
 
 func TestImageBillingReservationRefundsSoftDeletedTokenLedger(t *testing.T) {
@@ -157,7 +662,9 @@ func TestImageBillingReservationDoesNotClearLedgerWhenTokenIsHardDeleted(t *test
 }
 
 func TestImageBillingReservationActivationPreventsRecovery(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
 	user, token, task := seedPreparedImageBillingReservation(t, "activate", 100)
+	populateImageReservationTestCache(t, redisServer, user, token)
 	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
 	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
 
@@ -188,6 +695,14 @@ func TestImageBillingReservationActivationPreventsRecovery(t *testing.T) {
 	reservation, err := GetImageBillingReservation(task.TaskID)
 	require.NoError(t, err)
 	assert.Equal(t, ImageBillingReservationActive, reservation.Status)
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 900, cachedToken.RemainQuota)
+	assert.Empty(t, redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+	assert.Empty(t, redisServer.HGet("token:"+common.GenerateHMAC(token.Key), imageReservationCacheField(task.TaskID)))
 }
 
 func TestImageBillingReservationActivationRequiresTokenLeg(t *testing.T) {
@@ -287,6 +802,31 @@ func TestImageBillingReservationFailedDebitRollsBackLedgerClaim(t *testing.T) {
 	require.NoError(t, DB.First(token, token.Id).Error)
 	assert.Equal(t, 1000, token.RemainQuota)
 	assert.Zero(t, token.UsedQuota)
+}
+
+func TestImageBillingReservationPreservesUnlimitedTokenCacheSemantics(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "unlimited-token", 100)
+	require.NoError(t, DB.Model(token).Updates(map[string]any{
+		"unlimited_quota": true,
+		"remain_quota":    0,
+	}).Error)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	populateImageReservationTestCache(t, redisServer, user, token)
+
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.True(t, cachedToken.UnlimitedQuota)
+	assert.Equal(t, -100, cachedToken.RemainQuota)
+
+	applied, err := RefundImageBillingReservation(task.TaskID, "unlimited reservation abandoned")
+	require.NoError(t, err)
+	require.True(t, applied)
+	cachedToken, err = cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.True(t, cachedToken.UnlimitedQuota)
+	assert.Zero(t, cachedToken.RemainQuota)
 }
 
 func TestImageBillingReservationSubscriptionRecoveryIsIdempotent(t *testing.T) {

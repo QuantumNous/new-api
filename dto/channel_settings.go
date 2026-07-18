@@ -425,21 +425,53 @@ func normalizeAdvancedCustomRouteModels(models []string) []string {
 }
 
 func validateAdvancedCustomUpstreamTarget(index int, upstreamPath string) error {
-	if strings.HasPrefix(upstreamPath, "/") {
-		if strings.HasPrefix(upstreamPath, "//") {
-			return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must be a full URL or a path starting with /", index)
-		}
-		return nil
+	relativePath := strings.HasPrefix(upstreamPath, "/")
+	if relativePath && strings.HasPrefix(upstreamPath, "//") {
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must be a full URL or a path starting with /", index)
 	}
 
 	parsedURL, err := url.Parse(upstreamPath)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+	if relativePath {
+		if err != nil || parsedURL.IsAbs() || parsedURL.Host != "" {
+			return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must be a full URL or a path starting with /", index)
+		}
+	} else if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
 		return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must be a full URL or a path starting with /", index)
-	}
-	if !strings.EqualFold(parsedURL.Scheme, "http") && !strings.EqualFold(parsedURL.Scheme, "https") {
+	} else if !strings.EqualFold(parsedURL.Scheme, "http") && !strings.EqualFold(parsedURL.Scheme, "https") {
 		return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must use http or https", index)
 	}
+	if parsedURL.User != nil {
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain URL userinfo or credentials", index)
+	}
+	if parsedURL.Fragment != "" {
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain a URL fragment", index)
+	}
+	query, err := url.ParseQuery(parsedURL.RawQuery)
+	if err != nil {
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path query is invalid", index)
+	}
+	for key := range query {
+		if isSensitiveAdvancedCustomQueryKey(key) {
+			return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path query must not contain credentials", index)
+		}
+	}
 	return nil
+}
+
+func isSensitiveAdvancedCustomQueryKey(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	normalized = strings.NewReplacer("-", "", "_", "", ".", "", " ", "").Replace(normalized)
+	if normalized == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"authorization", "apikey", "accesskey", "secret", "token", "password", "credential", "signature",
+	} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return normalized == "key" || normalized == "sig"
 }
 
 func validateAdvancedCustomConverterPath(index int, incomingPath string, converter string) error {

@@ -169,6 +169,11 @@ func FinalizeImageTask(taskID string) (*ImageTaskFinalizationResult, error) {
 		return nil, err
 	}
 	if identity.Status == TaskStatusSuccess || identity.Status == TaskStatusFailure {
+		if err := DB.Transaction(func(tx *gorm.DB) error {
+			return scheduleImageInputCleanupTx(tx, identity.TaskID, common.GetTimestamp())
+		}); err != nil {
+			return nil, err
+		}
 		return &ImageTaskFinalizationResult{
 			Task:          &identity,
 			PreviousQuota: identity.Quota,
@@ -229,6 +234,9 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 		}
 
 		if task.Status == TaskStatusSuccess || task.Status == TaskStatusFailure {
+			if err := scheduleImageInputCleanupTx(tx, task.TaskID, common.GetTimestamp()); err != nil {
+				return err
+			}
 			result.Task = &task
 			result.PreviousQuota = task.Quota
 			result.ActualQuota = task.Quota
@@ -521,6 +529,9 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 			return err
 		}
 		if task.Status == TaskStatusSuccess || task.Status == TaskStatusFailure {
+			if err := scheduleImageInputCleanupTx(tx, task.TaskID, common.GetTimestamp()); err != nil {
+				return err
+			}
 			result.Task = &task
 			return nil
 		}
@@ -543,7 +554,13 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 		task.PrivateData.BillingFinalStatus = ""
 		task.PrivateData.BillingActualQuota = 0
 		task.PrivateData.BillingDBApplied = false
+		if task.PrivateData.BillingContext != nil {
+			task.PrivateData.BillingContext.ClearBillingRequestInput()
+		}
 		if err := deleteImageTaskArtifactTx(tx, task.TaskID); err != nil {
+			return err
+		}
+		if err := scheduleImageInputCleanupTx(tx, task.TaskID, now); err != nil {
 			return err
 		}
 		billingLogReason := "async image usage reconciliation"
@@ -930,9 +947,163 @@ return 1
 		return nil
 	}
 	if result == -5 {
-		return fmt.Errorf("%w: commit marker is missing", errImageTaskQuotaCacheConflict)
+		return recoverMissingImageTaskCacheAdjustment(adjustment)
 	}
 	return errImageTaskQuotaCacheConflict
+}
+
+// recoverMissingImageTaskCacheAdjustment handles the only state that outlives
+// the Redis marker: the durable billing transaction has committed, but the task
+// is still FINALIZING. The script validates both per-task deltas before
+// releasing either task pin. A missing tag with a live cache and pin is
+// ambiguous, so that cache is disabled and the task remains FINALIZING. If the
+// cache itself is gone, the database is authoritative and a stale pin is safe
+// to release.
+func recoverMissingImageTaskCacheAdjustment(adjustment imageTaskCacheAdjustment) error {
+	if !common.RedisEnabled || (adjustment.userDelta == 0 && adjustment.tokenDelta == 0) {
+		return nil
+	}
+	if common.RDB == nil {
+		return fmt.Errorf("%w: redis client is nil", errImageTaskQuotaCacheUnavailable)
+	}
+	if adjustment.taskID == "" {
+		return fmt.Errorf("%w: task id is empty", errImageTaskQuotaCacheConflict)
+	}
+
+	const script = `
+local user_delta = tonumber(ARGV[1])
+local token_delta = tonumber(ARGV[2])
+local task_field = ARGV[3]
+local task_id = ARGV[4]
+local cache_ttl = tonumber(ARGV[5])
+local invalidation_ttl = tonumber(ARGV[6])
+
+local user_tag = nil
+if user_delta ~= 0 then
+  user_tag = redis.call('HGET', KEYS[2], task_field)
+  if user_tag and tonumber(user_tag) ~= user_delta then
+    return -4
+  end
+end
+local token_tag = nil
+if token_delta ~= 0 then
+  token_tag = redis.call('HGET', KEYS[3], task_field)
+  if token_tag and tonumber(token_tag) ~= token_delta then
+    return -4
+  end
+end
+
+local user_pinned = 0
+if user_delta ~= 0 then
+  user_pinned = redis.call('SISMEMBER', KEYS[4], task_id)
+end
+local token_pinned = 0
+if token_delta ~= 0 then
+  token_pinned = redis.call('SISMEMBER', KEYS[5], task_id)
+end
+
+local user_ambiguous = user_delta ~= 0
+  and not user_tag
+  and user_pinned == 1
+  and redis.call('EXISTS', KEYS[2]) == 1
+local token_ambiguous = token_delta ~= 0
+  and not token_tag
+  and token_pinned == 1
+  and redis.call('EXISTS', KEYS[3]) == 1
+if user_ambiguous then
+  redis.call('HSET', KEYS[2], 'Status', ARGV[7])
+  redis.call('SET', KEYS[6], 'missing-marker:' .. task_id, 'EX', invalidation_ttl)
+end
+if token_ambiguous then
+  redis.call('HSET', KEYS[3], 'Status', ARGV[8])
+  redis.call('SET', KEYS[7], 'missing-marker:' .. task_id, 'EX', invalidation_ttl)
+end
+if user_ambiguous or token_ambiguous then
+  return -4
+end
+
+local function release_leg(cache_key, pins_key, invalidation_key, tagged, expected_delta)
+  if expected_delta == 0 then
+    return
+  end
+  local was_pinned = redis.call('SISMEMBER', pins_key, task_id)
+  if not tagged and was_pinned == 0 then
+    return
+  end
+  if tagged then
+    redis.call('HDEL', cache_key, task_field)
+  end
+  if was_pinned == 1 then
+    redis.call('SREM', pins_key, task_id)
+  end
+  if redis.call('SCARD', pins_key) == 0 then
+    redis.call('DEL', pins_key)
+    if redis.call('EXISTS', invalidation_key) == 1 then
+      redis.call('DEL', cache_key)
+      redis.call('DEL', invalidation_key)
+    elseif redis.call('EXISTS', cache_key) == 1 then
+      redis.call('EXPIRE', cache_key, cache_ttl)
+    end
+  end
+end
+
+release_leg(KEYS[2], KEYS[4], KEYS[6], user_tag, user_delta)
+release_leg(KEYS[3], KEYS[5], KEYS[7], token_tag, token_delta)
+redis.call('DEL', KEYS[1])
+return 1
+`
+	markerKey := "billing:image-task-cache:" + adjustment.taskID
+	userKey := markerKey + ":no-user"
+	userPinsKey := markerKey + ":no-user-pins"
+	userInvalidationKey := markerKey + ":no-user-invalidation"
+	if adjustment.userDelta != 0 {
+		userKey = getUserCacheKey(adjustment.userID)
+		userPinsKey = imageTaskUserQuotaPinsKey(adjustment.userID)
+		userInvalidationKey = imageTaskUserQuotaInvalidationKey(adjustment.userID)
+	}
+	tokenKey := markerKey + ":no-token"
+	tokenPinsKey := markerKey + ":no-token-pins"
+	tokenInvalidationKey := markerKey + ":no-token-invalidation"
+	if adjustment.tokenKey != "" {
+		tokenHMAC := common.GenerateHMAC(adjustment.tokenKey)
+		tokenKey = fmt.Sprintf("token:%s", tokenHMAC)
+		tokenPinsKey = imageTaskTokenQuotaPinsKey(tokenHMAC)
+		tokenInvalidationKey = imageTaskTokenQuotaInvalidationKey(tokenHMAC)
+	}
+	cacheTTL := common.RedisKeyCacheSeconds()
+	if cacheTTL <= 0 {
+		cacheTTL = 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := common.RDB.Eval(
+		ctx,
+		script,
+		[]string{
+			markerKey,
+			userKey,
+			tokenKey,
+			userPinsKey,
+			tokenPinsKey,
+			userInvalidationKey,
+			tokenInvalidationKey,
+		},
+		adjustment.userDelta,
+		adjustment.tokenDelta,
+		"ImageTaskBilling:"+adjustment.taskID,
+		adjustment.taskID,
+		cacheTTL,
+		imageTaskQuotaCacheHoldSeconds,
+		common.UserStatusDisabled,
+		common.TokenStatusDisabled,
+	).Int64()
+	if err != nil {
+		return fmt.Errorf("%w: recover missing commit marker for task %s: %v", errImageTaskQuotaCacheUnavailable, adjustment.taskID, err)
+	}
+	if result != 1 {
+		return fmt.Errorf("%w: recover missing commit marker for task %s returned %d", errImageTaskQuotaCacheConflict, adjustment.taskID, result)
+	}
+	return nil
 }
 
 // rollbackPreparedImageTaskCache removes a settlement delta whose database

@@ -38,10 +38,14 @@ const (
 	TaskStatusQueued                = "QUEUED"
 	TaskStatusReserving             = "RESERVING"
 	TaskStatusInProgress            = "IN_PROGRESS"
-	TaskStatusFinalizing            = "FINALIZING"
-	TaskStatusFailure               = "FAILURE"
-	TaskStatusSuccess               = "SUCCESS"
-	TaskStatusUnknown               = "UNKNOWN"
+	// CHECKPOINT_PENDING fences a provider call whose response is not durable
+	// yet. Workers must never requeue this state back to provider submission: a
+	// process exit here leaves the upstream outcome ambiguous.
+	TaskStatusCheckpointPending TaskStatus = "CHECKPOINT_PENDING"
+	TaskStatusFinalizing                   = "FINALIZING"
+	TaskStatusFailure                      = "FAILURE"
+	TaskStatusSuccess                      = "SUCCESS"
+	TaskStatusUnknown                      = "UNKNOWN"
 )
 
 type Task struct {
@@ -159,7 +163,49 @@ type TaskBillingContext struct {
 	OriginModelName       string                       `json:"origin_model_name,omitempty"`       // 模型名称，必须为OriginModelName
 	PerCallBilling        bool                         `json:"per_call_billing,omitempty"`        // 按次计费：跳过轮询阶段的差额结算
 	TieredBillingSnapshot *billingexpr.BillingSnapshot `json:"tiered_billing_snapshot,omitempty"`
-	BillingRequestInput   *billingexpr.RequestInput    `json:"billing_request_input,omitempty"`
+	// BillingRequestInput remains readable for legacy rows and in-memory task
+	// construction. TaskPrivateData.Value always encrypts it before persistence.
+	BillingRequestInput          *billingexpr.RequestInput `json:"billing_request_input,omitempty"`
+	EncryptedBillingRequestInput string                    `json:"billing_request_input_encrypted,omitempty"`
+}
+
+// ResolveBillingRequestInput decrypts the request snapshot into a temporary
+// value without placing plaintext back onto the persisted task model.
+func (b *TaskBillingContext) ResolveBillingRequestInput() (*billingexpr.RequestInput, error) {
+	if b == nil {
+		return nil, nil
+	}
+	if b.BillingRequestInput != nil {
+		input := *b.BillingRequestInput
+		input.Body = append([]byte(nil), b.BillingRequestInput.Body...)
+		if b.BillingRequestInput.Headers != nil {
+			input.Headers = make(map[string]string, len(b.BillingRequestInput.Headers))
+			for key, value := range b.BillingRequestInput.Headers {
+				input.Headers[key] = value
+			}
+		}
+		return &input, nil
+	}
+	if b.EncryptedBillingRequestInput == "" {
+		return nil, nil
+	}
+	plaintext, err := common.DecryptString(b.EncryptedBillingRequestInput)
+	if err != nil {
+		return nil, err
+	}
+	var input billingexpr.RequestInput
+	if err := common.Unmarshal([]byte(plaintext), &input); err != nil {
+		return nil, err
+	}
+	return &input, nil
+}
+
+func (b *TaskBillingContext) ClearBillingRequestInput() {
+	if b == nil {
+		return
+	}
+	b.BillingRequestInput = nil
+	b.EncryptedBillingRequestInput = ""
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
@@ -198,7 +244,24 @@ func (p TaskPrivateData) Value() (driver.Value, error) {
 	if (p == TaskPrivateData{}) {
 		return nil, nil
 	}
-	return common.Marshal(p)
+	stored := p
+	if p.BillingContext != nil {
+		billing := *p.BillingContext
+		if billing.BillingRequestInput != nil && common.AsyncImageEncryptedWritesEnabled() {
+			encoded, err := common.Marshal(billing.BillingRequestInput)
+			if err != nil {
+				return nil, err
+			}
+			encrypted, err := common.EncryptString(string(encoded))
+			if err != nil {
+				return nil, err
+			}
+			billing.BillingRequestInput = nil
+			billing.EncryptedBillingRequestInput = encrypted
+		}
+		stored.BillingContext = &billing
+	}
+	return common.Marshal(stored)
 }
 
 // SyncTaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段

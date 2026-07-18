@@ -329,17 +329,50 @@
       "post": {
         "summary": "异步生成图像",
         "deprecated": false,
-        "description": "所有图像生成请求都会创建异步任务。使用响应中的 Location 或 task_id 轮询任务；也可以提供 webhook_url 接收相同的终态任务对象。Webhook 采用至少一次投递语义，X-Webhook-Delivery-Id 在同一任务的所有重试中保持不变，接收方应据此去重；webhook_secret 非空时，X-Webhook-Signature 是请求体的 HMAC-SHA256 十六进制签名。最终图片统一上传到对象存储，result.data 只返回持久 URL。",
+        "description": "统一的异步图像接口。通过 model 选择文生图或图生图模型，input 支持 prompt、image_input/input_urls、aspect_ratio、resolution 等参数。无论 async 取值为何，接口都立即返回 202 和 task_id；使用 Location 或 GET /v1/images/generations/{task_id} 轮询，也可以提供 callBackUrl 或 webhook_url 接收相同的终态任务对象。Webhook 采用至少一次投递语义，X-Webhook-Delivery-Id 在同一任务的所有重试中保持不变，接收方应据此去重；webhook_secret 非空时，X-Webhook-Signature 为 v1=<hex>，hex 是 HMAC-SHA256(secret, 'v1.' + X-Webhook-Timestamp + '.' + X-Webhook-Delivery-Id + '.' + 原始请求体)。接收方应校验签名并限制时间戳重放窗口。输入参考图会先进入私有对象存储，最终 result.data 只返回持久 URL。异步统一入口不接受 provider-native 的 input.messages/num_outputs 形状，请使用 input.prompt 和 input.image_input；GPT Responses 图片执行器只支持 n=1。",
         "operationId": "createAsyncImageGeneration",
         "tags": [
           "图片生成"
         ],
         "parameters": [],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ImageGenerationRequest"
+              },
+              "examples": {
+                "nanoBanana": {
+                  "summary": "Nano Banana 2 文生图或图生图",
+                  "value": {
+                    "model": "nano-banana-2",
+                    "callBackUrl": "https://example.com/image-callback",
+                    "input": {
+                      "prompt": "A product photo in a clean studio",
+                      "image_input": [
+                        "https://example.com/reference.png"
+                      ],
+                      "aspect_ratio": "1:1",
+                      "resolution": "2K",
+                      "output_format": "png"
+                    }
+                  }
+                },
+                "gptImageToImage": {
+                  "summary": "GPT Image 图生图",
+                  "value": {
+                    "model": "gpt-image-2-image-to-image",
+                    "input": {
+                      "prompt": "Turn this product photo into a premium poster",
+                      "input_urls": [
+                        "https://example.com/product.png"
+                      ],
+                      "aspect_ratio": "16:9",
+                      "resolution": "2K"
+                    }
+                  }
+                }
               }
             }
           }
@@ -416,97 +449,73 @@
     },
     "/v1/images/edits": {
       "post": {
-        "summary": "编辑图像(qwen-image-edit)",
+        "summary": "异步编辑图像",
         "deprecated": false,
-        "description": " 百炼qwen-image系列图片生成",
-        "operationId": "createImage",
+        "description": "OpenAI 兼容的异步图片编辑接口。上传的 image 和可选 mask 会先写入私有对象存储，接口立即返回 202 和 task_id；使用 Location 或 GET /v1/images/generations/{task_id} 轮询，也可以提供 callBackUrl 或 webhook_url 接收终态任务对象。最终 result.data 只返回对象存储中的持久 URL。",
+        "operationId": "createAsyncImageEdit",
         "tags": [
-          "图片生成/Qwen千问"
+          "图片生成"
         ],
         "parameters": [],
         "requestBody": {
+          "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "model": {
-                    "type": "string"
-                  },
-                  "input": {
-                    "type": "object",
-                    "properties": {
-                      "messages": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "role": {
-                              "type": "string"
-                            },
-                            "content": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "image": {
-                                    "type": "string"
-                                  },
-                                  "text": {
-                                    "type": "string"
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "required": [
-                      "messages"
-                    ]
-                  },
-                  "parameters": {
-                    "type": "object",
-                    "properties": {
-                      "n": {
-                        "type": "integer"
-                      },
-                      "negative_prompt": {
-                        "type": "string"
-                      },
-                      "prompt_extend": {
-                        "type": "boolean"
-                      },
-                      "watermark": {
-                        "type": "boolean"
-                      },
-                      "size": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                },
-                "required": [
-                  "model",
-                  "input"
-                ]
-              },
-              "example": "{\n    \"model\": \"qwen-image-edit-plus\",\n    \"input\": {\n        \"messages\": [\n            {\n                \"role\": \"user\",\n                \"content\": [\n                    {\n                        \"image\": \"https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/fpakfo/image36.webp\"\n                    },\n                    {\n                        \"text\": \"生成一张符合深度图的图像，遵循以下描述：一辆红色的破旧的自行车停在一条泥泞的小路上，背景是茂密的原始森林\"\n                    }\n                ]\n            }\n        ]\n    },\n    \"parameters\": {\n        \"n\": 2,\n        \"negative_prompt\": \" \",\n        \"prompt_extend\": true,\n        \"watermark\": false\n    }"
+                "$ref": "#/components/schemas/ImageEditRequest"
+              }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "成功生成图像",
+          "202": {
+            "description": "任务已创建",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImageResponse"
+                  "$ref": "#/components/schemas/AsyncImageTask"
                 }
               }
             },
-            "headers": {}
+            "headers": {
+              "Location": {
+                "description": "任务轮询地址",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "建议的轮询间隔（秒）",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/edits": {
+      "post": {
+        "summary": "异步编辑图像（兼容别名）",
+        "deprecated": false,
+        "description": "与 POST /v1/images/edits 完全相同。",
+        "operationId": "createAsyncImageEditAlias",
+        "tags": [
+          "图片生成"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "$ref": "#/paths/~1v1~1images~1edits/post/requestBody"
+        },
+        "responses": {
+          "202": {
+            "$ref": "#/paths/~1v1~1images~1edits/post/responses/202"
           }
         },
         "security": [
@@ -3618,16 +3627,101 @@
       "ImageGenerationRequest": {
         "type": "object",
         "required": [
-          "prompt"
+          "model"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "prompt"
+            ]
+          },
+          {
+            "required": [
+              "input"
+            ]
+          }
         ],
         "properties": {
           "model": {
             "type": "string",
-            "example": "dall-e-3"
+            "example": "nano-banana-2",
+            "description": "模型名称；同一入口通过该字段选择不同图像模型"
           },
           "prompt": {
             "type": "string",
-            "description": "图像描述"
+            "maxLength": 20000,
+            "description": "兼容的顶层图像描述；也可以使用 input.prompt"
+          },
+          "input": {
+            "type": "object",
+            "required": [
+              "prompt"
+            ],
+            "properties": {
+              "prompt": {
+                "type": "string",
+                "maxLength": 20000,
+                "description": "图像描述"
+              },
+              "image_input": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "参考图 URL 或 data URI；最多 16 张，nano-banana-2 最多 14 张"
+              },
+              "input_urls": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "参考图 URL 或 data URI；与 image_input 等价"
+              },
+              "images": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "参考图 URL 或 data URI；与 image_input 等价"
+              },
+              "aspect_ratio": {
+                "type": "string",
+                "example": "16:9"
+              },
+              "resolution": {
+                "type": "string",
+                "enum": [
+                  "1K",
+                  "2K",
+                  "4K"
+                ]
+              },
+              "output_format": {
+                "type": "string",
+                "enum": [
+                  "png",
+                  "jpg",
+                  "jpeg",
+                  "webp"
+                ],
+                "example": "png"
+              },
+              "negative_prompt": {
+                "type": "string",
+                "description": "可选的模型扩展字段；会随统一请求转发"
+              },
+              "n": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 128
+              }
+            }
           },
           "n": {
             "type": "integer",
@@ -3637,22 +3731,13 @@
           },
           "size": {
             "type": "string",
-            "enum": [
-              "256x256",
-              "512x512",
-              "1024x1024",
-              "1792x1024",
-              "1024x1792"
-            ],
+            "description": "传统模型按各自尺寸约束校验；gpt-image-2 仅支持 15 个官方尺寸（1K: 1024x1024/1536x864/864x1536/1024x1360/1360x1024；2K: 1440x1440/2048x1152/1152x2048/1248x1664/1664x1248；4K: 2880x2880/3840x2160/2160x3840/2448x3264/3264x2448）或 auto",
+            "example": "1024x1024",
             "default": "1024x1024"
           },
           "quality": {
             "type": "string",
-            "enum": [
-              "standard",
-              "hd"
-            ],
-            "default": "standard"
+            "description": "模型相关质量档位，例如 standard、hd、auto、high、medium、low、2K 或 4K"
           },
           "style": {
             "type": "string",
@@ -3689,6 +3774,11 @@
             "format": "uri",
             "description": "可选的任务终态回调地址"
           },
+          "callBackUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "webhook_url 的兼容别名"
+          },
           "webhook_secret": {
             "type": "string",
             "description": "可选的 HMAC-SHA256 签名密钥，需要同时提供 webhook_url"
@@ -3699,31 +3789,93 @@
         "type": "object",
         "required": [
           "image",
-          "prompt"
+          "prompt",
+          "model"
         ],
         "properties": {
           "image": {
-            "type": "string",
-            "format": "binary"
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "description": "一张或多张输入图片；multipart 中重复使用 image 字段上传"
           },
           "mask": {
             "type": "string",
-            "format": "binary"
+            "format": "binary",
+            "description": "可选编辑蒙版；与 image 一样先写入私有对象存储，并在异步执行时重建 multipart 请求"
           },
           "prompt": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "model": {
-            "type": "string"
+            "type": "string",
+            "example": "gpt-image-2-image-to-image"
           },
           "n": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 128,
+            "default": 1
           },
           "size": {
             "type": "string"
           },
-          "response_format": {
+          "quality": {
             "type": "string"
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ],
+            "description": "兼容字段；异步任务最终结果始终返回对象存储 URL"
+          },
+          "output_format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpg",
+              "jpeg",
+              "webp"
+            ]
+          },
+          "output_compression": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "input_fidelity": {
+            "type": "string"
+          },
+          "async": {
+            "type": "boolean",
+            "deprecated": true,
+            "description": "兼容字段；无论取值为何都创建异步任务"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "异步图片任务不支持流式响应；传 true 返回 400"
+          },
+          "webhook_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选的任务终态回调地址"
+          },
+          "callBackUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "webhook_url 的兼容别名"
+          },
+          "webhook_secret": {
+            "type": "string",
+            "description": "可选的 HMAC-SHA256 签名密钥，需要同时提供 webhook_url"
           }
         }
       },
