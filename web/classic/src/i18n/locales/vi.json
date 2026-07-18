@@ -1840,6 +1840,8 @@
     "是否确认充值？": "Confirm the recharge?",
     "是否自动同步上游模型更新": "",
     "是否自动禁用": "Có tự động vô hiệu hóa không",
+    "跳过自动测试": "Bỏ qua kiểm tra tự động",
+    "跳过定时自动测试以节省额度": "Bỏ qua kiểm tra tự động định kỳ để tiết kiệm hạn ngạch",
     "是否要求指纹/面容等生物识别": "Có yêu cầu nhận dạng vân tay/khuôn mặt không",
     "显示倍率": "Hiển thị tỷ lệ",
     "显示最新20条": "Hiển thị 20 mới nhất",

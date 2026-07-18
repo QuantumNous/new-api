@@ -4183,6 +4183,8 @@
     "Size:": "大小：",
     "sk_xxx or rk_xxx": "sk_xxx 或 rk_xxx",
     "Skip async task polling delay": "跳过异步任务轮询延迟",
+    "Skip Auto Test": "跳过自动测试",
+    "Skip auto test to avoid consuming quota on limited channels": "跳过自动测试以节省有限渠道的额度",
     "Skip retry on failure": "失败后不重试",
     "Skip SMTP TLS certificate verification": "跳过 SMTP TLS 证书验证",
     "Skip to Main": "跳到主内容",

@@ -4183,6 +4183,8 @@
     "Size:": "サイズ:",
     "sk_xxx or rk_xxx": "sk_xxx または rk_xxx",
     "Skip async task polling delay": "非同期タスクのポーリング遅延をスキップ",
+    "Skip Auto Test": "自動テストをスキップ",
+    "Skip auto test to avoid consuming quota on limited channels": "制限されたチャネルのクォータを節約するため自動テストをスキップ",
     "Skip retry on failure": "失敗時にリトライしない",
     "Skip SMTP TLS certificate verification": "SMTP TLS証明書の検証をスキップ",
     "Skip to Main": "メインコンテンツへスキップ",

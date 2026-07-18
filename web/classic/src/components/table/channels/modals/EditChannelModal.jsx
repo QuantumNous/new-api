@@ -181,6 +181,7 @@ const EditChannelModal = (props) => {
     status_code_mapping: '',
     models: [],
     auto_ban: 1,
+    skip_auto_test: 0,
     test_model: '',
     groups: ['default'],
     priority: 0,
@@ -219,6 +220,7 @@ const EditChannelModal = (props) => {
   const [multiToSingle, setMultiToSingle] = useState(false);
   const [multiKeyMode, setMultiKeyMode] = useState('random');
   const [autoBan, setAutoBan] = useState(true);
+  const [skipAutoTest, setSkipAutoTest] = useState(false);
   const [inputs, setInputs] = useState(originInputs);
   const [originModelOptions, setOriginModelOptions] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
@@ -982,6 +984,11 @@ const EditChannelModal = (props) => {
       } else {
         setAutoBan(true);
       }
+      if (data.skip_auto_test === 1) {
+        setSkipAutoTest(true);
+      } else {
+        setSkipAutoTest(false);
+      }
       // 同步企业账户状态
       setIsEnterpriseAccount(data.is_enterprise_account || false);
       setBasicModels(getChannelModels(data.type));
@@ -1303,6 +1310,7 @@ const EditChannelModal = (props) => {
     fetchGroups().then();
     if (!isEdit) {
       initialBaseUrlRef.current = '';
+      setSkipAutoTest(false);
       setInputs(originInputs);
       if (formApiRef.current) {
         formApiRef.current.setValues(originInputs);
@@ -1369,6 +1377,7 @@ const EditChannelModal = (props) => {
   const resetModalState = () => {
     resolveStatusCodeRiskConfirm(false);
     formApiRef.current?.reset();
+    setSkipAutoTest(false);
     // 重置渠道设置状态
     setChannelSettings({
       force_format: false,
@@ -1853,6 +1862,7 @@ const EditChannelModal = (props) => {
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
+    localInputs.skip_auto_test = skipAutoTest ? 1 : 0;
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
 
@@ -3630,6 +3640,19 @@ const EditChannelModal = (props) => {
                       '仅当自动禁用开启时有效，关闭后不会自动禁用该渠道',
                     )}
                     initValue={autoBan}
+                  />
+
+                  {/* Skip Auto Test - Core Config */}
+                  <Form.Switch
+                    field='skip_auto_test'
+                    label={t('跳过自动测试')}
+                    checkedText={t('开')}
+                    uncheckedText={t('关')}
+                    onChange={(value) => setSkipAutoTest(value)}
+                    extraText={t(
+                      '跳过定时自动测试以节省额度',
+                    )}
+                    initValue={skipAutoTest}
                   />
 
                   {/* Test Model - Core Config */}

@@ -361,6 +361,7 @@ export const FIELD_DESCRIPTIONS = {
   WEIGHT: 'Used for load balancing. Higher weight = more requests',
   TEST_MODEL: 'Model to use when testing channel connectivity',
   AUTO_BAN: 'Automatically disable channel on repeated failures',
+  SKIP_AUTO_TEST: 'Skip auto test to avoid consuming quota on limited channels',
   STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',
   TAG: 'Group channels by tag for batch operations',
   REMARK: 'Internal notes (not shown to users)',
