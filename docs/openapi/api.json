@@ -2967,13 +2967,32 @@
                 "type": "object",
                 "properties": {
                   "base_url": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "上游基础地址。编辑预览时显式空字符串表示清除已保存值，省略则沿用已保存值；相对上游路径要求非空的完整基础地址。"
                   },
                   "type": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "渠道类型。高级自定义渠道为 58。"
                   },
                   "key": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "新建渠道预览使用的 API 密钥。提供 channel_id 时忽略此字段，并在服务端使用渠道已保存的单密钥或多密钥配置。"
+                  },
+                  "channel_id": {
+                    "type": "integer",
+                    "description": "可选的已保存渠道 ID。用于在不向前端返回密钥的情况下预览尚未保存的高级自定义配置。"
+                  },
+                  "advanced_custom": {
+                    "type": "string",
+                    "description": "可选的高级自定义配置 JSON 字符串。新建高级自定义渠道时必填；编辑预览时覆盖已保存配置，省略则沿用已保存配置。模型发现仅支持显式的 /v1/models 路由和 OpenAI data[].id 响应。"
+                  },
+                  "header_override": {
+                    "type": "string",
+                    "description": "可选的全局请求头覆盖 JSON 字符串。编辑预览时覆盖已保存值，显式空字符串表示清除，省略则沿用。"
+                  },
+                  "proxy": {
+                    "type": "string",
+                    "description": "可选的网络代理。编辑预览时覆盖已保存值，显式空字符串表示清除，省略则沿用。"
                   }
                 }
               }
