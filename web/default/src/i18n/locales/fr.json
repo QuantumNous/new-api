@@ -5179,6 +5179,8 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Minimum Account Age (Years)": "Âge minimum du compte (années)",
+    "GitHub accounts must meet this age to sign in; set 0 to disable": "Les comptes GitHub doivent avoir atteint cet âge pour se connecter ; indiquez 0 pour désactiver",
     "Zoom": "Zoom"
   }
 }

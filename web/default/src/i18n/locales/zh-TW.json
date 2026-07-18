@@ -2617,6 +2617,8 @@
     "MiniMax": "MiniMax",
     "Minimum check-in quota": "簽到最小額度",
     "Minimum LinuxDO trust level required": "所需的最低 LinuxDO 信任級別",
+    "Minimum Account Age (Years)": "最低帳號註冊年數",
+    "GitHub accounts must meet this age to sign in; set 0 to disable": "GitHub 帳號註冊年限須達到此值才能登入；設定為 0 表示停用此限制",
     "Minimum quota amount awarded for check-in": "簽到獎勵的最小額度",
     "Minimum recharge amount in USD": "最低儲值金額（美元）",
     "Minimum recharge amount to qualify for this discount.": "符合此折扣的最低儲值金額。",

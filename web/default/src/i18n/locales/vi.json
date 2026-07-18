@@ -5179,6 +5179,8 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Minimum Account Age (Years)": "Tuổi tài khoản tối thiểu (năm)",
+    "GitHub accounts must meet this age to sign in; set 0 to disable": "Tài khoản GitHub phải đạt độ tuổi này để đăng nhập; đặt 0 để tắt giới hạn",
     "Zoom": "Zoom"
   }
 }

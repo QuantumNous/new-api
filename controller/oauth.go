@@ -375,6 +375,8 @@ func handleOAuthError(c *gin.Context, err error) {
 		common.ApiErrorMsg(c, e.Message)
 	case *oauth.TrustLevelError:
 		common.ApiErrorI18n(c, i18n.MsgOAuthTrustLevelLow)
+	case *oauth.AccountAgeError:
+		common.ApiErrorI18n(c, i18n.MsgOAuthAccountAgeLow)
 	default:
 		common.ApiError(c, err)
 	}

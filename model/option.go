@@ -123,6 +123,7 @@ func InitOptionMap() {
 	common.OptionMap["PayMethods"] = operation_setting.PayMethods2JsonString()
 	common.OptionMap["GitHubClientId"] = ""
 	common.OptionMap["GitHubClientSecret"] = ""
+	common.OptionMap["GitHubMinimumAccountAgeYears"] = strconv.Itoa(common.GitHubMinimumAccountAgeYears)
 	common.OptionMap["TelegramBotToken"] = ""
 	common.OptionMap["TelegramBotName"] = ""
 	common.OptionMap["WeChatServerAddress"] = ""
@@ -474,6 +475,12 @@ func updateOptionMap(key string, value string) (err error) {
 		common.GitHubClientId = value
 	case "GitHubClientSecret":
 		common.GitHubClientSecret = value
+	case "GitHubMinimumAccountAgeYears":
+		ageYears, parseErr := strconv.Atoi(value)
+		if parseErr != nil || ageYears < 0 {
+			ageYears = 0
+		}
+		common.GitHubMinimumAccountAgeYears = ageYears
 	case "LinuxDOClientId":
 		common.LinuxDOClientId = value
 	case "LinuxDOClientSecret":

@@ -142,6 +142,8 @@
     "GitHub": "GitHub",
     "GitHub Client ID": "GitHub Client ID",
     "GitHub Client Secret": "GitHub Client Secret",
+    "Minimum Account Age (Years)": "最低账号注册年数",
+    "GitHub accounts must meet this age to sign in; set 0 to disable": "GitHub 账号注册年限须达到此值才能登录；设置为 0 表示禁用该限制",
     "GitHub ID": "GitHub ID",
     "Goroutine 数": "Goroutine 数",
     "Gotify应用令牌": "Gotify应用令牌",

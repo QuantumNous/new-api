@@ -131,6 +131,7 @@ var SMTPToken = ""
 
 var GitHubClientId = ""
 var GitHubClientSecret = ""
+var GitHubMinimumAccountAgeYears = 0
 var LinuxDOClientId = ""
 var LinuxDOClientSecret = ""
 var LinuxDOMinimumTrustLevel = 0

@@ -5179,6 +5179,8 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
+    "Minimum Account Age (Years)": "アカウントの最低登録年数",
+    "GitHub accounts must meet this age to sign in; set 0 to disable": "GitHubアカウントはこの登録年数に達している必要があります。0で無効になります",
     "Zoom": "ズーム"
   }
 }

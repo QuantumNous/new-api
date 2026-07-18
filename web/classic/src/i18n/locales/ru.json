@@ -155,6 +155,8 @@
     "GitHub": "GitHub",
     "GitHub Client ID": "ID клиента GitHub",
     "GitHub Client Secret": "Секрет клиента GitHub",
+    "Minimum Account Age (Years)": "Минимальный возраст аккаунта (лет)",
+    "GitHub accounts must meet this age to sign in; set 0 to disable": "Аккаунт GitHub должен достичь этого возраста для входа; укажите 0, чтобы отключить ограничение",
     "GitHub ID": "ID GitHub",
     "Goroutine 数": "Количество Goroutine",
     "Gotify应用令牌": "Токен приложения Gotify",

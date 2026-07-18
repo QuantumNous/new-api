@@ -3,10 +3,10 @@ package oauth
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -31,10 +31,11 @@ type gitHubOAuthResponse struct {
 }
 
 type gitHubUser struct {
-	Id    int64  `json:"id"`    // GitHub numeric ID (permanent, never changes)
-	Login string `json:"login"` // GitHub username (can be changed by user)
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Id        int64     `json:"id"`    // GitHub numeric ID (permanent, never changes)
+	Login     string    `json:"login"` // GitHub username (can be changed by user)
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (p *GitHubProvider) GetName() string {
@@ -57,7 +58,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 		"client_secret": common.GitHubClientSecret,
 		"code":          code,
 	}
-	jsonData, err := json.Marshal(values)
+	jsonData, err := common.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	logger.LogDebug(ctx, "[OAuth-GitHub] ExchangeToken response status: %d", res.StatusCode)
 
 	var oAuthResponse gitHubOAuthResponse
-	err = json.NewDecoder(res.Body).Decode(&oAuthResponse)
+	err = common.DecodeJson(res.Body, &oAuthResponse)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
@@ -110,6 +111,9 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 		return nil, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "new-api")
 
 	client := http.Client{
 		Timeout: 20 * time.Second,
@@ -135,7 +139,7 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	}
 
 	var githubUser gitHubUser
-	err = json.NewDecoder(res.Body).Decode(&githubUser)
+	err = common.DecodeJson(res.Body, &githubUser)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo decode error: %s", err.Error()))
 		return nil, err
@@ -144,6 +148,53 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	if githubUser.Id == 0 || githubUser.Login == "" {
 		logger.LogError(ctx, "[OAuth-GitHub] GetUserInfo failed: empty id or login field")
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "GitHub"})
+	}
+
+	if common.GitHubMinimumAccountAgeYears > 0 {
+		userURL := "https://api.github.com/users/" + url.PathEscape(githubUser.Login)
+		logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo: fetching account age from %s", userURL)
+
+		ageReq, err := http.NewRequestWithContext(ctx, "GET", userURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		ageReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+		ageReq.Header.Set("Accept", "application/vnd.github+json")
+		ageReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+		ageReq.Header.Set("User-Agent", "new-api")
+
+		ageRes, err := client.Do(ageReq)
+		if err != nil {
+			logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo account age error: %s", err.Error()))
+			return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "GitHub"}, err.Error())
+		}
+		defer ageRes.Body.Close()
+
+		if ageRes.StatusCode != http.StatusOK {
+			logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo account age failed: status=%d", ageRes.StatusCode))
+			return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthGetUserErr, map[string]any{"Provider": "GitHub"}, fmt.Sprintf("status %d", ageRes.StatusCode))
+		}
+
+		var publicUser gitHubUser
+		if err := common.DecodeJson(ageRes.Body, &publicUser); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo account age decode error: %s", err.Error()))
+			return nil, err
+		}
+		if publicUser.Id != githubUser.Id || publicUser.CreatedAt.IsZero() {
+			logger.LogError(ctx, "[OAuth-GitHub] GetUserInfo failed: invalid public user data")
+			return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "GitHub"})
+		}
+
+		minimumCreatedAt := time.Now().UTC().AddDate(-common.GitHubMinimumAccountAgeYears, 0, 0)
+		if publicUser.CreatedAt.After(minimumCreatedAt) {
+			logger.LogWarn(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo: account age too low (required_years=%d, created_at=%s)",
+				common.GitHubMinimumAccountAgeYears, publicUser.CreatedAt.Format(time.RFC3339)))
+			return nil, &AccountAgeError{
+				RequiredYears: common.GitHubMinimumAccountAgeYears,
+				CreatedAt:     publicUser.CreatedAt,
+			}
+		}
+
 	}
 
 	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo success: id=%d, login=%s, name=%s, email=%s",
@@ -158,6 +209,16 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 			"legacy_id": githubUser.Login, // Store login for migration from old accounts
 		},
 	}, nil
+}
+
+// AccountAgeError indicates the user's provider account is too new.
+type AccountAgeError struct {
+	RequiredYears int
+	CreatedAt     time.Time
+}
+
+func (e *AccountAgeError) Error() string {
+	return "account age too low"
 }
 
 func (p *GitHubProvider) IsUserIDTaken(providerUserID string) bool {

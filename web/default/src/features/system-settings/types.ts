@@ -133,6 +133,7 @@ export type AuthSettings = {
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string
+  GitHubMinimumAccountAgeYears: string
   'discord.enabled': boolean
   'discord.client_id': string
   'discord.client_secret': string

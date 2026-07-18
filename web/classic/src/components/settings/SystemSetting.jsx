@@ -53,6 +53,7 @@ const SystemSetting = () => {
     GitHubOAuthEnabled: '',
     GitHubClientId: '',
     GitHubClientSecret: '',
+    GitHubMinimumAccountAgeYears: '',
     'discord.enabled': '',
     'discord.client_id': '',
     'discord.client_secret': '',
@@ -490,6 +491,15 @@ const SystemSetting = () => {
       options.push({
         key: 'GitHubClientSecret',
         value: inputs.GitHubClientSecret,
+      });
+    }
+    if (
+      originInputs['GitHubMinimumAccountAgeYears'] !==
+      inputs.GitHubMinimumAccountAgeYears
+    ) {
+      options.push({
+        key: 'GitHubMinimumAccountAgeYears',
+        value: inputs.GitHubMinimumAccountAgeYears,
       });
     }
 
@@ -1502,6 +1512,18 @@ const SystemSetting = () => {
                         label={t('GitHub Client Secret')}
                         type='password'
                         placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.InputNumber
+                        field='GitHubMinimumAccountAgeYears'
+                        label={t('Minimum Account Age (Years)')}
+                        min={0}
+                        precision={0}
+                        placeholder={t(
+                          'GitHub accounts must meet this age to sign in; set 0 to disable',
+                        )}
+                        style={{ width: '100%' }}
                       />
                     </Col>
                   </Row>

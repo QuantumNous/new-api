@@ -2617,6 +2617,8 @@
     "MiniMax": "MiniMax",
     "Minimum check-in quota": "Minimum check-in quota",
     "Minimum LinuxDO trust level required": "Minimum LinuxDO trust level required",
+    "Minimum Account Age (Years)": "Minimum Account Age (Years)",
+    "GitHub accounts must meet this age to sign in; set 0 to disable": "GitHub accounts must meet this age to sign in; set 0 to disable",
     "Minimum quota amount awarded for check-in": "Minimum quota amount awarded for check-in",
     "Minimum recharge amount in USD": "Minimum recharge amount in USD",
     "Minimum recharge amount to qualify for this discount.": "Minimum recharge amount to qualify for this discount.",
