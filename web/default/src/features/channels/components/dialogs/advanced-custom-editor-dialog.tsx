@@ -216,6 +216,13 @@ export function AdvancedCustomEditorDialog({
     [routeKeys, routes]
   )
   const routeGroups = useMemo(() => buildRouteGroups(routeRows), [routeRows])
+  const usedIncomingPaths = useMemo(
+    () => new Set(routeGroups.map((routeGroup) => routeGroup.incomingPath)),
+    [routeGroups]
+  )
+  const nextAvailableIncomingPath = ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS.find(
+    (option) => !usedIncomingPaths.has(option.value)
+  )?.value
   const validationError = useMemo(
     () => validateAdvancedCustomConfig(normalizedConfig),
     [normalizedConfig]
@@ -252,13 +259,18 @@ export function AdvancedCustomEditorDialog({
   }
 
   const addRoute = () => {
+    if (!nextAvailableIncomingPath) return
     setConfig((current) => {
       const next = normalizeAdvancedCustomConfig(current)
       return {
         ...next,
         advanced_routes: [
           ...(next.advanced_routes || []),
-          createAdvancedCustomRoute(),
+          {
+            ...createAdvancedCustomRoute(),
+            incoming_path: nextAvailableIncomingPath,
+            upstream_path: nextAvailableIncomingPath,
+          },
         ],
       }
     })
@@ -607,6 +619,7 @@ export function AdvancedCustomEditorDialog({
               variant='outline'
               size='sm'
               onClick={addRoute}
+              disabled={!nextAvailableIncomingPath}
             >
               <Plus data-icon='inline-start' />
               {t('Add route')}
@@ -645,6 +658,7 @@ export function AdvancedCustomEditorDialog({
               <RouteGroupEditor
                 key={routeGroup.incomingPath || 'advanced-custom-empty-path'}
                 group={routeGroup}
+                usedIncomingPaths={usedIncomingPaths}
                 validationError={validationError}
                 onAddRoute={() =>
                   addRouteForIncomingPath(routeGroup.incomingPath)
@@ -700,6 +714,7 @@ export function AdvancedCustomEditorDialog({
 
 function RouteGroupEditor({
   group,
+  usedIncomingPaths,
   validationError,
   onAddRoute,
   onIncomingPathChange,
@@ -709,6 +724,7 @@ function RouteGroupEditor({
   onRouteChange,
 }: {
   group: AdvancedCustomRouteGroup
+  usedIncomingPaths: ReadonlySet<string>
   validationError: ReturnType<typeof validateAdvancedCustomConfig>
   onAddRoute: () => void
   onIncomingPathChange: (incomingPath: string | null) => void
@@ -779,8 +795,10 @@ function RouteGroupEditor({
                     key={option.value}
                     value={option.value}
                     disabled={
-                      option.value === ADVANCED_CUSTOM_MODEL_LIST_PATH &&
-                      group.routeRows.length > 1
+                      (option.value !== incomingPath &&
+                        usedIncomingPaths.has(option.value)) ||
+                      (option.value === ADVANCED_CUSTOM_MODEL_LIST_PATH &&
+                        group.routeRows.length > 1)
                     }
                     className={longSelectItemClass}
                   >
