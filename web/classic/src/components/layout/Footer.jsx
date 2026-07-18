@@ -50,10 +50,11 @@ const LegalLinks = ({ leadingSeparator = false }) => {
       to: '/refund-policy',
     });
   }
-
-  if (links.length === 0) {
-    return null;
-  }
+  links.push({
+    key: 'support',
+    label: 'support@opwan.ai',
+    href: 'mailto:support@opwan.ai',
+  });
 
   return links.map((link, index) => (
     <React.Fragment key={link.key}>
@@ -62,12 +63,21 @@ const LegalLinks = ({ leadingSeparator = false }) => {
           ·
         </span>
       )}
-      <Link
-        to={link.to}
-        className='!text-semi-color-text-1 hover:!text-semi-color-primary'
-      >
-        {link.label}
-      </Link>
+      {link.href ? (
+        <a
+          href={link.href}
+          className='!text-semi-color-text-1 hover:!text-semi-color-primary'
+        >
+          {link.label}
+        </a>
+      ) : (
+        <Link
+          to={link.to}
+          className='!text-semi-color-text-1 hover:!text-semi-color-primary'
+        >
+          {link.label}
+        </Link>
+      )}
     </React.Fragment>
   ));
 };

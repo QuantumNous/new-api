@@ -76,9 +76,9 @@ function FooterLinkItem(props: { link: FooterLink }) {
   )
 }
 
-// Renders User Agreement / Privacy Policy links inline with the parent's
-// copyright row when either is configured in System Settings → Site. Emits
-// fragmented siblings so the parent flex container's gap controls spacing.
+// Renders configured policies and the customer-support contact inline with the
+// parent's copyright row. Emits fragmented siblings so the parent flex
+// container's gap controls spacing.
 function LegalLinks(props: { leadingSeparator?: boolean }) {
   const { t } = useTranslation()
   const { status } = useStatus()
@@ -104,9 +104,12 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
       href: '/refund-policy',
     })
   }
-  if (items.length === 0) {
-    return null
-  }
+  items.push({
+    key: 'support',
+    label: 'support@opwan.ai',
+    href: 'mailto:support@opwan.ai',
+  })
+
   return (
     <>
       {items.map((item, index) => (
@@ -116,12 +119,21 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
               ·
             </span>
           )}
-          <Link
-            to={item.href}
-            className='hover:text-foreground transition-colors duration-200'
-          >
-            {item.label}
-          </Link>
+          {item.href.startsWith('mailto:') ? (
+            <a
+              href={item.href}
+              className='text-muted-foreground hover:text-foreground transition-colors duration-200'
+            >
+              {item.label}
+            </a>
+          ) : (
+            <Link
+              to={item.href}
+              className='text-muted-foreground hover:text-foreground transition-colors duration-200'
+            >
+              {item.label}
+            </Link>
+          )}
         </Fragment>
       ))}
     </>

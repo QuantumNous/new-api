@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TopNavLink } from '../types'
+import { Footer } from './footer'
 import { PublicHeader, type PublicHeaderProps } from './public-header'
 
 type PublicLayoutProps = {
@@ -53,6 +54,7 @@ export function PublicLayout(props: PublicLayoutProps) {
       ) : (
         props.children
       )}
+      <Footer />
     </div>
   )
 }

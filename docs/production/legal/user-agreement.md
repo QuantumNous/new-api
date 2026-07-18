@@ -16,18 +16,26 @@ You must have the legal capacity to enter into a binding agreement. If you use t
 
 You must provide accurate account information and keep your credentials and API keys secure. You are responsible for all activity performed through your account or keys. Contact [support@opwan.ai](mailto:support@opwan.ai) promptly if you suspect unauthorized access.
 
-## 3. Acceptable use
+## 3. AI content generation and acceptable use
 
-You may use the Service only in compliance with applicable law, these Terms, and the terms and policies of the relevant model providers. You must not:
+This section is our Acceptable Use Policy for AI content generation. It applies to prompts, uploads, inputs, model instructions, and generated text, images, audio, video, code, or other output. You may use the Service only in compliance with applicable law, these Terms, and the terms and policies of the relevant model providers.
 
-- use the Service for unlawful, fraudulent, abusive, deceptive, or harmful activity;
-- attempt to bypass safety controls, rate limits, access restrictions, billing controls, or technical protections;
-- interfere with the Service, probe it for vulnerabilities without written authorization, distribute malware, or disrupt other users;
-- resell or share account access except through a plan or written agreement that expressly permits it;
-- submit content that you do not have the right to process or that violates another person's rights; or
-- represent AI-generated output as guaranteed accurate, professional advice, or human-generated when disclosure is required by law.
+You must not use the Service to request, create, transform, publish, distribute, or facilitate:
 
-We may investigate suspected violations and suspend or terminate access when reasonably necessary to protect users, providers, the Service, or third parties.
+- sexually explicit, pornographic, or NSFW content, including non-consensual intimate content or sexual exploitation;
+- graphic violence, gore, instructions to commit violent acts, or content that praises or facilitates violence;
+- hate speech or content that attacks, dehumanizes, or promotes discrimination or violence against people based on a protected characteristic;
+- child sexual abuse material (CSAM), sexualized content involving minors, grooming, or any other exploitation or endangerment of children;
+- deceptive deepfakes, impersonation, fraud, identity theft, or materially misleading content presented as authentic without appropriate disclosure and consent;
+- content that infringes or misappropriates copyright, trademark, privacy, publicity, confidentiality, or other rights;
+- unlawful, fraudulent, abusive, deceptive, or otherwise harmful activity, including malware, phishing, evasion of safety controls, or instructions that create a serious risk of harm; or
+- AI-generated output represented as guaranteed accurate, professional advice, or human-generated when disclosure is required by law.
+
+You also must not attempt to bypass safety controls, rate limits, access restrictions, billing controls, or technical protections; interfere with the Service; probe it for vulnerabilities without written authorization; disrupt other users; or resell or share account access except through a plan or written agreement that expressly permits it.
+
+We use automated and manual moderation and may review relevant prompts, output, account activity, and reports as permitted by our Privacy Policy and applicable law. We may refuse a generation request, restrict features, remove or block content, preserve relevant records, suspend or terminate an account, or report suspected illegal activity to providers or competent authorities. Child safety threats and CSAM may be reported without prior notice where required or permitted by law.
+
+To report prohibited AI-generated content or suspected abuse, email [support@opwan.ai](mailto:support@opwan.ai). Include the account or request identifier, date and time, affected URL or output, and enough detail for us to investigate. Do not email illegal imagery or CSAM; provide only the information needed to locate it securely.
 
 ## 4. Your content and AI output
 
