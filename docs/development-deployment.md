@@ -335,6 +335,15 @@ docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml build -
 docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml up -d --remove-orphans
 ```
 
+内存较小的服务器（例如 2 GiB）建议跳过 classic 前端构建，避免两个 Node 构建阶段占满内存：
+
+```bash
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml \
+  build --build-arg BUILD_CLASSIC=false --pull
+```
+
+此模式保留 default 前端和完整后端能力，classic 前端使用占位资源；内存升级后可移除该参数重新构建。
+
 不要执行 docker compose down -v。它会删除 Compose 管理的 PostgreSQL 数据卷。
 
 观察迁移和启动日志：
