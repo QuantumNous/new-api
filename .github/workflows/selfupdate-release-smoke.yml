@@ -88,7 +88,7 @@ jobs:
           mkdir -p "$BUILD_CONTEXT"
           install -m 0755 "$RELEASE_DIR/new-api-$TAG" "$BUILD_CONTEXT/new-api"
           cat > "$BUILD_CONTEXT/Dockerfile" <<'DOCKERFILE'
-          FROM alpine:3.22
+          FROM debian:bookworm-slim
           ARG REVISION
           LABEL io.new-api.selfupdate.smoke.revision=$REVISION
           COPY new-api /new-api
