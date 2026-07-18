@@ -578,7 +578,11 @@ const LoginForm = () => {
                     onClick={handleOIDCClick}
                     loading={oidcLoading}
                   >
-                    <span className='ml-3'>{t('使用 OIDC 继续')}</span>
+                    <span className='ml-3'>
+                      {t('使用 {{name}} 继续', {
+                        name: status.oidc_display_name || 'OIDC',
+                      })}
+                    </span>
                   </Button>
                 )}
 

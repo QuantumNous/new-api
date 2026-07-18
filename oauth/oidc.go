@@ -41,7 +41,7 @@ type oidcUser struct {
 }
 
 func (p *OIDCProvider) GetName() string {
-	return "OIDC"
+	return system_setting.GetOIDCSettings().GetEffectiveDisplayName()
 }
 
 func (p *OIDCProvider) IsEnabled() bool {

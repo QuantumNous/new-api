@@ -3460,6 +3460,8 @@
     "配置 GitHub OAuth App": "GitHub OAuth アプリ設定",
     "配置 Linux DO OAuth": "Linux DO OAuth 設定",
     "配置 OIDC": "OIDC 設定",
+    "OIDC 显示名称": "OIDC 表示名",
+    "例如：公司 SSO，留空则默认显示为 OIDC": "例：会社の SSO。空欄の場合は「OIDC」がデフォルトです",
     "配置 Passkey": "Passkeyを設定",
     "配置 SMTP": "SMTP 設定",
     "配置 Telegram 登录": "Telegram ログイン設定",

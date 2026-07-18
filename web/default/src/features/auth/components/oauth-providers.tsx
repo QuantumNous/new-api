@@ -101,7 +101,9 @@ export function OAuthProviders({
   if (status?.oidc_enabled) {
     providerButtons.push({
       key: 'oidc',
-      label: t('Continue with OIDC'),
+      label: t('Continue with {{name}}', {
+        name: status.oidc_display_name || 'OIDC',
+      }),
       onClick: handleOIDCLogin,
     })
   }

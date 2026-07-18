@@ -40,6 +40,7 @@ const defaultAuthSettings: AuthSettings = {
   'discord.client_id': '',
   'discord.client_secret': '',
   'oidc.enabled': false,
+  'oidc.display_name': '',
   'oidc.client_id': '',
   'oidc.client_secret': '',
   'oidc.well_known': '',
