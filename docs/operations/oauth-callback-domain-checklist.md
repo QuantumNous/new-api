@@ -223,19 +223,19 @@ service: http://localhost:3000
 人工勾选：
 
 - [x] GitHub OAuth App callback 已设为 `https://incc.qzz.io/oauth/github`（用户 2026-07-18 控制台截图确认）
-- [ ] GitHub **Homepage URL** 仍为 `http://localhost:3000/`，应改为 `https://incc.qzz.io/`（不影响回调，但影响 App 展示与信任）
+- [x] GitHub **Homepage URL** 已改为 `https://incc.qzz.io/`（2026-07-18 本机 Chrome 代改，页面提示 Application updated successfully）
 - [ ] 无痕窗口实测「Continue with GitHub」登录成功
 - [ ] （可选）Passkey 在生产域名重新注册
-- [ ] （可选）CF Edge Certificates 开启 HSTS
+- [ ] （可选）CF Edge Certificates 开启 HSTS（应用层 HSTS 已上线）
 
-### GitHub OAuth App 当前快照（用户提供，无 secret）
+### GitHub OAuth App 当前快照（2026-07-18 已更新，无 secret）
 
 | 字段 | 值 | 判定 |
 |------|-----|------|
 | Application name | newapi | 可保留 |
 | Client ID | Ov23liURGuQ4SZgvLGGq | 与 `/api/status` 一致 |
-| Homepage URL | `http://localhost:3000/` | **应改为** `https://incc.qzz.io/` |
+| Homepage URL | `https://incc.qzz.io/` | **正确** |
 | Authorization callback URL | `https://incc.qzz.io/oauth/github` | **正确** |
-| Client secret | 控制台显示 Never used | 改完 Homepage 后做一次真实登录即可 |
+| Client secret | 控制台显示 Never used | 做一次真实登录后会变为 used |
 | Device Flow | 未要求 | 可保持关闭 |
 
