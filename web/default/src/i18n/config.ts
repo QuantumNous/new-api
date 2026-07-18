@@ -53,12 +53,34 @@ const localeBackend: BackendModule = {
   },
 }
 
+// 国内部署默认简体中文：
+// - 不再使用 navigator（浏览器英文会绕过 fallbackLng）
+// - 一次性把历史 en 缓存迁到 zhCN；之后用户手动选英文会保留
+const I18N_STORAGE_KEY = 'i18nextLng'
+const I18N_DEFAULT_ZH_MIGRATION_KEY = 'i18nDefaultZhCN.v1'
+try {
+  if (typeof localStorage !== 'undefined') {
+    if (!localStorage.getItem(I18N_DEFAULT_ZH_MIGRATION_KEY)) {
+      const cached = localStorage.getItem(I18N_STORAGE_KEY)
+      if (
+        !cached ||
+        cached === 'en' ||
+        cached.toLowerCase().startsWith('en-')
+      ) {
+        localStorage.setItem(I18N_STORAGE_KEY, 'zhCN')
+      }
+      localStorage.setItem(I18N_DEFAULT_ZH_MIGRATION_KEY, '1')
+    }
+  }
+} catch {
+  // private mode / blocked storage
+}
+
 export const i18nReady = i18n
   .use(localeBackend)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    // 本地与国内部署默认中文；已缓存的 i18nextLng 仍优先于 fallback。
     fallbackLng: 'zhCN',
     supportedLngs: ['en', 'zhCN', 'fr', 'ru', 'ja', 'vi', 'zhTW'],
     load: 'currentOnly',
@@ -68,10 +90,9 @@ export const i18nReady = i18n
       escapeValue: false, // not needed for react as it escapes by default
     },
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage'],
       caches: ['localStorage'],
-      // Browsers report `zh-CN`/`zh-TW`/`zh`; map them onto our `zhCN`/`zhTW`
-      // codes (non-Chinese codes pass through for normal supportedLngs matching).
+      lookupLocalStorage: I18N_STORAGE_KEY,
       convertDetectedLanguage,
     },
   })

@@ -30,6 +30,27 @@ import jaTranslation from './locales/ja.json';
 import viTranslation from './locales/vi.json';
 import { supportedLanguages } from './language';
 
+// 默认简体中文：忽略 navigator；一次性迁移历史 en 缓存。
+const I18N_STORAGE_KEY = 'i18nextLng';
+const I18N_DEFAULT_ZH_MIGRATION_KEY = 'i18nDefaultZhCN.v1';
+try {
+  if (typeof localStorage !== 'undefined') {
+    if (!localStorage.getItem(I18N_DEFAULT_ZH_MIGRATION_KEY)) {
+      const cached = localStorage.getItem(I18N_STORAGE_KEY);
+      if (
+        !cached ||
+        cached === 'en' ||
+        String(cached).toLowerCase().startsWith('en-')
+      ) {
+        localStorage.setItem(I18N_STORAGE_KEY, 'zh-CN');
+      }
+      localStorage.setItem(I18N_DEFAULT_ZH_MIGRATION_KEY, '1');
+    }
+  }
+} catch (e) {
+  // ignore storage failures
+}
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -49,6 +70,11 @@ i18n
     nsSeparator: false,
     interpolation: {
       escapeValue: false,
+    },
+    detection: {
+      order: ['localStorage'],
+      caches: ['localStorage'],
+      lookupLocalStorage: I18N_STORAGE_KEY,
     },
   });
 
