@@ -1,0 +1,192 @@
+name: Self-update Release Smoke
+run-name: Self-update smoke for ${{ inputs.tag }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selfupdate-release-smoke-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ inputs.tag }}
+  RELEASE_DIR: ${{ runner.temp }}/new-api-release
+  TAG_SOURCE: ${{ runner.temp }}/new-api-tag-source
+  BUILD_CONTEXT: ${{ runner.temp }}/new-api-smoke-image
+  REGISTRY_NAME: new-api-smoke-registry-${{ github.run_id }}-${{ github.run_attempt }}
+  NETWORK_NAME: new-api-smoke-net-${{ github.run_id }}-${{ github.run_attempt }}
+  CONTAINER_NAME: new-api-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+  NETWORK_ALIAS: new-api-smoke-alias
+  TARGET_IMAGE: 127.0.0.1:5000/new-api/selfupdate-smoke:${{ github.run_id }}-${{ github.run_attempt }}
+  RUN_LABEL: ${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  docker-pull-update:
+    name: Docker pull and replacement
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout verification harness
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '>=1.25.1'
+
+      - name: Check release metadata and source tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git rev-parse --verify "refs/tags/$TAG"
+          TAG_COMMIT="$(git rev-list -n 1 "$TAG")"
+          RELEASE_STATE="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease -q '[.isDraft, .isPrerelease] | @tsv')"
+          test "$RELEASE_STATE" = $'false\tfalse'
+          git worktree add --detach "$TAG_SOURCE" "$TAG_COMMIT"
+          (
+            cd "$TAG_SOURCE"
+            go test ./service/selfupdate -count=1
+          )
+
+      - name: Download and verify Linux release binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RELEASE_DIR"
+          gh release download "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "new-api-$TAG" \
+            --pattern checksums-linux.txt \
+            --dir "$RELEASE_DIR"
+          cd "$RELEASE_DIR"
+          CHECKSUM_LINE="$(awk -v file="new-api-$TAG" '$2 == file { print }' checksums-linux.txt)"
+          test -n "$CHECKSUM_LINE"
+          printf '%s\n' "$CHECKSUM_LINE" | sha256sum --check --strict -
+          chmod 0755 "new-api-$TAG"
+          test "$(./new-api-$TAG --version)" = "$TAG"
+
+      - name: Build old and new registry images
+        run: |
+          set -euo pipefail
+          mkdir -p "$BUILD_CONTEXT"
+          install -m 0755 "$RELEASE_DIR/new-api-$TAG" "$BUILD_CONTEXT/new-api"
+          cat > "$BUILD_CONTEXT/Dockerfile" <<'DOCKERFILE'
+          FROM alpine:3.22
+          ARG REVISION
+          LABEL io.new-api.selfupdate.smoke.revision=$REVISION
+          COPY new-api /new-api
+          CMD ["sleep", "600"]
+          DOCKERFILE
+
+          docker network create "$NETWORK_NAME"
+          docker run -d \
+            --name "$REGISTRY_NAME" \
+            --label "io.new-api.selfupdate.smoke.run=$RUN_LABEL" \
+            -p 127.0.0.1:5000:5000 \
+            registry:2
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5000/v2/ >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs "$REGISTRY_NAME"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          docker build --build-arg REVISION=old --tag "$TARGET_IMAGE" "$BUILD_CONTEXT"
+          OLD_IMAGE_ID="$(docker image inspect "$TARGET_IMAGE" --format '{{.Id}}')"
+          test "$(docker run --rm --entrypoint /new-api "$TARGET_IMAGE" --version)" = "$TAG"
+          docker push "$TARGET_IMAGE"
+          OLD_CONTAINER_ID="$(docker run -d \
+            --name "$CONTAINER_NAME" \
+            --network "$NETWORK_NAME" \
+            --network-alias "$NETWORK_ALIAS" \
+            --restart unless-stopped \
+            --env SMOKE_VALUE=preserved \
+            --env "NEWAPI_DOCKER_IMAGE=$TARGET_IMAGE" \
+            --label "io.new-api.selfupdate.smoke.run=$RUN_LABEL" \
+            "$TARGET_IMAGE")"
+          test "$(docker inspect "$OLD_CONTAINER_ID" --format '{{.Config.Hostname}}')" = "${OLD_CONTAINER_ID:0:12}"
+
+          docker build --build-arg REVISION=new --tag "$TARGET_IMAGE" "$BUILD_CONTEXT"
+          TARGET_IMAGE_ID="$(docker image inspect "$TARGET_IMAGE" --format '{{.Id}}')"
+          test "$TARGET_IMAGE_ID" != "$OLD_IMAGE_ID"
+          docker push "$TARGET_IMAGE"
+          docker image tag "$OLD_IMAGE_ID" "$TARGET_IMAGE"
+          test "$(docker image inspect "$TARGET_IMAGE" --format '{{.Id}}')" = "$OLD_IMAGE_ID"
+
+          {
+            echo "OLD_IMAGE_ID=$OLD_IMAGE_ID"
+            echo "OLD_CONTAINER_ID=$OLD_CONTAINER_ID"
+            echo "TARGET_IMAGE_ID=$TARGET_IMAGE_ID"
+          } >> "$GITHUB_ENV"
+
+      - name: Pull image and schedule released helper
+        run: |
+          set -euo pipefail
+          cp "$GITHUB_WORKSPACE/service/selfupdate/docker_release_smoke_test.go" \
+            "$TAG_SOURCE/service/selfupdate/docker_release_smoke_test.go"
+          cd "$TAG_SOURCE"
+          NEWAPI_SELFUPDATE_DOCKER_SMOKE=1 \
+          NEWAPI_SELFUPDATE_SMOKE_IMAGE="$TARGET_IMAGE" \
+          HOSTNAME="${OLD_CONTAINER_ID:0:12}" \
+            go test ./service/selfupdate \
+              -run '^TestDockerReleasePullSmoke$' \
+              -count=1 \
+              -timeout=2m \
+              -v
+
+      - name: Verify replacement container
+        run: |
+          set -euo pipefail
+          NEW_CONTAINER_ID=""
+          for attempt in $(seq 1 75); do
+            NEW_CONTAINER_ID="$(docker inspect "$CONTAINER_NAME" --format '{{.Id}}' 2>/dev/null || true)"
+            if [ -n "$NEW_CONTAINER_ID" ] \
+              && [ "$NEW_CONTAINER_ID" != "$OLD_CONTAINER_ID" ] \
+              && [ "$(docker inspect "$NEW_CONTAINER_ID" --format '{{.State.Running}}')" = true ] \
+              && ! docker inspect "$OLD_CONTAINER_ID" >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 75 ]; then
+              docker ps -a
+              exit 1
+            fi
+            sleep 2
+          done
+
+          test "$(docker inspect "$NEW_CONTAINER_ID" --format '{{.Image}}')" = "$TARGET_IMAGE_ID"
+          test "$(docker inspect "$NEW_CONTAINER_ID" --format '{{.Config.Hostname}}')" = "${NEW_CONTAINER_ID:0:12}"
+          test "$(docker inspect "$NEW_CONTAINER_ID" --format '{{.HostConfig.RestartPolicy.Name}}')" = unless-stopped
+          test "$(docker inspect "$NEW_CONTAINER_ID" --format '{{json .Config.Cmd}}')" = '["sleep","600"]'
+          docker inspect "$NEW_CONTAINER_ID" | jq -e \
+            --arg network "$NETWORK_NAME" \
+            --arg alias "$NETWORK_ALIAS" \
+            '.[0].NetworkSettings.Networks[$network].Aliases | index($alias) != null'
+          docker inspect "$NEW_CONTAINER_ID" | jq -e \
+            --arg image "$TARGET_IMAGE" \
+            '.[0].Config.Env | index("SMOKE_VALUE=preserved") != null and index("NEWAPI_DOCKER_IMAGE=" + $image) != null'
+          test "$(docker inspect "$NEW_CONTAINER_ID" --format '{{index .Config.Labels "io.new-api.selfupdate.smoke.run"}}')" = "$RUN_LABEL"
+          test "$(docker image inspect "$TARGET_IMAGE_ID" --format '{{index .Config.Labels "io.new-api.selfupdate.smoke.revision"}}')" = new
+
+      - name: Clean Docker smoke resources
+        if: always()
+        run: |
+          docker ps -aq --filter "label=io.new-api.selfupdate.smoke.run=$RUN_LABEL" | xargs -r docker rm -f
+          docker ps -aq --filter 'label=io.new-api.selfupdate.helper=true' | xargs -r docker rm -f
+          docker network rm "$NETWORK_NAME" 2>/dev/null || true
+          docker image rm -f "$TARGET_IMAGE" "${OLD_IMAGE_ID:-}" "${TARGET_IMAGE_ID:-}" 2>/dev/null || true
