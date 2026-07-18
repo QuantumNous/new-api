@@ -25,6 +25,7 @@ func TestChannelDeleteRoutesUseSensitiveWritePermission(t *testing.T) {
 	assertChannelRoutePermission(t, http.MethodPut, "/", authz.ChannelWrite, controller.UpdateChannel)
 	assertChannelRoutePermission(t, http.MethodPut, "/tag", authz.ChannelWrite, controller.EditTagChannels)
 	assertChannelRoutePermission(t, http.MethodPost, "/batch/tag", authz.ChannelWrite, controller.BatchSetChannelTag)
+	assertChannelRoutePermission(t, http.MethodPut, "/health_check/batch", authz.ChannelWrite, controller.BatchUpdateChannelHealthCheck)
 }
 
 func TestChannelStatusRoutesRegisterWithoutConflict(t *testing.T) {

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -56,6 +56,10 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import {
+  ChannelHealthCheckTable,
+  type ChannelHealthCheckTableHandle,
+} from './channel-health-check-table'
 
 const numericString = z.string().refine((value) => {
   const trimmed = value.trim()
@@ -227,6 +231,12 @@ export function RoutingReliabilitySection({
 }: RoutingReliabilitySectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const channelHealthCheckTableRef =
+    useRef<ChannelHealthCheckTableHandle | null>(null)
+  const [channelHealthCheckState, setChannelHealthCheckState] = useState({
+    isDirty: false,
+    isSaving: false,
+  })
   const baselineRef = useRef<NormalizedRoutingReliabilityValues>(
     normalizeDefaults(defaultValues)
   )
@@ -259,15 +269,14 @@ export function RoutingReliabilitySection({
     [autoRetryStatusCodes]
   )
 
-  const onSubmit = async (values: RoutingReliabilityFormValues) => {
+  const saveGlobalSettings = async (values: RoutingReliabilityFormValues) => {
     const normalized = normalizeFormValues(values)
     const updates = (
       Object.keys(normalized) as Array<keyof NormalizedRoutingReliabilityValues>
     ).filter((key) => normalized[key] !== baselineRef.current[key])
 
     if (updates.length === 0) {
-      toast.info(t('No changes to save'))
-      return
+      return false
     }
 
     for (const key of updates) {
@@ -279,6 +288,42 @@ export function RoutingReliabilitySection({
     }
 
     baselineRef.current = normalized
+    return true
+  }
+
+  const onSubmit = async (values: RoutingReliabilityFormValues) => {
+    const tableHandle = channelHealthCheckTableRef.current
+    const hasChannelHealthCheckChanges = tableHandle?.isDirty === true
+
+    // Validate channel table first so invalid drafts never leave global options half-saved.
+    if (hasChannelHealthCheckChanges && tableHandle?.validate() === false) {
+      return
+    }
+
+    const hasGlobalChanges = await saveGlobalSettings(values)
+
+    let channelSaveOk = true
+    if (hasChannelHealthCheckChanges) {
+      channelSaveOk = (await tableHandle?.save()) ?? true
+    }
+
+    if (!hasGlobalChanges && !hasChannelHealthCheckChanges) {
+      toast.info(t('No changes to save'))
+      return
+    }
+
+    if (hasGlobalChanges && !hasChannelHealthCheckChanges) {
+      // saveGlobalSettings already persisted options; table had nothing to save.
+      return
+    }
+
+    if (hasGlobalChanges && hasChannelHealthCheckChanges && !channelSaveOk) {
+      toast.error(
+        t(
+          'Global settings were saved, but some channel health check changes failed'
+        )
+      )
+    }
   }
 
   return (
@@ -287,7 +332,9 @@ export function RoutingReliabilitySection({
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
+            isSaving={
+              updateOption.isPending || channelHealthCheckState.isSaving
+            }
           />
 
           <div className='flex min-w-0 flex-col gap-4'>
@@ -357,7 +404,7 @@ export function RoutingReliabilitySection({
                 {t('Channel health checks')}
               </h4>
             </div>
-            <div className='grid min-w-0 gap-6 lg:grid-cols-3'>
+            <div className='grid min-w-0 gap-6 lg:grid-cols-2 xl:grid-cols-3'>
               <FormField
                 control={form.control}
                 name='monitor_setting.auto_test_channel_enabled'
@@ -367,7 +414,7 @@ export function RoutingReliabilitySection({
                       <FormLabel>{t('Scheduled channel tests')}</FormLabel>
                       <FormDescription>
                         {t(
-                          'Automatically probe all channels in the background'
+                          'Run background health checks on a schedule'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>
@@ -391,11 +438,11 @@ export function RoutingReliabilitySection({
                       items={[
                         {
                           value: 'scheduled_all',
-                          label: t('Scheduled full test'),
+                          label: t('Test all eligible channels'),
                         },
                         {
                           value: 'passive_recovery',
-                          label: t('Passive recovery only'),
+                          label: t('Recover auto-disabled only'),
                         },
                       ]}
                       value={field.value}
@@ -409,18 +456,22 @@ export function RoutingReliabilitySection({
                       <SelectContent alignItemWithTrigger={false}>
                         <SelectGroup>
                           <SelectItem value='scheduled_all'>
-                            {t('Scheduled full test')}
+                            {t('Test all eligible channels')}
                           </SelectItem>
                           <SelectItem value='passive_recovery'>
-                            {t('Passive recovery only')}
+                            {t('Recover auto-disabled only')}
                           </SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      {t(
-                        'Scheduled full test probes non-manually-disabled channels; passive recovery only checks auto-disabled channels after real request failures.'
-                      )}
+                      {channelTestMode === 'passive_recovery'
+                        ? t(
+                            'Only recheck auto-disabled channels so they can recover after real request failures.'
+                          )
+                        : t(
+                            'Probe enabled and auto-disabled channels. Manually disabled channels are skipped.'
+                          )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -444,9 +495,9 @@ export function RoutingReliabilitySection({
                     <FormDescription>
                       {channelTestMode === 'passive_recovery'
                         ? t(
-                            'How frequently the system checks auto-disabled channels for recovery'
+                            'How often to recheck auto-disabled channels'
                           )
-                        : t('How frequently the system tests all channels')}
+                        : t('How often to run scheduled channel health checks')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -475,16 +526,7 @@ export function RoutingReliabilitySection({
                   </SettingsSwitchItem>
                 )}
               />
-            </div>
-          </div>
 
-          <Separator />
-
-          <div className='flex min-w-0 flex-col gap-4'>
-            <div className='flex flex-col gap-1'>
-              <h4 className='text-sm font-medium'>{t('Auto-disable rules')}</h4>
-            </div>
-            <div className='grid min-w-0 gap-6 lg:grid-cols-2'>
               <FormField
                 control={form.control}
                 name='AutomaticDisableChannelEnabled'
@@ -565,7 +607,7 @@ export function RoutingReliabilitySection({
                 control={form.control}
                 name='AutomaticDisableKeywords'
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className='lg:col-span-2 xl:col-span-3'>
                     <FormLabel>{t('Failure keywords')}</FormLabel>
                     <FormControl>
                       <Textarea
@@ -586,6 +628,13 @@ export function RoutingReliabilitySection({
               />
             </div>
           </div>
+
+          <Separator />
+
+          <ChannelHealthCheckTable
+            ref={channelHealthCheckTableRef}
+            onStateChange={setChannelHealthCheckState}
+          />
         </SettingsForm>
       </Form>
     </SettingsSection>

@@ -659,10 +659,6 @@ func validateTestResponseBody(respBody []byte, isStream bool) error {
 	return nil
 }
 
-func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
-	return channel != nil && channel.Type == constant.ChannelTypeCodex
-}
-
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	if len(jsonBytes) == 0 {
 		return ""
@@ -906,10 +902,6 @@ type channelTestSummary struct {
 // the system task can surface progress.
 func performChannelTests(ctx context.Context, channels []*model.Channel, testUserID int, allowDisable bool, report func(processed, total int)) channelTestSummary {
 	summary := channelTestSummary{}
-	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
-	if disableThreshold == 0 {
-		disableThreshold = 10000000 // a impossible value
-	}
 
 	total := len(channels)
 	for index, channel := range channels {
@@ -924,7 +916,8 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		}
 		isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 		tik := time.Now()
-		result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+		endpointType := channel.EffectiveHealthCheckEndpointType()
+		result := testChannel(ctx, channel, testUserID, "", endpointType, channel.EffectiveHealthCheckStream())
 		tok := time.Now()
 		milliseconds := tok.Sub(tik).Milliseconds()
 		if ctx != nil && ctx.Err() != nil {
@@ -942,6 +935,10 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 
 		// 当错误检查通过，才检查响应时间
 		if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
+			disableThreshold := int64(channel.EffectiveHealthCheckDisableThresholdSeconds() * 1000)
+			if disableThreshold == 0 {
+				disableThreshold = 10000000 // a impossible value
+			}
 			if milliseconds > disableThreshold {
 				err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
 				newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
@@ -962,7 +959,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		}
 
 		// enable channel
-		if result.localErr == nil && !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
+		if result.localErr == nil && !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status, channel.EffectiveHealthCheckEnableOnSuccess()) {
 			service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
 			summary.Enabled++
 		}
@@ -991,9 +988,11 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 // through here). It honors ctx cancellation so a runner that loses its lease
 // stops promptly. mode selects the channel set: an empty mode falls back to the
 // configured monitor ChannelTestMode (scheduled behavior), while a manual
-// trigger passes ChannelTestModeScheduledAll to test every channel. When notify
-// is set the root user is notified on completion. Cross-instance execution is
-// guarded by the system task per-type lock, so no process-local guard is needed.
+// "test all channels" trigger passes ChannelTestModeScheduledAll and uses the
+// same selection rules as scheduled full tests: skip manually disabled channels
+// and channels with health_check.enabled=false. When notify is set the root user
+// is notified on completion. Cross-instance execution is guarded by the system
+// task per-type lock, so no process-local guard is needed.
 func runChannelTestTask(ctx context.Context, mode string, notify bool, report func(processed, total int)) (channelTestSummary, error) {
 	testUserID, err := resolveChannelTestUserID(nil)
 	if err != nil {
@@ -1015,10 +1014,17 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	return summary, nil
 }
 
+// selectChannelsForAutomaticTest chooses channels for both scheduled health
+// checks and the manual "test all channels" action. Channels that opt out via
+// health_check.enabled=false are always skipped; single-channel manual tests are
+// unaffected and still go through TestChannel.
 func selectChannelsForAutomaticTest(channels []*model.Channel, mode string) []*model.Channel {
 	selected := make([]*model.Channel, 0, len(channels))
 	for _, channel := range channels {
 		if channel.Status == common.ChannelStatusManuallyDisabled {
+			continue
+		}
+		if !channel.IsAutomaticHealthCheckEnabled() {
 			continue
 		}
 		if mode == operation_setting.ChannelTestModePassiveRecovery && channel.Status != common.ChannelStatusAutoDisabled {
@@ -1030,8 +1036,10 @@ func selectChannelsForAutomaticTest(channels []*model.Channel, mode string) []*m
 }
 
 // TestAllChannels enqueues a channel_test system task instead of running the
-// test loop inline. If any channel_test task is already active, the manual run is
-// rejected so the caller does not mistake a scheduled run for this manual one.
+// test loop inline. Selection matches scheduled full tests: manually disabled
+// channels and channels with health_check.enabled=false are skipped. If any
+// channel_test task is already active, the manual run is rejected so the caller
+// does not mistake a scheduled run for this manual one.
 func TestAllChannels(c *gin.Context) {
 	task, created, err := service.EnqueueSystemTask(model.SystemTaskTypeChannelTest, channelTestTaskPayload{
 		Mode:   operation_setting.ChannelTestModeScheduledAll,

@@ -342,6 +342,201 @@ func (channel *Channel) GetAutoBan() bool {
 	return *channel.AutoBan == 1
 }
 
+// IsAutomaticHealthCheckEnabled reports whether scheduled / batch health checks
+// should include this channel. Missing health_check or nil Enabled means true.
+func (channel *Channel) IsAutomaticHealthCheckEnabled() bool {
+	if channel == nil {
+		return true
+	}
+	hc := channel.GetOtherSettings().HealthCheck
+	if hc == nil || hc.Enabled == nil {
+		return true
+	}
+	return *hc.Enabled
+}
+
+// maxHealthCheckDisableThresholdSeconds caps per-channel response-time disable
+// thresholds so float64*1000 cannot overflow int64 conversion during health checks.
+const maxHealthCheckDisableThresholdSeconds = 86400.0 // 24h
+
+// EffectiveHealthCheckDisableThresholdSeconds returns the response-time disable
+// threshold used by automatic health checks. Nil override follows the global
+// ChannelDisableThreshold. Values above maxHealthCheckDisableThresholdSeconds
+// are clamped.
+func (channel *Channel) EffectiveHealthCheckDisableThresholdSeconds() float64 {
+	seconds := common.ChannelDisableThreshold
+	if channel != nil {
+		hc := channel.GetOtherSettings().HealthCheck
+		if hc != nil && hc.DisableThresholdSeconds != nil {
+			seconds = *hc.DisableThresholdSeconds
+		}
+	}
+	if seconds < 0 {
+		return 0
+	}
+	if seconds > maxHealthCheckDisableThresholdSeconds {
+		return maxHealthCheckDisableThresholdSeconds
+	}
+	return seconds
+}
+
+// EffectiveHealthCheckEnableOnSuccess returns whether a successful health check
+// should re-enable an auto-disabled channel. Nil override follows the global
+// AutomaticEnableChannelEnabled; an explicit true/false overrides the global.
+func (channel *Channel) EffectiveHealthCheckEnableOnSuccess() bool {
+	if channel != nil {
+		hc := channel.GetOtherSettings().HealthCheck
+		if hc != nil && hc.EnableOnSuccess != nil {
+			return *hc.EnableOnSuccess
+		}
+	}
+	return common.AutomaticEnableChannelEnabled
+}
+
+// EffectiveHealthCheckEndpointType returns a configured endpoint type, or empty
+// when the automatic endpoint inference path should be used.
+func (channel *Channel) EffectiveHealthCheckEndpointType() string {
+	if channel == nil {
+		return ""
+	}
+	hc := channel.GetOtherSettings().HealthCheck
+	if hc == nil {
+		return ""
+	}
+	return strings.TrimSpace(hc.EndpointType)
+}
+
+// EffectiveHealthCheckStream returns whether automatic health checks should use
+// streaming. Explicit Stream overrides the Codex-only follow behavior.
+func (channel *Channel) EffectiveHealthCheckStream() bool {
+	if channel == nil {
+		return false
+	}
+	hc := channel.GetOtherSettings().HealthCheck
+	if hc != nil && hc.Stream != nil {
+		return *hc.Stream
+	}
+	return channel.Type == constant.ChannelTypeCodex
+}
+
+// UpdateHealthCheckSettings performs a narrow RMW of settings.health_check and
+// optional auto_ban. It does not touch abilities or other channel columns.
+// Unknown settings keys are preserved by merging into a generic JSON object.
+func UpdateHealthCheckSettings(id int, autoBan *int, healthCheck *dto.ChannelHealthCheckSettings) error {
+	if id <= 0 {
+		return errors.New("invalid channel id")
+	}
+	if autoBan == nil && healthCheck == nil {
+		return errors.New("no health check fields to update")
+	}
+	if autoBan != nil && *autoBan != 0 && *autoBan != 1 {
+		return errors.New("auto_ban must be 0 or 1")
+	}
+	if err := validateChannelHealthCheckSettings(healthCheck); err != nil {
+		return err
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var channel Channel
+		if err := lockForUpdate(tx).Select("id", "auto_ban", "settings").Where("id = ?", id).First(&channel).Error; err != nil {
+			return err
+		}
+
+		updates := map[string]interface{}{}
+		if autoBan != nil {
+			updates["auto_ban"] = *autoBan
+		}
+		if healthCheck != nil {
+			mergedSettings, err := mergeChannelHealthCheckSettingsJSON(channel.OtherSettings, healthCheck)
+			if err != nil {
+				return err
+			}
+			updates["settings"] = mergedSettings
+		}
+		if len(updates) == 0 {
+			return nil
+		}
+		return tx.Model(&Channel{}).Where("id = ?", id).Updates(updates).Error
+	})
+}
+
+// mergeChannelHealthCheckSettingsJSON updates only the health_check key of the
+// channel settings JSON object. Unknown keys are preserved.
+func mergeChannelHealthCheckSettingsJSON(existing string, healthCheck *dto.ChannelHealthCheckSettings) (string, error) {
+	settingsMap := map[string]json.RawMessage{}
+	trimmed := strings.TrimSpace(existing)
+	if trimmed != "" && trimmed != "null" {
+		if err := common.UnmarshalJsonStr(trimmed, &settingsMap); err != nil {
+			return "", fmt.Errorf("failed to parse channel settings: %w", err)
+		}
+	}
+	if isEmptyChannelHealthCheckSettings(healthCheck) {
+		delete(settingsMap, "health_check")
+	} else {
+		copied := *healthCheck
+		raw, err := common.Marshal(&copied)
+		if err != nil {
+			return "", err
+		}
+		settingsMap["health_check"] = raw
+	}
+	if len(settingsMap) == 0 {
+		return "{}", nil
+	}
+	settingBytes, err := common.Marshal(settingsMap)
+	if err != nil {
+		return "", err
+	}
+	return string(settingBytes), nil
+}
+
+func isEmptyChannelHealthCheckSettings(hc *dto.ChannelHealthCheckSettings) bool {
+	if hc == nil {
+		return true
+	}
+	return hc.Enabled == nil &&
+		hc.DisableThresholdSeconds == nil &&
+		hc.EnableOnSuccess == nil &&
+		strings.TrimSpace(hc.EndpointType) == "" &&
+		hc.Stream == nil
+}
+
+func validateChannelHealthCheckSettings(hc *dto.ChannelHealthCheckSettings) error {
+	if hc == nil {
+		return nil
+	}
+	if hc.DisableThresholdSeconds != nil {
+		if *hc.DisableThresholdSeconds < 0 {
+			return errors.New("disable_threshold_seconds must be non-negative")
+		}
+		if *hc.DisableThresholdSeconds > maxHealthCheckDisableThresholdSeconds {
+			return fmt.Errorf("disable_threshold_seconds must be <= %.0f", maxHealthCheckDisableThresholdSeconds)
+		}
+	}
+	endpointType := strings.TrimSpace(hc.EndpointType)
+	if endpointType != "" && !isKnownChannelTestEndpointType(endpointType) {
+		return fmt.Errorf("unsupported endpoint_type: %s", endpointType)
+	}
+	hc.EndpointType = endpointType
+	return nil
+}
+
+func isKnownChannelTestEndpointType(endpointType string) bool {
+	switch constant.EndpointType(endpointType) {
+	case constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeOpenAIResponseCompact,
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeGemini,
+		constant.EndpointTypeJinaRerank,
+		constant.EndpointTypeImageGeneration,
+		constant.EndpointTypeEmbeddings:
+		return true
+	default:
+		return false
+	}
+}
+
 func (channel *Channel) Save() error {
 	return DB.Save(channel).Error
 }

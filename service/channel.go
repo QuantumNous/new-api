@@ -64,8 +64,11 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	return search
 }
 
-func ShouldEnableChannel(newAPIError *types.NewAPIError, status int) bool {
-	if !common.AutomaticEnableChannelEnabled {
+// ShouldEnableChannel reports whether an auto-disabled channel should be re-enabled
+// after a successful health check. enable is the already-resolved effective policy
+// (global AutomaticEnableChannelEnabled, or a per-channel override).
+func ShouldEnableChannel(newAPIError *types.NewAPIError, status int, enable bool) bool {
+	if !enable {
 		return false
 	}
 	if newAPIError != nil {

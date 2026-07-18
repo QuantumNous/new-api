@@ -111,6 +111,36 @@ func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T
 	require.Equal(t, 2, selected[1].Id)
 }
 
+func TestSelectChannelsForAutomaticTestSkipsDisabledHealthCheck(t *testing.T) {
+	disabled := &model.Channel{Id: 4, Status: common.ChannelStatusEnabled}
+	disabled.SetOtherSettings(dto.ChannelOtherSettings{
+		HealthCheck: &dto.ChannelHealthCheckSettings{
+			Enabled: common.GetPointer(false),
+		},
+	})
+	autoDisabledSkipped := &model.Channel{Id: 5, Status: common.ChannelStatusAutoDisabled}
+	autoDisabledSkipped.SetOtherSettings(dto.ChannelOtherSettings{
+		HealthCheck: &dto.ChannelHealthCheckSettings{
+			Enabled: common.GetPointer(false),
+		},
+	})
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled},
+		{Id: 2, Status: common.ChannelStatusAutoDisabled},
+		disabled,
+		autoDisabledSkipped,
+	}
+
+	scheduled := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll)
+	require.Len(t, scheduled, 2)
+	require.Equal(t, 1, scheduled[0].Id)
+	require.Equal(t, 2, scheduled[1].Id)
+
+	passive := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery)
+	require.Len(t, passive, 1)
+	require.Equal(t, 2, passive[0].Id)
+}
+
 func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.SystemTask{}, &model.SystemTaskLock{}))
