@@ -13,15 +13,21 @@ import (
 func TestServeWaffoDomainVerification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.GET("/.well-known/waffo-challenge.txt", serveWaffoDomainVerification)
+	registerWaffoDomainVerificationRoutes(engine)
 
-	request := httptest.NewRequest(http.MethodGet, "/.well-known/waffo-challenge.txt", nil)
-	recorder := httptest.NewRecorder()
-	engine.ServeHTTP(recorder, request)
+	for _, path := range []string{
+		"/.well-known/waffo-challenge.txt",
+		"/.well-known/waffo-verify.txt",
+	} {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, path, nil)
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
 
-	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
-	assert.Equal(t, waffoDomainVerificationToken, recorder.Body.String())
-	assert.Equal(t, "waffo-domain-verify=760c72286c01046cfc453ce8c7324f2b", recorder.Body.String())
-	assert.NotContains(t, recorder.Body.String(), "\n")
+			require.Equal(t, http.StatusOK, recorder.Code)
+			assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
+			assert.Equal(t, "760c72286c01046cfc453ce8c7324f2b", recorder.Body.String())
+			assert.NotContains(t, recorder.Body.String(), "\n")
+		})
+	}
 }
