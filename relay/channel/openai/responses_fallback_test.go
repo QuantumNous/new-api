@@ -87,6 +87,26 @@ func TestResponsesStreamCtx_ObserveTerminalEvents(t *testing.T) {
 	}
 }
 
+func TestOaiResponsesStreamHandlerStopsAfterTerminalEvent(t *testing.T) {
+	body := strings.NewReader(strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_test","status":"completed","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`,
+		"",
+		`data: {"type":"response.output_text.delta","delta":"late event"}`,
+		"",
+	}, "\n"))
+	c, resp, info, recorder := setupResponsesTest(t, body)
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 3, usage.TotalTokens)
+	assert.NotContains(t, recorder.Body.String(), "late event")
+
+	snapshot := info.StreamStatus.Snapshot()
+	assert.Equal(t, relaycommon.StreamEndReasonDone, snapshot.EndReason)
+	assert.Equal(t, "handler_done", snapshot.EndSource)
+}
+
 func TestResponsesStreamCtx_ObserveNonTerminalEvents(t *testing.T) {
 	t.Parallel()
 
