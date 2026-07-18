@@ -1,7 +1,6 @@
 package passkey
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -26,7 +25,7 @@ const (
 func BuildWebAuthn(r *http.Request) (*webauthn.WebAuthn, error) {
 	settings := system_setting.GetPasskeySettings()
 	if settings == nil {
-		return nil, errors.New("未找到 Passkey 设置")
+		return nil, newUserError(UserErrorSettingsNotFound, "passkey settings were not found", nil)
 	}
 
 	displayName := strings.TrimSpace(settings.RPDisplayName)
@@ -90,7 +89,7 @@ func resolveOrigins(r *http.Request, settings *system_setting.PasskeySettings) (
 				continue
 			}
 			if !settings.AllowInsecureOrigin && strings.HasPrefix(strings.ToLower(trimmed), "http://") {
-				return nil, fmt.Errorf("Passkey 不允许使用不安全的 Origin: %s", trimmed)
+				return nil, newUserError(UserErrorInsecureOrigin, "passkey does not allow insecure origins", map[string]any{"Origin": trimmed})
 			}
 			origins = append(origins, trimmed)
 		}
@@ -104,7 +103,7 @@ func resolveOrigins(r *http.Request, settings *system_setting.PasskeySettings) (
 autoDetect:
 	scheme := detectScheme(r)
 	if scheme == "http" && !settings.AllowInsecureOrigin && r.Host != "localhost" && r.Host != "127.0.0.1" && !strings.HasPrefix(r.Host, "127.0.0.1:") && !strings.HasPrefix(r.Host, "localhost:") {
-		return nil, fmt.Errorf("Passkey 仅支持 HTTPS，当前访问: %s://%s，请在 Passkey 设置中允许不安全 Origin 或配置 HTTPS", scheme, r.Host)
+		return nil, newUserError(UserErrorHTTPSRequired, "passkey requires HTTPS for this origin", map[string]any{"Origin": fmt.Sprintf("%s://%s", scheme, r.Host)})
 	}
 	// 优先使用请求的完整Host（包含端口）
 	host := r.Host
@@ -119,7 +118,7 @@ autoDetect:
 		}
 	}
 	if host == "" {
-		return nil, fmt.Errorf("无法确定 Passkey 的 Origin，请在系统设置或 Passkey 设置中指定。当前 Host: '%s', ServerAddress: '%s'", r.Host, system_setting.ServerAddress)
+		return nil, newUserError(UserErrorOriginUnknown, "could not determine passkey origin", map[string]any{"Host": r.Host})
 	}
 	if scheme == "" {
 		scheme = "https"
@@ -134,11 +133,11 @@ func resolveRPID(r *http.Request, settings *system_setting.PasskeySettings, orig
 		return hostWithoutPort(rpID), nil
 	}
 	if len(origins) == 0 {
-		return "", errors.New("Passkey 未配置 Origin，无法推导 RPID")
+		return "", newUserError(UserErrorRPIDNoOrigin, "passkey origin is not configured, so the RPID cannot be inferred", nil)
 	}
 	parsed, err := url.Parse(origins[0])
 	if err != nil {
-		return "", fmt.Errorf("无法解析 Passkey Origin: %w", err)
+		return "", newUserError(UserErrorOriginParse, "could not parse passkey origin", map[string]any{"Error": err.Error()})
 	}
 	return hostWithoutPort(parsed.Host), nil
 }

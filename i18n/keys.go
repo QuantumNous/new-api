@@ -216,11 +216,19 @@ const (
 
 // Passkey related messages
 const (
-	MsgPasskeyCreateFailed  = "passkey.create_failed"
-	MsgPasskeyLoginAbnormal = "passkey.login_abnormal"
-	MsgPasskeyUpdateFailed  = "passkey.update_failed"
-	MsgPasskeyInvalidUserId = "passkey.invalid_user_id"
-	MsgPasskeyVerifyFailed  = "passkey.verify_failed"
+	MsgPasskeyCreateFailed      = "passkey.create_failed"
+	MsgPasskeyLoginAbnormal     = "passkey.login_abnormal"
+	MsgPasskeyUpdateFailed      = "passkey.update_failed"
+	MsgPasskeyInvalidUserId     = "passkey.invalid_user_id"
+	MsgPasskeyVerifyFailed      = "passkey.verify_failed"
+	MsgPasskeySettingsNotFound  = "passkey.settings_not_found"
+	MsgPasskeyInsecureOrigin    = "passkey.insecure_origin"
+	MsgPasskeyHTTPSRequired     = "passkey.https_required"
+	MsgPasskeyOriginUnknown     = "passkey.origin_unknown"
+	MsgPasskeyRPIDNoOrigin      = "passkey.rpid_no_origin"
+	MsgPasskeyOriginParseFailed = "passkey.origin_parse_failed"
+	MsgPasskeySessionNotFound   = "passkey.session_not_found"
+	MsgPasskeySessionInvalid    = "passkey.session_invalid"
 )
 
 // 2FA related messages

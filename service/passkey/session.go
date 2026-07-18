@@ -2,14 +2,13 @@ package passkey
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	webauthn "github.com/go-webauthn/webauthn/webauthn"
 )
 
-var errSessionNotFound = errors.New("Passkey 会话不存在或已过期")
+var errSessionNotFound = newUserError(UserErrorSessionNotFound, "passkey session does not exist or has expired", nil)
 
 func SaveSessionData(c *gin.Context, key string, data *webauthn.SessionData) error {
 	session := sessions.Default(c)
@@ -44,7 +43,7 @@ func PopSessionData(c *gin.Context, key string) (*webauthn.SessionData, error) {
 			return nil, err
 		}
 	default:
-		return nil, errors.New("Passkey 会话格式无效")
+		return nil, newUserError(UserErrorSessionInvalid, "invalid passkey session format", nil)
 	}
 	return &data, nil
 }
