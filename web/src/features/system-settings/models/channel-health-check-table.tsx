@@ -261,11 +261,16 @@ export const ChannelHealthCheckTable = forwardRef<
       let changed = false
       const next = { ...prev }
       for (const channel of channels) {
-        // Never overwrite a baseline once present: drafts may already depend on it.
-        // Missing baselines for drafted rows are filled synchronously in updateDraft.
-        if (next[channel.id] || drafts[channel.id]) continue
-        next[channel.id] = draftFromChannel(channel)
-        changed = true
+        // Keep baselines for rows with unsaved drafts; refresh all others from
+        // the latest server payload so external updates are not stuck forever.
+        // Newly drafted rows still seed their baseline synchronously in updateDraft.
+        if (drafts[channel.id]) continue
+        const baseline = draftFromChannel(channel)
+        const existing = next[channel.id]
+        if (!existing || !draftsEqual(existing, baseline)) {
+          next[channel.id] = baseline
+          changed = true
+        }
       }
       return changed ? next : prev
     })
@@ -350,22 +355,34 @@ export const ChannelHealthCheckTable = forwardRef<
   ) => {
     if (succeededIds.size === 0) return
 
+    // Advance baseline for every successfully submitted row. Only clear a draft
+    // when it still matches the submitted snapshot so newer in-flight edits stay.
     setDrafts((prev) => {
+      let changed = false
       const next = { ...prev }
       for (const id of succeededIds) {
-        delete next[id]
-      }
-      return next
-    })
-    setBaselineById((prev) => {
-      const next = { ...prev }
-      for (const id of succeededIds) {
-        const draft = draftsSnapshot[id]
-        if (draft) {
-          next[id] = draft
+        const submitted = draftsSnapshot[id]
+        const current = prev[id]
+        if (!submitted || !current) continue
+        if (draftsEqual(current, submitted)) {
+          delete next[id]
+          changed = true
         }
       }
-      return next
+      return changed ? next : prev
+    })
+    setBaselineById((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const id of succeededIds) {
+        const submitted = draftsSnapshot[id]
+        if (!submitted) continue
+        if (!prev[id] || !draftsEqual(prev[id], submitted)) {
+          next[id] = submitted
+          changed = true
+        }
+      }
+      return changed ? next : prev
     })
     await queryClient.invalidateQueries({
       queryKey: ['channel-health-check-table'],
