@@ -54,30 +54,21 @@ func ValidateSSRFProtectedFetchURL(urlStr string) error {
 }
 
 func InitHttpClient() {
-	transport := &http.Transport{
-		MaxIdleConns:        common.RelayMaxIdleConns,
-		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-		IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
-		ForceAttemptHTTP2:   true,
-		Proxy:               http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
-	}
-	if common.TLSInsecureSkipVerify {
-		transport.TLSClientConfig = common.InsecureTLSConfig
-	}
-
-	if common.RelayTimeout == 0 {
-		httpClient = &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-	} else {
-		httpClient = &http.Client{
-			Transport:     transport,
-			Timeout:       time.Duration(common.RelayTimeout) * time.Second,
-			CheckRedirect: checkRedirect,
-		}
-	}
+	transport := common.NewOutboundHTTPTransport(http.ProxyFromEnvironment, nil)
+	httpClient = newOutboundHTTPClient(transport, checkRedirect)
 	ssrfProtectedHTTPClient = newProtectedFetchHTTPClient()
+}
+
+func newOutboundHTTPClient(transport http.RoundTripper, redirect func(*http.Request, []*http.Request) error) *http.Client {
+	// Keep client.Timeout unbounded (0). RelayTimeout must not be applied here:
+	// http.Client.Timeout covers the whole request lifecycle including response-body
+	// reads, so it aborts long-lived AI streaming once RELAY_TIMEOUT elapses.
+	// Upstream stall protection already lives on the transport via
+	// ResponseHeaderTimeout (see common.NewOutboundHTTPTransport). Per-request
+	// deadlines and streaming cutoffs continue to use request context.
+	// Callers that need a hard wall-clock limit for non-streaming fetches should
+	// use GetHttpClientWithTimeout instead.
+	return &http.Client{Transport: transport, CheckRedirect: redirect}
 }
 
 // GetHttpClient returns the general outbound client used by relay/provider
@@ -91,6 +82,16 @@ func GetHttpClient() *http.Client {
 	return httpClient
 }
 
+func GetHttpClientWithTimeout(timeout time.Duration) *http.Client {
+	base := GetHttpClient()
+	if base == nil {
+		return &http.Client{Timeout: timeout}
+	}
+	client := *base
+	client.Timeout = timeout
+	return &client
+}
+
 // GetSSRFProtectedHTTPClient 返回带拨号时 SSRF 校验的客户端。
 // ssrfProtectedHTTPClient 由 InitHttpClient 在启动时初始化，运行期只读。
 func GetSSRFProtectedHTTPClient() *http.Client {
@@ -98,6 +99,16 @@ func GetSSRFProtectedHTTPClient() *http.Client {
 		return GetHttpClient()
 	}
 	return ssrfProtectedHTTPClient
+}
+
+func GetSSRFProtectedHTTPClientWithTimeout(timeout time.Duration) *http.Client {
+	base := GetSSRFProtectedHTTPClient()
+	if base == nil {
+		return &http.Client{Timeout: timeout}
+	}
+	client := *base
+	client.Timeout = timeout
+	return &client
 }
 
 // GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
@@ -143,21 +154,8 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 
 	switch parsedURL.Scheme {
 	case "http", "https":
-		transport := &http.Transport{
-			MaxIdleConns:        common.RelayMaxIdleConns,
-			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-			IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
-			ForceAttemptHTTP2:   true,
-			Proxy:               http.ProxyURL(parsedURL),
-		}
-		if common.TLSInsecureSkipVerify {
-			transport.TLSClientConfig = common.InsecureTLSConfig
-		}
-		client := &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+		transport := common.NewOutboundHTTPTransport(http.ProxyURL(parsedURL), nil)
+		client := newOutboundHTTPClient(transport, checkRedirect)
 		proxyClientLock.Lock()
 		proxyClients[proxyURL] = client
 		proxyClientLock.Unlock()
@@ -183,21 +181,14 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			return nil, err
 		}
 
-		transport := &http.Transport{
-			MaxIdleConns:        common.RelayMaxIdleConns,
-			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-			IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
-			ForceAttemptHTTP2:   true,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return dialer.Dial(network, addr)
-			},
+		dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if contextDialer, ok := dialer.(proxy.ContextDialer); ok {
+				return contextDialer.DialContext(ctx, network, addr)
+			}
+			return dialer.Dial(network, addr)
 		}
-		if common.TLSInsecureSkipVerify {
-			transport.TLSClientConfig = common.InsecureTLSConfig
-		}
-
-		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+		transport := common.NewOutboundHTTPTransport(nil, dialContext)
+		client := newOutboundHTTPClient(transport, checkRedirect)
 		proxyClientLock.Lock()
 		proxyClients[proxyURL] = client
 		proxyClientLock.Unlock()

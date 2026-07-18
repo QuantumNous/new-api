@@ -69,7 +69,7 @@ func newProtectedFetchHTTPClientWithProxy(resolver ssrfResolver, dialContext fun
 	}
 	if dialContext == nil {
 		netDialer := &net.Dialer{
-			Timeout:   30 * time.Second,
+			Timeout:   time.Duration(common.RelayDialTimeout) * time.Second,
 			KeepAlive: 30 * time.Second,
 		}
 		dialContext = netDialer.DialContext
@@ -153,18 +153,7 @@ func (t *ssrfProtectedRoundTripper) newTransport(proxyURL *url.URL) *http.Transp
 		proxyFunc = nil
 	}
 
-	transport := &http.Transport{
-		MaxIdleConns:        common.RelayMaxIdleConns,
-		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-		IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
-		ForceAttemptHTTP2:   true,
-		Proxy:               proxyFunc,
-		DialContext:         dialContext,
-	}
-	if common.TLSInsecureSkipVerify {
-		transport.TLSClientConfig = common.InsecureTLSConfig
-	}
-	return transport
+	return common.NewOutboundHTTPTransport(proxyFunc, dialContext)
 }
 
 func (d *protectedFetchDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
