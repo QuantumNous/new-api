@@ -29,6 +29,8 @@ func normalizeChannelHealthPath(requestPath string) string {
 		return "/v1/images/generations"
 	case strings.Contains(path, "/images/edits"):
 		return "/v1/images/edits"
+	case strings.HasSuffix(path, "/v1/edits"):
+		return "/v1/images/edits"
 	case strings.Contains(path, "/audio/speech"):
 		return "/v1/audio/speech"
 	case strings.Contains(path, "/audio/transcriptions"):
@@ -120,6 +122,7 @@ func RecordChannelHealthOutcome(channelID int, modelName, requestPath string, re
 	if channelID == 0 || modelName == "" {
 		return
 	}
+	healthKey := channelHealthKey(channelID, modelName, requestPath)
 	statusCode, localError := channelHealthOutcomeStatus(apiErr, relayInfo)
 	outcome := model.ChannelOutcome{
 		StatusCode:    statusCode,
@@ -130,12 +133,17 @@ func RecordChannelHealthOutcome(channelID int, modelName, requestPath string, re
 		// imposed against the channel's latency.
 		ColdCacheStart: relayInfo != nil && relayInfo.AffinityColdStart,
 	}
-	if relayInfo != nil && relayInfo.HasSendResponse() && relayInfo.FirstResponseTime.After(attemptStart) {
-		outcome.Latency = relayInfo.FirstResponseTime.Sub(attemptStart)
-	} else if !attemptStart.IsZero() {
-		outcome.Latency = time.Since(attemptStart)
+	// Non-streaming image providers return their first bytes only after the full
+	// generation completes. That duration is expected to exceed the text TTFT
+	// slow threshold, so image routes use health failures but not latency scoring.
+	if healthKey.Path != "/v1/images/generations" && healthKey.Path != "/v1/images/edits" {
+		if relayInfo != nil && relayInfo.HasSendResponse() && relayInfo.FirstResponseTime.After(attemptStart) {
+			outcome.Latency = relayInfo.FirstResponseTime.Sub(attemptStart)
+		} else if !attemptStart.IsZero() {
+			outcome.Latency = time.Since(attemptStart)
+		}
 	}
-	model.RecordChannelOutcome(channelHealthKey(channelID, modelName, requestPath), outcome)
+	model.RecordChannelOutcome(healthKey, outcome)
 }
 
 func IsChannelHealthAvailable(channelID int, modelName, requestPath string) bool {

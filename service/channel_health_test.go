@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure covers the pure
@@ -159,6 +160,8 @@ func TestChannelHealthPathNormalizesBoundedRouteFamilies(t *testing.T) {
 		{path: "/v1beta/models/gemini-2.5-pro:generateContent", want: "/gemini/generate"},
 		{path: "/v1beta/models/gemini-2.5-pro:streamGenerateContent", want: "/gemini/stream_generate"},
 		{path: "/v1/videos/task-123", want: "/v1/tasks"},
+		{path: "/v1/edits", want: "/v1/images/edits"},
+		{path: "/proxy/v1/edits?legacy=true", want: "/v1/images/edits"},
 		{path: "/arbitrary/user-controlled/value", want: "/other"},
 	}
 
@@ -169,6 +172,70 @@ func TestChannelHealthPathNormalizesBoundedRouteFamilies(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRecordChannelHealthOutcomeDoesNotScoreImageCompletionLatency(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	tests := []struct {
+		name        string
+		channelID   int
+		modelName   string
+		requestPath string
+		relayInfo   func(time.Time) *relaycommon.RelayInfo
+	}{
+		{
+			name:        "responses image generation",
+			channelID:   9001430,
+			modelName:   "test-async-image-response-latency",
+			requestPath: "/v1/images/generations",
+		},
+		{
+			name:        "generic image edit alias",
+			channelID:   9001431,
+			modelName:   "test-async-image-edit-latency",
+			requestPath: "/v1/edits",
+			relayInfo: func(start time.Time) *relaycommon.RelayInfo {
+				return &relaycommon.RelayInfo{
+					StartTime:         start,
+					FirstResponseTime: start.Add(20 * time.Second),
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := 0; i < 5; i++ {
+				attemptStart := time.Now().Add(-30 * time.Second)
+				var info *relaycommon.RelayInfo
+				if tt.relayInfo != nil {
+					info = tt.relayInfo(attemptStart)
+				}
+				RecordChannelHealthOutcome(tt.channelID, tt.modelName, tt.requestPath, info, attemptStart, nil, false)
+			}
+			assert.True(t, IsChannelHealthAvailable(tt.channelID, tt.modelName, tt.requestPath))
+		})
+	}
+}
+
+func TestRecordChannelHealthOutcomeStillCountsImageFailures(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001432
+	const modelName = "test-async-image-upstream-failure"
+	const requestPath = "/v1/images/generations"
+	upstreamErr := types.NewErrorWithStatusCode(errors.New("image upstream failed"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+
+	for i := 0; i < 5; i++ {
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, nil, time.Now().Add(-30*time.Second), upstreamErr, false)
+	}
+
+	assert.False(t, IsChannelHealthAvailable(channelID, modelName, requestPath))
 }
 
 // TestRecordChannelHealthOutcomeIgnoresGatewayLocalErrors verifies that
