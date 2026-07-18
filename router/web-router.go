@@ -26,6 +26,52 @@ func (assets ThemeAssets) Available() bool {
 	return len(assets.DefaultIndexPage) > 0 && len(assets.ClassicIndexPage) > 0
 }
 
+// nonSPAPathPrefixes 是绝不能回退到 SPA HTML 的后端/运维路径前缀。
+// 未注册时必须返回 API 风格 404，避免 /metrics 等被 index.html 伪装成 200。
+var nonSPAPathPrefixes = []string{
+	"/api",
+	"/v1",
+	"/v1beta",
+	"/assets",
+	"/metrics",
+	"/pg",
+	"/mj",
+	"/suno",
+	"/kling",
+	"/jimeng",
+	"/dashboard",
+	"/healthz",
+	"/livez",
+	"/readyz",
+	"/frontend-healthz",
+}
+
+// isNonSPARequestPath 判断路径是否属于 API/Relay/运维端点，禁止 SPA NoRoute 接管。
+func isNonSPARequestPath(requestURI string) bool {
+	path := requestURI
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		path = path[:i]
+	}
+	if path == "" {
+		path = "/"
+	}
+	for _, prefix := range nonSPAPathPrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	// Midjourney 模式前缀：/:mode/mj 或 /:mode/mj/...
+	trimmed := strings.Trim(path, "/")
+	if trimmed == "" {
+		return false
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) >= 2 && parts[1] == "mj" {
+		return true
+	}
+	return false
+}
+
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	defaultFS := common.EmbedFolder(assets.DefaultBuildFS, "web/default/dist")
 	classicFS := common.EmbedFolder(assets.ClassicBuildFS, "web/classic/dist")
@@ -37,7 +83,8 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	router.Use(static.Serve("/", themeFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+		if isNonSPARequestPath(c.Request.RequestURI) {
+			// 未注册的后端/运维路径返回 JSON 404，禁止回退 HTML。
 			controller.RelayNotFound(c)
 			return
 		}

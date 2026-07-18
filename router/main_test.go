@@ -72,6 +72,65 @@ func TestFrontendDisabledReturnsNotFoundForUnknownPage(t *testing.T) {
 	require.NotEqual(t, http.StatusNotFound, status.Code)
 }
 
+// TestIsNonSPARequestPath 验证运维与 Relay 前缀不会被当成前端路由。
+func TestIsNonSPARequestPath(t *testing.T) {
+	for _, path := range []string{
+		"/metrics",
+		"/metrics?foo=1",
+		"/v1/models",
+		"/v1beta/models",
+		"/api/status",
+		"/pg/chat/completions",
+		"/mj/submit",
+		"/suno/submit",
+		"/kling/v1/videos/text2video",
+		"/jimeng/",
+		"/dashboard/billing/usage",
+		"/frontend-healthz",
+		"/readyz",
+		"/fast/mj/task",
+	} {
+		require.Truef(t, isNonSPARequestPath(path), "expected non-SPA: %s", path)
+	}
+	for _, path := range []string{
+		"/",
+		"/console",
+		"/pricing",
+		"/about",
+		"/sign-in",
+		"/static/js/index.js",
+	} {
+		require.Falsef(t, isNonSPARequestPath(path), "expected SPA-capable: %s", path)
+	}
+}
+
+// TestEmbeddedFrontendDoesNotServeSPAForMetrics 验证嵌入模式下 /metrics 未启用时不是 HTML 200。
+func TestEmbeddedFrontendDoesNotServeSPAForMetrics(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Setenv("FRONTEND_MODE", "embedded")
+	t.Setenv("METRICS_ENABLED", "")
+	t.Setenv("METRICS_TOKEN", "")
+
+	assets := ThemeAssets{
+		DefaultIndexPage: []byte("<html>default</html>"),
+		ClassicIndexPage: []byte("<html>classic</html>"),
+	}
+	engine := gin.New()
+	require.NoError(t, SetRouterForPlane(engine, assets, PlaneManagement))
+
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	require.Equal(t, http.StatusNotFound, recorder.Code)
+	require.NotContains(t, recorder.Header().Get("Content-Type"), "text/html")
+	require.NotContains(t, recorder.Body.String(), "<html>default</html>")
+
+	// 真正的前端路由仍应回退 index。
+	home := httptest.NewRecorder()
+	engine.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/console", nil))
+	require.Equal(t, http.StatusOK, home.Code)
+	require.Contains(t, home.Body.String(), "<html>default</html>")
+}
+
 // TestFrontendModeAutoIgnoresBaseURLOnMaster 验证 auto 模式下 master 忽略 FRONTEND_BASE_URL，且无资源时失败。
 func TestFrontendModeAutoIgnoresBaseURLOnMaster(t *testing.T) {
 	gin.SetMode(gin.TestMode)
