@@ -112,7 +112,11 @@ func SyncChannelCache(frequency int) {
 }
 
 type ChannelSelectionOptions struct {
-	ExcludedChannelIDs   map[int]struct{}
+	ExcludedChannelIDs map[int]struct{}
+	// AvoidChannelHosts is a soft exclusion used after a transport failure.
+	// The selected priority tier prefers a different host, while same-host
+	// channels remain a fallback so operator priority and availability stay intact.
+	AvoidChannelHosts    map[string]struct{}
 	AllowCoolingFallback bool
 	// RequestPath is the RAW request path, used to match Advanced Custom
 	// (type 58) channels against their configured routes.
@@ -213,17 +217,31 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	targetPriority := int64(sortedUniquePriorities[retry])
 
 	// get the priority for the given retry number
-	var sumWeight = 0
-	var targetChannels []*Channel
+	var preferredChannels []*Channel
+	var avoidedChannels []*Channel
 	for _, channel := range availableChannels {
-		if channel.GetPriority() == targetPriority {
-			sumWeight += channel.GetWeight()
-			targetChannels = append(targetChannels, channel)
+		if channel.GetPriority() != targetPriority {
+			continue
 		}
+		host := NormalizeChannelBaseURLHost(channel.GetBaseURL())
+		if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
+			avoidedChannels = append(avoidedChannels, channel)
+		} else {
+			preferredChannels = append(preferredChannels, channel)
+		}
+	}
+	targetChannels := preferredChannels
+	if len(targetChannels) == 0 {
+		targetChannels = avoidedChannels
 	}
 
 	if len(targetChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+	}
+
+	sumWeight := 0
+	for _, channel := range targetChannels {
+		sumWeight += channel.GetWeight()
 	}
 
 	// smoothing factor and adjustment

@@ -124,6 +124,7 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	// configured routes match; drop the rest before health/priority selection.
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, options.RequestPath, model)
 
+	avoidedChannelIDs := avoidedHostChannelIDs(abilities, options.AvoidChannelHosts)
 	availableAbilities := make([]Ability, 0, len(abilities))
 	coolingAbilities := make([]Ability, 0, len(abilities))
 	for _, ability := range abilities {
@@ -167,7 +168,8 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	}
 	targetPriority := sortedUniquePriorities[retry]
 
-	var targetAbilities []Ability
+	var preferredAbilities []Ability
+	var avoidedAbilities []Ability
 	for _, ability := range availableAbilities {
 		priority := int(0)
 		if ability.Priority != nil {
@@ -176,7 +178,15 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 		if priority != targetPriority {
 			continue
 		}
-		targetAbilities = append(targetAbilities, ability)
+		if _, avoided := avoidedChannelIDs[ability.ChannelId]; avoided {
+			avoidedAbilities = append(avoidedAbilities, ability)
+		} else {
+			preferredAbilities = append(preferredAbilities, ability)
+		}
+	}
+	targetAbilities := preferredAbilities
+	if len(targetAbilities) == 0 {
+		targetAbilities = avoidedAbilities
 	}
 	if len(targetAbilities) == 0 {
 		return nil, nil
@@ -198,6 +208,37 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	channel := Channel{}
 	err = DB.First(&channel, "id = ?", channelId).Error
 	return &channel, err
+}
+
+func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}) map[int]struct{} {
+	if len(abilities) == 0 || len(avoidHosts) == 0 {
+		return nil
+	}
+	channelIDs := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+
+	var channels []Channel
+	if err := DB.Select("id", "type", "base_url").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return nil
+	}
+	avoided := make(map[int]struct{})
+	for i := range channels {
+		host := NormalizeChannelBaseURLHost(channels[i].GetBaseURL())
+		if host == "" {
+			continue
+		}
+		if _, ok := avoidHosts[host]; ok {
+			avoided[channels[i].Id] = struct{}{}
+		}
+	}
+	return avoided
 }
 
 // selectAcquirableAbilityChannelId picks a weighted-random starting

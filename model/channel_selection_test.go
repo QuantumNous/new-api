@@ -253,6 +253,67 @@ func TestGetRandomSatisfiedChannelFallsBackToAvoidedHostWhenNoAlternative(t *tes
 	assert.Equal(t, 29, selected.Id)
 }
 
+func TestGetRandomSatisfiedChannelKeepsPriorityAheadOfHostPreference(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	highPriority := int64(20)
+	lowPriority := int64(10)
+	weight := uint(100)
+	sharedURL := "https://shared.example/v1"
+	otherURL := "https://other.example/v1"
+	SetChannelCacheForTest(map[int]*Channel{
+		29: {Id: 29, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &highPriority, BaseURL: &sharedURL},
+		41: {Id: 41, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &lowPriority, BaseURL: &otherURL},
+	}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {29, 41}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		AvoidChannelHosts: map[string]struct{}{"shared.example": {}},
+		Path:              "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 29, selected.Id)
+}
+
+func TestGetRandomSatisfiedChannelRetryPrefersDifferentHostWithinTargetPriority(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	highPriority := int64(20)
+	targetPriority := int64(10)
+	weight := uint(100)
+	sharedURL := "https://shared.example/v1"
+	otherURL := "https://other.example/v1"
+	SetChannelCacheForTest(map[int]*Channel{
+		29: {Id: 29, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &highPriority, BaseURL: &otherURL},
+		41: {Id: 41, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &targetPriority, BaseURL: &sharedURL},
+		53: {Id: 53, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &targetPriority, BaseURL: &otherURL},
+	}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {29, 41, 53}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 1, ChannelSelectionOptions{
+		AvoidChannelHosts: map[string]struct{}{"shared.example": {}},
+		Path:              "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 53, selected.Id)
+}
+
 func TestGetChannelPrefersDifferentHostWithoutMemoryCache(t *testing.T) {
 	setupChannelSelectionTestDB(t)
 

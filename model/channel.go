@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -502,6 +503,21 @@ func (channel *Channel) GetBaseURL() string {
 		url = constant.ChannelBaseURLs[channel.Type]
 	}
 	return url
+}
+
+func NormalizeChannelBaseURLHost(baseURL string) string {
+	value := strings.TrimSpace(baseURL)
+	if value == "" {
+		return ""
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Hostname() == "" {
+		parsed, err = url.Parse("https://" + value)
+	}
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
 }
 
 func (channel *Channel) GetModelMapping() string {

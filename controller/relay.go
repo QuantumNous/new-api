@@ -292,7 +292,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogInfo(c, "client canceled the request; skipping retry and channel attribution")
 			break
 		}
-
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
 		// Bound total retry wall-clock so a request cannot spend minutes cycling
@@ -305,6 +304,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
+		}
+		if shouldAvoidRetryHost(newAPIError) {
+			host := model.NormalizeChannelBaseURLHost(relayInfo.ChannelBaseUrl)
+			if host != "" {
+				if retryParam.AvoidChannelHosts == nil {
+					retryParam.AvoidChannelHosts = make(map[string]struct{})
+				}
+				retryParam.AvoidChannelHosts[host] = struct{}{}
+				logger.LogInfo(c, fmt.Sprintf("transport retry will prefer a different upstream host than %s", host))
+			}
 		}
 	}
 
@@ -521,6 +530,12 @@ func isSemanticClientError(openaiErr *types.NewAPIError) bool {
 // which does indicate a slow/dead channel and must still be attributed.
 func isClientCanceledError(apiErr *types.NewAPIError) bool {
 	return apiErr != nil && errors.Is(apiErr, context.Canceled)
+}
+
+func shouldAvoidRetryHost(apiErr *types.NewAPIError) bool {
+	return apiErr != nil &&
+		apiErr.GetErrorCode() == types.ErrorCodeDoRequestFailed &&
+		!isClientCanceledError(apiErr)
 }
 
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
