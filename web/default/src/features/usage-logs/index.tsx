@@ -124,11 +124,11 @@ function UsageLogsContent() {
   )
 
   const handleAutoRefreshChange = useCallback(
-    (enabled: boolean) => {
+    async (enabled: boolean) => {
       setAutoRefresh(enabled)
       if (!enabled) return
 
-      void navigate({
+      await navigate({
         to: '/usage-logs/$section',
         params: { section: activeCategory },
         search: { ...searchParams, page: 1 },
@@ -163,11 +163,15 @@ function UsageLogsContent() {
                 </TabsList>
               </Tabs>
             )}
-            <label className='border-border/70 bg-card flex items-center gap-2 rounded-md border px-3 py-1.5'>
+            <label
+              htmlFor='usage-logs-auto-refresh'
+              className='border-border/70 bg-card flex items-center gap-2 rounded-md border px-3 py-1.5'
+            >
               <span className='text-muted-foreground text-xs'>
                 {t('Auto refresh')}
               </span>
               <Switch
+                id='usage-logs-auto-refresh'
                 checked={autoRefresh}
                 onCheckedChange={handleAutoRefreshChange}
               />
