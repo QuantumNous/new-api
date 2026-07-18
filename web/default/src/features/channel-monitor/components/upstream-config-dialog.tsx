@@ -81,6 +81,7 @@ import {
 import { formatMonitorRatio } from '../lib/format'
 import {
   createUpstreamConfigSchema,
+  MAX_BALANCE_WARNING_THRESHOLD,
   type UpstreamConfigFormValues,
 } from '../lib/schema'
 import type {
@@ -128,6 +129,7 @@ function createUpstreamRequest(
     refresh_token: refreshTokenAuthentication ? values.refreshToken.trim() : '',
     single_channel_action: values.singleChannelAction,
     multiple_channels_action: values.multipleChannelsAction,
+    balance_warning_threshold: values.balanceWarningThreshold,
   }
 }
 
@@ -148,7 +150,9 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   >([])
   const [groupInputValue, setGroupInputValue] = useState(initialGroup)
   const [groupComboboxOpen, setGroupComboboxOpen] = useState(false)
-  const schema = createUpstreamConfigSchema(
+  const [savedCredential, setSavedCredential] = useState<
+    Parameters<typeof createUpstreamConfigSchema>[0]
+  >(
     savedUpstream
       ? {
           type: savedUpstream.type,
@@ -161,6 +165,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
         }
       : null
   )
+  const schema = createUpstreamConfigSchema(savedCredential)
   const form = useForm<UpstreamConfigFormValues>({
     resolver: zodResolver(schema) as Resolver<UpstreamConfigFormValues>,
     defaultValues: {
@@ -176,6 +181,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
       refreshToken: '',
       singleChannelAction: savedUpstream?.single_channel_action || 'none',
       multipleChannelsAction: savedUpstream?.multiple_channels_action || 'none',
+      balanceWarningThreshold: savedUpstream?.balance_warning_threshold ?? null,
     },
   })
   const upstreamType = useWatch({ control: form.control, name: 'upstreamType' })
@@ -185,12 +191,12 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   const needsSub2APIRefreshToken = upstreamType === 'sub2api'
   const canApplyGroup = needsUserAuthentication || needsSub2APIRefreshToken
   const hasMatchingSavedAccessToken =
-    savedUpstream?.has_access_token === true &&
-    savedUpstream.type === upstreamType &&
-    savedUpstream.auth_type === authType
+    savedCredential?.hasAccessToken === true &&
+    savedCredential.type === upstreamType &&
+    savedCredential.authType === authType
   const hasMatchingSavedRefreshToken =
-    savedUpstream?.has_refresh_token === true &&
-    savedUpstream.type === 'sub2api'
+    savedCredential?.hasRefreshToken === true &&
+    savedCredential.type === 'sub2api'
   const authDescription =
     authType === 'public'
       ? '无需账号，读取公开分组倍率'
@@ -222,10 +228,52 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
     },
   })
   const groupsMutation = useMutation({
-    mutationFn: listChannelMonitorUpstreamGroups,
+    mutationFn: async (values: UpstreamConfigFormValues) => {
+      const config = createUpstreamRequest(values)
+      await saveChannelMonitorUpstreamConfig({
+        channelId: props.channel.id,
+        config,
+      })
+      setSavedCredential({
+        type: values.upstreamType,
+        authType: values.authType,
+        hasAccessToken:
+          values.upstreamType === 'new_api' && values.authType === 'user',
+        hasRefreshToken: values.upstreamType === 'sub2api',
+      })
+      queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
+      try {
+        return await listChannelMonitorUpstreamGroups({
+          channelId: props.channel.id,
+          config,
+        })
+      } finally {
+        if (values.upstreamType === 'new_api') {
+          form.setValue('accessToken', '', { shouldDirty: false })
+        } else {
+          form.setValue('refreshToken', '', { shouldDirty: false })
+        }
+        form.clearErrors(['accessToken', 'refreshToken'])
+      }
+    },
     onSuccess: (response) => {
       setUpstreamGroups(response.data.groups)
-      toast.success(`已获取 ${response.data.groups.length} 个上游分组`)
+      const appliedGroup = response.data.applied_group?.trim()
+      if (appliedGroup) {
+        form.setValue('group', appliedGroup, {
+          shouldDirty: true,
+          shouldValidate: true,
+        })
+        setGroupInputValue(appliedGroup)
+      }
+      toast.success(
+        appliedGroup
+          ? `已获取 ${response.data.groups.length} 个上游分组，并自动选中 ${appliedGroup}`
+          : `已获取 ${response.data.groups.length} 个上游分组`
+      )
+      if (response.data.applied_group_error) {
+        toast.warning(response.data.applied_group_error)
+      }
     },
   })
   const applyGroupMutation = useMutation({
@@ -277,10 +325,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
     })
   })
   const handleLoadGroups = form.handleSubmit((values) => {
-    groupsMutation.mutate({
-      channelId: props.channel.id,
-      config: createUpstreamRequest(values),
-    })
+    groupsMutation.mutate(values)
   })
   const handleApplyGroup = form.handleSubmit((values) => {
     applyGroupMutation.mutate(values)
@@ -528,12 +573,43 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                     </Combobox>
                     <FormDescription>
                       {upstreamType === 'sub2api'
-                        ? 'Sub2API 首次配置需保存后再获取，也可填写分组名称或数字 ID'
+                        ? '填写 Refresh Token 后可直接获取，也可填写分组名称或数字 ID'
                         : '从 New API 获取可用分组，也可直接填写名称'}
                       ；
                       {canApplyGroup
                         ? '应用分组会保存配置，并将当前渠道的全部上游令牌切换到该分组'
                         : '应用分组需要先选择用户认证'}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='balanceWarningThreshold'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>余额预警值</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={MAX_BALANCE_WARNING_THRESHOLD}
+                        step='any'
+                        placeholder='留空关闭余额预警'
+                        value={field.value ?? ''}
+                        onBlur={field.onBlur}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          field.onChange(value === '' ? null : Number(value))
+                        }}
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      定时更新余额低于此值时标红；开启邮件通知后首次进入低余额状态会发送预警，余额恢复后可再次预警
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

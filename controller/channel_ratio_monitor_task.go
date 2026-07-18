@@ -26,6 +26,8 @@ type channelRatioMonitorTaskResult struct {
 	Total                   int                              `json:"total"`
 	Updated                 int                              `json:"updated"`
 	Changed                 int                              `json:"changed"`
+	BalanceUpdated          int                              `json:"balance_updated"`
+	BalanceWarnings         int                              `json:"balance_warnings,omitempty"`
 	Failed                  int                              `json:"failed"`
 	GroupsUpdated           int                              `json:"groups_updated"`
 	GroupUpdateFailed       bool                             `json:"group_update_failed,omitempty"`
@@ -78,6 +80,14 @@ type channelRatioMonitorEmailChange struct {
 	UpstreamGroup string
 	OldRatio      float64
 	NewRatio      float64
+}
+
+type channelRatioMonitorBalanceWarning struct {
+	ChannelId    int
+	ChannelName  string
+	UpstreamType string
+	Balance      float64
+	Threshold    float64
 }
 
 func ListChannelMonitorTasks(c *gin.Context) {
@@ -155,12 +165,13 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 	}
 	settings := getChannelMonitorSettings()
 	emailChanges := make([]channelRatioMonitorEmailChange, 0)
+	balanceWarnings := make([]channelRatioMonitorBalanceWarning, 0)
 	defer func() {
-		shouldNotify := len(emailChanges) > 0 || summary.Failed > 0 || summary.GroupUpdateFailed || taskErr != nil
+		shouldNotify := len(emailChanges) > 0 || len(balanceWarnings) > 0 || summary.Failed > 0 || summary.GroupUpdateFailed || taskErr != nil
 		if !shouldNotify || !settings.EmailNotificationEnabled || settings.NotificationEmail == "" {
 			return
 		}
-		if err := sendChannelRatioMonitorNotificationEmail(settings.NotificationEmail, emailChanges, summary, taskErr, sendEmail); err != nil {
+		if err := sendChannelRatioMonitorNotificationEmail(settings.NotificationEmail, emailChanges, balanceWarnings, summary, taskErr, sendEmail); err != nil {
 			summary.EmailStatus = "failed"
 			errorMessage := err.Error()
 			errorRunes := []rune(errorMessage)
@@ -172,6 +183,21 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 			return
 		}
 		summary.EmailStatus = "sent"
+		if len(balanceWarnings) == 0 {
+			return
+		}
+		channelIds := make([]int, 0, len(balanceWarnings))
+		for _, warning := range balanceWarnings {
+			channelIds = append(channelIds, warning.ChannelId)
+		}
+		if err := model.MarkChannelRatioMonitorBalanceAlertsNotified(channelIds); err != nil {
+			if taskErr == nil {
+				taskErr = fmt.Errorf("记录余额预警通知状态失败: %w", err)
+			} else {
+				taskErr = fmt.Errorf("%w（记录余额预警通知状态失败：%v）", taskErr, err)
+			}
+			logger.LogWarn(ctx, fmt.Sprintf("channel ratio monitor: balance alert state update failed: %v", err))
+		}
 	}()
 
 	monitors, err := model.GetChannelRatioMonitors()
@@ -206,6 +232,7 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 		}
 
 		var outcome channelMonitorFetchOutcome
+		var recordedBalance *float64
 		retriesUsed := 0
 		for attempt := 0; attempt <= settings.AutoUpdateRetryCount; attempt++ {
 			if attempt > 0 {
@@ -226,6 +253,10 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 			}
 
 			outcome, err = fetchAndRecordChannelMonitorUpstreamRatio(ctx, monitor, 0, "系统自动更新")
+			if outcome.BalanceRecorded && outcome.Result.Balance.Amount != nil {
+				balance := *outcome.Result.Balance.Amount
+				recordedBalance = &balance
+			}
 			if err == nil || attempt == settings.AutoUpdateRetryCount {
 				break
 			}
@@ -237,6 +268,22 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 				settings.AutoUpdateRetryCount,
 				err,
 			))
+		}
+		if recordedBalance != nil {
+			balance := *recordedBalance
+			summary.BalanceUpdated++
+			if monitor.BalanceWarningThreshold != nil &&
+				balance < *monitor.BalanceWarningThreshold &&
+				!monitor.BalanceAlertNotified {
+				summary.BalanceWarnings++
+				balanceWarnings = append(balanceWarnings, channelRatioMonitorBalanceWarning{
+					ChannelId:    monitor.ChannelId,
+					ChannelName:  channel.Name,
+					UpstreamType: monitor.UpstreamType,
+					Balance:      balance,
+					Threshold:    *monitor.BalanceWarningThreshold,
+				})
+			}
 		}
 		if err != nil {
 			failureErr := err
@@ -287,7 +334,7 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 	return summary, nil
 }
 
-func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channelRatioMonitorEmailChange, summary channelRatioMonitorTaskResult, taskErr error, sendEmail func(subject string, receiver string, content string) error) error {
+func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channelRatioMonitorEmailChange, balanceWarnings []channelRatioMonitorBalanceWarning, summary channelRatioMonitorTaskResult, taskErr error, sendEmail func(subject string, receiver string, content string) error) error {
 	if sendEmail == nil {
 		return fmt.Errorf("邮件发送器未初始化")
 	}
@@ -315,6 +362,30 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 				html.EscapeString(change.UpstreamGroup),
 				strconv.FormatFloat(change.OldRatio, 'f', -1, 64),
 				strconv.FormatFloat(change.NewRatio, 'f', -1, 64),
+			)
+		}
+		content.WriteString("</tbody></table>")
+	}
+	if len(balanceWarnings) > 0 {
+		content.WriteString("<h3>上游余额预警</h3>")
+		content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
+		for _, heading := range []string{"渠道", "上游类型", "当前余额", "预警值"} {
+			fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
+		}
+		content.WriteString("</tr></thead><tbody>")
+		for _, warning := range balanceWarnings {
+			upstreamType := "New API"
+			if warning.UpstreamType == service.Sub2APIUpstreamType {
+				upstreamType = "Sub2API"
+			}
+			fmt.Fprintf(
+				&content,
+				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s（ID: %d）</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+				html.EscapeString(warning.ChannelName),
+				warning.ChannelId,
+				html.EscapeString(upstreamType),
+				strconv.FormatFloat(warning.Balance, 'f', -1, 64),
+				strconv.FormatFloat(warning.Threshold, 'f', -1, 64),
 			)
 		}
 		content.WriteString("</tbody></table>")
@@ -366,7 +437,17 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		failureCount++
 	}
 	subject := fmt.Sprintf("渠道监控：%d 个渠道的上游倍率发生变化", len(changes))
-	if len(changes) > 0 && failureCount > 0 {
+	if len(balanceWarnings) > 0 {
+		parts := make([]string, 0, 3)
+		if len(changes) > 0 {
+			parts = append(parts, fmt.Sprintf("%d 个倍率变更", len(changes)))
+		}
+		parts = append(parts, fmt.Sprintf("%d 个余额预警", len(balanceWarnings)))
+		if failureCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d 项更新失败", failureCount))
+		}
+		subject = "渠道监控：" + strings.Join(parts, "，")
+	} else if len(changes) > 0 && failureCount > 0 {
 		subject = fmt.Sprintf("渠道监控：%d 个倍率变更，%d 项更新失败", len(changes), failureCount)
 	} else if failureCount > 0 {
 		subject = fmt.Sprintf("渠道监控：%d 项更新失败", failureCount)

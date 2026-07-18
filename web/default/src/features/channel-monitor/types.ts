@@ -30,6 +30,7 @@ export type ChannelMonitorItem = {
   ratio: number | null
   previous_ratio: number | null
   remark: string
+  channel_remark: string
   updated_time: number
   updated_by: number
   updated_by_username: string
@@ -37,6 +38,9 @@ export type ChannelMonitorItem = {
   last_fetch_error: string
   last_fetch_time: number
   consecutive_failures: number
+  upstream_balance: number | null
+  last_balance_time: number
+  last_balance_error: string
   smart_schedule_excluded: boolean
   smart_schedule_group: string
   last_schedule_status: '' | 'succeeded' | 'skipped' | 'failed'
@@ -62,6 +66,7 @@ export type ChannelMonitorUpstreamConfig = {
   has_refresh_token: boolean
   single_channel_action: ChannelMonitorPolicyAction
   multiple_channels_action: ChannelMonitorPolicyAction
+  balance_warning_threshold: number | null
 }
 
 export type ChannelMonitorUpstreamRequest = {
@@ -74,11 +79,19 @@ export type ChannelMonitorUpstreamRequest = {
   refresh_token: string
   single_channel_action: ChannelMonitorPolicyAction
   multiple_channels_action: ChannelMonitorPolicyAction
+  balance_warning_threshold: number | null
 }
 
 export type NewAPIGroupRatioResult = {
   ratio: number
   endpoint: string
+  balance: ChannelMonitorUpstreamBalanceResult
+}
+
+export type ChannelMonitorUpstreamBalanceResult = {
+  amount: number | null
+  endpoint?: string
+  error?: string
 }
 
 export type ChannelMonitorUpstreamGroup = {
@@ -89,6 +102,9 @@ export type ChannelMonitorUpstreamGroup = {
 
 export type ChannelMonitorUpstreamGroupsResult = {
   groups: ChannelMonitorUpstreamGroup[]
+  balance: ChannelMonitorUpstreamBalanceResult
+  applied_group?: string
+  applied_group_error?: string
 }
 
 export type ChannelMonitorFetchResult = {
@@ -212,6 +228,8 @@ export type ChannelMonitorTaskResult = {
   total: number
   updated: number
   changed?: number
+  balance_updated?: number
+  balance_warnings?: number
   failed: number
   groups_updated?: number
   group_update_failed?: boolean

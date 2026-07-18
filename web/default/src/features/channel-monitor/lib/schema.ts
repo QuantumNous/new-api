@@ -27,6 +27,7 @@ import type {
 } from '../types'
 
 export const MAX_MONITOR_RATIO = 1_000_000
+export const MAX_BALANCE_WARNING_THRESHOLD = 1_000_000_000_000
 export const MAX_AUTO_UPDATE_INTERVAL_MINUTES = 525_600
 export const MAX_AUTO_UPDATE_RETRY_COUNT = 10
 export const MAX_SMART_SCHEDULE_MIN_SAMPLES = 100_000
@@ -206,6 +207,12 @@ export function createUpstreamConfigSchema(
       refreshToken: z.string().trim().max(4096, 'Refresh Token 过长'),
       singleChannelAction: z.enum(channelMonitorPolicyActions),
       multipleChannelsAction: z.enum(channelMonitorPolicyActions),
+      balanceWarningThreshold: z
+        .number()
+        .finite('余额预警值必须是有效数字')
+        .min(0, '余额预警值不能小于 0')
+        .max(MAX_BALANCE_WARNING_THRESHOLD, '余额预警值不能超过 1000000000000')
+        .nullable(),
     })
     .superRefine((values, context) => {
       const hasSavedCredential =

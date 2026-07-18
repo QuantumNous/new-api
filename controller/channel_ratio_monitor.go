@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -19,7 +20,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const maxChannelMonitorRatio = 1_000_000
+const (
+	maxChannelMonitorRatio                   = 1_000_000
+	maxChannelMonitorBalanceWarningThreshold = 1_000_000_000_000
+)
 
 type channelRatioUpdateRequest struct {
 	Ratio  *float64 `json:"ratio"`
@@ -42,27 +46,29 @@ type channelSmartScheduleConfigUpdateRequest struct {
 }
 
 type channelMonitorUpstreamRequest struct {
-	Type                   string `json:"type"`
-	BaseURL                string `json:"base_url"`
-	Group                  string `json:"group"`
-	AuthType               string `json:"auth_type"`
-	UserId                 int    `json:"user_id"`
-	AccessToken            string `json:"access_token"`
-	RefreshToken           string `json:"refresh_token"`
-	SingleChannelAction    string `json:"single_channel_action"`
-	MultipleChannelsAction string `json:"multiple_channels_action"`
+	Type                    string          `json:"type"`
+	BaseURL                 string          `json:"base_url"`
+	Group                   string          `json:"group"`
+	AuthType                string          `json:"auth_type"`
+	UserId                  int             `json:"user_id"`
+	AccessToken             string          `json:"access_token"`
+	RefreshToken            string          `json:"refresh_token"`
+	SingleChannelAction     string          `json:"single_channel_action"`
+	MultipleChannelsAction  string          `json:"multiple_channels_action"`
+	BalanceWarningThreshold json.RawMessage `json:"balance_warning_threshold"`
 }
 
 type channelMonitorUpstreamConfig struct {
-	Type                   string `json:"type"`
-	BaseURL                string `json:"base_url"`
-	Group                  string `json:"group"`
-	AuthType               string `json:"auth_type"`
-	UserId                 int    `json:"user_id"`
-	HasAccessToken         bool   `json:"has_access_token"`
-	HasRefreshToken        bool   `json:"has_refresh_token"`
-	SingleChannelAction    string `json:"single_channel_action"`
-	MultipleChannelsAction string `json:"multiple_channels_action"`
+	Type                    string   `json:"type"`
+	BaseURL                 string   `json:"base_url"`
+	Group                   string   `json:"group"`
+	AuthType                string   `json:"auth_type"`
+	UserId                  int      `json:"user_id"`
+	HasAccessToken          bool     `json:"has_access_token"`
+	HasRefreshToken         bool     `json:"has_refresh_token"`
+	SingleChannelAction     string   `json:"single_channel_action"`
+	MultipleChannelsAction  string   `json:"multiple_channels_action"`
+	BalanceWarningThreshold *float64 `json:"balance_warning_threshold"`
 }
 
 type channelMonitorItem struct {
@@ -79,6 +85,7 @@ type channelMonitorItem struct {
 	Ratio                 *float64                      `json:"ratio"`
 	PreviousRatio         *float64                      `json:"previous_ratio"`
 	Remark                string                        `json:"remark"`
+	ChannelRemark         string                        `json:"channel_remark"`
 	UpdatedTime           int64                         `json:"updated_time"`
 	UpdatedBy             int                           `json:"updated_by"`
 	UpdatedByUsername     string                        `json:"updated_by_username"`
@@ -86,6 +93,9 @@ type channelMonitorItem struct {
 	LastFetchError        string                        `json:"last_fetch_error"`
 	LastFetchTime         int64                         `json:"last_fetch_time"`
 	ConsecutiveFailures   int                           `json:"consecutive_failures"`
+	UpstreamBalance       *float64                      `json:"upstream_balance"`
+	LastBalanceTime       int64                         `json:"last_balance_time"`
+	LastBalanceError      string                        `json:"last_balance_error"`
 	SmartScheduleExcluded bool                          `json:"smart_schedule_excluded"`
 	SmartScheduleGroup    string                        `json:"smart_schedule_group"`
 	LastScheduleStatus    string                        `json:"last_schedule_status"`
@@ -106,16 +116,38 @@ func channelMonitorUpstreamFromModel(monitor model.ChannelRatioMonitor) *channel
 		return nil
 	}
 	return &channelMonitorUpstreamConfig{
-		Type:                   monitor.UpstreamType,
-		BaseURL:                monitor.UpstreamBaseURL,
-		Group:                  monitor.UpstreamGroup,
-		AuthType:               monitor.UpstreamAuthType,
-		UserId:                 monitor.UpstreamUserId,
-		HasAccessToken:         monitor.UpstreamAccessToken != "",
-		HasRefreshToken:        monitor.UpstreamRefreshToken != "",
-		SingleChannelAction:    normalizeChannelMonitorPolicyAction(monitor.SingleChannelAction),
-		MultipleChannelsAction: normalizeChannelMonitorPolicyAction(monitor.MultipleChannelsAction),
+		Type:                    monitor.UpstreamType,
+		BaseURL:                 monitor.UpstreamBaseURL,
+		Group:                   monitor.UpstreamGroup,
+		AuthType:                monitor.UpstreamAuthType,
+		UserId:                  monitor.UpstreamUserId,
+		HasAccessToken:          monitor.UpstreamAccessToken != "",
+		HasRefreshToken:         monitor.UpstreamRefreshToken != "",
+		SingleChannelAction:     normalizeChannelMonitorPolicyAction(monitor.SingleChannelAction),
+		MultipleChannelsAction:  normalizeChannelMonitorPolicyAction(monitor.MultipleChannelsAction),
+		BalanceWarningThreshold: monitor.BalanceWarningThreshold,
 	}
+}
+
+func resolveChannelMonitorBalanceWarningThreshold(raw json.RawMessage, existing *float64) (*float64, error) {
+	if len(raw) == 0 {
+		if existing == nil {
+			return nil, nil
+		}
+		value := *existing
+		return &value, nil
+	}
+	if strings.TrimSpace(string(raw)) == "null" {
+		return nil, nil
+	}
+
+	var threshold float64
+	if err := common.Unmarshal(raw, &threshold); err != nil ||
+		math.IsNaN(threshold) || math.IsInf(threshold, 0) ||
+		threshold < 0 || threshold > maxChannelMonitorBalanceWarningThreshold {
+		return nil, errors.New("余额预警值无效")
+	}
+	return &threshold, nil
 }
 
 func resolveChannelMonitorUpstreamRequest(channel *model.Channel, request channelMonitorUpstreamRequest, requireGroup bool) (service.ChannelMonitorUpstreamConfig, error) {
@@ -241,23 +273,31 @@ func GetChannelMonitorOverview(c *gin.Context) {
 				groupRatios[group] = 1
 			}
 		}
+		channelRemark := ""
+		if channel.Remark != nil {
+			channelRemark = strings.TrimSpace(*channel.Remark)
+		}
 		item := channelMonitorItem{
-			Id:        channel.Id,
-			Name:      channel.Name,
-			Type:      channel.Type,
-			Status:    channel.Status,
-			Priority:  channel.GetPriority(),
-			Weight:    channel.GetWeight(),
-			BaseURL:   channel.GetBaseURL(),
-			Models:    channel.Models,
-			TestModel: channel.TestModel,
-			Groups:    groups,
+			Id:            channel.Id,
+			Name:          channel.Name,
+			Type:          channel.Type,
+			Status:        channel.Status,
+			Priority:      channel.GetPriority(),
+			Weight:        channel.GetWeight(),
+			BaseURL:       channel.GetBaseURL(),
+			Models:        channel.Models,
+			TestModel:     channel.TestModel,
+			Groups:        groups,
+			ChannelRemark: channelRemark,
 		}
 		if monitor, exists := monitorByChannel[channel.Id]; exists {
 			item.LastFetchStatus = monitor.LastFetchStatus
 			item.LastFetchError = monitor.LastFetchError
 			item.LastFetchTime = monitor.LastFetchTime
 			item.ConsecutiveFailures = monitor.ConsecutiveFailures
+			item.UpstreamBalance = monitor.UpstreamBalance
+			item.LastBalanceTime = monitor.LastBalanceTime
+			item.LastBalanceError = monitor.LastBalanceError
 			item.SmartScheduleExcluded = monitor.SmartScheduleExcluded
 			item.SmartScheduleGroup = monitor.SmartScheduleGroup
 			item.LastScheduleStatus = monitor.LastScheduleStatus
@@ -531,20 +571,22 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+	existingMonitor, findErr := model.GetChannelRatioMonitor(channelId)
+	if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		common.ApiError(c, findErr)
+		return
+	}
+	hasExistingMonitor := findErr == nil
+
 	singleChannelAction := strings.TrimSpace(request.SingleChannelAction)
 	multipleChannelAction := strings.TrimSpace(request.MultipleChannelsAction)
 	if singleChannelAction == "" || multipleChannelAction == "" {
-		existing, findErr := model.GetChannelRatioMonitor(channelId)
-		if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
-			common.ApiError(c, findErr)
-			return
-		}
-		if findErr == nil {
+		if hasExistingMonitor {
 			if singleChannelAction == "" {
-				singleChannelAction = normalizeChannelMonitorPolicyAction(existing.SingleChannelAction)
+				singleChannelAction = normalizeChannelMonitorPolicyAction(existingMonitor.SingleChannelAction)
 			}
 			if multipleChannelAction == "" {
-				multipleChannelAction = normalizeChannelMonitorPolicyAction(existing.MultipleChannelsAction)
+				multipleChannelAction = normalizeChannelMonitorPolicyAction(existingMonitor.MultipleChannelsAction)
 			}
 		}
 	}
@@ -562,6 +604,18 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "多渠道处理策略无效"})
 		return
 	}
+	var existingBalanceWarningThreshold *float64
+	if hasExistingMonitor {
+		existingBalanceWarningThreshold = existingMonitor.BalanceWarningThreshold
+	}
+	balanceWarningThreshold, err := resolveChannelMonitorBalanceWarningThreshold(
+		request.BalanceWarningThreshold,
+		existingBalanceWarningThreshold,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 
 	monitor, err := model.SaveChannelRatioUpstreamConfig(
 		channelId,
@@ -574,6 +628,7 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		config.RefreshToken,
 		singleChannelAction,
 		multipleChannelAction,
+		balanceWarningThreshold,
 	)
 	if err != nil {
 		common.ApiError(c, err)
@@ -582,6 +637,7 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 	recordManageAudit(c, "channel.monitor_upstream_config_update", map[string]interface{}{
 		"id": channelId, "upstream_type": config.Type, "group": config.Group, "auth_type": config.AuthType,
 		"single_channel_action": singleChannelAction, "multiple_channels_action": multipleChannelAction,
+		"balance_warning_threshold": balanceWarningThreshold,
 	})
 	common.ApiSuccess(c, channelMonitorUpstreamFromModel(monitor))
 }
@@ -592,7 +648,7 @@ func ListChannelMonitorUpstreamGroups(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的渠道 ID")
 		return
 	}
-	channel, err := model.GetChannelById(channelId, false)
+	channel, err := model.GetChannelById(channelId, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -623,7 +679,7 @@ func ListChannelMonitorUpstreamGroups(c *gin.Context) {
 		}
 	}
 
-	result, fetchErr := service.FetchChannelMonitorUpstreamGroups(c.Request.Context(), config)
+	result, fetchErr := service.FetchChannelMonitorUpstreamGroups(c.Request.Context(), config, channel.GetKeys())
 	if result.NextRefreshToken != "" {
 		if err := model.RotateChannelRatioUpstreamRefreshToken(
 			channelId,
@@ -679,10 +735,11 @@ func TestChannelMonitorUpstreamConfig(c *gin.Context) {
 }
 
 type channelMonitorFetchOutcome struct {
-	Result  service.NewAPIGroupRatioResult
-	Monitor model.ChannelRatioMonitor
-	Created bool
-	Changed bool
+	Result          service.NewAPIGroupRatioResult
+	Monitor         model.ChannelRatioMonitor
+	Created         bool
+	Changed         bool
+	BalanceRecorded bool
 }
 
 func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor model.ChannelRatioMonitor, operatorId int, operatorUsername string) (outcome channelMonitorFetchOutcome, err error) {
@@ -721,6 +778,16 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 		); err != nil {
 			return outcome, err
 		}
+	}
+	if result.Balance.Amount != nil || strings.TrimSpace(result.Balance.Error) != "" {
+		if balanceErr := model.RecordChannelRatioMonitorBalance(
+			monitor.ChannelId,
+			result.Balance.Amount,
+			result.Balance.Error,
+		); balanceErr != nil {
+			return outcome, fmt.Errorf("记录上游余额失败: %w", balanceErr)
+		}
+		outcome.BalanceRecorded = result.Balance.Amount != nil
 	}
 	if fetchErr != nil {
 		return outcome, fetchErr
@@ -785,6 +852,66 @@ func FetchChannelMonitorUpstreamRatio(c *gin.Context) {
 			"changed": outcome.Changed,
 		},
 	})
+}
+
+func FetchChannelMonitorUpstreamBalance(c *gin.Context) {
+	channelId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || channelId <= 0 {
+		common.ApiErrorMsg(c, "无效的渠道 ID")
+		return
+	}
+	if _, err := model.GetChannelById(channelId, false); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	monitor, err := model.GetChannelRatioMonitor(channelId)
+	if errors.Is(err, gorm.ErrRecordNotFound) || monitor.UpstreamType == "" {
+		common.ApiErrorMsg(c, "请先保存上游配置")
+		return
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result, fetchErr := service.FetchChannelMonitorUpstreamBalance(
+		c.Request.Context(),
+		service.ChannelMonitorUpstreamConfig{
+			Type:         monitor.UpstreamType,
+			BaseURL:      monitor.UpstreamBaseURL,
+			AuthType:     monitor.UpstreamAuthType,
+			UserID:       monitor.UpstreamUserId,
+			AccessToken:  monitor.UpstreamAccessToken,
+			RefreshToken: monitor.UpstreamRefreshToken,
+		},
+	)
+	if result.NextRefreshToken != "" {
+		if rotateErr := model.RotateChannelRatioUpstreamRefreshToken(
+			channelId,
+			monitor.UpstreamRefreshToken,
+			result.NextRefreshToken,
+		); rotateErr != nil {
+			fetchErr = fmt.Errorf("保存 Sub2API 新 Refresh Token 失败: %w", rotateErr)
+		}
+	}
+	if fetchErr == nil && result.Amount == nil {
+		fetchErr = errors.New("上游未返回余额")
+	}
+	if fetchErr != nil {
+		if recordErr := model.RecordChannelRatioMonitorBalance(channelId, nil, fetchErr.Error()); recordErr != nil {
+			fetchErr = fmt.Errorf("%w（记录余额失败状态失败：%v）", fetchErr, recordErr)
+		}
+		common.ApiError(c, fetchErr)
+		return
+	}
+	if err := model.RecordChannelRatioMonitorBalance(channelId, result.Amount, ""); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "channel.monitor_upstream_balance_fetch", map[string]interface{}{
+		"id": channelId, "upstream_type": monitor.UpstreamType, "balance": *result.Amount,
+	})
+	common.ApiSuccess(c, result)
 }
 
 func ApplyChannelMonitorUpstreamGroup(c *gin.Context) {

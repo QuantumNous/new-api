@@ -101,7 +101,7 @@ export function ChannelMonitorSmartScheduleCell(
   }
 
   return (
-    <div className='flex min-w-64 flex-col gap-2'>
+    <div className='flex w-full min-w-0 flex-col items-start gap-2'>
       <div className='flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums'>
         <span>
           优先级 <strong>{props.channel.priority}</strong>

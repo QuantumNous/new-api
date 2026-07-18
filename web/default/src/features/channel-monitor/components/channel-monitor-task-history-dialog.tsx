@@ -216,6 +216,14 @@ function ChannelTaskProgress(props: {
         <span>
           变化 <strong>{result.changed ?? 0}</strong>
         </span>
+        <span>
+          余额 <strong>{result.balance_updated ?? 0}</strong>
+        </span>
+        {(result.balance_warnings ?? 0) > 0 && (
+          <span className='text-destructive'>
+            余额预警 <strong>{result.balance_warnings}</strong>
+          </span>
+        )}
         <span
           className={cn(
             'inline-flex items-center gap-1.5',
@@ -526,7 +534,7 @@ export function ChannelMonitorTaskHistoryDialog(
         <DialogHeader className='pr-10'>
           <DialogTitle>定时任务记录</DialogTitle>
           <DialogDescription>
-            查看上游倍率更新和智能调度的执行结果，也可以立即执行任务。
+            查看上游倍率与余额更新、智能调度的执行结果，也可以立即执行任务。
           </DialogDescription>
         </DialogHeader>
         <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -545,7 +553,7 @@ export function ChannelMonitorTaskHistoryDialog(
               spacing={0}
               aria-label='选择定时任务类型'
             >
-              <ToggleGroupItem value='ratio'>倍率更新</ToggleGroupItem>
+              <ToggleGroupItem value='ratio'>倍率与余额</ToggleGroupItem>
               <ToggleGroupItem value='schedule'>智能调度</ToggleGroupItem>
             </ToggleGroup>
             <span className='text-muted-foreground text-xs'>
@@ -567,7 +575,7 @@ export function ChannelMonitorTaskHistoryDialog(
                   data-icon='inline-start'
                 />
               )}
-              立即更新倍率
+              立即更新倍率和余额
             </Button>
             <Button
               variant='outline'

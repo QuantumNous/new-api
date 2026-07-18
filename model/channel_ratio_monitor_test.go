@@ -100,10 +100,92 @@ func TestChannelRatioMonitorFetchStatusTracksFailureAndRecovery(t *testing.T) {
 	assert.Zero(t, monitor.ConsecutiveFailures)
 }
 
+func TestChannelRatioMonitorBalanceKeepsLastValueWhenRefreshFails(t *testing.T) {
+	resetChannelRatioMonitorTables(t)
+
+	balance := 12.75
+	require.NoError(t, RecordChannelRatioMonitorBalance(10, &balance, ""))
+	monitor, err := GetChannelRatioMonitor(10)
+	require.NoError(t, err)
+	require.NotNil(t, monitor.UpstreamBalance)
+	assert.InDelta(t, balance, *monitor.UpstreamBalance, 1e-9)
+	assert.NotZero(t, monitor.LastBalanceTime)
+	assert.Empty(t, monitor.LastBalanceError)
+	lastBalanceTime := monitor.LastBalanceTime
+
+	require.NoError(t, RecordChannelRatioMonitorBalance(10, nil, "upstream timeout"))
+	monitor, err = GetChannelRatioMonitor(10)
+	require.NoError(t, err)
+	require.NotNil(t, monitor.UpstreamBalance)
+	assert.InDelta(t, balance, *monitor.UpstreamBalance, 1e-9)
+	assert.Equal(t, lastBalanceTime, monitor.LastBalanceTime)
+	assert.Equal(t, "upstream timeout", monitor.LastBalanceError)
+}
+
+func TestChannelRatioMonitorBalanceAlertResetsAfterRecoveryOrThresholdChange(t *testing.T) {
+	resetChannelRatioMonitorTables(t)
+
+	threshold := 10.0
+	_, err := SaveChannelRatioUpstreamConfig(
+		10,
+		"new_api",
+		"https://upstream.example",
+		"vip",
+		"user",
+		7,
+		"dashboard-token",
+		"",
+		"none",
+		"none",
+		&threshold,
+	)
+	require.NoError(t, err)
+
+	lowBalance := 5.0
+	require.NoError(t, RecordChannelRatioMonitorBalance(10, &lowBalance, ""))
+	require.NoError(t, MarkChannelRatioMonitorBalanceAlertsNotified([]int{10}))
+
+	monitor, err := GetChannelRatioMonitor(10)
+	require.NoError(t, err)
+	assert.True(t, monitor.BalanceAlertNotified)
+
+	stillLowBalance := 9.99
+	require.NoError(t, RecordChannelRatioMonitorBalance(10, &stillLowBalance, ""))
+	monitor, err = GetChannelRatioMonitor(10)
+	require.NoError(t, err)
+	assert.True(t, monitor.BalanceAlertNotified)
+
+	recoveredBalance := threshold
+	require.NoError(t, RecordChannelRatioMonitorBalance(10, &recoveredBalance, ""))
+	monitor, err = GetChannelRatioMonitor(10)
+	require.NoError(t, err)
+	assert.False(t, monitor.BalanceAlertNotified)
+
+	require.NoError(t, MarkChannelRatioMonitorBalanceAlertsNotified([]int{10}))
+	newThreshold := 12.0
+	monitor, err = SaveChannelRatioUpstreamConfig(
+		10,
+		"new_api",
+		"https://upstream.example",
+		"vip",
+		"user",
+		7,
+		"dashboard-token",
+		"",
+		"none",
+		"none",
+		&newThreshold,
+	)
+	require.NoError(t, err)
+	assert.False(t, monitor.BalanceAlertNotified)
+	require.NotNil(t, monitor.BalanceWarningThreshold)
+	assert.Equal(t, newThreshold, *monitor.BalanceWarningThreshold)
+}
+
 func TestChannelRatioUpstreamConfigDoesNotCreateFalseBaseline(t *testing.T) {
 	resetChannelRatioMonitorTables(t)
 
-	monitor, err := SaveChannelRatioUpstreamConfig(11, "new_api", "https://upstream.example", "vip", "user", 7, "dashboard-token", "", "update_group_ratio", "disable_channel")
+	monitor, err := SaveChannelRatioUpstreamConfig(11, "new_api", "https://upstream.example", "vip", "user", 7, "dashboard-token", "", "update_group_ratio", "disable_channel", nil)
 	require.NoError(t, err)
 	assert.Zero(t, monitor.UpdatedTime)
 	assert.Equal(t, "dashboard-token", monitor.UpstreamAccessToken)
@@ -127,11 +209,16 @@ func TestChannelRatioUpstreamConfigDoesNotCreateFalseBaseline(t *testing.T) {
 	assert.Empty(t, history)
 	assert.Zero(t, total)
 
-	monitor, err = SaveChannelRatioUpstreamConfig(11, "new_api", "https://upstream.example", "public", "public", 0, "", "", "update_group_ratio", "disable_channel")
+	upstreamBalance := 9.5
+	require.NoError(t, RecordChannelRatioMonitorBalance(11, &upstreamBalance, ""))
+	monitor, err = SaveChannelRatioUpstreamConfig(11, "new_api", "https://upstream.example", "public", "public", 0, "", "", "update_group_ratio", "disable_channel", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0.8, monitor.Ratio)
 	assert.NotZero(t, monitor.UpdatedTime)
 	assert.Empty(t, monitor.UpstreamAccessToken)
+	assert.Nil(t, monitor.UpstreamBalance)
+	assert.Zero(t, monitor.LastBalanceTime)
+	assert.Empty(t, monitor.LastBalanceError)
 }
 
 func TestChannelRatioUpstreamRefreshTokenIsNotSerialized(t *testing.T) {
@@ -154,6 +241,7 @@ func TestChannelRatioUpstreamRefreshTokenIsNotSerialized(t *testing.T) {
 		"stored-refresh-token",
 		"none",
 		"none",
+		nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "stored-refresh-token", monitor.UpstreamRefreshToken)
@@ -166,7 +254,7 @@ func TestChannelRatioUpstreamRefreshTokenIsNotSerialized(t *testing.T) {
 	assert.NotContains(t, string(serialized), "legacy@example.com")
 	assert.NotContains(t, string(serialized), "legacy-password")
 
-	monitor, err = SaveChannelRatioUpstreamConfig(12, "new_api", "https://upstream.example", "public", "public", 0, "", "", "none", "none")
+	monitor, err = SaveChannelRatioUpstreamConfig(12, "new_api", "https://upstream.example", "public", "public", 0, "", "", "none", "none", nil)
 	require.NoError(t, err)
 	assert.Empty(t, monitor.UpstreamRefreshToken)
 }
@@ -185,6 +273,7 @@ func TestRotateChannelRatioUpstreamRefreshTokenUsesCompareAndSwap(t *testing.T) 
 		"old-refresh-token",
 		"none",
 		"none",
+		nil,
 	)
 	require.NoError(t, err)
 

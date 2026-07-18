@@ -103,6 +103,83 @@ func TestFetchNewAPIGroupRatioUsesAuthenticatedUserGroups(t *testing.T) {
 	assert.Equal(t, "/api/user/self/groups", result.Endpoint)
 }
 
+func TestFetchNewAPIUpstreamBalanceConvertsQuotaToUSD(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/user/self":
+			assert.Equal(t, "Bearer dashboard-token", r.Header.Get("Authorization"))
+			assert.Equal(t, "42", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota":6250000}}`))
+		case "/api/status":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota_per_unit":500000}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	result, err := fetchNewAPIUpstreamBalance(context.Background(), server.Client(), NewAPIGroupRatioConfig{
+		BaseURL:     server.URL,
+		AuthType:    NewAPIUpstreamAuthUser,
+		UserID:      42,
+		AccessToken: "dashboard-token",
+	}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, result.Amount)
+	assert.InDelta(t, 12.5, *result.Amount, 1e-9)
+	assert.Equal(t, "/api/user/self", result.Endpoint)
+}
+
+func TestFetchNewAPIUpstreamKeyGroupUsesChannelAPIKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/token/search", r.URL.Path)
+		assert.Equal(t, "sk-channel", r.URL.Query().Get("token"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"items":[{"id":31,"name":"channel","group":"vip"}]}}`))
+	}))
+	defer server.Close()
+
+	group, err := fetchNewAPIUpstreamKeyGroup(context.Background(), server.Client(), NewAPIGroupRatioConfig{
+		BaseURL:     server.URL,
+		AuthType:    NewAPIUpstreamAuthUser,
+		UserID:      42,
+		AccessToken: "dashboard-token",
+	}, []string{"sk-channel"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "vip", group)
+}
+
+func TestFetchSub2APIUpstreamBalanceRotatesRefreshToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/auth/refresh":
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"next-refresh-token"}}`))
+		case "/api/v1/user/profile":
+			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"balance":7.25}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	result, err := fetchSub2APIUpstreamBalance(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
+		BaseURL:      server.URL,
+		RefreshToken: "old-refresh-token",
+	}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, result.Amount)
+	assert.InDelta(t, 7.25, *result.Amount, 1e-9)
+	assert.Equal(t, "/api/v1/user/profile", result.Endpoint)
+	assert.Equal(t, "next-refresh-token", result.NextRefreshToken)
+
+	serialized, err := common.Marshal(result)
+	require.NoError(t, err)
+	assert.NotContains(t, string(serialized), "next-refresh-token")
+}
+
 func TestFetchNewAPIGroupRatioRejectsAutomaticGroupWithoutFixedRatio(t *testing.T) {
 	_, err := fetchNewAPIGroupRatio(context.Background(), http.DefaultClient, NewAPIGroupRatioConfig{
 		BaseURL:  "https://example.com",
@@ -117,7 +194,7 @@ func TestFetchNewAPIUpstreamGroupsReturnsSortedOptions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/api/pricing", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"success":true,"group_ratio":{"vip":1.25,"default":"0.8"}}`))
+		_, _ = w.Write([]byte(`{"success":true,"group_ratio":{"alpha":1.25,"zeta":"0.8"}}`))
 	}))
 	defer server.Close()
 
@@ -127,9 +204,9 @@ func TestFetchNewAPIUpstreamGroupsReturnsSortedOptions(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 	require.Len(t, result.Groups, 2)
-	assert.Equal(t, "default", result.Groups[0].Name)
+	assert.Equal(t, "zeta", result.Groups[0].Name)
 	assert.Equal(t, 0.8, result.Groups[0].Ratio)
-	assert.Equal(t, "vip", result.Groups[1].Name)
+	assert.Equal(t, "alpha", result.Groups[1].Name)
 	assert.Equal(t, 1.25, result.Groups[1].Ratio)
 }
 
@@ -348,9 +425,12 @@ func TestFetchSub2APIUpstreamGroupsMergesUserRates(t *testing.T) {
 		case "/api/v1/auth/refresh":
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"next-refresh-token"}}`))
 		case "/api/v1/groups/available":
-			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":9,"name":"vip","rate_multiplier":1.2},{"id":3,"name":"default","rate_multiplier":0.8}]}`))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":9,"name":"alpha","rate_multiplier":1.2},{"id":3,"name":"zeta","rate_multiplier":0.8}]}`))
 		case "/api/v1/groups/rates":
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"9":1.75}}`))
+		case "/api/v1/user/profile":
+			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"balance":23.5}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -360,18 +440,21 @@ func TestFetchSub2APIUpstreamGroupsMergesUserRates(t *testing.T) {
 	result, err := fetchSub2APIUpstreamGroups(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
 		BaseURL:      server.URL,
 		RefreshToken: "old-refresh-token",
-	}, nil)
+	}, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "next-refresh-token", result.NextRefreshToken)
 	require.Len(t, result.Groups, 2)
 	assert.Equal(t, "3", result.Groups[0].ID)
-	assert.Equal(t, "default", result.Groups[0].Name)
+	assert.Equal(t, "zeta", result.Groups[0].Name)
 	assert.Equal(t, 0.8, result.Groups[0].Ratio)
 	assert.Equal(t, "/api/v1/groups/available", result.Groups[0].Endpoint)
 	assert.Equal(t, "9", result.Groups[1].ID)
-	assert.Equal(t, "vip", result.Groups[1].Name)
+	assert.Equal(t, "alpha", result.Groups[1].Name)
 	assert.Equal(t, 1.75, result.Groups[1].Ratio)
 	assert.Equal(t, "/api/v1/groups/rates", result.Groups[1].Endpoint)
+	require.NotNil(t, result.Balance.Amount)
+	assert.InDelta(t, 23.5, *result.Balance.Amount, 1e-9)
+	assert.Equal(t, "/api/v1/user/profile", result.Balance.Endpoint)
 
 	serialized, err := common.Marshal(result)
 	require.NoError(t, err)

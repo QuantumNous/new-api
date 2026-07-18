@@ -71,6 +71,7 @@ import { ChannelTestDialogForChannel } from '@/features/channels/components/dial
 import { CHANNEL_STATUS } from '@/features/channels/constants'
 
 import {
+  fetchChannelMonitorUpstreamBalance,
   fetchChannelMonitorUpstreamRatio,
   getChannelMonitorOverview,
   getChannelMonitorPerformance,
@@ -203,7 +204,7 @@ export function ChannelMonitor() {
     queryFn: () => getChannelMonitorPerformance(performanceRangeMinutes),
     refetchInterval: 60_000,
   })
-  const fetchMutation = useMutation({
+  const ratioFetchMutation = useMutation({
     mutationFn: fetchChannelMonitorUpstreamRatio,
     onSuccess: (response, channelId) => {
       toast.success(
@@ -212,6 +213,23 @@ export function ChannelMonitor() {
       queryClient.invalidateQueries({
         queryKey: ['channel-monitor-history', channelId],
       })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
+    },
+  })
+  const balanceFetchMutation = useMutation({
+    mutationFn: fetchChannelMonitorUpstreamBalance,
+    onSuccess: (response) => {
+      const balance = response.data.amount
+      toast.success(
+        balance == null
+          ? '上游未返回余额'
+          : `已更新上游余额：${balance.toLocaleString(undefined, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 4,
+            })}`
+      )
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
@@ -659,7 +677,12 @@ export function ChannelMonitor() {
               performanceRangeLabel={performanceRangeLabel}
               performanceLoading={performanceQuery.isLoading}
               performanceError={performanceQuery.isError}
-              onFetchUpstream={(channel) => fetchMutation.mutate(channel.id)}
+              onFetchUpstreamBalance={(channel) =>
+                balanceFetchMutation.mutate(channel.id)
+              }
+              onFetchUpstreamRatio={(channel) =>
+                ratioFetchMutation.mutate(channel.id)
+              }
               onTestConnection={(channel) =>
                 setChannelDialog({
                   channelId: channel.id,
@@ -695,8 +718,15 @@ export function ChannelMonitor() {
                 })
               }
               smartScheduleEnabled={settings.smart_schedule_enabled}
-              fetchingChannelId={
-                fetchMutation.isPending ? fetchMutation.variables : null
+              fetchingBalanceChannelId={
+                balanceFetchMutation.isPending
+                  ? balanceFetchMutation.variables
+                  : null
+              }
+              fetchingRatioChannelId={
+                ratioFetchMutation.isPending
+                  ? ratioFetchMutation.variables
+                  : null
               }
               updatingStatusChannelId={
                 statusMutation.isPending

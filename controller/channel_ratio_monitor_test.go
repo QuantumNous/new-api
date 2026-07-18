@@ -60,6 +60,11 @@ type channelMonitorUpstreamGroupApplyAPIResponse struct {
 	} `json:"data"`
 }
 
+type channelMonitorUpstreamBalanceAPIResponse struct {
+	Success bool                                        `json:"success"`
+	Data    service.ChannelMonitorUpstreamBalanceResult `json:"data"`
+}
+
 type channelMonitorOverviewAPIResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
@@ -433,10 +438,13 @@ func TestChannelMonitorOverviewIncludesLastFetchFailure(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	useChannelMonitorOptionMap(t, map[string]string{})
 	testModel := "gpt-4.1-mini"
+	channelRemark := "临时渠道，晚高峰可能波动"
+	upstreamBalance := 18.75
 	require.NoError(t, db.Create(&model.Channel{
 		Id:        9,
 		Name:      "failed upstream",
 		Key:       "secret",
+		Remark:    &channelRemark,
 		Status:    common.ChannelStatusEnabled,
 		Models:    "gpt-4.1-mini,gpt-4.1",
 		TestModel: &testModel,
@@ -447,6 +455,9 @@ func TestChannelMonitorOverviewIncludesLastFetchFailure(t *testing.T) {
 		LastFetchError:      "upstream timeout",
 		LastFetchTime:       123456,
 		ConsecutiveFailures: 3,
+		UpstreamBalance:     &upstreamBalance,
+		LastBalanceTime:     123400,
+		LastBalanceError:    "balance refresh timeout",
 	}).Error)
 
 	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodGet, "/api/channel_monitor/", nil)
@@ -459,12 +470,17 @@ func TestChannelMonitorOverviewIncludesLastFetchFailure(t *testing.T) {
 	require.Len(t, response.Data.Channels, 1)
 	assert.Equal(t, []int{9}, response.Data.ChannelOrder)
 	item := response.Data.Channels[0]
+	assert.Equal(t, channelRemark, item.ChannelRemark)
 	assert.Equal(t, "gpt-4.1-mini,gpt-4.1", item.Models)
 	assert.Equal(t, &testModel, item.TestModel)
 	assert.Equal(t, model.ChannelRatioFetchStatusFailed, item.LastFetchStatus)
 	assert.Equal(t, "upstream timeout", item.LastFetchError)
 	assert.EqualValues(t, 123456, item.LastFetchTime)
 	assert.Equal(t, 3, item.ConsecutiveFailures)
+	require.NotNil(t, item.UpstreamBalance)
+	assert.InDelta(t, upstreamBalance, *item.UpstreamBalance, 1e-9)
+	assert.EqualValues(t, 123400, item.LastBalanceTime)
+	assert.Equal(t, "balance refresh timeout", item.LastBalanceError)
 }
 
 func TestUpdateChannelMonitorChannelOrderPersistsNormalizedOrder(t *testing.T) {
@@ -565,6 +581,63 @@ func TestSaveChannelMonitorUpstreamConfigPersistsChannelPolicies(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
+func TestSaveChannelMonitorUpstreamConfigManagesBalanceWarningThreshold(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	baseURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      11,
+		Name:    "balance alert",
+		Key:     "secret",
+		Group:   "vip",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":                      service.NewAPIUpstreamType,
+		"base_url":                  baseURL,
+		"group":                     "vip",
+		"auth_type":                 service.NewAPIUpstreamAuthPublic,
+		"balance_warning_threshold": 20.5,
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "11"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response channelMonitorUpstreamConfigAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.NotNil(t, response.Data.BalanceWarningThreshold)
+	assert.Equal(t, 20.5, *response.Data.BalanceWarningThreshold)
+
+	delete(request, "balance_warning_threshold")
+	request["group"] = "standard"
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "11"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	monitor, err := model.GetChannelRatioMonitor(11)
+	require.NoError(t, err)
+	require.NotNil(t, monitor.BalanceWarningThreshold)
+	assert.Equal(t, 20.5, *monitor.BalanceWarningThreshold)
+
+	request["balance_warning_threshold"] = nil
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "11"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	monitor, err = model.GetChannelRatioMonitor(11)
+	require.NoError(t, err)
+	assert.Nil(t, monitor.BalanceWarningThreshold)
+
+	for _, invalidThreshold := range []any{-0.01, maxChannelMonitorBalanceWarningThreshold + 1, "not-a-number"} {
+		request["balance_warning_threshold"] = invalidThreshold
+		ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
+		ctx.Params = gin.Params{{Key: "id", Value: "11"}}
+		SaveChannelMonitorUpstreamConfig(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	}
+}
+
 func TestListChannelMonitorUpstreamGroupsRotatesSavedSub2APIToken(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	disableChannelMonitorSSRFProtection(t)
@@ -578,6 +651,9 @@ func TestListChannelMonitorUpstreamGroupsRotatesSavedSub2APIToken(t *testing.T) 
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":7,"name":"vip","rate_multiplier":1.25}]}`))
 		case "/api/v1/groups/rates":
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{}}`))
+		case "/api/v1/keys":
+			assert.Equal(t, "secret", r.URL.Query().Get("search"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"items":[{"id":99,"key":"secret","group_id":7}],"total":1,"page":1,"page_size":1000,"pages":1}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -620,6 +696,8 @@ func TestListChannelMonitorUpstreamGroupsRotatesSavedSub2APIToken(t *testing.T) 
 	require.Len(t, response.Data.Groups, 1)
 	assert.Equal(t, "vip", response.Data.Groups[0].Name)
 	assert.Equal(t, 1.25, response.Data.Groups[0].Ratio)
+	assert.Equal(t, "vip", response.Data.AppliedGroup)
+	assert.Empty(t, response.Data.AppliedGroupError)
 
 	monitor, err := model.GetChannelRatioMonitor(20)
 	require.NoError(t, err)
@@ -696,6 +774,57 @@ func TestApplyChannelMonitorUpstreamGroupUpdatesRemoteTokenAndRecordsRatio(t *te
 	assert.InDelta(t, 1.4, monitor.Ratio, 1e-9)
 	assert.Equal(t, model.ChannelRatioFetchStatusSucceeded, monitor.LastFetchStatus)
 	assert.Contains(t, monitor.Remark, "切换到分组 vip")
+}
+
+func TestFetchChannelMonitorUpstreamBalanceRecordsSnapshot(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{})
+	disableChannelMonitorSSRFProtection(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/user/self":
+			assert.Equal(t, "Bearer dashboard-token", r.Header.Get("Authorization"))
+			assert.Equal(t, "42", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota":1750000}}`))
+		case "/api/status":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota_per_unit":500000}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 23, Name: "balance", Key: "secret", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId:           23,
+		UpstreamType:        service.NewAPIUpstreamType,
+		UpstreamBaseURL:     server.URL,
+		UpstreamAuthType:    service.NewAPIUpstreamAuthUser,
+		UpstreamUserId:      42,
+		UpstreamAccessToken: "dashboard-token",
+	}).Error)
+
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/23/upstream/balance/fetch", nil)
+	ctx.Params = gin.Params{{Key: "id", Value: "23"}}
+	FetchChannelMonitorUpstreamBalance(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var response channelMonitorUpstreamBalanceAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success, recorder.Body.String())
+	require.NotNil(t, response.Data.Amount)
+	assert.InDelta(t, 3.5, *response.Data.Amount, 1e-9)
+
+	monitor, err := model.GetChannelRatioMonitor(23)
+	require.NoError(t, err)
+	require.NotNil(t, monitor.UpstreamBalance)
+	assert.InDelta(t, 3.5, *monitor.UpstreamBalance, 1e-9)
+	assert.NotZero(t, monitor.LastBalanceTime)
+	assert.Empty(t, monitor.LastBalanceError)
 }
 
 func TestResolveChannelMonitorUpstreamRequestDoesNotReuseCredentialsAcrossHosts(t *testing.T) {
@@ -1103,6 +1232,126 @@ func TestRunChannelRatioMonitorTaskEmailsRatioChanges(t *testing.T) {
 			assert.InDelta(t, 1.25, monitor.Ratio, 1e-9)
 		})
 	}
+}
+
+func TestRunChannelRatioMonitorTaskRefreshesBalanceAndDeduplicatesLowBalanceEmail(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		channelMonitorAutoUpdateRetryCountOption: "0",
+		channelMonitorEmailNotificationOption:    "true",
+		channelMonitorNotificationEmailOption:    "alerts@example.com",
+	})
+	disableChannelMonitorSSRFProtection(t)
+
+	var upstreamQuota atomic.Int64
+	upstreamQuota.Store(500)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/user/self/groups":
+			assert.Equal(t, "Bearer dashboard-token", r.Header.Get("Authorization"))
+			assert.Equal(t, "42", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"vip":{"ratio":1.25}}}`))
+		case "/api/user/self":
+			assert.Equal(t, "Bearer dashboard-token", r.Header.Get("Authorization"))
+			assert.Equal(t, "42", r.Header.Get("New-Api-User"))
+			_, _ = fmt.Fprintf(w, `{"success":true,"data":{"quota":%d}}`, upstreamQuota.Load())
+		case "/api/status":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota_per_unit":100}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	threshold := 10.0
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 1, Name: "<Balance & API>", Key: "secret", Group: "vip", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId:               1,
+		Ratio:                   1.25,
+		UpdatedTime:             1,
+		UpstreamType:            service.NewAPIUpstreamType,
+		UpstreamBaseURL:         server.URL,
+		UpstreamGroup:           "vip",
+		UpstreamAuthType:        service.NewAPIUpstreamAuthUser,
+		UpstreamUserId:          42,
+		UpstreamAccessToken:     "dashboard-token",
+		BalanceWarningThreshold: &threshold,
+	}).Error)
+
+	emailCalls := 0
+	var emailSendError error
+	var subject string
+	var content string
+	sendEmail := func(gotSubject string, receiver string, gotContent string) error {
+		emailCalls++
+		subject = gotSubject
+		content = gotContent
+		assert.Equal(t, "alerts@example.com", receiver)
+		return emailSendError
+	}
+
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, sendEmail)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.Updated)
+	assert.Equal(t, 1, summary.BalanceUpdated)
+	assert.Equal(t, 1, summary.BalanceWarnings)
+	assert.Equal(t, "sent", summary.EmailStatus)
+	assert.Equal(t, 1, emailCalls)
+	assert.Contains(t, subject, "1 个余额预警")
+	assert.Contains(t, content, "上游余额预警")
+	assert.Contains(t, content, "&lt;Balance &amp; API&gt;")
+	assert.Contains(t, content, ">5<")
+	assert.Contains(t, content, ">10<")
+	monitor, err := model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	require.NotNil(t, monitor.UpstreamBalance)
+	assert.Equal(t, 5.0, *monitor.UpstreamBalance)
+	assert.True(t, monitor.BalanceAlertNotified)
+
+	summary, err = runChannelRatioMonitorTaskOnce(context.Background(), nil, sendEmail)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.BalanceUpdated)
+	assert.Zero(t, summary.BalanceWarnings)
+	assert.Empty(t, summary.EmailStatus)
+	assert.Equal(t, 1, emailCalls)
+
+	upstreamQuota.Store(1500)
+	summary, err = runChannelRatioMonitorTaskOnce(context.Background(), nil, sendEmail)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.BalanceUpdated)
+	assert.Zero(t, summary.BalanceWarnings)
+	assert.Equal(t, 1, emailCalls)
+	monitor, err = model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	require.NotNil(t, monitor.UpstreamBalance)
+	assert.Equal(t, 15.0, *monitor.UpstreamBalance)
+	assert.False(t, monitor.BalanceAlertNotified)
+
+	upstreamQuota.Store(400)
+	emailSendError = errors.New("smtp unavailable")
+	summary, err = runChannelRatioMonitorTaskOnce(context.Background(), nil, sendEmail)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.BalanceWarnings)
+	assert.Equal(t, "failed", summary.EmailStatus)
+	assert.Contains(t, summary.EmailError, "smtp unavailable")
+	assert.Equal(t, 2, emailCalls)
+	monitor, err = model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	assert.False(t, monitor.BalanceAlertNotified)
+
+	emailSendError = nil
+	summary, err = runChannelRatioMonitorTaskOnce(context.Background(), nil, sendEmail)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.BalanceUpdated)
+	assert.Equal(t, 1, summary.BalanceWarnings)
+	assert.Equal(t, "sent", summary.EmailStatus)
+	assert.Equal(t, 3, emailCalls)
+	monitor, err = model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	assert.True(t, monitor.BalanceAlertNotified)
 }
 
 func TestRunChannelRatioMonitorTaskEmailsUpdateFailures(t *testing.T) {

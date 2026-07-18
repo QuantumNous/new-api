@@ -31,6 +31,7 @@ import type {
   ChannelMonitorTaskRunResult,
   ChannelMonitorTaskPage,
   ChannelMonitorTaskKind,
+  ChannelMonitorUpstreamBalanceResult,
   ChannelMonitorUpstreamConfig,
   ChannelMonitorUpstreamGroupsResult,
   ChannelMonitorUpstreamRequest,
@@ -235,6 +236,13 @@ export async function fetchChannelMonitorUpstreamRatio(channelId: number) {
   const response = await api.post<
     ChannelMonitorApiResponse<ChannelMonitorFetchResult>
   >(`/api/channel_monitor/channel/${channelId}/upstream/fetch`)
+  return ensureChannelMonitorSuccess(response.data)
+}
+
+export async function fetchChannelMonitorUpstreamBalance(channelId: number) {
+  const response = await api.post<
+    ChannelMonitorApiResponse<ChannelMonitorUpstreamBalanceResult>
+  >(`/api/channel_monitor/channel/${channelId}/upstream/balance/fetch`)
   return ensureChannelMonitorSuccess(response.data)
 }
 

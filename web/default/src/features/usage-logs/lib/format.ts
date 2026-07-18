@@ -405,6 +405,8 @@ const CHANNEL_MONITOR_AUDIT_TEMPLATES: Record<string, string> = {
     '已更新渠道 {{id}} 的上游配置（{{upstream_type}}）',
   'channel.monitor_upstream_ratio_fetch':
     '已获取渠道 {{id}} 的上游倍率 {{ratio}}',
+  'channel.monitor_upstream_balance_fetch':
+    '已获取渠道 {{id}} 的上游余额 {{balance}}',
   'channel.monitor_upstream_group_apply':
     '已将上游分组 {{group}} 应用于渠道 {{id}}（已更新 {{keys_updated}} 个令牌，倍率 {{ratio}}）',
   'channel.monitor_smart_schedule_run': '已启动智能调度任务 {{task_id}}',

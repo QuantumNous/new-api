@@ -221,7 +221,7 @@ export function ChannelMonitorSettingsDialog(
                       <div className='space-y-1'>
                         <FormLabel>邮件通知</FormLabel>
                         <FormDescription>
-                          开启后，定时更新检测到渠道倍率变化或更新失败时发送邮件
+                          开启后，定时更新检测到渠道倍率变化、余额低于渠道预警值或更新失败时发送邮件
                         </FormDescription>
                       </div>
                       <FormControl>

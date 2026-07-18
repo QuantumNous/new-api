@@ -41,7 +41,7 @@ export function ChannelMonitorFetchStatus(
     const failureCount = Math.max(1, props.channel.consecutive_failures)
 
     return (
-      <div className='flex max-w-96 min-w-64 flex-col gap-1.5 whitespace-normal'>
+      <div className='flex w-full flex-col items-start gap-1 whitespace-normal'>
         <div className='flex flex-wrap items-center gap-2'>
           <Badge variant='destructive'>
             <HugeiconsIcon icon={Alert02Icon} data-icon='inline-start' />
@@ -62,7 +62,7 @@ export function ChannelMonitorFetchStatus(
 
   if (props.channel.last_fetch_status === 'succeeded') {
     return (
-      <div className='flex min-w-32 flex-col items-start gap-1'>
+      <div className='flex w-full flex-col items-start gap-1 whitespace-normal'>
         <Badge
           variant='secondary'
           className='bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
