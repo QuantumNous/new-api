@@ -209,10 +209,20 @@ service: http://localhost:3000
 
 ---
 
-## 10. 建议执行顺序（确认后）
+## 11. 2026-07-18 生产执行
 
-1. 核对并修正 GitHub OAuth App callback。  
-2. 管理后台将 **Server Address** 改为 `https://incc.qzz.io`。  
-3. 修正 Passkey RP ID / Origins / allow_insecure。  
-4. 无痕测 GitHub 登录 +（可选）Passkey 注册。  
-5. 将结果回填本文件人工勾选。
+| 项 | 状态 |
+|----|------|
+| ServerAddress | **已改为** `https://incc.qzz.io`（DB options，已反映到 `/api/status`） |
+| passkey.rp_id / origins | **已改为** `incc.qzz.io` / `https://incc.qzz.io` |
+| passkey.allow_insecure_origin | **已改为** `false` |
+| options 备份 | `D:\newapi\backups\options-before-prod-fix-20260718-162714.sql` |
+| GitHub callback URL | **仍需人工**在 GitHub Developer Settings 设为 `https://incc.qzz.io/oauth/github`（API/浏览器自动化无法代改） |
+| HSTS | 应用层已上线（`3830dc07`）；CF 面板可再开双保险 |
+
+人工勾选：
+
+- [ ] GitHub OAuth App callback 已改并验证登录
+- [ ] （可选）Passkey 在生产域名重新注册
+- [ ] （可选）CF Edge Certificates 开启 HSTS
+
