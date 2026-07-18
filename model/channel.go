@@ -55,6 +55,8 @@ type Channel struct {
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
+	RetryAttempts *int `json:"retry_attempts"` // 单个请求在此渠道上的总尝试次数，包含首次请求
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
 }
@@ -486,6 +488,13 @@ func (channel *Channel) GetWeight() int {
 		return 0
 	}
 	return int(*channel.Weight)
+}
+
+func (channel *Channel) GetRetryAttempts() int {
+	if channel.RetryAttempts == nil || *channel.RetryAttempts < 1 {
+		return 1
+	}
+	return *channel.RetryAttempts
 }
 
 func (channel *Channel) GetBaseURL() string {

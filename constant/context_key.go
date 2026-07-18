@@ -38,6 +38,12 @@ const (
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
 	ContextKeyChannelKey               ContextKey = "channel_key"
 
+	/* 请求级渠道重试 */
+	ContextKeyChannelRetryCurrentID   ContextKey = "channel_retry_current_id"
+	ContextKeyChannelRetryAttempts    ContextKey = "channel_retry_attempts"
+	ContextKeyChannelRetryMaxAttempts ContextKey = "channel_retry_max_attempts"
+	ContextKeyChannelRetryExcludedIDs ContextKey = "channel_retry_excluded_ids"
+
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
