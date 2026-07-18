@@ -40,6 +40,7 @@ const STATUS_RELATED_KEYS = [
   'console_setting.custom_pages',
   'console_setting.availability_monitor_enabled',
   'console_setting.availability_monitor_visibility',
+  'console_setting.availability_monitor_refresh_interval',
 ]
 
 export function useUpdateOption() {

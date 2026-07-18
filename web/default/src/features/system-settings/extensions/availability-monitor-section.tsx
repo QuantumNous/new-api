@@ -7,7 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
-    70|but WITHOUT ANY WARRANTY; without even the implied warranty of
+but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Affero General Public License for more details.
 
@@ -20,6 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import * as z from 'zod'
 
 import {
@@ -31,6 +32,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -49,21 +51,66 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 import {
   DEFAULT_EXTENSION_VISIBILITY,
   EXTENSION_VISIBILITY_OPTIONS,
   resolveExtensionVisibility,
 } from './constants'
 
+/**
+ * react-hook-form treats dotted names as nested paths. Keep the form nested
+ * and flatten to option keys only when persisting (same pattern as
+ * performance-section).
+ */
 const availabilityMonitorSchema = z.object({
-  'console_setting.availability_monitor_enabled': z.boolean(),
-  'console_setting.availability_monitor_visibility': z.enum(['all', 'admin']),
+  console_setting: z.object({
+    availability_monitor_enabled: z.boolean(),
+    availability_monitor_visibility: z.enum(['all', 'admin']),
+    availability_monitor_refresh_interval: z.number().int().min(5).max(3600),
+  }),
 })
 
 type AvailabilityMonitorFormValues = z.infer<typeof availabilityMonitorSchema>
 
+type FlatAvailabilityDefaults = {
+  'console_setting.availability_monitor_enabled': boolean
+  'console_setting.availability_monitor_visibility': 'all' | 'admin' | string
+  'console_setting.availability_monitor_refresh_interval': number
+}
+
 type AvailabilityMonitorSectionProps = {
-  defaultValues: AvailabilityMonitorFormValues
+  defaultValues: FlatAvailabilityDefaults
+}
+
+function buildFormDefaults(
+  defaults: FlatAvailabilityDefaults
+): AvailabilityMonitorFormValues {
+  return {
+    console_setting: {
+      availability_monitor_enabled:
+        defaults['console_setting.availability_monitor_enabled'],
+      availability_monitor_visibility: resolveExtensionVisibility(
+        defaults['console_setting.availability_monitor_visibility'] ||
+          DEFAULT_EXTENSION_VISIBILITY
+      ),
+      availability_monitor_refresh_interval:
+        defaults['console_setting.availability_monitor_refresh_interval'],
+    },
+  }
+}
+
+function flattenFormValues(
+  values: AvailabilityMonitorFormValues
+): FlatAvailabilityDefaults {
+  return {
+    'console_setting.availability_monitor_enabled':
+      values.console_setting.availability_monitor_enabled,
+    'console_setting.availability_monitor_visibility':
+      values.console_setting.availability_monitor_visibility,
+    'console_setting.availability_monitor_refresh_interval':
+      values.console_setting.availability_monitor_refresh_interval,
+  }
 }
 
 export function AvailabilityMonitorSection(
@@ -73,40 +120,34 @@ export function AvailabilityMonitorSection(
   const updateOption = useUpdateOption()
   const form = useForm<AvailabilityMonitorFormValues>({
     resolver: zodResolver(availabilityMonitorSchema),
-    defaultValues: {
-      ...props.defaultValues,
-      'console_setting.availability_monitor_visibility':
-        resolveExtensionVisibility(
-          props.defaultValues[
-            'console_setting.availability_monitor_visibility'
-          ]
-        ),
-    },
+    defaultValues: buildFormDefaults(props.defaultValues),
   })
 
   useEffect(() => {
-    form.reset({
-      ...props.defaultValues,
-      'console_setting.availability_monitor_visibility':
-        resolveExtensionVisibility(
-          props.defaultValues[
-            'console_setting.availability_monitor_visibility'
-          ] || DEFAULT_EXTENSION_VISIBILITY
-        ),
-    })
+    form.reset(buildFormDefaults(props.defaultValues))
   }, [props.defaultValues, form])
 
   const onSubmit = async (values: AvailabilityMonitorFormValues) => {
-    const updates = Object.entries(values).filter(
+    const flatValues = flattenFormValues(values)
+    const updates = Object.entries(flatValues).filter(
       ([key, value]) =>
         value !==
-        props.defaultValues[key as keyof AvailabilityMonitorFormValues]
+        props.defaultValues[key as keyof FlatAvailabilityDefaults]
     )
+
+    if (updates.length === 0) {
+      toast.info(t('No changes to save'))
+      return
+    }
 
     for (const [key, value] of updates) {
       await updateOption.mutateAsync({ key, value })
     }
   }
+
+  const isEnabled = form.watch(
+    'console_setting.availability_monitor_enabled'
+  )
 
   return (
     <SettingsSection title={t('Availability Monitor')}>
@@ -147,6 +188,7 @@ export function AvailabilityMonitorSection(
                   }))}
                   onValueChange={field.onChange}
                   value={field.value}
+                  disabled={!isEnabled}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -166,6 +208,31 @@ export function AvailabilityMonitorSection(
                 <FormDescription>
                   {t(
                     'Choose who can see the Availability Monitor entry in the Extensions sidebar.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='console_setting.availability_monitor_refresh_interval'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Refresh interval (seconds)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={5}
+                    max={3600}
+                    step={1}
+                    {...safeNumberFieldProps(field)}
+                    disabled={!isEnabled}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'How often the Availability Monitor page automatically reloads data. Allowed range: 5–3600 seconds.'
                   )}
                 </FormDescription>
                 <FormMessage />

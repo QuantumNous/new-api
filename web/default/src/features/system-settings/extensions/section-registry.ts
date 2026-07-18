@@ -49,6 +49,8 @@ const EXTENSIONS_SECTIONS = [
               settings['console_setting.availability_monitor_visibility'] ||
                 DEFAULT_EXTENSION_VISIBILITY
             ),
+          'console_setting.availability_monitor_refresh_interval':
+            settings['console_setting.availability_monitor_refresh_interval'],
         },
       }),
   },

@@ -42,6 +42,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
     try {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('uid')
+        window.localStorage.removeItem('status')
       }
     } catch {
       /* empty */

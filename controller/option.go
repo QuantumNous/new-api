@@ -340,6 +340,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "console_setting.availability_monitor_refresh_interval":
+		err = console_setting.ValidateAvailabilityMonitorRefreshInterval(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "console_setting.uptime_kuma_groups":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "UptimeKumaGroups")
 		if err != nil {

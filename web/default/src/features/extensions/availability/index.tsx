@@ -23,10 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { SectionPageLayout } from '@/components/layout'
 
 import { AvailabilityGroupCard } from './components/availability-group-card'
-import {
-  AVAILABILITY_REFRESH_SECONDS,
-  useAvailability,
-} from './hooks/use-availability'
+import { useAvailability } from './hooks/use-availability'
 
 export function AvailabilityMonitorPage() {
   const { t } = useTranslation()
@@ -72,7 +69,7 @@ export function AvailabilityMonitorPage() {
                   key={group.group}
                   group={group}
                   refreshHint={t('Refresh every {{seconds}}s', {
-                    seconds: AVAILABILITY_REFRESH_SECONDS,
+                    seconds: query.refreshSeconds,
                   })}
                 />
               ))}

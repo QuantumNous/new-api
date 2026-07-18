@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import i18n from 'i18next'
 
 import type { User } from '@/features/users/types'
@@ -43,11 +44,20 @@ function getSavedLanguage(user: User): string | undefined {
   }
 }
 
+function clearCachedStatus() {
+  try {
+    window.localStorage.removeItem('status')
+  } catch {
+    /* empty */
+  }
+}
+
 /**
  * Hook for handling authentication redirects and user data management
  */
 export function useAuthRedirect() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { auth } = useAuthStore()
 
   /**
@@ -63,6 +73,11 @@ export function useAuthRedirect() {
     if (userData?.id) {
       saveUserId(userData.id)
     }
+
+    // Status is role-sensitive (e.g. Extensions / Availability Monitor).
+    // Clear any pre-login cache so the sidebar refetches with the session.
+    clearCachedStatus()
+    await queryClient.invalidateQueries({ queryKey: ['status'] })
 
     // Fetch and set user data
     try {

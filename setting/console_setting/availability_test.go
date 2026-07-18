@@ -56,3 +56,30 @@ func TestIsAvailabilityMonitorVisible(t *testing.T) {
 	consoleSetting.AvailabilityMonitorEnabled = false
 	assert.False(t, IsAvailabilityMonitorVisible(true))
 }
+
+func TestValidateAvailabilityMonitorRefreshInterval(t *testing.T) {
+	t.Parallel()
+
+	assert.NoError(t, ValidateAvailabilityMonitorRefreshInterval("5"))
+	assert.NoError(t, ValidateAvailabilityMonitorRefreshInterval("10"))
+	assert.NoError(t, ValidateAvailabilityMonitorRefreshInterval("3600"))
+	assert.Error(t, ValidateAvailabilityMonitorRefreshInterval("4"))
+	assert.Error(t, ValidateAvailabilityMonitorRefreshInterval("3601"))
+	assert.Error(t, ValidateAvailabilityMonitorRefreshInterval("abc"))
+}
+
+func TestGetAvailabilityMonitorRefreshInterval(t *testing.T) {
+	previous := consoleSetting.AvailabilityMonitorRefreshInterval
+	t.Cleanup(func() {
+		consoleSetting.AvailabilityMonitorRefreshInterval = previous
+	})
+
+	consoleSetting.AvailabilityMonitorRefreshInterval = 60
+	assert.Equal(t, 60, GetAvailabilityMonitorRefreshInterval())
+
+	consoleSetting.AvailabilityMonitorRefreshInterval = 1
+	assert.Equal(t, 5, GetAvailabilityMonitorRefreshInterval())
+
+	consoleSetting.AvailabilityMonitorRefreshInterval = 99999
+	assert.Equal(t, 3600, GetAvailabilityMonitorRefreshInterval())
+}

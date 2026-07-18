@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -121,6 +122,39 @@ func ValidateAvailabilityMonitorVisibility(value string) error {
 		return fmt.Errorf("可用性监控可见范围不合法，仅支持 all 或 admin")
 	}
 	return nil
+}
+
+const (
+	availabilityMonitorRefreshIntervalMin = 5
+	availabilityMonitorRefreshIntervalMax = 3600
+)
+
+func ValidateAvailabilityMonitorRefreshInterval(value string) error {
+	seconds, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return fmt.Errorf("可用性监控刷新间隔必须是整数秒")
+	}
+	if seconds < availabilityMonitorRefreshIntervalMin || seconds > availabilityMonitorRefreshIntervalMax {
+		return fmt.Errorf(
+			"可用性监控刷新间隔须在 %d–%d 秒之间",
+			availabilityMonitorRefreshIntervalMin,
+			availabilityMonitorRefreshIntervalMax,
+		)
+	}
+	return nil
+}
+
+// GetAvailabilityMonitorRefreshInterval returns the configured auto-refresh
+// interval in seconds, clamped to the allowed range.
+func GetAvailabilityMonitorRefreshInterval() int {
+	seconds := GetConsoleSetting().AvailabilityMonitorRefreshInterval
+	if seconds < availabilityMonitorRefreshIntervalMin {
+		return availabilityMonitorRefreshIntervalMin
+	}
+	if seconds > availabilityMonitorRefreshIntervalMax {
+		return availabilityMonitorRefreshIntervalMax
+	}
+	return seconds
 }
 
 func getJSONString(item map[string]interface{}, key string) (string, bool) {

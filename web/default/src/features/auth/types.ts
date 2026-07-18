@@ -180,6 +180,7 @@ export interface SystemStatus {
     open_mode?: 'embed' | 'external'
   }>
   availability_monitor_visible?: boolean
+  availability_monitor_refresh_interval?: number
   [key: string]: unknown
 }
 

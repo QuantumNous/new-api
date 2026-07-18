@@ -191,6 +191,7 @@ export type ExtensionsSettings = {
   'console_setting.custom_pages': string
   'console_setting.availability_monitor_enabled': boolean
   'console_setting.availability_monitor_visibility': string
+  'console_setting.availability_monitor_refresh_interval': number
 }
 
 export type ModelSettings = {

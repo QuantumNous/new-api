@@ -8,8 +8,9 @@ type ConsoleSetting struct {
 	Announcements                 string `json:"announcements"`                   // 系统公告 (JSON 数组字符串)
 	FAQ                           string `json:"faq"`                             // 常见问题 (JSON 数组字符串)
 	CustomPages                   string `json:"custom_pages"`                    // 拓展定制页面 (JSON 数组字符串)
-	AvailabilityMonitorEnabled    bool   `json:"availability_monitor_enabled"`    // 是否启用拓展可用性监控
-	AvailabilityMonitorVisibility string `json:"availability_monitor_visibility"` // 可用性监控可见范围: all | admin
+	AvailabilityMonitorEnabled         bool   `json:"availability_monitor_enabled"`          // 是否启用拓展可用性监控
+	AvailabilityMonitorVisibility      string `json:"availability_monitor_visibility"`       // 可用性监控可见范围: all | admin
+	AvailabilityMonitorRefreshInterval int    `json:"availability_monitor_refresh_interval"` // 可用性监控前端自动刷新间隔（秒）
 	ApiInfoEnabled                bool   `json:"api_info_enabled"`                // 是否启用 API 信息面板
 	UptimeKumaEnabled             bool   `json:"uptime_kuma_enabled"`             // 是否启用 Uptime Kuma 面板
 	AnnouncementsEnabled          bool   `json:"announcements_enabled"`           // 是否启用系统公告面板
@@ -23,8 +24,9 @@ var defaultConsoleSetting = ConsoleSetting{
 	Announcements:                 "",
 	FAQ:                           "",
 	CustomPages:                   "[]",
-	AvailabilityMonitorEnabled:    true,
-	AvailabilityMonitorVisibility: "all",
+	AvailabilityMonitorEnabled:         true,
+	AvailabilityMonitorVisibility:      "all",
+	AvailabilityMonitorRefreshInterval: 10,
 	ApiInfoEnabled:                true,
 	UptimeKumaEnabled:             true,
 	AnnouncementsEnabled:          true,

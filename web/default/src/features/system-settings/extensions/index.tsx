@@ -28,6 +28,7 @@ const defaultExtensionsSettings: ExtensionsSettings = {
   'console_setting.custom_pages': '[]',
   'console_setting.availability_monitor_enabled': true,
   'console_setting.availability_monitor_visibility': 'all',
+  'console_setting.availability_monitor_refresh_interval': 10,
 }
 
 export function ExtensionsSettingsPage() {
