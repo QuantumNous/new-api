@@ -2959,6 +2959,7 @@
     "No products match your search": "検索に一致する製品がありません",
     "No provider types are available for your current groups.": "現在のグループで利用可能なタイプがありません。",
     "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI / Gemini / xAI for your groups — having channels alone is not enough.": "選択できるタイプがありません。料金のモデルが Anthropic / OpenAI / Gemini / xAI に一致し、利用可能なグループから使える場合に解放されます。チャネルがあるだけでは不十分です。",
+    "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI for your groups — having channels alone is not enough.": "選択できるタイプがありません。料金のモデルが Anthropic / OpenAI に一致し、利用可能なグループから使える場合に解放されます。チャネルがあるだけでは不十分です。",
     "No providers available": "利用可能なプロバイダーがありません",
     "No Quota": "クォータなし",
     "No ratio differences found": "比率の差異は見つかりませんでした",

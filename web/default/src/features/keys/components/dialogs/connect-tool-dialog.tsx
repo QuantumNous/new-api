@@ -68,14 +68,16 @@ export function ConnectToolDialog(props: Props) {
     queryKey: ['pricing', 'connect-tool'],
     queryFn: getPricing,
     enabled: props.open,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   })
 
   const groupsQuery = useQuery({
     queryKey: ['user-groups', 'connect-tool'],
     queryFn: getUserGroups,
     enabled: props.open,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   })
 
   const pricingModels = useMemo(() => {
@@ -94,13 +96,15 @@ export function ConnectToolDialog(props: Props) {
     })
   }, [pricingQuery.data])
 
-  // Prefer pricing.usable_group (same source pricing already filters with).
-  // Fall back to /user/self/groups; if both are empty, still allow groups
-  // discovered on returned models (backend already scoped pricing).
+  // Merge pricing.usable_group with /user/self/groups so channel-group changes
+  // are not dropped when one of the two responses is incomplete.
+  // If both are empty, getGroupsForEndpoint still falls back to model groups.
   const usableGroups = useMemo(() => {
-    const fromPricing = Object.keys(pricingQuery.data?.usable_group || {})
-    if (fromPricing.length > 0) return fromPricing
-    return Object.keys(groupsQuery.data?.data || {})
+    const merged = new Set<string>([
+      ...Object.keys(pricingQuery.data?.usable_group || {}),
+      ...Object.keys(groupsQuery.data?.data || {}),
+    ])
+    return [...merged]
   }, [pricingQuery.data?.usable_group, groupsQuery.data?.data])
 
   const availableEndpointIds = useMemo(() => {
@@ -160,8 +164,15 @@ export function ConnectToolDialog(props: Props) {
       setModel('')
       return
     }
+    // Always re-resolve against the current endpoint's groups so switching
+    // provider type does not keep a group that only belonged to the previous type.
     setGroup((current) => {
-      if (groupOptions.some((item) => item.value === current)) return current
+      if (
+        current &&
+        groupOptions.some((item) => item.value === current)
+      ) {
+        return current
+      }
       return groupOptions[0]?.value || ''
     })
   }, [endpointId, groupOptions])
@@ -307,7 +318,7 @@ export function ConnectToolDialog(props: Props) {
           availableEndpointIds.length === 0 && (
             <p className='text-muted-foreground text-xs'>
               {t(
-                'No provider types are available. Types unlock when pricing models match Anthropic / OpenAI / Gemini / xAI for your groups — having channels alone is not enough.'
+                'No provider types are available. Types unlock when pricing models match Anthropic / OpenAI for your groups — having channels alone is not enough.'
               )}
             </p>
           )}

@@ -2959,6 +2959,7 @@
     "No products match your search": "Không có sản phẩm nào khớp với tìm kiếm của bạn",
     "No provider types are available for your current groups.": "Không có loại nào khả dụng cho các nhóm hiện tại của bạn.",
     "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI / Gemini / xAI for your groups — having channels alone is not enough.": "Không có loại nào khả dụng. Loại được mở khi mô hình trong bảng giá khớp Anthropic / OpenAI / Gemini / xAI với nhóm của bạn — chỉ có kênh thì chưa đủ.",
+    "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI for your groups — having channels alone is not enough.": "Không có loại nào khả dụng. Loại được mở khi mô hình trong bảng giá khớp Anthropic / OpenAI với nhóm của bạn — chỉ có kênh thì chưa đủ.",
     "No providers available": "Không có nhà cung cấp khả dụng",
     "No Quota": "Không hạn ngạch",
     "No ratio differences found": "Không tìm thấy sự khác biệt tỷ lệ",

@@ -2959,6 +2959,7 @@
     "No products match your search": "没有产品匹配您的搜索",
     "No provider types are available for your current groups.": "当前可用分组下没有可选的类型。",
     "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI / Gemini / xAI for your groups — having channels alone is not enough.": "没有可选类型。需要定价中存在匹配 Anthropic / OpenAI / Gemini / xAI 且你可用分组可访问的模型；仅有渠道不会解锁类型。",
+    "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI for your groups — having channels alone is not enough.": "没有可选类型。需要定价中存在匹配 Anthropic / OpenAI 且你可用分组可访问的模型；仅有渠道不会解锁类型。",
     "No providers available": "暂无可用提供商",
     "No Quota": "无余额",
     "No ratio differences found": "未发现比率差异",

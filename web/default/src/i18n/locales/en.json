@@ -2959,6 +2959,7 @@
     "No products match your search": "No products match your search",
     "No provider types are available for your current groups.": "No provider types are available for your current groups.",
     "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI / Gemini / xAI for your groups — having channels alone is not enough.": "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI / Gemini / xAI for your groups — having channels alone is not enough.",
+    "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI for your groups — having channels alone is not enough.": "No provider types are available. Types unlock when pricing models match Anthropic / OpenAI for your groups — having channels alone is not enough.",
     "No providers available": "No providers available",
     "No Quota": "No Quota",
     "No ratio differences found": "No ratio differences found",
