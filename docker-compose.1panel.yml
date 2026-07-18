@@ -1,0 +1,47 @@
+# Run new-api against the existing 1Panel PostgreSQL and Redis services.
+#
+# The 1Panel services must already be attached to the external
+# `1panel-network` network. This file intentionally does not define or
+# create PostgreSQL/Redis containers or volumes.
+#
+# Usage:
+#   docker compose --env-file .env -f docker-compose.1panel.yml up -d --build
+
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: new-api:local
+    container_name: new-api
+    restart: always
+    command: --log-dir /app/logs
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      SQL_DSN: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@${POSTGRES_HOST:?POSTGRES_HOST is required}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?POSTGRES_DB is required}
+      REDIS_CONN_STRING: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@${REDIS_HOST:?REDIS_HOST is required}:${REDIS_PORT:-6379}/${REDIS_DB:-1}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      CRYPTO_SECRET: ${CRYPTO_SECRET:?CRYPTO_SECRET is required}
+      TZ: ${TZ:-Asia/Shanghai}
+      ERROR_LOG_ENABLED: ${ERROR_LOG_ENABLED:-true}
+      BATCH_UPDATE_ENABLED: ${BATCH_UPDATE_ENABLED:-true}
+      NODE_NAME: ${NODE_NAME:-new-api-node-1}
+      NODE_TYPE: ${NODE_TYPE:-master}
+    networks:
+      - new-api-network
+      - 1panel-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  new-api-network:
+    driver: bridge
+  1panel-network:
+    external: true

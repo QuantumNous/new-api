@@ -1,6 +1,6 @@
 # New-API 开发、构建与部署方案
 
-本文档面向本项目的日常开发、提交代码、服务器部署、上线验证和回滚。默认采用 Docker Compose 部署源码构建的镜像，服务器上的 .env 与代码仓库分离。
+本文档面向本项目的日常开发、提交代码、服务器部署、上线验证和回滚。默认采用 Docker Compose 部署源码构建的镜像，服务器上的 .env 与代码仓库分离。服务器复用 1Panel 已有的 PostgreSQL/Redis，不再为 new-api 创建第二套数据库服务。
 
 ## 1. 推荐架构
 
@@ -8,8 +8,8 @@
 浏览器
   -> Nginx / OpenResty :443
   -> new-api 容器 :3000
-       -> PostgreSQL 容器或受控的外部 PostgreSQL
-       -> Redis 容器或受控的外部 Redis
+       -> 1Panel PostgreSQL（已有 new_api_dev 数据库）
+       -> 1Panel Redis（使用独立逻辑库，默认 DB 1）
 ```
 
 开发阶段推荐混合模式：
@@ -18,10 +18,11 @@
 - Go 后端和 React 前端在本机运行，获得更快的编译、断点调试和热更新。
 - 提交前、联调和发布前再使用完整 Docker Compose 验证。
 
-生产阶段推荐完整 Docker Compose：
+生产阶段推荐应用 Docker Compose + 1Panel 数据服务：
 
 - Dockerfile 同时构建 default/classic 前端和 Go 后端。
-- docker-compose.yml 负责应用、PostgreSQL、Redis、持久化卷和内部网络。
+- docker-compose.1panel.yml 只负责应用和日志/数据目录；PostgreSQL、Redis 由 1Panel 继续管理。
+- 1Panel 的 PostgreSQL/Redis 通过 external `1panel-network` 提供给应用，避免重复启动数据库和缓存。
 - .env 只放在服务器，不提交 Git，也不放进镜像。
 - 反向代理负责 HTTPS、域名、长连接和公网入口。
 
@@ -35,7 +36,8 @@
 | .env | 否 | 本机原生开发或本机 Compose 的私有配置 |
 | /etc/new-api/new-api.env | 否 | 服务器真实运行配置，建议放在仓库外 |
 | docker-compose.dev.yml | 是 | 本地开发依赖和开发后端 |
-| docker-compose.yml | 是 | 生产或准生产部署编排 |
+| docker-compose.yml | 是 | 独立 PostgreSQL/Redis 的本地或准生产编排 |
+| docker-compose.1panel.yml | 是 | 复用 1Panel PostgreSQL/Redis 的服务器部署编排 |
 | Dockerfile | 是 | 构建包含前后端的生产镜像 |
 | Dockerfile.dev | 是 | 构建不包含真实前端资源的开发后端镜像 |
 
@@ -47,7 +49,9 @@
 - SESSION_SECRET、CRYPTO_SECRET
 - 其他 common.InitEnv 读取的环境变量
 
-Compose 运行时，.env 主要用于变量替换；docker-compose.yml 再将 POSTGRES_*、REDIS_* 拼成容器内使用的 SQL_DSN 和 REDIS_CONN_STRING。
+Compose 运行时，.env 主要用于变量替换；docker-compose.yml（独立开发/准生产）或 docker-compose.1panel.yml（服务器）再将 POSTGRES_*、REDIS_* 拼成容器内使用的 SQL_DSN 和 REDIS_CONN_STRING。
+
+服务器复用 1Panel 时，PostgreSQL 数据库名使用已有的 `new_api_dev`，Redis 使用 DB 1。若直接在服务器宿主机原生运行 Go，连接地址可以写 `127.0.0.1`；若 Go 运行在容器中，容器内的 `localhost` 指向应用容器自身，必须使用 1Panel 容器名并加入 `1panel-network`。
 
 生产环境应保存稳定的 SESSION_SECRET 和 CRYPTO_SECRET。更换 SESSION_SECRET 会使现有登录会话失效；更换 CRYPTO_SECRET 会改变 HMAC/缓存键，多个实例之间也不能使用不同值。
 
@@ -277,14 +281,15 @@ sudoedit /etc/new-api/new-api.env
 ```dotenv
 APP_PORT=3000
 TZ=Asia/Shanghai
-POSTGRES_HOST=postgres
+POSTGRES_HOST=1Panel-postgresql-2LOJ
 POSTGRES_PORT=5432
-POSTGRES_USER=<postgres-user>
-POSTGRES_PASSWORD=<postgres-password>
-POSTGRES_DB=<postgres-db>
-REDIS_HOST=redis
+POSTGRES_USER=<1Panel PostgreSQL user>
+POSTGRES_PASSWORD=<1Panel PostgreSQL password>
+POSTGRES_DB=new_api_dev
+REDIS_HOST=1Panel-redis-pDR8
 REDIS_PORT=6379
-REDIS_PASSWORD=<redis-password>
+REDIS_DB=1
+REDIS_PASSWORD=<1Panel Redis password>
 SESSION_SECRET=<stable-random-secret>
 CRYPTO_SECRET=<stable-random-secret>
 ERROR_LOG_ENABLED=true
@@ -293,7 +298,7 @@ NODE_NAME=new-api-prod-1
 NODE_TYPE=master
 ```
 
-如果使用外部 PostgreSQL/Redis，将 POSTGRES_HOST、REDIS_HOST 和凭据改为实际值，并同步调整 Compose 服务依赖；不要让应用错误地连接同名的本地容器。
+这里的主机名是当前 1Panel 容器名；如果 1Panel 重建容器导致名称变化，只需更新 .env 中的两个主机名。若改为宿主机原生运行 Go，则把两个主机名改为 `127.0.0.1`，端口仍为 5432/6379。不要在服务器上再启动 docker-compose.yml 中的 `postgres`/`redis` 服务。
 
 不要把服务器 .env 复制回 Git 仓库。不要在命令行、PR、日志或截图中展示密码、API Key 和两个应用 secret。
 
@@ -306,7 +311,7 @@ cd /opt/new-api
 git status --short
 git rev-parse HEAD
 test -r /etc/new-api/new-api.env
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml config --quiet
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml config --quiet
 ```
 
 预检失败时停止，不要继续重启服务。
@@ -317,8 +322,7 @@ docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml config 
 
 ```bash
 mkdir -p /var/backups/new-api
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml \
-  exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+docker exec 1Panel-postgresql-2LOJ sh -c 'pg_dump -U "$POSTGRES_USER" new_api_dev' \
   | gzip > /var/backups/new-api/postgres-$(date +%Y%m%d-%H%M%S).sql.gz
 
 tar -czf /var/backups/new-api/data-$(date +%Y%m%d-%H%M%S).tar.gz \
@@ -331,26 +335,26 @@ tar -czf /var/backups/new-api/data-$(date +%Y%m%d-%H%M%S).tar.gz \
 
 ```bash
 cd /opt/new-api
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml build --pull
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml up -d --remove-orphans
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml build --pull
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml up -d --remove-orphans
 ```
 
 内存较小的服务器（例如 2 GiB）建议跳过 classic 前端构建，避免两个 Node 构建阶段占满内存：
 
 ```bash
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml \
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml \
   build --build-arg BUILD_CLASSIC=false --pull
 ```
 
 此模式保留 default 前端和完整后端能力，classic 前端使用占位资源；内存升级后可移除该参数重新构建。
 
-不要执行 docker compose down -v。它会删除 Compose 管理的 PostgreSQL 数据卷。
+不要在服务器执行 `docker compose down -v`。服务器编排不管理 PostgreSQL/Redis 数据卷，但该命令仍可能删除应用 Compose 卷；1Panel 数据库和 Redis 的数据卷由 1Panel 管理。
 
 观察迁移和启动日志：
 
 ```bash
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml ps
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml logs --tail=200 new-api
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml ps
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml logs --tail=200 new-api
 ```
 
 ### 7.4 健康检查和上线验证
@@ -369,7 +373,7 @@ curl --fail --silent --show-error https://<your-domain>/api/status
 
 上线检查至少包括：
 
-- new-api、postgres、redis 均为运行状态。
+- new-api、1Panel PostgreSQL、1Panel Redis 均为运行状态。
 - /api/status 返回成功。
 - 登录、退出、刷新页面正常。
 - 发送一次最小化模型请求并确认日志、额度和响应均正常。
@@ -420,9 +424,9 @@ git rev-parse HEAD
 cd /opt/new-api
 git fetch --tags origin
 git checkout --detach <previous-release-tag-or-commit-sha>
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml config --quiet
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml build
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml up -d --remove-orphans
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml config --quiet
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml build
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml up -d --remove-orphans
 ```
 
 回滚代码不等于自动回滚数据库迁移。如果迁移不可逆，先评估是否需要从 PostgreSQL 备份恢复。
@@ -430,8 +434,8 @@ docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml up -d -
 失败时查看：
 
 ```bash
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml ps
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml logs --tail=300 new-api postgres redis
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml ps
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml logs --tail=300 new-api
 ```
 
 没有备份和确认数据卷前，不要删除容器或执行 down -v。
@@ -439,8 +443,8 @@ docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml logs --
 ## 10. 日常运维
 
 ```bash
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml ps
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.yml logs -f --tail=200 new-api
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml ps
+docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml logs -f --tail=200 new-api
 ```
 
 更新前：
