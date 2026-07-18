@@ -17,7 +17,7 @@ WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
-RUN bun install --filter ./classic --frozen-lockfile
+RUN bun install --frozen-lockfile
 COPY ./web/classic ./classic
 COPY ./VERSION /build/VERSION
 RUN test -s /build/VERSION \
