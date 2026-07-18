@@ -728,6 +728,59 @@ For commercial licensing, please contact support@quantumnous.com
   --spacing: 0.3rem;
 }
 
+/* u2500u2500 Noir u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500 */ 
+[data-theme-preset='noir'] { 
+  --primary: oklch(0.62 0.15 350); 
+  --primary-foreground: oklch(0.98 0.005 270); 
+  --secondary: oklch(0.25 0.008 270); 
+  --secondary-foreground: oklch(0.88 0.008 270); 
+  --ring: oklch(0.62 0.15 350); 
+  --chart-1: oklch(0.62 0.15 350); 
+  --chart-2: oklch(0.6 0.1 160); 
+  --chart-3: oklch(0.58 0.12 250); 
+  --chart-4: oklch(0.7 0.08 85); 
+  --chart-5: oklch(0.65 0.1 30); 
+  --sidebar-primary: oklch(0.62 0.15 350); 
+  --sidebar-primary-foreground: oklch(0.98 0.005 270); 
+  --sidebar-accent: oklch(0.62 0.15 350); 
+  --sidebar-accent-foreground: oklch(0.98 0.005 270); 
+  --sidebar-ring: oklch(0.62 0.15 350); 
+  --radius: 0.5rem; 
+} 
+.dark [data-theme-preset='noir'] { 
+  --primary: oklch(0.66 0.15 350); 
+  --primary-foreground: oklch(0.12 0.01 270); 
+  --secondary: oklch(0.22 0.008 270); 
+  --secondary-foreground: oklch(0.9 0.005 270); 
+  --ring: oklch(0.66 0.15 350); 
+  --chart-1: oklch(0.66 0.15 350); 
+  --chart-2: oklch(0.64 0.12 160); 
+  --chart-3: oklch(0.62 0.12 250); 
+  --chart-4: oklch(0.72 0.08 85); 
+  --chart-5: oklch(0.68 0.1 30); 
+  --sidebar-primary: oklch(0.66 0.15 350); 
+  --sidebar-primary-foreground: oklch(0.12 0.01 270); 
+  --sidebar-accent: oklch(0.66 0.15 350); 
+  --sidebar-accent-foreground: oklch(0.12 0.01 270); 
+  --sidebar-ring: oklch(0.66 0.15 350); 
+  --border: oklch(1 0 0 / 8%); 
+  --background: oklch(0.13 0.01 270); 
+  --foreground: oklch(0.93 0.005 270); 
+  --card: oklch(0.17 0.01 270); 
+  --card-foreground: oklch(0.93 0.005 270); 
+  --popover: oklch(0.19 0.01 270); 
+  --popover-foreground: oklch(0.93 0.005 270); 
+  --muted: oklch(0.2 0.01 270); 
+  --muted-foreground: oklch(0.6 0.01 270); 
+  --accent: oklch(0.24 0.015 270); 
+  --accent-foreground: oklch(0.93 0.005 270); 
+  --input: oklch(1 0 0 / 10%); 
+  --sidebar: oklch(0.11 0.01 270); 
+  --sidebar-foreground: oklch(0.9 0.005 270); 
+  --sidebar-accent: oklch(0.24 0.015 270); 
+  --sidebar-accent-foreground: oklch(0.93 0.005 270); 
+  --sidebar-border: oklch(1 0 0 / 8%); 
+}
 /* ── Content layout ───────────────────────────────────────────────────── */
 /* `centered` clamps inset content to a comfortable reading width on large screens.
  * Targets every direct child of <SidebarInset> so router outlet wrappers and
