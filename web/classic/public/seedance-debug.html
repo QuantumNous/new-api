@@ -95,6 +95,47 @@
     }
     .upload input { display: none; }
     .upload strong { color: var(--soft); }
+    .face-pass {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 12px;
+      color: var(--soft);
+      font-size: 13px;
+      cursor: help;
+      user-select: none;
+    }
+    .face-pass input {
+      width: auto;
+      margin: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .face-pass .tip {
+      position: absolute;
+      left: 0;
+      bottom: calc(100% + 8px);
+      z-index: 20;
+      width: min(260px, 72vw);
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #1a2130;
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.45;
+      box-shadow: 0 10px 28px rgba(0,0,0,.35);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(4px);
+      transition: opacity .15s ease, transform .15s ease;
+    }
+    .face-pass:hover .tip,
+    .face-pass:focus-within .tip {
+      opacity: 1;
+      transform: translateY(0);
+    }
     .asset-list { display: grid; gap: 10px; max-height: calc(100vh - 340px); overflow: auto; }
     .asset {
       display: grid; grid-template-columns: 68px minmax(0,1fr); gap: 9px;
@@ -285,6 +326,11 @@
 
     <section class="panel">
       <h2>素材库</h2>
+      <label class="face-pass" for="facePass">
+        <input id="facePass" type="checkbox">
+        <span>过人脸审核</span>
+        <span class="tip">针对某些不能过人脸的模型，我们的人脸处理技术帮你处理，满血版本不要勾选。</span>
+      </label>
       <label class="upload">
         <input id="assetFiles" type="file" accept="image/*,audio/*,video/*" multiple>
         <strong>上传参考素材</strong>
@@ -447,6 +493,7 @@
   <script>
     const DEFAULT_IMAGE_HOST = "https://imageproxy.zhongzhuan.chat/api/upload";
     const DEFAULT_IMAGE_TOKEN = "sk-6In87eJEghtCGtvHEL8rNyR9lnDLlbcTQeqZpgjCPP8zmWab";
+    const FACE_DETECT_API = "http://85.137.240.157:8060/api/detect";
     const STORAGE = {
       key: "sd4_api_key",
       apiBase: "sd4_api_base",
@@ -564,6 +611,7 @@
       refList: document.getElementById("refList"),
       assetFiles: document.getElementById("assetFiles"),
       assetList: document.getElementById("assetList"),
+      facePass: document.getElementById("facePass"),
       manualUrl: document.getElementById("manualUrl"),
       addUrlBtn: document.getElementById("addUrlBtn"),
       submitBtn: document.getElementById("submitBtn"),
@@ -805,8 +853,8 @@
         const status = document.createElement("span");
         const st = String(asset.uploadStatus || "");
         status.className = "asset-status " + (st === "ready" ? "ok" : st === "failed" ? "bad" : "warn");
-        status.textContent = st === "uploading" ? "上传中…"
-          : st === "ready" ? (asset.publicUrl || "已就绪")
+        status.textContent = st === "uploading" ? (asset.viaFacePass ? "人脸处理中…" : "上传中…")
+          : st === "ready" ? (asset.viaFacePass ? "已过人脸" : (asset.publicUrl || "已就绪"))
           : st === "failed" ? ("失败: " + (asset.uploadError || ""))
           : st === "local" ? "本地文件（可 multipart）"
           : "待处理";
@@ -1003,6 +1051,48 @@
       return data.url || data.data?.url || data.link || data.image_url || data.result?.url || "";
     }
 
+    function facePassEnabled() {
+      return !!(els.facePass && els.facePass.checked);
+    }
+
+    async function uploadToFaceDetect(asset) {
+      if (asset.publicUrl) {
+        asset.uploadStatus = "ready";
+        return asset;
+      }
+      if (!asset.file) {
+        asset.uploadStatus = "failed";
+        asset.uploadError = "无本地文件";
+        return asset;
+      }
+      if (asset.kind !== "image") {
+        asset.uploadStatus = "local";
+        asset.uploadError = "非图片请粘贴公网 URL，或 mingiz 用 multipart";
+        return asset;
+      }
+      asset.viaFacePass = true;
+      asset.uploadStatus = "uploading";
+      renderAssets();
+      const form = new FormData();
+      form.append("image", asset.file, asset.file.name);
+      const response = await fetch(FACE_DETECT_API, {
+        method: "POST",
+        body: form,
+      });
+      const data = await readJson(response);
+      if (!response.ok || data.ok === false) {
+        throw new Error(formatError(data, response.status));
+      }
+      const url = extractUploadUrl(data);
+      if (!url) throw new Error("人脸服务未返回 url");
+      asset.publicUrl = url;
+      asset.viaFacePass = true;
+      asset.uploadStatus = "ready";
+      // previewUrl 保持本地原图 blob，不展示处理后图
+      renderAssets();
+      return asset;
+    }
+
     async function uploadToImageHost(asset) {
       if (asset.publicUrl) {
         asset.uploadStatus = "ready";
@@ -1038,18 +1128,24 @@
       return asset;
     }
 
+    async function uploadImageAsset(asset, useFacePass) {
+      if (useFacePass) return uploadToFaceDetect(asset);
+      return uploadToImageHost(asset);
+    }
+
     async function ensureAssetsReady(list, preferMultipart) {
       for (const asset of list) {
-        if (preferMultipart && asset.file) {
-          asset.uploadStatus = asset.uploadStatus === "ready" ? "ready" : "local";
-          continue;
-        }
         if (asset.publicUrl) {
           asset.uploadStatus = "ready";
           continue;
         }
+        // 已过人脸的素材必须用处理后 URL，不能再 multipart 直传原文件
+        if (preferMultipart && asset.file && !asset.viaFacePass) {
+          asset.uploadStatus = asset.uploadStatus === "ready" ? "ready" : "local";
+          continue;
+        }
         if (asset.file && asset.kind === "image") {
-          await uploadToImageHost(asset);
+          await uploadImageAsset(asset, facePassEnabled() || !!asset.viaFacePass);
         } else if (!asset.publicUrl) {
           throw new Error(`素材 @${asset.name} 需要公网 URL（可上传图床或粘贴链接）`);
         }
@@ -1348,7 +1444,9 @@
           form.append("aspect_ratio", els.aspectRatio.value);
           form.append("resolution", els.resolution.value);
           for (const asset of plan.assets) {
-            if (asset.file) form.append("reference_images", asset.file, asset.file.name);
+            // 过人脸后只把处理后公网 URL 给模型，不直传本地原图
+            if (asset.viaFacePass && asset.publicUrl) form.append("images", asset.publicUrl);
+            else if (asset.file) form.append("reference_images", asset.file, asset.file.name);
             else if (asset.publicUrl) form.append("images", asset.publicUrl);
           }
           response = await fetch(`${apiBase()}${plan.path}`, {
@@ -1465,6 +1563,7 @@
           uploadStatus: "pending",
           publicUrl: "",
           uploadError: "",
+          viaFacePass: false,
         };
       });
       els.assetFiles.value = "";
@@ -1472,13 +1571,16 @@
       renderAssets();
       const p = profile();
       const preferMultipart = p.family === "mingiz" && els.mingizSend.value === "multipart";
+      const useFacePass = facePassEnabled();
       for (const asset of incoming) {
         try {
-          if (preferMultipart && asset.file) {
+          if (useFacePass && asset.kind === "image" && asset.file) {
+            await uploadImageAsset(asset, true);
+          } else if (preferMultipart && asset.file) {
             asset.uploadStatus = "local";
             renderAssets();
           } else if (asset.kind === "image") {
-            await uploadToImageHost(asset);
+            await uploadImageAsset(asset, false);
           } else {
             asset.uploadStatus = "failed";
             asset.uploadError = "请粘贴公网 URL";
@@ -1492,7 +1594,7 @@
         }
       }
       const ok = incoming.filter((a) => a.publicUrl || a.uploadStatus === "local").length;
-      if (ok) setStatus(`已处理 ${ok} 个素材。`, "ok");
+      if (ok) setStatus(useFacePass ? `已过人脸处理 ${ok} 个素材。` : `已处理 ${ok} 个素材。`, "ok");
       scheduleRebuild();
     }
 
@@ -1513,6 +1615,7 @@
         uploadStatus: "ready",
         publicUrl: url,
         uploadError: "",
+        viaFacePass: false,
       };
       assets.push(asset);
       els.manualUrl.value = "";
