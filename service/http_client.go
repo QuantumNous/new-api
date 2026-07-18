@@ -60,11 +60,15 @@ func InitHttpClient() {
 }
 
 func newOutboundHTTPClient(transport http.RoundTripper, redirect func(*http.Request, []*http.Request) error) *http.Client {
-	client := &http.Client{Transport: transport, CheckRedirect: redirect}
-	if common.RelayTimeout > 0 {
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
-	}
-	return client
+	// Keep client.Timeout unbounded (0). RelayTimeout must not be applied here:
+	// http.Client.Timeout covers the whole request lifecycle including response-body
+	// reads, so it aborts long-lived AI streaming once RELAY_TIMEOUT elapses.
+	// Upstream stall protection already lives on the transport via
+	// ResponseHeaderTimeout (see common.NewOutboundHTTPTransport). Per-request
+	// deadlines and streaming cutoffs continue to use request context.
+	// Callers that need a hard wall-clock limit for non-streaming fetches should
+	// use GetHttpClientWithTimeout instead.
+	return &http.Client{Transport: transport, CheckRedirect: redirect}
 }
 
 // GetHttpClient returns the general outbound client used by relay/provider
