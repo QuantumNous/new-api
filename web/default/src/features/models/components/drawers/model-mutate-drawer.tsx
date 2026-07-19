@@ -654,10 +654,26 @@ export function ModelMutateDrawer({
 
   const handleFillEndpointTemplate = (templateKey: string) => {
     const template = ENDPOINT_TEMPLATES[templateKey]
-    if (template) {
-      const templateJson = JSON.stringify({ [templateKey]: template }, null, 2)
-      form.setValue('endpoints', templateJson)
+    if (!template) return
+    const currentValue = form.getValues('endpoints')
+    let existingEndpoints: Record<string, unknown> = {}
+    if (currentValue?.trim()) {
+      let parsed: Record<string, unknown> | null = null
+      try {
+        const raw = JSON.parse(currentValue)
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          parsed = raw as Record<string, unknown>
+        }
+      } catch {
+        toast.warning(t('Existing endpoint configuration is invalid and will be replaced'))
+      }
+      if (parsed) {
+        existingEndpoints = parsed
+      }
     }
+    const merged = { ...existingEndpoints, [templateKey]: template }
+    const templateJson = JSON.stringify(merged, null, 2)
+    form.setValue('endpoints', templateJson)
   }
 
   return (
