@@ -20,6 +20,11 @@ import (
 type Adaptor struct {
 }
 
+const (
+	minJimengImageDimension = 256
+	maxJimengImageDimension = 768
+)
+
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")
@@ -48,25 +53,35 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 type LogoInfo struct {
-	AddLogo         bool    `json:"add_logo,omitempty"`
-	Position        int     `json:"position,omitempty"`
-	Language        int     `json:"language,omitempty"`
-	Opacity         float64 `json:"opacity,omitempty"`
-	LogoTextContent string  `json:"logo_text_content,omitempty"`
+	AddLogo         *bool    `json:"add_logo,omitempty"`
+	Position        *int     `json:"position,omitempty"`
+	Language        *int     `json:"language,omitempty"`
+	Opacity         *float64 `json:"opacity,omitempty"`
+	LogoTextContent *string  `json:"logo_text_content,omitempty"`
 }
 
 type imageRequestPayload struct {
-	ReqKey     string   `json:"req_key"`                      // Service identifier, fixed value: jimeng_high_aes_general_v21_L
-	Prompt     string   `json:"prompt"`                       // Prompt for image generation, supports both Chinese and English
-	Seed       int64    `json:"seed,omitempty"`               // Random seed, default -1 (random)
-	Width      int      `json:"width,omitempty"`              // Image width, default 512, range [256, 768]
-	Height     int      `json:"height,omitempty"`             // Image height, default 512, range [256, 768]
-	UsePreLLM  bool     `json:"use_pre_llm,omitempty"`        // Enable text expansion, default true
-	UseSR      bool     `json:"use_sr,omitempty"`             // Enable super resolution, default true
-	ReturnURL  bool     `json:"return_url,omitempty"`         // Whether to return image URL (valid for 24 hours)
-	LogoInfo   LogoInfo `json:"logo_info,omitempty"`          // Watermark information
-	ImageUrls  []string `json:"image_urls,omitempty"`         // Image URLs for input
-	BinaryData []string `json:"binary_data_base64,omitempty"` // Base64 encoded binary data
+	ReqKey     string    `json:"req_key"`                      // Service identifier, fixed value: jimeng_high_aes_general_v21_L
+	Prompt     string    `json:"prompt"`                       // Prompt for image generation, supports both Chinese and English
+	Seed       *int64    `json:"seed,omitempty"`               // Random seed, default -1 (random)
+	Width      int       `json:"width,omitempty"`              // Image width, default 512, range [256, 768]
+	Height     int       `json:"height,omitempty"`             // Image height, default 512, range [256, 768]
+	UsePreLLM  *bool     `json:"use_pre_llm,omitempty"`        // Enable text expansion, default true
+	UseSR      *bool     `json:"use_sr,omitempty"`             // Enable super resolution, default true
+	ReturnURL  *bool     `json:"return_url,omitempty"`         // Whether to return image URL (valid for 24 hours)
+	LogoInfo   *LogoInfo `json:"logo_info,omitempty"`          // Watermark information
+	ImageUrls  []string  `json:"image_urls,omitempty"`         // Image URLs for input
+	BinaryData []string  `json:"binary_data_base64,omitempty"` // Base64 encoded binary data
+}
+
+type imageRequestExtraFields struct {
+	Seed      *int64    `json:"seed"`
+	Width     *int      `json:"width"`
+	Height    *int      `json:"height"`
+	UsePreLLM *bool     `json:"use_pre_llm"`
+	UseSR     *bool     `json:"use_sr"`
+	ReturnURL *bool     `json:"return_url"`
+	LogoInfo  *LogoInfo `json:"logo_info"`
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
@@ -83,17 +98,51 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		ImageUrls: imageURLs,
 	}
 	if request.ResponseFormat == "" || request.ResponseFormat == "url" {
-		payload.ReturnURL = true // Default to returning image URLs
+		returnURL := true
+		payload.ReturnURL = &returnURL // Default to returning image URLs
 	}
 
 	if len(request.ExtraFields) > 0 {
-		if err := common.Unmarshal(request.ExtraFields, &payload); err != nil {
+		var extraFields imageRequestExtraFields
+		if err := common.Unmarshal(request.ExtraFields, &extraFields); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal extra fields: %w", err)
 		}
+		if extraFields.Seed != nil {
+			payload.Seed = extraFields.Seed
+		}
+		if extraFields.Width != nil {
+			if *extraFields.Width < minJimengImageDimension || *extraFields.Width > maxJimengImageDimension {
+				return nil, fmt.Errorf("width must be between %d and %d", minJimengImageDimension, maxJimengImageDimension)
+			}
+			payload.Width = *extraFields.Width
+		}
+		if extraFields.Height != nil {
+			if *extraFields.Height < minJimengImageDimension || *extraFields.Height > maxJimengImageDimension {
+				return nil, fmt.Errorf("height must be between %d and %d", minJimengImageDimension, maxJimengImageDimension)
+			}
+			payload.Height = *extraFields.Height
+		}
+		if extraFields.UsePreLLM != nil {
+			payload.UsePreLLM = extraFields.UsePreLLM
+		}
+		if extraFields.UseSR != nil {
+			payload.UseSR = extraFields.UseSR
+		}
+		if extraFields.ReturnURL != nil {
+			payload.ReturnURL = extraFields.ReturnURL
+		}
+		if extraFields.LogoInfo != nil {
+			payload.LogoInfo = extraFields.LogoInfo
+		}
 	}
-	// The unified/staged image URLs are authoritative. Provider-specific
-	// extra_fields may set other generation options but must not replace them.
-	payload.ImageUrls = imageURLs
+
+	// Model routing, billing identity, prompt, and normalized image inputs are
+	// authoritative gateway fields. Provider extensions may only tune the
+	// allowlisted generation options above.
+	payload.ReqKey = request.Model
+	payload.Prompt = request.Prompt
+	payload.ImageUrls = append([]string(nil), imageURLs...)
+	payload.BinaryData = nil
 
 	return payload, nil
 }

@@ -1354,6 +1354,10 @@ func TestValidateAsyncImageModelInputEnforcesProviderContracts(t *testing.T) {
 		validateAsyncImageModelInput("gpt-image-2-image-to-image", "gpt-image-2", &dto.ImageRequest{Prompt: "edit"}),
 		"input_urls is required",
 	)
+	require.ErrorContains(t,
+		validateAsyncImageModelInput("qwen-image-edit-plus", "qwen-image-edit-plus", &dto.ImageRequest{Prompt: "edit"}),
+		"image_input is required",
+	)
 
 	images := make([]string, 15)
 	for index := range images {
@@ -1363,6 +1367,13 @@ func TestValidateAsyncImageModelInputEnforcesProviderContracts(t *testing.T) {
 	require.NoError(t, err)
 	require.ErrorContains(t,
 		validateAsyncImageModelInput("nano-banana-2", "gemini-3.1-flash-image-preview", &dto.ImageRequest{
+			Prompt: "compose",
+			Images: encoded,
+		}),
+		"at most 14",
+	)
+	require.ErrorContains(t,
+		validateAsyncImageModelInput("vendor-nano-banana-pro", "", &dto.ImageRequest{
 			Prompt: "compose",
 			Images: encoded,
 		}),

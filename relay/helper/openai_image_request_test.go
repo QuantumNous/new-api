@@ -108,6 +108,22 @@ func TestGetAndValidOpenAIImageRequestMultipartAsyncControlsForEditAliases(t *te
 	}
 }
 
+func TestGetAndValidOpenAIImageRequestMultipartGPTImageDefaultsToAutoQuality(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+	require.NoError(t, writer.WriteField("prompt", "edit this image"))
+	require.NoError(t, writer.Close())
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	request, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+	require.NoError(t, err)
+	require.Equal(t, "auto", request.Quality)
+}
+
 func TestGetAndValidOpenAIImageRequestAcceptsMultipartMask(t *testing.T) {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)

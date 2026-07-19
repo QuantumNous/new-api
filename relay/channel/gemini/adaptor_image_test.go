@@ -199,6 +199,27 @@ func TestValidateNativeImageRequestOptionsChecksResolutionByModel(t *testing.T) 
 	}
 }
 
+func TestValidateNativeImageRequestOptionsRejectsLegacyHalfKAlias(t *testing.T) {
+	request := dto.ImageRequest{
+		Prompt: "a paper boat",
+		Extra: map[string]json.RawMessage{
+			"resolution": mustJSON(t, "0.5K"),
+		},
+	}
+
+	for _, model := range []string{"gemini-3.1-flash-image", "gemini-2.5-flash-image"} {
+		err := ValidateNativeImageRequestOptionsForModel(request, model)
+		require.Error(t, err, model)
+		assert.Contains(t, err.Error(), `unsupported resolution "0.5K"`, model)
+	}
+
+	request.Extra["resolution"] = mustJSON(t, "512")
+	require.NoError(t, ValidateNativeImageRequestOptionsForModel(request, "gemini-3.1-flash-image"))
+	err := ValidateNativeImageRequestOptionsForModel(request, "gemini-2.5-flash-image")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "minimum 1K")
+}
+
 func TestValidateNativeImageRequestOptionsRejectsUnknownQuality(t *testing.T) {
 	request := dto.ImageRequest{Model: "nano-banana-2", Prompt: "a paper boat", Quality: "ultra"}
 
@@ -231,6 +252,45 @@ func TestConvertImageRequestPreservesImagenEnvelope(t *testing.T) {
 	require.Len(t, imagenRequest.Instances, 1)
 	assert.Equal(t, request.Prompt, imagenRequest.Instances[0].Prompt)
 	assert.Equal(t, "16:9", imagenRequest.Parameters.AspectRatio)
+}
+
+func TestConvertImageRequestMapsUnifiedImagenDimensions(t *testing.T) {
+	request := dto.ImageRequest{
+		Model:   "imagen-4.0-generate-001",
+		Prompt:  "a mountain cabin",
+		Size:    "1024x1024",
+		Quality: "standard",
+		Extra: map[string]json.RawMessage{
+			"aspect_ratio": mustJSON(t, "3:4"),
+			"resolution":   mustJSON(t, "2K"),
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(testGeminiImageContext(), testNativeImageInfo(request.Model), request)
+	require.NoError(t, err)
+	imagenRequest, ok := converted.(dto.GeminiImageRequest)
+	require.True(t, ok)
+	assert.Equal(t, "3:4", imagenRequest.Parameters.AspectRatio)
+	assert.Equal(t, "2K", imagenRequest.Parameters.ImageSize)
+}
+
+func TestConvertImageRequestRejectsUnsupportedImagenDimensions(t *testing.T) {
+	request := dto.ImageRequest{
+		Model:  "imagen-4.0-generate-001",
+		Prompt: "a mountain cabin",
+		Extra: map[string]json.RawMessage{
+			"aspect_ratio": mustJSON(t, "3:2"),
+		},
+	}
+
+	_, err := (&Adaptor{}).ConvertImageRequest(testGeminiImageContext(), testNativeImageInfo(request.Model), request)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "aspect_ratio 3:2 is not supported")
+
+	request.Extra = map[string]json.RawMessage{"resolution": mustJSON(t, "4K")}
+	_, err = (&Adaptor{}).ConvertImageRequest(testGeminiImageContext(), testNativeImageInfo(request.Model), request)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resolution 4K is not supported")
 }
 
 func TestChatImageHandlerNormalizesInlineImages(t *testing.T) {

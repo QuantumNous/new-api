@@ -41,13 +41,21 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useStatus } from '@/hooks/use-status'
 
 import {
+  buildAsyncImageSample,
+  type ImageSampleLanguage,
+} from '../lib/image-api-docs'
+import {
   buildRateLimits,
   buildSupportedParameters,
   formatRateLimit,
   type SupportedParameter,
 } from '../lib/mock-stats'
 import { replaceModelInPath } from '../lib/model-helpers'
-import type { PricingModel } from '../types'
+import type {
+  ApiProfileParameter,
+  ModelApiProfile,
+  PricingModel,
+} from '../types'
 
 // ---------------------------------------------------------------------------
 // Code-sample registry
@@ -58,7 +66,7 @@ import type { PricingModel } from '../types'
 // types the model actually supports. This keeps copy-pasted code accurate and
 // provider-shaped (OpenAI vs Anthropic vs Gemini, etc.).
 
-type Lang = 'curl' | 'python' | 'typescript' | 'javascript'
+type Lang = ImageSampleLanguage
 
 const LANG_LABELS: Record<Lang, string> = {
   curl: 'cURL',
@@ -80,6 +88,7 @@ type SampleContext = {
   modelName: string
   endpointType: string
   endpointPath: string
+  apiProfile?: ModelApiProfile
 }
 
 function buildChatSample(lang: Lang, ctx: SampleContext): string {
@@ -109,7 +118,7 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
       `curl ${url} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${bodyJson.replace(/\n/g, '\n     ')}'`,
+      `  -d '${bodyJson.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
 
@@ -177,7 +186,7 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
       `  -H "x-api-key: $${ctx.apiKeyEnv}" \\`,
       `  -H "anthropic-version: 2023-06-01" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -249,7 +258,7 @@ function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
     return [
       `curl '${url}' \\`,
       `  -H 'Content-Type: application/json' \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -299,7 +308,7 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
       `curl ${url} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -351,76 +360,49 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
-function buildImageSample(lang: Lang, ctx: SampleContext): string {
-  const url = `${ctx.baseUrl}${ctx.endpointPath}`
-  const prompt = 'A serene koi pond at sunset, ukiyo-e style.'
-
-  if (lang === 'curl') {
-    const body = JSON.stringify(
-      { model: ctx.modelName, prompt, size: '1024x1024', n: 1 },
-      null,
-      2
-    )
-    return [
-      `curl ${url} \\`,
-      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
-      `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
-    ].join('\n')
+function fallbackImageProfile(endpointPath: string): ModelApiProfile {
+  return {
+    kind: 'image',
+    endpoint: endpointPath,
+    async: true,
+    poll_endpoint: `${endpointPath}/{task_id}`,
+    webhook: true,
+    result_delivery: 'oss_url',
+    operations: ['generation'],
+    parameters: [
+      {
+        name: 'prompt',
+        type: 'string',
+        required: true,
+        description: 'Text description of the desired image',
+      },
+      {
+        name: 'n',
+        type: 'integer',
+        default: 1,
+        min: 1,
+        max: 1,
+        description: 'Number of images to generate',
+      },
+      {
+        name: 'response_format',
+        type: 'enum',
+        default: 'url',
+        enum_values: ['url'],
+        description: 'How to deliver the resulting image',
+      },
+      {
+        name: 'webhook_url',
+        type: 'string',
+        description: 'URL receiving image task completion notifications',
+      },
+      {
+        name: 'webhook_secret',
+        type: 'string',
+        description: 'Secret used to sign webhook deliveries',
+      },
+    ],
   }
-  if (lang === 'python') {
-    return [
-      'from openai import OpenAI',
-      '',
-      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key="<YOUR_API_KEY>")`,
-      '',
-      'response = client.images.generate(',
-      `    model="${ctx.modelName}",`,
-      `    prompt="${prompt}",`,
-      `    size="1024x1024",`,
-      `    n=1,`,
-      ')',
-      '',
-      'print(response.data[0].url)',
-    ].join('\n')
-  }
-  if (lang === 'typescript') {
-    return [
-      `import OpenAI from 'openai'`,
-      '',
-      `const client = new OpenAI({`,
-      `  baseURL: '${ctx.baseUrl}/v1',`,
-      `  apiKey: process.env.${ctx.apiKeyEnv},`,
-      `})`,
-      '',
-      `const response = await client.images.generate({`,
-      `  model: '${ctx.modelName}',`,
-      `  prompt: '${prompt}',`,
-      `  size: '1024x1024',`,
-      `  n: 1,`,
-      `})`,
-      '',
-      `console.log(response.data[0].url)`,
-    ].join('\n')
-  }
-  return [
-    `const response = await fetch('${url}', {`,
-    `  method: 'POST',`,
-    `  headers: {`,
-    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
-    `    'Content-Type': 'application/json',`,
-    `  },`,
-    `  body: JSON.stringify({`,
-    `    model: '${ctx.modelName}',`,
-    `    prompt: '${prompt}',`,
-    `    size: '1024x1024',`,
-    `    n: 1,`,
-    `  }),`,
-    `})`,
-    '',
-    `const data = await response.json()`,
-    `console.log(data.data[0].url)`,
-  ].join('\n')
 }
 
 function buildSample(
@@ -430,9 +412,18 @@ function buildSample(
 ): string {
   if (endpointType === 'anthropic') return buildAnthropicSample(lang, ctx)
   if (endpointType === 'gemini') return buildGeminiSample(lang, ctx)
-  if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
+  if (endpointType === 'embeddings' || endpointType === 'jina-rerank') {
     return buildEmbeddingSample(lang, ctx)
-  if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
+  }
+  if (endpointType === 'image-generation') {
+    return buildAsyncImageSample(lang, {
+      baseUrl: ctx.baseUrl,
+      apiKeyEnv: ctx.apiKeyEnv,
+      modelName: ctx.modelName,
+      endpointPath: ctx.endpointPath,
+      profile: ctx.apiProfile ?? fallbackImageProfile(ctx.endpointPath),
+    })
+  }
   return buildChatSample(lang, ctx)
 }
 
@@ -461,6 +452,16 @@ function CodeSamplesSection(props: {
   }, [status])
 
   const endpoints = useMemo(() => {
+    if (props.model.api_profile?.kind === 'image') {
+      return [
+        {
+          type: 'image-generation',
+          path: props.model.api_profile.endpoint,
+          method: 'POST',
+        },
+      ]
+    }
+
     const types = props.model.supported_endpoint_types || []
     return types
       .map((type) => {
@@ -493,27 +494,47 @@ function CodeSamplesSection(props: {
     modelName: props.model.model_name || '',
     endpointType: activeEndpoint.type,
     endpointPath: activeEndpoint.path,
+    apiProfile: props.model.api_profile,
   })
 
   return (
     <section>
       <SectionTitle icon={ScrollText}>{t('Code samples')}</SectionTitle>
 
+      {props.model.api_profile?.kind === 'image' && (
+        <div className='mb-3 flex flex-wrap gap-1.5'>
+          <Badge variant='secondary'>202 {t('Async task')}</Badge>
+          <Badge variant='outline'>{t('Polling')}</Badge>
+          {props.model.api_profile.webhook && (
+            <Badge variant='outline'>Webhook</Badge>
+          )}
+          {props.model.api_profile.result_delivery === 'oss_url' && (
+            <Badge variant='outline'>{t('OSS URL')}</Badge>
+          )}
+        </div>
+      )}
+
       <div className='flex flex-wrap items-center gap-2'>
-        {endpoints.length > 1 && (
-          <Tabs value={endpointType} onValueChange={setEndpointType}>
-            <TabsList className='bg-muted/40 h-8 p-0.5'>
-              {endpoints.map((ep) => (
-                <TabsTrigger
-                  key={ep.type}
-                  value={ep.type}
-                  className='h-7 px-2.5 text-xs'
-                >
-                  {ep.type}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+        {props.model.api_profile?.kind === 'image' ? (
+          <Badge variant='outline'>{t('Unified image generation')}</Badge>
+        ) : (
+          endpoints.length > 1 && (
+            <Tabs value={endpointType} onValueChange={setEndpointType}>
+              <TabsList className='bg-muted/40 h-8 p-0.5'>
+                {endpoints.map((ep) => (
+                  <TabsTrigger
+                    key={ep.type}
+                    value={ep.type}
+                    className='h-7 px-2.5 text-xs'
+                  >
+                    {ep.type === 'image-generation'
+                      ? t('Unified image generation')
+                      : ep.type}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )
         )}
 
         <Tabs
@@ -538,11 +559,10 @@ function CodeSamplesSection(props: {
       </div>
 
       <p className='text-muted-foreground mt-2 text-xs'>
-        {t('Replace')}{' '}
         <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
-          {'<YOUR_API_KEY>'}
+          NEW_API_KEY
         </code>{' '}
-        {t('with the API key from your token settings.')}
+        {t('must contain the API key from your token settings.')}
       </p>
     </section>
   )
@@ -554,10 +574,12 @@ function CodeSamplesSection(props: {
 
 function SupportedParametersSection(props: { model: PricingModel }) {
   const { t } = useTranslation()
-  const params = useMemo(
-    () => buildSupportedParameters(props.model),
-    [props.model]
-  )
+  const params = useMemo(() => {
+    if (props.model.api_profile?.kind === 'image') {
+      return props.model.api_profile.parameters.map(profileParameterForDisplay)
+    }
+    return buildSupportedParameters(props.model)
+  }, [props.model])
 
   if (params.length === 0) return null
 
@@ -606,8 +628,8 @@ function SupportedParametersSection(props: { model: PricingModel }) {
           },
           {
             id: 'range',
-            header: t('Default / range'),
-            className: 'h-9 w-32',
+            header: t('Default / allowed values'),
+            className: 'h-9 w-72',
             cellClassName: tableStyles.topCell,
             cell: (p) => <ParamRangeCell param={p} />,
           },
@@ -620,45 +642,139 @@ function SupportedParametersSection(props: { model: PricingModel }) {
           },
         ]}
       />
+      <ApiProfileConstraints profile={props.model.api_profile} />
     </section>
   )
 }
 
+function profileParameterForDisplay(
+  parameter: ApiProfileParameter
+): SupportedParameter {
+  let range: string | undefined
+  if (parameter.min !== undefined && parameter.max !== undefined) {
+    range = `${parameter.min} ~ ${parameter.max}`
+  } else if (parameter.min !== undefined) {
+    range = `>= ${parameter.min}`
+  } else if (parameter.max !== undefined) {
+    range = `<= ${parameter.max}`
+  } else if (parameter.max_items !== undefined) {
+    range = `1 ~ ${parameter.max_items}`
+  }
+
+  return {
+    name: parameter.name,
+    type: parameter.type,
+    required: parameter.required,
+    defaultValue: parameter.default,
+    enumValues: parameter.enum_values,
+    range,
+    descriptionKey:
+      IMAGE_PARAMETER_DESCRIPTION_KEYS[parameter.name] ||
+      parameter.description ||
+      parameter.name,
+  }
+}
+
+const IMAGE_PARAMETER_DESCRIPTION_KEYS: Record<string, string> = {
+  prompt: 'Text description of the desired image',
+  image_input: 'Reference image URLs for image editing',
+  aspect_ratio: 'Output aspect ratio supported by the selected model',
+  resolution: 'Output resolution supported by the selected model',
+  size: 'Output image size',
+  quality: 'Generation quality preset',
+  n: 'Number of images to generate',
+  output_format: 'Generated image file format',
+  output_compression: 'Output compression level from 0 to 100',
+  background: 'Background treatment for the generated image',
+  moderation: 'Safety moderation level for image generation',
+  watermark: 'Whether to add a provider watermark',
+  prompt_optimizer: 'Whether to optimize the prompt before generation',
+  parameters: 'Provider-specific image parameters',
+  extra_fields: 'Provider-specific image parameters',
+  negative_prompt: 'Content to exclude from the generated image',
+  batch_size: 'Number of images requested from the provider',
+  seed: 'Random seed used by the image model',
+  num_inference_steps: 'Number of denoising steps',
+  guidance_scale: 'Guidance scale used by the image model',
+  cfg: 'Classifier-free guidance value',
+  response_format: 'How to deliver the resulting image',
+  webhook_url: 'URL receiving image task completion notifications',
+  webhook_secret: 'Secret used to sign webhook deliveries',
+}
+
 function ParamRangeCell(props: { param: SupportedParameter }) {
+  const { t } = useTranslation()
   const { defaultValue, range, enumValues } = props.param
-  if (defaultValue !== undefined) {
-    return (
-      <div className='flex flex-wrap items-center gap-1'>
-        <span className='text-muted-foreground text-sm'>=</span>
-        <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
-          {String(defaultValue)}
-        </code>
-        {range && (
-          <span className='text-muted-foreground text-sm'>{range}</span>
-        )}
-      </div>
-    )
+  if (
+    defaultValue === undefined &&
+    !range &&
+    (!enumValues || enumValues.length === 0)
+  ) {
+    return <span className='text-muted-foreground/60 text-sm'>—</span>
   }
-  if (range) {
-    return (
-      <span className='text-muted-foreground font-mono text-sm'>{range}</span>
-    )
-  }
-  if (enumValues && enumValues.length > 0) {
-    return (
-      <div className='flex flex-wrap gap-0.5'>
-        {enumValues.map((v) => (
-          <code
-            key={v}
-            className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-sm'
-          >
-            {v}
+
+  return (
+    <div className='space-y-1.5'>
+      {defaultValue !== undefined && (
+        <div className='flex flex-wrap items-center gap-1'>
+          <span className='text-muted-foreground text-xs'>{t('Default')}:</span>
+          <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+            {String(defaultValue)}
           </code>
-        ))}
+        </div>
+      )}
+      {enumValues && enumValues.length > 0 && (
+        <div className='flex flex-wrap gap-1'>
+          {enumValues.map((v) => (
+            <code
+              key={v}
+              className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs'
+            >
+              {v}
+            </code>
+          ))}
+        </div>
+      )}
+      {range && (
+        <span className='text-muted-foreground block font-mono text-xs'>
+          {range}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function ApiProfileConstraints(props: { profile?: ModelApiProfile }) {
+  const { t } = useTranslation()
+  const constraints = props.profile?.constraints || []
+  const combinations = constraints.flatMap((constraint) =>
+    constraint.type === 'allowed_combinations' ? constraint.combinations : []
+  )
+
+  if (combinations.length === 0) return null
+
+  return (
+    <div className='mt-3'>
+      <p className='text-muted-foreground mb-2 text-xs font-medium'>
+        {t('Supported combinations')}
+      </p>
+      <div className='flex flex-wrap gap-1.5'>
+        {combinations.map((combination) => {
+          const label = Object.entries(combination)
+            .map(([field, value]) => `${field}=${value}`)
+            .join(' · ')
+          return (
+            <code
+              key={label}
+              className='bg-muted text-muted-foreground rounded px-2 py-1 font-mono text-xs'
+            >
+              {label}
+            </code>
+          )
+        })}
       </div>
-    )
-  }
-  return <span className='text-muted-foreground/60 text-sm'>—</span>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -767,7 +883,9 @@ export function ModelDetailsApi(props: {
       <CodeSamplesSection model={props.model} endpointMap={props.endpointMap} />
       <AuthSection />
       <SupportedParametersSection model={props.model} />
-      <RateLimitsSection model={props.model} />
+      {props.model.api_profile?.kind !== 'image' && (
+        <RateLimitsSection model={props.model} />
+      )}
     </div>
   )
 }

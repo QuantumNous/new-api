@@ -33,6 +33,8 @@ type responsesRequest struct {
 	Stream bool                  `json:"stream"`
 }
 
+const maxResponsesImageOutputs = 1
+
 // imageRequestValidationError marks errors caused by the persisted client
 // request itself. The async worker uses this marker to avoid retrying or
 // cooling a healthy upstream channel for a deterministic 4xx failure.
@@ -73,24 +75,6 @@ func rawStringField(raw json.RawMessage, field string) (string, error) {
 	return value, nil
 }
 
-var gptImage2OfficialSizes = map[string]string{
-	"1K|1:1":  "1024x1024",
-	"1K|16:9": "1536x864",
-	"1K|9:16": "864x1536",
-	"1K|3:4":  "1024x1360",
-	"1K|4:3":  "1360x1024",
-	"2K|1:1":  "1440x1440",
-	"2K|16:9": "2048x1152",
-	"2K|9:16": "1152x2048",
-	"2K|3:4":  "1248x1664",
-	"2K|4:3":  "1664x1248",
-	"4K|1:1":  "2880x2880",
-	"4K|16:9": "3840x2160",
-	"4K|9:16": "2160x3840",
-	"4K|3:4":  "2448x3264",
-	"4K|4:3":  "3264x2448",
-}
-
 // gptImageSizeFromUnifiedOptions maps the gateway's model-neutral
 // aspect_ratio/resolution controls to the size field accepted by the OpenAI
 // Responses image_generation tool. GPT Image 2 accepts the 15 official
@@ -99,27 +83,20 @@ func gptImageSizeFromUnifiedOptions(req *dto.ImageRequest, model string) (string
 	if req == nil {
 		return "", errors.New("image request is required")
 	}
+	capabilities := common.ImageModelCapabilitiesForModel(model)
 	if req.Size != "" {
 		size := strings.TrimSpace(req.Size)
-		normalizedModel := strings.ToLower(strings.TrimSpace(model))
-		if strings.HasPrefix(normalizedModel, "gpt-image-2") {
-			if size == "auto" {
+		if capabilities.Family == common.ImageModelFamilyGPTImage2 {
+			if capabilities.SupportsSize(size) {
 				return size, nil
-			}
-			for _, officialSize := range gptImage2OfficialSizes {
-				if size == officialSize {
-					return size, nil
-				}
 			}
 			return "", fmt.Errorf("size %q is not supported by model %s; use one of the 15 official sizes or auto", size, model)
 		}
-		if strings.HasPrefix(normalizedModel, "gpt-image-") {
-			switch size {
-			case "auto", "1024x1024", "1536x1024", "1024x1536":
+		if capabilities.Family == common.ImageModelFamilyGPTImage {
+			if capabilities.SupportsSize(size) {
 				return size, nil
-			default:
-				return "", fmt.Errorf("size %q is not supported by model %s", size, model)
 			}
+			return "", fmt.Errorf("size %q is not supported by model %s", size, model)
 		}
 		return size, nil
 	}
@@ -154,34 +131,42 @@ func gptImageSizeFromUnifiedOptions(req *dto.ImageRequest, model string) (string
 		return "", fmt.Errorf("unsupported resolution %q", resolution)
 	}
 
-	normalizedModel := strings.ToLower(strings.TrimSpace(model))
-	if !strings.HasPrefix(normalizedModel, "gpt-image-2") {
+	if capabilities.Family != common.ImageModelFamilyGPTImage2 {
 		if resolution != "1K" {
 			return "", fmt.Errorf("resolution %s is not supported by model %s", resolution, model)
 		}
-		switch aspectRatio {
-		case "1:1":
-			return "1024x1024", nil
-		case "3:2":
-			return "1536x1024", nil
-		case "2:3":
-			return "1024x1536", nil
-		default:
-			return "", fmt.Errorf("aspect_ratio %s is not supported by model %s", aspectRatio, model)
+		if size, ok := common.ImageModelCapabilitiesForModel("gpt-image-1").SizeFor(resolution, aspectRatio); ok {
+			return size, nil
 		}
+		return "", fmt.Errorf("aspect_ratio %s is not supported by model %s", aspectRatio, model)
+	}
+	size, ok := capabilities.SizeFor(resolution, aspectRatio)
+	if ok {
+		return size, nil
 	}
 	if aspectRatio == "auto" {
-		if resolution == "1K" {
-			return "auto", nil
-		}
 		return "", fmt.Errorf("aspect_ratio %q is only supported with resolution 1K by model %s", aspectRatio, model)
 	}
+	return "", fmt.Errorf("aspect_ratio %q is not supported by model %s; use one of 1:1, 16:9, 9:16, 3:4, or 4:3", aspectRatio, model)
+}
 
-	size, ok := gptImage2OfficialSizes[resolution+"|"+aspectRatio]
-	if !ok {
-		return "", fmt.Errorf("aspect_ratio %q is not supported by model %s; use one of 1:1, 16:9, 9:16, 3:4, or 4:3", aspectRatio, model)
+// NormalizeUnifiedGPTImageDimensions converts the public aspect_ratio and
+// resolution controls into the size field understood by both OpenAI image
+// executors. It also removes the gateway-only aliases before provider relay.
+func NormalizeUnifiedGPTImageDimensions(req *dto.ImageRequest, model string) error {
+	if req == nil {
+		return errors.New("image request is required")
 	}
-	return size, nil
+	size, err := gptImageSizeFromUnifiedOptions(req, model)
+	if err != nil {
+		return err
+	}
+	if size != "" {
+		req.Size = size
+	}
+	delete(req.Extra, "aspect_ratio")
+	delete(req.Extra, "resolution")
+	return nil
 }
 
 // buildEditsRequest converts /v1/images/edits multipart input into a
@@ -258,6 +243,27 @@ func buildGenerationsRequest(req *dto.ImageRequest, modelOverride string) respon
 // exported so the relay can run this dry-run before reference images are
 // copied into object storage.
 func ValidateAsyncOpenAIImageRequest(req *dto.ImageRequest, model string) error {
+	return validateAsyncOpenAIImageRequest(req, model, true)
+}
+
+// validateAsyncOpenAIImageRequest validates the fields shared by the OpenAI
+// Responses executor and the compatibility adaptor. The output-count limit is
+// executor-specific: the Responses image_generation tool currently accepts
+// one image, while an adaptor may legitimately support a larger batch.
+func validateAsyncOpenAIImageRequest(req *dto.ImageRequest, model string, enforceOutputCount bool) error {
+	if req == nil {
+		return errors.New("image request is required")
+	}
+	capabilities := common.ImageModelCapabilitiesForModel(model)
+	if enforceOutputCount && req.N != nil {
+		maxOutputs := capabilities.MaxOutputImages
+		if capabilities.Family == common.ImageModelFamilyGPTImage || capabilities.Family == common.ImageModelFamilyGPTImage2 {
+			maxOutputs = maxResponsesImageOutputs
+		}
+		if maxOutputs > 0 && *req.N > uint(maxOutputs) {
+			return fmt.Errorf("n must be between 1 and %d for model %s", maxOutputs, model)
+		}
+	}
 	_, err := buildGenerationsRequestWithError(req, model)
 	return err
 }
@@ -285,7 +291,12 @@ func buildGenerationsRequestWithError(req *dto.ImageRequest, modelOverride strin
 		tool.Size = toolSize
 	}
 	if req.Quality != "" {
-		tool.Quality = req.Quality
+		quality := strings.ToLower(strings.TrimSpace(req.Quality))
+		capabilities := common.ImageModelCapabilitiesForModel(model)
+		if (capabilities.Family == common.ImageModelFamilyGPTImage || capabilities.Family == common.ImageModelFamilyGPTImage2) && !capabilities.SupportsQuality(quality) {
+			return responsesRequest{}, fmt.Errorf("quality %q is not supported by model %s", req.Quality, model)
+		}
+		tool.Quality = quality
 	}
 	of, err := rawStringField(req.OutputFormat, "output_format")
 	if err != nil {

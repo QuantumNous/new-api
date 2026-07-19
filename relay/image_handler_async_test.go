@@ -90,6 +90,7 @@ func decryptStoredImageHandlerCheckpoint(t *testing.T, checkpoint json.RawMessag
 
 func TestValidateAsyncImageProviderCapabilitiesRejectsUnsupportedCombinations(t *testing.T) {
 	two := uint(2)
+	five := uint(5)
 	fourImages := json.RawMessage(`[
 		"https://example.com/1.png", "https://example.com/2.png",
 		"https://example.com/3.png", "https://example.com/4.png"
@@ -107,6 +108,25 @@ func TestValidateAsyncImageProviderCapabilitiesRejectsUnsupportedCombinations(t 
 			}},
 			request: &dto.ImageRequest{Model: "imagen-4.0-generate-001", Images: json.RawMessage(`["https://example.com/reference.png"]`)},
 			message: "Imagen models do not support",
+		},
+		{
+			name: "imagen edit mode",
+			info: &relaycommon.RelayInfo{
+				RelayMode: relayconstant.RelayModeImagesEdits,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ApiType: constant.APITypeGemini, UpstreamModelName: "imagen-4.0-generate-001",
+				},
+			},
+			request: &dto.ImageRequest{Model: "imagen-4.0-generate-001"},
+			message: "do not support image edits",
+		},
+		{
+			name: "imagen output count",
+			info: &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+				ApiType: constant.APITypeGemini, ChannelType: constant.ChannelTypeGemini, UpstreamModelName: "imagen-4.0-generate-001",
+			}},
+			request: &dto.ImageRequest{Model: "imagen-4.0-generate-001", N: &five},
+			message: "at most 4 output images",
 		},
 		{
 			name: "replicate reference input",
@@ -139,6 +159,22 @@ func TestValidateAsyncImageProviderCapabilitiesRejectsUnsupportedCombinations(t 
 			}},
 			request: &dto.ImageRequest{Model: "gemini-3.1-flash-image", OutputFormat: json.RawMessage(`"jpeg"`)},
 			message: "use png",
+		},
+		{
+			name: "seedream reference input",
+			info: &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+				ApiType: constant.APITypeVolcEngine, ChannelType: constant.ChannelTypeVolcEngine, UpstreamModelName: "doubao-seedream-4-0-250828",
+			}},
+			request: &dto.ImageRequest{Model: "doubao-seedream-4-0-250828", Images: json.RawMessage(`["https://example.com/reference.png"]`)},
+			message: "does not support unified image inputs",
+		},
+		{
+			name: "seedream output format",
+			info: &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+				ApiType: constant.APITypeVolcEngine, ChannelType: constant.ChannelTypeVolcEngine, UpstreamModelName: "doubao-seedream-4-0-250828",
+			}},
+			request: &dto.ImageRequest{Model: "doubao-seedream-4-0-250828", OutputFormat: json.RawMessage(`"webp"`)},
+			message: "use png or jpeg",
 		},
 	}
 
@@ -362,10 +398,18 @@ func TestImageEditAliasesSubmitMultipartAsDurableAsyncTasks(t *testing.T) {
 	}
 }
 
-func TestImageHelperUsesAdaptorForGPTBatchWhenParamOverrideDisablesResponsesExecutor(t *testing.T) {
+func TestImageHelperUsesMappedGPT2DimensionsForAdaptorBatch(t *testing.T) {
 	setupImageHelperAsyncTestDB(t)
 	two := uint(2)
-	request := &dto.ImageRequest{Model: "gpt-image-2", Prompt: "two observatories", N: &two}
+	request := &dto.ImageRequest{
+		Model:  "gpt-image-1",
+		Prompt: "two observatories",
+		N:      &two,
+		Extra: map[string]json.RawMessage{
+			"aspect_ratio": json.RawMessage(`"16:9"`),
+			"resolution":   json.RawMessage(`"2K"`),
+		},
+	}
 	info := &relaycommon.RelayInfo{
 		RequestId:       "request-gpt-image-param-override-batch",
 		StartTime:       time.Now(),
@@ -384,6 +428,7 @@ func TestImageHelperUsesAdaptorForGPTBatchWhenParamOverrideDisablesResponsesExec
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("model_mapping", `{"gpt-image-1":"gpt-image-2"}`)
 	common.SetContextKey(c, constant.ContextKeyChannelId, 81)
 	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, int64(1700000008))
@@ -409,10 +454,14 @@ func TestImageHelperUsesAdaptorForGPTBatchWhenParamOverrideDisablesResponsesExec
 	require.NotNil(t, checkpoint.PreparedRequest)
 	var providerBody map[string]any
 	require.NoError(t, common.Unmarshal(checkpoint.PreparedRequest.Body, &providerBody))
+	assert.Equal(t, "gpt-image-2", providerBody["model"])
 	assert.Equal(t, float64(2), providerBody["n"])
+	assert.Equal(t, "2048x1152", providerBody["size"])
+	assert.NotContains(t, providerBody, "aspect_ratio")
+	assert.NotContains(t, providerBody, "resolution")
 }
 
-func TestImageHelperRejectsGPTBatchAfterModelMapping(t *testing.T) {
+func TestImageHelperUsesMappedProviderFamilyInsteadOfPublicGPTFamily(t *testing.T) {
 	setupImageHelperAsyncTestDB(t)
 	two := uint(2)
 	request := &dto.ImageRequest{Model: "gpt-image-2", Prompt: "two observatories", N: &two}
@@ -434,9 +483,9 @@ func TestImageHelperRejectsGPTBatchAfterModelMapping(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 	c.Request.Header.Set("Content-Type", "application/json")
-	c.Set("model_mapping", `{"gpt-image-2":"vendor-image-v2"}`)
+	c.Set("model_mapping", `{"gpt-image-2":"image-01"}`)
 	common.SetContextKey(c, constant.ContextKeyChannelId, 82)
-	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeMiniMax)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, int64(1700000009))
 	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://openai.example.com")
 	common.SetContextKey(c, constant.ContextKeyChannelKey, "openai-mapped-model-key")
@@ -448,11 +497,22 @@ func TestImageHelperRejectsGPTBatchAfterModelMapping(t *testing.T) {
 
 	apiErr := ImageHelper(c, info)
 
-	require.NotNil(t, apiErr)
-	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
-	assert.Contains(t, apiErr.Error(), "supports only n=1")
+	require.Nil(t, apiErr)
+	assert.Equal(t, http.StatusAccepted, recorder.Code)
 	assert.Equal(t, "gpt-image-2", info.OriginModelName)
-	assert.Equal(t, "vendor-image-v2", info.UpstreamModelName)
+	assert.Equal(t, "image-01", info.UpstreamModelName)
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	var checkpoint struct {
+		Executor        string                                  `json:"executor"`
+		PreparedRequest *image_stream.PreparedAsyncImageRequest `json:"prepared_request"`
+	}
+	require.NoError(t, common.Unmarshal(decryptStoredImageHandlerCheckpoint(t, task.CheckpointData), &checkpoint))
+	assert.Equal(t, image_stream.AsyncImageExecutorAdaptor, checkpoint.Executor)
+	require.NotNil(t, checkpoint.PreparedRequest)
+	var providerBody map[string]any
+	require.NoError(t, common.Unmarshal(checkpoint.PreparedRequest.Body, &providerBody))
+	assert.Equal(t, "image-01", providerBody["model"])
 }
 
 func TestImageHelperSubmitsNonGPTImageAsAsyncWhenExplicitlyDisabled(t *testing.T) {

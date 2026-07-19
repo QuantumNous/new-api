@@ -68,6 +68,44 @@ export type PricingModel = {
   input_modalities?: Modality[]
   output_modalities?: Modality[]
   capabilities?: ModelCapability[]
+  api_profile?: ModelApiProfile
+}
+
+export type ApiProfileParameter = {
+  name: string
+  type:
+    | 'string'
+    | 'integer'
+    | 'number'
+    | 'boolean'
+    | 'array'
+    | 'object'
+    | 'enum'
+  required?: boolean
+  default?: string | number | boolean
+  enum_values?: string[]
+  min?: number
+  max?: number
+  max_items?: number
+  description?: string
+}
+
+export type ApiProfileCombinationConstraint = {
+  type: 'allowed_combinations'
+  fields: string[]
+  combinations: Array<Record<string, string>>
+}
+
+export type ModelApiProfile = {
+  kind: 'image'
+  endpoint: string
+  async: boolean
+  poll_endpoint?: string
+  webhook?: boolean
+  result_delivery?: string
+  operations?: string[]
+  parameters: ApiProfileParameter[]
+  constraints?: ApiProfileCombinationConstraint[]
 }
 
 /** Input/output modalities supported by a model. */

@@ -183,8 +183,8 @@ func nativeImageConfigForRequest(request dto.ImageRequest) (map[string]string, e
 		if err := common.Unmarshal(raw, &aspectRatio); err != nil {
 			return nil, fmt.Errorf("invalid %s: %w", field, err)
 		}
-		if value := strings.TrimSpace(aspectRatio); value != "" {
-			if value != "auto" && !supportedNativeImageAspectRatios[value] {
+		if value := strings.ToLower(strings.TrimSpace(aspectRatio)); value != "" {
+			if !common.IsKnownNativeImageAspectRatio(value) {
 				return nil, fmt.Errorf("unsupported aspect_ratio %q", value)
 			}
 			config.AspectRatio = value
@@ -202,7 +202,7 @@ func nativeImageConfigForRequest(request dto.ImageRequest) (map[string]string, e
 			return nil, fmt.Errorf("invalid %s: %w", field, err)
 		}
 		if value := strings.ToUpper(strings.TrimSpace(imageSize)); value != "" {
-			if !supportedNativeImageResolutions[value] {
+			if !common.IsKnownNativeImageResolution(value) {
 				return nil, fmt.Errorf("unsupported resolution %q", value)
 			}
 			config.ImageSize = value
@@ -236,101 +236,34 @@ func ValidateNativeImageRequestOptionsForModel(request dto.ImageRequest, model s
 	if err != nil {
 		return err
 	}
-	if aspectRatio := config["aspect_ratio"]; aspectRatio != "" && aspectRatio != "auto" && !nativeImageModelSupportsAspectRatio(model, aspectRatio) {
+	capabilities := nativeImageModelCapabilities(model)
+	if aspectRatio := config["aspect_ratio"]; aspectRatio != "" && !capabilities.SupportsAspectRatio(aspectRatio) {
 		return fmt.Errorf("aspect_ratio %s is not supported by model %s", aspectRatio, model)
 	}
-	requested := nativeResolutionRank(config["image_size"])
+	requested := common.ImageResolutionRank(config["image_size"])
 	if requested == 0 {
 		return nil
 	}
-	capabilities := nativeImageCapabilitiesForModel(model)
-	if strings.EqualFold(config["image_size"], "512") && !capabilities.supportsHalfK {
+	if strings.EqualFold(config["image_size"], "512") && !capabilities.SupportsResolution("512") {
 		return fmt.Errorf("resolution 512 is not supported by model %s (minimum 1K)", model)
 	}
-	maximum := nativeResolutionRank(capabilities.maxResolution)
+	maximum := common.ImageResolutionRank(capabilities.MaxResolution())
 	if requested > maximum {
 		return fmt.Errorf("resolution %s is not supported by model %s (maximum %s)", config["image_size"], model, maxNativeImageResolution(model))
 	}
 	return nil
 }
 
-func nativeImageModelSupportsAspectRatio(model, aspectRatio string) bool {
-	return nativeImageCapabilitiesForModel(model).aspectRatios[aspectRatio]
-}
-
-func nativeResolutionRank(value string) int {
-	switch strings.ToUpper(strings.TrimSpace(value)) {
-	case "512", "0.5K":
-		return 1
-	case "1K":
-		return 2
-	case "2K":
-		return 3
-	case "4K":
-		return 4
-	default:
-		return 0
-	}
-}
-
 func maxNativeImageResolution(model string) string {
-	return nativeImageCapabilitiesForModel(model).maxResolution
+	return nativeImageModelCapabilities(model).MaxResolution()
 }
 
-type nativeImageModelCapabilities struct {
-	aspectRatios  map[string]bool
-	maxResolution string
-	supportsHalfK bool
-}
-
-func nativeImageCapabilitiesForModel(model string) nativeImageModelCapabilities {
-	normalized := normalizeGeminiModelName(model)
-	switch normalized {
-	case "nano-banana-2", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview":
-		return nativeImageModelCapabilities{
-			aspectRatios:  supportedGeminiFlashImageAspectRatios,
-			maxResolution: "4K",
-			supportsHalfK: true,
-		}
-	case "nano-banana-pro", "nano-banana-pro-preview",
-		"gemini-3-pro-image", "gemini-3-pro-image-preview", "gemini-3.1-pro-image":
-		return nativeImageModelCapabilities{
-			aspectRatios:  supportedStandardGeminiImageAspectRatios,
-			maxResolution: "4K",
-		}
-	default:
-		// Gemini 2.5 image, Flash Lite image, legacy aliases, and custom
-		// configured image models are kept to their common 1K capability.
-		return nativeImageModelCapabilities{
-			aspectRatios:  supportedStandardGeminiImageAspectRatios,
-			maxResolution: "1K",
-		}
+func nativeImageModelCapabilities(model string) common.ImageModelCapabilities {
+	capabilities := common.ImageModelCapabilitiesForModel(model)
+	if capabilities.Family == common.ImageModelFamilyGeneric {
+		return common.ImageModelCapabilitiesForModel("gemini-2.5-flash-image")
 	}
-}
-
-var supportedNativeImageAspectRatios = map[string]bool{
-	"1:1": true, "1:4": true, "1:8": true, "2:3": true, "3:2": true,
-	"3:4": true, "4:1": true, "4:3": true, "4:5": true, "5:4": true,
-	"8:1": true, "9:16": true, "16:9": true, "21:9": true,
-	"2:1": true, "1:2": true, "3:1": true, "1:3": true, "9:21": true,
-}
-
-var supportedGeminiFlashImageAspectRatios = map[string]bool{
-	"1:1": true, "1:4": true, "1:8": true, "2:3": true, "3:2": true,
-	"3:4": true, "4:1": true, "4:3": true, "4:5": true, "5:4": true,
-	"8:1": true, "9:16": true, "16:9": true, "21:9": true,
-}
-
-var supportedStandardGeminiImageAspectRatios = map[string]bool{
-	"1:1": true, "2:3": true, "3:2": true, "3:4": true, "4:3": true,
-	"4:5": true, "5:4": true, "9:16": true, "16:9": true, "21:9": true,
-}
-
-var supportedNativeImageResolutions = map[string]bool{
-	"512": true,
-	"1K":  true,
-	"2K":  true,
-	"4K":  true,
+	return capabilities
 }
 
 func nativeImageMessageContent(request dto.ImageRequest) (any, error) {
@@ -412,30 +345,73 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
 		return a.convertNativeImageRequest(c, info, request)
 	}
-	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
+	upstreamModel := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(info.UpstreamModelName)), "models/")
+	if !strings.HasPrefix(upstreamModel, "imagen-") {
 		return nil, errors.New("not supported model for image generation, only imagen models are supported")
 	}
+	capabilities := common.ImageModelCapabilitiesForModel(upstreamModel)
 
-	// convert size to aspect ratio but allow user to specify aspect ratio
-	aspectRatio := "1:1" // default aspect ratio
+	// Preserve the legacy OpenAI size aliases while allowing the unified
+	// aspect_ratio field to override them.
+	aspectRatio := capabilities.DefaultAspectRatio
 	size := strings.TrimSpace(request.Size)
 	if size != "" {
 		if strings.Contains(size, ":") {
-			aspectRatio = size
+			candidate := strings.ToLower(size)
+			if !capabilities.SupportsAspectRatio(candidate) {
+				return nil, fmt.Errorf("aspect_ratio %s is not supported by model %s", candidate, upstreamModel)
+			}
+			aspectRatio = candidate
 		} else {
 			switch size {
 			case "256x256", "512x512", "1024x1024":
 				aspectRatio = "1:1"
 			case "1536x1024":
-				aspectRatio = "3:2"
+				aspectRatio = "4:3"
 			case "1024x1536":
-				aspectRatio = "2:3"
+				aspectRatio = "3:4"
 			case "1024x1792":
 				aspectRatio = "9:16"
 			case "1792x1024":
 				aspectRatio = "16:9"
+			default:
+				return nil, fmt.Errorf("size %s is not supported by model %s", size, upstreamModel)
 			}
 		}
+	}
+	if raw, ok := request.Extra["aspect_ratio"]; ok {
+		var value string
+		if err := common.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("aspect_ratio must be a string: %w", err)
+		}
+		value = strings.ToLower(strings.TrimSpace(value))
+		if !capabilities.SupportsAspectRatio(value) {
+			return nil, fmt.Errorf("aspect_ratio %s is not supported by model %s", value, upstreamModel)
+		}
+		aspectRatio = value
+	}
+
+	imageSize := ""
+	if quality := strings.TrimSpace(request.Quality); quality != "" {
+		switch strings.ToLower(quality) {
+		case "auto", "standard", "medium", "low", "1k":
+			imageSize = "1K"
+		case "hd", "high", "2k":
+			imageSize = "2K"
+		default:
+			return nil, fmt.Errorf("quality %s is not supported by model %s", quality, upstreamModel)
+		}
+	}
+	if raw, ok := request.Extra["resolution"]; ok {
+		var value string
+		if err := common.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("resolution must be a string: %w", err)
+		}
+		value = strings.ToUpper(strings.TrimSpace(value))
+		if !capabilities.SupportsResolution(value) {
+			return nil, fmt.Errorf("resolution %s is not supported by model %s", value, upstreamModel)
+		}
+		imageSize = value
 	}
 
 	// build gemini imagen request
@@ -449,29 +425,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			SampleCount:      int(lo.FromPtrOr(request.N, uint(1))),
 			AspectRatio:      aspectRatio,
 			PersonGeneration: "allow_adult", // default allow adult
+			ImageSize:        imageSize,
 		},
-	}
-
-	// Set imageSize when quality parameter is specified
-	// Map quality parameter to imageSize (only supported by Standard and Ultra models)
-	// quality values: auto, high, medium, low (for gpt-image-1), hd, standard (for dall-e-3)
-	// imageSize values: 1K (default), 2K
-	// https://ai.google.dev/gemini-api/docs/imagen
-	// https://platform.openai.com/docs/api-reference/images/create
-	if request.Quality != "" {
-		imageSize := "1K" // default
-		switch request.Quality {
-		case "hd", "high":
-			imageSize = "2K"
-		case "2K":
-			imageSize = "2K"
-		case "standard", "medium", "low", "auto", "1K":
-			imageSize = "1K"
-		default:
-			// unknown quality value, default to 1K
-			imageSize = "1K"
-		}
-		geminiRequest.Parameters.ImageSize = imageSize
 	}
 
 	return geminiRequest, nil

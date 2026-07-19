@@ -46,6 +46,12 @@ func insertPricingEndpointChannel(t *testing.T, channelID int, channelType int, 
 	require.NoError(t, DB.Create(channel).Error)
 }
 
+func insertPricingEndpointChannelWithMapping(t *testing.T, channelID int, channelType int, modelMapping string) {
+	t.Helper()
+	insertPricingEndpointChannel(t, channelID, channelType, dto.ChannelOtherSettings{})
+	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channelID).Update("model_mapping", modelMapping).Error)
+}
+
 func insertPricingEndpointAbility(t *testing.T, channelID int, modelName string) {
 	t.Helper()
 	require.NoError(t, DB.Create(&Ability{

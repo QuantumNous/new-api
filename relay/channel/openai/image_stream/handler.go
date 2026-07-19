@@ -43,7 +43,8 @@ import (
 // IsGptImageModel returns true for the gpt-image-* family. Used as the
 // gating predicate at the upper relay layer.
 func IsGptImageModel(model string) bool {
-	return strings.HasPrefix(strings.ToLower(model), "gpt-image-")
+	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model)), "models/")
+	return strings.HasPrefix(normalized, "gpt-image-")
 }
 
 // ShouldRunAsync is kept for callers that need to classify the image-generation

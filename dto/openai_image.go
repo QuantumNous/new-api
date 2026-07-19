@@ -17,19 +17,19 @@ import (
 
 // MaxImageN caps the image generation count. Without this bound a huge or
 // wrapped-negative n overflows quota calculation into a negative charge.
-const MaxImageN = 128
+const MaxImageN = common.MaxImageGenerationCount
 
 // Unified image inputs are intentionally bounded before they reach any
 // adaptor. These values protect both request memory and downstream URL fetches.
 const (
-	MaxUnifiedImageInputURLs      = 16
+	MaxUnifiedImageInputURLs      = common.MaxImageInputURLs
 	MaxUnifiedImageInputURLLength = 8192
 	// Remote URLs are kept short because they are fetched by the worker. Data
 	// URLs are allowed to carry the bounded 30 MiB decoded input image; their
 	// base64 representation is consequently much larger than this remote URL
 	// limit.
 	MaxUnifiedImageDataURLLength = (30<<20)*4/3 + 1024
-	MaxUnifiedImagePromptLength  = 20000
+	MaxUnifiedImagePromptLength  = common.MaxImagePromptCharacters
 )
 
 type ImageRequest struct {

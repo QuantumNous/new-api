@@ -208,6 +208,25 @@ func TestGPTImageSizeFromUnifiedOptionsAutoDefaultsToOneKWhenResolutionOmitted(t
 	assert.Equal(t, "auto", size)
 }
 
+func TestValidateAsyncOpenAIImageRequestRejectsUnsupportedImageCount(t *testing.T) {
+	two := uint(2)
+	request := &dto.ImageRequest{Model: "gpt-image-2", Prompt: "a lighthouse", N: &two}
+
+	err := ValidateAsyncOpenAIImageRequest(request, request.Model)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "n must be between 1 and 1")
+}
+
+func TestValidateAsyncOpenAIImageRequestRejectsUnsupportedQuality(t *testing.T) {
+	request := &dto.ImageRequest{Model: "gpt-image-2", Prompt: "a lighthouse", Quality: "ultra"}
+
+	err := ValidateAsyncOpenAIImageRequest(request, request.Model)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `quality "ultra" is not supported`)
+}
+
 func TestGPTImageSizeFromUnifiedOptionsValidatesExplicitSizes(t *testing.T) {
 	officialGPTImage2Sizes := []string{
 		"1024x1024", "1536x864", "864x1536", "1024x1360", "1360x1024",

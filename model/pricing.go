@@ -35,6 +35,7 @@ type Pricing struct {
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
+	APIProfile             *common.ImageAPIProfile `json:"api_profile,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
 }
 
@@ -109,7 +110,7 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 
 func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCustomConfigs map[int]*dto.AdvancedCustomConfig) []constant.EndpointType {
 	if ability.ChannelType != constant.ChannelTypeAdvancedCustom {
-		return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+		return common.GetEndpointTypesByChannelType(ability.ChannelType, pricingCapabilityModel(ability.Model, ability))
 	}
 	if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
 		return config.SupportedEndpointTypesForModel(ability.Model)
@@ -259,6 +260,7 @@ func updatePricing() {
 	}
 
 	modelGroupsMap := make(map[string]*types.Set[string])
+	modelAbilitiesMap := make(map[string][]AbilityWithChannel)
 
 	for _, ability := range enableAbilities {
 		groups, ok := modelGroupsMap[ability.Model]
@@ -267,6 +269,7 @@ func updatePricing() {
 			modelGroupsMap[ability.Model] = groups
 		}
 		groups.Add(ability.Group)
+		modelAbilitiesMap[ability.Model] = append(modelAbilitiesMap[ability.Model], ability)
 	}
 
 	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
@@ -360,6 +363,12 @@ func updatePricing() {
 			ModelName:              model,
 			EnableGroup:            groups.Items(),
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
+		}
+		for _, endpointType := range pricing.SupportedEndpointTypes {
+			if endpointType == constant.EndpointTypeImageGeneration {
+				pricing.APIProfile = imageAPIProfileForPricing(model, modelAbilitiesMap[model])
+				break
+			}
 		}
 
 		// 补充模型元数据（描述、标签、供应商、状态）

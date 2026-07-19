@@ -54,6 +54,27 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
+	effectiveImageModel := strings.TrimSpace(info.UpstreamModelName)
+	if effectiveImageModel == "" {
+		effectiveImageModel = strings.TrimSpace(request.Model)
+	}
+	if effectiveImageModel == "" {
+		effectiveImageModel = strings.TrimSpace(info.OriginModelName)
+	}
+	isGPTImage := image_stream.IsGptImageModel(effectiveImageModel)
+	gptCapabilityModel := ""
+	if isGPTImage {
+		gptCapabilityModel = effectiveImageModel
+	}
+	hasUnifiedGPTDimensions := false
+	if gptCapabilityModel != "" {
+		_, hasAspectRatio := request.Extra["aspect_ratio"]
+		_, hasResolution := request.Extra["resolution"]
+		hasUnifiedGPTDimensions = hasAspectRatio || hasResolution
+		if err := image_stream.NormalizeUnifiedGPTImageDimensions(request, gptCapabilityModel); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+	}
 
 	// Every image generation and edit is submitted as a durable gateway task. gpt-image
 	// keeps its Responses/SSE executor only on a plain OpenAI-compatible channel.
@@ -99,7 +120,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			)
 		}
 		unifiedInput := imageReq.HasUnifiedImageInput()
-		allowPassThrough := !isEdit && !unifiedInput && !hasInputSources
+		allowPassThrough := !isEdit && !unifiedInput && !hasInputSources && !hasUnifiedGPTDimensions
 		passThrough := (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) && allowPassThrough
 		hasMask := len(bytes.TrimSpace(request.Mask)) > 0 && common.GetJsonType(request.Mask) != "null"
 		if !hasMask && c.Request != nil && c.Request.MultipartForm != nil {
@@ -113,7 +134,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				}
 			}
 		}
-		useGPTResponsesExecutor := (image_stream.IsGptImageModel(info.OriginModelName) || image_stream.IsGptImageModel(info.UpstreamModelName) || image_stream.IsGptImageModel(request.Model)) &&
+		useGPTResponsesExecutor := isGPTImage &&
 			info.ChannelType == constant.ChannelTypeOpenAI &&
 			len(info.ParamOverride) == 0 &&
 			len(info.HeadersOverride) == 0 &&
@@ -299,7 +320,32 @@ func validateAsyncImageProviderCapabilities(c *gin.Context, info *relaycommon.Re
 		if info.RelayMode != relayconstant.RelayModeImagesEdits && len(imageURLs) > 0 && !model_setting.IsSyncImageModel(model) {
 			return fmt.Errorf("model %s does not support unified image inputs on the Ali text-to-image endpoint", info.UpstreamModelName)
 		}
+	case constant.APITypeVolcEngine:
+		if common.ImageModelCapabilitiesForModel(model).Family == common.ImageModelFamilySeedream {
+			if info.RelayMode == relayconstant.RelayModeImagesEdits || len(imageURLs) > 0 {
+				return fmt.Errorf("Seedream model %s does not support unified image inputs", info.UpstreamModelName)
+			}
+			if request.N != nil && *request.N > 1 {
+				return fmt.Errorf("Seedream model %s supports only n=1", info.UpstreamModelName)
+			}
+			if raw := bytes.TrimSpace(request.OutputFormat); len(raw) > 0 && common.GetJsonType(raw) != "null" {
+				var outputFormat string
+				if common.GetJsonType(raw) != "string" || common.Unmarshal(raw, &outputFormat) != nil {
+					return errors.New("output_format must be a string")
+				}
+				outputFormat = strings.ToLower(strings.TrimSpace(outputFormat))
+				if outputFormat == "jpg" {
+					outputFormat = "jpeg"
+				}
+				if outputFormat != "" && outputFormat != "png" && outputFormat != "jpeg" {
+					return fmt.Errorf("output_format %q is not supported by Seedream; use png or jpeg", outputFormat)
+				}
+			}
+		}
 	case constant.APITypeGemini, constant.APITypeVertexAi:
+		if strings.HasPrefix(model, "imagen-") && info.RelayMode == relayconstant.RelayModeImagesEdits {
+			return errors.New("Imagen models do not support image edits on the unified image endpoint")
+		}
 		if raw := bytes.TrimSpace(request.OutputFormat); len(raw) > 0 && common.GetJsonType(raw) != "null" {
 			var outputFormat string
 			if common.GetJsonType(raw) != "string" || common.Unmarshal(raw, &outputFormat) != nil {
@@ -320,6 +366,13 @@ func validateAsyncImageProviderCapabilities(c *gin.Context, info *relaycommon.Re
 			if !model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
 				return fmt.Errorf("model %s does not support unified image inputs", info.UpstreamModelName)
 			}
+		}
+	}
+	capabilities := common.ImageModelCapabilitiesForModel(model)
+	if request.N != nil && capabilities.MaxOutputImages > 0 && *request.N > uint(capabilities.MaxOutputImages) {
+		switch capabilities.Family {
+		case common.ImageModelFamilyImagen, common.ImageModelFamilyDallE3:
+			return fmt.Errorf("model %s supports at most %d output images", info.UpstreamModelName, capabilities.MaxOutputImages)
 		}
 	}
 	return nil

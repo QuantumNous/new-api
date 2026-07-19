@@ -30,6 +30,7 @@ func TestIsImageGenerationModelCoversProviderCatalogFamilies(t *testing.T) {
 		{model: "image-01-live", want: true},
 		{model: "seedream-4-0-250828", want: true},
 		{model: "doubao-seedream-4-0-250828", want: true},
+		{model: "wan2.7-t2i-turbo", want: true},
 		{model: "qwen-image-edit-plus", want: true},
 		{model: "z-image", want: true},
 		{model: "wanx-v1", want: true},

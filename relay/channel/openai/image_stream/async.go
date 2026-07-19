@@ -1147,7 +1147,10 @@ func ValidateAsyncImageSubmission(originModel, upstreamModel string, req *dto.Im
 		selectedModel = strings.TrimSpace(originModel)
 	}
 	if IsGptImageModel(selectedModel) {
-		if err := ValidateAsyncOpenAIImageRequest(req, selectedModel); err != nil {
+		// The final executor is selected later in ImageHelper. Validate the
+		// shared shape here, but defer executor-specific output-count limits to
+		// the Responses branch so adaptor-backed batch requests remain valid.
+		if err := validateAsyncOpenAIImageRequest(req, selectedModel, false); err != nil {
 			return err
 		}
 	}
@@ -1434,16 +1437,19 @@ func validateAsyncImageModelInput(originModel, upstreamModel string, req *dto.Im
 		if strings.HasSuffix(model, "-image-to-image") && !hasInputSources {
 			return errors.New("input_urls is required for image-to-image models")
 		}
-		if isGeminiFourteenImageReferenceModel(model) && len(imageURLs) > 14 {
-			return fmt.Errorf("%s supports at most 14 input images", model)
+		capabilities := common.ImageModelCapabilitiesForModel(model)
+		if capabilities.ReferenceImagesRequired && !hasInputSources {
+			return fmt.Errorf("image_input is required for image edit model %s", model)
+		}
+		if capabilities.Family == common.ImageModelFamilyGeminiFlash31 ||
+			capabilities.Family == common.ImageModelFamilyGeminiPro3 ||
+			capabilities.Family == common.ImageModelFamilyGeminiLegacy {
+			if capabilities.MaxReferenceImages > 0 && len(imageURLs) > capabilities.MaxReferenceImages {
+				return fmt.Errorf("%s supports at most %d input images", model, capabilities.MaxReferenceImages)
+			}
 		}
 	}
 	return nil
-}
-
-func isGeminiFourteenImageReferenceModel(model string) bool {
-	model = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model)), "models/")
-	return strings.Contains(model, "nano-banana") || strings.Contains(model, "gemini-3")
 }
 
 func asyncImageInputURLs(req *dto.ImageRequest) ([]string, error) {

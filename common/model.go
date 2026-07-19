@@ -34,6 +34,7 @@ var (
 		"prefix:z-image",
 		"prefix:wanx-v1",
 		"prefix:wan2.6-t2i",
+		"prefix:wan2.7",
 		"prefix:jimeng_",
 		"instantx/instantid",
 		"bytedance/sdxl-lightning",
