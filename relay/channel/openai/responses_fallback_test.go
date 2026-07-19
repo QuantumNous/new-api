@@ -27,11 +27,25 @@ type cancelOnFlushWriter struct {
 	cancel context.CancelFunc
 }
 
+type failOnceOnNeedleWriter struct {
+	gin.ResponseWriter
+	needle string
+	failed bool
+}
+
 var responsesTestMu sync.Mutex
 
 func (w *cancelOnFlushWriter) Flush() {
 	w.ResponseWriter.Flush()
 	w.cancel()
+}
+
+func (w *failOnceOnNeedleWriter) Write(data []byte) (int, error) {
+	if !w.failed && strings.Contains(string(data), w.needle) {
+		w.failed = true
+		return 0, io.ErrClosedPipe
+	}
+	return w.ResponseWriter.Write(data)
 }
 
 func init() {
@@ -91,24 +105,66 @@ func extractSyntheticEvent(t *testing.T, recorder *httptest.ResponseRecorder) (s
 	return lastEvent, lastData
 }
 
+func responsesTerminalEvents(t *testing.T, body string) []string {
+	t.Helper()
+
+	var events []string
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, "event: ") {
+			continue
+		}
+		eventType := strings.TrimSpace(strings.TrimPrefix(line, "event: "))
+		switch eventType {
+		case "response.completed", "response.failed", "response.incomplete", "error":
+			events = append(events, eventType)
+		}
+	}
+	return events
+}
+
+func responsesEventData(t *testing.T, body, eventType string) string {
+	t.Helper()
+
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) != "event: "+eventType {
+			continue
+		}
+		for j := i + 1; j < len(lines); j++ {
+			if strings.HasPrefix(lines[j], "event: ") {
+				break
+			}
+			if strings.HasPrefix(lines[j], "data: ") {
+				return strings.TrimPrefix(lines[j], "data: ")
+			}
+		}
+	}
+	require.FailNowf(t, "missing SSE event data", "event %q not found in %q", eventType, body)
+	return ""
+}
+
 // -------- observe() tests (pure state, no HTTP) --------
 
 func TestResponsesStreamCtx_ObserveTerminalEvents(t *testing.T) {
 	t.Parallel()
 
-	for _, terminal := range []string{"response.completed", "response.failed", "response.incomplete", "error"} {
+	for _, terminal := range []string{"response.completed", "response.failed", "response.incomplete"} {
 		ctx := newResponsesStreamCtx()
 		ctx.observe(dto.ResponsesStreamResponse{Type: terminal})
 		assert.True(t, ctx.seenTerminal, "%s must set seenTerminal", terminal)
 	}
+
+	ctx := newResponsesStreamCtx()
+	ctx.observe(dto.ResponsesStreamResponse{Type: "error"})
+	assert.False(t, ctx.seenTerminal, "a top-level error is not a valid Responses terminal")
 }
 
-func TestOaiResponsesStreamHandlerStopsOnErrorEvent(t *testing.T) {
+func TestOaiResponsesStreamHandlerNormalizesTopLevelErrorAsFailedTerminal(t *testing.T) {
 	upstreamReader, upstreamWriter := io.Pipe()
 	t.Cleanup(func() { _ = upstreamWriter.Close() })
 	writeErr := make(chan error, 1)
 	go func() {
-		_, err := io.WriteString(upstreamWriter, "data: {\"type\":\"error\",\"code\":\"invalid_prompt\",\"message\":\"prompt rejected\"}\n\n")
+		_, err := io.WriteString(upstreamWriter, "data: {\"type\":\"error\",\"code\":\"invalid_prompt\",\"message\":\"prompt rejected\",\"param\":\"input\"}\n\n")
 		writeErr <- err
 	}()
 
@@ -118,10 +174,42 @@ func TestOaiResponsesStreamHandlerStopsOnErrorEvent(t *testing.T) {
 	require.Nil(t, apiErr)
 	require.NoError(t, <-writeErr)
 	require.NotNil(t, usage)
-	assert.Contains(t, recorder.Body.String(), `"type":"error"`)
+	got := recorder.Body.String()
+	require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, got))
+	require.NotContains(t, got, "event: error")
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, got, "response.failed"), &payload))
+	assert.Equal(t, "response.failed", payload["type"])
+	response, ok := payload["response"].(map[string]any)
+	require.True(t, ok)
+	assert.NotEmpty(t, response["id"])
+	assert.Equal(t, "failed", response["status"])
+	errorPayload, ok := response["error"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "invalid_prompt", errorPayload["code"])
+	assert.Equal(t, "prompt rejected", errorPayload["message"])
+	assert.Equal(t, "input", errorPayload["param"])
 
 	snapshot := info.StreamStatus.Snapshot()
 	assert.Equal(t, relaycommon.StreamEndReasonTerminalClientError, snapshot.EndReason)
+}
+
+func TestOaiResponsesStreamHandlerCommitsTerminalOnlyAfterSuccessfulWrite(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"hello"}`,
+		`data: {"type":"response.completed","response":{"id":"resp_test","status":"completed","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`,
+		``,
+	}, "\n\n")
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+	writer := &failOnceOnNeedleWriter{ResponseWriter: c.Writer, needle: "event: response.completed"}
+	c.Writer = writer
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	require.True(t, writer.failed, "fixture must fail the first terminal write")
+	require.Equal(t, []string{"response.completed"}, responsesTerminalEvents(t, recorder.Body.String()))
 }
 
 func TestOaiResponsesStreamHandlerStopsAfterTerminalEvent(t *testing.T) {
@@ -151,6 +239,7 @@ func TestOaiResponsesStreamHandlerStopsAfterTerminalEvent(t *testing.T) {
 	require.NotNil(t, usage)
 	assert.Equal(t, 3, usage.TotalTokens)
 	assert.NotContains(t, recorder.Body.String(), "late event")
+	require.Equal(t, []string{"response.completed"}, responsesTerminalEvents(t, recorder.Body.String()))
 
 	snapshot := info.StreamStatus.Snapshot()
 	assert.Equal(t, relaycommon.StreamEndReasonDone, snapshot.EndReason)
@@ -523,6 +612,56 @@ func TestResponsesStream_EnsureTerminalOutputFieldIgnoresNonTerminalEvents(t *te
 	}, data)
 
 	assert.Equal(t, data, patched)
+}
+
+func TestOaiResponsesStreamHandlerNormalizesIncompleteTerminalEnvelope(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           string
+		wantResponseID string
+	}{
+		{name: "missing response", data: `{"type":"response.completed"}`},
+		{name: "null response", data: `{"type":"response.completed","response":null}`},
+		{name: "empty response", data: `{"type":"response.completed","response":{}}`},
+		{
+			name:           "null output and empty usage",
+			data:           `{"type":"response.completed","response":{"id":"resp_existing","output":null,"usage":{}}}`,
+			wantResponseID: "resp_existing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := "data: " + tt.data + "\n\n"
+			c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+			usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+			got := recorder.Body.String()
+			require.Equal(t, []string{"response.completed"}, responsesTerminalEvents(t, got))
+
+			var payload map[string]any
+			require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, got, "response.completed"), &payload))
+			assert.Equal(t, "response.completed", payload["type"])
+			response, ok := payload["response"].(map[string]any)
+			require.True(t, ok)
+			if tt.wantResponseID != "" {
+				assert.Equal(t, tt.wantResponseID, response["id"])
+			} else {
+				assert.NotEmpty(t, response["id"])
+			}
+			assert.Equal(t, "response", response["object"])
+			assert.Equal(t, "completed", response["status"])
+			_, ok = response["output"].([]any)
+			require.True(t, ok, "output must be an array")
+			usagePayload, ok := response["usage"].(map[string]any)
+			require.True(t, ok, "usage must be an object")
+			assert.IsType(t, float64(0), usagePayload["input_tokens"])
+			assert.IsType(t, float64(0), usagePayload["output_tokens"])
+			assert.IsType(t, float64(0), usagePayload["total_tokens"])
+		})
+	}
 }
 
 // -------- Usage payload shape (matches Codex's ResponseCompletedUsage) --------

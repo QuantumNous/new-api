@@ -156,6 +156,7 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	require.Contains(t, got, `event: response.completed`)
 	require.Contains(t, got, `"input_tokens":2`)
 	require.Contains(t, got, `"output_tokens":3`)
+	require.Equal(t, []string{"response.completed"}, responsesTerminalEvents(t, got))
 	requireOrderedSubstrings(t, got,
 		`event: response.created`,
 		`event: response.output_item.added`,
@@ -166,6 +167,58 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 		`event: response.function_call_arguments.done`,
 		`event: response.completed`,
 	)
+}
+
+func TestOaiChatToResponsesStreamHandlerTerminatesEarlyErrors(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	validChunk := `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"content":"partial"},"finish_reason":null}]}`
+	tests := []struct {
+		name     string
+		failure  string
+		wantCode string
+	}{
+		{
+			name:     "upstream error envelope",
+			failure:  `data: {"error":{"message":"provider failed","type":"server_error","code":"server_error"}}`,
+			wantCode: "server_error",
+		},
+		{
+			name:     "malformed chat chunk",
+			failure:  `data: {not-json}`,
+			wantCode: "bad_response_body",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := strings.Join([]string{validChunk, "", tt.failure, ""}, "\n")
+			c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+			usage, apiErr := OaiChatToResponsesStreamHandler(c, info, resp)
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+			got := recorder.Body.String()
+			require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, got))
+			require.NotContains(t, got, "event: error")
+
+			var payload map[string]any
+			require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, got, "response.failed"), &payload))
+			response, ok := payload["response"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, "failed", response["status"])
+			errorPayload, ok := response["error"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, tt.wantCode, errorPayload["code"])
+		})
+	}
 }
 
 func requireOrderedSubstrings(t *testing.T, s string, parts ...string) {

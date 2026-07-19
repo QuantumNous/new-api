@@ -158,6 +158,7 @@ func TestGeminiResponsesStreamHandlerReturnsOpenAIResponsesSSE(t *testing.T) {
 	assert.Contains(t, got, `"output_tokens":3`)
 	assert.NotContains(t, got, `"choices"`)
 	assert.NotContains(t, got, `"candidates"`)
+	require.Equal(t, []string{"response.completed"}, geminiResponsesTerminalEvents(t, got))
 	requireOrderedGeminiResponsesSubstrings(t, got,
 		`event: response.created`,
 		`event: response.output_item.added`,
@@ -165,6 +166,94 @@ func TestGeminiResponsesStreamHandlerReturnsOpenAIResponsesSSE(t *testing.T) {
 		`event: response.output_text.done`,
 		`event: response.completed`,
 	)
+}
+
+func TestGeminiResponsesStreamHandlerTerminatesEarlyErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldStreamingTimeout })
+
+	valid := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{
+				Role:  "model",
+				Parts: []dto.GeminiPart{{Text: "partial"}},
+			},
+		}},
+	}
+	validData, err := common.Marshal(valid)
+	require.NoError(t, err)
+	blockReason := "SAFETY"
+	promptBlockedData, err := common.Marshal(dto.GeminiChatResponse{
+		PromptFeedback: &dto.GeminiChatPromptFeedback{BlockReason: &blockReason},
+	})
+	require.NoError(t, err)
+	emptyData, err := common.Marshal(dto.GeminiChatResponse{})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		failure    string
+		wantCode   string
+		wantReason relaycommon.StreamEndReason
+	}{
+		{
+			name:       "malformed JSON",
+			failure:    `{not-json}`,
+			wantCode:   "bad_response_body",
+			wantReason: relaycommon.StreamEndReasonUpstreamFailed,
+		},
+		{
+			name:       "prompt blocked",
+			failure:    string(promptBlockedData),
+			wantCode:   "prompt_blocked",
+			wantReason: relaycommon.StreamEndReasonTerminalClientError,
+		},
+		{
+			name:       "empty candidates",
+			failure:    string(emptyData),
+			wantCode:   "empty_response",
+			wantReason: relaycommon.StreamEndReasonUpstreamFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			c.Set(common.RequestIdKey, "gemini-responses-error-test")
+			info := newGeminiResponsesRelayInfo(true)
+			streamBody := strings.Join([]string{
+				"data: " + string(validData),
+				"",
+				"data: " + tt.failure,
+				"",
+			}, "\n")
+
+			usage, apiErr := GeminiResponsesStreamHandler(c, info, &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(streamBody)),
+			})
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+			got := recorder.Body.String()
+			require.Equal(t, []string{"response.failed"}, geminiResponsesTerminalEvents(t, got))
+			require.NotContains(t, got, "event: error")
+
+			var payload map[string]any
+			require.NoError(t, common.UnmarshalJsonStr(geminiResponsesEventData(t, got, "response.failed"), &payload))
+			response, ok := payload["response"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, "failed", response["status"])
+			errorPayload, ok := response["error"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, tt.wantCode, errorPayload["code"])
+			require.Equal(t, tt.wantReason, info.StreamStatus.Snapshot().EndReason)
+		})
+	}
 }
 
 func newGeminiResponsesRelayInfo(isStream bool) *relaycommon.RelayInfo {
@@ -202,4 +291,42 @@ func requireOrderedGeminiResponsesSubstrings(t *testing.T, s string, parts ...st
 		require.NotEqualf(t, -1, idx, "missing %q after byte offset %d", part, offset)
 		offset += idx + len(part)
 	}
+}
+
+func geminiResponsesTerminalEvents(t *testing.T, body string) []string {
+	t.Helper()
+
+	var events []string
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, "event: ") {
+			continue
+		}
+		eventType := strings.TrimSpace(strings.TrimPrefix(line, "event: "))
+		switch eventType {
+		case "response.completed", "response.failed", "response.incomplete", "error":
+			events = append(events, eventType)
+		}
+	}
+	return events
+}
+
+func geminiResponsesEventData(t *testing.T, body, eventType string) string {
+	t.Helper()
+
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) != "event: "+eventType {
+			continue
+		}
+		for j := i + 1; j < len(lines); j++ {
+			if strings.HasPrefix(lines[j], "event: ") {
+				break
+			}
+			if strings.HasPrefix(lines[j], "data: ") {
+				return strings.TrimPrefix(lines[j], "data: ")
+			}
+		}
+	}
+	require.FailNowf(t, "missing SSE event data", "event %q not found in %q", eventType, body)
+	return ""
 }
