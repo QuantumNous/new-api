@@ -14,6 +14,13 @@ func TestIsImageGenerationModelCoversProviderCatalogFamilies(t *testing.T) {
 		{model: "gpt-image-2", want: true},
 		{model: "chatgpt-image-latest", want: true},
 		{model: "imagen-4.0-generate-001", want: true},
+		{model: "gemini-3-pro-image-preview", want: true},
+		{model: "gemini-3.1-flash-image", want: true},
+		{model: "models/gemini-3.1-flash-image-preview", want: true},
+		{model: "gemini-2.0-flash-exp", want: true},
+		{model: "gemini-2.0-flash-exp-high", want: true},
+		{model: "gemini-2.5-flash-image-preview", want: true},
+		{model: "gemini-3.1-flash-lite-image", want: true},
 		{model: "nano-banana-2", want: true},
 		{model: "black-forest-labs/flux", want: true},
 		{model: "black-forest-labs/flux-1.1-pro", want: true},
@@ -30,6 +37,8 @@ func TestIsImageGenerationModelCoversProviderCatalogFamilies(t *testing.T) {
 		{model: "jimeng_high_aes_general_v21_L", want: true},
 		{model: "InstantX/InstantID", want: true},
 		{model: "ByteDance/SDXL-Lightning", want: true},
+		{model: "gemini-2.0-flash", want: false},
+		{model: "gemini-3.1-flash", want: false},
 		{model: "gpt-5", want: false},
 	}
 
