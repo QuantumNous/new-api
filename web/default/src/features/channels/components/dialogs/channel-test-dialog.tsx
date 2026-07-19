@@ -179,7 +179,7 @@ function getLatestChannelTestCachePatch(
 }
 
 const endpointTypeOptions: Array<{ value: string; label: string }> = [
-  { value: 'auto', label: 'Auto detect (default)' },
+  { value: 'auto', label: 'Auto detect' },
   { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
   { value: 'openai-response', label: 'OpenAI Responses (/v1/responses)' },
   {
@@ -328,11 +328,16 @@ function ChannelTestDialogContent({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const currentChannelId = currentRow.id
+  const configuredEndpointType = currentRow.test_endpoint?.trim() || 'auto'
   const batchStopRequestedRef = useRef(false)
   const batchProgressToastIdRef = useRef<ReturnType<
     typeof toast.loading
   > | null>(null)
-  const [endpointType, setEndpointType] = useState('auto')
+  const [endpointType, setEndpointType] = useState(configuredEndpointType)
+  const [defaultEndpointType, setDefaultEndpointType] = useState(
+    configuredEndpointType
+  )
+  const [isSavingDefaultEndpoint, setIsSavingDefaultEndpoint] = useState(false)
   const [isStreamTest, setIsStreamTest] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
@@ -399,7 +404,7 @@ function ChannelTestDialogContent({
 
   const resetState = useCallback(() => {
     batchStopRequestedRef.current = true
-    setEndpointType('auto')
+    setEndpointType(defaultEndpointType)
     setIsStreamTest(false)
     setSearchTerm('')
     setTestResults({})
@@ -413,7 +418,7 @@ function ChannelTestDialogContent({
     setIsDeletingFailed(false)
     setFailureDetails(null)
     setPagination({ pageIndex: 0, pageSize: 30 })
-  }, [])
+  }, [defaultEndpointType])
 
   const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
   const effectiveStreamTest = !streamDisabled && isStreamTest
@@ -541,6 +546,27 @@ function ChannelTestDialogContent({
     },
     [queryClient, updateChannelTestCache]
   )
+
+  const handleSaveDefaultEndpoint = useCallback(async () => {
+    setIsSavingDefaultEndpoint(true)
+    try {
+      const response = await updateChannel(currentRow.id, {
+        test_endpoint: endpointType === 'auto' ? '' : endpointType,
+      })
+      if (!response.success) {
+        toast.error(response.message || t('Update failed'))
+        return
+      }
+
+      setDefaultEndpointType(endpointType)
+      refreshChannelLists()
+      toast.success(t('Default test endpoint updated'))
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : t('Update failed'))
+    } finally {
+      setIsSavingDefaultEndpoint(false)
+    }
+  }, [currentRow.id, endpointType, refreshChannelLists, t])
 
   const testSingleModel = useCallback(
     async (
@@ -835,6 +861,12 @@ function ChannelTestDialogContent({
   const testAllButtonLabel = isFilteringModels
     ? t('Test {{count}} matching models', { count: filteredModels.length })
     : t('Test all {{count}} models', { count: filteredModels.length })
+  let defaultEndpointButtonLabel = t('Set as default')
+  if (isSavingDefaultEndpoint) {
+    defaultEndpointButtonLabel = t('Saving...')
+  } else if (endpointType === defaultEndpointType) {
+    defaultEndpointButtonLabel = t('Default')
+  }
 
   const columns = useMemo<ColumnDef<ModelRow>[]>(
     () => [
@@ -996,39 +1028,56 @@ function ChannelTestDialogContent({
           <div className='grid gap-4 md:grid-cols-2'>
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
-              <Select
-                items={endpointSelectItems}
-                value={endpointType}
-                onValueChange={handleEndpointTypeChange}
-              >
-                <SelectTrigger id='endpoint-type' className='w-full min-w-0'>
-                  <SelectValue
-                    className='min-w-0 truncate'
-                    placeholder={t('Auto detect (default)')}
-                  />
-                </SelectTrigger>
-                <SelectContent
-                  alignItemWithTrigger={false}
-                  className={endpointSelectContentClass}
+              <div className='flex flex-col gap-2 sm:flex-row'>
+                <Select
+                  items={endpointSelectItems}
+                  value={endpointType}
+                  onValueChange={handleEndpointTypeChange}
                 >
-                  <SelectGroup>
-                    {endpointSelectItems.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        className={endpointSelectItemClass}
-                      >
-                        <span className='min-w-0 leading-snug break-words whitespace-normal'>
-                          {option.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    id='endpoint-type'
+                    className='w-full min-w-0 flex-1'
+                  >
+                    <SelectValue
+                      className='min-w-0 truncate'
+                      placeholder={t('Auto detect')}
+                    />
+                  </SelectTrigger>
+                  <SelectContent
+                    alignItemWithTrigger={false}
+                    className={endpointSelectContentClass}
+                  >
+                    <SelectGroup>
+                      {endpointSelectItems.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          className={endpointSelectItemClass}
+                        >
+                          <span className='min-w-0 leading-snug break-words whitespace-normal'>
+                            {option.label}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='shrink-0'
+                  onClick={handleSaveDefaultEndpoint}
+                  disabled={
+                    isSavingDefaultEndpoint ||
+                    endpointType === defaultEndpointType
+                  }
+                >
+                  {defaultEndpointButtonLabel}
+                </Button>
+              </div>
               <p className='text-muted-foreground text-xs'>
                 {t(
-                  'Override the endpoint used for testing. Leave empty to auto detect.'
+                  'Choose the endpoint for this test. Save it as the channel default for future manual and automatic tests.'
                 )}
               </p>
             </div>

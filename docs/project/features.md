@@ -22,7 +22,7 @@
 | 登录与身份 | Session 登录、管理访问令牌、Passkey、2FA、邮箱验证、OAuth 与自定义 OIDC/OAuth | `controller/user.go`、`controller/passkey.go`、`controller/twofa.go`、`controller/oauth.go`、`oauth/` | `features/auth/`、`features/profile/` |
 | 用户与权限 | 普通用户、管理员、根用户三级权限；用户状态、分组、额度、邀请关系和侧边栏权限 | `middleware/auth.go`、`controller/user.go`、`model/user.go` | `features/users/`、`features/profile/` |
 | API 令牌 | 创建、编辑、删除、批量读取；有效期、额度、模型、分组、IP 与指定渠道限制 | `controller/token.go`、`model/token.go`、`middleware/auth.go` | `features/keys/` |
-| 渠道 | 多供应商渠道、模型映射、分组、优先级、权重、多 Key、状态码映射、参数/请求头覆盖、自动禁用与余额测试 | `controller/channel.go`、`model/channel.go`、`model/ability.go` | `features/channels/` |
+| 渠道 | 多供应商渠道、模型映射、分组、优先级、权重、多 Key、状态码映射、参数/请求头覆盖、可配置默认测试端点、自动禁用与余额测试 | `controller/channel.go`、`model/channel.go`、`model/ability.go` | `features/channels/` |
 | 模型与供应商元数据 | 模型目录、供应商元数据、缺失模型检测、上游模型同步、定价展示 | `controller/model_meta.go`、`controller/vendor_meta.go`、`controller/model_sync.go`、`model/model_meta.go` | `features/models/`、`features/pricing/` |
 | 模型部署 | io.net 连接配置、硬件/地域查询、价格预估、创建、查看、更新、延期和删除部署 | `controller/deployment.go`、`pkg/ionet/` | `features/models/` |
 | 同步转发 | Chat Completions、Completions、Responses、Responses Compact、Embeddings、Rerank、Moderations、图像、音频、Realtime | `controller/relay.go`、`relay/` | `features/playground/`、`features/chat/` |

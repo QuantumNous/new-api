@@ -46,6 +46,12 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if normalized != "" {
 		return normalized
 	}
+	if channel != nil && channel.TestEndpoint != nil {
+		normalized = strings.TrimSpace(*channel.TestEndpoint)
+		if normalized != "" {
+			return normalized
+		}
+	}
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}

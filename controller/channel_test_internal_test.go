@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -82,6 +83,29 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 2, userID)
+}
+
+func TestNormalizeChannelTestEndpointUsesConfiguredDefault(t *testing.T) {
+	configuredEndpoint := " anthropic "
+	channel := &model.Channel{
+		Type:         constant.ChannelTypeCodex,
+		TestEndpoint: &configuredEndpoint,
+	}
+
+	require.Equal(t, "anthropic", normalizeChannelTestEndpoint(channel, "gpt-5", ""))
+	require.Equal(t, "gemini", normalizeChannelTestEndpoint(channel, "gpt-5", " gemini "))
+}
+
+func TestValidateChannelTestEndpoint(t *testing.T) {
+	validEndpoint := " openai-response "
+	channel := &model.Channel{TestEndpoint: &validEndpoint}
+
+	require.NoError(t, validateChannel(channel, false))
+	require.Equal(t, "openai-response", *channel.TestEndpoint)
+
+	invalidEndpoint := "not-supported"
+	err := validateChannel(&model.Channel{TestEndpoint: &invalidEndpoint}, false)
+	require.ErrorContains(t, err, "unsupported channel test endpoint")
 }
 
 func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {

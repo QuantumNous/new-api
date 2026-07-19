@@ -475,6 +475,15 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel == nil {
 		return fmt.Errorf("channel cannot be empty")
 	}
+	if channel.TestEndpoint != nil {
+		testEndpoint := strings.TrimSpace(*channel.TestEndpoint)
+		if testEndpoint != "" {
+			if _, ok := common.GetDefaultEndpointInfo(constant.EndpointType(testEndpoint)); !ok {
+				return fmt.Errorf("unsupported channel test endpoint: %s", testEndpoint)
+			}
+		}
+		channel.TestEndpoint = &testEndpoint
+	}
 
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
@@ -1077,6 +1086,9 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if !equalStringPtr(channel.BaseURL, originChannel.BaseURL) {
 		changedFields = append(changedFields, "base_url")
+	}
+	if _, ok := requestData["test_endpoint"]; ok && !equalStringPtr(channel.TestEndpoint, originChannel.TestEndpoint) {
+		changedFields = append(changedFields, "test_endpoint")
 	}
 	if channel.Key != "" && channel.Key != originChannel.Key {
 		changedFields = append(changedFields, "key")

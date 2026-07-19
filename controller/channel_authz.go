@@ -120,6 +120,7 @@ func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]an
 var channelNonSensitiveFields = map[string]struct{}{
 	"id":                  {},
 	"test_model":          {},
+	"test_endpoint":       {},
 	"name":                {},
 	"weight":              {},
 	"models":              {},
