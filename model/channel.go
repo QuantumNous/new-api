@@ -26,6 +26,8 @@ type Channel struct {
 	Key                string  `json:"key" gorm:"not null"`
 	OpenAIOrganization *string `json:"openai_organization"`
 	TestModel          *string `json:"test_model"`
+	TestEndpoint       *string `json:"test_endpoint"`
+	DisableAutoTest    *bool   `json:"disable_auto_test"`
 	Status             int     `json:"status" gorm:"default:1"`
 	Name               string  `json:"name" gorm:"index"`
 	Weight             *uint   `json:"weight" gorm:"default:0"`
@@ -340,6 +342,10 @@ func (channel *Channel) GetAutoBan() bool {
 		return false
 	}
 	return *channel.AutoBan == 1
+}
+
+func (channel *Channel) ShouldSkipAutoTest() bool {
+	return channel != nil && channel.DisableAutoTest != nil && *channel.DisableAutoTest
 }
 
 func (channel *Channel) Save() error {

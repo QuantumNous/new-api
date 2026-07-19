@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -84,6 +85,29 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 	require.Equal(t, 2, userID)
 }
 
+func TestNormalizeChannelTestEndpointUsesConfiguredDefault(t *testing.T) {
+	configuredEndpoint := " anthropic "
+	channel := &model.Channel{
+		Type:         constant.ChannelTypeCodex,
+		TestEndpoint: &configuredEndpoint,
+	}
+
+	require.Equal(t, "anthropic", normalizeChannelTestEndpoint(channel, "gpt-5", ""))
+	require.Equal(t, "gemini", normalizeChannelTestEndpoint(channel, "gpt-5", " gemini "))
+}
+
+func TestValidateChannelTestEndpoint(t *testing.T) {
+	validEndpoint := " openai-response "
+	channel := &model.Channel{TestEndpoint: &validEndpoint}
+
+	require.NoError(t, validateChannel(channel, false))
+	require.Equal(t, "openai-response", *channel.TestEndpoint)
+
+	invalidEndpoint := "not-supported"
+	err := validateChannel(&model.Channel{TestEndpoint: &invalidEndpoint}, false)
+	require.ErrorContains(t, err, "unsupported channel test endpoint")
+}
+
 func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {
 	channels := []*model.Channel{
 		{Id: 1, Status: common.ChannelStatusEnabled},
@@ -91,7 +115,7 @@ func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *te
 		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
 	}
 
-	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery)
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery, true)
 
 	require.Len(t, selected, 1)
 	require.Equal(t, 2, selected[0].Id)
@@ -104,11 +128,26 @@ func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T
 		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
 	}
 
-	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll)
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll, true)
 
 	require.Len(t, selected, 2)
 	require.Equal(t, 1, selected[0].Id)
 	require.Equal(t, 2, selected[1].Id)
+}
+
+func TestSelectChannelsForAutomaticTestRespectsScheduledOptOut(t *testing.T) {
+	disableAutoTest := true
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled},
+		{Id: 2, Status: common.ChannelStatusEnabled, DisableAutoTest: &disableAutoTest},
+	}
+
+	scheduled := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll, true)
+	require.Len(t, scheduled, 1)
+	require.Equal(t, 1, scheduled[0].Id)
+
+	manual := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll, false)
+	require.Len(t, manual, 2)
 }
 
 func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
