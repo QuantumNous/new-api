@@ -188,9 +188,48 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	if len(preferredAbilities) == 0 && len(avoidedAbilities) == 0 {
 		return nil, nil
 	}
-
 	preferredWeights := effectiveAbilitySelectionWeights(preferredAbilities, model, options.Path)
 	avoidedWeights := effectiveAbilitySelectionWeights(avoidedAbilities, model, options.Path)
+	if options.PreferMeasuredFast {
+		fastPreferred := make([]Ability, 0, len(preferredAbilities))
+		fastPreferredWeights := make([]int, 0, len(preferredAbilities))
+		for i, ability := range preferredAbilities {
+			_, fast := ChannelSelectionFactors(ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: options.Path})
+			if fast && preferredWeights[i] > 0 {
+				fastPreferred = append(fastPreferred, ability)
+				fastPreferredWeights = append(fastPreferredWeights, preferredWeights[i])
+			}
+		}
+
+		fastAvoided := make([]Ability, 0, len(avoidedAbilities))
+		fastAvoidedWeights := make([]int, 0, len(avoidedAbilities))
+		for i, ability := range avoidedAbilities {
+			_, fast := ChannelSelectionFactors(ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: options.Path})
+			if fast && avoidedWeights[i] > 0 {
+				fastAvoided = append(fastAvoided, ability)
+				fastAvoidedWeights = append(fastAvoidedWeights, avoidedWeights[i])
+			}
+		}
+		channelId := selectAcquirableAbilityChannelIdWithFastFallback(
+			fastPreferred,
+			fastPreferredWeights,
+			preferredAbilities,
+			preferredWeights,
+			fastAvoided,
+			fastAvoidedWeights,
+			avoidedAbilities,
+			avoidedWeights,
+			model,
+			options.Path,
+		)
+		if channelId == 0 {
+			return nil, nil
+		}
+		channel := Channel{}
+		err = DB.First(&channel, "id = ?", channelId).Error
+		return &channel, err
+	}
+
 	channelId := selectAcquirableAbilityChannelIdWithFallback(
 		preferredAbilities,
 		preferredWeights,
@@ -209,12 +248,63 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 }
 
 func effectiveAbilitySelectionWeights(abilities []Ability, model string, path string) []int {
+	if len(abilities) == 0 {
+		return nil
+	}
+	sumWeight := 0
+	for _, ability := range abilities {
+		sumWeight += int(ability.Weight)
+	}
+
+	smoothingFactor := 1
+	smoothingAdjustment := 0
+	if sumWeight == 0 {
+		smoothingAdjustment = 100
+	} else if sumWeight/len(abilities) < 10 {
+		smoothingFactor = 100
+	}
+
 	weights := make([]int, len(abilities))
 	for i, ability := range abilities {
-		baseWeight := int(ability.Weight) + 10
+		baseWeight := int(ability.Weight)*smoothingFactor + smoothingAdjustment
+		if baseWeight == 0 {
+			continue
+		}
 		weights[i] = EffectiveSelectionWeight(baseWeight, ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: path})
 	}
 	return weights
+}
+
+func selectAcquirableAbilityChannelIdWithFastFallback(
+	fastPreferred []Ability,
+	fastPreferredWeights []int,
+	preferred []Ability,
+	preferredWeights []int,
+	fastFallback []Ability,
+	fastFallbackWeights []int,
+	fallback []Ability,
+	fallbackWeights []int,
+	model string,
+	path string,
+) int {
+	pools := []struct {
+		abilities []Ability
+		weights   []int
+	}{
+		{fastPreferred, fastPreferredWeights},
+		{preferred, preferredWeights},
+		{fastFallback, fastFallbackWeights},
+		{fallback, fallbackWeights},
+	}
+	for _, pool := range pools {
+		if len(pool.abilities) == 0 {
+			continue
+		}
+		if channelID := selectAcquirableAbilityChannelId(pool.abilities, pool.weights, model, path); channelID != 0 {
+			return channelID
+		}
+	}
+	return 0
 }
 
 func selectAcquirableAbilityChannelIdWithFallback(preferred []Ability, preferredWeights []int, fallback []Ability, fallbackWeights []int, model string, path string) int {
@@ -294,6 +384,9 @@ func selectAcquirableAbilityChannelId(candidates []Ability, weights []int, model
 
 	for offset := 0; offset < len(candidates); offset++ {
 		idx := (startIdx + offset) % len(candidates)
+		if weights[idx] == 0 {
+			continue
+		}
 		ability := candidates[idx]
 		key := ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: path}
 		if AcquireChannelHealth(key) {

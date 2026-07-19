@@ -142,6 +142,7 @@ func TestStreamStatus_IsNormalEnd(t *testing.T) {
 		{StreamEndReasonScannerErr, false},
 		{StreamEndReasonPanic, false},
 		{StreamEndReasonPingFail, false},
+		{StreamEndReasonInternalError, false},
 		{StreamEndReasonNone, false},
 	}
 	for _, tt := range tests {
@@ -176,6 +177,16 @@ func TestStreamStatus_ProtocolTerminalOverridesConcurrentTransportEnd(t *testing
 	snapshot := s.Snapshot()
 	assert.Equal(t, StreamEndReasonDone, snapshot.EndReason)
 	assert.Equal(t, "handler_done", snapshot.EndSource)
+}
+
+func TestStreamStatus_ProtocolFailureOverridesScannerDone(t *testing.T) {
+	s := NewStreamStatus()
+	s.SetEndReasonWithSource(StreamEndReasonDone, nil, "scanner_done")
+	s.SetProtocolTerminalEndReasonWithSource(StreamEndReasonUpstreamFailed, fmt.Errorf("empty upstream stream"), "synthetic_terminal")
+
+	snapshot := s.Snapshot()
+	assert.Equal(t, StreamEndReasonUpstreamFailed, snapshot.EndReason)
+	assert.Equal(t, "synthetic_terminal", snapshot.EndSource)
 }
 
 func TestStreamStatus_ProtocolTerminalCannotBeOverwritten(t *testing.T) {

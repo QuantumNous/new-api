@@ -81,6 +81,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
 	streamCtx := newResponsesStreamCtx()
+	streamWriter := NewResponsesStreamWriter(c)
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -88,16 +89,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		var streamResponse dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
 			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
-			sr.Error(err)
-			return
-		}
-		streamCtx.observe(streamResponse)
-		if err := sendResponsesStreamData(c, streamResponse, ensureResponsesTerminalOutputField(streamResponse, data)); err != nil {
+			info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonUpstreamFailed, err, "responses_parse_error")
 			sr.Stop(err)
 			return
 		}
-		switch streamResponse.Type {
-		case "error":
+		if streamResponse.Type == "error" {
 			failureErr := fmt.Errorf("upstream responses stream failed")
 			if streamResponse.Message != "" {
 				failureErr = fmt.Errorf("upstream responses stream failed: %s", streamResponse.Message)
@@ -107,11 +103,88 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				Message: streamResponse.Message,
 				Param:   streamResponse.Param,
 			}
-			if isResponsesChannelFailure(upstreamErr) {
+			failureData, buildErr := streamWriter.FailureData(
+				streamCtx.resolveResponseID(c),
+				streamCtx.resolveModel(info),
+				streamCtx.resolveCreatedAt(),
+				streamCtx.buildUsage(info),
+				upstreamErr,
+			)
+			if buildErr != nil {
+				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonInternalError, buildErr, "responses_error_marshal")
+				sr.Stop(buildErr)
+				return
+			}
+			var failureResponse dto.ResponsesStreamResponse
+			if err := common.UnmarshalJsonStr(failureData, &failureResponse); err != nil {
+				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonInternalError, err, "responses_error_reparse")
+				sr.Stop(err)
+				return
+			}
+			streamCtx.stageTerminal(failureResponse, failureData)
+			writeErr := streamWriter.WriteData("response.failed", failureData)
+			channelFailure := IsResponsesChannelFailure(upstreamErr)
+			if writeErr != nil {
+				logger.LogError(c, "failed to write normalized responses error: "+writeErr.Error())
+				if contextErr := c.Request.Context().Err(); contextErr != nil {
+					info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonClientGone, contextErr, "responses_error_write")
+				} else if channelFailure {
+					info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonUpstreamFailed, failureErr, "responses_error_write")
+				} else {
+					info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonTerminalClientError, failureErr, "responses_error_write")
+				}
+				sr.Stop(writeErr)
+				return
+			}
+			streamCtx.observe(failureResponse)
+			if channelFailure {
 				sr.UpstreamFailed(failureErr)
 			} else {
 				sr.TerminalClientError(failureErr)
 			}
+			return
+		}
+
+		var normalizeErr error
+		streamResponse, data, normalizeErr = normalizeResponsesTerminalEvent(c, info, streamCtx, streamResponse, data)
+		if normalizeErr != nil {
+			info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonUpstreamFailed, normalizeErr, "responses_terminal_normalize")
+			sr.Stop(normalizeErr)
+			return
+		}
+		streamCtx.stageTerminal(streamResponse, data)
+		var failureErr error
+		var upstreamErr *types.OpenAIError
+		if streamResponse.Type == "response.failed" {
+			failureErr = fmt.Errorf("upstream responses stream failed")
+			if streamResponse.Response != nil {
+				upstreamErr = streamResponse.Response.GetOpenAIError()
+				if upstreamErr != nil && upstreamErr.Message != "" {
+					failureErr = fmt.Errorf("upstream responses stream failed: %s", upstreamErr.Message)
+				}
+			}
+		}
+		if err := streamWriter.WriteData(streamResponse.Type, data); err != nil {
+			if contextErr := c.Request.Context().Err(); contextErr != nil {
+				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonClientGone, contextErr, "responses_stream_write")
+				sr.Stop(err)
+			} else if streamResponse.Type == "response.failed" {
+				if IsResponsesChannelFailure(upstreamErr) {
+					info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonUpstreamFailed, failureErr, "responses_terminal_write")
+					sr.Stop(err)
+				} else {
+					info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonTerminalClientError, failureErr, "responses_terminal_write")
+					sr.Stop(err)
+				}
+			} else {
+				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonInternalError, err, "responses_stream_write")
+				sr.Stop(err)
+			}
+			return
+		}
+		streamCtx.observe(streamResponse)
+
+		switch streamResponse.Type {
 		case "response.completed", "response.failed", "response.incomplete":
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
@@ -124,12 +197,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					if streamResponse.Response.Usage.TotalTokens != 0 {
 						usage.TotalTokens = streamResponse.Response.Usage.TotalTokens
 					}
+					if streamResponse.Response.Usage.InputTokensDetails != nil {
+						usage.PromptTokensDetails = *streamResponse.Response.Usage.InputTokensDetails
+					}
+					if streamResponse.Response.Usage.OutputTokensDetails != nil {
+						usage.CompletionTokenDetails = *streamResponse.Response.Usage.OutputTokensDetails
+					}
 					if rt := streamResponse.Response.Usage.ResolveReasoningTokens(); rt != 0 {
 						usage.CompletionTokenDetails.ReasoningTokens = rt
-					}
-					if streamResponse.Response.Usage.InputTokensDetails != nil {
-						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
-						usage.PromptTokensDetails.CacheWriteTokens = streamResponse.Response.Usage.InputTokensDetails.CacheWriteTokens
 					}
 				}
 				if streamResponse.Type == "response.completed" && streamResponse.Response.HasImageGenerationCall() {
@@ -139,15 +214,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				}
 			}
 			if streamResponse.Type == "response.failed" {
-				failureErr := fmt.Errorf("upstream responses stream failed")
-				var upstreamErr *types.OpenAIError
-				if streamResponse.Response != nil {
-					upstreamErr = streamResponse.Response.GetOpenAIError()
-					if upstreamErr != nil && upstreamErr.Message != "" {
-						failureErr = fmt.Errorf("upstream responses stream failed: %s", upstreamErr.Message)
-					}
-				}
-				if isResponsesChannelFailure(upstreamErr) {
+				if IsResponsesChannelFailure(upstreamErr) {
 					sr.UpstreamFailed(failureErr)
 				} else {
 					sr.TerminalClientError(failureErr)
@@ -172,6 +239,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+	if contextErr := c.Request.Context().Err(); contextErr != nil && !streamWriter.TerminalWritten() {
+		info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonClientGone, contextErr, "responses_post_scanner_context")
+	}
 
 	// Synthesize a terminal event if upstream never emitted one. This prevents
 	// the Codex CLI (and similar clients) from raising
@@ -181,14 +251,38 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	// response.failed (timeout / scanner error / no output) based on
 	// info.StreamStatus.
 	if streamCtx.shouldSynthesize(c, info) {
-		synthUsage, err := streamCtx.emitTerminal(c, info)
+		preTerminalStatus := info.StreamStatus.Snapshot()
+		synthUsage, terminalType, err := streamCtx.emitTerminalWithWriter(c, info, streamWriter)
 		if err != nil {
-			if info != nil && info.StreamStatus != nil {
-				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonHandlerStop, err, "synthetic_terminal_write")
+			if retryType, retried, retryErr := streamWriter.RetryPendingTerminal(); retried {
+				err = retryErr
+				if retryErr == nil {
+					terminalType = retryType
+					synthUsage = streamCtx.buildUsage(info)
+				}
 			}
+		}
+		if err != nil {
+			if contextErr := c.Request.Context().Err(); contextErr != nil {
+				info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonClientGone, contextErr, "synthetic_terminal_write")
+			} else {
+				info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonInternalError, err, "synthetic_terminal_write")
+			}
+			info.StreamStatus.RecordError(err.Error())
 		} else {
 			if synthUsage != nil {
 				usage = synthUsage
+			}
+			if terminalType == "response.failed" {
+				endReason := relaycommon.StreamEndReasonUpstreamFailed
+				if preTerminalStatus.EndReason == relaycommon.StreamEndReasonTerminalClientError {
+					endReason = relaycommon.StreamEndReasonTerminalClientError
+				} else if preTerminalStatus.EndReason == relaycommon.StreamEndReasonInternalError {
+					endReason = relaycommon.StreamEndReasonInternalError
+				}
+				info.StreamStatus.SetProtocolTerminalEndReasonWithSource(endReason, preTerminalStatus.EndError, "synthetic_terminal")
+			} else {
+				info.StreamStatus.SetProtocolTerminalEndReasonWithSource(relaycommon.StreamEndReasonDone, nil, "synthetic_terminal")
 			}
 			logger.LogInfo(c, fmt.Sprintf("synthesized responses terminal event (status=%s)", streamStatusSummary(info)))
 		}
@@ -213,7 +307,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	return usage, nil
 }
 
-func isResponsesChannelFailure(upstreamErr *types.OpenAIError) bool {
+func IsResponsesChannelFailure(upstreamErr *types.OpenAIError) bool {
 	if upstreamErr == nil {
 		return true
 	}

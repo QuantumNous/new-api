@@ -90,6 +90,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	preferMeasuredFast := false
+	if param.Ctx != nil {
+		_, _, preferMeasuredFast = getChannelAffinityContext(param.Ctx)
+	}
 
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
@@ -132,6 +136,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 				// channels we would rather try first.
 				AllowCoolingFallback: len(param.ExcludedChannelIDs) == 0 || i == len(autoGroups)-1,
 				Path:                 ChannelHealthPath(param.RequestPath),
+				PreferMeasuredFast:   preferMeasuredFast,
 			})
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
@@ -183,6 +188,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			// cooling channel instead of failing with "no available channel".
 			AllowCoolingFallback: true,
 			Path:                 ChannelHealthPath(param.RequestPath),
+			PreferMeasuredFast:   preferMeasuredFast,
 		})
 		if err != nil {
 			return nil, param.TokenGroup, err

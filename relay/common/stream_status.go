@@ -19,6 +19,7 @@ const (
 	StreamEndReasonEOF                 StreamEndReason = "eof"
 	StreamEndReasonPanic               StreamEndReason = "panic"
 	StreamEndReasonPingFail            StreamEndReason = "ping_fail"
+	StreamEndReasonInternalError       StreamEndReason = "internal_error"
 	StreamEndReasonUpstreamFailed      StreamEndReason = "upstream_failed"
 	StreamEndReasonTerminalClientError StreamEndReason = "terminal_client_error"
 )
@@ -53,6 +54,7 @@ type StreamStatus struct {
 	LastDataAt         time.Time
 	UpstreamStatusCode int
 	endOnce            sync.Once
+	protocolTerminal   bool
 
 	mu         sync.Mutex
 	Errors     []StreamErrorEntry
@@ -94,9 +96,28 @@ func (s *StreamStatus) SetProtocolTerminalEndReasonWithSource(reason StreamEndRe
 	s.endOnce.Do(func() {})
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.EndReason == StreamEndReasonDone ||
-		s.EndReason == StreamEndReasonUpstreamFailed ||
-		s.EndReason == StreamEndReasonTerminalClientError {
+	if s.protocolTerminal {
+		return
+	}
+	s.protocolTerminal = true
+	s.EndReason = reason
+	s.EndError = err
+	s.EndSource = source
+	s.EndedAt = time.Now()
+}
+
+// OverrideEndReasonIfNoProtocolTerminal records a post-scanner outcome such
+// as a downstream disconnect or terminal-write failure. Scanner EOF/[DONE]
+// may arrive first, but it must not hide a later failure before any protocol
+// terminal was committed to the client.
+func (s *StreamStatus) OverrideEndReasonIfNoProtocolTerminal(reason StreamEndReason, err error, source string) {
+	if s == nil {
+		return
+	}
+	s.endOnce.Do(func() {})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.protocolTerminal {
 		return
 	}
 	s.EndReason = reason

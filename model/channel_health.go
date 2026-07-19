@@ -40,6 +40,7 @@ const (
 	channelHealthMaxBackoffShift    = 4 // 30s << 4 == 8m
 	channelHealthMaxOpenDuration    = 8 * time.Minute
 	channelHealthBackoffResetStreak = 3 // consecutive fast successes that clear the backoff
+	channelHealthFastEntrySamples   = 3 // consecutive sub-2s samples before affinity may concentrate here
 
 	// channelHealthSlowThreshold consecutive slow successes (a fast success
 	// resets the count) trip the circuit, so a consistently-slow channel is
@@ -50,21 +51,22 @@ const (
 	channelHealthSlowThreshold             = 3
 	defaultChannelHealthSlowLatencySeconds = 9
 
-	// affinityFastLatency is the first-token latency below which a channel counts
-	// as "genuinely fast right now". Used only to bias channel *selection* toward
-	// fast channels (see fastChannelSelectionBoost) — it no longer governs
-	// migration off a sticky channel, because a session's warm prompt cache is
-	// worth more than any latency difference: even a slow channel answers a cache
-	// hit in ~1s, whereas leaving pays a 20-40s cold prefill.
-	affinityFastLatency = 2 * time.Second
+	// affinityFastLatency is the entry threshold for "genuinely fast right now";
+	// affinityFastExitLatency is the higher exit threshold. The gap prevents one
+	// ordinary spike around 2s from collapsing a proven-fast channel's selection
+	// weight by 8x. These thresholds only bias channel selection — they no longer
+	// govern migration off a sticky channel, because leaving a warm prompt cache
+	// can pay a 20-40s cold prefill.
+	affinityFastLatency     = 2 * time.Second
+	affinityFastExitLatency = 3 * time.Second
 
-	// fastChannelSelectionBoost multiplies the selection weight of a channel
-	// measured fast (EWMA < affinityFastLatency). It concentrates traffic on
-	// genuinely fast channels so a session bounced off slow ones lands on a fast
-	// one rather than being weighted-randomly dropped back onto another slow one.
+	// fastChannelSelectionBoost multiplies the selection weight of a channel in
+	// the measured-fast state. It concentrates traffic on genuinely fast channels
+	// so a session bounced off slow ones lands on a fast one rather than being
+	// weighted-randomly dropped back onto another slow one.
 	// 8 gives a single fast channel ~80% of the traffic against a handful of slow
 	// peers while leaving them a probe share; the boost self-cancels once a
-	// channel's EWMA rises past the threshold under load.
+	// channel's EWMA rises past the exit threshold under load.
 	fastChannelSelectionBoost = 8
 )
 
@@ -109,6 +111,8 @@ type channelHealthEntry struct {
 	openUntil        time.Time
 	probeLeaseUntil  time.Time
 	latencyEWMA      float64
+	latencyFast      bool
+	fastSamples      int
 	lastSeenAt       time.Time
 	// openedBySlow records why the circuit last opened: true = sustained
 	// slowness, false = failures. Read by affinity to decide whether a
@@ -162,6 +166,8 @@ func (e *channelHealthEntry) openWithBackoff(now time.Time, bySlow bool) {
 	e.slowSamples = nil
 	e.recentOutcomes = nil
 	e.healthyStreak = 0
+	e.latencyFast = false
+	e.fastSamples = 0
 	if e.consecutiveOpens <= channelHealthMaxBackoffShift {
 		e.consecutiveOpens++
 	}
@@ -252,6 +258,8 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 
 	if outcome.StatusCode >= http.StatusInternalServerError || outcome.StatusCode <= 0 || isChannelOverloadStatus(outcome.StatusCode) {
 		entry.healthyStreak = 0
+		entry.latencyFast = false
+		entry.fastSamples = 0
 		entry.pushRecentOutcome(true)
 		if entry.state == ChannelHealthHalfOpen {
 			entry.openWithBackoff(now, false)
@@ -281,6 +289,19 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 			entry.latencyEWMA = latency
 		} else {
 			entry.latencyEWMA = entry.latencyEWMA*0.8 + latency*0.2
+		}
+		if entry.latencyFast {
+			if entry.latencyEWMA >= float64(affinityFastExitLatency) {
+				entry.latencyFast = false
+				entry.fastSamples = 0
+			}
+		} else if entry.latencyEWMA < float64(affinityFastLatency) && outcome.Latency < affinityFastLatency {
+			entry.fastSamples++
+			if entry.fastSamples >= channelHealthFastEntrySamples {
+				entry.latencyFast = true
+			}
+		} else {
+			entry.fastSamples = 0
 		}
 	}
 
@@ -449,8 +470,9 @@ func (r *channelHealthRegistry) Score(key ChannelHealthKey) float64 {
 }
 
 // selectionFactors returns, in one lock, a channel's health score and whether
-// it is *measured fast* — a closed circuit with a latency EWMA below
-// affinityFastLatency. The two are needed together at channel selection.
+// it is *measured fast* — a closed circuit that crossed the fast entry threshold
+// and has not yet crossed the higher exit threshold. The two values are needed
+// together at channel selection.
 //
 // A cold/unknown channel (no EWMA yet) is deliberately reported as not-fast: it
 // keeps its full base score so it can be probed, but does not receive the
@@ -471,7 +493,7 @@ func (r *channelHealthRegistry) selectionFactors(key ChannelHealthKey) (score fl
 		return minimumChannelHealthScore, false
 	}
 	score = math.Max(minimumChannelHealthScore, math.Min(1, 1/(1+entry.latencyEWMA/float64(time.Second))))
-	return score, entry.latencyEWMA < float64(affinityFastLatency)
+	return score, entry.latencyFast
 }
 
 var adaptiveChannelHealth = newChannelHealthRegistry(time.Now)

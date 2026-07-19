@@ -26,6 +26,8 @@ func TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure(t *testing.T) {
 	failedStream.SetEndReason(relaycommon.StreamEndReasonUpstreamFailed, errors.New("upstream response.failed"))
 	clientTerminalStream := relaycommon.NewStreamStatus()
 	clientTerminalStream.SetEndReason(relaycommon.StreamEndReasonTerminalClientError, errors.New("invalid prompt"))
+	internalFailureStream := relaycommon.NewStreamStatus()
+	internalFailureStream.SetEndReason(relaycommon.StreamEndReasonInternalError, errors.New("conversion failed"))
 
 	tests := []struct {
 		name         string
@@ -39,6 +41,7 @@ func TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure(t *testing.T) {
 		{name: "empty upstream response", apiErr: nil, relayInfo: &relaycommon.RelayInfo{UpstreamEmptyResponse: true}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
 		{name: "upstream terminal failure", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: failedStream}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
 		{name: "client terminal failure", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: clientTerminalStream}, wantStatus: http.StatusBadRequest, wantLocalErr: false},
+		{name: "internal stream failure", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: internalFailureStream}, wantStatus: http.StatusInternalServerError, wantLocalErr: true},
 		{name: "client terminal failure wins over empty usage", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: clientTerminalStream, UpstreamEmptyResponse: true}, wantStatus: http.StatusBadRequest, wantLocalErr: false},
 		{name: "upstream error wins over empty flag", apiErr: upstreamErr, relayInfo: &relaycommon.RelayInfo{UpstreamEmptyResponse: true}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
 		{name: "gateway-local error", apiErr: localErr, relayInfo: &relaycommon.RelayInfo{}, wantStatus: http.StatusInternalServerError, wantLocalErr: true},
