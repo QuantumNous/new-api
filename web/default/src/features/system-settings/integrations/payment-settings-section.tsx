@@ -714,7 +714,10 @@ export function PaymentSettingsSection({
     }
 
     for (const update of updates) {
-      await updateOption.mutateAsync(update)
+      await updateOption.mutateAsync({
+        ...update,
+        notification: hasWaffoPancakeChanges ? { success: false } : undefined,
+      })
     }
 
     if (!hasWaffoPancakeChanges) {

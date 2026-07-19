@@ -320,11 +320,17 @@ export function ChannelAffinitySection(props: Props) {
       }
 
       for (const u of updates) {
-        await updateOption.mutateAsync(u)
+        await updateOption.mutateAsync({
+          ...u,
+          notification: {
+            success: false,
+            error: t('Failed to save'),
+          },
+        })
       }
       toast.success(t('Saved successfully'))
     } catch {
-      toast.error(t('Failed to save'))
+      return
     } finally {
       setSaving(false)
     }

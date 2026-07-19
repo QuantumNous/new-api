@@ -126,11 +126,14 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
       await updateOption.mutateAsync({
         key: 'console_setting.faq_enabled',
         value: checked,
+        notification: {
+          success: t('Setting saved'),
+          error: t('Failed to update setting'),
+        },
       })
       setIsEnabled(checked)
-      toast.success(t('Setting saved'))
     } catch {
-      toast.error(t('Failed to update setting'))
+      return
     }
   }
 
@@ -210,11 +213,14 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
       await updateOption.mutateAsync({
         key: 'console_setting.faq',
         value: JSON.stringify(faqList),
+        notification: {
+          success: t('FAQ saved successfully'),
+          error: t('Failed to save FAQ'),
+        },
       })
       setHasChanges(false)
-      toast.success(t('FAQ saved successfully'))
     } catch {
-      toast.error(t('Failed to save FAQ'))
+      return
     }
   }
 
