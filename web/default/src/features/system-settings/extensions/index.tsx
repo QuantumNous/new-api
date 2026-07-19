@@ -29,6 +29,14 @@ const defaultExtensionsSettings: ExtensionsSettings = {
   'console_setting.availability_monitor_enabled': true,
   'console_setting.availability_monitor_visibility': 'all',
   'console_setting.availability_monitor_refresh_interval': 10,
+  'lottery_setting.enabled': false,
+  'lottery_setting.daily_pool_usd': 100,
+  'lottery_setting.display_daily_pool_usd': 8888,
+  'lottery_setting.min_bet_usd': 0.01,
+  'lottery_setting.max_bet_usd': 10,
+  'lottery_setting.max_draws_per_ip_per_day': 3,
+  'lottery_setting.free_prizes': '[]',
+  'lottery_setting.bet_prizes': '[]',
 }
 
 export function ExtensionsSettingsPage() {

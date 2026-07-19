@@ -337,11 +337,18 @@ export function SignUpForm({
 
         {/* Turnstile */}
         {isTurnstileEnabled && (
-          <div className='mt-2'>
+          <div className='mt-2 space-y-1'>
             <Turnstile
               siteKey={turnstileSiteKey}
               onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken('')}
+              onError={() => setTurnstileToken('')}
             />
+            {!turnstileToken ? (
+              <p className='text-muted-foreground text-xs'>
+                {t('Human verification is required before you can continue.')}
+              </p>
+            ) : null}
           </div>
         )}
 

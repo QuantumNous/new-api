@@ -192,6 +192,14 @@ export type ExtensionsSettings = {
   'console_setting.availability_monitor_enabled': boolean
   'console_setting.availability_monitor_visibility': string
   'console_setting.availability_monitor_refresh_interval': number
+  'lottery_setting.enabled': boolean
+  'lottery_setting.daily_pool_usd': number
+  'lottery_setting.display_daily_pool_usd': number
+  'lottery_setting.min_bet_usd': number
+  'lottery_setting.max_bet_usd': number
+  'lottery_setting.max_draws_per_ip_per_day': number
+  'lottery_setting.free_prizes': string
+  'lottery_setting.bet_prizes': string
 }
 
 export type ModelSettings = {

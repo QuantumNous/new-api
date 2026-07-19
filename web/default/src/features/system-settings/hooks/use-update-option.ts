@@ -41,6 +41,10 @@ const STATUS_RELATED_KEYS = [
   'console_setting.availability_monitor_enabled',
   'console_setting.availability_monitor_visibility',
   'console_setting.availability_monitor_refresh_interval',
+  // Turnstile is read from /api/status on lottery / login pages
+  'TurnstileCheckEnabled',
+  'TurnstileSiteKey',
+  'TurnstileSecretKey',
 ]
 
 export function useUpdateOption() {

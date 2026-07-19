@@ -22,6 +22,7 @@ import type { ExtensionsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AvailabilityMonitorSection } from './availability-monitor-section'
 import { CustomPagesSection } from './custom-pages-section'
+import { LotterySettingsSection } from './lottery-settings-section'
 import {
   DEFAULT_EXTENSION_VISIBILITY,
   resolveExtensionVisibility,
@@ -51,6 +52,29 @@ const EXTENSIONS_SECTIONS = [
             ),
           'console_setting.availability_monitor_refresh_interval':
             settings['console_setting.availability_monitor_refresh_interval'],
+        },
+      }),
+  },
+  {
+    id: 'lottery',
+    titleKey: 'Lucky Slot Lottery',
+    build: (settings: ExtensionsSettings) =>
+      createElement(LotterySettingsSection, {
+        defaultValues: {
+          enabled: settings['lottery_setting.enabled'] ?? false,
+          dailyPoolUsd: settings['lottery_setting.daily_pool_usd'] ?? 100,
+          displayDailyPoolUsd:
+            settings['lottery_setting.display_daily_pool_usd'] ?? 8888,
+          minBetUsd: settings['lottery_setting.min_bet_usd'] ?? 0.01,
+          maxBetUsd: settings['lottery_setting.max_bet_usd'] ?? 10,
+          maxDrawsPerIpPerDay:
+            settings['lottery_setting.max_draws_per_ip_per_day'] ?? 3,
+          freePrizesJson:
+            settings['lottery_setting.free_prizes'] ||
+            '[{"name":"谢谢惠顾","usd":0,"weight":28,"is_thanks":true}]',
+          betPrizesJson:
+            settings['lottery_setting.bet_prizes'] ||
+            '[{"name":"谢谢惠顾","multiplier":0,"weight":18,"is_thanks":true}]',
         },
       }),
   },

@@ -20,6 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import * as z from 'zod'
 
 import {
@@ -55,6 +56,8 @@ type BotProtectionSectionProps = {
   defaultValues: BotProtectionFormValues
 }
 
+const SECRET_MASK = '********'
+
 export function BotProtectionSection({
   defaultValues,
 }: BotProtectionSectionProps) {
@@ -71,13 +74,58 @@ export function BotProtectionSection({
   }, [defaultValues, form])
 
   const onSubmit = async (data: BotProtectionFormValues) => {
-    const updates = Object.entries(data).filter(
-      ([key, value]) =>
-        value !== defaultValues[key as keyof BotProtectionFormValues]
-    )
+    const siteKey = (data.TurnstileSiteKey || '').trim()
+    const secretKey = (data.TurnstileSecretKey || '').trim()
 
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value: value ?? '' })
+    if (data.TurnstileCheckEnabled && !siteKey) {
+      toast.error(
+        t(
+          'Unable to enable Turnstile. Please fill in the Turnstile site key first.'
+        )
+      )
+      return
+    }
+
+    // Save keys before enabling — backend rejects enable when site key is empty
+    const updates: Array<{ key: string; value: string }> = []
+
+    if (siteKey !== (defaultValues.TurnstileSiteKey || '')) {
+      updates.push({ key: 'TurnstileSiteKey', value: siteKey })
+    }
+
+    // Secret is masked when already configured; only send a real new secret
+    if (
+      secretKey &&
+      secretKey !== SECRET_MASK &&
+      secretKey !== (defaultValues.TurnstileSecretKey || '')
+    ) {
+      updates.push({ key: 'TurnstileSecretKey', value: secretKey })
+    }
+
+    if (data.TurnstileCheckEnabled !== defaultValues.TurnstileCheckEnabled) {
+      updates.push({
+        key: 'TurnstileCheckEnabled',
+        value: String(data.TurnstileCheckEnabled),
+      })
+    }
+
+    if (updates.length === 0) {
+      toast.message(t('No changes to save'))
+      return
+    }
+
+    try {
+      for (const item of updates) {
+        await updateOption.mutateAsync(item)
+      }
+      form.reset({
+        ...data,
+        TurnstileSiteKey: siteKey,
+        TurnstileSecretKey:
+          secretKey && secretKey !== SECRET_MASK ? SECRET_MASK : secretKey,
+      })
+    } catch {
+      // toast handled by mutation
     }
   }
 
@@ -98,7 +146,7 @@ export function BotProtectionSection({
                   <FormLabel>{t('Enable Turnstile')}</FormLabel>
                   <FormDescription>
                     {t(
-                      'Protect login and registration with Cloudflare Turnstile'
+                      'Protect login, registration and lottery draws with Cloudflare Turnstile'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>
@@ -125,6 +173,11 @@ export function BotProtectionSection({
                     {...field}
                   />
                 </FormControl>
+                <FormDescription>
+                  {t(
+                    'Public site key from Cloudflare Turnstile. Required for the widget to render.'
+                  )}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -144,6 +197,11 @@ export function BotProtectionSection({
                     {...field}
                   />
                 </FormControl>
+                <FormDescription>
+                  {t(
+                    'If already saved, this field shows ********. Leave it unchanged unless you need to replace the secret.'
+                  )}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

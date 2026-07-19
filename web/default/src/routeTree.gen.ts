@@ -51,6 +51,7 @@ import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
+import { Route as AuthenticatedExtensionsLotteryRouteImport } from './routes/_authenticated/extensions/lottery'
 import { Route as AuthenticatedExtensionsAvailabilityRouteImport } from './routes/_authenticated/extensions/availability'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
@@ -296,6 +297,12 @@ const AuthenticatedModelsSectionRoute =
     path: '/models/$section',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedExtensionsLotteryRoute =
+  AuthenticatedExtensionsLotteryRouteImport.update({
+    id: '/extensions/lottery',
+    path: '/extensions/lottery',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedExtensionsAvailabilityRoute =
   AuthenticatedExtensionsAvailabilityRouteImport.update({
     id: '/extensions/availability',
@@ -458,6 +465,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/extensions/availability': typeof AuthenticatedExtensionsAvailabilityRoute
+  '/extensions/lottery': typeof AuthenticatedExtensionsLotteryRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -521,6 +529,7 @@ export interface FileRoutesByTo {
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/extensions/availability': typeof AuthenticatedExtensionsAvailabilityRoute
+  '/extensions/lottery': typeof AuthenticatedExtensionsLotteryRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
@@ -588,6 +597,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/extensions/availability': typeof AuthenticatedExtensionsAvailabilityRoute
+  '/_authenticated/extensions/lottery': typeof AuthenticatedExtensionsLotteryRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -654,6 +664,7 @@ export interface FileRouteTypes {
     | '/dashboard/$section'
     | '/errors/$error'
     | '/extensions/availability'
+    | '/extensions/lottery'
     | '/models/$section'
     | '/usage-logs/$section'
     | '/channels/'
@@ -717,6 +728,7 @@ export interface FileRouteTypes {
     | '/dashboard/$section'
     | '/errors/$error'
     | '/extensions/availability'
+    | '/extensions/lottery'
     | '/models/$section'
     | '/usage-logs/$section'
     | '/channels'
@@ -783,6 +795,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
     | '/_authenticated/extensions/availability'
+    | '/_authenticated/extensions/lottery'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/channels/'
@@ -1134,6 +1147,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedModelsSectionRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/extensions/lottery': {
+      id: '/_authenticated/extensions/lottery'
+      path: '/extensions/lottery'
+      fullPath: '/extensions/lottery'
+      preLoaderRoute: typeof AuthenticatedExtensionsLotteryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/extensions/availability': {
       id: '/_authenticated/extensions/availability'
       path: '/extensions/availability'
@@ -1388,6 +1408,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedExtensionsAvailabilityRoute: typeof AuthenticatedExtensionsAvailabilityRoute
+  AuthenticatedExtensionsLotteryRoute: typeof AuthenticatedExtensionsLotteryRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
@@ -1414,6 +1435,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedExtensionsAvailabilityRoute:
     AuthenticatedExtensionsAvailabilityRoute,
+  AuthenticatedExtensionsLotteryRoute: AuthenticatedExtensionsLotteryRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,

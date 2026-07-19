@@ -21,6 +21,7 @@ import {
   ActivitySquare,
   Box,
   CreditCard,
+  Dices,
   FileText,
   FlaskConical,
   Key,
@@ -63,7 +64,17 @@ export function useSidebarData(): SidebarData {
       status?.availability_monitor_visible ??
         status?.data?.availability_monitor_visible
     )
+    const lotteryEnabled = Boolean(
+      status?.lottery_enabled ?? status?.data?.lottery_enabled
+    )
     const items: NavItem[] = []
+    if (lotteryEnabled) {
+      items.push({
+        title: t('Lucky Slot'),
+        url: '/extensions/lottery',
+        icon: Dices,
+      })
+    }
     if (monitorVisible) {
       items.push({
         title: t('Availability Monitor'),

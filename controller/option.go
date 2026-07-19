@@ -81,6 +81,21 @@ func GetOptions(c *gin.Context) {
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
+		// Turnstile Site Key is public (embedded in the frontend widget).
+		if k == "TurnstileSiteKey" {
+			options = append(options, &model.Option{Key: k, Value: value})
+			continue
+		}
+		// Never return the raw Turnstile secret; expose a mask so the admin UI
+		// can show that a secret is already configured.
+		if k == "TurnstileSecretKey" {
+			masked := ""
+			if value != "" {
+				masked = "********"
+			}
+			options = append(options, &model.Option{Key: k, Value: masked})
+			continue
+		}
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
@@ -136,6 +151,17 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(int))
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
+	}
+	// Masked / empty secret means "keep existing" — never wipe TurnstileSecretKey
+	if option.Key == "TurnstileSecretKey" {
+		secret := option.Value.(string)
+		if secret == "" || secret == "********" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "",
+			})
+			return
+		}
 	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
