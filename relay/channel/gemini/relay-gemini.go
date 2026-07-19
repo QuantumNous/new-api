@@ -1628,12 +1628,18 @@ func buildGeminiImagineRequestFromImage(request dto.ImageRequest) *dto.GeminiCha
 	}
 	// Map resolution/quality → imageSize. Resolution takes precedence over Quality
 	// since the playground (and most clients) pass "2k"/"4K" via Resolution, not Quality.
+	// Supported values by img-api.zxcode.vip: "1K", "2K", "4K" ("0.5K" returns 400).
 	resNorm := strings.ToUpper(strings.TrimSpace(request.Resolution))
 	qualNorm := strings.ToLower(strings.TrimSpace(request.Quality))
 	switch {
-	case resNorm == "2K" || resNorm == "4K" || qualNorm == "hd" || qualNorm == "high" || qualNorm == "2k":
+	case resNorm == "4K":
+		imageConfig["imageSize"] = "4K"
+	case resNorm == "2K" || qualNorm == "hd" || qualNorm == "high" || qualNorm == "2k":
 		imageConfig["imageSize"] = "2K"
-	case resNorm == "0.5K" || resNorm == "1K" || qualNorm == "standard" || qualNorm == "medium" || qualNorm == "low" || qualNorm == "auto" || qualNorm == "1k":
+	case resNorm == "1K" || qualNorm == "standard" || qualNorm == "medium" || qualNorm == "low" || qualNorm == "auto" || qualNorm == "1k":
+		imageConfig["imageSize"] = "1K"
+	case resNorm == "0.5K":
+		// 0.5K is not supported by this upstream; fall back to 1K silently.
 		imageConfig["imageSize"] = "1K"
 	}
 	if len(imageConfig) > 0 {
