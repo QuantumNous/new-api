@@ -1312,7 +1312,7 @@
                         }
                       ]
                     },
-                    "description": "```\nPOST https://api.opwan.ai/v1beta/models/{model}:generateContent\n```\nGoogle 原生 GenerateContent 格式。`{model}` 路径参数填 `gemini-3-pro` 等。",
+                    "description": "```\nPOST https://api.opwan.ai/v1beta/models/{model}:generateContent\n```\nGoogle 原生 GenerateContent 非图片格式，可用于文本及模型允许的音频输出。此入口不允许图片输出；生图模型或 `responseModalities` 包含 `IMAGE` 时返回 400，请改用 `POST /v1/images/generations`。",
                     "tags": [
                       "文字（Chat）/gemini-3-pro"
                     ],
@@ -1456,7 +1456,7 @@
                         }
                       ]
                     },
-                    "description": "```\nPOST https://api.opwan.ai/v1/chat/completions\n```\n\n`model` 字段填 `\"<任意 OpenAI 兼容模型>\"`——任何 OpenAI 兼容格式的模型都可用此通用入口。",
+                    "description": "```\nPOST https://api.opwan.ai/v1/chat/completions\n```\n\nOpenAI 兼容的文本/音频入口。图片输出模型或 `modalities` 包含 `image` 时返回 400；所有生图统一使用 `POST /v1/images/generations`。",
                     "tags": [
                       "文字（Chat）/通用"
                     ],
@@ -1549,8 +1549,7 @@
                       "type": "application/json",
                       "parameters": [],
                       "jsonSchema": {
-                        "type": "object",
-                        "x-apifox-orders": []
+                        "$ref": "#/definitions/263079097"
                       },
                       "mediaType": "application/json",
                       "oasExtensions": "",
@@ -1564,7 +1563,7 @@
                         }
                       ]
                     },
-                    "description": "```\nPOST https://api.opwan.ai/v1/responses\n```\n\nOpenAI 新版 Responses API 格式，跟 chat/completions 平行。任意 OpenAI 系模型均可。",
+                    "description": "```\nPOST https://api.opwan.ai/v1/responses\n```\n\nOpenAI Responses 文本入口。`image_generation` 工具和图片输出模型会返回 400；所有生图统一使用 `POST /v1/images/generations`。",
                     "tags": [
                       "文字（Chat）/通用"
                     ],
@@ -1633,1057 +1632,7 @@
           "inheritPreProcessors": {},
           "items": [
             {
-              "name": "gpt-image-2",
-              "id": 84639678,
-              "auth": {},
-              "securityScheme": {},
-              "parentId": 84639671,
-              "serverId": "",
-              "description": "",
-              "identityPattern": {
-                "httpApi": {
-                  "type": "inherit",
-                  "bodyType": "",
-                  "fields": []
-                }
-              },
-              "shareSettings": {},
-              "visibility": "INHERITED",
-              "moduleId": 7492826,
-              "preProcessors": [
-                {
-                  "id": "inheritProcessors",
-                  "type": "inheritProcessors",
-                  "data": {}
-                }
-              ],
-              "postProcessors": [
-                {
-                  "id": "inheritProcessors",
-                  "type": "inheritProcessors",
-                  "data": {}
-                }
-              ],
-              "inheritPostProcessors": {},
-              "inheritPreProcessors": {},
-              "items": [
-                {
-                  "name": "图像生成",
-                  "api": {
-                    "id": "452168127",
-                    "method": "post",
-                    "path": "/v1/images/generations",
-                    "parameters": {
-                      "query": [],
-                      "path": [],
-                      "cookie": [],
-                      "header": []
-                    },
-                    "auth": {
-                      "type": "securityscheme"
-                    },
-                    "securityScheme": {
-                      "schemeGroups": [
-                        {
-                          "id": "oIKIL0Llpj-ypcmowGUCQ",
-                          "schemeIds": [
-                            1107990
-                          ]
-                        }
-                      ],
-                      "required": true,
-                      "use": {
-                        "id": "oIKIL0Llpj-ypcmowGUCQ",
-                        "configs": {
-                          "1107990": {
-                            "authConfigs": {
-                              "x-apifox": {
-                                "token": "{{bearerToken}}"
-                              }
-                            }
-                          }
-                        }
-                      },
-                      "scopes": {
-                        "oIKIL0Llpj-ypcmowGUCQ": {
-                          "1107990": []
-                        }
-                      }
-                    },
-                    "commonParameters": {
-                      "query": [],
-                      "body": [],
-                      "cookie": [],
-                      "header": []
-                    },
-                    "responses": [
-                      {
-                        "id": "102966136",
-                        "code": "200",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079107"
-                        },
-                        "itemSchema": {},
-                        "description": "成功",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": ""
-                      },
-                      {
-                        "id": "144195035",
-                        "code": "401",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "认证失败 - API Key 无效或缺失",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": ""
-                      },
-                      {
-                        "id": "116810433",
-                        "code": "429",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "限流 - 请求过快或额度耗尽",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": ""
-                      },
-                      {
-                        "id": "140667846",
-                        "code": "500",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "上游错误 - 厂商 API 异常或 new-api 内部错误",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": ""
-                      }
-                    ],
-                    "responseExamples": [
-                      {
-                        "name": "成功示例",
-                        "data": "{\n    \"created\": 1730000000,\n    \"data\": [\n        {\n            \"url\": \"https://cdn.opwan.ai/images/<hash>.png\",\n            \"revised_prompt\": \"...\"\n        }\n    ]\n}",
-                        "responseId": "102966136",
-                        "description": "",
-                        "oasKey": "",
-                        "oasExtensions": ""
-                      },
-                      {
-                        "name": "成功示例",
-                        "data": "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided\",\n        \"type\": \"invalid_request_error\",\n        \"code\": \"invalid_api_key\"\n    }\n}",
-                        "responseId": "144195035",
-                        "description": "",
-                        "oasKey": "",
-                        "oasExtensions": ""
-                      },
-                      {
-                        "name": "成功示例",
-                        "data": "{\n    \"error\": {\n        \"message\": \"Rate limit reached for requests\",\n        \"type\": \"rate_limit_error\",\n        \"code\": \"rate_limit_exceeded\"\n    }\n}",
-                        "responseId": "116810433",
-                        "description": "",
-                        "oasKey": "",
-                        "oasExtensions": ""
-                      }
-                    ],
-                    "requestBody": {
-                      "type": "application/json",
-                      "parameters": [],
-                      "jsonSchema": {
-                        "$ref": "#/definitions/270308753"
-                      },
-                      "required": true,
-                      "mediaType": "application/json",
-                      "examples": [
-                        {
-                          "name": "基础生成（1024×1024）",
-                          "value": "{\n    \"model\": \"gpt-image-2\",\n    \"prompt\": \"窗台上一只可爱的猫，电影感打光\",\n    \"size\": \"1024x1024\",\n    \"quality\": \"high\"\n}",
-                          "oasKey": "basic",
-                          "oasExtensions": "",
-                          "mediaType": "application/json"
-                        },
-                        {
-                          "name": "4K 横屏 (3840×2160)",
-                          "value": "{\n    \"model\": \"gpt-image-2\",\n    \"prompt\": \"海上日落，写实风格，4K 细节\",\n    \"size\": \"3840x2160\",\n    \"quality\": \"high\",\n    \"output_format\": \"png\"\n}",
-                          "oasKey": "high_resolution_4k",
-                          "oasExtensions": "",
-                          "mediaType": "application/json"
-                        },
-                        {
-                          "name": "高压缩 JPEG（适合移动端）",
-                          "value": "{\n    \"model\": \"gpt-image-2\",\n    \"prompt\": \"海上日落\",\n    \"size\": \"1536x864\",\n    \"output_format\": \"jpeg\",\n    \"output_compression\": 75,\n    \"quality\": \"medium\"\n}",
-                          "oasKey": "compressed_jpeg",
-                          "oasExtensions": "",
-                          "mediaType": "application/json"
-                        }
-                      ],
-                      "oasExtensions": ""
-                    },
-                    "description": "`model` = `\"gpt-image-2\"`。参数 enum 详见 schema。`size` 仅支持 15 个官方安全尺寸（1K/2K/4K × 5 个比例）+ `auto`。",
-                    "tags": [
-                      "图像（Images）/gpt-image-2"
-                    ],
-                    "status": "released",
-                    "serverId": "",
-                    "operationId": "imageGptImage2Generate",
-                    "sourceUrl": "",
-                    "ordering": 6,
-                    "cases": [],
-                    "mocks": [],
-                    "customApiFields": "{}",
-                    "advancedSettings": {
-                      "disabledSystemHeaders": {}
-                    },
-                    "mockScript": {},
-                    "codeSamples": [],
-                    "commonResponseStatus": {},
-                    "responseChildren": [],
-                    "visibility": "INHERITED",
-                    "moduleId": 7492826,
-                    "oasExtensions": "{\"x-apifox-overrides\":{\"path\":\"/v1/images/generations\"}}",
-                    "type": "http",
-                    "preProcessors": [],
-                    "postProcessors": [],
-                    "inheritPostProcessors": {},
-                    "inheritPreProcessors": {}
-                  }
-                },
-                {
-                  "name": "图像编辑",
-                  "api": {
-                    "id": "452168128",
-                    "method": "post",
-                    "path": "/v1/images/edits",
-                    "parameters": {
-                      "query": [],
-                      "path": [],
-                      "cookie": [],
-                      "header": []
-                    },
-                    "auth": {
-                      "type": "securityscheme"
-                    },
-                    "securityScheme": {
-                      "schemeGroups": [
-                        {
-                          "id": "JQIAJ7zz4P5lrFACVnRXX",
-                          "schemeIds": [
-                            1107990
-                          ]
-                        }
-                      ],
-                      "required": true,
-                      "use": {
-                        "id": "JQIAJ7zz4P5lrFACVnRXX",
-                        "configs": {
-                          "1107990": {
-                            "authConfigs": {
-                              "x-apifox": {
-                                "token": "{{bearerToken}}"
-                              }
-                            }
-                          }
-                        }
-                      },
-                      "scopes": {
-                        "JQIAJ7zz4P5lrFACVnRXX": {
-                          "1107990": []
-                        }
-                      }
-                    },
-                    "commonParameters": {
-                      "query": [],
-                      "body": [],
-                      "cookie": [],
-                      "header": []
-                    },
-                    "responses": [
-                      {
-                        "id": "resp-200-default",
-                        "code": "200",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079107"
-                        },
-                        "itemSchema": {},
-                        "description": "成功",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-200-default",
-                            "name": "Status 200",
-                            "description": "成功",
-                            "mockBy": "static",
-                            "data": "{\n  \"created\": 1714723200,\n  \"data\": [\n    {\n      \"url\": \"https://cdn.opwan.ai/images/13cd3af24cfe6372870ef644543e62148eba30b2d2389f902385e4f63dd59021.jpg\",\n      \"revised_prompt\": \"A watercolor-bordered version of the source image with soft pastel edges\"\n    }\n  ],\n  \"background\": \"auto\",\n  \"output_format\": \"jpeg\",\n  \"quality\": \"auto\",\n  \"size\": \"1024x1024\",\n  \"usage\": {\n    \"input_tokens\": 1826,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n    \"output_tokens\": 91,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 1917\n  },\n  \"model\": \"gpt-5.4-mini-2026-03-17\"\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-200-审核拒绝",
-                        "code": "200",
-                        "name": "审核拒绝",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "上游审核拦截，需检查 `error`。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-200-审核拒绝",
-                            "name": "审核拒绝",
-                            "description": "上游审核拦截，需检查 `error`。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"type\": \"image_generation_user_error\",\n    \"code\": \"moderation_blocked\",\n    \"message\": \"Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID <request-id>. safety_violations=[sexual].\"\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-400-参数错误",
-                        "code": "400",
-                        "name": "参数错误",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "缺字段 / 类型不支持 / 超大 / URL 拉取失败 / 图数量超限。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-400-参数错误",
-                            "name": "参数错误",
-                            "description": "缺字段 / 类型不支持 / 超大 / URL 拉取失败 / 图数量超限。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"unsupported image type \\\"image/gif\\\", use png, jpeg, or webp\",\n    \"type\": \"invalid_request_error\"\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-401-default",
-                        "code": "401",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "API key 无效。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-401-default",
-                            "name": "Status 401",
-                            "description": "API key 无效。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"Invalid relay key\",\n    \"type\": \"authentication_error\",\n    \"param\": null,\n    \"code\": null\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-429-default",
-                        "code": "429",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "限流。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-429-default",
-                            "name": "Status 429",
-                            "description": "限流。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"rate limit exceeded\",\n    \"type\": \"rate_limit_error\"\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-500-default",
-                        "code": "500",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "网关内部错误。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-500-default",
-                            "name": "Status 500",
-                            "description": "网关内部错误。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"internal server error\",\n    \"type\": \"server_error\"\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-502-上游错误",
-                        "code": "502",
-                        "name": "上游错误",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "上游 SSE 中断 / 通信失败。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-502-上游错误",
-                            "name": "上游错误",
-                            "description": "上游 SSE 中断 / 通信失败。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"upstream stream ended without response.completed\",\n    \"type\": \"upstream_error\"\n  }\n}"
-                          }
-                        ]
-                      }
-                    ],
-                    "responseExamples": [
-                      {
-                        "name": "成功示例",
-                        "data": "{\n    \"created\": 1730000000,\n    \"data\": [\n        {\n            \"url\": \"https://cdn.opwan.ai/images/<hash>.png\",\n            \"revised_prompt\": \"...\"\n        }\n    ]\n}",
-                        "responseId": "183038182",
-                        "description": "",
-                        "oasKey": "",
-                        "oasExtensions": ""
-                      },
-                      {
-                        "name": "成功示例",
-                        "data": "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided\",\n        \"type\": \"invalid_request_error\",\n        \"code\": \"invalid_api_key\"\n    }\n}",
-                        "responseId": "196466997",
-                        "description": "",
-                        "oasKey": "",
-                        "oasExtensions": ""
-                      },
-                      {
-                        "name": "成功示例",
-                        "data": "{\n    \"error\": {\n        \"message\": \"Rate limit reached for requests\",\n        \"type\": \"rate_limit_error\",\n        \"code\": \"rate_limit_exceeded\"\n    }\n}",
-                        "responseId": "191148505",
-                        "description": "",
-                        "oasKey": "",
-                        "oasExtensions": ""
-                      }
-                    ],
-                    "requestBody": {
-                      "type": "multipart/form-data",
-                      "parameters": [
-                        {
-                          "id": "param-model",
-                          "name": "model",
-                          "required": true,
-                          "enable": true,
-                          "description": "模型 ID。当前生产推荐 `gpt-image-2`。",
-                          "example": "gpt-image-2",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "gpt-image-2",
-                              "gpt-image-1"
-                            ],
-                            "examples": [
-                              "gpt-image-2"
-                            ]
-                          }
-                        },
-                        {
-                          "id": "param-image",
-                          "name": "image",
-                          "required": true,
-                          "enable": true,
-                          "description": "源图。文件 / URL / `data:image/...;base64,...`。可重复或用 `image[]` / `image[N]` 传多图（≤16 张，单图 ≤25MB）。",
-                          "example": "",
-                          "type": "file",
-                          "contentType": "image/png, image/jpeg, image/webp",
-                          "schema": {
-                            "oneOf": [
-                              {
-                                "type": "string",
-                                "format": "binary"
-                              },
-                              {
-                                "type": "string",
-                                "format": "uri",
-                                "pattern": "^https?://"
-                              },
-                              {
-                                "type": "string",
-                                "pattern": "^data:image/(png|jpeg|webp);base64,"
-                              }
-                            ],
-                            "description": "源图。文件 / URL / data:URI 三选一。可重复多次（≤16 张，单图 ≤25MB，png/jpeg/webp）。"
-                          }
-                        },
-                        {
-                          "id": "param-prompt",
-                          "name": "prompt",
-                          "required": true,
-                          "enable": true,
-                          "description": "描述要如何修改图像。",
-                          "example": "add a watercolor border around this image",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "maxLength": 32000,
-                            "description": "描述要如何修改图像。"
-                          }
-                        },
-                        {
-                          "id": "param-size",
-                          "name": "size",
-                          "required": false,
-                          "enable": true,
-                          "description": "输出尺寸。不传时上游可能输出 ~1254×1254。",
-                          "example": "1024x1024",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "1024x1024",
-                              "1536x864",
-                              "864x1536",
-                              "1024x1360",
-                              "1360x1024",
-                              "1440x1440",
-                              "2048x1152",
-                              "1152x2048",
-                              "1248x1664",
-                              "1664x1248",
-                              "2880x2880",
-                              "3840x2160",
-                              "2160x3840",
-                              "2448x3264",
-                              "3264x2448",
-                              "auto"
-                            ],
-                            "description": "输出尺寸。不传时上游可能输出 ~1254×1254。"
-                          }
-                        },
-                        {
-                          "id": "param-quality",
-                          "name": "quality",
-                          "required": false,
-                          "enable": true,
-                          "description": "渲染质量。high 最贵（surcharge ~$0.25），low 最便宜（~$0.011）。",
-                          "example": "auto",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "auto",
-                              "low",
-                              "medium",
-                              "high"
-                            ],
-                            "default": "auto"
-                          }
-                        },
-                        {
-                          "id": "param-output-format",
-                          "name": "output_format",
-                          "required": false,
-                          "enable": true,
-                          "description": "输出图像格式。webp 当前会被降级为 PNG。",
-                          "example": "jpeg",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "png",
-                              "jpeg",
-                              "webp"
-                            ],
-                            "default": "png"
-                          }
-                        },
-                        {
-                          "id": "param-output-compression",
-                          "name": "output_compression",
-                          "required": false,
-                          "enable": true,
-                          "description": "JPEG/WebP 压缩等级 0-100（仅对 jpeg/webp 生效）。",
-                          "example": 85,
-                          "type": "integer",
-                          "schema": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 100,
-                            "default": 100
-                          }
-                        },
-                        {
-                          "id": "param-background",
-                          "name": "background",
-                          "required": false,
-                          "enable": true,
-                          "description": "`opaque` 不透明 / `auto` 模型自定（不支持 `transparent`）。",
-                          "example": "auto",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "opaque",
-                              "auto"
-                            ],
-                            "default": "auto",
-                            "description": "`opaque` 不透明 / `auto` 模型自定（不支持 `transparent`）。"
-                          }
-                        },
-                        {
-                          "id": "param-response-format",
-                          "name": "response_format",
-                          "required": false,
-                          "enable": true,
-                          "description": "`url` 返 CDN 链接（默认） / `b64_json` 返 base64。",
-                          "example": "url",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "url",
-                              "b64_json"
-                            ],
-                            "default": "url",
-                            "description": "`url` 返 CDN 链接（默认） / `b64_json` 返 base64。"
-                          }
-                        },
-                        {
-                          "id": "param-moderation",
-                          "name": "moderation",
-                          "required": false,
-                          "enable": true,
-                          "description": "`auto` 严格 / `low` 宽松（默认）。",
-                          "example": "low",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "auto",
-                              "low"
-                            ],
-                            "default": "low",
-                            "description": "`auto` 严格 / `low` 宽松（默认）。"
-                          }
-                        },
-                        {
-                          "id": "param-user",
-                          "name": "user",
-                          "required": false,
-                          "enable": true,
-                          "description": "终端用户 ID（透传给上游用于审计）。",
-                          "example": "",
-                          "type": "string",
-                          "schema": {
-                            "type": "string"
-                          }
-                        }
-                      ],
-                      "required": true,
-                      "mediaType": "",
-                      "examples": [],
-                      "oasExtensions": ""
-                    },
-                    "description": "编辑 / 重绘已有图像。\n\n- `image`: 文件 / http(s) URL / `data:image/...;base64,...`。不接受裸 base64 或 `image_url` 字段名\n- 多图: `image` 重复 / `image[]` / `image[N]`，最多 16 张，单图 ≤ 25 MB\n- 格式: png / jpeg / webp（webp 输出当前会降级为 PNG）\n- 耗时 15-180s，建议 timeout ≥ 240s；并发下偶发 524，建议重试\n- 默认 `moderation: low`\n",
-                    "tags": [
-                      "图像（Images）/gpt-image-2"
-                    ],
-                    "status": "released",
-                    "serverId": "",
-                    "operationId": "imageGptImage2Edit",
-                    "sourceUrl": "",
-                    "ordering": 12,
-                    "cases": [],
-                    "mocks": [],
-                    "customApiFields": "{}",
-                    "advancedSettings": {
-                      "disabledSystemHeaders": {}
-                    },
-                    "mockScript": {},
-                    "codeSamples": [
-                      {
-                        "id": "sample-curl-single",
-                        "name": "curl",
-                        "language": "curl",
-                        "code": "curl -X POST \"$BASE/v1/images/edits\" \\\n  -H \"Authorization: Bearer $API_KEY\" \\\n  -F \"model=gpt-image-2\" \\\n  -F \"image=@photo.png\" \\\n  -F \"prompt=add a watercolor border\"\n"
-                      },
-                      {
-                        "id": "sample-curl-multi",
-                        "name": "curl · 多图",
-                        "language": "curl",
-                        "code": "curl -X POST \"$BASE/v1/images/edits\" \\\n  -H \"Authorization: Bearer $API_KEY\" \\\n  -F \"model=gpt-image-2\" \\\n  -F \"image=@a.png\" \\\n  -F \"image=@b.png\" \\\n  -F \"prompt=blend these two images\"\n"
-                      }
-                    ],
-                    "commonResponseStatus": {},
-                    "responseChildren": [],
-                    "visibility": "INHERITED",
-                    "moduleId": 7492826,
-                    "oasExtensions": "{\"x-apifox-overrides\":{\"path\":\"/v1/images/edits\"}}",
-                    "type": "http",
-                    "preProcessors": [],
-                    "postProcessors": [],
-                    "inheritPostProcessors": {},
-                    "inheritPreProcessors": {},
-                    "name": "编辑图像 / Edit Images (gpt-image-2)"
-                  }
-                }
-              ]
-            },
-            {
-              "name": "gemini-3.1-pro-image",
-              "id": 84639679,
-              "auth": {},
-              "securityScheme": {},
-              "parentId": 84639671,
-              "serverId": "",
-              "description": "",
-              "identityPattern": {
-                "httpApi": {
-                  "type": "inherit",
-                  "bodyType": "",
-                  "fields": []
-                }
-              },
-              "shareSettings": {},
-              "visibility": "INHERITED",
-              "moduleId": 7492826,
-              "preProcessors": [
-                {
-                  "id": "inheritProcessors",
-                  "type": "inheritProcessors",
-                  "data": {}
-                }
-              ],
-              "postProcessors": [
-                {
-                  "id": "inheritProcessors",
-                  "type": "inheritProcessors",
-                  "data": {}
-                }
-              ],
-              "inheritPostProcessors": {},
-              "inheritPreProcessors": {},
-              "items": [
-                {
-                  "name": "图像生成（Gemini 原生）",
-                  "api": {
-                    "id": "452168129",
-                    "method": "post",
-                    "path": "/v1beta/models/gemini-3.1-pro-image:generateContent",
-                    "parameters": {
-                      "path": [
-                        {
-                          "id": "model#0",
-                          "name": "model",
-                          "required": true,
-                          "enable": true,
-                          "description": "",
-                          "example": "",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "default": "gemini-3.1-pro-image"
-                          }
-                        }
-                      ],
-                      "query": [],
-                      "cookie": [],
-                      "header": []
-                    },
-                    "auth": {
-                      "type": "securityscheme"
-                    },
-                    "securityScheme": {
-                      "schemeGroups": [
-                        {
-                          "id": "LEUJWAKlWQ1bIKflnOUtV",
-                          "schemeIds": [
-                            1107990
-                          ]
-                        }
-                      ],
-                      "required": true,
-                      "use": {
-                        "id": "LEUJWAKlWQ1bIKflnOUtV",
-                        "configs": {
-                          "1107990": {
-                            "authConfigs": {
-                              "x-apifox": {
-                                "token": "{{bearerToken}}"
-                              }
-                            }
-                          }
-                        }
-                      },
-                      "scopes": {
-                        "LEUJWAKlWQ1bIKflnOUtV": {
-                          "1107990": []
-                        }
-                      }
-                    },
-                    "commonParameters": {},
-                    "responses": [
-                      {
-                        "id": "161204864",
-                        "code": "200",
-                        "headers": [],
-                        "jsonSchema": {
-                          "type": "object",
-                          "properties": {}
-                        },
-                        "itemSchema": {},
-                        "description": "成功",
-                        "contentType": "noContent",
-                        "oasExtensions": ""
-                      }
-                    ],
-                    "responseExamples": [],
-                    "requestBody": {
-                      "type": "application/json",
-                      "parameters": [],
-                      "jsonSchema": {
-                        "type": "object",
-                        "x-apifox-orders": []
-                      },
-                      "mediaType": "application/json",
-                      "oasExtensions": "",
-                      "required": true,
-                      "additionalContentTypes": [],
-                      "examples": [
-                        {
-                          "value": "{\n    \"contents\": [\n        {\n            \"role\": \"user\",\n            \"parts\": [\n                {\n                    \"text\": \"draw a cat\"\n                }\n            ]\n        }\n    ],\n    \"generationConfig\": {\n        \"responseModalities\": [\n            \"IMAGE\"\n        ]\n    }\n}",
-                          "mediaType": "application/json",
-                          "description": ""
-                        }
-                      ]
-                    },
-                    "description": "**真实请求路径：POST /v1beta/models/{model}:generateContent**\n\nGoogle 原生格式生成图像。`{model}` 填 `\"gemini-3.1-pro-image\"`",
-                    "tags": [
-                      "图像（Images）/gemini-3.1-pro-image"
-                    ],
-                    "status": "released",
-                    "serverId": "",
-                    "operationId": "imageGemini31ProImage",
-                    "sourceUrl": "",
-                    "ordering": 6,
-                    "cases": [],
-                    "mocks": [],
-                    "customApiFields": "{}",
-                    "advancedSettings": {
-                      "disabledSystemHeaders": {}
-                    },
-                    "mockScript": {},
-                    "codeSamples": [],
-                    "commonResponseStatus": {},
-                    "responseChildren": [],
-                    "visibility": "INHERITED",
-                    "moduleId": 7492826,
-                    "oasExtensions": "",
-                    "type": "http",
-                    "preProcessors": [],
-                    "postProcessors": [],
-                    "inheritPostProcessors": {},
-                    "inheritPreProcessors": {}
-                  }
-                }
-              ]
-            },
-            {
-              "name": "nano-banana",
-              "id": 84639680,
-              "auth": {},
-              "securityScheme": {},
-              "parentId": 84639671,
-              "serverId": "",
-              "description": "",
-              "identityPattern": {
-                "httpApi": {
-                  "type": "inherit",
-                  "bodyType": "",
-                  "fields": []
-                }
-              },
-              "shareSettings": {},
-              "visibility": "INHERITED",
-              "moduleId": 7492826,
-              "preProcessors": [
-                {
-                  "id": "inheritProcessors",
-                  "type": "inheritProcessors",
-                  "data": {}
-                }
-              ],
-              "postProcessors": [
-                {
-                  "id": "inheritProcessors",
-                  "type": "inheritProcessors",
-                  "data": {}
-                }
-              ],
-              "inheritPostProcessors": {},
-              "inheritPreProcessors": {},
-              "items": [
-                {
-                  "name": "图像生成（Gemini 原生）",
-                  "api": {
-                    "id": "452168130",
-                    "method": "post",
-                    "path": "/v1beta/models/nano-banana:generateContent",
-                    "parameters": {
-                      "path": [
-                        {
-                          "id": "model#0",
-                          "name": "model",
-                          "required": true,
-                          "enable": true,
-                          "description": "",
-                          "example": "",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "default": "gemini-2.5-flash-image-preview"
-                          }
-                        }
-                      ],
-                      "query": [],
-                      "cookie": [],
-                      "header": []
-                    },
-                    "auth": {
-                      "type": "securityscheme"
-                    },
-                    "securityScheme": {
-                      "schemeGroups": [
-                        {
-                          "id": "aN0UfcBVGHIME4ecfiKFs",
-                          "schemeIds": [
-                            1107990
-                          ]
-                        }
-                      ],
-                      "required": true,
-                      "use": {
-                        "id": "aN0UfcBVGHIME4ecfiKFs",
-                        "configs": {
-                          "1107990": {
-                            "authConfigs": {
-                              "x-apifox": {
-                                "token": "{{bearerToken}}"
-                              }
-                            }
-                          }
-                        }
-                      },
-                      "scopes": {
-                        "aN0UfcBVGHIME4ecfiKFs": {
-                          "1107990": []
-                        }
-                      }
-                    },
-                    "commonParameters": {},
-                    "responses": [
-                      {
-                        "id": "197199346",
-                        "code": "200",
-                        "headers": [],
-                        "jsonSchema": {
-                          "type": "object",
-                          "properties": {}
-                        },
-                        "itemSchema": {},
-                        "description": "成功",
-                        "contentType": "noContent",
-                        "oasExtensions": ""
-                      }
-                    ],
-                    "responseExamples": [],
-                    "requestBody": {
-                      "type": "application/json",
-                      "parameters": [],
-                      "jsonSchema": {
-                        "type": "object",
-                        "x-apifox-orders": []
-                      },
-                      "mediaType": "application/json",
-                      "oasExtensions": "",
-                      "required": true,
-                      "additionalContentTypes": [],
-                      "examples": [
-                        {
-                          "value": "{\n    \"contents\": [\n        {\n            \"role\": \"user\",\n            \"parts\": [\n                {\n                    \"text\": \"draw a cat\"\n                }\n            ]\n        }\n    ],\n    \"generationConfig\": {\n        \"responseModalities\": [\n            \"IMAGE\"\n        ]\n    }\n}",
-                          "mediaType": "application/json",
-                          "description": ""
-                        }
-                      ]
-                    },
-                    "description": "**真实请求路径：POST /v1beta/models/{model}:generateContent**\n\nGoogle 原生格式生成图像。`{model}` 填 `\"gemini-2.5-flash-image-preview\"`（Nano Banana 是 Google `gemini-2.5-flash-image-preview` 的代号）",
-                    "tags": [
-                      "图像（Images）/nano-banana"
-                    ],
-                    "status": "released",
-                    "serverId": "",
-                    "operationId": "imageNanoBanana",
-                    "sourceUrl": "",
-                    "ordering": 6,
-                    "cases": [],
-                    "mocks": [],
-                    "customApiFields": "{}",
-                    "advancedSettings": {
-                      "disabledSystemHeaders": {}
-                    },
-                    "mockScript": {},
-                    "codeSamples": [],
-                    "commonResponseStatus": {},
-                    "responseChildren": [],
-                    "visibility": "INHERITED",
-                    "moduleId": 7492826,
-                    "oasExtensions": "",
-                    "type": "http",
-                    "preProcessors": [],
-                    "postProcessors": [],
-                    "inheritPostProcessors": {},
-                    "inheritPreProcessors": {}
-                  }
-                }
-              ]
-            },
-            {
-              "name": "通用",
+              "name": "统一异步接口",
               "id": 84639681,
               "auth": {},
               "securityScheme": {},
@@ -2718,7 +1667,7 @@
               "inheritPreProcessors": {},
               "items": [
                 {
-                  "name": "图像生成",
+                  "name": "异步图像生成",
                   "api": {
                     "id": "452168131",
                     "method": "post",
@@ -2764,25 +1713,33 @@
                     "responses": [
                       {
                         "id": "193951029",
-                        "code": "200",
+                        "code": "202",
                         "headers": [],
                         "jsonSchema": {
-                          "type": "object",
-                          "properties": {}
+                          "$ref": "#/definitions/263079106"
                         },
                         "itemSchema": {},
-                        "description": "成功",
-                        "contentType": "noContent",
+                        "description": "异步任务已创建",
+                        "contentType": "json",
+                        "mediaType": "application/json",
                         "oasExtensions": ""
                       }
                     ],
-                    "responseExamples": [],
+                    "responseExamples": [
+                      {
+                        "name": "任务已创建",
+                        "data": "{\n    \"task_id\": \"img_task_123\",\n    \"object\": \"image.generation.task\",\n    \"status\": \"queued\",\n    \"progress\": \"0%\",\n    \"created_at\": 1730000000\n}",
+                        "responseId": "193951029",
+                        "description": "",
+                        "oasKey": "",
+                        "oasExtensions": ""
+                      }
+                    ],
                     "requestBody": {
                       "type": "application/json",
                       "parameters": [],
                       "jsonSchema": {
-                        "type": "object",
-                        "x-apifox-orders": []
+                        "$ref": "#/definitions/263079105"
                       },
                       "mediaType": "application/json",
                       "oasExtensions": "",
@@ -2790,19 +1747,34 @@
                       "additionalContentTypes": [],
                       "examples": [
                         {
-                          "value": "{\n    \"model\": \"<任意模型名>\",\n    \"prompt\": \"a cat\",\n    \"n\": 1,\n    \"size\": \"1024x1024\"\n}",
+                          "value": "{\n    \"model\": \"nano-banana-2\",\n    \"input\": {\n        \"prompt\": \"A cinematic product photo on a clean studio table\",\n        \"aspect_ratio\": \"1:1\",\n        \"resolution\": \"2K\",\n        \"output_format\": \"png\"\n    },\n    \"webhook_url\": \"https://example.com/webhooks/images\"\n}",
                           "mediaType": "application/json",
-                          "description": ""
+                          "description": "Nano Banana 2 文生图"
+                        },
+                        {
+                          "value": "{\n    \"model\": \"nano-banana-2\",\n    \"input\": {\n        \"prompt\": \"Restyle this product image as a premium poster\",\n        \"image_input\": [\n            \"https://example.com/source.png\"\n        ],\n        \"aspect_ratio\": \"16:9\",\n        \"resolution\": \"2K\"\n    }\n}",
+                          "mediaType": "application/json",
+                          "description": "Nano Banana 2 图生图"
+                        },
+                        {
+                          "value": "{\n    \"model\": \"gpt-image-2\",\n    \"input\": {\n        \"prompt\": \"A cat by the window, cinematic lighting\",\n        \"size\": \"1024x1024\",\n        \"quality\": \"high\"\n    }\n}",
+                          "mediaType": "application/json",
+                          "description": "GPT Image 2 文生图"
+                        },
+                        {
+                          "value": "{\n    \"model\": \"gpt-image-2-image-to-image\",\n    \"input\": {\n        \"prompt\": \"Turn this product photo into a premium poster\",\n        \"input_urls\": [\n            \"https://example.com/product.png\"\n        ],\n        \"aspect_ratio\": \"16:9\",\n        \"resolution\": \"2K\"\n    }\n}",
+                          "mediaType": "application/json",
+                          "description": "GPT Image 2 图生图"
                         }
                       ]
                     },
-                    "description": "```\nPOST https://api.opwan.ai/v1/images/generations\n```\n\n`model` 字段填 `\"<任意模型名>\"`",
+                    "description": "```\nPOST https://api.opwan.ai/v1/images/generations\n```\n\n唯一图片提交接口。`model` 填具体模型名；`input.image_input`/`input.input_urls` 有参考图时执行图生图，否则执行文生图。接口始终异步返回 202，可轮询 `GET /v1/images/generations/{task_id}` 或使用 `webhook_url`。",
                     "tags": [
-                      "图像（Images）/通用"
+                      "图像（Images）/统一异步接口"
                     ],
                     "status": "released",
                     "serverId": "",
-                    "operationId": "imageGenericGenerate",
+                    "operationId": "createAsyncImageGeneration",
                     "sourceUrl": "",
                     "ordering": 6,
                     "cases": [],
@@ -2826,13 +1798,26 @@
                   }
                 },
                 {
-                  "name": "图像编辑",
+                  "name": "查询图像任务",
                   "api": {
-                    "id": "452168132",
-                    "method": "post",
-                    "path": "/v1/images/edits",
+                    "id": "452168142",
+                    "method": "get",
+                    "path": "/v1/images/generations/{task_id}",
                     "parameters": {
-                      "path": [],
+                      "path": [
+                        {
+                          "id": "task_id#0",
+                          "name": "task_id",
+                          "required": true,
+                          "enable": true,
+                          "description": "创建任务时返回的 task_id",
+                          "example": "img_task_123",
+                          "type": "string",
+                          "schema": {
+                            "type": "string"
+                          }
+                        }
+                      ],
                       "query": [],
                       "cookie": [],
                       "header": []
@@ -2843,7 +1828,7 @@
                     "securityScheme": {
                       "schemeGroups": [
                         {
-                          "id": "FoekLfFZc0O_ng9sRdBro",
+                          "id": "imageTaskPollingAuth",
                           "schemeIds": [
                             1107990
                           ]
@@ -2851,7 +1836,7 @@
                       ],
                       "required": true,
                       "use": {
-                        "id": "FoekLfFZc0O_ng9sRdBro",
+                        "id": "imageTaskPollingAuth",
                         "configs": {
                           "1107990": {
                             "authConfigs": {
@@ -2863,7 +1848,7 @@
                         }
                       },
                       "scopes": {
-                        "FoekLfFZc0O_ng9sRdBro": {
+                        "imageTaskPollingAuth": {
                           "1107990": []
                         }
                       }
@@ -2871,396 +1856,45 @@
                     "commonParameters": {},
                     "responses": [
                       {
-                        "id": "resp-200-default",
+                        "id": "193951030",
                         "code": "200",
-                        "name": "",
                         "headers": [],
                         "jsonSchema": {
-                          "$ref": "#/definitions/263079107"
+                          "$ref": "#/definitions/263079106"
                         },
                         "itemSchema": {},
-                        "description": "成功",
+                        "description": "当前任务状态和最终 OSS 图片 URL",
                         "contentType": "json",
                         "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-200-default",
-                            "name": "Status 200",
-                            "description": "成功",
-                            "mockBy": "static",
-                            "data": "{\n  \"created\": 1714723200,\n  \"data\": [\n    {\n      \"url\": \"https://cdn.opwan.ai/images/13cd3af24cfe6372870ef644543e62148eba30b2d2389f902385e4f63dd59021.jpg\",\n      \"revised_prompt\": \"A watercolor-bordered version of the source image with soft pastel edges\"\n    }\n  ],\n  \"background\": \"auto\",\n  \"output_format\": \"jpeg\",\n  \"quality\": \"auto\",\n  \"size\": \"1024x1024\",\n  \"usage\": {\n    \"input_tokens\": 1826,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n    \"output_tokens\": 91,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 1917\n  },\n  \"model\": \"gpt-5.4-mini-2026-03-17\"\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-200-审核拒绝",
-                        "code": "200",
-                        "name": "审核拒绝",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "上游审核拦截，需检查 `error`。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-200-审核拒绝",
-                            "name": "审核拒绝",
-                            "description": "上游审核拦截，需检查 `error`。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"type\": \"image_generation_user_error\",\n    \"code\": \"moderation_blocked\",\n    \"message\": \"Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID <request-id>. safety_violations=[sexual].\"\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-400-参数错误",
-                        "code": "400",
-                        "name": "参数错误",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "缺字段 / 类型不支持 / 超大 / URL 拉取失败 / 图数量超限。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-400-参数错误",
-                            "name": "参数错误",
-                            "description": "缺字段 / 类型不支持 / 超大 / URL 拉取失败 / 图数量超限。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"unsupported image type \\\"image/gif\\\", use png, jpeg, or webp\",\n    \"type\": \"invalid_request_error\"\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-401-default",
-                        "code": "401",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "API key 无效。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-401-default",
-                            "name": "Status 401",
-                            "description": "API key 无效。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"Invalid relay key\",\n    \"type\": \"authentication_error\",\n    \"param\": null,\n    \"code\": null\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-429-default",
-                        "code": "429",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "限流。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-429-default",
-                            "name": "Status 429",
-                            "description": "限流。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"rate limit exceeded\",\n    \"type\": \"rate_limit_error\"\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-500-default",
-                        "code": "500",
-                        "name": "",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "网关内部错误。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-500-default",
-                            "name": "Status 500",
-                            "description": "网关内部错误。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"internal server error\",\n    \"type\": \"server_error\"\n  }\n}"
-                          }
-                        ]
-                      },
-                      {
-                        "id": "resp-502-上游错误",
-                        "code": "502",
-                        "name": "上游错误",
-                        "headers": [],
-                        "jsonSchema": {
-                          "$ref": "#/definitions/263079085"
-                        },
-                        "itemSchema": {},
-                        "description": "上游 SSE 中断 / 通信失败。",
-                        "contentType": "json",
-                        "mediaType": "application/json",
-                        "oasExtensions": "",
-                        "mocks": [
-                          {
-                            "id": "mock-502-上游错误",
-                            "name": "上游错误",
-                            "description": "上游 SSE 中断 / 通信失败。",
-                            "mockBy": "static",
-                            "data": "{\n  \"error\": {\n    \"message\": \"upstream stream ended without response.completed\",\n    \"type\": \"upstream_error\"\n  }\n}"
-                          }
-                        ]
+                        "oasExtensions": ""
                       }
                     ],
-                    "responseExamples": [],
+                    "responseExamples": [
+                      {
+                        "name": "任务完成",
+                        "data": "{\n    \"task_id\": \"img_task_123\",\n    \"object\": \"image.generation.task\",\n    \"status\": \"succeeded\",\n    \"progress\": \"100%\",\n    \"result\": {\n        \"data\": [\n            {\n                \"url\": \"https://cdn.opwan.ai/images/img_task_123/output.png\"\n            }\n        ]\n    }\n}",
+                        "responseId": "193951030",
+                        "description": "",
+                        "oasKey": "",
+                        "oasExtensions": ""
+                      }
+                    ],
                     "requestBody": {
-                      "type": "multipart/form-data",
-                      "parameters": [
-                        {
-                          "id": "param-model",
-                          "name": "model",
-                          "required": true,
-                          "enable": true,
-                          "description": "模型 ID。当前生产推荐 `gpt-image-2`。",
-                          "example": "gpt-image-2",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "gpt-image-2",
-                              "gpt-image-1"
-                            ],
-                            "examples": [
-                              "gpt-image-2"
-                            ]
-                          }
-                        },
-                        {
-                          "id": "param-image",
-                          "name": "image",
-                          "required": true,
-                          "enable": true,
-                          "description": "源图。文件 / URL / data:URI 三选一。可重复多次（≤16 张，单图 ≤25MB，png/jpeg/webp）。",
-                          "example": "",
-                          "type": "file",
-                          "contentType": "image/png, image/jpeg, image/webp",
-                          "schema": {
-                            "oneOf": [
-                              {
-                                "type": "string",
-                                "format": "binary"
-                              },
-                              {
-                                "type": "string",
-                                "format": "uri",
-                                "pattern": "^https?://"
-                              },
-                              {
-                                "type": "string",
-                                "pattern": "^data:image/(png|jpeg|webp);base64,"
-                              }
-                            ],
-                            "description": "源图。文件 / URL / data:URI 三选一。可重复多次（≤16 张，单图 ≤25MB，png/jpeg/webp）。"
-                          }
-                        },
-                        {
-                          "id": "param-prompt",
-                          "name": "prompt",
-                          "required": true,
-                          "enable": true,
-                          "description": "描述要如何修改图像。",
-                          "example": "add a watercolor border around this image",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "maxLength": 32000,
-                            "description": "描述要如何修改图像。"
-                          }
-                        },
-                        {
-                          "id": "param-size",
-                          "name": "size",
-                          "required": false,
-                          "enable": true,
-                          "description": "输出尺寸。不传时上游可能输出 ~1254×1254。",
-                          "example": "1024x1024",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "1024x1024",
-                              "1536x864",
-                              "864x1536",
-                              "1024x1360",
-                              "1360x1024",
-                              "1440x1440",
-                              "2048x1152",
-                              "1152x2048",
-                              "1248x1664",
-                              "1664x1248",
-                              "2880x2880",
-                              "3840x2160",
-                              "2160x3840",
-                              "2448x3264",
-                              "3264x2448",
-                              "auto"
-                            ],
-                            "description": "输出尺寸。不传时上游可能输出 ~1254×1254。"
-                          }
-                        },
-                        {
-                          "id": "param-quality",
-                          "name": "quality",
-                          "required": false,
-                          "enable": true,
-                          "description": "渲染质量。high 最贵（surcharge ~$0.25），low 最便宜（~$0.011）。",
-                          "example": "auto",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "auto",
-                              "low",
-                              "medium",
-                              "high"
-                            ],
-                            "default": "auto"
-                          }
-                        },
-                        {
-                          "id": "param-output-format",
-                          "name": "output_format",
-                          "required": false,
-                          "enable": true,
-                          "description": "输出图像格式。",
-                          "example": "jpeg",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "png",
-                              "jpeg",
-                              "webp"
-                            ],
-                            "default": "png"
-                          }
-                        },
-                        {
-                          "id": "param-output-compression",
-                          "name": "output_compression",
-                          "required": false,
-                          "enable": true,
-                          "description": "JPEG/WebP 压缩等级 0-100（仅对 jpeg/webp 生效）。",
-                          "example": 85,
-                          "type": "integer",
-                          "schema": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 100,
-                            "default": 100
-                          }
-                        },
-                        {
-                          "id": "param-background",
-                          "name": "background",
-                          "required": false,
-                          "enable": true,
-                          "description": "`opaque` 不透明 / `auto` 模型自定（不支持 `transparent`）。",
-                          "example": "auto",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "opaque",
-                              "auto"
-                            ],
-                            "default": "auto",
-                            "description": "`opaque` 不透明 / `auto` 模型自定（不支持 `transparent`）。"
-                          }
-                        },
-                        {
-                          "id": "param-response-format",
-                          "name": "response_format",
-                          "required": false,
-                          "enable": true,
-                          "description": "`url` 返 CDN 链接（默认） / `b64_json` 返 base64。",
-                          "example": "url",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "url",
-                              "b64_json"
-                            ],
-                            "default": "url",
-                            "description": "`url` 返 CDN 链接（默认） / `b64_json` 返 base64。"
-                          }
-                        },
-                        {
-                          "id": "param-moderation",
-                          "name": "moderation",
-                          "required": false,
-                          "enable": true,
-                          "description": "`auto` 严格 / `low` 宽松（默认）。",
-                          "example": "low",
-                          "type": "string",
-                          "schema": {
-                            "type": "string",
-                            "enum": [
-                              "auto",
-                              "low"
-                            ],
-                            "default": "low",
-                            "description": "`auto` 严格 / `low` 宽松（默认）。"
-                          }
-                        },
-                        {
-                          "id": "param-user",
-                          "name": "user",
-                          "required": false,
-                          "enable": true,
-                          "description": "终端用户 ID（透传给上游用于审计）。",
-                          "example": "",
-                          "type": "string",
-                          "schema": {
-                            "type": "string"
-                          }
-                        }
-                      ],
-                      "required": true,
-                      "mediaType": "",
-                      "examples": [],
+                      "type": "none",
+                      "parameters": [],
+                      "required": false,
+                      "additionalContentTypes": [],
                       "oasExtensions": ""
                     },
-                    "description": "编辑 / 重绘已有图像。\n\n- `image` 字段接受**文件 / URL / data:URI** 三种形式\n- 多图：`image` 重复 / `image[]` / `image[0]、image[1]...` 都支持，最多 16 张，单图 ≤ 25 MB（png/jpeg/webp）\n- 耗时 15-180s，建议 timeout ≥ 240s\n- 默认 `moderation: low`，触发审核会返回 HTTP 200 + `error` 信封\n",
+                    "description": "轮询统一异步图像任务。该接口只查询任务，不创建新的图片生成请求。",
                     "tags": [
-                      "图像（Images）/通用"
+                      "图像（Images）/统一异步接口"
                     ],
                     "status": "released",
                     "serverId": "",
-                    "operationId": "imageGenericEdit",
+                    "operationId": "getAsyncImageGeneration",
                     "sourceUrl": "",
-                    "ordering": 12,
+                    "ordering": 7,
                     "cases": [],
                     "mocks": [],
                     "customApiFields": "{}",
@@ -3268,20 +1902,7 @@
                       "disabledSystemHeaders": {}
                     },
                     "mockScript": {},
-                    "codeSamples": [
-                      {
-                        "id": "sample-curl-single",
-                        "name": "curl",
-                        "language": "curl",
-                        "code": "curl -X POST \"$BASE/v1/images/edits\" \\\n  -H \"Authorization: Bearer $API_KEY\" \\\n  -F \"model=gpt-image-2\" \\\n  -F \"image=@photo.png\" \\\n  -F \"prompt=add a watercolor border\"\n"
-                      },
-                      {
-                        "id": "sample-curl-multi",
-                        "name": "curl · 多图",
-                        "language": "curl",
-                        "code": "curl -X POST \"$BASE/v1/images/edits\" \\\n  -H \"Authorization: Bearer $API_KEY\" \\\n  -F \"model=gpt-image-2\" \\\n  -F \"image=@a.png\" \\\n  -F \"image=@b.png\" \\\n  -F \"prompt=blend these two images\"\n"
-                      }
-                    ],
+                    "codeSamples": [],
                     "commonResponseStatus": {},
                     "responseChildren": [],
                     "visibility": "INHERITED",
@@ -3291,8 +1912,7 @@
                     "preProcessors": [],
                     "postProcessors": [],
                     "inheritPostProcessors": {},
-                    "inheritPreProcessors": {},
-                    "name": "编辑图像 / Edit Images"
+                    "inheritPreProcessors": {}
                   }
                 }
               ]
@@ -5432,7 +4052,7 @@
               "properties": {
                 "model": {
                   "type": "string",
-                  "description": "模型 ID",
+                  "description": "文本或音频模型 ID；生图模型请改用 POST /v1/images/generations",
                   "examples": [
                     "gpt-4"
                   ]
@@ -5583,6 +4203,7 @@
                 },
                 "modalities": {
                   "type": "array",
+                  "description": "此接口不支持 image 输出；图片生成请使用 POST /v1/images/generations",
                   "items": {
                     "type": "string",
                     "enum": [
@@ -5914,7 +4535,8 @@
               ],
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "文本模型 ID；生图模型请改用 POST /v1/images/generations"
                 },
                 "input": {
                   "description": "输入内容，可以是字符串或消息数组",
@@ -5949,6 +4571,7 @@
                 },
                 "tools": {
                   "type": "array",
+                  "description": "不支持 image_generation 工具；图片生成请使用 POST /v1/images/generations",
                   "items": {
                     "type": "object",
                     "properties": {},
@@ -6649,129 +5272,156 @@
           "name": "ImageGenerationRequest",
           "displayName": "",
           "id": "#/definitions/263079105",
-          "description": "",
+          "description": "统一异步图片请求；model 选择模型，input 中承载提示词和可选参考图",
           "schema": {
             "jsonSchema": {
               "type": "object",
               "required": [
-                "prompt"
+                "model"
               ],
+              "anyOf": [
+                {
+                  "required": [
+                    "prompt"
+                  ]
+                },
+                {
+                  "required": [
+                    "input"
+                  ]
+                }
+              ],
+              "description": "prompt 可放在顶层或 input.prompt；有 input.image_input/input_urls 时执行图生图，否则执行文生图。",
               "properties": {
                 "model": {
                   "type": "string",
-                  "examples": [
-                    "dall-e-3"
-                  ]
+                  "description": "具体文生图或图生图模型名"
                 },
                 "prompt": {
                   "type": "string",
-                  "description": "图像描述"
+                  "description": "兼容的顶层提示词；推荐使用 input.prompt"
+                },
+                "input": {
+                  "type": "object",
+                  "required": [
+                    "prompt"
+                  ],
+                  "properties": {
+                    "prompt": {
+                      "type": "string",
+                      "description": "图像描述或编辑指令"
+                    },
+                    "image_input": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "参考图 URL 或 data URI"
+                    },
+                    "input_urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "image_input 的兼容别名"
+                    },
+                    "aspect_ratio": {
+                      "type": "string"
+                    },
+                    "resolution": {
+                      "type": "string"
+                    },
+                    "output_format": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "string"
+                    },
+                    "quality": {
+                      "type": "string"
+                    },
+                    "output_compression": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 128
+                    }
+                  },
+                  "x-apifox-orders": [
+                    "prompt",
+                    "image_input",
+                    "input_urls",
+                    "aspect_ratio",
+                    "resolution",
+                    "output_format",
+                    "size",
+                    "quality",
+                    "output_compression",
+                    "n"
+                  ]
                 },
                 "n": {
                   "type": "integer",
                   "minimum": 1,
-                  "maximum": 10,
+                  "maximum": 128,
                   "default": 1
                 },
                 "size": {
-                  "type": "string",
-                  "enum": [
-                    "256x256",
-                    "512x512",
-                    "1024x1024",
-                    "1792x1024",
-                    "1024x1792"
-                  ],
-                  "default": "1024x1024"
+                  "type": "string"
                 },
                 "quality": {
-                  "type": "string",
-                  "enum": [
-                    "standard",
-                    "hd"
-                  ],
-                  "default": "standard"
+                  "type": "string"
                 },
-                "style": {
-                  "type": "string",
-                  "enum": [
-                    "vivid",
-                    "natural"
-                  ],
-                  "default": "vivid"
+                "output_format": {
+                  "type": "string"
+                },
+                "output_compression": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
                 },
                 "response_format": {
                   "type": "string",
-                  "enum": [
-                    "url",
-                    "b64_json"
-                  ],
-                  "default": "url"
+                  "description": "兼容字段；异步任务结果返回持久 URL"
                 },
-                "user": {
-                  "type": "string"
+                "async": {
+                  "type": "boolean",
+                  "deprecated": true,
+                  "description": "兼容字段；无论取值为何都创建异步任务"
+                },
+                "webhook_url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "任务终态回调地址"
+                },
+                "callBackUrl": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "webhook_url 的兼容别名"
+                },
+                "webhook_secret": {
+                  "type": "string",
+                  "description": "可选的 webhook HMAC-SHA256 签名密钥"
                 }
               },
               "x-apifox-orders": [
                 "model",
+                "input",
                 "prompt",
                 "n",
                 "size",
                 "quality",
-                "style",
+                "output_format",
+                "output_compression",
                 "response_format",
-                "user"
-              ]
-            }
-          },
-          "visibility": "INHERITED",
-          "moduleId": 7492826
-        },
-        {
-          "name": "ImageEditRequest",
-          "displayName": "",
-          "id": "#/definitions/263079106",
-          "description": "",
-          "schema": {
-            "jsonSchema": {
-              "type": "object",
-              "required": [
-                "image",
-                "prompt"
-              ],
-              "properties": {
-                "image": {
-                  "type": "string",
-                  "format": "binary"
-                },
-                "mask": {
-                  "type": "string",
-                  "format": "binary"
-                },
-                "prompt": {
-                  "type": "string"
-                },
-                "model": {
-                  "type": "string"
-                },
-                "n": {
-                  "type": "integer"
-                },
-                "size": {
-                  "type": "string"
-                },
-                "response_format": {
-                  "type": "string"
-                }
-              },
-              "x-apifox-orders": [
-                "image",
-                "mask",
-                "prompt",
-                "model",
-                "n",
-                "size",
-                "response_format"
+                "async",
+                "webhook_url",
+                "callBackUrl",
+                "webhook_secret"
               ]
             }
           },
@@ -6782,7 +5432,7 @@
           "name": "ImageResponse",
           "displayName": "",
           "id": "#/definitions/263079107",
-          "description": "图像生成 / 编辑响应。",
+          "description": "异步图片任务完成后的生成结果。",
           "schema": {
             "jsonSchema": {
               "type": "object",
@@ -6878,6 +5528,81 @@
                 "size",
                 "usage",
                 "model"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 7492826
+        },
+        {
+          "name": "AsyncImageTask",
+          "displayName": "",
+          "id": "#/definitions/263079106",
+          "description": "统一图片接口返回的异步任务对象；提交、轮询和 webhook 使用相同结构。",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "required": [
+                "task_id",
+                "object",
+                "status",
+                "progress",
+                "created_at"
+              ],
+              "properties": {
+                "task_id": {
+                  "type": "string"
+                },
+                "object": {
+                  "type": "string",
+                  "enum": [
+                    "image.generation.task"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "in_progress",
+                    "completed",
+                    "failed"
+                  ]
+                },
+                "progress": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "completed_at": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "result": {
+                  "$ref": "#/definitions/263079107"
+                },
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "x-apifox-orders": [
+                "task_id",
+                "object",
+                "status",
+                "progress",
+                "created_at",
+                "completed_at",
+                "result",
+                "error"
               ]
             }
           },
@@ -8175,135 +6900,6 @@
                 "safety_identifier",
                 "store",
                 "metadata"
-              ]
-            }
-          },
-          "visibility": "INHERITED",
-          "moduleId": 7492826
-        },
-        {
-          "name": "GptImage2Request",
-          "displayName": "",
-          "id": "#/definitions/270308753",
-          "description": "gpt-image-2 图像生成/编辑请求体",
-          "schema": {
-            "jsonSchema": {
-              "type": "object",
-              "required": [
-                "model",
-                "prompt"
-              ],
-              "description": "gpt-image-2 图像生成/编辑请求体",
-              "properties": {
-                "model": {
-                  "type": "string",
-                  "description": "模型名，固定 gpt-image-2",
-                  "examples": [
-                    "gpt-image-2"
-                  ]
-                },
-                "prompt": {
-                  "type": "string",
-                  "description": "图像描述（必填）"
-                },
-                "size": {
-                  "type": "string",
-                  "description": "图像尺寸。仅支持官方 15 个安全尺寸（1K/2K/4K × 5 个比例）+ auto。其他尺寸会被上游 reject（'exceeds pixel budget'）。",
-                  "enum": [
-                    "1024x1024",
-                    "1536x864",
-                    "864x1536",
-                    "1024x1360",
-                    "1360x1024",
-                    "1440x1440",
-                    "2048x1152",
-                    "1152x2048",
-                    "1248x1664",
-                    "1664x1248",
-                    "2880x2880",
-                    "3840x2160",
-                    "2160x3840",
-                    "2448x3264",
-                    "3264x2448",
-                    "auto"
-                  ],
-                  "examples": [
-                    "1024x1024"
-                  ]
-                },
-                "quality": {
-                  "type": "string",
-                  "description": "质量等级。auto 由模型自动选择。",
-                  "enum": [
-                    "auto",
-                    "low",
-                    "medium",
-                    "high"
-                  ]
-                },
-                "background": {
-                  "type": "string",
-                  "description": "背景。",
-                  "enum": [
-                    "opaque",
-                    "auto"
-                  ]
-                },
-                "moderation": {
-                  "type": "string",
-                  "description": "审核强度。",
-                  "enum": [
-                    "low"
-                  ]
-                },
-                "output_format": {
-                  "type": "string",
-                  "description": "输出格式",
-                  "enum": [
-                    "png",
-                    "jpeg",
-                    "webp"
-                  ]
-                },
-                "output_compression": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 100,
-                  "description": "JPEG/WebP 压缩等级（0-100）"
-                },
-                "response_format": {
-                  "type": "string",
-                  "description": "响应格式。url 返回 CDN 链接，b64_json 返回 base64。",
-                  "enum": [
-                    "url",
-                    "b64_json"
-                  ]
-                },
-                "style": {
-                  "type": "string",
-                  "description": "风格（passthrough）",
-                  "enum": [
-                    "vivid",
-                    "natural"
-                  ]
-                },
-                "user": {
-                  "type": "string",
-                  "description": "终端用户 ID（passthrough）"
-                }
-              },
-              "x-apifox-orders": [
-                "model",
-                "prompt",
-                "size",
-                "quality",
-                "background",
-                "moderation",
-                "output_format",
-                "output_compression",
-                "response_format",
-                "style",
-                "user"
               ]
             }
           },

@@ -113,10 +113,6 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
       label: 'OpenAI Image Generations',
     },
     {
-      value: '/v1/images/edits',
-      label: 'OpenAI Image Edits',
-    },
-    {
       value: '/v1/completions',
       label: 'OpenAI Completions',
     },
@@ -257,12 +253,6 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
           {
             incoming_path: '/v1/images/generations',
             upstream_path: '/v1/images/generations',
-            converter: 'none',
-            auth: bearerHeaderAuth(),
-          },
-          {
-            incoming_path: '/v1/images/edits',
-            upstream_path: '/v1/images/edits',
             converter: 'none',
             auth: bearerHeaderAuth(),
           },

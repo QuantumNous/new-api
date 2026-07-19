@@ -87,3 +87,19 @@ func TestGeminiChatGenerationConfigPreservesExplicitZeroValuesSnakeCase(t *testi
 	assert.Equal(t, float64(0), generationConfig["seed"])
 	assert.Equal(t, false, generationConfig["responseLogprobs"])
 }
+
+func TestGeminiChatGenerationConfigPreservesImageIntentAcrossAliasPriority(t *testing.T) {
+	raw := []byte(`{
+		"contents":[{"role":"user","parts":[{"text":"draw a cat"}]}],
+		"generationConfig":{
+			"responseModalities":["IMAGE"],
+			"response_modalities":["TEXT"]
+		}
+	}`)
+
+	var req GeminiChatRequest
+	require.NoError(t, common.Unmarshal(raw, &req))
+
+	assert.Equal(t, []string{"TEXT"}, req.GenerationConfig.ResponseModalities)
+	assert.True(t, req.GenerationConfig.HasImageOutputIntent())
+}
