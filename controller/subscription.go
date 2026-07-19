@@ -368,6 +368,7 @@ func AdminBindSubscription(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	recordSubscriptionGrantLogs(c, req.UserId, req.PlanId)
 	if msg != "" {
 		common.ApiSuccess(c, gin.H{"message": msg})
 		return
@@ -417,6 +418,22 @@ func recordSubscriptionResetUserLogs(result *model.SubscriptionResetResult, admi
 	}
 }
 
+// recordSubscriptionGrantLogs records both the target user's manage log and the
+// operator audit entry after an admin grants a subscription without payment.
+func recordSubscriptionGrantLogs(c *gin.Context, userId int, planId int) {
+	planTitle := ""
+	if plan, err := model.GetSubscriptionPlanById(planId); err == nil && plan != nil {
+		planTitle = plan.Title
+	}
+	model.RecordLogWithAdminInfo(userId, model.LogTypeManage,
+		fmt.Sprintf("管理员为你开通订阅套餐 %s（ID: %d）", planTitle, planId), auditOperatorInfo(c))
+	recordManageAuditFor(c, userId, "subscription.admin_grant", map[string]interface{}{
+		"target_user_id": userId,
+		"plan_id":        planId,
+		"plan_title":     planTitle,
+	})
+}
+
 // AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
 func AdminCreateUserSubscription(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
@@ -438,6 +455,7 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	recordSubscriptionGrantLogs(c, userId, req.PlanId)
 	if msg != "" {
 		common.ApiSuccess(c, gin.H{"message": msg})
 		return
