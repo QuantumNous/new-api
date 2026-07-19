@@ -52,6 +52,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		if info.RelayFormat == types.RelayFormatClaude {
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
+		if info.RelayMode == constant.RelayModeResponses {
+			return fmt.Sprintf("%s/responses", specialPlan.OpenAIBaseURL), nil
+		}
 		if info.RelayFormat == types.RelayFormatOpenAI {
 			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
 		}
@@ -69,6 +72,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 		} else if info.RelayMode == constant.RelayModeCompletions {
 			return fmt.Sprintf("%s/v1/completions", info.ChannelBaseUrl), nil
+		} else if info.RelayMode == constant.RelayModeResponses {
+			return fmt.Sprintf("%s/v1/responses", info.ChannelBaseUrl), nil
 		}
 		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 	}
@@ -99,8 +104,10 @@ func isTemperatureOneOnlyModel(model string) bool {
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	if request.Temperature != nil && isTemperatureOneOnlyModel(getUpstreamModelName(info, request.Model)) && *request.Temperature != 1.0 {
+		request.Temperature = common.GetPointer[float64](1.0)
+	}
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
