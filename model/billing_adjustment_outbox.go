@@ -434,6 +434,18 @@ func outstandingImageReservationQuery(tx *gorm.DB) *gorm.DB {
 		)
 }
 
+// billingAdjustmentNextQuotaAllowed keeps new credits inside the quota
+// ceiling, while allowing a debit to drain legacy balances that were written
+// above the current int32 ceiling before quota saturation was enforced.
+// Refusing those debits would leave every post-consume settlement escrowed
+// forever even though subtracting a bounded charge is safe.
+func billingAdjustmentNextQuotaAllowed(nextQuota, delta int64) bool {
+	if nextQuota < int64(common.MinQuota) {
+		return false
+	}
+	return delta < 0 || nextQuota <= int64(common.MaxQuota)
+}
+
 func applyBillingAdjustmentDatabaseClaim(row *BillingAdjustmentOutbox, expectedStatus string, releaseOwner bool) error {
 	if row == nil || row.Id == 0 || row.LeaseToken == "" {
 		return errors.New("claimed billing adjustment is required")
@@ -457,7 +469,7 @@ func applyBillingAdjustmentDatabaseClaim(row *BillingAdjustmentOutbox, expectedS
 				return err
 			}
 			nextQuota := int64(user.Quota) + stored.Delta
-			if nextQuota < int64(common.MinQuota) || nextQuota > int64(common.MaxQuota) {
+			if !billingAdjustmentNextQuotaAllowed(nextQuota, stored.Delta) {
 				return fmt.Errorf("%w: wallet current=%d delta=%d", ErrBillingAdjustmentBalanceBlocked, user.Quota, stored.Delta)
 			}
 			if stored.Delta > 0 {
@@ -487,8 +499,8 @@ func applyBillingAdjustmentDatabaseClaim(row *BillingAdjustmentOutbox, expectedS
 			}
 			nextRemain := int64(token.RemainQuota) + stored.Delta
 			nextUsed := int64(token.UsedQuota) - stored.Delta
-			if nextRemain < int64(common.MinQuota) || nextRemain > int64(common.MaxQuota) ||
-				nextUsed < 0 || nextUsed > int64(common.MaxQuota) {
+			if !billingAdjustmentNextQuotaAllowed(nextRemain, stored.Delta) ||
+				nextUsed < 0 || (stored.Delta > 0 && nextUsed > int64(common.MaxQuota)) {
 				return fmt.Errorf("%w: token remain=%d used=%d delta=%d", ErrBillingAdjustmentBalanceBlocked, token.RemainQuota, token.UsedQuota, stored.Delta)
 			}
 			if stored.Delta > 0 {

@@ -448,6 +448,15 @@ func TestBillingAdjustmentCreditPreservesImageReservationHeadroom(t *testing.T) 
 	assert.Zero(t, token.UsedQuota)
 }
 
+func TestBillingAdjustmentQuotaAllowsLegacyOversizedDebitOnly(t *testing.T) {
+	legacyBalance := int64(common.MaxQuota) + 100
+
+	assert.True(t, billingAdjustmentNextQuotaAllowed(legacyBalance-10, -10))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance+10, 10))
+	assert.True(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxQuota)-10, 10))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MinQuota)-1, -10))
+}
+
 func TestCleanupTerminalBillingAdjustmentOutboxPreservesActiveRows(t *testing.T) {
 	truncateTables(t)
 
