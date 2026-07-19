@@ -81,7 +81,11 @@ func newProtectedFetchHTTPClientWithProxy(resolver ssrfResolver, dialContext fun
 		proxy = http.ProxyFromEnvironment
 	}
 
-	client := &http.Client{
+	// Keep client.Timeout unbounded (0), matching newOutboundHTTPClient.
+	// RelayTimeout must not cover response-body reads: long-lived streams would
+	// be aborted once RELAY_TIMEOUT elapses. Dial/header stall protection lives
+	// on the dialer and transport (ResponseHeaderTimeout).
+	return &http.Client{
 		Transport: &ssrfProtectedRoundTripper{
 			resolver:      resolver,
 			dialContext:   dialContext,
@@ -91,10 +95,6 @@ func newProtectedFetchHTTPClientWithProxy(resolver ssrfResolver, dialContext fun
 		},
 		CheckRedirect: checkProtectedFetchRedirect,
 	}
-	if common.RelayTimeout != 0 {
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
-	}
-	return client
 }
 
 func (t *ssrfProtectedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {

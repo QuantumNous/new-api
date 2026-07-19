@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -211,6 +212,14 @@ func TestGetSSRFProtectedHTTPClientFallsBackToDefaultClientWhenProtectionDisable
 	ssrfProtectedHTTPClient = &http.Client{}
 
 	require.Same(t, expected, GetSSRFProtectedHTTPClient())
+}
+
+func TestProtectedFetchHTTPClientTimeoutUnbounded(t *testing.T) {
+	originalTimeout := common.RelayTimeout
+	t.Cleanup(func() { common.RelayTimeout = originalTimeout })
+	common.RelayTimeout = 30
+	client := newProtectedFetchHTTPClientWithProxy(nil, nil, nil, nil)
+	require.Equal(t, time.Duration(0), client.Timeout)
 }
 
 func TestProtectedFetchRoundTripperUsesConfiguredProxy(t *testing.T) {
