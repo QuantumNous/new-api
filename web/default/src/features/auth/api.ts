@@ -25,6 +25,7 @@ import type {
   TwoFAPayload,
   RegisterPayload,
   ApiResponse,
+  UserSendEmailChallengeResponse,
 } from './types'
 
 // ============================================================================
@@ -120,6 +121,26 @@ export async function sendEmailVerification(
   const res = await api.get('/api/verification', {
     params: { email, turnstile },
   })
+  return res.data
+}
+
+export async function createUserSendEmailChallenge(
+  email: string,
+  turnstile?: string
+): Promise<UserSendEmailChallengeResponse> {
+  const res = await api.post(
+    '/api/user_send_email/challenge',
+    { email },
+    { params: { turnstile: turnstile ?? '' } }
+  )
+  return res.data
+}
+
+export async function checkUserSendEmailChallenge(
+  email: string,
+  code: string
+): Promise<ApiResponse> {
+  const res = await api.post('/api/user_send_email/check', { email, code })
   return res.data
 }
 
