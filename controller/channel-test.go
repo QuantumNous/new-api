@@ -440,7 +440,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+			newAPIError := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
 			common.SysError(fmt.Sprintf(
 				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
@@ -449,12 +449,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				testModel,
 				endpointType,
 				httpResp.StatusCode,
-				err,
+				newAPIError,
 			))
 			return testResult{
 				context:     c,
-				localErr:    err,
-				newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError),
+				localErr:    newAPIError,
+				newAPIError: newAPIError,
 			}
 		}
 	}

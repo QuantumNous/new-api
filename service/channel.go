@@ -55,7 +55,8 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	if types.IsSkipRetryError(err) {
 		return false
 	}
-	if operation_setting.ShouldDisableByStatusCode(err.StatusCode) {
+	// Use the original upstream status so response mapping cannot hide auto-disable triggers.
+	if operation_setting.ShouldDisableByStatusCode(err.GetOriginalStatusCode()) {
 		return true
 	}
 

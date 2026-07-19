@@ -157,6 +157,62 @@ func TestApplyStatusCodeResponseMappingTakesPrecedenceOverStatusCodeMapping(t *t
 	require.Equal(t, "Gateway failed", newAPIError.ToOpenAIError().Message)
 }
 
+func TestFormatErrorLogWithStatusCodeResponseMapping(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		errors.New("用户额度不足, 剩余额度: $-0.004828"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusForbidden,
+	)
+	mapping := `{"403":{"status_code":503,"message":"Upstream is busy, please retry later.","type":"server_error","code":"upstream_overloaded"}}`
+
+	logContent := FormatErrorLogWithStatusCodeResponseMapping(newAPIError, mapping)
+	require.Equal(t, "status_code=503, Upstream is busy, please retry later.", logContent)
+	// Original error must stay untouched for retry / auto-disable decisions.
+	require.Equal(t, http.StatusForbidden, newAPIError.StatusCode)
+	require.Equal(t, "用户额度不足, 剩余额度: $-0.004828", newAPIError.Error())
+}
+
+func TestResolveStatusCodeWithResponseMapping(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		errors.New("upstream rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+
+	require.Equal(t, http.StatusServiceUnavailable, ResolveStatusCodeWithResponseMapping(
+		newAPIError,
+		`{"429":{"status_code":503,"message":"busy"}}`,
+	))
+	require.Equal(t, http.StatusTooManyRequests, ResolveStatusCodeWithResponseMapping(
+		newAPIError,
+		`{"500":{"status_code":503}}`,
+	))
+	require.Equal(t, http.StatusTooManyRequests, newAPIError.StatusCode)
+}
+
+func TestApplyStatusCodeResponseMappingWith403QuotaError(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.WithOpenAIError(types.OpenAIError{
+		Message: "用户额度不足, 剩余额度: $-0.004828 (request id: upstream-id)",
+		Type:    "new_api_error",
+		Code:    "insufficient_user_quota",
+	}, http.StatusForbidden)
+
+	mapping := `{"403":{"status_code":503,"message":"Upstream is busy, please retry later.","type":"server_error","code":"upstream_overloaded"}}`
+	require.True(t, ApplyStatusCodeResponseMapping(newAPIError, mapping))
+
+	require.Equal(t, http.StatusServiceUnavailable, newAPIError.StatusCode)
+	openAIError := newAPIError.ToOpenAIError()
+	require.Equal(t, "Upstream is busy, please retry later.", openAIError.Message)
+	require.Equal(t, "server_error", openAIError.Type)
+	require.Equal(t, "upstream_overloaded", openAIError.Code)
+}
+
 func TestApplyStatusCodeResponseMappingToTaskError(t *testing.T) {
 	t.Parallel()
 

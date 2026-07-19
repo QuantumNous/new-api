@@ -89,7 +89,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
-			service.ApplyStatusCodeResponseMapping(newAPIError, c.GetString("status_code_response_mapping"))
+			service.ApplyStatusCodeResponseMapping(newAPIError, c.GetString(string(constant.ContextKeyChannelStatusCodeResponseMapping)))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -356,7 +356,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
-	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
+	statusCodeResponseMapping := c.GetString(string(constant.ContextKeyChannelStatusCodeResponseMapping))
+	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d, original status code: %d): %s",
+		channelError.ChannelId, err.StatusCode, err.GetOriginalStatusCode(), common.LocalLogPreview(err.Error())))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
@@ -379,7 +381,10 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		}
 		other["error_type"] = err.GetErrorType()
 		other["error_code"] = err.GetErrorCode()
-		other["status_code"] = err.StatusCode
+		other["original_status_code"] = err.GetOriginalStatusCode()
+		// Prefer the user-facing status after response mapping so log metadata
+		// matches the status clients actually receive from Relay's final error response.
+		other["status_code"] = service.ResolveStatusCodeWithResponseMapping(err, statusCodeResponseMapping)
 		other["channel_id"] = channelId
 		other["channel_name"] = c.GetString("channel_name")
 		other["channel_type"] = c.GetInt("channel_type")
@@ -397,7 +402,11 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		// Error logs previously recorded the raw upstream body before response mapping
+		// was applied in Relay's defer. Use the mapped user-facing content so admin log
+		// details match what clients receive.
+		logContent := service.FormatErrorLogWithStatusCodeResponseMapping(err, statusCodeResponseMapping)
+		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, logContent, tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
 }
@@ -608,7 +617,7 @@ func RelayTask(c *gin.Context) {
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
 func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
-	messageOverridden := service.ApplyStatusCodeResponseMappingToTaskError(taskErr, c.GetString("status_code_response_mapping"))
+	messageOverridden := service.ApplyStatusCodeResponseMappingToTaskError(taskErr, c.GetString(string(constant.ContextKeyChannelStatusCodeResponseMapping)))
 	if taskErr.StatusCode == http.StatusTooManyRequests && !messageOverridden {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}

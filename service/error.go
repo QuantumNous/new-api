@@ -186,6 +186,51 @@ func ApplyStatusCodeResponseMapping(newApiErr *types.NewAPIError, statusCodeResp
 	return entry.Message != nil
 }
 
+// ResolveStatusCodeWithResponseMapping returns the HTTP status that will be sent
+// to clients after status code response mapping is applied. The input error is
+// not mutated.
+func ResolveStatusCodeWithResponseMapping(newApiErr *types.NewAPIError, statusCodeResponseMappingStr string) int {
+	if newApiErr == nil {
+		return 0
+	}
+	entry, ok := matchStatusCodeResponseMapping(newApiErr.GetOriginalStatusCode(), statusCodeResponseMappingStr)
+	if ok && entry.StatusCode != nil {
+		return *entry.StatusCode
+	}
+	return newApiErr.StatusCode
+}
+
+// FormatErrorLogWithStatusCodeResponseMapping returns the error log content that
+// matches the user-facing response after status code response mapping is applied.
+// It does not mutate the original error (so retry / auto-disable keep using the
+// pre-response-mapping status code and message).
+func FormatErrorLogWithStatusCodeResponseMapping(newApiErr *types.NewAPIError, statusCodeResponseMappingStr string) string {
+	if newApiErr == nil {
+		return ""
+	}
+	entry, ok := matchStatusCodeResponseMapping(newApiErr.GetOriginalStatusCode(), statusCodeResponseMappingStr)
+	if !ok {
+		return newApiErr.MaskSensitiveErrorWithStatusCode()
+	}
+
+	statusCode := newApiErr.StatusCode
+	if entry.StatusCode != nil {
+		statusCode = *entry.StatusCode
+	}
+
+	message := newApiErr.MaskSensitiveError()
+	if entry.Message != nil {
+		message = common.MaskSensitiveInfo(*entry.Message)
+	}
+	if statusCode == 0 {
+		return message
+	}
+	if message == "" {
+		return fmt.Sprintf("status_code=%d", statusCode)
+	}
+	return fmt.Sprintf("status_code=%d, %s", statusCode, message)
+}
+
 func ApplyStatusCodeResponseMappingToTaskError(taskErr *dto.TaskError, statusCodeResponseMappingStr string) bool {
 	if taskErr == nil {
 		return false
