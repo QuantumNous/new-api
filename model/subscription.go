@@ -491,6 +491,13 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
+	// Lock the user row so concurrent grants for the same user are serialized.
+	// Without it the MaxPurchasePerUser count below races: two transactions can
+	// both read count == max-1 and both insert, exceeding the limit.
+	var lockedUser User
+	if err := lockForUpdate(tx).Where("id = ?", userId).First(&lockedUser).Error; err != nil {
+		return nil, err
+	}
 	if plan.MaxPurchasePerUser > 0 {
 		var count int64
 		if err := tx.Model(&UserSubscription{}).

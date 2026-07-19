@@ -384,6 +384,10 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'subscription.plan_create': 'Created a subscription plan',
   'subscription.plan_update': 'Updated a subscription plan',
   'subscription.bind': 'Bound a subscription',
+  'subscription.admin_grant':
+    'Granted subscription plan {{plan_title}} (ID: {{plan_id}}) to user {{target_user_id}}',
+  'subscription.granted':
+    'Admin granted you subscription plan {{plan_title}} (ID: {{plan_id}})',
   // Logs
   'log.clear': 'Cleared historical logs',
   // Generic middleware fallback
