@@ -42,6 +42,7 @@ interface CryptoDepositModalProps {
   onOpenChange: (open: boolean) => void
   amount: number
   onSuccess: () => void
+  onSettled?: () => void
 }
 
 const CHAIN_EXPLORERS: Record<string, string> = {
@@ -61,6 +62,7 @@ export function CryptoDepositModal({
   onOpenChange,
   amount,
   onSuccess,
+  onSettled,
 }: CryptoDepositModalProps) {
   const { t } = useTranslation()
   const [selectedChain, setSelectedChain] = useState<ChainConfig>(CHAINS[1]) // BSC default
@@ -83,6 +85,7 @@ export function CryptoDepositModal({
 
   function handleClose() {
     if (step === 'done') onSuccess()
+    if (step === 'done' || step === 'failed') onSettled?.()
     reset()
     onOpenChange(false)
   }

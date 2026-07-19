@@ -4593,7 +4593,12 @@
     "Per-Model User Price Ratio": "按模型用户价格倍率",
     "Select model": "选择模型",
     "Add model ratio": "添加模型倍率",
-    "Overrides the User Price Ratio above for specific models. Models not listed keep using the channel-level ratio.": "对指定模型覆盖上方“所有模型默认用户价格倍率”；未列出的模型继续使用默认倍率。"
+    "Overrides the User Price Ratio above for specific models. Models not listed keep using the channel-level ratio.": "对指定模型覆盖上方“所有模型默认用户价格倍率”；未列出的模型继续使用默认倍率。",
+    "Invite friends, earn {{pct}}% commission": "邀请好友，赚 {{pct}}% 佣金",
+    "When a friend tops up through your link, {{pct}}% of their top-up amount is automatically added to your balance": "好友通过您的专属链接充值后，充值金额的 {{pct}}% 将自动计入您的账户余额",
+    "Your referral link": "您的专属邀请链接",
+    "View referral details": "查看邀请详情",
+    "Got it": "知道了"
   },
   "Model Price Ratios": "模型价格倍率",
   "Select model": "选择模型",

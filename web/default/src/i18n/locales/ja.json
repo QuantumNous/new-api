@@ -4498,7 +4498,12 @@
     "New user": "新規ユーザー限定",
     "pay ${{pay}} → get ${{amount}}": "${{pay}} 支払 → ${{amount}} 入金",
     "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 新規限定 · 初回チャージ {{pct}}% オフ",
-    "Expires in": "残り"
+    "Expires in": "残り",
+    "Invite friends, earn {{pct}}% commission": "友達を招待して{{pct}}%の紹介料を獲得",
+    "When a friend tops up through your link, {{pct}}% of their top-up amount is automatically added to your balance": "友達があなたのリンクからチャージすると、チャージ額の{{pct}}%が自動的にあなたの残高に追加されます",
+    "Your referral link": "あなたの紹介リンク",
+    "View referral details": "紹介の詳細を見る",
+    "Got it": "了解しました"
   },
   "在线使用": "プレイグラウンド",
   "推广有礼": "アフィリエイト",

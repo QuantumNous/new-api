@@ -4575,7 +4575,12 @@
     "≈ ${{amount}} USD": "≈ ${{amount}} USD",
     "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 New user exclusive · {{pct}}% off first top-up",
     "Channel Data": "Channel Data",
-    "Channel pricing and detection stats by model": "Channel pricing and detection stats by model"
+    "Channel pricing and detection stats by model": "Channel pricing and detection stats by model",
+    "Invite friends, earn {{pct}}% commission": "Invite friends, earn {{pct}}% commission",
+    "When a friend tops up through your link, {{pct}}% of their top-up amount is automatically added to your balance": "When a friend tops up through your link, {{pct}}% of their top-up amount is automatically added to your balance",
+    "Your referral link": "Your referral link",
+    "View referral details": "View referral details",
+    "Got it": "Got it"
   },
   "在线使用": "Playground",
   "推广有礼": "Affiliate",

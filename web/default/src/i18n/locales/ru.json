@@ -4500,7 +4500,12 @@
     "| Based on": "| На основе",
     "© 2025 Your Company. All rights reserved.": "© 2025 Ваша Компания. Все права защищены.",
     "≈ ${{amount}} USD": "≈ ${{amount}} USD",
-    "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 Только для новых · скидка {{pct}}% на первое пополнение"
+    "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 Только для новых · скидка {{pct}}% на первое пополнение",
+    "Invite friends, earn {{pct}}% commission": "Приглашайте друзей и получайте {{pct}}% комиссии",
+    "When a friend tops up through your link, {{pct}}% of their top-up amount is automatically added to your balance": "Когда друг пополняет баланс по вашей ссылке, {{pct}}% от суммы пополнения автоматически зачисляется на ваш баланс",
+    "Your referral link": "Ваша реферальная ссылка",
+    "View referral details": "Посмотреть детали реферальной программы",
+    "Got it": "Понятно"
   },
   "在线使用": "Песочница",
   "推广有礼": "Партнёрам",

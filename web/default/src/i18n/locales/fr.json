@@ -4498,7 +4498,12 @@
     "New user": "Nouvel utilisateur",
     "pay ${{pay}} → get ${{amount}}": "payer ${{pay}} → recevoir ${{amount}}",
     "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 Exclusif nouveaux utilisateurs · {{pct}}% de réduction sur 1er dépôt",
-    "Expires in": "Expire dans"
+    "Expires in": "Expire dans",
+    "Invite friends, earn {{pct}}% commission": "Invitez des amis, gagnez {{pct}}% de commission",
+    "When a friend tops up through your link, {{pct}}% of their top-up amount is automatically added to your balance": "Lorsqu'un ami recharge via votre lien, {{pct}}% du montant rechargé est automatiquement ajouté à votre solde",
+    "Your referral link": "Votre lien de parrainage",
+    "View referral details": "Voir les détails du parrainage",
+    "Got it": "Compris"
   },
   "在线使用": "Playground",
   "推广有礼": "Parrainage",

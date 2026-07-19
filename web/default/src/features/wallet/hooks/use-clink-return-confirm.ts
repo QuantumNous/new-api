@@ -23,15 +23,20 @@ import { toast } from 'sonner'
 import { confirmClinkPayment, isApiSuccess } from '../api'
 import { Route } from '@/routes/_authenticated/wallet/'
 
-export function useClinkReturnConfirm(onSuccess: () => void) {
+export function useClinkReturnConfirm(onSuccess: () => void, onSettled?: () => void) {
   const navigate = useNavigate({ from: Route.fullPath })
   const search = Route.useSearch()
   const confirmingRef = useRef(false)
   const onSuccessRef = useRef(onSuccess)
+  const onSettledRef = useRef(onSettled)
 
   useEffect(() => {
     onSuccessRef.current = onSuccess
   }, [onSuccess])
+
+  useEffect(() => {
+    onSettledRef.current = onSettled
+  }, [onSettled])
 
   useEffect(() => {
     const sessionId = search.sessionId?.trim()
@@ -54,9 +59,11 @@ export function useClinkReturnConfirm(onSuccess: () => void) {
         } else {
           toast.error(i18next.t('Payment confirmation failed'))
         }
+        onSettledRef.current?.()
       } catch {
         if (!cancelled) {
           toast.error(i18next.t('Payment confirmation failed'))
+          onSettledRef.current?.()
         }
       } finally {
         if (!cancelled) {

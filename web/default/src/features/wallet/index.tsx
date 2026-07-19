@@ -23,7 +23,9 @@ import { RechargePanel } from './components/recharge-panel'
 import { RedemptionCodeCard } from './components/redemption-code-card'
 import { ReferralCard } from './components/referral-card'
 import { TransactionHistory } from './components/transaction-history'
+import { InvitePromoDialog } from './components/dialogs/invite-promo-dialog'
 import { useClinkReturnConfirm } from './hooks/use-clink-return-confirm'
+import { useAffiliate, usePostTopupInvitePrompt } from './hooks'
 import type { UserWalletData } from './types'
 
 export function Wallet() {
@@ -54,7 +56,10 @@ export function Wallet() {
     setHistoryKey((k) => k + 1)
   }
 
-  useClinkReturnConfirm(handleSuccess)
+  const { affiliateLink } = useAffiliate()
+  const invitePrompt = usePostTopupInvitePrompt()
+
+  useClinkReturnConfirm(handleSuccess, invitePrompt.notifyTopupSettled)
 
   return (
     <div className='w-full min-w-0 bg-gradient-to-br from-violet-50 via-rose-50 to-sky-50 dark:from-zinc-900 dark:via-zinc-950 dark:to-zinc-900'>
@@ -62,7 +67,7 @@ export function Wallet() {
         <WalletStatsCard user={user} loading={userLoading} />
 
         <div className='grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:items-start'>
-          <RechargePanel onSuccess={handleSuccess} />
+          <RechargePanel onSuccess={handleSuccess} onPaymentAttempted={invitePrompt.notifyPaymentInitiated} onPaymentSettled={invitePrompt.notifyTopupSettled} />
 
           <div className='flex flex-col gap-5'>
             <RedemptionCodeCard onSuccess={handleSuccess} />
@@ -72,6 +77,13 @@ export function Wallet() {
 
         <TransactionHistory key={historyKey} />
       </div>
+
+      <InvitePromoDialog
+        open={invitePrompt.open}
+        onOpenChange={invitePrompt.onOpenChange}
+        affRatio={invitePrompt.affRatio}
+        affiliateLink={affiliateLink}
+      />
     </div>
   )
 }

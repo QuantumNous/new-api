@@ -44,9 +44,11 @@ const PRESET_AMOUNTS_NEW_USER = [1, 10, 50, 100, 500, 1000]
 
 interface RechargePanelProps {
   onSuccess: () => void
+  onPaymentAttempted?: () => void
+  onPaymentSettled?: () => void
 }
 
-export function RechargePanel({ onSuccess }: RechargePanelProps) {
+export function RechargePanel({ onSuccess, onPaymentAttempted, onPaymentSettled }: RechargePanelProps) {
   const { t } = useTranslation()
   const [selectedAmount, setSelectedAmount] = useState<number>(50)
   const [customAmount, setCustomAmount] = useState('')
@@ -155,6 +157,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
         document.body.appendChild(form)
         form.submit()
         document.body.removeChild(form)
+        onPaymentAttempted?.()
       } else {
         toast.error(paymentErrorMessage())
       }
@@ -180,6 +183,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
       if (isApiSuccess(res) && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Redirecting to payment page...'))
+        onPaymentAttempted?.()
       } else {
         toast.error(paymentErrorMessage())
       }
@@ -197,7 +201,8 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
       return
     }
     handleMethodSelect('waffo_pancake')
-    await processWaffoPancakePayment(Math.round(effectiveAmount))
+    const ok = await processWaffoPancakePayment(Math.round(effectiveAmount))
+    if (ok) onPaymentAttempted?.()
   }
 
   async function handlePlategaPay() {
@@ -207,7 +212,8 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
       return
     }
     handleMethodSelect('platega')
-    await processPlategaPayment(Math.round(effectiveAmount))
+    const ok = await processPlategaPayment(Math.round(effectiveAmount))
+    if (ok) onPaymentAttempted?.()
   }
 
   async function handleClinkPay() {
@@ -217,7 +223,8 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
       return
     }
     handleMethodSelect('clink')
-    await processClinkPayment(Math.round(effectiveAmount))
+    const ok = await processClinkPayment(Math.round(effectiveAmount))
+    if (ok) onPaymentAttempted?.()
   }
 
   const epayEnabled = topupInfo?.enable_online_topup ?? false
@@ -552,6 +559,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
           setCryptoOpen(false)
           onSuccess()
         }}
+        onSettled={onPaymentSettled}
       />
 
       <Dialog open={showHint} onOpenChange={setShowHint}>
