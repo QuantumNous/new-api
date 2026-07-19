@@ -1,8 +1,10 @@
 package service
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -49,7 +51,15 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		// FR-015：补扣时余额不足则清零余额并把不足部分记入 debt，余额永不为负。
+		shortfall, err := model.SettleWalletChargeWithDebt(w.userId, delta)
+		if err != nil {
+			return err
+		}
+		if shortfall > 0 {
+			common.SysLog(fmt.Sprintf("用户 %d 结算余额不足，欠额 %d 记入 debt", w.userId, shortfall))
+		}
+		return nil
 	}
 	return model.IncreaseUserQuota(w.userId, -delta, false)
 }

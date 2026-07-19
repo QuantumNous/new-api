@@ -344,6 +344,16 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return nil, types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// FR-016：用户存在未偿还的欠额（debt）时，阻止后续计费请求，直至充值抵扣清零。
+	if debt, err := model.GetUserDebt(relayInfo.UserId); err != nil {
+		return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+	} else if debt > 0 {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("账户存在欠额 %s，请充值后再使用", logger.FormatQuota(debt)),
+			types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+			types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+	}
+
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
 
 	// 钱包路径需要先检查用户额度

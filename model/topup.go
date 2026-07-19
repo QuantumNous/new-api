@@ -113,6 +113,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 
 	var quota float64
 	topUp := &TopUp{}
+	var stripeNet int
 
 	refCol := "`trade_no`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
@@ -141,10 +142,16 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		}
 
 		quota = topUp.Money * common.QuotaPerUnit
-		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quota)}).Error
+		// 先更新 stripe_customer，再单独入账（FR-017：优先抵扣 debt）。
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).
+			Update("stripe_customer", customerId).Error; err != nil {
+			return err
+		}
+		net, _, err := applyTopUpWithDebtTx(tx, topUp.UserId, int(quota))
 		if err != nil {
 			return err
 		}
+		stripeNet = net
 
 		return nil
 	})
@@ -153,6 +160,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		common.SysError("topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
+	syncTopUpQuotaCache(topUp.UserId, stripeNet)
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 
@@ -331,6 +339,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
+	var manualNet int
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
@@ -370,10 +379,12 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return err
 		}
 
-		// 增加用户额度（立即写库，保持一致性）
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		// 增加用户额度（立即写库，保持一致性）；FR-017：优先抵扣 debt。
+		net, _, err := applyTopUpWithDebtTx(tx, topUp.UserId, quotaToAdd)
+		if err != nil {
 			return err
 		}
+		manualNet = net
 
 		userId = topUp.UserId
 		payMoney = topUp.Money
@@ -384,6 +395,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	if err != nil {
 		return err
 	}
+	syncTopUpQuotaCache(userId, manualNet)
 
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
@@ -396,6 +408,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 
 	var quota int64
 	topUp := &TopUp{}
+	var creemNet int
 
 	refCol := "`trade_no`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
@@ -426,10 +439,12 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		// Creem 直接使用 Amount 作为充值额度（整数）
 		quota = topUp.Amount
 
-		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
-		updateFields := map[string]interface{}{
-			"quota": gorm.Expr("quota + ?", quota),
+		// FR-017：充值入账优先抵扣 debt，剩余进入 quota。
+		net, _, err := applyTopUpWithDebtTx(tx, topUp.UserId, int(quota))
+		if err != nil {
+			return err
 		}
+		creemNet = net
 
 		// 如果有客户邮箱，尝试更新用户邮箱（仅当用户邮箱为空时）
 		if customerEmail != "" {
@@ -442,13 +457,11 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 
 			// 如果用户邮箱为空，则更新为支付时使用的邮箱
 			if user.Email == "" {
-				updateFields["email"] = customerEmail
+				if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).
+					Update("email", customerEmail).Error; err != nil {
+					return err
+				}
 			}
-		}
-
-		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
-		if err != nil {
-			return err
 		}
 
 		return nil
@@ -458,6 +471,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		common.SysError("creem topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
+	syncTopUpQuotaCache(topUp.UserId, creemNet)
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
 
@@ -471,6 +485,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	var quotaToAdd int
 	topUp := &TopUp{}
+	var waffoNet int
 
 	refCol := "`trade_no`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
@@ -508,9 +523,12 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return err
 		}
 
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		// FR-017：充值入账优先抵扣 debt。
+		net, _, err := applyTopUpWithDebtTx(tx, topUp.UserId, quotaToAdd)
+		if err != nil {
 			return err
 		}
+		waffoNet = net
 
 		return nil
 	})
@@ -519,6 +537,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 		common.SysError("waffo topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
+	syncTopUpQuotaCache(topUp.UserId, waffoNet)
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
@@ -534,6 +553,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 	var quotaToAdd int
 	topUp := &TopUp{}
+	var pancakeNet int
 
 	refCol := "`trade_no`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
@@ -569,9 +589,12 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 			return err
 		}
 
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		// FR-017：充值入账优先抵扣 debt。
+		net, _, err := applyTopUpWithDebtTx(tx, topUp.UserId, quotaToAdd)
+		if err != nil {
 			return err
 		}
+		pancakeNet = net
 
 		return nil
 	})
@@ -580,6 +603,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 		common.SysError("waffo pancake topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
+	syncTopUpQuotaCache(topUp.UserId, pancakeNet)
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
