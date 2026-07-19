@@ -1661,13 +1661,25 @@ func GeminiImagineContentHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		Data:    make([]dto.ImageData, 0, 1),
 	}
 	var revisedPrompt string
+	var firstCachedURL string
 	for _, candidate := range geminiResponse.Candidates {
 		for _, part := range candidate.Content.Parts {
 			if part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "image") {
-				openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
-					B64Json:       part.InlineData.Data,
-					RevisedPrompt: revisedPrompt,
-				})
+				item := dto.ImageData{RevisedPrompt: revisedPrompt}
+				// Cache b64 → CDN URL so admin log shows a thumbnail preview.
+				// ImageData.Url has json:"url" (no omitempty), so an empty url=""
+				// would prevent RewriteImageResponseBodyWithHeaders from picking up
+				// b64_json (it only converts b64 when url key is absent). Cache here
+				// directly instead.
+				if cachedURL := service.CacheImageBase64Locally(part.InlineData.Data); cachedURL != "" {
+					item.Url = cachedURL
+					if firstCachedURL == "" {
+						firstCachedURL = cachedURL
+					}
+				} else {
+					item.B64Json = part.InlineData.Data
+				}
+				openAIResponse.Data = append(openAIResponse.Data, item)
 			} else if part.Text != "" && !part.Thought {
 				revisedPrompt = part.Text
 			}
@@ -1682,12 +1694,8 @@ func GeminiImagineContentHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
 	}
 
-	// Cache b64 image locally → apimaster.ai CDN URL so the admin log can show a
-	// thumbnail preview (same behaviour as gpt-image-2 and other image channels).
-	rewritten := service.RewriteImageResponseBodyWithHeaders(jsonResponse, nil)
-	if resultURL := service.ExtractFirstImageURLFromResponse(rewritten); resultURL != "" {
-		c.Set("image_result_url", resultURL)
-		jsonResponse = rewritten
+	if firstCachedURL != "" {
+		c.Set("image_result_url", firstCachedURL)
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
