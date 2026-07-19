@@ -94,7 +94,10 @@ describe('async image API samples', () => {
   test('cURL stays copy-friendly and shows submit plus poll requests', () => {
     const sample = buildAsyncImageSample('curl', context)
 
-    assert.match(sample, /curl https:\/\/api\.example\.com\/v1\/images\/generations/)
+    assert.match(
+      sample,
+      /curl https:\/\/api\.example\.com\/v1\/images\/generations/
+    )
     assert.match(sample, /Idempotency-Key: image-request-<UNIQUE_ID>/)
     assert.match(
       sample,

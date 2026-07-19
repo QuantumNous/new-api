@@ -44,6 +44,8 @@ import { useStatus } from '@/hooks/use-status'
 
 import {
   buildAsyncImageSample,
+  IMAGE_SAMPLE_LANGUAGES,
+  STANDARD_SAMPLE_LANGUAGES,
   type ImageSampleLanguage,
 } from '../lib/image-api-docs'
 import {
@@ -72,6 +74,7 @@ type Lang = ImageSampleLanguage
 
 const LANG_LABELS: Record<Lang, string> = {
   curl: 'cURL',
+  bash: 'Bash',
   python: 'Python',
   typescript: 'TypeScript',
   javascript: 'JavaScript',
@@ -79,13 +82,15 @@ const LANG_LABELS: Record<Lang, string> = {
 
 const LANG_HIGHLIGHT: Record<Lang, BundledLanguage> = {
   curl: 'bash',
+  bash: 'bash',
   python: 'python',
   typescript: 'typescript',
   javascript: 'javascript',
 }
 
 const IMAGE_RUNTIME_HINT_KEYS: Record<Lang, string> = {
-  curl: 'cURL runtime: Bash, curl, and Python 3.',
+  curl: 'cURL example: replace the placeholders before running.',
+  bash: 'Bash runtime: Bash, curl, and Python 3.',
   python: 'Python runtime: Python 3.9+ with requests 2.x.',
   typescript:
     'TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.',
@@ -489,6 +494,11 @@ function CodeSamplesSection(props: {
     endpoints[0]?.type ?? ''
   )
   const [lang, setLang] = useState<Lang>('curl')
+  const sampleLanguages =
+    props.model.api_profile?.kind === 'image'
+      ? IMAGE_SAMPLE_LANGUAGES
+      : STANDARD_SAMPLE_LANGUAGES
+  const activeLang = sampleLanguages.includes(lang) ? lang : 'curl'
 
   const activeEndpoint = useMemo(() => {
     return endpoints.find((e) => e.type === endpointType) ?? endpoints[0]
@@ -498,7 +508,7 @@ function CodeSamplesSection(props: {
     return null
   }
 
-  const code = buildSample(lang, activeEndpoint.type, {
+  const code = buildSample(activeLang, activeEndpoint.type, {
     baseUrl,
     apiKeyEnv: 'NEW_API_KEY',
     modelName: props.model.model_name || '',
@@ -548,12 +558,12 @@ function CodeSamplesSection(props: {
         )}
 
         <Tabs
-          value={lang}
+          value={activeLang}
           onValueChange={(v) => setLang(v as Lang)}
           className='ml-auto'
         >
           <TabsList className='bg-muted/40 h-8 p-0.5'>
-            {(Object.keys(LANG_LABELS) as Lang[]).map((l) => (
+            {sampleLanguages.map((l) => (
               <TabsTrigger key={l} value={l} className='h-7 px-2.5 text-xs'>
                 {LANG_LABELS[l]}
               </TabsTrigger>
@@ -563,11 +573,11 @@ function CodeSamplesSection(props: {
       </div>
 
       {props.model.api_profile?.kind === 'image' && (
-        <ImageSampleRuntimeHint lang={lang} />
+        <ImageSampleRuntimeHint lang={activeLang} />
       )}
 
       <div className='mt-3'>
-        <CodeBlock code={code} language={LANG_HIGHLIGHT[lang]}>
+        <CodeBlock code={code} language={LANG_HIGHLIGHT[activeLang]}>
           <CodeBlockCopyButton />
         </CodeBlock>
       </div>
