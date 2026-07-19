@@ -452,12 +452,13 @@ func TestBillingAdjustmentCreditPreservesImageReservationHeadroom(t *testing.T) 
 func TestBillingAdjustmentQuotaAllowsLegacyOversizedDebitOnly(t *testing.T) {
 	legacyBalance := int64(common.MaxQuota) + 100
 
-	assert.True(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance-10, -10))
-	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance+10, 10))
-	assert.True(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxQuota)-10, int64(common.MaxQuota), 10))
-	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MinQuota)-1, int64(common.MinQuota)-1, -10))
-	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxLegacyQuota)+1, int64(common.MaxLegacyQuota), -1))
-	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance+1, -1))
+	assert.True(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance-10, -10, true))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance-10, -10, false))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance+10, 10, true))
+	assert.True(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxQuota)-10, int64(common.MaxQuota), 10, false))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MinQuota)-1, int64(common.MinQuota)-1, -10, true))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxLegacyQuota)+1, int64(common.MaxLegacyQuota), -1, true))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance+1, -1, true))
 }
 
 func TestBillingAdjustmentQuotaArithmeticRejectsInt64Overflow(t *testing.T) {
@@ -527,8 +528,43 @@ func TestBillingAdjustmentLegacyOversizedDebitUpdatesPinnedDatabaseAndCache(t *t
 	for _, row := range delivered {
 		assert.True(t, row.DBApplied)
 		assert.True(t, row.CacheApplied)
+		assert.True(t, row.LegacyDebit)
 		assert.Equal(t, billingAdjustmentDelivered, row.Status)
 	}
+}
+
+func TestBillingAdjustmentLegacyDebitDoesNotWidenTokenUsedQuota(t *testing.T) {
+	truncateTables(t)
+	oldRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = oldRedisEnabled })
+
+	legacyBalance := common.MaxQuota + 100
+	token := &Token{
+		UserId:      1,
+		Key:         "legacy-used-quota-token",
+		Name:        "legacy-used-quota",
+		Status:      common.TokenStatusEnabled,
+		RemainQuota: legacyBalance,
+		UsedQuota:   common.MaxQuota + 10,
+	}
+	require.NoError(t, DB.Create(token).Error)
+	rows, err := EnqueueBillingAdjustments([]BillingAdjustmentSpec{{
+		RequestID: "legacy-used-quota-debit",
+		Phase:     BillingAdjustmentPhaseSettle,
+		Leg:       BillingAdjustmentLegToken,
+		UserID:    token.UserId,
+		TokenID:   token.Id,
+		Delta:     -10,
+	}})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.ErrorIs(t, ProcessBillingAdjustmentOutbox(rows[0].Id), ErrBillingAdjustmentBalanceBlocked)
+
+	var stored Token
+	require.NoError(t, DB.First(&stored, token.Id).Error)
+	assert.Equal(t, legacyBalance, stored.RemainQuota)
+	assert.Equal(t, common.MaxQuota+10, stored.UsedQuota)
 }
 
 func TestCleanupTerminalBillingAdjustmentOutboxPreservesActiveRows(t *testing.T) {
