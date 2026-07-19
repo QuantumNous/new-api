@@ -313,6 +313,7 @@ export interface GetLogsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  include_model_test?: boolean
 }
 
 export interface GetLogsResponse {
@@ -337,6 +338,7 @@ export interface GetLogStatsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  include_model_test?: boolean
 }
 
 export interface GetLogStatsResponse {
