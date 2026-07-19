@@ -161,20 +161,20 @@ func ImageModelCapabilitiesForModel(model string) ImageModelCapabilities {
 	case strings.HasSuffix(normalized, "nano-banana-2") || strings.Contains(normalized, "gemini-3.1-flash-image"):
 		return ImageModelCapabilities{
 			Family: ImageModelFamilyGeminiFlash31, Operations: []string{"generation", "edit"},
-			AspectRatios: append([]string(nil), geminiFlashImageAspectRatios...),
-			Resolutions:  []string{"512", "1K", "2K", "4K"}, OutputFormats: []string{"png"},
-			MaxReferenceImages: MaxGeminiImageInputURLs, MaxOutputImages: MaxImageGenerationCount,
-			DefaultAspectRatio: "auto", DefaultResolution: "1K", DefaultOutputFormat: "png",
-			HasAspectRatioParameter: true, HasResolutionParameter: true, HasOutputFormatParameter: true,
+			AspectRatios:       append([]string(nil), geminiFlashImageAspectRatios...),
+			Resolutions:        []string{"512", "1K", "2K", "4K"},
+			MaxReferenceImages: MaxGeminiImageInputURLs, MaxOutputImages: 1,
+			DefaultAspectRatio: "auto", DefaultResolution: "1K",
+			HasAspectRatioParameter: true, HasResolutionParameter: true,
 		}
 	case strings.Contains(normalized, "nano-banana-pro") || strings.Contains(normalized, "gemini-3-pro-image") || strings.Contains(normalized, "gemini-3.1-pro-image"):
 		return ImageModelCapabilities{
 			Family: ImageModelFamilyGeminiPro3, Operations: []string{"generation", "edit"},
-			AspectRatios: append([]string(nil), geminiStandardImageAspectRatios...),
-			Resolutions:  []string{"1K", "2K", "4K"}, OutputFormats: []string{"png"},
-			MaxReferenceImages: MaxGeminiImageInputURLs, MaxOutputImages: MaxImageGenerationCount,
-			DefaultAspectRatio: "auto", DefaultResolution: "1K", DefaultOutputFormat: "png",
-			HasAspectRatioParameter: true, HasResolutionParameter: true, HasOutputFormatParameter: true,
+			AspectRatios:       append([]string(nil), geminiStandardImageAspectRatios...),
+			Resolutions:        []string{"1K", "2K", "4K"},
+			MaxReferenceImages: MaxGeminiImageInputURLs, MaxOutputImages: 1,
+			DefaultAspectRatio: "auto", DefaultResolution: "1K",
+			HasAspectRatioParameter: true, HasResolutionParameter: true,
 		}
 	case (strings.HasPrefix(normalized, "gemini-") && (strings.Contains(normalized, "image") || strings.Contains(normalized, "image-generation"))) ||
 		strings.HasPrefix(normalized, "gemini-2.0-flash-exp") || strings.Contains(normalized, "nano-banana"):
@@ -184,11 +184,11 @@ func ImageModelCapabilitiesForModel(model string) ImageModelCapabilities {
 		}
 		return ImageModelCapabilities{
 			Family: ImageModelFamilyGeminiLegacy, Operations: []string{"generation", "edit"},
-			AspectRatios: append([]string(nil), geminiStandardImageAspectRatios...),
-			Resolutions:  []string{"1K"}, OutputFormats: []string{"png"},
-			MaxReferenceImages: maxReferenceImages, MaxOutputImages: MaxImageGenerationCount,
-			DefaultAspectRatio: "auto", DefaultResolution: "1K", DefaultOutputFormat: "png",
-			HasAspectRatioParameter: true, HasResolutionParameter: true, HasOutputFormatParameter: true,
+			AspectRatios:       append([]string(nil), geminiStandardImageAspectRatios...),
+			Resolutions:        []string{"1K"},
+			MaxReferenceImages: maxReferenceImages, MaxOutputImages: 1,
+			DefaultAspectRatio: "auto", DefaultResolution: "1K",
+			HasAspectRatioParameter: true, HasResolutionParameter: true,
 		}
 	case strings.HasPrefix(normalized, "imagen-"):
 		// https://ai.google.dev/gemini-api/docs/imagen documents five aspect

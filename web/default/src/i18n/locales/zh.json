@@ -5211,6 +5211,16 @@
     "Random seed used by the image model": "图片模型使用的随机种子",
     "Number of denoising steps": "去噪步数",
     "Guidance scale used by the image model": "图片模型的引导强度",
-    "Classifier-free guidance value": "无分类器引导值"
+    "Classifier-free guidance value": "无分类器引导值",
+    "cURL runtime: Bash, curl, and Python 3.": "cURL 运行环境：Bash、curl 和 Python 3。",
+    "Python runtime: Python 3.9+ with requests 2.x.": "Python 运行环境：Python 3.9+，并安装 requests 2.x。",
+    "TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.": "TypeScript 运行环境：Bun 1.0+，或使用 ESM 模式并配置 TypeScript 运行器的 Node.js 18+。",
+    "JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.": "JavaScript 运行环境：Bun 1.0+ 或 ESM 模式的 Node.js 18+。",
+    "Webhook delivery and signature": "Webhook 投递与签名",
+    "webhook_url and webhook_secret are optional fields inside input. The callback must be a publicly reachable HTTPS URL.": "webhook_url 和 webhook_secret 是 input 内的可选字段。回调地址必须是公网可访问的 HTTPS URL。",
+    "Terminal task notifications use at-least-once delivery. Deduplicate retries with X-Webhook-Delivery-Id and return a 2xx response.": "终态任务通知采用至少一次投递。请使用 X-Webhook-Delivery-Id 对重试去重，并返回 2xx 响应。",
+    "When webhook_secret is set, verify X-Webhook-Timestamp, X-Webhook-Delivery-Id, and X-Webhook-Signature, and reject timestamps outside your replay window.": "设置 webhook_secret 后，请校验 X-Webhook-Timestamp、X-Webhook-Delivery-Id 和 X-Webhook-Signature，并拒绝超出重放保护时间窗口的时间戳。",
+    "Signing input": "签名原文",
+    "Compute HMAC-SHA256 with webhook_secret and compare X-Webhook-Signature (v1=<hex>) in constant time.": "使用 webhook_secret 计算 HMAC-SHA256，并以常量时间比较 X-Webhook-Signature（v1=<hex>）。"
   }
 }

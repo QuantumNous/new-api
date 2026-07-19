@@ -21,7 +21,9 @@ import {
   Gauge,
   KeyRound,
   ScrollText,
+  ShieldCheck,
   Sigma,
+  Terminal,
   Zap,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -80,6 +82,14 @@ const LANG_HIGHLIGHT: Record<Lang, BundledLanguage> = {
   python: 'python',
   typescript: 'typescript',
   javascript: 'javascript',
+}
+
+const IMAGE_RUNTIME_HINT_KEYS: Record<Lang, string> = {
+  curl: 'cURL runtime: Bash, curl, and Python 3.',
+  python: 'Python runtime: Python 3.9+ with requests 2.x.',
+  typescript:
+    'TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.',
+  javascript: 'JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.',
 }
 
 type SampleContext = {
@@ -552,6 +562,10 @@ function CodeSamplesSection(props: {
         </Tabs>
       </div>
 
+      {props.model.api_profile?.kind === 'image' && (
+        <ImageSampleRuntimeHint lang={lang} />
+      )}
+
       <div className='mt-3'>
         <CodeBlock code={code} language={LANG_HIGHLIGHT[lang]}>
           <CodeBlockCopyButton />
@@ -564,7 +578,66 @@ function CodeSamplesSection(props: {
         </code>{' '}
         {t('must contain the API key from your token settings.')}
       </p>
+
+      {props.model.api_profile?.kind === 'image' &&
+        props.model.api_profile.webhook && <WebhookContractNotice />}
     </section>
+  )
+}
+
+function ImageSampleRuntimeHint(props: { lang: Lang }) {
+  const { t } = useTranslation()
+
+  return (
+    <p className='text-muted-foreground mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed'>
+      <Terminal aria-hidden='true' className='mt-0.5 size-3 shrink-0' />
+      <span>{t(IMAGE_RUNTIME_HINT_KEYS[props.lang])}</span>
+    </p>
+  )
+}
+
+function WebhookContractNotice() {
+  const { t } = useTranslation()
+
+  return (
+    <aside className='border-border/60 mt-4 border-t pt-4'>
+      <h4 className='text-foreground mb-2 flex items-center gap-1.5 text-xs font-semibold'>
+        <ShieldCheck
+          aria-hidden='true'
+          className='text-muted-foreground/70 size-3.5'
+        />
+        {t('Webhook delivery and signature')}
+      </h4>
+
+      <ul className='text-muted-foreground grid gap-x-6 gap-y-1.5 text-xs leading-relaxed sm:grid-cols-2'>
+        <li>
+          {t(
+            'webhook_url and webhook_secret are optional fields inside input. The callback must be a publicly reachable HTTPS URL.'
+          )}
+        </li>
+        <li>
+          {t(
+            'Terminal task notifications use at-least-once delivery. Deduplicate retries with X-Webhook-Delivery-Id and return a 2xx response.'
+          )}
+        </li>
+        <li className='sm:col-span-2'>
+          {t(
+            'When webhook_secret is set, verify X-Webhook-Timestamp, X-Webhook-Delivery-Id, and X-Webhook-Signature, and reject timestamps outside your replay window.'
+          )}
+        </li>
+      </ul>
+
+      <p className='text-muted-foreground mt-2 text-xs leading-relaxed'>
+        {t('Signing input')}:{' '}
+        <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
+          v1.timestamp.deliveryID.rawBody
+        </code>
+        .{' '}
+        {t(
+          'Compute HMAC-SHA256 with webhook_secret and compare X-Webhook-Signature (v1=<hex>) in constant time.'
+        )}
+      </p>
+    </aside>
   )
 }
 

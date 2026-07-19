@@ -508,6 +508,12 @@ export const STATIC_I18N_KEYS = [
   'No models available in this category',
   'Copied: {{model}}',
 
+  // Image API runtime hints (selected dynamically by language tab)
+  'cURL runtime: Bash, curl, and Python 3.',
+  'Python runtime: Python 3.9+ with requests 2.x.',
+  'TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.',
+  'JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.',
+
   // Grok settings
   'Grok Settings',
   'Enable violation deduction',

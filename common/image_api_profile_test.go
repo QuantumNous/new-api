@@ -41,8 +41,10 @@ func TestNanoBanana2ImageAPIProfileMatchesRuntimeCapabilities(t *testing.T) {
 
 	resolution := imageAPIParameterByName(t, profile, "resolution")
 	assert.Equal(t, []string{"512", "1K", "2K", "4K"}, resolution.EnumValues)
-	outputFormat := imageAPIParameterByName(t, profile, "output_format")
-	assert.Equal(t, []string{"png"}, outputFormat.EnumValues)
+	assert.NotContains(t, parameterNames(profile.Parameters), "output_format")
+	n := imageAPIParameterByName(t, profile, "n")
+	require.NotNil(t, n.Max)
+	assert.Equal(t, 1, *n.Max)
 }
 
 func TestGPTImage2ProfileAndValidatorShareCombinationMatrix(t *testing.T) {
