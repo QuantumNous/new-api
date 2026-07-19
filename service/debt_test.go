@@ -1,9 +1,16 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
+
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,4 +107,52 @@ func TestWalletFundingSettleNegativeDeltaIsRefund(t *testing.T) {
 	require.NoError(t, model.DB.Where("id = ?", 8004).First(&u).Error)
 	assert.Equal(t, 15, u.Quota, "负 delta 是退款，应增加 quota")
 	assert.Equal(t, 0, u.Debt, "退款不得影响 debt")
+}
+
+// FR-016 end-to-end: NewBillingSession 必须在选出任何资金来源之前，因用户存在
+// 未偿还 Debt 而拒绝请求，返回 ErrorCodeInsufficientUserQuota (403) 且标记不可重试。
+// 与 TestWalletFundingSettleThenDebtBlocksCondition 互补：前者只断言 settle 后 Debt>0
+// 信号被置位，这里驱动完整的工厂闸门（真实 gin.Context + RelayInfo），并验证
+// 充值抵扣清零后闸门重新打开。
+func TestNewBillingSessionBlocksOnOutstandingDebt(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// 用户同时拥有充足 quota 与未偿还 debt：证明阻塞来自 debt 信号而非额度不足。
+	const uid = 8010
+	seedServiceDebtUser(t, uid, 1_000_000, 50)
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:          uid,
+		OriginModelName: "gpt-test",
+		// wallet_only 规避订阅查询路径，让断言聚焦在 debt 闸门本身。
+		UserSetting: dto.UserSetting{BillingPreference: "wallet_only"},
+	}
+
+	t.Run("debt>0 blocks before funding selection", func(t *testing.T) {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		session, apiErr := NewBillingSession(ctx, relayInfo, 100)
+		require.Nil(t, session, "debt>0 时不得创建计费会话")
+		require.NotNil(t, apiErr)
+		assert.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+		assert.True(t, types.IsSkipRetryError(apiErr), "debt 阻塞应标记不可重试")
+	})
+
+	t.Run("debt cleared reopens gate", func(t *testing.T) {
+		net, repaid, err := model.OffsetUserDebtOnTopUp(uid, 200)
+		require.NoError(t, err)
+		assert.Equal(t, 50, repaid, "充值应先偿还 debt 50")
+		assert.Equal(t, 150, net, "偿还后净入 quota 150")
+		debt, _ := model.GetUserDebt(uid)
+		require.Zero(t, debt, "充值后 debt 应清零")
+
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		// preConsumedQuota=0：跳过令牌与资金预扣，仅证明 debt 闸门不再阻塞，
+		// 会话正常创建并落到钱包资金来源。
+		session, apiErr := NewBillingSession(ctx, relayInfo, 0)
+		require.Nil(t, apiErr)
+		require.NotNil(t, session)
+		assert.Equal(t, 0, session.GetPreConsumedQuota())
+		assert.Equal(t, BillingSourceWallet, relayInfo.BillingSource)
+	})
 }
