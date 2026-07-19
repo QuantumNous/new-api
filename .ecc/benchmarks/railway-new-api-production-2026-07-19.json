@@ -1,0 +1,69 @@
+{
+  "service": "new-api",
+  "project": "new-api",
+  "environment": "production",
+  "captured_at_utc": "2026-07-19T05:06:25Z",
+  "window": "1h",
+  "log_query": {
+    "format": "json",
+    "line_limit": 5000,
+    "raw_payloads_retained": false
+  },
+  "deployment": {
+    "id": "d65577b4-4a67-4563-8850-8c4b7fe25985",
+    "status": "SUCCESS",
+    "created_at": "2026-07-19T02:41:54.788Z",
+    "commit": "0ce15197133f1c7202a62f7819c2998afa2e3204",
+    "branch": "main"
+  },
+  "metrics": {
+    "frt_samples": 760,
+    "frt_ms": {
+      "p50": 2179,
+      "p95": 5780,
+      "p99": 11706,
+      "max": 25205,
+      "over_5000": 60
+    },
+    "client_gone": {
+      "events": 21,
+      "idle_before_cut_ms": {
+        "under_100": 14,
+        "under_1000": 21,
+        "average": 101.6,
+        "max": 340
+      }
+    },
+    "billing_errors": {
+      "settling_billing": 13,
+      "token_quota_adjustment": 8
+    },
+    "upstream_errors": {
+      "response_header_timeout": 8,
+      "lines_containing_503": 161
+    }
+  },
+  "hot_channels": [
+    {"channel_id": 46, "requests": 289, "average_frt_ms": 2975, "over_5000": 21},
+    {"channel_id": 58, "requests": 235, "average_frt_ms": 2060, "over_5000": 4},
+    {"channel_id": 56, "requests": 107, "average_frt_ms": 3125, "over_5000": 8},
+    {"channel_id": 45, "requests": 46, "average_frt_ms": 3964, "over_5000": 12},
+    {"channel_id": 52, "requests": 36, "average_frt_ms": 3939, "over_5000": 7}
+  ],
+  "header_timeout_hosts": {
+    "aiccxx.cn": 5,
+    "sub.sixoner.com": 1,
+    "api.hostcentral.cc": 1,
+    "ai.zyyun.xyz": 1
+  },
+  "representative_errors": [
+    "redis quota cache is unavailable",
+    "timeout awaiting response headers",
+    "upstream channel unavailable / HTTP 503"
+  ],
+  "interpretation": [
+    "FRT is materially larger than scanner first_data_ms in sampled records, so the dominant delay is upstream headers, queueing, or model prefill.",
+    "All sampled client_gone events had less than one second of upstream idle time before the cut; this is consistent with active-stream client or edge cancellation rather than an upstream idle timeout.",
+    "The deployment still predates the stream-terminal and durable billing changes; compare this file with a post-deploy snapshot using the same query window."
+  ]
+}
