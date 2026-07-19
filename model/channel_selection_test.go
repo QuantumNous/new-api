@@ -77,6 +77,49 @@ func TestGetChannelSkipsCoolingChannelWithoutMemoryCache(t *testing.T) {
 	}
 }
 
+func TestGetChannelPreferMeasuredFastWithoutMemoryCache(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(0)
+	const modelName = "gpt-5.6-sol-db-affinity"
+	channels := []Channel{
+		{Id: 617, Type: 1, Key: "key-617", Status: common.ChannelStatusEnabled, Name: "fast", Weight: &weight, Priority: &priority, Models: modelName, Group: "default"},
+		{Id: 641, Type: 1, Key: "key-641", Status: common.ChannelStatusEnabled, Name: "slow-a", Weight: &weight, Priority: &priority, Models: modelName, Group: "default"},
+		{Id: 651, Type: 1, Key: "key-651", Status: common.ChannelStatusEnabled, Name: "slow-b", Weight: &weight, Priority: &priority, Models: modelName, Group: "default"},
+	}
+	require.NoError(t, DB.Create(&channels).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "default", Model: modelName, ChannelId: 617, Enabled: true, Priority: &priority, Weight: weight},
+		{Group: "default", Model: modelName, ChannelId: 641, Enabled: true, Priority: &priority, Weight: weight},
+		{Group: "default", Model: modelName, ChannelId: 651, Enabled: true, Priority: &priority, Weight: weight},
+	}).Error)
+
+	for i := 0; i < 6; i++ {
+		RecordChannelOutcome(ChannelHealthKey{ChannelID: 617, Model: modelName, Path: "/v1/responses"}, ChannelOutcome{StatusCode: 200, Latency: 1500 * time.Millisecond})
+		RecordChannelOutcome(ChannelHealthKey{ChannelID: 641, Model: modelName, Path: "/v1/responses"}, ChannelOutcome{StatusCode: 200, Latency: 6 * time.Second})
+		RecordChannelOutcome(ChannelHealthKey{ChannelID: 651, Model: modelName, Path: "/v1/responses"}, ChannelOutcome{StatusCode: 200, Latency: 6 * time.Second})
+	}
+
+	for i := 0; i < 100; i++ {
+		selected, err := GetChannelWithOptions("default", modelName, 0, ChannelSelectionOptions{
+			Path:               "/v1/responses",
+			PreferMeasuredFast: true,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, selected)
+		assert.Equal(t, 617, selected.Id)
+	}
+}
+
 func TestGetRandomSatisfiedChannelSkipsOpenHealthKey(t *testing.T) {
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
