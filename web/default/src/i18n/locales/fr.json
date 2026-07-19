@@ -602,7 +602,7 @@
     "Batch testing models...": "Test des modèles par lots...",
     "Batch upstream model update": "Mise à jour groupée des modèles en amont",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "Mises à jour par lot des modèles en amont appliquées : {{channels}} canaux, {{added}} ajoutés, {{removed}} supprimés, {{fails}} échoués",
-    "Best for single-tenant deployments. Pricing and billing options stay hidden.": "Idéal pour les déploiements mono-utilisateur. Les options de tarification et de facturation restent masquées.",
+    "Best for personal use. No need to configure model pricing; registration is off by default and can be enabled later in settings.": "Idéal pour un usage personnel. Aucun prix de modèle à configurer ; l'inscription est désactivée par défaut et peut être réactivée plus tard dans les paramètres.",
     "Best TTFT": "Meilleur TTFT",
     "Billable input tokens": "Tokens d’entrée facturables",
     "Billable output tokens": "Tokens de sortie facturables",

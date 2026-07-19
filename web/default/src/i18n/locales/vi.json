@@ -602,7 +602,7 @@
     "Batch testing models...": "Đang kiểm thử mô hình hàng loạt...",
     "Batch upstream model update": "Cập nhật mô hình thượng nguồn hàng loạt",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "Đã áp dụng cập nhật hàng loạt mô hình upstream: {{channels}} kênh, {{added}} đã thêm, {{removed}} đã xóa, {{fails}} thất bại",
-    "Best for single-tenant deployments. Pricing and billing options stay hidden.": "Phù hợp nhất cho triển khai đơn người dùng. Các tùy chọn giá và thanh toán sẽ được ẩn.",
+    "Best for personal use. No need to configure model pricing; registration is off by default and can be enabled later in settings.": "Phù hợp cho sử dụng cá nhân. Không cần cấu hình giá mô hình; đăng ký mặc định tắt và có thể bật lại sau trong cài đặt.",
     "Best TTFT": "TTFT tốt nhất",
     "Billable input tokens": "Token đầu vào tính phí",
     "Billable output tokens": "Token đầu ra tính phí",

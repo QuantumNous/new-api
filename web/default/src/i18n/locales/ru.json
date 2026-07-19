@@ -602,7 +602,7 @@
     "Batch testing models...": "Пакетное тестирование моделей...",
     "Batch upstream model update": "Пакетное обновление вышестоящих моделей",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "Пакетное обновление моделей: {{channels}} каналов, {{added}} добавлено, {{removed}} удалено, {{fails}} ошибок",
-    "Best for single-tenant deployments. Pricing and billing options stay hidden.": "Лучший вариант для однопользовательских развёртываний. Опции ценообразования и биллинга будут скрыты.",
+    "Best for personal use. No need to configure model pricing; registration is off by default and can be enabled later in settings.": "Подходит для личного использования. Настраивать цены моделей не нужно; регистрация по умолчанию отключена, её можно включить позже в настройках.",
     "Best TTFT": "Лучший TTFT",
     "Billable input tokens": "Оплачиваемые входные токены",
     "Billable output tokens": "Оплачиваемые выходные токены",

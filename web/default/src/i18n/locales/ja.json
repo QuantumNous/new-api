@@ -602,7 +602,7 @@
     "Batch testing models...": "モデルをバッチテスト中...",
     "Batch upstream model update": "上流モデル一括更新",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "一括上流モデル更新を処理しました：{{channels}} チャネル、{{added}} 個追加、{{removed}} 個削除、{{fails}} 個失敗",
-    "Best for single-tenant deployments. Pricing and billing options stay hidden.": "シングルテナント環境に最適です。料金設定や請求オプションは非表示になります。",
+    "Best for personal use. No need to configure model pricing; registration is off by default and can be enabled later in settings.": "個人利用に最適です。モデル価格の設定は不要です。登録は既定でオフになり、後で設定から有効にできます。",
     "Best TTFT": "最良 TTFT",
     "Billable input tokens": "課金対象の入力トークン",
     "Billable output tokens": "課金対象の出力トークン",

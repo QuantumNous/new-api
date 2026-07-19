@@ -602,7 +602,7 @@
     "Batch testing models...": "正在批量测试模型...",
     "Batch upstream model update": "上游模型批量更新",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "已批量处理上游模型更新：渠道 {{channels}} 个，加入 {{added}} 个，删除 {{removed}} 个，失败 {{fails}} 个",
-    "Best for single-tenant deployments. Pricing and billing options stay hidden.": "适合单用户部署。定价和计费选项将被隐藏。",
+    "Best for personal use. No need to configure model pricing; registration is off by default and can be enabled later in settings.": "适用于个人使用，无需设置模型价格；注册默认关闭，可稍后在设置中开启。",
     "Best TTFT": "最优 TTFT",
     "Billable input tokens": "计费输入 token",
     "Billable output tokens": "计费输出 token",

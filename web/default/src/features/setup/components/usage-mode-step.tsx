@@ -55,7 +55,7 @@ const USAGE_MODE_OPTIONS: Array<{
     value: 'self',
     titleKey: 'Personal use',
     descriptionKey:
-      'Best for single-tenant deployments. Pricing and billing options stay hidden.',
+      'Best for personal use. No need to configure model pricing; registration is off by default and can be enabled later in settings.',
     icon: Home,
   },
   {
