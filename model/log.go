@@ -158,7 +158,7 @@ func formatTokenLogs(logs []*Log) {
 			safeRequest := make(map[string]interface{})
 			for _, field := range []string{
 				"operation", "size", "quality", "n", "output_format", "aspect_ratio",
-				"resolution", "style", "input_image_count", "has_mask", "webhook_configured",
+				"resolution", "input_image_count", "has_mask", "webhook_configured",
 			} {
 				if value, exists := request[field]; exists {
 					safeRequest[field] = value

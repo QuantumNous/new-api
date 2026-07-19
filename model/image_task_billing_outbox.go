@@ -264,29 +264,11 @@ func imageTaskLogResultSnapshot(task *Task, images []dto.ImageData) *imageTaskLo
 	if len(result.Images) == 0 {
 		appendImage(task.PrivateData.ResultURL, "")
 	}
-	result.Count = len(result.Images)
+	result.Count = len(images)
+	if result.Count == 0 && len(result.Images) > 0 {
+		result.Count = 1
+	}
 	return result
-}
-
-func imageTaskLogLastStage(task *Task) string {
-	if task == nil {
-		return ""
-	}
-	if task.Status == TaskStatusSuccess {
-		return "completed"
-	}
-	switch {
-	case task.UploadError != "":
-		return "upload"
-	case task.DownloadError != "":
-		return "download"
-	case task.ProviderError != "":
-		return "provider"
-	case task.WorkerError != "":
-		return "worker"
-	default:
-		return "failed"
-	}
 }
 
 func enqueueImageTaskBillingLogTx(tx *gorm.DB, task *Task, previousQuota int, reason string) error {
@@ -364,20 +346,11 @@ func enqueueImageTaskBillingLogTx(tx *gorm.DB, task *Task, previousQuota int, re
 	if task.PrivateData.BillingSource != "" {
 		other["billing_source"] = task.PrivateData.BillingSource
 	}
-	adminInfo := map[string]interface{}{
-		"image_task": map[string]interface{}{
-			"worker_attempts":   task.WorkerAttempts,
-			"provider_attempts": task.ProviderAttempts,
-			"download_attempts": task.DownloadAttempts,
-			"upload_attempts":   task.UploadAttempts,
-			"finalize_attempts": task.FinalizeAttempts,
-			"last_stage":        imageTaskLogLastStage(task),
-		},
-	}
 	if task.PrivateData.FinalQuotaClamp != nil {
-		adminInfo["quota_saturation"] = task.PrivateData.FinalQuotaClamp.AuditMap()
+		other["admin_info"] = map[string]interface{}{
+			"quota_saturation": task.PrivateData.FinalQuotaClamp.AuditMap(),
+		}
 	}
-	other["admin_info"] = adminInfo
 
 	promptTokens, completionTokens := 0, 0
 	if response.Usage != nil {

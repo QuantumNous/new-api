@@ -24,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -409,16 +410,23 @@ func SubmitAsyncImage(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Imag
 	if inputs != nil {
 		maskObjectKey = strings.TrimSpace(inputs.MaskObjectKey)
 	}
+	requestInput := billingexpr.RequestInput{}
 	if info.BillingRequestInput != nil {
-		requestInput := *info.BillingRequestInput
-		requestInput.Body, err = sanitizeAsyncBillingRequestBodyForTask(info.BillingRequestInput.Body, req, inputObjectKeys, maskObjectKey)
+		requestInput = *info.BillingRequestInput
+	} else {
+		requestInput.Body, err = common.Marshal(req)
 		if err != nil {
 			refundPreparedAsyncImageSubmission(c, info, task.TaskID, err.Error())
 			return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		}
-		requestInput.Headers = sanitizeAsyncImageHeaderMap(info.BillingRequestInput.Headers)
-		task.PrivateData.BillingContext.BillingRequestInput = &requestInput
 	}
+	requestInput.Body, err = sanitizeAsyncBillingRequestBodyForTask(requestInput.Body, req, inputObjectKeys, maskObjectKey)
+	if err != nil {
+		refundPreparedAsyncImageSubmission(c, info, task.TaskID, err.Error())
+		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	requestInput.Headers = sanitizeAsyncImageHeaderMap(requestInput.Headers)
+	task.PrivateData.BillingContext.BillingRequestInput = &requestInput
 	executor := AsyncImageExecutorResponses
 	var preparedRequest *PreparedAsyncImageRequest
 	if len(prepared) > 0 && prepared[0] != nil {
