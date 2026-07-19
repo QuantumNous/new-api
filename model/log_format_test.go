@@ -44,6 +44,7 @@ func TestFormatTokenLogsRedactsImageTaskContent(t *testing.T) {
 				"operation": "generation",
 				"prompt":    "private prompt",
 				"size":      "1024x1024",
+				"style":     "private natural-language style",
 			},
 			"result": map[string]interface{}{
 				"count": 1,
@@ -63,6 +64,7 @@ func TestFormatTokenLogsRedactsImageTaskContent(t *testing.T) {
 	encoded := common.MapToJsonStr(parsed)
 	require.NotContains(t, encoded, "private prompt")
 	require.NotContains(t, encoded, "private revised prompt")
+	require.NotContains(t, encoded, "private natural-language style")
 	require.NotContains(t, encoded, "https://cdn.example/private.png")
 	require.Contains(t, encoded, `"status":"SUCCESS"`)
 	require.Contains(t, encoded, `"count":1`)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -291,6 +292,18 @@ func TestImageTaskBillingLogDoesNotLeakPrivateTaskData(t *testing.T) {
 	assert.NotContains(t, outbox.Other, "https://private.example/input-image.png")
 	assert.NotContains(t, outbox.Other, "raw-input-image-base64-must-not-leak")
 	assert.NotContains(t, outbox.Other, "raw-mask-base64-must-not-leak")
+}
+
+func TestImageTaskLogResultSnapshotPreservesDuplicateOutputCount(t *testing.T) {
+	task := &Task{Status: TaskStatusSuccess}
+	result := imageTaskLogResultSnapshot(task, []dto.ImageData{
+		{Url: "https://cdn.example/images/same.png"},
+		{Url: "https://cdn.example/images/same.png"},
+	})
+
+	require.NotNil(t, result)
+	assert.Equal(t, 2, result.Count)
+	assert.Len(t, result.Images, 1)
 }
 
 func TestImageTaskBillingLogOutboxStaleLeaseCannotOverwriteReclaimedLease(t *testing.T) {
