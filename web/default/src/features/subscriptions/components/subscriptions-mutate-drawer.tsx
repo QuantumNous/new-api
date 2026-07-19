@@ -563,6 +563,27 @@ export function SubscriptionsMutateDrawer({
 
                 <FormField
                   control={form.control}
+                  name='billing_group_only'
+                  render={({ field }) => (
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <FormLabel className='!mt-0'>
+                        {t('Use subscription quota only in upgrade group')}
+                      </FormLabel>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Requests from other groups are billed to the wallet')}
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name='allow_wallet_overflow'
                   render={({ field }) => (
                     <FormItem className={sideDrawerSwitchItemClassName()}>

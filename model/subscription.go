@@ -175,6 +175,9 @@ type SubscriptionPlan struct {
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
+	// Restrict subscription billing to UpgradeGroup. Disabled by default for backward compatibility.
+	BillingGroupOnly bool `json:"billing_group_only" gorm:"default:false"`
+
 	// Downgrade user group on expiry (empty = revert to the group held before purchase)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
@@ -851,6 +854,29 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 	return count > 0, nil
 }
 
+// IsSubscriptionPlanEligibleForGroup reports whether a plan can fund a request in usingGroup.
+// Plans without BillingGroupOnly retain their existing all-group behavior.
+func IsSubscriptionPlanEligibleForGroup(plan *SubscriptionPlan, usingGroup string) bool {
+	return plan != nil && (!plan.BillingGroupOnly || (strings.TrimSpace(plan.UpgradeGroup) != "" && plan.UpgradeGroup == usingGroup))
+}
+
+// HasActiveUserSubscriptionForGroup returns whether an active subscription can fund usingGroup.
+func HasActiveUserSubscriptionForGroup(userId int, usingGroup string) (bool, error) {
+	if userId <= 0 {
+		return false, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var count int64
+	if err := DB.Model(&UserSubscription{}).
+		Joins("JOIN subscription_plans ON subscription_plans.id = user_subscriptions.plan_id").
+		Where("user_subscriptions.user_id = ? AND user_subscriptions.status = ? AND user_subscriptions.end_time > ?", userId, "active", now).
+		Where("subscription_plans.billing_group_only = ? OR (subscription_plans.upgrade_group <> ? AND subscription_plans.upgrade_group = ?)", false, "", usingGroup).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
 // after the user's subscription quota is exhausted. A single active subscription that
 // disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
@@ -1271,6 +1297,15 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, "")
+}
+
+// PreConsumeUserSubscriptionForGroup pre-consumes from an active subscription eligible for usingGroup.
+func PreConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, quotaType int, amount int64, usingGroup string) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, usingGroup)
+}
+
+func preConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64, usingGroup string) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1324,6 +1359,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
+			}
+			if usingGroup != "" && !IsSubscriptionPlanEligibleForGroup(plan, usingGroup) {
+				continue
 			}
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
