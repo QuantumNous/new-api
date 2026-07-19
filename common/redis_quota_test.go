@@ -281,6 +281,25 @@ func TestRedisPinnedHashAllowsOnlyCoherentLegacyDebit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(100), staleValue)
 
+	// Normal cache policy must reject an oversized pinned snapshot too. A
+	// stale cache must never be allowed to cross back into the normal range,
+	// because the database may already contain a different value.
+	const normalStaleKey = "user:legacy-debit-normal-stale"
+	const normalStalePinsKey = "billing:pins:user:legacy-debit-normal-stale"
+	const normalStaleInvalidationKey = "billing:invalidate:user:legacy-debit-normal-stale"
+	const normalStaleGenerationKey = "billing:generation:user:legacy-debit-normal-stale"
+	normalStaleQuota := int64(MaxQuota) + 5
+	require.NoError(t, RDB.HSet(ctx, normalStaleKey, "Id", 15, "Quota", normalStaleQuota).Err())
+	require.NoError(t, RDB.SAdd(ctx, normalStalePinsKey, "task-normal-stale").Err())
+	_, err = RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
+		normalStaleKey, normalStalePinsKey, normalStaleInvalidationKey, normalStaleGenerationKey,
+		time.Hour, "Quota", -10, "normal-stale-op", time.Hour, false,
+	)
+	require.ErrorIs(t, err, ErrRedisQuotaUnavailable)
+	normalStaleValue, err := RDB.HGet(ctx, normalStaleKey, "Quota").Int64()
+	require.NoError(t, err)
+	assert.Equal(t, normalStaleQuota, normalStaleValue)
+
 	_, err = RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
 		cacheKey, pinsKey, invalidationKey, generationKey, time.Hour,
 		"Quota", 10, "legacy-credit-op", time.Hour, true,

@@ -127,6 +127,49 @@ func validateBillingAdjustmentSpec(spec BillingAdjustmentSpec) error {
 	return nil
 }
 
+func inspectDBAppliedLegacyDebit(tx *gorm.DB, spec BillingAdjustmentSpec) (bool, error) {
+	if spec.Delta >= 0 || spec.Leg == BillingAdjustmentLegSubscription {
+		return false, nil
+	}
+
+	var current int64
+	var storageModel interface{}
+	var storageField string
+	switch spec.Leg {
+	case BillingAdjustmentLegWallet:
+		var user User
+		if err := lockForUpdate(tx.Unscoped()).Select("id", "quota").Where("id = ?", spec.UserID).First(&user).Error; err != nil {
+			return false, err
+		}
+		current = int64(user.Quota)
+		storageModel = &User{}
+		storageField = "quota"
+	case BillingAdjustmentLegToken:
+		var token Token
+		if err := lockForUpdate(tx.Unscoped()).Select("id", "remain_quota").Where("id = ?", spec.TokenID).First(&token).Error; err != nil {
+			return false, err
+		}
+		current = int64(token.RemainQuota)
+		storageModel = &Token{}
+		storageField = "remain_quota"
+	default:
+		return false, nil
+	}
+
+	previous, ok := checkedQuotaSubtract(current, spec.Delta)
+	if !ok || !quotaValueFitsInt(previous) {
+		return false, fmt.Errorf("%w: pre-applied %s delta=%d", ErrBillingAdjustmentBalanceBlocked, spec.Leg, spec.Delta)
+	}
+	legacyStorageAllowed, err := quotaStorageAllowsLegacyDebit(tx, storageModel, storageField, previous, spec.Delta)
+	if err != nil {
+		return false, err
+	}
+	if !billingAdjustmentNextQuotaAllowed(previous, current, spec.Delta, legacyStorageAllowed) {
+		return false, fmt.Errorf("%w: pre-applied %s previous=%d delta=%d", ErrBillingAdjustmentBalanceBlocked, spec.Leg, previous, spec.Delta)
+	}
+	return previous > int64(common.MaxQuota), nil
+}
+
 // EnqueueBillingAdjustmentTx inserts an adjustment as part of a caller-owned
 // business transaction. dbApplied is true only when that same transaction has
 // already committed the durable quota mutation and needs cache reconciliation.
@@ -138,6 +181,14 @@ func EnqueueBillingAdjustmentTx(tx *gorm.DB, spec BillingAdjustmentSpec, dbAppli
 	if err := validateBillingAdjustmentSpec(spec); err != nil {
 		return nil, err
 	}
+	legacyDebit := false
+	if dbApplied {
+		var err error
+		legacyDebit, err = inspectDBAppliedLegacyDebit(tx, spec)
+		if err != nil {
+			return nil, err
+		}
+	}
 	now := common.GetTimestamp()
 	candidate := BillingAdjustmentOutbox{
 		RequestID:      spec.RequestID,
@@ -147,6 +198,7 @@ func EnqueueBillingAdjustmentTx(tx *gorm.DB, spec BillingAdjustmentSpec, dbAppli
 		TokenID:        spec.TokenID,
 		SubscriptionID: spec.SubscriptionID,
 		Delta:          spec.Delta,
+		LegacyDebit:    legacyDebit,
 		DBApplied:      dbApplied,
 		Status:         billingAdjustmentPending,
 		NextAttemptAt:  now,
@@ -163,7 +215,7 @@ func EnqueueBillingAdjustmentTx(tx *gorm.DB, spec BillingAdjustmentSpec, dbAppli
 	}
 	if stored.UserID != spec.UserID || stored.TokenID != spec.TokenID ||
 		stored.SubscriptionID != spec.SubscriptionID || stored.Delta != spec.Delta ||
-		(dbApplied && !stored.DBApplied) {
+		(dbApplied && (!stored.DBApplied || stored.LegacyDebit != legacyDebit)) {
 		return nil, fmt.Errorf("billing adjustment idempotency conflict for request %s phase %s leg %s", spec.RequestID, spec.Phase, spec.Leg)
 	}
 	return &stored, nil
@@ -446,8 +498,13 @@ func billingAdjustmentNextQuotaAllowed(currentQuota, nextQuota, delta int64, leg
 	if nextQuota < int64(common.MinQuota) {
 		return false
 	}
-	if currentQuota > int64(common.MaxQuota) && delta < 0 && !legacyStorageAllowed {
-		return false
+	if currentQuota > int64(common.MaxQuota) {
+		// Legacy compatibility is deliberately a bounded, debit-only window.
+		// Keep this guard before the next<=Max fast path so the database and
+		// Redis layers cannot disagree when an oversized value crosses the cap.
+		if currentQuota > int64(common.MaxLegacyQuota) || delta >= 0 || !legacyStorageAllowed {
+			return false
+		}
 	}
 	if nextQuota <= int64(common.MaxQuota) {
 		return true
@@ -474,12 +531,29 @@ func quotaColumnSupportsLegacyValues(tx *gorm.DB, model interface{}, field strin
 			continue
 		}
 		typeName := strings.ToLower(column.DatabaseTypeName())
-		if strings.Contains(typeName, "bigint") || strings.Contains(typeName, "unsigned") {
+		columnType, _ := column.ColumnType()
+		columnType = strings.ToLower(columnType)
+		if quotaDatabaseTypeSupportsLegacy(typeName, columnType) {
 			return true, nil
 		}
 		return false, nil
 	}
 	return false, errors.New("quota column was not found")
+}
+
+func quotaDatabaseTypeSupportsLegacy(typeName, columnType string) bool {
+	if strings.Contains(typeName, "bigint") || strings.Contains(typeName, "int8") {
+		return true
+	}
+	fields := strings.Fields(columnType)
+	if len(fields) < 2 || fields[1] != "unsigned" {
+		return false
+	}
+	baseType := fields[0]
+	if paren := strings.IndexByte(baseType, '('); paren >= 0 {
+		baseType = baseType[:paren]
+	}
+	return baseType == "int" || baseType == "integer"
 }
 
 func quotaStorageAllowsLegacyDebit(tx *gorm.DB, model interface{}, field string, current, delta int64) (bool, error) {

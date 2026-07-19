@@ -422,8 +422,10 @@ if redis.call('SCARD', KEYS[2]) > 0 then
     local current = tonumber(redis.call('HGET', KEYS[1], ARGV[4]))
     local delta = tonumber(ARGV[5])
     local next_value = current and delta and current + delta or nil
-    local in_current_range = next_value and next_value >= tonumber(ARGV[6]) and next_value <= tonumber(ARGV[7]) and
-      ARGV[9] ~= '1'
+		local in_current_range = current and next_value and
+		  current >= tonumber(ARGV[6]) and current <= tonumber(ARGV[7]) and
+		  next_value >= tonumber(ARGV[6]) and next_value <= tonumber(ARGV[7]) and
+		  ARGV[9] ~= '1'
     local legacy_debit = ARGV[9] == '1' and current and next_value and delta and
       current > tonumber(ARGV[7]) and current <= tonumber(ARGV[8]) and
       next_value >= tonumber(ARGV[6]) and next_value <= tonumber(ARGV[8]) and
@@ -458,7 +460,7 @@ return generation
 		delta,
 		MinQuota,
 		MaxQuota,
-		MaxLegacyQuota,
+		int64(MaxLegacyQuota),
 		legacyDebitEnabled,
 		operationEnabled,
 		operationSeconds,

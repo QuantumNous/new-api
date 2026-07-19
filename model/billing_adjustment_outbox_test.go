@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -458,7 +459,30 @@ func TestBillingAdjustmentQuotaAllowsLegacyOversizedDebitOnly(t *testing.T) {
 	assert.True(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxQuota)-10, int64(common.MaxQuota), 10, false))
 	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MinQuota)-1, int64(common.MinQuota)-1, -10, true))
 	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxLegacyQuota)+1, int64(common.MaxLegacyQuota), -1, true))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxLegacyQuota)+1, int64(common.MaxQuota), -100, true))
 	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance+1, -1, true))
+}
+
+func TestQuotaDatabaseTypeSupportsLegacy(t *testing.T) {
+	tests := []struct {
+		name       string
+		typeName   string
+		columnType string
+		allowed    bool
+	}{
+		{name: "sqlite dynamic integer", typeName: "INTEGER", columnType: "INTEGER", allowed: false},
+		{name: "signed mysql int", typeName: "int", columnType: "int(11)", allowed: false},
+		{name: "unsigned mysql int", typeName: "int", columnType: "int(11) unsigned", allowed: true},
+		{name: "mysql bigint", typeName: "bigint", columnType: "bigint", allowed: true},
+		{name: "postgres int8", typeName: "int8", columnType: "bigint", allowed: true},
+		{name: "signed postgres int4", typeName: "int4", columnType: "integer", allowed: false},
+		{name: "unsigned smallint", typeName: "smallint", columnType: "smallint unsigned", allowed: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.allowed, quotaDatabaseTypeSupportsLegacy(test.typeName, test.columnType))
+		})
+	}
 }
 
 func TestBillingAdjustmentQuotaArithmeticRejectsInt64Overflow(t *testing.T) {
@@ -565,6 +589,76 @@ func TestBillingAdjustmentLegacyDebitDoesNotWidenTokenUsedQuota(t *testing.T) {
 	require.NoError(t, DB.First(&stored, token.Id).Error)
 	assert.Equal(t, legacyBalance, stored.RemainQuota)
 	assert.Equal(t, common.MaxQuota+10, stored.UsedQuota)
+}
+
+func TestDBAppliedBillingAdjustmentRejectsUnboundedLegacyDebit(t *testing.T) {
+	if strconv.IntSize < 64 {
+		t.Skip("legacy compatibility values require a 64-bit Go int")
+	}
+	truncateTables(t)
+
+	legacyBalance := int64(common.MaxLegacyQuota) + 100
+	user := User{Username: "db-applied-unbounded-legacy", Quota: int(legacyBalance), Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&user).Error)
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&User{}).Where("id = ?", user.Id).
+			Update("quota", gorm.Expr("quota - ?", 10)).Error; err != nil {
+			return err
+		}
+		_, err := EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
+			RequestID: "db-applied-unbounded-legacy",
+			Phase:     BillingAdjustmentPhaseDirect,
+			Leg:       BillingAdjustmentLegWallet,
+			UserID:    user.Id,
+			Delta:     -10,
+		}, true)
+		return err
+	})
+	require.ErrorIs(t, err, ErrBillingAdjustmentBalanceBlocked)
+
+	var stored User
+	require.NoError(t, DB.First(&stored, user.Id).Error)
+	assert.Equal(t, int(legacyBalance), stored.Quota)
+	var outboxCount int64
+	require.NoError(t, DB.Model(&BillingAdjustmentOutbox{}).
+		Where("request_id = ?", "db-applied-unbounded-legacy").Count(&outboxCount).Error)
+	assert.Zero(t, outboxCount)
+}
+
+func TestDBAppliedBillingAdjustmentPersistsBoundedLegacyDebitPolicy(t *testing.T) {
+	truncateTables(t)
+	useImageTaskTestRedis(t)
+
+	legacyBalance := common.MaxQuota + 100
+	user := User{Username: "db-applied-bounded-legacy", Quota: legacyBalance, Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+	require.NoError(t, common.RDB.SAdd(context.Background(), imageTaskUserQuotaPinsKey(user.Id), "active-task").Err())
+
+	var outbox *BillingAdjustmentOutbox
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&User{}).Where("id = ?", user.Id).
+			Update("quota", gorm.Expr("quota - ?", 10)).Error; err != nil {
+			return err
+		}
+		var err error
+		outbox, err = EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
+			RequestID: "db-applied-bounded-legacy",
+			Phase:     BillingAdjustmentPhaseDirect,
+			Leg:       BillingAdjustmentLegWallet,
+			UserID:    user.Id,
+			Delta:     -10,
+		}, true)
+		return err
+	}))
+	require.NotNil(t, outbox)
+	assert.True(t, outbox.LegacyDebit)
+	require.NoError(t, applyBillingAdjustmentCache(outbox, ""))
+
+	cached, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance-10, cached.Quota)
 }
 
 func TestCleanupTerminalBillingAdjustmentOutboxPreservesActiveRows(t *testing.T) {
