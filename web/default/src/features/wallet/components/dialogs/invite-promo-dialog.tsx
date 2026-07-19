@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Gift, ExternalLink } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
+import { Gift, Check, Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   Dialog,
@@ -29,6 +28,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CopyButton } from '@/components/copy-button'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 interface InvitePromoDialogProps {
   open: boolean
@@ -39,13 +39,15 @@ interface InvitePromoDialogProps {
 
 export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink }: InvitePromoDialogProps) {
   const { t } = useTranslation()
+  const { copiedText, copyToClipboard } = useCopyToClipboard()
+  const isCopied = copiedText === affiliateLink
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-w-sm text-center' showCloseButton>
         <DialogHeader className='items-center gap-3'>
-          <div className='flex size-12 items-center justify-center rounded-full bg-amber-500/10'>
-            <Gift className='size-6 text-amber-500' />
+          <div className='flex size-14 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/30'>
+            <Gift className='size-7 text-white' />
           </div>
           <DialogTitle className='text-base'>
             {t('Invite friends, earn {{pct}}% commission', { pct: affRatio })}
@@ -79,16 +81,13 @@ export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink 
           </div>
         </div>
 
-        <Link
-          to='/affiliate'
-          onClick={() => onOpenChange(false)}
-          className='text-muted-foreground mt-1 flex items-center justify-center gap-1 text-xs hover:text-foreground'
+        <Button
+          className='mt-2 w-full border-0 text-white shadow-md shadow-amber-500/30 hover:brightness-105'
+          style={{ background: 'linear-gradient(135deg, #f59e0b, #ea580c)' }}
+          onClick={() => copyToClipboard(affiliateLink)}
         >
-          {t('View referral details')} <ExternalLink className='size-3' />
-        </Link>
-
-        <Button className='mt-2 w-full' variant='outline' onClick={() => onOpenChange(false)}>
-          {t('Got it')}
+          {isCopied ? <Check className='size-4' /> : <Copy className='size-4' />}
+          {t('Copy link & invite friends')}
         </Button>
       </DialogContent>
     </Dialog>
