@@ -208,3 +208,34 @@ func TestFastChannelClassificationUsesExitHysteresis(t *testing.T) {
 	_, fast = ChannelSelectionFactors(neverFast)
 	assert.False(t, fast, "a channel must cross the 2s entry threshold before it can receive fast-channel weighting")
 }
+
+func TestFastChannelClassificationResetsOnFailure(t *testing.T) {
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	key := ChannelHealthKey{ChannelID: 119, Model: "gpt-5.6-sol-fast-failure", Path: "/v1/responses"}
+	for i := 0; i < channelHealthFastEntrySamples; i++ {
+		RecordChannelOutcome(key, ChannelOutcome{StatusCode: 200, Latency: 1500 * time.Millisecond})
+	}
+	_, fast := ChannelSelectionFactors(key)
+	require.True(t, fast)
+
+	RecordChannelOutcome(key, ChannelOutcome{StatusCode: 429})
+	_, fast = ChannelSelectionFactors(key)
+	assert.False(t, fast, "one attributable failure must immediately remove a channel from affinity concentration")
+
+	for i := 0; i < channelHealthFastEntrySamples-1; i++ {
+		RecordChannelOutcome(key, ChannelOutcome{StatusCode: 200, Latency: 1500 * time.Millisecond})
+	}
+	_, fast = ChannelSelectionFactors(key)
+	assert.False(t, fast, "a failed channel must rebuild the complete fast evidence streak")
+
+	RecordChannelOutcome(key, ChannelOutcome{StatusCode: 200, Latency: 1500 * time.Millisecond})
+	_, fast = ChannelSelectionFactors(key)
+	assert.True(t, fast)
+}
