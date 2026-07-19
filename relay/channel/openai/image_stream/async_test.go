@@ -395,6 +395,8 @@ func TestMarshalAsyncImageBillingSnapshotRequestCanonicalizesNestedCount(t *test
 
 	body, err := marshalAsyncImageBillingSnapshotRequest(request)
 	require.NoError(t, err)
+	body, err = sanitizeAsyncBillingRequestBody(body, request)
+	require.NoError(t, err)
 	var fields map[string]json.RawMessage
 	require.NoError(t, common.Unmarshal(body, &fields))
 	assert.JSONEq(t, `4`, string(fields["n"]))
