@@ -65,14 +65,13 @@ func TestIsCloudMailVerificationEmailMatchesCodeInBody(t *testing.T) {
 		recipient = "verify@example.com"
 		code      = "ABCDEF0123456789"
 	)
-	createdAt := time.Now().UTC().Truncate(time.Second)
-	challenge := userSendEmailChallenge{Email: sender, Code: code, CreatedAt: createdAt}
+	challenge := userSendEmailChallenge{Email: sender, Code: code, CreatedAt: time.Now()}
 	email := cloudMailEmail{
 		SendEmail:  sender,
 		ToEmail:    recipient,
 		Subject:    "Any subject is allowed",
 		Content:    "Please verify this registration: " + code,
-		CreateTime: createdAt.Format("2006-01-02 15:04:05"),
+		CreateTime: "provider-local-time-without-timezone",
 		Type:       0,
 		IsDel:      0,
 	}

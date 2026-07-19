@@ -269,6 +269,8 @@ export function SignUpForm({
       setUserSendEmailRecipient(res.data.recipient)
       setIsUserSendEmailVerified(false)
       toast.success(t('Email challenge created'))
+    } catch {
+      // Errors are handled by global interceptor
     } finally {
       setIsCreatingEmailChallenge(false)
     }
@@ -289,6 +291,8 @@ export function SignUpForm({
       }
       setIsUserSendEmailVerified(true)
       toast.success(t('Email verified'))
+    } catch {
+      // Errors are handled by global interceptor
     } finally {
       setIsCheckingEmailChallenge(false)
     }
@@ -389,144 +393,117 @@ export function SignUpForm({
           )}
         />
 
+        {(emailVerificationRequired || userSendEmailVerificationRequired) && (
+          <FormField
+            control={form.control}
+            name='email'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Email (required for verification)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t('name@example.com')}
+                    type='email'
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         {/* Email Verification Section */}
         {emailVerificationRequired && (
-          <>
-            {/* Email Field */}
-            <FormField
-              control={form.control}
-              name='email'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    {t('Email (required for verification)')}
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('name@example.com')}
-                      type='email'
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Verification Code Field */}
-            <div className='flex items-end gap-2'>
-              <div className='flex-1'>
-                <Input
-                  placeholder={t('Verification code')}
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                />
-              </div>
-              <Button
-                variant='outline'
-                type='button'
-                disabled={
-                  isLoading ||
-                  isSendingCode ||
-                  isActive ||
-                  !emailValue ||
-                  !turnstileReady
-                }
-                onClick={handleSendVerificationCode}
-              >
-                {sendVerificationCodeButtonContent}
-              </Button>
+          <div className='flex items-end gap-2'>
+            <div className='flex-1'>
+              <Input
+                placeholder={t('Verification code')}
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+              />
             </div>
-          </>
+            <Button
+              variant='outline'
+              type='button'
+              disabled={
+                isLoading ||
+                isSendingCode ||
+                isActive ||
+                !emailValue ||
+                !turnstileReady
+              }
+              onClick={handleSendVerificationCode}
+            >
+              {sendVerificationCodeButtonContent}
+            </Button>
+          </div>
         )}
 
-        {userSendEmailVerificationRequired && (
-          <>
-            <FormField
-              control={form.control}
-              name='email'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    {t('Email (required for verification)')}
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('name@example.com')}
-                      type='email'
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {!userSendEmailCode ? (
+        {userSendEmailVerificationRequired &&
+          (!userSendEmailCode ? (
+            <Button
+              variant='outline'
+              type='button'
+              disabled={
+                isLoading ||
+                isCreatingEmailChallenge ||
+                !emailValue ||
+                !turnstileReady
+              }
+              onClick={handleCreateUserSendEmailChallenge}
+              className='w-full gap-2'
+            >
+              {isCreatingEmailChallenge ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : null}
+              {t('Create email challenge')}
+            </Button>
+          ) : (
+            <div className='bg-muted/50 space-y-3 rounded-md border p-3 text-sm'>
+              <p className='leading-6'>
+                {instructionBeforeRecipient}
+                <button
+                  type='button'
+                  className='bg-background hover:bg-accent focus-visible:ring-ring inline max-w-full cursor-copy rounded border px-1.5 py-0.5 font-mono break-all transition-colors focus-visible:ring-2 focus-visible:outline-none'
+                  onClick={() => copyToClipboard(userSendEmailRecipient)}
+                  title={t('Copy to clipboard')}
+                  aria-label={t('Copy to clipboard')}
+                >
+                  {userSendEmailRecipient}
+                </button>
+                {instructionAfterRecipient}
+              </p>
+              <div className='space-y-1.5'>
+                <p className='leading-5'>
+                  {t('Include this verification content in the email body:')}
+                </p>
+                <button
+                  type='button'
+                  className='bg-background hover:bg-accent focus-visible:ring-ring block w-full cursor-copy rounded border px-2.5 py-2 text-left font-mono break-all transition-colors focus-visible:ring-2 focus-visible:outline-none'
+                  onClick={() => copyToClipboard(userSendEmailCode)}
+                  title={t('Copy verification content')}
+                  aria-label={t('Copy verification content')}
+                >
+                  {userSendEmailCode}
+                </button>
+              </div>
               <Button
-                variant='outline'
+                variant={isUserSendEmailVerified ? 'secondary' : 'outline'}
                 type='button'
-                disabled={
-                  isLoading ||
-                  isCreatingEmailChallenge ||
-                  !emailValue ||
-                  !turnstileReady
-                }
-                onClick={handleCreateUserSendEmailChallenge}
+                disabled={isCheckingEmailChallenge || isUserSendEmailVerified}
+                onClick={handleCheckUserSendEmailChallenge}
                 className='w-full gap-2'
               >
-                {isCreatingEmailChallenge ? (
+                {isCheckingEmailChallenge ? (
                   <Loader2 className='h-4 w-4 animate-spin' />
                 ) : null}
-                {t('Create email challenge')}
+                {isUserSendEmailVerified
+                  ? t('Email verified')
+                  : t('I have sent the email, check now')}
               </Button>
-            ) : (
-              <div className='bg-muted/50 space-y-3 rounded-md border p-3 text-sm'>
-                <p className='leading-6'>
-                  {instructionBeforeRecipient}
-                  <button
-                    type='button'
-                    className='bg-background hover:bg-accent focus-visible:ring-ring inline max-w-full cursor-copy rounded border px-1.5 py-0.5 font-mono break-all transition-colors focus-visible:ring-2 focus-visible:outline-none'
-                    onClick={() => copyToClipboard(userSendEmailRecipient)}
-                    title={t('Copy to clipboard')}
-                    aria-label={t('Copy to clipboard')}
-                  >
-                    {userSendEmailRecipient}
-                  </button>
-                  {instructionAfterRecipient}
-                </p>
-                <div className='space-y-1.5'>
-                  <p className='leading-5'>
-                    {t('Include this verification content in the email body:')}
-                  </p>
-                  <button
-                    type='button'
-                    className='bg-background hover:bg-accent focus-visible:ring-ring block w-full cursor-copy rounded border px-2.5 py-2 text-left font-mono break-all transition-colors focus-visible:ring-2 focus-visible:outline-none'
-                    onClick={() => copyToClipboard(userSendEmailCode)}
-                    title={t('Copy verification content')}
-                    aria-label={t('Copy verification content')}
-                  >
-                    {userSendEmailCode}
-                  </button>
-                </div>
-                <Button
-                  variant={isUserSendEmailVerified ? 'secondary' : 'outline'}
-                  type='button'
-                  disabled={isCheckingEmailChallenge || isUserSendEmailVerified}
-                  onClick={handleCheckUserSendEmailChallenge}
-                  className='w-full gap-2'
-                >
-                  {isCheckingEmailChallenge ? (
-                    <Loader2 className='h-4 w-4 animate-spin' />
-                  ) : null}
-                  {isUserSendEmailVerified
-                    ? t('Email verified')
-                    : t('I have sent the email, check now')}
-                </Button>
-              </div>
-            )}
-          </>
-        )}
+            </div>
+          ))}
 
         {/* Turnstile */}
         {isTurnstileEnabled && (

@@ -216,9 +216,11 @@ func Register(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		verified := common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose)
+		var verified bool
 		if common.UserSendEmailVerificationEnabled {
 			verified = consumeUserSendEmailChallenge(user.Email, user.VerificationCode)
+		} else {
+			verified = common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose)
 		}
 		if !verified {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)

@@ -206,13 +206,8 @@ func findCloudMailVerification(ctx context.Context, challenge userSendEmailChall
 }
 
 func isCloudMailVerificationEmail(email cloudMailEmail, challenge userSendEmailChallenge) bool {
-	createdAt, err := time.ParseInLocation("2006-01-02 15:04:05", email.CreateTime, time.UTC)
-	if err != nil {
-		return false
-	}
 	return email.Type == 0 && email.IsDel == 0 &&
 		strings.EqualFold(model.NormalizeEmail(email.SendEmail), challenge.Email) &&
 		strings.EqualFold(model.NormalizeEmail(email.ToEmail), model.NormalizeEmail(common.CloudMailRecipient)) &&
-		strings.Contains(email.Content, challenge.Code) &&
-		!createdAt.Before(challenge.CreatedAt.Add(-time.Second))
+		strings.Contains(email.Content, challenge.Code)
 }
