@@ -217,6 +217,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// Always dec even if helper panics (CustomRecovery still runs after).
 		func() {
 			defer service.DecChannelConcurrency(channel.Id)
+			defer func() {
+				if r := recover(); r != nil {
+					service.ReleaseAdaptiveCircuitPermit(c, channel.Id)
+					panic(r)
+				}
+			}()
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				newAPIError = relay.WssHelper(c, relayInfo)
@@ -390,14 +396,14 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if openaiErr.GetErrorCode() == types.ErrorCodeGetChannelFailed {
 		return false
 	}
+	if types.IsSkipRetryError(openaiErr) {
+		return false
+	}
 	if isUpstreamChannelQuotaError(openaiErr) {
 		return true
 	}
 	if types.IsChannelError(openaiErr) {
 		return true
-	}
-	if types.IsSkipRetryError(openaiErr) {
-		return false
 	}
 	code := openaiErr.StatusCode
 	if code >= 200 && code < 300 {

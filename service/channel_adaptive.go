@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var adaptiveLogSample = 0.01 // shadow-mode log sample rate
+var adaptiveLogSample = 0.05 // shadow-mode log sample rate (Info-level)
 
 // 请求上下文 key
 type adaptiveContextKey string
@@ -31,8 +31,9 @@ const (
 func AdaptiveSelectChannel(param *RetryParam) (*model.Channel, string, error) {
 	ctx := param.Ctx
 
-	// 未开启完整自适应：仅 legacy（含「只开 shadow」旧行为，避免递归）
-	if !constant.AdaptiveBalanceEnabled {
+	// Neither adaptive nor shadow: pure legacy. Shadow-only still runs scoring so
+	// comparison logs are produced without changing the routed channel.
+	if !constant.AdaptiveBalanceEnabled && !constant.AdaptiveBalanceShadowMode {
 		return cacheGetRandomSatisfiedChannelLegacy(param)
 	}
 
@@ -271,21 +272,26 @@ func logAdaptiveCompare(c *gin.Context, modelName, group string, selected *Candi
 	if oldCh != nil {
 		oldID = oldCh.Id
 	}
-	logger.LogDebug(c, "[shadow] model=%s group=%s adaptive=#%d(%.3f) orig=#%d",
-		modelName, group, selected.Channel.Id, selected.Score, oldID)
+	// Info (not Debug): production shadow observation must be visible without
+	// turning on full debug logging. Sampling still limits volume.
+	logger.LogInfo(c, fmt.Sprintf("[shadow] model=%s group=%s adaptive=#%d(%.3f) orig=#%d",
+		modelName, group, selected.Channel.Id, selected.Score, oldID))
 }
 
 // RecordAdaptiveResult 请求完成后回调：更新指标 + 熔断状态
 func RecordAdaptiveResult(c *gin.Context, channelID int, group, modelName string, statusCode int, latency time.Duration, err error) {
-	if !constant.AdaptiveBalanceEnabled {
+	if !constant.AdaptiveBalanceEnabled && !constant.AdaptiveBalanceShadowMode {
 		return
 	}
 	if channelID <= 0 {
 		return
 	}
 
+	// Client/input 4xx (except 429) proves the upstream is reachable; do not
+	// demote healthy channels for bad requests. Align metrics with circuit.
 	succeeded := err == nil && statusCode < 400
-	if succeeded {
+	clientSide := statusCode >= 400 && statusCode < 500 && statusCode != 429
+	if succeeded || clientSide {
 		ObserveSuccess(channelID, group, modelName, latency)
 	} else {
 		ObserveFailure(channelID, group, modelName, statusCode, latency)

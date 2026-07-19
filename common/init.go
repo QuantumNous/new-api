@@ -1,6 +1,7 @@
 package common
 
 import (
+	"math"
 	"flag"
 	"fmt"
 	"log"
@@ -117,6 +118,18 @@ func InitEnv() {
 	constant.ChannelCooldownSeconds = GetEnvOrDefault("CHANNEL_COOLDOWN_SECONDS", 30)
 	constant.EwmaAlpha = GetEnvOrDefaultFloat("EWMA_ALPHA", 0.1)
 	constant.MaxChannelConcurrency = GetEnvOrDefault("MAX_CHANNEL_CONCURRENCY", 10)
+	if constant.ChannelCooldownSeconds <= 0 {
+		constant.ChannelCooldownSeconds = 30
+	}
+	if math.IsNaN(constant.EwmaAlpha) || constant.EwmaAlpha <= 0 || constant.EwmaAlpha > 1 {
+		constant.EwmaAlpha = 0.1
+	}
+	if constant.MaxChannelConcurrency < 0 {
+		constant.MaxChannelConcurrency = 10
+	}
+	if constant.MaxRetryChannels < 0 {
+		constant.MaxRetryChannels = 0
+	}
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")

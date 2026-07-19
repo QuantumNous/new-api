@@ -116,14 +116,8 @@ func SyncChannelCache(frequency int) {
 // When memory cache is off, falls back to a single DB-selected channel.
 func GetSatisfiedChannels(group string, modelName string, requestPath string) ([]*Channel, error) {
 	if !common.MemoryCacheEnabled {
-		ch, err := GetChannel(group, modelName, 0, requestPath)
-		if err != nil {
-			return nil, err
-		}
-		if ch == nil {
-			return nil, nil
-		}
-		return []*Channel{ch}, nil
+		// Adaptive scoring needs the full candidate set, not one random row.
+		return getSatisfiedChannelsFromDB(group, modelName, requestPath)
 	}
 
 	channelSyncLock.RLock()
@@ -182,26 +176,10 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, r
 	if len(channels) == 0 {
 		return nil, nil
 	}
-	if len(excluded) > 0 {
-		filtered := make([]int, 0, len(channels))
-		for _, channelID := range channels {
-			if _, skip := excluded[channelID]; !skip {
-				filtered = append(filtered, channelID)
-			}
-		}
-		channels = filtered
-		if len(channels) == 0 {
-			return nil, nil
-		}
-	}
 
-	if len(channels) == 1 {
-		if channel, ok := channelsIDM[channels[0]]; ok {
-			return channel, nil
-		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
-	}
-
+	// Compute priority tiers from the FULL set first, then apply exclusions within
+	// the chosen tier. Filtering first reindexes tiers (e.g. 100/50/0 with 100
+	// excluded would make retry=1 pick 0 instead of 50).
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
@@ -221,10 +199,15 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, r
 	}
 	targetPriority := int64(sortedUniquePriorities[retry])
 
-	// get the priority for the given retry number
+	// get the priority for the given retry number, then exclude within the tier
 	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
+		if len(excluded) > 0 {
+			if _, skip := excluded[channelId]; skip {
+				continue
+			}
+		}
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
 				sumWeight += channel.GetWeight()
@@ -388,4 +371,61 @@ func CacheUpdateChannel(channel *Channel) {
 	// updatePricingLock while holding channelSyncLock would be an AB-BA deadlock.
 	channelSyncLock.Unlock()
 	InvalidatePricingCache()
+}
+
+
+// getSatisfiedChannelsFromDB loads every enabled channel for group+model when the
+// in-memory channel cache is off. Adaptive balance needs the full set so circuit
+// filtering and top-K scoring remain meaningful.
+func getSatisfiedChannelsFromDB(group string, modelName string, requestPath string) ([]*Channel, error) {
+	var abilities []Ability
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, modelName, true).
+		Order("priority DESC").Find(&abilities).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
+		if normalizedModel != modelName {
+			err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, normalizedModel, true).
+				Order("priority DESC").Find(&abilities).Error
+			if err != nil {
+				return nil, err
+			}
+			modelName = normalizedModel
+		}
+	}
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+	abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, modelName)
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+
+	seen := make(map[int]struct{}, len(abilities))
+	ids := make([]int, 0, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		ids = append(ids, ability.ChannelId)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	channels, err := GetChannelsByIds(ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*Channel, 0, len(channels))
+	for _, ch := range channels {
+		if ch == nil || ch.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		out = append(out, ch)
+	}
+	return out, nil
 }

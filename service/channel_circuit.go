@@ -205,8 +205,11 @@ func AcquireCircuitPermit(channelID int) (CircuitPermit, bool) {
 
 	const halfOpenProbeTimeout = 60 * time.Second
 	if cb.HalfOpenInFlight > 0 && !cb.HalfOpenSince.IsZero() && time.Since(cb.HalfOpenSince) > halfOpenProbeTimeout {
+		// Drop the stuck probe AND bump generation so a late response from the
+		// expired permit cannot close the circuit or free a newer probe's slot.
 		cb.HalfOpenInFlight = 0
 		cb.HalfOpenSince = time.Time{}
+		cb.Generation++
 	}
 	if cb.HalfOpenInFlight >= cb.HalfOpenLimit {
 		return CircuitPermit{}, false
