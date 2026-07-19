@@ -95,6 +95,7 @@ const AddEditSubscriptionModal = ({
     max_purchase_per_user: 0,
     total_amount: 0,
     upgrade_group: '',
+    billing_group_only: false,
     stripe_price_id: '',
     creem_product_id: '',
   });
@@ -121,6 +122,7 @@ const AddEditSubscriptionModal = ({
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
+      billing_group_only: p.billing_group_only === true,
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
     };
@@ -164,6 +166,7 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          billing_group_only: values.billing_group_only,
         },
       };
       if (editingPlan?.plan?.id) {
@@ -376,6 +379,17 @@ const AddEditSubscriptionModal = ({
                         field='enabled'
                         label={t('启用状态')}
                         size='large'
+                      />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Switch
+                        field='billing_group_only'
+                        label={t('仅在升级分组使用订阅额度')}
+                        size='large'
+                        extraText={t(
+                          '开启后，订阅额度仅用于与“升级分组”匹配的请求；其他分组的请求从钱包扣费。',
+                        )}
                       />
                     </Col>
                   </Row>
