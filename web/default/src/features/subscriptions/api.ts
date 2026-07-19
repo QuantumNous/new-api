@@ -24,6 +24,8 @@ import type {
   PlanPayload,
   UserSubscriptionRecord,
   CreateUserSubscriptionRequest,
+  BatchBindSubscriptionRequest,
+  BatchBindSubscriptionResult,
   ResetUserSubscriptionsRequest,
   ResetPlanSubscriptionsRequest,
   SubscriptionResetResult,
@@ -87,6 +89,13 @@ export async function createUserSubscription(
     `/api/subscription/admin/users/${userId}/subscriptions`,
     data
   )
+  return res.data
+}
+
+export async function createUserSubscriptionsBatch(
+  data: BatchBindSubscriptionRequest
+): Promise<ApiResponse<BatchBindSubscriptionResult>> {
+  const res = await api.post('/api/subscription/admin/bind/batch', data)
   return res.data
 }
 
