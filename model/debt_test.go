@@ -109,3 +109,44 @@ func TestGetUserDebt(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 123, debt)
 }
+
+// FR-017 checkin 路径：userCheckinWithTransaction (MySQL/PG) 必须走 applyTopUpWithDebtTx
+// —— 签到奖励优先偿还 debt，剩余进入 quota，缓存按 net 同步。守护该路径不再回退为
+// 直接 `quota + ?`（那会在 MySQL/PG 上漏掉 debt 抵扣，导致 FR-016 持续阻塞）。
+func TestCheckinWithTransactionOffsetsDebt(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Checkin{}))
+
+	cases := []struct {
+		name      string
+		uid       int
+		quota     int
+		debt      int
+		award     int
+		wantQuota int
+		wantDebt  int
+	}{
+		{name: "debt>0 ưu tiên trả debt", uid: 7100, quota: 10, debt: 30, award: 50, wantQuota: 30, wantDebt: 0},
+		{name: "award<debt trả hết award", uid: 7101, quota: 5, debt: 40, award: 20, wantQuota: 5, wantDebt: 20},
+		{name: "không debt full vào quota", uid: 7102, quota: 10, debt: 0, award: 50, wantQuota: 60, wantDebt: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			seedDebtUser(t, tc.uid, tc.quota, tc.debt)
+			t.Cleanup(func() { _ = DB.Where("user_id = ?", tc.uid).Delete(&Checkin{}).Error })
+
+			checkin := &Checkin{
+				UserId:       tc.uid,
+				CheckinDate:  "2099-01-01",
+				QuotaAwarded: tc.award,
+			}
+			got, err := userCheckinWithTransaction(checkin, tc.uid, tc.award)
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.NotZero(t, got.Id, "phải tạo được bản ghi checkin")
+
+			u := reloadDebtUser(t, tc.uid)
+			assert.Equal(t, tc.wantQuota, u.Quota, "quota không khớp")
+			assert.Equal(t, tc.wantDebt, u.Debt, "debt không khớp")
+		})
+	}
+}
