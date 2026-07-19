@@ -122,6 +122,83 @@ func TestRelayErrorHandlerKeepsOpenAIErrorMessage(t *testing.T) {
 	require.Equal(t, message, newAPIError.Error())
 }
 
+func TestRelayErrorHandlerRewritesUpstreamPreConsumeError(t *testing.T) {
+	body := `{"error":{"message":"预扣费额度失败, 用户剩余额度: ¥0.230000, 需要预扣费额度: ¥0.290000 (request id: 202607161100477844560988268d9d6uYrgwk77)","type":"new_api_error","code":"insufficient_user_quota"}}`
+	resp := &http.Response{
+		StatusCode: http.StatusForbidden,
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, false)
+
+	require.NotNil(t, newAPIError)
+	expected := "预扣费额度失败, 可能是上游余额不足 (request id: 202607161100477844560988268d9d6uYrgwk77)"
+	require.Equal(t, expected, newAPIError.Error())
+	require.Equal(t, http.StatusForbidden, newAPIError.StatusCode)
+	// 返回给最终用户的消息（RelayError）同样被改写
+	require.Equal(t, expected, newAPIError.ToOpenAIError().Message)
+	require.Equal(t, "insufficient_user_quota", fmt.Sprintf("%v", newAPIError.ToOpenAIError().Code))
+}
+
+func TestRewriteUpstreamPreConsumeError(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "CNY 金额带 request id",
+			input:    "预扣费额度失败, 用户剩余额度: ¥0.230000, 需要预扣费额度: ¥0.290000 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+			expected: "预扣费额度失败, 可能是上游余额不足 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+		},
+		{
+			name:     "USD 金额不带 request id",
+			input:    "预扣费额度失败, 用户剩余额度: $0.23, 需要预扣费额度: $0.29",
+			expected: "预扣费额度失败, 可能是上游余额不足",
+		},
+		{
+			name:     "token 数量格式",
+			input:    "预扣费额度失败, 用户剩余额度: 115000, 需要预扣费额度: 145000",
+			expected: "预扣费额度失败, 可能是上游余额不足",
+		},
+		{
+			name:     "上游账户余额为零",
+			input:    "用户额度不足, 剩余额度: ¥0.000000 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+			expected: "预扣费额度失败, 可能是上游余额不足 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+		},
+		{
+			name:     "上游令牌额度不足",
+			input:    "token quota is not enough, token remain quota: ¥0.100000, need quota: ¥0.290000 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+			expected: "预扣费额度失败, 可能是上游余额不足 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+		},
+		{
+			name:     "上游订阅额度不足",
+			input:    "订阅额度不足或未配置订阅: subscription quota insufficient, need=290000 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+			expected: "预扣费额度失败, 可能是上游余额不足 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+		},
+		{
+			name:     "上游未配置订阅",
+			input:    "订阅额度不足或未配置订阅: no active subscription (request id: 202607161100477844560988268d9d6uYrgwk77)",
+			expected: "预扣费额度失败, 可能是上游余额不足 (request id: 202607161100477844560988268d9d6uYrgwk77)",
+		},
+		{
+			name:     "普通报错不改写",
+			input:    "bad response status code 403",
+			expected: "bad response status code 403",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.expected, rewriteUpstreamPreConsumeError(tc.input))
+		})
+	}
+}
+
 func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 	withDebugEnabled(t, true)
 
