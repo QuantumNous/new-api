@@ -335,6 +335,91 @@ func (s *BillingSession) syncRelayInfo() {
 }
 
 // ---------------------------------------------------------------------------
+// Subscription group ratio — 订阅计费按基础模型价扣额度，不叠分组倍率
+// ---------------------------------------------------------------------------
+
+// subscriptionBillingGroupRatio is the group multiplier applied when funding from a
+// subscription. Subscription quotas are sold/settled at base model cost, so group
+// markup (or discount) must not change how fast the pool is drained.
+const subscriptionBillingGroupRatio = 1.0
+
+// adjustQuotaToSubscriptionBaseRate removes the wallet group multiplier from a
+// pre-computed quota so subscription pre-consume matches base (group ratio = 1).
+// groupRatio <= 0 is treated as "no usable multiplier" and the input is returned as-is.
+func adjustQuotaToSubscriptionBaseRate(quota int, groupRatio float64) int {
+	if quota <= 0 {
+		return quota
+	}
+	if groupRatio <= 0 || groupRatio == subscriptionBillingGroupRatio {
+		return quota
+	}
+	adjusted := common.QuotaFromFloat(float64(quota) / groupRatio)
+	// Preserve a positive charge when the original pre-consume was positive but
+	// integer conversion rounded to zero for tiny amounts.
+	if adjusted <= 0 {
+		return 1
+	}
+	return adjusted
+}
+
+// subscriptionGroupRatioState holds wallet-path price fields that must be restored
+// when subscription pre-consume fails and billing falls back to the wallet.
+type subscriptionGroupRatioState struct {
+	GroupRatioInfo           types.GroupRatioInfo
+	QuotaToPreConsume        int
+	Quota                    int
+	EstimatedQuotaAfterGroup int
+	HadTieredSnapshot        bool
+}
+
+// applySubscriptionBaseGroupRatio forces PriceData / tiered snapshot group ratio to 1
+// for the rest of the request (final settle, logs, task billing context).
+func applySubscriptionBaseGroupRatio(relayInfo *relaycommon.RelayInfo) subscriptionGroupRatioState {
+	state := subscriptionGroupRatioState{
+		GroupRatioInfo:    relayInfo.PriceData.GroupRatioInfo,
+		QuotaToPreConsume: relayInfo.PriceData.QuotaToPreConsume,
+		Quota:             relayInfo.PriceData.Quota,
+	}
+	if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+		state.HadTieredSnapshot = true
+		state.EstimatedQuotaAfterGroup = snap.EstimatedQuotaAfterGroup
+	}
+
+	relayInfo.PriceData.GroupRatioInfo.GroupRatio = subscriptionBillingGroupRatio
+	relayInfo.PriceData.GroupRatioInfo.HasSpecialRatio = false
+	relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio = -1
+
+	if state.GroupRatioInfo.GroupRatio > 0 && state.GroupRatioInfo.GroupRatio != subscriptionBillingGroupRatio {
+		relayInfo.PriceData.QuotaToPreConsume = adjustQuotaToSubscriptionBaseRate(state.QuotaToPreConsume, state.GroupRatioInfo.GroupRatio)
+		if state.Quota > 0 {
+			relayInfo.PriceData.Quota = adjustQuotaToSubscriptionBaseRate(state.Quota, state.GroupRatioInfo.GroupRatio)
+		}
+	}
+
+	if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+		snap.GroupRatio = subscriptionBillingGroupRatio
+		if state.GroupRatioInfo.GroupRatio > 0 && state.GroupRatioInfo.GroupRatio != subscriptionBillingGroupRatio {
+			// EstimatedQuotaAfterGroup was computed with the wallet group ratio;
+			// re-base so pre-consume/settle fallbacks stay consistent.
+			snap.EstimatedQuotaAfterGroup = adjustQuotaToSubscriptionBaseRate(snap.EstimatedQuotaAfterGroup, state.GroupRatioInfo.GroupRatio)
+		}
+	}
+	return state
+}
+
+func restoreWalletGroupRatio(relayInfo *relaycommon.RelayInfo, state subscriptionGroupRatioState) {
+	relayInfo.PriceData.GroupRatioInfo = state.GroupRatioInfo
+	relayInfo.PriceData.QuotaToPreConsume = state.QuotaToPreConsume
+	relayInfo.PriceData.Quota = state.Quota
+	if state.HadTieredSnapshot {
+		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+			snap.GroupRatio = state.GroupRatioInfo.GroupRatio
+			snap.EstimatedQuotaAfterGroup = state.EstimatedQuotaAfterGroup
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // NewBillingSession 工厂 — 根据计费偏好创建会话并处理回退
 // ---------------------------------------------------------------------------
 
@@ -377,7 +462,12 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	}
 
 	trySubscription := func() (*BillingSession, *types.NewAPIError) {
-		subConsume := int64(preConsumedQuota)
+		// Subscription billing ignores group ratio (always 1). Wallet path keeps
+		// the original group-multiplied pre-consume amount.
+		walletGroupState := applySubscriptionBaseGroupRatio(relayInfo)
+		subPreConsume := adjustQuotaToSubscriptionBaseRate(preConsumedQuota, walletGroupState.GroupRatioInfo.GroupRatio)
+
+		subConsume := int64(subPreConsume)
 		if subConsume <= 0 {
 			subConsume = 1
 		}
@@ -394,6 +484,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		// 必须传 subConsume 而非 preConsumedQuota，保证 SubscriptionFunding.amount、
 		// preConsume 参数和 FinalPreConsumedQuota 三者一致，避免订阅多扣费。
 		if apiErr := session.preConsume(c, int(subConsume)); apiErr != nil {
+			restoreWalletGroupRatio(relayInfo, walletGroupState)
 			return nil, apiErr
 		}
 		return session, nil

@@ -303,6 +303,10 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	} else {
 		finalGroupRatio = groupRatio
 	}
+	// Subscription funding settles at base model cost (group ratio = 1).
+	if taskIsSubscription(task) {
+		finalGroupRatio = subscriptionBillingGroupRatio
+	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）
 	otherMultiplier := 1.0

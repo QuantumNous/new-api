@@ -120,6 +120,10 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	if ok {
 		actualGroupRatio = userGroupRatio
 	}
+	// Subscription funding settles at base model cost (group ratio = 1).
+	if relayInfo.BillingSource == BillingSourceSubscription {
+		actualGroupRatio = subscriptionBillingGroupRatio
+	}
 
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
