@@ -22,13 +22,13 @@ import { formatMonitorRatio, getChannelGroupTargetRatio } from '../lib/format'
 
 type GroupRatioValueProps = {
   groupRatio: number
-  upstreamRatio: number | null
+  costRatio: number | null
   coefficient: number
 }
 
 export function GroupRatioValue(props: GroupRatioValueProps) {
   const expectedGroupRatio = getChannelGroupTargetRatio(
-    props.upstreamRatio,
+    props.costRatio,
     props.coefficient
   )
   let colorClassName = 'text-foreground'
@@ -37,13 +37,13 @@ export function GroupRatioValue(props: GroupRatioValueProps) {
   if (expectedGroupRatio != null) {
     if (Math.abs(props.groupRatio - expectedGroupRatio) <= 1e-9) {
       colorClassName = 'text-warning'
-      statusLabel = '等于上游倍率乘以系数'
+      statusLabel = '等于成本倍率乘以分组系数'
     } else if (props.groupRatio < expectedGroupRatio) {
       colorClassName = 'text-destructive'
-      statusLabel = '低于上游倍率乘以系数'
+      statusLabel = '低于成本倍率乘以分组系数'
     } else {
       colorClassName = 'text-success'
-      statusLabel = '高于上游倍率乘以系数'
+      statusLabel = '高于成本倍率乘以分组系数'
     }
   }
 

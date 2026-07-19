@@ -44,6 +44,7 @@ export const CHANNEL_MONITOR_UPSTREAM_TYPE_LABELS: Record<
 > = {
   new_api: 'New API',
   sub2api: 'Sub2API',
+  custom: '自定义上游',
 }
 
 export const CHANNEL_MONITOR_UPSTREAM_AUTH_LABELS: Record<
@@ -54,4 +55,5 @@ export const CHANNEL_MONITOR_UPSTREAM_AUTH_LABELS: Record<
   user: '账号登录',
   api_key: 'API Key（新版）',
   token: 'Token（旧版）',
+  custom: '自定义请求',
 }

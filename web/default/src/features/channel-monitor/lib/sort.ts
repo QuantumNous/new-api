@@ -85,12 +85,12 @@ export function sortChannelMonitorItems(
     }
 
     if (sortMode === 'ratio_asc' || sortMode === 'ratio_desc') {
-      if (first.ratio == null && second.ratio == null) {
+      if (first.cost_ratio == null && second.cost_ratio == null) {
         return compareChannelNames(first, second)
       }
-      if (first.ratio == null) return 1
-      if (second.ratio == null) return -1
-      const ratioComparison = first.ratio - second.ratio
+      if (first.cost_ratio == null) return 1
+      if (second.cost_ratio == null) return -1
+      const ratioComparison = first.cost_ratio - second.cost_ratio
       if (ratioComparison !== 0) {
         return sortMode === 'ratio_asc' ? ratioComparison : -ratioComparison
       }

@@ -66,7 +66,7 @@ export function ChannelRatioHistoryDialog(
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className='max-h-[85vh] overflow-hidden sm:max-w-4xl'>
         <DialogHeader className='pr-10'>
-          <DialogTitle>倍率变更历史</DialogTitle>
+          <DialogTitle>上游倍率变更历史</DialogTitle>
           <DialogDescription>
             {props.channel.name} · ID {props.channel.id}
           </DialogDescription>
@@ -100,7 +100,7 @@ export function ChannelRatioHistoryPanel(props: ChannelRatioHistoryPanelProps) {
           <EmptyMedia variant='icon'>
             <HugeiconsIcon icon={HistoryIcon} />
           </EmptyMedia>
-          <EmptyTitle>暂无倍率变更</EmptyTitle>
+          <EmptyTitle>暂无上游倍率变更</EmptyTitle>
           <EmptyDescription>
             首次记录作为基准值，倍率发生变化后才会生成历史。
           </EmptyDescription>
@@ -113,7 +113,7 @@ export function ChannelRatioHistoryPanel(props: ChannelRatioHistoryPanelProps) {
         <TableHeader>
           <TableRow>
             <TableHead>时间</TableHead>
-            <TableHead>倍率变更</TableHead>
+            <TableHead>上游倍率变更</TableHead>
             <TableHead>操作人</TableHead>
             <TableHead>备注</TableHead>
           </TableRow>

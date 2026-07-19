@@ -35,10 +35,12 @@ type channelMonitorSettingsAPIResponse struct {
 type channelMonitorGroupSyncAPIResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
-		Group         string  `json:"group"`
-		UpstreamRatio float64 `json:"upstream_ratio"`
-		Coefficient   float64 `json:"coefficient"`
-		Ratio         float64 `json:"ratio"`
+		Group            string  `json:"group"`
+		UpstreamRatio    float64 `json:"upstream_ratio"`
+		CostRatio        float64 `json:"cost_ratio"`
+		ConversionFactor float64 `json:"conversion_factor"`
+		Coefficient      float64 `json:"coefficient"`
+		Ratio            float64 `json:"ratio"`
 	} `json:"data"`
 }
 
@@ -738,6 +740,329 @@ func TestSaveChannelMonitorUpstreamConfigManagesBalanceWarningThreshold(t *testi
 	}
 }
 
+func TestSaveChannelMonitorUpstreamConfigAppliesCostConversion(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	baseURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      15,
+		Name:    "converted upstream",
+		Key:     "secret",
+		Group:   "vip",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":      service.NewAPIUpstreamType,
+		"base_url":  baseURL,
+		"group":     "vip",
+		"auth_type": service.NewAPIUpstreamAuthPublic,
+		"cost_conversion": map[string]any{
+			"mode":         service.ChannelMonitorCostConversionRecharge,
+			"paid_cny":     100,
+			"credited_usd": 200,
+		},
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/15/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "15"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var configResponse channelMonitorUpstreamConfigAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &configResponse))
+	assert.Equal(t, service.ChannelMonitorCostConversionRecharge, configResponse.Data.CostConversion.Mode)
+	assert.Equal(t, 100.0, configResponse.Data.CostConversion.PaidCNY)
+	assert.Equal(t, 200.0, configResponse.Data.CostConversion.CreditedUSD)
+
+	monitor, err := model.GetChannelRatioMonitor(15)
+	require.NoError(t, err)
+	storedConversion, err := service.ParseChannelMonitorCostConversion(monitor.CostConversion)
+	require.NoError(t, err)
+	assert.Equal(t, service.ChannelMonitorCostConversionRecharge, storedConversion.Mode)
+
+	_, _, _, err = model.UpdateChannelRatioMonitorFromUpstream(15, 0.8, "first fetch", 1, "root")
+	require.NoError(t, err)
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodGet, "/api/channel_monitor", nil)
+	GetChannelMonitorOverview(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var overviewResponse channelMonitorOverviewAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &overviewResponse))
+	require.Len(t, overviewResponse.Data.Channels, 1)
+	require.NotNil(t, overviewResponse.Data.Channels[0].CostRatio)
+	require.NotNil(t, overviewResponse.Data.Channels[0].ConversionFactor)
+	assert.InDelta(t, 0.4, *overviewResponse.Data.Channels[0].CostRatio, 1e-9)
+	assert.InDelta(t, 0.5, *overviewResponse.Data.Channels[0].ConversionFactor, 1e-9)
+
+	delete(request, "cost_conversion")
+	request["group"] = "standard"
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/15/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "15"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	monitor, err = model.GetChannelRatioMonitor(15)
+	require.NoError(t, err)
+	storedConversion, err = service.ParseChannelMonitorCostConversion(monitor.CostConversion)
+	require.NoError(t, err)
+	assert.Equal(t, service.ChannelMonitorCostConversionRecharge, storedConversion.Mode)
+
+	request["cost_conversion"] = map[string]any{"mode": service.ChannelMonitorCostConversionNone}
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/15/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "15"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	monitor, err = model.GetChannelRatioMonitor(15)
+	require.NoError(t, err)
+	storedConversion, err = service.ParseChannelMonitorCostConversion(monitor.CostConversion)
+	require.NoError(t, err)
+	assert.Equal(t, service.ChannelMonitorCostConversionNone, storedConversion.Mode)
+
+	request["cost_conversion"] = map[string]any{
+		"mode":         service.ChannelMonitorCostConversionRecharge,
+		"paid_cny":     100,
+		"credited_usd": 0,
+	}
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/15/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "15"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+func TestSaveChannelMonitorCustomUpstreamConfigAppliesFixedValues(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	baseURL := "https://custom.example/api"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      28,
+		Name:    "fixed custom upstream",
+		Key:     "secret",
+		Group:   "vip",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":      service.CustomUpstreamType,
+		"base_url":  baseURL,
+		"group":     "",
+		"auth_type": service.CustomUpstreamAuthType,
+		"custom_config": map[string]any{
+			"version": 1,
+			"ratio": map[string]any{
+				"source":      service.ChannelMonitorCustomSourceFixed,
+				"fixed_value": 0.75,
+			},
+			"balance": map[string]any{
+				"source":      service.ChannelMonitorCustomSourceFixed,
+				"fixed_value": 25.5,
+			},
+		},
+		"cost_conversion": map[string]any{
+			"mode":         service.ChannelMonitorCostConversionRecharge,
+			"paid_cny":     100,
+			"credited_usd": 200,
+		},
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/28/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "28"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var response channelMonitorUpstreamConfigAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.NotNil(t, response.Data.CustomConfig)
+	assert.Equal(t, service.CustomUpstreamType, response.Data.Type)
+	assert.Equal(t, service.ChannelMonitorCustomSourceFixed, response.Data.CustomConfig.Ratio.Source)
+	require.NotNil(t, response.Data.CustomConfig.Ratio.FixedValue)
+	assert.Equal(t, 0.75, *response.Data.CustomConfig.Ratio.FixedValue)
+
+	monitor, err := model.GetChannelRatioMonitor(28)
+	require.NoError(t, err)
+	assert.Equal(t, 0.75, monitor.Ratio)
+	assert.NotZero(t, monitor.UpdatedTime)
+	require.NotNil(t, monitor.UpstreamBalance)
+	assert.Equal(t, 25.5, *monitor.UpstreamBalance)
+	storedConfig, err := service.ParseChannelMonitorCustomUpstreamConfig(monitor.CustomUpstreamConfig)
+	require.NoError(t, err)
+	assert.Equal(t, service.ChannelMonitorCustomSourceFixed, storedConfig.Balance.Source)
+
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodGet, "/api/channel_monitor", nil)
+	GetChannelMonitorOverview(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var overviewResponse channelMonitorOverviewAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &overviewResponse))
+	require.Len(t, overviewResponse.Data.Channels, 1)
+	require.NotNil(t, overviewResponse.Data.Channels[0].CostRatio)
+	assert.InDelta(t, 0.375, *overviewResponse.Data.Channels[0].CostRatio, 1e-9)
+}
+
+func TestChannelMonitorCustomUpstreamTestUsesUnsavedHTTPConfig(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	disableChannelMonitorSSRFProtection(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/account", r.URL.Path)
+		assert.Equal(t, "vip", r.URL.Query().Get("group"))
+		assert.Equal(t, "Bearer unsaved-secret", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"ratio":"1.25","balance":42},"authorization":"Bearer unsaved-secret"}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      29,
+		Name:    "unsaved custom upstream",
+		Key:     "unused",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":                 service.CustomUpstreamType,
+		"base_url":             server.URL,
+		"group":                "",
+		"auth_type":            service.CustomUpstreamAuthType,
+		"ratio_sync_enabled":   false,
+		"balance_sync_enabled": true,
+		"custom_config": map[string]any{
+			"version": 1,
+			"ratio": map[string]any{
+				"source": service.ChannelMonitorCustomSourceHTTP,
+				"request": map[string]any{
+					"method":    http.MethodGet,
+					"path":      "/account",
+					"body_type": service.ChannelMonitorCustomBodyNone,
+					"query": []map[string]any{
+						{"key": "group", "value": "vip"},
+					},
+					"headers": []map[string]any{
+						{"key": "Authorization", "value": "Bearer unsaved-secret", "secret": true},
+					},
+				},
+				"result": map[string]any{
+					"response_type": service.ChannelMonitorCustomResponseJSON,
+					"value_path":    "data.ratio",
+					"multiplier":    1,
+				},
+			},
+			"balance": map[string]any{
+				"source": service.ChannelMonitorCustomSourceHTTP,
+				"result": map[string]any{
+					"response_type": service.ChannelMonitorCustomResponseJSON,
+					"value_path":    "data.balance",
+					"multiplier":    1,
+				},
+			},
+			"balance_reuse_ratio_request": true,
+		},
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/29/upstream/test", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "29"}}
+	TestChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var response struct {
+		Success bool                           `json:"success"`
+		Data    service.NewAPIGroupRatioResult `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	assert.Equal(t, 1.25, response.Data.Ratio)
+	require.NotNil(t, response.Data.Balance.Amount)
+	assert.Equal(t, 42.0, *response.Data.Balance.Amount)
+	require.NotNil(t, response.Data.Debug)
+	assert.NotContains(t, response.Data.Debug.ResponsePreview, "unsaved-secret")
+	assert.Contains(t, response.Data.Debug.ResponsePreview, "[REDACTED]")
+
+	_, err := model.GetChannelRatioMonitor(29)
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestChannelMonitorCustomUpstreamTestReusesSavedSecret(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	disableChannelMonitorSSRFProtection(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer saved-secret", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ratio":0.8}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      30,
+		Name:    "saved custom upstream",
+		Key:     "unused",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+	balance := 12.0
+	customConfig := service.ChannelMonitorCustomUpstreamConfig{
+		Version: 1,
+		Ratio: service.ChannelMonitorCustomMetricConfig{
+			Source: service.ChannelMonitorCustomSourceHTTP,
+			Request: &service.ChannelMonitorCustomRequestConfig{
+				Method:   http.MethodGet,
+				Path:     "/ratio",
+				BodyType: service.ChannelMonitorCustomBodyNone,
+				Headers: []service.ChannelMonitorCustomKeyValue{
+					{Key: "Authorization", Value: "Bearer saved-secret", Secret: true},
+				},
+			},
+			Result: &service.ChannelMonitorCustomResultConfig{
+				ResponseType: service.ChannelMonitorCustomResponseJSON,
+				ValuePath:    "ratio",
+				Multiplier:   1,
+			},
+		},
+		Balance: service.ChannelMonitorCustomMetricConfig{
+			Source:     service.ChannelMonitorCustomSourceFixed,
+			FixedValue: &balance,
+		},
+	}
+	saveRequest := map[string]any{
+		"type":          service.CustomUpstreamType,
+		"base_url":      server.URL,
+		"group":         "",
+		"auth_type":     service.CustomUpstreamAuthType,
+		"custom_config": customConfig,
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/30/upstream", saveRequest)
+	ctx.Params = gin.Params{{Key: "id", Value: "30"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var saveResponse channelMonitorUpstreamConfigAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &saveResponse))
+	require.NotNil(t, saveResponse.Data.CustomConfig)
+	require.NotNil(t, saveResponse.Data.CustomConfig.Ratio.Request)
+	require.Len(t, saveResponse.Data.CustomConfig.Ratio.Request.Headers, 1)
+	savedHeader := saveResponse.Data.CustomConfig.Ratio.Request.Headers[0]
+	assert.Empty(t, savedHeader.Value)
+	assert.True(t, savedHeader.HasValue)
+	assert.NotContains(t, recorder.Body.String(), "saved-secret")
+
+	testRequest := map[string]any{
+		"type":          service.CustomUpstreamType,
+		"base_url":      server.URL,
+		"group":         "",
+		"auth_type":     service.CustomUpstreamAuthType,
+		"custom_config": saveResponse.Data.CustomConfig,
+	}
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/30/upstream/test", testRequest)
+	ctx.Params = gin.Params{{Key: "id", Value: "30"}}
+	TestChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var testResponse struct {
+		Success bool                           `json:"success"`
+		Data    service.NewAPIGroupRatioResult `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &testResponse))
+	require.True(t, testResponse.Success)
+	assert.Equal(t, 0.8, testResponse.Data.Ratio)
+}
+
 func TestSaveChannelMonitorUpstreamConfigManagesSyncCapabilities(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	baseURL := "https://upstream.example"
@@ -810,11 +1135,11 @@ func TestSaveChannelMonitorSub2APIConfigPersistsToken(t *testing.T) {
 	}).Error)
 
 	request := map[string]any{
-		"type":          service.Sub2APIUpstreamType,
-		"base_url":      baseURL,
-		"group":         "vip",
-		"auth_type":     service.Sub2APIAuthToken,
-		"access_token":  "jwt-token",
+		"type":         service.Sub2APIUpstreamType,
+		"base_url":     baseURL,
+		"group":        "vip",
+		"auth_type":    service.Sub2APIAuthToken,
+		"access_token": "jwt-token",
 	}
 	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/13/upstream", request)
 	ctx.Params = gin.Params{{Key: "id", Value: "13"}}
@@ -889,20 +1214,20 @@ func TestListChannelMonitorUpstreamGroupsUsesSavedSub2APIToken(t *testing.T) {
 		Status:  common.ChannelStatusEnabled,
 	}).Error)
 	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
-		ChannelId:            20,
-		UpstreamType:         service.Sub2APIUpstreamType,
-		UpstreamBaseURL:      server.URL,
-		UpstreamGroup:        "vip",
-		UpstreamAuthType:     service.Sub2APIAuthToken,
-		UpstreamAccessToken:  "jwt-token",
+		ChannelId:           20,
+		UpstreamType:        service.Sub2APIUpstreamType,
+		UpstreamBaseURL:     server.URL,
+		UpstreamGroup:       "vip",
+		UpstreamAuthType:    service.Sub2APIAuthToken,
+		UpstreamAccessToken: "jwt-token",
 	}).Error)
 
 	request := map[string]any{
-		"type":          service.Sub2APIUpstreamType,
-		"base_url":      server.URL,
-		"group":         "vip",
-		"auth_type":     service.Sub2APIAuthToken,
-		"access_token":  "",
+		"type":         service.Sub2APIUpstreamType,
+		"base_url":     server.URL,
+		"group":        "vip",
+		"auth_type":    service.Sub2APIAuthToken,
+		"access_token": "",
 	}
 	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/20/upstream/groups", request)
 	ctx.Params = gin.Params{{Key: "id", Value: "20"}}
@@ -1191,7 +1516,7 @@ func TestPlanChannelMonitorPolicyActions(t *testing.T) {
 		plan := planChannelMonitorPolicyActions(
 			[]*model.Channel{enabledChannel(1, "vip")},
 			map[int]channelMonitorPolicyInput{
-				1: {UpstreamRatio: 1.2, SingleChannelAction: channelMonitorPolicyActionUpdateGroupRatio},
+				1: {CostRatio: 1.2, SingleChannelAction: channelMonitorPolicyActionUpdateGroupRatio},
 			},
 			map[string]float64{"vip": 1},
 			map[string]float64{"vip": 1.1},
@@ -1206,8 +1531,8 @@ func TestPlanChannelMonitorPolicyActions(t *testing.T) {
 		plan := planChannelMonitorPolicyActions(
 			[]*model.Channel{enabledChannel(1, "vip"), disabled},
 			map[int]channelMonitorPolicyInput{
-				1: {UpstreamRatio: 1.25, SingleChannelAction: channelMonitorPolicyActionDisableChannel},
-				2: {UpstreamRatio: 9, SingleChannelAction: channelMonitorPolicyActionUpdateGroupRatio},
+				1: {CostRatio: 1.25, SingleChannelAction: channelMonitorPolicyActionDisableChannel},
+				2: {CostRatio: 9, SingleChannelAction: channelMonitorPolicyActionUpdateGroupRatio},
 			},
 			map[string]float64{"vip": 1},
 			nil,
@@ -1219,8 +1544,8 @@ func TestPlanChannelMonitorPolicyActions(t *testing.T) {
 		plan := planChannelMonitorPolicyActions(
 			[]*model.Channel{enabledChannel(1, "vip"), enabledChannel(2, "vip")},
 			map[int]channelMonitorPolicyInput{
-				1: {UpstreamRatio: 1.1, MultipleChannelsAction: channelMonitorPolicyActionUpdateGroupRatio},
-				2: {UpstreamRatio: 1.4, MultipleChannelsAction: channelMonitorPolicyActionUpdateGroupRatio},
+				1: {CostRatio: 1.1, MultipleChannelsAction: channelMonitorPolicyActionUpdateGroupRatio},
+				2: {CostRatio: 1.4, MultipleChannelsAction: channelMonitorPolicyActionUpdateGroupRatio},
 			},
 			map[string]float64{"vip": 1},
 			map[string]float64{"vip": 1.2},
@@ -1237,9 +1562,9 @@ func TestPlanChannelMonitorPolicyActions(t *testing.T) {
 				enabledChannel(3, "vip"),
 			},
 			map[int]channelMonitorPolicyInput{
-				1: {UpstreamRatio: 1.1, MultipleChannelsAction: channelMonitorPolicyActionNone},
-				2: {UpstreamRatio: 1.3, MultipleChannelsAction: channelMonitorPolicyActionDisableChannel},
-				3: {UpstreamRatio: 1.25, MultipleChannelsAction: channelMonitorPolicyActionUpdateGroupRatio},
+				1: {CostRatio: 1.1, MultipleChannelsAction: channelMonitorPolicyActionNone},
+				2: {CostRatio: 1.3, MultipleChannelsAction: channelMonitorPolicyActionDisableChannel},
+				3: {CostRatio: 1.25, MultipleChannelsAction: channelMonitorPolicyActionUpdateGroupRatio},
 			},
 			map[string]float64{"vip": 1},
 			nil,
@@ -1254,12 +1579,12 @@ func TestPlanChannelMonitorPolicyActions(t *testing.T) {
 			[]*model.Channel{enabledChannel(1, "vip"), enabledChannel(2, "vip")},
 			map[int]channelMonitorPolicyInput{
 				1: {
-					UpstreamRatio:          1.2,
+					CostRatio:              1.2,
 					SingleChannelAction:    channelMonitorPolicyActionUpdateGroupRatio,
 					MultipleChannelsAction: channelMonitorPolicyActionUpdateGroupRatio,
 				},
 				2: {
-					UpstreamRatio:          1.5,
+					CostRatio:              1.5,
 					SingleChannelAction:    channelMonitorPolicyActionDisableChannel,
 					MultipleChannelsAction: channelMonitorPolicyActionDisableChannel,
 				},
@@ -1281,12 +1606,12 @@ func TestPlanChannelMonitorPolicyActions(t *testing.T) {
 			},
 			map[int]channelMonitorPolicyInput{
 				1: {
-					UpstreamRatio:          1.5,
+					CostRatio:              1.5,
 					MultipleChannelsAction: channelMonitorPolicyActionDisableChannel,
 				},
-				2: {UpstreamRatio: 1.1},
+				2: {CostRatio: 1.1},
 				3: {
-					UpstreamRatio:       2.5,
+					CostRatio:           2.5,
 					SingleChannelAction: channelMonitorPolicyActionUpdateGroupRatio,
 				},
 			},
@@ -1302,7 +1627,7 @@ func TestPlanChannelMonitorPolicyActions(t *testing.T) {
 		plan := planChannelMonitorPolicyActions(
 			[]*model.Channel{enabledChannel(1, "vip"), enabledChannel(2, "vip")},
 			map[int]channelMonitorPolicyInput{
-				1: {UpstreamRatio: 1.5, MultipleChannelsAction: channelMonitorPolicyActionDisableChannel},
+				1: {CostRatio: 1.5, MultipleChannelsAction: channelMonitorPolicyActionDisableChannel},
 			},
 			map[string]float64{"vip": 1},
 			nil,
@@ -1344,7 +1669,7 @@ func TestSyncChannelMonitorGroupRatioUsesHighestEnabledChannel(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&channels).Error)
 	monitors := []model.ChannelRatioMonitor{
-		{ChannelId: 1, Ratio: 1.2, UpdatedTime: 1},
+		{ChannelId: 1, Ratio: 1.2, UpdatedTime: 1, CostConversion: `{"mode":"recharge","paid_cny":200,"credited_usd":100}`},
 		{ChannelId: 2, Ratio: 1.5, UpdatedTime: 1},
 		{ChannelId: 3, Ratio: 9, UpdatedTime: 1},
 	}
@@ -1360,10 +1685,12 @@ func TestSyncChannelMonitorGroupRatioUsesHighestEnabledChannel(t *testing.T) {
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	require.True(t, response.Success)
 	assert.Equal(t, "vip", response.Data.Group)
-	assert.InDelta(t, 1.5, response.Data.UpstreamRatio, 1e-9)
+	assert.InDelta(t, 1.2, response.Data.UpstreamRatio, 1e-9)
+	assert.InDelta(t, 2, response.Data.ConversionFactor, 1e-9)
+	assert.InDelta(t, 2.4, response.Data.CostRatio, 1e-9)
 	assert.InDelta(t, 1.1, response.Data.Coefficient, 1e-9)
-	assert.InDelta(t, 1.65, response.Data.Ratio, 1e-9)
-	assert.InDelta(t, 1.65, ratio_setting.GetGroupRatio("vip"), 1e-9)
+	assert.InDelta(t, 2.64, response.Data.Ratio, 1e-9)
+	assert.InDelta(t, 2.64, ratio_setting.GetGroupRatio("vip"), 1e-9)
 	assert.InDelta(t, 1.1, getChannelMonitorGroupCoefficients()["vip"], 1e-9)
 }
 
@@ -1456,6 +1783,92 @@ func TestRunChannelRatioMonitorTaskRespectsPerChannelSyncCapabilities(t *testing
 	assert.Zero(t, balanceMonitor.UpdatedTime)
 	require.NotNil(t, balanceMonitor.UpstreamBalance)
 	assert.InDelta(t, 5, *balanceMonitor.UpstreamBalance, 1e-9)
+}
+
+func TestRunChannelRatioMonitorTaskUpdatesCustomFixedSources(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		channelMonitorAutoUpdateRetryCountOption: "0",
+	})
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 1, Name: "custom fixed", Group: "vip", Status: common.ChannelStatusEnabled,
+	}).Error)
+	ratio := 0.8
+	balance := 12.5
+	customConfig, err := service.MarshalChannelMonitorCustomUpstreamConfig(service.ChannelMonitorCustomUpstreamConfig{
+		Ratio: service.ChannelMonitorCustomMetricConfig{
+			Source: service.ChannelMonitorCustomSourceFixed, FixedValue: &ratio,
+		},
+		Balance: service.ChannelMonitorCustomMetricConfig{
+			Source: service.ChannelMonitorCustomSourceFixed, FixedValue: &balance,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId: 1, Ratio: 0.5, UpdatedTime: 1,
+		UpstreamType: service.CustomUpstreamType, UpstreamBaseURL: "https://custom.example",
+		UpstreamAuthType: service.CustomUpstreamAuthType, CustomUpstreamConfig: customConfig,
+	}).Error)
+
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.Total)
+	assert.Equal(t, 1, summary.Updated)
+	assert.Equal(t, 1, summary.Changed)
+	assert.Equal(t, 1, summary.BalanceUpdated)
+	assert.Zero(t, summary.Failed)
+
+	monitor, err := model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	assert.Equal(t, ratio, monitor.Ratio)
+	require.NotNil(t, monitor.UpstreamBalance)
+	assert.Equal(t, balance, *monitor.UpstreamBalance)
+}
+
+func TestRunChannelRatioMonitorTaskUsesCostRatioForGroupPolicy(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	disableChannelMonitorSSRFProtection(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		"GroupRatio":                             `{"vip":0.4}`,
+		channelMonitorAutoUpdateRetryCountOption: "0",
+	})
+	originalGroupRatios := ratio_setting.GroupRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"vip":0.4}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatios))
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/user/self/groups", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"vip":{"ratio":1.2}}}`))
+	}))
+	defer server.Close()
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 1, Name: "converted", Key: "secret", Group: "vip", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId: 1, Ratio: 1, UpdatedTime: 1,
+		UpstreamType: service.NewAPIUpstreamType, UpstreamBaseURL: server.URL,
+		UpstreamGroup: "vip", UpstreamAuthType: service.NewAPIUpstreamAuthUser,
+		UpstreamUserId: 42, UpstreamAccessToken: "dashboard-token",
+		UpstreamBalanceSyncDisabled: true,
+		SingleChannelAction:         channelMonitorPolicyActionUpdateGroupRatio,
+		MultipleChannelsAction:      channelMonitorPolicyActionNone,
+		CostConversion:              `{"mode":"recharge","paid_cny":100,"credited_usd":200}`,
+	}).Error)
+
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.Updated)
+	assert.Equal(t, 1, summary.Changed)
+	assert.Equal(t, 1, summary.GroupsUpdated)
+	assert.InDelta(t, 0.6, ratio_setting.GetGroupRatio("vip"), 1e-9)
+
+	monitor, err := model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	assert.InDelta(t, 1.2, monitor.Ratio, 1e-9)
 }
 
 func TestRunChannelRatioMonitorTaskContinuesAfterFailure(t *testing.T) {

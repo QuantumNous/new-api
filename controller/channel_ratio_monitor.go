@@ -45,31 +45,35 @@ type channelSmartScheduleConfigUpdateRequest struct {
 }
 
 type channelMonitorUpstreamRequest struct {
-	Type                    string          `json:"type"`
-	BaseURL                 string          `json:"base_url"`
-	Group                   string          `json:"group"`
-	AuthType                string          `json:"auth_type"`
-	UserId                  int             `json:"user_id"`
-	AccessToken             string          `json:"access_token"`
-	SingleChannelAction     string          `json:"single_channel_action"`
-	MultipleChannelsAction  string          `json:"multiple_channels_action"`
-	BalanceWarningThreshold json.RawMessage `json:"balance_warning_threshold"`
-	RatioSyncEnabled        *bool           `json:"ratio_sync_enabled"`
-	BalanceSyncEnabled      *bool           `json:"balance_sync_enabled"`
+	Type                    string                                      `json:"type"`
+	BaseURL                 string                                      `json:"base_url"`
+	Group                   string                                      `json:"group"`
+	AuthType                string                                      `json:"auth_type"`
+	UserId                  int                                         `json:"user_id"`
+	AccessToken             string                                      `json:"access_token"`
+	SingleChannelAction     string                                      `json:"single_channel_action"`
+	MultipleChannelsAction  string                                      `json:"multiple_channels_action"`
+	BalanceWarningThreshold json.RawMessage                             `json:"balance_warning_threshold"`
+	RatioSyncEnabled        *bool                                       `json:"ratio_sync_enabled"`
+	BalanceSyncEnabled      *bool                                       `json:"balance_sync_enabled"`
+	CostConversion          *service.ChannelMonitorCostConversion       `json:"cost_conversion"`
+	CustomConfig            *service.ChannelMonitorCustomUpstreamConfig `json:"custom_config"`
 }
 
 type channelMonitorUpstreamConfig struct {
-	Type                    string   `json:"type"`
-	BaseURL                 string   `json:"base_url"`
-	Group                   string   `json:"group"`
-	AuthType                string   `json:"auth_type"`
-	UserId                  int      `json:"user_id"`
-	HasAccessToken          bool     `json:"has_access_token"`
-	SingleChannelAction     string   `json:"single_channel_action"`
-	MultipleChannelsAction  string   `json:"multiple_channels_action"`
-	BalanceWarningThreshold *float64 `json:"balance_warning_threshold"`
-	RatioSyncEnabled        bool     `json:"ratio_sync_enabled"`
-	BalanceSyncEnabled      bool     `json:"balance_sync_enabled"`
+	Type                    string                                      `json:"type"`
+	BaseURL                 string                                      `json:"base_url"`
+	Group                   string                                      `json:"group"`
+	AuthType                string                                      `json:"auth_type"`
+	UserId                  int                                         `json:"user_id"`
+	HasAccessToken          bool                                        `json:"has_access_token"`
+	SingleChannelAction     string                                      `json:"single_channel_action"`
+	MultipleChannelsAction  string                                      `json:"multiple_channels_action"`
+	BalanceWarningThreshold *float64                                    `json:"balance_warning_threshold"`
+	RatioSyncEnabled        bool                                        `json:"ratio_sync_enabled"`
+	BalanceSyncEnabled      bool                                        `json:"balance_sync_enabled"`
+	CostConversion          service.ChannelMonitorCostConversion        `json:"cost_conversion"`
+	CustomConfig            *service.ChannelMonitorCustomUpstreamConfig `json:"custom_config,omitempty"`
 }
 
 type channelMonitorItem struct {
@@ -85,6 +89,9 @@ type channelMonitorItem struct {
 	Groups                []string                      `json:"groups"`
 	Ratio                 *float64                      `json:"ratio"`
 	PreviousRatio         *float64                      `json:"previous_ratio"`
+	CostRatio             *float64                      `json:"cost_ratio"`
+	PreviousCostRatio     *float64                      `json:"previous_cost_ratio"`
+	ConversionFactor      *float64                      `json:"conversion_factor"`
 	Remark                string                        `json:"remark"`
 	ChannelRemark         string                        `json:"channel_remark"`
 	UpdatedTime           int64                         `json:"updated_time"`
@@ -115,6 +122,18 @@ func channelMonitorUpstreamFromModel(monitor model.ChannelRatioMonitor) *channel
 	if monitor.UpstreamType == "" {
 		return nil
 	}
+	costConversion, err := service.ParseChannelMonitorCostConversion(monitor.CostConversion)
+	if err != nil {
+		costConversion = service.ChannelMonitorCostConversion{Mode: service.ChannelMonitorCostConversionNone}
+	}
+	var customConfig *service.ChannelMonitorCustomUpstreamConfig
+	if monitor.UpstreamType == service.CustomUpstreamType {
+		parsed, parseErr := service.ParseChannelMonitorCustomUpstreamConfig(monitor.CustomUpstreamConfig)
+		if parseErr == nil {
+			sanitized := service.SanitizeChannelMonitorCustomUpstreamConfig(parsed)
+			customConfig = &sanitized
+		}
+	}
 	return &channelMonitorUpstreamConfig{
 		Type:                    monitor.UpstreamType,
 		BaseURL:                 monitor.UpstreamBaseURL,
@@ -127,6 +146,40 @@ func channelMonitorUpstreamFromModel(monitor model.ChannelRatioMonitor) *channel
 		BalanceWarningThreshold: monitor.BalanceWarningThreshold,
 		RatioSyncEnabled:        !monitor.UpstreamRatioSyncDisabled,
 		BalanceSyncEnabled:      !monitor.UpstreamBalanceSyncDisabled,
+		CostConversion:          costConversion,
+		CustomConfig:            customConfig,
+	}
+}
+
+func channelMonitorCostRatioFromModel(monitor model.ChannelRatioMonitor, upstreamRatio float64) (float64, float64, error) {
+	costConversion, err := service.ParseChannelMonitorCostConversion(monitor.CostConversion)
+	if err != nil {
+		return 0, 0, err
+	}
+	return service.CalculateChannelMonitorCostRatio(upstreamRatio, costConversion)
+}
+
+func channelMonitorCostConversionLabel(config service.ChannelMonitorCostConversion) string {
+	switch config.Mode {
+	case service.ChannelMonitorCostConversionRecharge:
+		return "充值换算"
+	case service.ChannelMonitorCostConversionSubscription:
+		return "订阅换算"
+	default:
+		return "不换算"
+	}
+}
+
+func channelMonitorUpstreamTypeLabel(upstreamType string) string {
+	switch upstreamType {
+	case service.NewAPIUpstreamType:
+		return "New API"
+	case service.Sub2APIUpstreamType:
+		return "Sub2API"
+	case service.CustomUpstreamType:
+		return "自定义上游"
+	default:
+		return upstreamType
 	}
 }
 
@@ -152,31 +205,47 @@ func resolveChannelMonitorBalanceWarningThreshold(raw json.RawMessage, existing 
 }
 
 func resolveChannelMonitorUpstreamRequest(channel *model.Channel, request channelMonitorUpstreamRequest, requireGroup bool) (service.ChannelMonitorUpstreamConfig, error) {
-	baseURL := strings.TrimSpace(request.BaseURL)
-	if baseURL == "" {
-		baseURL = channel.GetBaseURL()
-	}
-	normalizedBaseURL, err := service.NormalizeNewAPIBaseURL(baseURL)
-	if err != nil {
-		return service.ChannelMonitorUpstreamConfig{}, err
-	}
-
-	request.Group = strings.TrimSpace(request.Group)
-	if (requireGroup && request.Group == "") || utf8.RuneCountInString(request.Group) > 64 {
-		return service.ChannelMonitorUpstreamConfig{}, errors.New("上游分组名称无效")
-	}
 	request.Type = strings.TrimSpace(request.Type)
 	if request.Type == "" {
 		request.Type = service.NewAPIUpstreamType
 	}
+	request.Group = strings.TrimSpace(request.Group)
+	if (requireGroup && request.Type != service.CustomUpstreamType && request.Group == "") || utf8.RuneCountInString(request.Group) > 64 {
+		return service.ChannelMonitorUpstreamConfig{}, errors.New("上游分组名称无效")
+	}
+
+	baseURL := strings.TrimSpace(request.BaseURL)
+	if baseURL == "" {
+		baseURL = channel.GetBaseURL()
+	}
+	var normalizedBaseURL string
+	var err error
+	if request.Type == service.CustomUpstreamType {
+		normalizedBaseURL, err = service.NormalizeChannelMonitorCustomBaseURL(baseURL)
+	} else {
+		normalizedBaseURL, err = service.NormalizeNewAPIBaseURL(baseURL)
+	}
+	if err != nil {
+		return service.ChannelMonitorUpstreamConfig{}, err
+	}
+
+	costConversion := service.ChannelMonitorCostConversion{Mode: service.ChannelMonitorCostConversionNone}
+	if request.CostConversion != nil {
+		costConversion, err = service.NormalizeChannelMonitorCostConversion(*request.CostConversion)
+		if err != nil {
+			return service.ChannelMonitorUpstreamConfig{}, err
+		}
+	}
+
 	request.AuthType = strings.TrimSpace(request.AuthType)
 	config := service.ChannelMonitorUpstreamConfig{
-		Type:        request.Type,
-		BaseURL:     normalizedBaseURL,
-		Group:       request.Group,
-		AuthType:    request.AuthType,
-		Proxy:       channel.GetSetting().Proxy,
-		SkipBalance: request.BalanceSyncEnabled != nil && !*request.BalanceSyncEnabled,
+		Type:           request.Type,
+		BaseURL:        normalizedBaseURL,
+		Group:          request.Group,
+		AuthType:       request.AuthType,
+		Proxy:          channel.GetSetting().Proxy,
+		SkipBalance:    request.BalanceSyncEnabled != nil && !*request.BalanceSyncEnabled,
+		CostConversion: costConversion,
 	}
 	switch request.Type {
 	case service.NewAPIUpstreamType:
@@ -241,6 +310,32 @@ func resolveChannelMonitorUpstreamRequest(channel *model.Channel, request channe
 		if config.AccessToken == "" {
 			return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API Token 不能为空")
 		}
+		return config, nil
+	case service.CustomUpstreamType:
+		config.AuthType = service.CustomUpstreamAuthType
+		var existingConfig *service.ChannelMonitorCustomUpstreamConfig
+		monitor, findErr := model.GetChannelRatioMonitor(channel.Id)
+		if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return service.ChannelMonitorUpstreamConfig{}, findErr
+		}
+		if findErr == nil && monitor.UpstreamType == service.CustomUpstreamType && monitor.UpstreamBaseURL == normalizedBaseURL {
+			parsed, parseErr := service.ParseChannelMonitorCustomUpstreamConfig(monitor.CustomUpstreamConfig)
+			if parseErr == nil {
+				existingConfig = &parsed
+			}
+		}
+		if request.CustomConfig == nil {
+			if existingConfig == nil {
+				return service.ChannelMonitorUpstreamConfig{}, errors.New("自定义上游配置不能为空")
+			}
+			config.CustomConfig = *existingConfig
+			return config, nil
+		}
+		customConfig, normalizeErr := service.NormalizeChannelMonitorCustomUpstreamConfigWithExisting(*request.CustomConfig, existingConfig)
+		if normalizeErr != nil {
+			return service.ChannelMonitorUpstreamConfig{}, normalizeErr
+		}
+		config.CustomConfig = customConfig
 		return config, nil
 	default:
 		return service.ChannelMonitorUpstreamConfig{}, errors.New("上游类型无效")
@@ -318,6 +413,17 @@ func GetChannelMonitorOverview(c *gin.Context) {
 			if monitor.UpdatedTime > 0 {
 				item.Ratio = &monitor.Ratio
 				item.PreviousRatio = monitor.PreviousRatio
+				costRatio, factor, conversionErr := channelMonitorCostRatioFromModel(monitor, monitor.Ratio)
+				if conversionErr == nil {
+					item.CostRatio = &costRatio
+					item.ConversionFactor = &factor
+					if monitor.PreviousRatio != nil {
+						previousCostRatio, _, previousErr := channelMonitorCostRatioFromModel(monitor, *monitor.PreviousRatio)
+						if previousErr == nil {
+							item.PreviousCostRatio = &previousCostRatio
+						}
+					}
+				}
 				item.Remark = monitor.Remark
 				item.UpdatedTime = monitor.UpdatedTime
 				item.UpdatedBy = monitor.UpdatedBy
@@ -407,6 +513,8 @@ func SyncChannelMonitorGroupRatio(c *gin.Context) {
 	}
 
 	highestUpstreamRatio := -1.0
+	highestCostRatio := -1.0
+	highestConversionFactor := 1.0
 	for _, channel := range channels {
 		if channel.Status != common.ChannelStatusEnabled {
 			continue
@@ -425,17 +533,27 @@ func SyncChannelMonitorGroupRatio(c *gin.Context) {
 		if !exists || monitor.UpdatedTime <= 0 {
 			continue
 		}
-		if monitor.Ratio > highestUpstreamRatio {
+		costRatio, factor, conversionErr := channelMonitorCostRatioFromModel(monitor, monitor.Ratio)
+		if conversionErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("渠道 %s（ID %d）倍率换算失败：%s", channel.Name, channel.Id, conversionErr.Error()),
+			})
+			return
+		}
+		if costRatio > highestCostRatio {
+			highestCostRatio = costRatio
 			highestUpstreamRatio = monitor.Ratio
+			highestConversionFactor = factor
 		}
 	}
-	if highestUpstreamRatio < 0 {
+	if highestCostRatio < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "该分组没有已记录倍率的启用渠道"})
 		return
 	}
-	targetRatio := highestUpstreamRatio * *request.Coefficient
+	targetRatio := highestCostRatio * *request.Coefficient
 	if !validateChannelMonitorRatio(&targetRatio) {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "上游倍率乘以系数后的结果超出范围"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "成本倍率乘以系数后的结果超出范围"})
 		return
 	}
 
@@ -461,10 +579,14 @@ func SyncChannelMonitorGroupRatio(c *gin.Context) {
 		return
 	}
 	recordManageAudit(c, "channel.monitor_group_ratio_sync", map[string]interface{}{
-		"group": request.Group, "upstream_ratio": highestUpstreamRatio, "coefficient": *request.Coefficient, "ratio": targetRatio,
+		"group": request.Group, "upstream_ratio": highestUpstreamRatio,
+		"conversion_factor": highestConversionFactor, "cost_ratio": highestCostRatio,
+		"coefficient": *request.Coefficient, "ratio": targetRatio,
 	})
 	common.ApiSuccess(c, gin.H{
-		"group": request.Group, "upstream_ratio": highestUpstreamRatio, "coefficient": *request.Coefficient, "ratio": targetRatio,
+		"group": request.Group, "upstream_ratio": highestUpstreamRatio,
+		"conversion_factor": highestConversionFactor, "cost_ratio": highestCostRatio,
+		"coefficient": *request.Coefficient, "ratio": targetRatio,
 	})
 }
 
@@ -549,6 +671,13 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		return
 	}
 	hasExistingMonitor := findErr == nil
+	if request.CostConversion == nil && hasExistingMonitor {
+		config.CostConversion, err = service.ParseChannelMonitorCostConversion(existingMonitor.CostConversion)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+	}
 	ratioSyncEnabled := true
 	balanceSyncEnabled := true
 	if hasExistingMonitor {
@@ -600,6 +729,36 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+	if hasExistingMonitor && existingMonitor.UpdatedTime > 0 {
+		if _, _, err := service.CalculateChannelMonitorCostRatio(existingMonitor.Ratio, config.CostConversion); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+	}
+	costConversion, err := service.MarshalChannelMonitorCostConversion(config.CostConversion)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	conversionFactor, err := service.ChannelMonitorCostConversionFactor(config.CostConversion)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	customConfig := ""
+	if config.Type == service.CustomUpstreamType {
+		if config.CustomConfig.Ratio.Source == service.ChannelMonitorCustomSourceFixed {
+			if _, _, err := service.CalculateChannelMonitorCostRatio(*config.CustomConfig.Ratio.FixedValue, config.CostConversion); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+				return
+			}
+		}
+		customConfig, err = service.MarshalChannelMonitorCustomUpstreamConfig(config.CustomConfig)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+	}
 
 	monitor, err := model.SaveChannelRatioUpstreamConfig(
 		channelId,
@@ -615,18 +774,54 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 			BalanceWarningThreshold: balanceWarningThreshold,
 			RatioSyncEnabled:        ratioSyncEnabled,
 			BalanceSyncEnabled:      balanceSyncEnabled,
+			CostConversion:          costConversion,
+			CustomUpstreamConfig:    customConfig,
 		},
 	)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAudit(c, "channel.monitor_upstream_config_update", map[string]interface{}{
-		"id": channelId, "upstream_type": config.Type, "group": config.Group, "auth_type": config.AuthType,
+	if config.Type == service.CustomUpstreamType {
+		operatorId, operatorUsername := getChannelMonitorOperator(c)
+		if config.CustomConfig.Ratio.Source == service.ChannelMonitorCustomSourceFixed {
+			monitor, _, _, err = model.UpdateChannelRatioMonitorFromUpstream(
+				channelId,
+				*config.CustomConfig.Ratio.FixedValue,
+				"已应用自定义上游固定倍率",
+				operatorId,
+				operatorUsername,
+			)
+			if err != nil {
+				common.ApiError(c, fmt.Errorf("自定义上游配置已保存，但固定倍率写入失败: %w", err))
+				return
+			}
+		}
+		if config.CustomConfig.Balance.Source == service.ChannelMonitorCustomSourceFixed {
+			if err := model.RecordChannelRatioMonitorBalance(channelId, config.CustomConfig.Balance.FixedValue, ""); err != nil {
+				common.ApiError(c, fmt.Errorf("自定义上游配置已保存，但固定余额写入失败: %w", err))
+				return
+			}
+			monitor, err = model.GetChannelRatioMonitor(channelId)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+	}
+	auditDetails := map[string]interface{}{
+		"id": channelId, "upstream_type": config.Type, "upstream_type_label": channelMonitorUpstreamTypeLabel(config.Type), "group": config.Group, "auth_type": config.AuthType,
 		"single_channel_action": singleChannelAction, "multiple_channels_action": multipleChannelAction,
 		"balance_warning_threshold": balanceWarningThreshold,
 		"ratio_sync_enabled":        ratioSyncEnabled, "balance_sync_enabled": balanceSyncEnabled,
-	})
+		"cost_conversion":   channelMonitorCostConversionLabel(config.CostConversion),
+		"conversion_factor": conversionFactor,
+	}
+	if config.Type == service.CustomUpstreamType {
+		auditDetails["custom_ratio_source"] = config.CustomConfig.Ratio.Source
+		auditDetails["custom_balance_source"] = config.CustomConfig.Balance.Source
+	}
+	recordManageAudit(c, "channel.monitor_upstream_config_update", auditDetails)
 	common.ApiSuccess(c, channelMonitorUpstreamFromModel(monitor))
 }
 
@@ -661,6 +856,13 @@ func ListChannelMonitorUpstreamGroups(c *gin.Context) {
 			return
 		}
 	}
+	if config.Type == service.CustomUpstreamType {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "自定义上游不支持自动获取分组，请手动填写上游分组",
+		})
+		return
+	}
 
 	result, fetchErr := service.FetchChannelMonitorUpstreamGroups(c.Request.Context(), config, channel.GetKeys())
 	if fetchErr != nil {
@@ -692,13 +894,14 @@ func TestChannelMonitorUpstreamConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	if request.RatioSyncEnabled != nil && !*request.RatioSyncEnabled {
+	if config.Type != service.CustomUpstreamType && request.RatioSyncEnabled != nil && !*request.RatioSyncEnabled {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "上游倍率同步已关闭，无需测试获取"})
 		return
 	}
 	if config.Type == service.Sub2APIUpstreamType {
 		config.ChannelKeys = channel.GetKeys()
 	}
+	config.CustomDebug = config.Type == service.CustomUpstreamType
 	result, err := service.FetchChannelMonitorUpstreamGroupRatio(c.Request.Context(), config)
 	if err != nil {
 		common.ApiError(c, err)
@@ -716,7 +919,7 @@ type channelMonitorFetchOutcome struct {
 }
 
 func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor model.ChannelRatioMonitor, channelKeys []string, proxyURL string, operatorId int, operatorUsername string) (outcome channelMonitorFetchOutcome, err error) {
-	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType {
+	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType && monitor.UpstreamType != service.CustomUpstreamType {
 		return outcome, errors.New("请先保存上游配置")
 	}
 	if monitor.UpstreamRatioSyncDisabled {
@@ -744,17 +947,30 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 			return outcome, errors.New("Sub2API 认证方式无效")
 		}
 	}
+	costConversion, err := service.ParseChannelMonitorCostConversion(monitor.CostConversion)
+	if err != nil {
+		return outcome, err
+	}
+	customConfig := service.ChannelMonitorCustomUpstreamConfig{}
+	if monitor.UpstreamType == service.CustomUpstreamType {
+		customConfig, err = service.ParseChannelMonitorCustomUpstreamConfig(monitor.CustomUpstreamConfig)
+		if err != nil {
+			return outcome, err
+		}
+	}
 
 	result, fetchErr := service.FetchChannelMonitorUpstreamGroupRatio(ctx, service.ChannelMonitorUpstreamConfig{
-		Type:        monitor.UpstreamType,
-		BaseURL:     monitor.UpstreamBaseURL,
-		Group:       monitor.UpstreamGroup,
-		AuthType:    monitor.UpstreamAuthType,
-		UserID:      monitor.UpstreamUserId,
-		AccessToken: monitor.UpstreamAccessToken,
-		ChannelKeys: channelKeys,
-		Proxy:       proxyURL,
-		SkipBalance: monitor.UpstreamBalanceSyncDisabled,
+		Type:           monitor.UpstreamType,
+		BaseURL:        monitor.UpstreamBaseURL,
+		Group:          monitor.UpstreamGroup,
+		AuthType:       monitor.UpstreamAuthType,
+		UserID:         monitor.UpstreamUserId,
+		AccessToken:    monitor.UpstreamAccessToken,
+		ChannelKeys:    channelKeys,
+		Proxy:          proxyURL,
+		SkipBalance:    monitor.UpstreamBalanceSyncDisabled,
+		CostConversion: costConversion,
+		CustomConfig:   customConfig,
 	})
 	outcome.Result = result
 	if result.Balance.Amount != nil || strings.TrimSpace(result.Balance.Error) != "" {
@@ -771,11 +987,11 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 		return outcome, fetchErr
 	}
 
-	upstreamName := "New API"
-	if monitor.UpstreamType == service.Sub2APIUpstreamType {
-		upstreamName = "Sub2API"
+	upstreamName := channelMonitorUpstreamTypeLabel(monitor.UpstreamType)
+	remark := fmt.Sprintf("从上游 %s 获取倍率", upstreamName)
+	if strings.TrimSpace(monitor.UpstreamGroup) != "" {
+		remark += fmt.Sprintf("（分组 %s）", monitor.UpstreamGroup)
 	}
-	remark := fmt.Sprintf("从上游 %s 获取分组 %s", upstreamName, monitor.UpstreamGroup)
 	updatedMonitor, created, changed, err := model.UpdateChannelRatioMonitorFromUpstream(
 		monitor.ChannelId,
 		result.Ratio,
@@ -793,23 +1009,31 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 }
 
 func fetchAndRecordChannelMonitorUpstreamBalance(ctx context.Context, monitor model.ChannelRatioMonitor, channelKeys []string, proxyURL string) (result service.ChannelMonitorUpstreamBalanceResult, err error) {
-	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType {
+	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType && monitor.UpstreamType != service.CustomUpstreamType {
 		return result, errors.New("请先保存上游配置")
 	}
 	if monitor.UpstreamBalanceSyncDisabled {
 		return result, errors.New("该渠道已关闭上游余额同步")
 	}
 
+	customConfig := service.ChannelMonitorCustomUpstreamConfig{}
+	if monitor.UpstreamType == service.CustomUpstreamType {
+		customConfig, err = service.ParseChannelMonitorCustomUpstreamConfig(monitor.CustomUpstreamConfig)
+		if err != nil {
+			return result, err
+		}
+	}
 	result, fetchErr := service.FetchChannelMonitorUpstreamBalance(
 		ctx,
 		service.ChannelMonitorUpstreamConfig{
-			Type:        monitor.UpstreamType,
-			BaseURL:     monitor.UpstreamBaseURL,
-			AuthType:    monitor.UpstreamAuthType,
-			UserID:      monitor.UpstreamUserId,
-			AccessToken: monitor.UpstreamAccessToken,
-			ChannelKeys: channelKeys,
-			Proxy:       proxyURL,
+			Type:         monitor.UpstreamType,
+			BaseURL:      monitor.UpstreamBaseURL,
+			AuthType:     monitor.UpstreamAuthType,
+			UserID:       monitor.UpstreamUserId,
+			AccessToken:  monitor.UpstreamAccessToken,
+			ChannelKeys:  channelKeys,
+			Proxy:        proxyURL,
+			CustomConfig: customConfig,
 		},
 	)
 	if fetchErr == nil && result.Amount == nil {
@@ -858,7 +1082,9 @@ func FetchChannelMonitorUpstreamRatio(c *gin.Context) {
 		return
 	}
 	recordManageAudit(c, "channel.monitor_upstream_ratio_fetch", map[string]interface{}{
-		"id": channelId, "upstream_type": monitor.UpstreamType, "group": monitor.UpstreamGroup, "ratio": outcome.Result.Ratio, "changed": outcome.Changed,
+		"id": channelId, "upstream_type": monitor.UpstreamType, "group": monitor.UpstreamGroup,
+		"ratio": outcome.Result.Ratio, "cost_ratio": outcome.Result.CostRatio,
+		"conversion_factor": outcome.Result.ConversionFactor, "changed": outcome.Changed,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -928,17 +1154,23 @@ func ApplyChannelMonitorUpstreamGroup(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	costConversion, err := service.ParseChannelMonitorCostConversion(monitor.CostConversion)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	applyResult, applyErr := service.ApplyChannelMonitorUpstreamGroup(
 		c.Request.Context(),
 		service.ChannelMonitorUpstreamConfig{
-			Type:        monitor.UpstreamType,
-			BaseURL:     monitor.UpstreamBaseURL,
-			Group:       monitor.UpstreamGroup,
-			AuthType:    monitor.UpstreamAuthType,
-			UserID:      monitor.UpstreamUserId,
-			AccessToken: monitor.UpstreamAccessToken,
-			Proxy:       channel.GetSetting().Proxy,
+			Type:           monitor.UpstreamType,
+			BaseURL:        monitor.UpstreamBaseURL,
+			Group:          monitor.UpstreamGroup,
+			AuthType:       monitor.UpstreamAuthType,
+			UserID:         monitor.UpstreamUserId,
+			AccessToken:    monitor.UpstreamAccessToken,
+			Proxy:          channel.GetSetting().Proxy,
+			CostConversion: costConversion,
 		},
 		channel.GetKeys(),
 	)
@@ -976,12 +1208,14 @@ func ApplyChannelMonitorUpstreamGroup(c *gin.Context) {
 		return
 	}
 	recordManageAudit(c, "channel.monitor_upstream_group_apply", map[string]interface{}{
-		"id":            channelId,
-		"upstream_type": monitor.UpstreamType,
-		"group":         monitor.UpstreamGroup,
-		"keys_updated":  applyResult.KeysUpdated,
-		"ratio":         applyResult.Result.Ratio,
-		"changed":       changed,
+		"id":                channelId,
+		"upstream_type":     monitor.UpstreamType,
+		"group":             monitor.UpstreamGroup,
+		"keys_updated":      applyResult.KeysUpdated,
+		"ratio":             applyResult.Result.Ratio,
+		"cost_ratio":        applyResult.Result.CostRatio,
+		"conversion_factor": applyResult.Result.ConversionFactor,
+		"changed":           changed,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

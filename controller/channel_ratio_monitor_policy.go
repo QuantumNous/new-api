@@ -19,7 +19,7 @@ type channelMonitorPolicyPlan struct {
 }
 
 type channelMonitorPolicyInput struct {
-	UpstreamRatio          float64
+	CostRatio              float64
 	SingleChannelAction    string
 	MultipleChannelsAction string
 }
@@ -52,7 +52,7 @@ func collectChannelMonitorPolicyMembers(
 		if !exists {
 			return nil, false
 		}
-		target := input.UpstreamRatio * group.Coefficient
+		target := input.CostRatio * group.Coefficient
 		if !validateChannelMonitorRatio(&target) {
 			return nil, false
 		}
@@ -215,7 +215,7 @@ func applyChannelMonitorPolicyPlan(ctx context.Context, plan channelMonitorPolic
 		if ctx != nil && ctx.Err() != nil {
 			return groupsUpdated, channelsDisabled, false, ctx.Err()
 		}
-		if model.UpdateChannelStatus(channelId, "", common.ChannelStatusAutoDisabled, "渠道监控：上游倍率高于分组倍率") {
+		if model.UpdateChannelStatus(channelId, "", common.ChannelStatusAutoDisabled, "渠道监控：成本倍率高于分组倍率") {
 			channelsDisabled++
 		}
 	}

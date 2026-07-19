@@ -57,11 +57,11 @@ const SCHEDULE_STRATEGY_OPTIONS = [
   {
     value: 'smart',
     label: '智能调度',
-    description: '综合上游倍率、首字和 TPS',
+    description: '综合成本倍率、首字和 TPS',
   },
   {
     value: 'ratio',
-    label: '按上游倍率',
+    label: '按成本倍率',
     description: '倍率越低，调度得分越高',
   },
   {

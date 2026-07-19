@@ -70,7 +70,7 @@ export function EditChannelRatioDialog(props: EditChannelRatioDialogProps) {
   const mutation = useMutation({
     mutationFn: updateChannelMonitorRatio,
     onSuccess: () => {
-      toast.success('渠道倍率已保存')
+      toast.success('上游原始倍率已保存')
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
       queryClient.invalidateQueries({
         queryKey: ['channel-monitor-history', props.channel.id],
@@ -91,7 +91,7 @@ export function EditChannelRatioDialog(props: EditChannelRatioDialogProps) {
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
-          <DialogTitle>修改渠道倍率</DialogTitle>
+          <DialogTitle>修改上游原始倍率</DialogTitle>
           <DialogDescription>
             {props.channel.name} · ID {props.channel.id}
           </DialogDescription>
@@ -103,7 +103,7 @@ export function EditChannelRatioDialog(props: EditChannelRatioDialogProps) {
               name='ratio'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>上游倍率</FormLabel>
+                  <FormLabel>上游原始倍率</FormLabel>
                   <FormControl>
                     <Input
                       type='number'

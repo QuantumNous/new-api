@@ -29,6 +29,9 @@ export type ChannelMonitorItem = {
   groups: string[]
   ratio: number | null
   previous_ratio: number | null
+  cost_ratio: number | null
+  previous_cost_ratio: number | null
+  conversion_factor: number | null
   remark: string
   channel_remark: string
   updated_time: number
@@ -51,13 +54,71 @@ export type ChannelMonitorItem = {
   upstream: ChannelMonitorUpstreamConfig | null
 }
 
-export type ChannelMonitorUpstreamType = 'new_api' | 'sub2api'
+export type ChannelMonitorUpstreamType = 'new_api' | 'sub2api' | 'custom'
 
 export type ChannelMonitorUpstreamAuthType =
   | 'public'
   | 'user'
   | 'api_key'
   | 'token'
+  | 'custom'
+
+export type ChannelMonitorCustomSource = 'fixed' | 'http'
+export type ChannelMonitorCustomBodyType = 'none' | 'json' | 'form'
+export type ChannelMonitorCustomResponseType = 'json' | 'text'
+
+export type ChannelMonitorCustomKeyValue = {
+  key: string
+  value: string
+  secret: boolean
+  has_value: boolean
+}
+
+export type ChannelMonitorCustomRequestConfig = {
+  method: 'GET' | 'POST'
+  path: string
+  query: ChannelMonitorCustomKeyValue[]
+  headers: ChannelMonitorCustomKeyValue[]
+  body_type: ChannelMonitorCustomBodyType
+  body: string
+  body_secret: boolean
+  has_body: boolean
+  form: ChannelMonitorCustomKeyValue[]
+}
+
+export type ChannelMonitorCustomResultConfig = {
+  response_type: ChannelMonitorCustomResponseType
+  value_path: string
+  multiplier: number
+}
+
+export type ChannelMonitorCustomMetricConfig = {
+  source: ChannelMonitorCustomSource
+  fixed_value?: number
+  request?: ChannelMonitorCustomRequestConfig
+  result?: ChannelMonitorCustomResultConfig
+}
+
+export type ChannelMonitorCustomUpstreamConfig = {
+  version: 1
+  ratio: ChannelMonitorCustomMetricConfig
+  balance: ChannelMonitorCustomMetricConfig
+  balance_reuse_ratio_request: boolean
+}
+
+export type ChannelMonitorCostConversion =
+  | { mode: 'none' }
+  | {
+      mode: 'recharge'
+      paid_cny: number
+      credited_usd: number
+    }
+  | {
+      mode: 'subscription'
+      subscription_period: 'day' | 'week' | 'month'
+      subscription_price_cny: number
+      subscription_daily_usd: number
+    }
 
 export type ChannelMonitorUpstreamConfig = {
   type: ChannelMonitorUpstreamType
@@ -71,6 +132,8 @@ export type ChannelMonitorUpstreamConfig = {
   balance_warning_threshold: number | null
   ratio_sync_enabled: boolean
   balance_sync_enabled: boolean
+  cost_conversion: ChannelMonitorCostConversion
+  custom_config?: ChannelMonitorCustomUpstreamConfig
 }
 
 export type ChannelMonitorUpstreamRequest = {
@@ -85,6 +148,14 @@ export type ChannelMonitorUpstreamRequest = {
   balance_warning_threshold: number | null
   ratio_sync_enabled: boolean
   balance_sync_enabled: boolean
+  cost_conversion: ChannelMonitorCostConversion
+  custom_config?: ChannelMonitorCustomUpstreamConfig
+}
+
+export type ChannelMonitorCustomRequestDebug = {
+  status_code: number
+  duration_ms: number
+  response_preview?: string
 }
 
 export type ChannelMonitorUpstreamVersionResult = {
@@ -94,14 +165,18 @@ export type ChannelMonitorUpstreamVersionResult = {
 
 export type NewAPIGroupRatioResult = {
   ratio: number
+  cost_ratio: number
+  conversion_factor: number
   endpoint: string
   balance: ChannelMonitorUpstreamBalanceResult
+  debug?: ChannelMonitorCustomRequestDebug
 }
 
 export type ChannelMonitorUpstreamBalanceResult = {
   amount: number | null
   endpoint?: string
   error?: string
+  debug?: ChannelMonitorCustomRequestDebug
 }
 
 export type ChannelMonitorUpstreamGroup = {
@@ -224,6 +299,8 @@ export type ChannelMonitorTaskRunResult = {
 export type ChannelMonitorGroupRatioSyncResult = {
   group: string
   upstream_ratio: number
+  cost_ratio: number
+  conversion_factor: number
   coefficient: number
   ratio: number
 }

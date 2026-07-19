@@ -55,15 +55,18 @@ func (err *channelMonitorUpstreamAuthenticationError) Is(target error) bool {
 // ChannelMonitorUpstreamConfig contains the credentials needed to read a
 // group multiplier from a configured upstream panel.
 type ChannelMonitorUpstreamConfig struct {
-	Type        string
-	BaseURL     string
-	Group       string
-	AuthType    string
-	UserID      int
-	AccessToken string
-	ChannelKeys []string
-	Proxy       string
-	SkipBalance bool
+	Type           string
+	BaseURL        string
+	Group          string
+	AuthType       string
+	UserID         int
+	AccessToken    string
+	ChannelKeys    []string
+	Proxy          string
+	SkipBalance    bool
+	CostConversion ChannelMonitorCostConversion
+	CustomConfig   ChannelMonitorCustomUpstreamConfig
+	CustomDebug    bool
 }
 
 type NewAPIGroupRatioConfig struct {
@@ -75,15 +78,19 @@ type NewAPIGroupRatioConfig struct {
 }
 
 type NewAPIGroupRatioResult struct {
-	Ratio    float64                             `json:"ratio"`
-	Endpoint string                              `json:"endpoint"`
-	Balance  ChannelMonitorUpstreamBalanceResult `json:"balance"`
+	Ratio            float64                             `json:"ratio"`
+	CostRatio        float64                             `json:"cost_ratio"`
+	ConversionFactor float64                             `json:"conversion_factor"`
+	Endpoint         string                              `json:"endpoint"`
+	Balance          ChannelMonitorUpstreamBalanceResult `json:"balance"`
+	Debug            *ChannelMonitorCustomRequestDebug   `json:"debug,omitempty"`
 }
 
 type ChannelMonitorUpstreamBalanceResult struct {
-	Amount   *float64 `json:"amount"`
-	Endpoint string   `json:"endpoint,omitempty"`
-	Error    string   `json:"error,omitempty"`
+	Amount   *float64                          `json:"amount"`
+	Endpoint string                            `json:"endpoint,omitempty"`
+	Error    string                            `json:"error,omitempty"`
+	Debug    *ChannelMonitorCustomRequestDebug `json:"debug,omitempty"`
 }
 
 type ChannelMonitorUpstreamGroup struct {
@@ -225,6 +232,7 @@ func FetchChannelMonitorUpstreamGroupRatio(ctx context.Context, config ChannelMo
 	if err != nil {
 		return NewAPIGroupRatioResult{}, err
 	}
+	var result NewAPIGroupRatioResult
 	switch config.Type {
 	case NewAPIUpstreamType:
 		newAPIConfig := NewAPIGroupRatioConfig{
@@ -234,7 +242,7 @@ func FetchChannelMonitorUpstreamGroupRatio(ctx context.Context, config ChannelMo
 			UserID:      config.UserID,
 			AccessToken: config.AccessToken,
 		}
-		result, err := fetchNewAPIGroupRatio(ctx, client, newAPIConfig, ValidateSSRFProtectedFetchURL)
+		result, err = fetchNewAPIGroupRatio(ctx, client, newAPIConfig, ValidateSSRFProtectedFetchURL)
 		if err != nil {
 			return result, err
 		}
@@ -246,9 +254,8 @@ func FetchChannelMonitorUpstreamGroupRatio(ctx context.Context, config ChannelMo
 				result.Balance = balance
 			}
 		}
-		return result, nil
 	case Sub2APIUpstreamType:
-		return fetchSub2APIGroupRatio(ctx, client, Sub2APIGroupRatioConfig{
+		result, err = fetchSub2APIGroupRatio(ctx, client, Sub2APIGroupRatioConfig{
 			BaseURL:     config.BaseURL,
 			Group:       config.Group,
 			AuthType:    config.AuthType,
@@ -256,9 +263,35 @@ func FetchChannelMonitorUpstreamGroupRatio(ctx context.Context, config ChannelMo
 			ChannelKeys: config.ChannelKeys,
 			SkipBalance: config.SkipBalance,
 		}, ValidateSSRFProtectedFetchURL)
+		if err != nil {
+			return result, err
+		}
+	case CustomUpstreamType:
+		result, err = fetchChannelMonitorCustomUpstreamRatio(
+			ctx,
+			client,
+			config.BaseURL,
+			config.CustomConfig,
+			config.SkipBalance,
+			config.CustomDebug,
+		)
+		if err != nil {
+			return result, err
+		}
 	default:
 		return NewAPIGroupRatioResult{}, errors.New("不支持的上游类型")
 	}
+	return applyChannelMonitorCostConversion(result, config.CostConversion)
+}
+
+func applyChannelMonitorCostConversion(result NewAPIGroupRatioResult, config ChannelMonitorCostConversion) (NewAPIGroupRatioResult, error) {
+	costRatio, factor, err := CalculateChannelMonitorCostRatio(result.Ratio, config)
+	if err != nil {
+		return result, err
+	}
+	result.CostRatio = costRatio
+	result.ConversionFactor = factor
+	return result, nil
 }
 
 func FetchChannelMonitorUpstreamBalance(ctx context.Context, config ChannelMonitorUpstreamConfig) (ChannelMonitorUpstreamBalanceResult, error) {
@@ -281,6 +314,14 @@ func FetchChannelMonitorUpstreamBalance(ctx context.Context, config ChannelMonit
 			AccessToken: config.AccessToken,
 			ChannelKeys: config.ChannelKeys,
 		}, ValidateSSRFProtectedFetchURL)
+	case CustomUpstreamType:
+		return fetchChannelMonitorCustomUpstreamBalance(
+			ctx,
+			client,
+			config.BaseURL,
+			config.CustomConfig,
+			config.CustomDebug,
+		)
 	default:
 		return ChannelMonitorUpstreamBalanceResult{}, errors.New("不支持的上游类型")
 	}
@@ -435,7 +476,12 @@ func ApplyChannelMonitorUpstreamGroup(ctx context.Context, config ChannelMonitor
 	if err != nil {
 		return ChannelMonitorUpstreamGroupApplyResult{}, err
 	}
-	return applyChannelMonitorUpstreamGroup(ctx, client, config, channelKeys, ValidateSSRFProtectedFetchURL)
+	result, err := applyChannelMonitorUpstreamGroup(ctx, client, config, channelKeys, ValidateSSRFProtectedFetchURL)
+	if err != nil {
+		return result, err
+	}
+	result.Result, err = applyChannelMonitorCostConversion(result.Result, config.CostConversion)
+	return result, err
 }
 
 func applyChannelMonitorUpstreamGroup(ctx context.Context, client *http.Client, config ChannelMonitorUpstreamConfig, channelKeys []string, validateURL func(string) error) (ChannelMonitorUpstreamGroupApplyResult, error) {
@@ -457,6 +503,8 @@ func applyChannelMonitorUpstreamGroup(ctx context.Context, client *http.Client, 
 		result, applyErr = applyNewAPIUpstreamGroup(requestContext, client, config, keys, validateURL)
 	case Sub2APIUpstreamType:
 		result, applyErr = applySub2APIUpstreamGroup(requestContext, client, config, keys, validateURL)
+	case CustomUpstreamType:
+		return ChannelMonitorUpstreamGroupApplyResult{}, errors.New("自定义上游不支持自动切换分组，请手动修改上游配置")
 	default:
 		applyErr = errors.New("不支持的上游类型")
 	}

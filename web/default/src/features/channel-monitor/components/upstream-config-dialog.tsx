@@ -80,6 +80,10 @@ import {
   saveChannelMonitorUpstreamConfig,
   testChannelMonitorUpstreamConfig,
 } from '../api'
+import {
+  createChannelMonitorCustomFormConfig,
+  createChannelMonitorCustomRequestConfig,
+} from '../lib/custom-upstream'
 import { formatMonitorRatio } from '../lib/format'
 import {
   createUpstreamConfigSchema,
@@ -88,11 +92,14 @@ import {
 } from '../lib/schema'
 import type {
   ChannelMonitorItem,
+  ChannelMonitorCostConversion,
   ChannelMonitorPolicyAction,
   ChannelMonitorUpstreamGroup,
   ChannelMonitorUpstreamRequest,
   NewAPIGroupRatioResult,
 } from '../types'
+import { ChannelMonitorCostConversionFields } from './channel-monitor-cost-conversion-fields'
+import { ChannelMonitorCustomUpstreamFields } from './channel-monitor-custom-upstream-fields'
 
 type UpstreamConfigDialogProps = {
   channel: ChannelMonitorItem
@@ -122,6 +129,21 @@ function createUpstreamRequest(
     values.upstreamType === 'new_api' && values.authType === 'user'
   const sub2APITokenAuthentication =
     values.upstreamType === 'sub2api' && values.authType === 'token'
+  let costConversion: ChannelMonitorCostConversion = { mode: 'none' }
+  if (values.costConversionMode === 'recharge') {
+    costConversion = {
+      mode: 'recharge',
+      paid_cny: values.rechargePaidCny,
+      credited_usd: values.rechargeCreditedUsd,
+    }
+  } else if (values.costConversionMode === 'subscription') {
+    costConversion = {
+      mode: 'subscription',
+      subscription_period: values.subscriptionPeriod,
+      subscription_price_cny: values.subscriptionPriceCny,
+      subscription_daily_usd: values.subscriptionDailyUsd,
+    }
+  }
   return {
     type: values.upstreamType,
     base_url: values.baseUrl.trim(),
@@ -137,6 +159,11 @@ function createUpstreamRequest(
     balance_warning_threshold: values.balanceWarningThreshold,
     ratio_sync_enabled: values.ratioSyncEnabled,
     balance_sync_enabled: values.balanceSyncEnabled,
+    cost_conversion: costConversion,
+    custom_config:
+      values.upstreamType === 'custom'
+        ? createChannelMonitorCustomRequestConfig(values.customConfig)
+        : undefined,
   }
 }
 
@@ -151,6 +178,8 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   )
   const [upstreamVersion, setUpstreamVersion] = useState<string | null>(null)
   const savedUpstream = props.channel.upstream
+  const savedCostConversion: ChannelMonitorCostConversion =
+    savedUpstream?.cost_conversion ?? { mode: 'none' }
   const initialGroup = savedUpstream?.group || ''
   const [upstreamGroups, setUpstreamGroups] = useState<
     ChannelMonitorUpstreamGroup[]
@@ -180,6 +209,30 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
       ratioSyncEnabled: savedUpstream?.ratio_sync_enabled ?? true,
       balanceSyncEnabled: savedUpstream?.balance_sync_enabled ?? true,
       balanceWarningThreshold: savedUpstream?.balance_warning_threshold ?? null,
+      costConversionMode: savedCostConversion.mode,
+      rechargePaidCny:
+        savedCostConversion.mode === 'recharge'
+          ? savedCostConversion.paid_cny
+          : 1,
+      rechargeCreditedUsd:
+        savedCostConversion.mode === 'recharge'
+          ? savedCostConversion.credited_usd
+          : 1,
+      subscriptionPeriod:
+        savedCostConversion.mode === 'subscription'
+          ? savedCostConversion.subscription_period
+          : 'month',
+      subscriptionPriceCny:
+        savedCostConversion.mode === 'subscription'
+          ? savedCostConversion.subscription_price_cny
+          : 1,
+      subscriptionDailyUsd:
+        savedCostConversion.mode === 'subscription'
+          ? savedCostConversion.subscription_daily_usd
+          : 1,
+      customConfig: createChannelMonitorCustomFormConfig(
+        savedUpstream?.custom_config
+      ),
     },
   })
   const upstreamType = useWatch({ control: form.control, name: 'upstreamType' })
@@ -197,6 +250,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   const needsUserAuthentication =
     upstreamType === 'new_api' && authType === 'user'
   const isSub2API = upstreamType === 'sub2api'
+  const isCustom = upstreamType === 'custom'
   const needsSub2APIToken = isSub2API && authType === 'token'
   const hasMatchingSavedAccessToken =
     savedCredential?.hasAccessToken === true &&
@@ -205,8 +259,10 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   const hasSub2APIToken =
     hasMatchingSavedAccessToken || accessToken.trim().length > 0
   const canApplyGroup =
-    needsUserAuthentication || (needsSub2APIToken && hasSub2APIToken)
-  const canLoadGroups = !isSub2API || (needsSub2APIToken && hasSub2APIToken)
+    !isCustom &&
+    (needsUserAuthentication || (needsSub2APIToken && hasSub2APIToken))
+  const canLoadGroups =
+    !isCustom && (!isSub2API || (needsSub2APIToken && hasSub2APIToken))
   const authDescription =
     authType === 'public'
       ? '无需账号，读取公开分组倍率'
@@ -224,6 +280,8 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
       authType === 'api_key'
         ? '使用当前渠道 API Key 读取新版倍率和余额'
         : '使用旧版 Token 读取倍率、余额和分组'
+  } else if (isCustom) {
+    upstreamTypeDescription = '通过固定值或自定义接口读取倍率和余额'
   }
   let groupSourceDescription = '从 New API 获取可用分组，也可直接填写名称'
   if (isSub2API) {
@@ -231,6 +289,8 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
       authType === 'api_key'
         ? 'API Key 认证不提供分组列表，请直接填写分组名称或数字 ID'
         : '旧版 Token 可获取可用分组，也可直接填写分组名称或数字 ID'
+  } else if (isCustom) {
+    groupSourceDescription = '自定义上游分组为可选项，仅用于展示和记录'
   }
   const upstreamGroupByName = useMemo(
     () => new Map(upstreamGroups.map((group) => [group.name, group])),
@@ -255,7 +315,11 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
     mutationFn: testChannelMonitorUpstreamConfig,
     onSuccess: (response) => {
       setTestResult(response.data)
-      toast.success('上游倍率获取成功')
+      if (response.data.balance.error) {
+        toast.warning('上游倍率获取成功，但余额获取失败')
+      } else {
+        toast.success('上游倍率获取成功')
+      }
     },
   })
   const versionMutation = useMutation({
@@ -323,13 +387,14 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
         queryKey: ['channel-monitor-history', props.channel.id],
       })
       toast.success(
-        `已将 ${result.response.data.keys_updated} 个上游令牌切换到分组 ${values.group.trim()}，倍率 ${formatMonitorRatio(result.response.data.result.ratio)}`
+        `已将 ${result.response.data.keys_updated} 个上游令牌切换到分组 ${values.group.trim()}，上游倍率 ${formatMonitorRatio(result.response.data.result.ratio)}，成本倍率 ${formatMonitorRatio(result.response.data.result.cost_ratio)}`
       )
       props.onOpenChange(false)
     },
   })
 
   const requireGroup = (values: UpstreamConfigFormValues) => {
+    if (values.upstreamType === 'custom') return true
     if (values.group.trim()) return true
     form.setError('group', {
       type: 'manual',
@@ -439,16 +504,22 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                           )
                           if (
                             nextValue !== 'new_api' &&
-                            nextValue !== 'sub2api'
+                            nextValue !== 'sub2api' &&
+                            nextValue !== 'custom'
                           ) {
                             return
                           }
                           field.onChange(nextValue)
-                          form.setValue(
-                            'authType',
-                            nextValue === 'sub2api' ? 'api_key' : 'public',
-                            { shouldValidate: true }
-                          )
+                          let nextAuthType: UpstreamConfigFormValues['authType'] =
+                            'public'
+                          if (nextValue === 'sub2api') {
+                            nextAuthType = 'api_key'
+                          } else if (nextValue === 'custom') {
+                            nextAuthType = 'custom'
+                          }
+                          form.setValue('authType', nextAuthType, {
+                            shouldValidate: true,
+                          })
                           form.setValue('accessToken', '')
                           setUpstreamGroups([])
                           setTestResult(null)
@@ -456,13 +527,16 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                         }}
                         variant='outline'
                         spacing={2}
-                        className='grid w-full grid-cols-2'
+                        className='grid w-full grid-cols-3'
                       >
                         <ToggleGroupItem value='new_api' className='w-full'>
                           New API
                         </ToggleGroupItem>
                         <ToggleGroupItem value='sub2api' className='w-full'>
                           Sub2API
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value='custom' className='w-full'>
+                          自定义
                         </ToggleGroupItem>
                       </ToggleGroup>
                     </FormControl>
@@ -476,7 +550,9 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                 name='baseUrl'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>面板地址</FormLabel>
+                    <FormLabel>
+                      {isCustom ? '接口基础地址' : '面板地址'}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type='url'
@@ -495,7 +571,9 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                       />
                     </FormControl>
                     <FormDescription>
-                      填写面板根地址，末尾的 /v1 会自动移除
+                      {isCustom
+                        ? '倍率和余额接口路径会拼接到该地址，渠道代理同样生效'
+                        : '填写面板根地址，末尾的 /v1 会自动移除'}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -542,38 +620,42 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                             }}
                           />
                         </FormControl>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={handleLoadGroups}
-                          disabled={pending || !canLoadGroups}
-                        >
-                          {groupsMutation.isPending ? (
-                            <Spinner data-icon='inline-start' />
-                          ) : (
-                            <HugeiconsIcon
-                              icon={Refresh01Icon}
-                              data-icon='inline-start'
-                            />
-                          )}
-                          获取分组
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='secondary'
-                          onClick={handleApplyGroup}
-                          disabled={pending || !canApplyGroup}
-                        >
-                          {applyGroupMutation.isPending ? (
-                            <Spinner data-icon='inline-start' />
-                          ) : (
-                            <HugeiconsIcon
-                              icon={Tick02Icon}
-                              data-icon='inline-start'
-                            />
-                          )}
-                          应用分组
-                        </Button>
+                        {!isCustom ? (
+                          <>
+                            <Button
+                              type='button'
+                              variant='outline'
+                              onClick={handleLoadGroups}
+                              disabled={pending || !canLoadGroups}
+                            >
+                              {groupsMutation.isPending ? (
+                                <Spinner data-icon='inline-start' />
+                              ) : (
+                                <HugeiconsIcon
+                                  icon={Refresh01Icon}
+                                  data-icon='inline-start'
+                                />
+                              )}
+                              获取分组
+                            </Button>
+                            <Button
+                              type='button'
+                              variant='secondary'
+                              onClick={handleApplyGroup}
+                              disabled={pending || !canApplyGroup}
+                            >
+                              {applyGroupMutation.isPending ? (
+                                <Spinner data-icon='inline-start' />
+                              ) : (
+                                <HugeiconsIcon
+                                  icon={Tick02Icon}
+                                  data-icon='inline-start'
+                                />
+                              )}
+                              应用分组
+                            </Button>
+                          </>
+                        ) : null}
                       </div>
                       <ComboboxContent>
                         <ComboboxList>
@@ -603,11 +685,21 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                       </ComboboxContent>
                     </Combobox>
                     <FormDescription>
-                      {groupSourceDescription}；{applyGroupDescription}
+                      {groupSourceDescription}
+                      {!isCustom ? `；${applyGroupDescription}` : ''}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+
+              {isCustom ? (
+                <ChannelMonitorCustomUpstreamFields form={form} />
+              ) : null}
+
+              <ChannelMonitorCostConversionFields
+                form={form}
+                upstreamRatio={testResult?.ratio ?? props.channel.ratio}
               />
 
               <div className='grid min-w-0 gap-4 sm:grid-cols-2'>
@@ -1018,9 +1110,50 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                 <Alert>
                   <HugeiconsIcon icon={Tick02Icon} />
                   <AlertTitle>测试成功</AlertTitle>
-                  <AlertDescription className='min-w-0 text-left break-all'>
-                    倍率 {formatMonitorRatio(testResult.ratio)} ·{' '}
-                    {testResult.endpoint}
+                  <AlertDescription className='flex min-w-0 flex-col gap-2 text-left break-all'>
+                    <span>
+                      上游倍率 {formatMonitorRatio(testResult.ratio)} · 换算系数{' '}
+                      {formatMonitorRatio(testResult.conversion_factor)} ·
+                      成本倍率 {formatMonitorRatio(testResult.cost_ratio)} ·{' '}
+                      {testResult.endpoint}
+                    </span>
+                    {isCustom && testResult.balance.amount != null ? (
+                      <span>
+                        上游余额 {formatMonitorRatio(testResult.balance.amount)}{' '}
+                        · {testResult.balance.endpoint || '固定输入'}
+                      </span>
+                    ) : null}
+                    {isCustom && testResult.balance.error ? (
+                      <span className='text-destructive'>
+                        余额获取失败：{testResult.balance.error}
+                      </span>
+                    ) : null}
+                    {isCustom && testResult.debug ? (
+                      <span>
+                        HTTP {testResult.debug.status_code} ·{' '}
+                        {testResult.debug.duration_ms} ms
+                      </span>
+                    ) : null}
+                    {isCustom && testResult.debug?.response_preview ? (
+                      <pre className='bg-muted max-h-32 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap'>
+                        {testResult.debug.response_preview}
+                      </pre>
+                    ) : null}
+                    {isCustom &&
+                    testResult.balance.debug &&
+                    testResult.balance.endpoint !== testResult.endpoint ? (
+                      <>
+                        <span>
+                          余额接口 HTTP {testResult.balance.debug.status_code} ·{' '}
+                          {testResult.balance.debug.duration_ms} ms
+                        </span>
+                        {testResult.balance.debug.response_preview ? (
+                          <pre className='bg-muted max-h-32 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap'>
+                            {testResult.balance.debug.response_preview}
+                          </pre>
+                        ) : null}
+                      </>
+                    ) : null}
                   </AlertDescription>
                 </Alert>
               )}
@@ -1034,8 +1167,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                 >
                   取消
                 </Button>
-                {(upstreamType === 'new_api' || isSub2API) &&
-                ratioSyncEnabled ? (
+                {ratioSyncEnabled || isCustom ? (
                   <Button
                     type='button'
                     variant='secondary'

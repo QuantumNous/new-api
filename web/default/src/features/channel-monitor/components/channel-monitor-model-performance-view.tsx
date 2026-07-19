@@ -40,6 +40,7 @@ import { CHANNEL_STATUS } from '@/features/channels/constants'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { formatMonitorRatio } from '../lib/format'
 import type {
   ChannelMonitorItem,
   ChannelMonitorPerformanceMetric,
@@ -79,23 +80,35 @@ export function ChannelMonitorModelPerformanceView(
           String(channel.id).includes(normalizedSearch)
         )
       })
+      .sort((first, second) => {
+        const firstEnabled = first.status === CHANNEL_STATUS.ENABLED
+        const secondEnabled = second.status === CHANNEL_STATUS.ENABLED
+        if (firstEnabled !== secondEnabled) return firstEnabled ? -1 : 1
+
+        const firstRatio =
+          first.cost_ratio != null && Number.isFinite(first.cost_ratio)
+            ? first.cost_ratio
+            : null
+        const secondRatio =
+          second.cost_ratio != null && Number.isFinite(second.cost_ratio)
+            ? second.cost_ratio
+            : null
+        if (firstRatio != null && secondRatio != null) {
+          const ratioOrder = firstRatio - secondRatio
+          if (ratioOrder !== 0) return ratioOrder
+        } else if (firstRatio != null) {
+          return -1
+        } else if (secondRatio != null) {
+          return 1
+        }
+
+        const nameOrder = first.name.localeCompare(second.name)
+        return nameOrder !== 0 ? nameOrder : first.id - second.id
+      })
       .map((channel) => ({
         channel,
         metric: metricByChannel.get(channel.id) ?? null,
       }))
-      .sort((first, second) => {
-        if (!first.metric && second.metric) return 1
-        if (first.metric && !second.metric) return -1
-        const firstLatency =
-          first.metric?.average_first_token_ms ?? Number.POSITIVE_INFINITY
-        const secondLatency =
-          second.metric?.average_first_token_ms ?? Number.POSITIVE_INFINITY
-        if (firstLatency !== secondLatency) return firstLatency - secondLatency
-        const firstTPS = first.metric?.average_tps ?? 0
-        const secondTPS = second.metric?.average_tps ?? 0
-        if (firstTPS !== secondTPS) return secondTPS - firstTPS
-        return first.channel.name.localeCompare(second.channel.name)
-      })
   }, [props.channels, props.metrics, props.search, props.selectedModel])
 
   if (props.isLoading) {
@@ -144,11 +157,12 @@ export function ChannelMonitorModelPerformanceView(
   return (
     <div className='flex flex-col gap-3'>
       <div className='overflow-hidden rounded-lg border'>
-        <Table className='min-w-[920px]'>
+        <Table className='min-w-[980px]'>
           <TableHeader>
             <TableRow>
               <TableHead className='w-14 text-center'>排名</TableHead>
               <TableHead>渠道</TableHead>
+              <TableHead>成本倍率</TableHead>
               <TableHead>平均首字</TableHead>
               <TableHead>平均 TPS</TableHead>
               <TableHead>有效样本</TableHead>
@@ -189,6 +203,11 @@ export function ChannelMonitorModelPerformanceView(
                         </span>
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className='font-mono font-semibold'>
+                      {formatMonitorRatio(row.channel.cost_ratio)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <ChannelMonitorFirstTokenValue

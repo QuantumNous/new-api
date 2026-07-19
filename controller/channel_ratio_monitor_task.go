@@ -76,12 +76,15 @@ func (result *channelRatioMonitorTaskResult) recordFailure(channelId int, channe
 }
 
 type channelRatioMonitorEmailChange struct {
-	ChannelId     int
-	ChannelName   string
-	UpstreamType  string
-	UpstreamGroup string
-	OldRatio      float64
-	NewRatio      float64
+	ChannelId        int
+	ChannelName      string
+	UpstreamType     string
+	UpstreamGroup    string
+	OldRatio         float64
+	NewRatio         float64
+	ConversionFactor float64
+	OldCostRatio     float64
+	NewCostRatio     float64
 }
 
 type channelRatioMonitorBalanceWarning struct {
@@ -209,7 +212,7 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 
 	configured := make([]model.ChannelRatioMonitor, 0, len(monitors))
 	for _, monitor := range monitors {
-		if monitor.UpstreamType == service.NewAPIUpstreamType || monitor.UpstreamType == service.Sub2APIUpstreamType {
+		if monitor.UpstreamType == service.NewAPIUpstreamType || monitor.UpstreamType == service.Sub2APIUpstreamType || monitor.UpstreamType == service.CustomUpstreamType {
 			configured = append(configured, monitor)
 		}
 	}
@@ -331,19 +334,22 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 			}
 			if ratioUpdated {
 				policyInputs[monitor.ChannelId] = channelMonitorPolicyInput{
-					UpstreamRatio:          outcome.Result.Ratio,
+					CostRatio:              outcome.Result.CostRatio,
 					SingleChannelAction:    monitor.SingleChannelAction,
 					MultipleChannelsAction: monitor.MultipleChannelsAction,
 				}
 				if outcome.Changed {
 					summary.Changed++
 					emailChanges = append(emailChanges, channelRatioMonitorEmailChange{
-						ChannelId:     monitor.ChannelId,
-						ChannelName:   channel.Name,
-						UpstreamType:  monitor.UpstreamType,
-						UpstreamGroup: monitor.UpstreamGroup,
-						OldRatio:      monitor.Ratio,
-						NewRatio:      outcome.Result.Ratio,
+						ChannelId:        monitor.ChannelId,
+						ChannelName:      channel.Name,
+						UpstreamType:     monitor.UpstreamType,
+						UpstreamGroup:    monitor.UpstreamGroup,
+						OldRatio:         monitor.Ratio,
+						NewRatio:         outcome.Result.Ratio,
+						ConversionFactor: outcome.Result.ConversionFactor,
+						OldCostRatio:     monitor.Ratio * outcome.Result.ConversionFactor,
+						NewCostRatio:     outcome.Result.CostRatio,
 					})
 				}
 			}
@@ -378,24 +384,24 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 	if len(changes) > 0 {
 		content.WriteString("<h3>渠道倍率变更</h3>")
 		content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
-		for _, heading := range []string{"渠道", "上游类型", "上游分组", "原倍率", "新倍率"} {
+		for _, heading := range []string{"渠道", "上游类型", "上游分组", "原上游倍率", "新上游倍率", "换算系数", "原成本倍率", "新成本倍率"} {
 			fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
 		}
 		content.WriteString("</tr></thead><tbody>")
 		for _, change := range changes {
-			upstreamType := "New API"
-			if change.UpstreamType == service.Sub2APIUpstreamType {
-				upstreamType = "Sub2API"
-			}
+			upstreamType := channelMonitorUpstreamTypeLabel(change.UpstreamType)
 			fmt.Fprintf(
 				&content,
-				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s（ID: %d）</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s（ID: %d）</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
 				html.EscapeString(change.ChannelName),
 				change.ChannelId,
 				html.EscapeString(upstreamType),
 				html.EscapeString(change.UpstreamGroup),
 				strconv.FormatFloat(change.OldRatio, 'f', -1, 64),
 				strconv.FormatFloat(change.NewRatio, 'f', -1, 64),
+				strconv.FormatFloat(change.ConversionFactor, 'f', -1, 64),
+				strconv.FormatFloat(change.OldCostRatio, 'f', -1, 64),
+				strconv.FormatFloat(change.NewCostRatio, 'f', -1, 64),
 			)
 		}
 		content.WriteString("</tbody></table>")
@@ -408,10 +414,7 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		}
 		content.WriteString("</tr></thead><tbody>")
 		for _, warning := range balanceWarnings {
-			upstreamType := "New API"
-			if warning.UpstreamType == service.Sub2APIUpstreamType {
-				upstreamType = "Sub2API"
-			}
+			upstreamType := channelMonitorUpstreamTypeLabel(warning.UpstreamType)
 			fmt.Fprintf(
 				&content,
 				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s（ID: %d）</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",

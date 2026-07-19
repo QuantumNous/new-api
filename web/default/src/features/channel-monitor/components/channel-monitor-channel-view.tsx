@@ -272,7 +272,7 @@ export function ChannelMonitorChannelView(
           <TableRow className='[&_th]:text-left'>
             <TableHead>渠道</TableHead>
             <TableHead>上游余额</TableHead>
-            <TableHead>上游倍率</TableHead>
+            <TableHead>成本倍率</TableHead>
             <TableHead>倍率更新状态</TableHead>
             <TableHead>关联分组</TableHead>
             <TableHead>性能（{props.performanceRangeLabel}）</TableHead>
@@ -356,15 +356,22 @@ export function ChannelMonitorChannelView(
                     <div className='min-w-0'>
                       <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
                         <span className='font-mono text-base font-semibold'>
-                          {formatMonitorRatio(channel.ratio)}
+                          {formatMonitorRatio(channel.cost_ratio)}
                         </span>
                         <RatioChangeBadge
-                          current={channel.ratio}
-                          previous={channel.previous_ratio}
+                          current={channel.cost_ratio}
+                          previous={channel.previous_cost_ratio}
                         />
                       </div>
                       {channel.upstream ? (
                         <div className='mt-0.5 flex min-w-0 flex-col gap-0.5'>
+                          {channel.conversion_factor != null &&
+                          Math.abs(channel.conversion_factor - 1) > 1e-9 ? (
+                            <span className='text-muted-foreground truncate text-xs'>
+                              上游 {formatMonitorRatio(channel.ratio)} × 换算{' '}
+                              {formatMonitorRatio(channel.conversion_factor)}
+                            </span>
+                          ) : null}
                           <span className='text-muted-foreground truncate text-xs'>
                             上游分组：{channel.upstream.group}
                           </span>
@@ -394,7 +401,7 @@ export function ChannelMonitorChannelView(
                             {group} ×{' '}
                             <GroupRatioValue
                               groupRatio={groupRatio}
-                              upstreamRatio={channel.ratio}
+                              costRatio={channel.cost_ratio}
                               coefficient={coefficient}
                             />
                           </Badge>

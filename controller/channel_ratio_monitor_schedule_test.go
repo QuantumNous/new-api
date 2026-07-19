@@ -1,11 +1,58 @@
 package controller
 
 import (
+	"context"
 	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRunChannelSmartScheduleUsesConvertedCostRatioAcrossGroups(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		channelMonitorSmartScheduleEnabledOption:   "true",
+		channelMonitorSmartScheduleStrategyOption:  channelMonitorSmartScheduleStrategyRatio,
+		channelMonitorSmartScheduleApplyModeOption: channelMonitorSmartScheduleApplyWeight,
+	})
+	priority := int64(0)
+	weight := uint(50)
+	channels := []model.Channel{
+		{Id: 1, Name: "cheap raw", Group: "vip", Status: common.ChannelStatusEnabled, Priority: &priority, Weight: &weight},
+		{Id: 2, Name: "cheap cost", Group: "standard", Status: common.ChannelStatusEnabled, Priority: &priority, Weight: &weight},
+	}
+	require.NoError(t, db.Create(&channels).Error)
+	require.NoError(t, db.Create(&[]model.ChannelRatioMonitor{
+		{
+			ChannelId: 1, Ratio: 0.5, UpdatedTime: 1,
+			CostConversion: `{"mode":"recharge","paid_cny":400,"credited_usd":100}`,
+		},
+		{ChannelId: 2, Ratio: 1, UpdatedTime: 1},
+	}).Error)
+
+	result, err := runChannelSmartScheduleOnce(context.Background(), nil, false)
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Updated)
+
+	first, err := model.GetChannelById(1, false)
+	require.NoError(t, err)
+	second, err := model.GetChannelById(2, false)
+	require.NoError(t, err)
+	assert.Equal(t, 30, first.GetWeight())
+	assert.Equal(t, 70, second.GetWeight())
+
+	firstMonitor, err := model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	secondMonitor, err := model.GetChannelRatioMonitor(2)
+	require.NoError(t, err)
+	require.NotNil(t, firstMonitor.LastScheduleScore)
+	require.NotNil(t, secondMonitor.LastScheduleScore)
+	assert.InDelta(t, 0, *firstMonitor.LastScheduleScore, 1e-9)
+	assert.InDelta(t, 1, *secondMonitor.LastScheduleScore, 1e-9)
+}
 
 func TestPlanChannelSmartScheduleWeightOnlyKeepsPriorityCohorts(t *testing.T) {
 	ratioOne := 1.0

@@ -209,6 +209,8 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 	needsPerformance := settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategyFirstToken ||
 		settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategyTPS ||
 		settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategySmart
+	needsRatio := settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategyRatio ||
+		settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategySmart
 	needsStability := settings.SmartScheduleStabilityEnabled
 	var metrics []model.ChannelMonitorPerformanceMetric
 	if needsPerformance {
@@ -322,8 +324,23 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 
 		var ratio *float64
 		if monitor.UpdatedTime > 0 && validateChannelMonitorRatio(&monitor.Ratio) {
-			value := monitor.Ratio
-			ratio = &value
+			value, _, conversionErr := channelMonitorCostRatioFromModel(monitor, monitor.Ratio)
+			if conversionErr != nil && needsRatio {
+				statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(
+					channel.Id,
+					model.ChannelSmartScheduleStatusSkipped,
+					"成本倍率换算失败："+conversionErr.Error(),
+					nil,
+					currentPriority,
+					currentWeight,
+					now,
+				))
+				result.Skipped++
+				continue
+			}
+			if conversionErr == nil {
+				ratio = &value
+			}
 		}
 		performance := performanceByChannel[channel.Id]
 		candidate := channelSmartScheduleCandidate{
@@ -613,7 +630,7 @@ func channelSmartScheduleCandidateSkipReason(candidate channelSmartScheduleCandi
 	}
 	if strategy == channelMonitorSmartScheduleStrategyRatio || strategy == channelMonitorSmartScheduleStrategySmart {
 		if candidate.Ratio == nil {
-			return "未记录上游倍率"
+			return "未记录成本倍率"
 		}
 	}
 	if strategy == channelMonitorSmartScheduleStrategyFirstToken || strategy == channelMonitorSmartScheduleStrategySmart {

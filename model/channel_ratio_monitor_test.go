@@ -196,12 +196,14 @@ func TestChannelRatioUpstreamConfigDoesNotCreateFalseBaseline(t *testing.T) {
 		MultipleChannelsAction: "disable_channel",
 		RatioSyncEnabled:       true,
 		BalanceSyncEnabled:     true,
+		CostConversion:         `{"mode":"recharge","paid_cny":100,"credited_usd":200}`,
 	})
 	require.NoError(t, err)
 	assert.Zero(t, monitor.UpdatedTime)
 	assert.Equal(t, "dashboard-token", monitor.UpstreamAccessToken)
 	assert.Equal(t, "update_group_ratio", monitor.SingleChannelAction)
 	assert.Equal(t, "disable_channel", monitor.MultipleChannelsAction)
+	assert.JSONEq(t, `{"mode":"recharge","paid_cny":100,"credited_usd":200}`, monitor.CostConversion)
 	serialized, err := common.Marshal(monitor)
 	require.NoError(t, err)
 	assert.NotContains(t, string(serialized), "dashboard-token")
@@ -214,6 +216,7 @@ func TestChannelRatioUpstreamConfigDoesNotCreateFalseBaseline(t *testing.T) {
 	assert.Nil(t, monitor.PreviousRatio)
 	assert.Equal(t, "vip", monitor.UpstreamGroup)
 	assert.Equal(t, "dashboard-token", monitor.UpstreamAccessToken)
+	assert.JSONEq(t, `{"mode":"recharge","paid_cny":100,"credited_usd":200}`, monitor.CostConversion)
 
 	history, total, err := GetChannelRatioHistory(11, 0, 100)
 	require.NoError(t, err)
@@ -235,6 +238,23 @@ func TestChannelRatioUpstreamConfigDoesNotCreateFalseBaseline(t *testing.T) {
 	assert.Nil(t, monitor.UpstreamBalance)
 	assert.Zero(t, monitor.LastBalanceTime)
 	assert.Empty(t, monitor.LastBalanceError)
+}
+
+func TestChannelRatioUpstreamConfigStoresCustomConfig(t *testing.T) {
+	resetChannelRatioMonitorTables(t)
+	customConfig := `{"version":1,"ratio":{"source":"fixed","fixed_value":0.8},"balance":{"source":"fixed","fixed_value":20}}`
+
+	monitor, err := SaveChannelRatioUpstreamConfig(12, "custom", "https://custom.example", "", "custom", 0, "", ChannelRatioUpstreamOptions{
+		RatioSyncEnabled:     true,
+		BalanceSyncEnabled:   true,
+		CustomUpstreamConfig: customConfig,
+	})
+	require.NoError(t, err)
+	assert.JSONEq(t, customConfig, monitor.CustomUpstreamConfig)
+
+	serialized, err := common.Marshal(monitor)
+	require.NoError(t, err)
+	assert.NotContains(t, string(serialized), "custom_upstream_config")
 }
 
 func TestChannelRatioUpstreamTokenIsNotSerialized(t *testing.T) {

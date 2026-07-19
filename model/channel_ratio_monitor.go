@@ -42,6 +42,8 @@ type ChannelRatioMonitor struct {
 	UpstreamAuthType            string   `json:"upstream_auth_type" gorm:"type:varchar(16)"`
 	UpstreamUserId              int      `json:"upstream_user_id"`
 	UpstreamAccessToken         string   `json:"-" gorm:"type:text"`
+	CostConversion              string   `json:"-" gorm:"type:text"`
+	CustomUpstreamConfig        string   `json:"-" gorm:"type:text"`
 	UpstreamRatioSyncDisabled   bool     `json:"-"`
 	UpstreamBalanceSyncDisabled bool     `json:"-"`
 	SingleChannelAction         string   `json:"single_channel_action" gorm:"type:varchar(32)"`
@@ -61,6 +63,8 @@ type ChannelRatioUpstreamOptions struct {
 	BalanceWarningThreshold *float64
 	RatioSyncEnabled        bool
 	BalanceSyncEnabled      bool
+	CostConversion          string
+	CustomUpstreamConfig    string
 }
 
 type ChannelSmartScheduleResultUpdate struct {
@@ -116,7 +120,8 @@ func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL 
 			monitor.UpstreamBaseURL != baseURL ||
 			monitor.UpstreamAuthType != authType ||
 			monitor.UpstreamUserId != userId ||
-			monitor.UpstreamAccessToken != accessToken
+			monitor.UpstreamAccessToken != accessToken ||
+			monitor.CustomUpstreamConfig != options.CustomUpstreamConfig
 		balanceWarningThresholdChanged :=
 			(monitor.BalanceWarningThreshold == nil) != (options.BalanceWarningThreshold == nil) ||
 				(monitor.BalanceWarningThreshold != nil && options.BalanceWarningThreshold != nil &&
@@ -129,6 +134,8 @@ func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL 
 		monitor.UpstreamAuthType = authType
 		monitor.UpstreamUserId = userId
 		monitor.UpstreamAccessToken = accessToken
+		monitor.CostConversion = options.CostConversion
+		monitor.CustomUpstreamConfig = options.CustomUpstreamConfig
 		monitor.UpstreamRatioSyncDisabled = !options.RatioSyncEnabled
 		monitor.UpstreamBalanceSyncDisabled = !options.BalanceSyncEnabled
 		monitor.SingleChannelAction = options.SingleChannelAction

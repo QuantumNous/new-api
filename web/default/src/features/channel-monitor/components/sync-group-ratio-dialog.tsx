@@ -64,19 +64,22 @@ type SyncGroupRatioDialogProps = {
 
 export function SyncGroupRatioDialog(props: SyncGroupRatioDialogProps) {
   const queryClient = useQueryClient()
-  let highestUpstreamRatio: number | null = null
+  let highestCostRatio: number | null = null
   for (const channel of props.group.channels) {
-    if (channel.status !== CHANNEL_STATUS.ENABLED || channel.ratio == null) {
+    if (
+      channel.status !== CHANNEL_STATUS.ENABLED ||
+      channel.cost_ratio == null
+    ) {
       continue
     }
-    if (highestUpstreamRatio == null || channel.ratio > highestUpstreamRatio) {
-      highestUpstreamRatio = channel.ratio
+    if (highestCostRatio == null || channel.cost_ratio > highestCostRatio) {
+      highestCostRatio = channel.cost_ratio
     }
   }
 
   const form = useForm<GroupRatioSyncFormValues>({
     resolver: zodResolver(
-      createGroupRatioSyncSchema(highestUpstreamRatio)
+      createGroupRatioSyncSchema(highestCostRatio)
     ) as Resolver<GroupRatioSyncFormValues>,
     defaultValues: { coefficient: props.group.coefficient },
   })
@@ -92,9 +95,9 @@ export function SyncGroupRatioDialog(props: SyncGroupRatioDialogProps) {
   })
   const coefficient = Number(form.watch('coefficient'))
   const targetRatio =
-    highestUpstreamRatio == null || !Number.isFinite(coefficient)
+    highestCostRatio == null || !Number.isFinite(coefficient)
       ? null
-      : highestUpstreamRatio * coefficient
+      : highestCostRatio * coefficient
   const handleSubmit = form.handleSubmit((values) => {
     mutation.mutate({
       group: props.group.name,
@@ -106,7 +109,7 @@ export function SyncGroupRatioDialog(props: SyncGroupRatioDialogProps) {
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
-          <DialogTitle>按最高上游倍率更新</DialogTitle>
+          <DialogTitle>按最高成本倍率更新</DialogTitle>
           <DialogDescription>{props.group.name}</DialogDescription>
         </DialogHeader>
 
@@ -114,9 +117,9 @@ export function SyncGroupRatioDialog(props: SyncGroupRatioDialogProps) {
           <form className='flex flex-col gap-5' onSubmit={handleSubmit}>
             <div className='bg-muted/40 grid grid-cols-2 gap-4 rounded-md px-3 py-2.5 text-sm'>
               <div className='flex flex-col gap-1'>
-                <span className='text-muted-foreground'>最高上游倍率</span>
+                <span className='text-muted-foreground'>最高成本倍率</span>
                 <span className='font-mono font-semibold'>
-                  {formatMonitorRatio(highestUpstreamRatio)}
+                  {formatMonitorRatio(highestCostRatio)}
                 </span>
               </div>
               <div className='flex flex-col gap-1'>
@@ -154,7 +157,7 @@ export function SyncGroupRatioDialog(props: SyncGroupRatioDialogProps) {
                     </InputGroup>
                   </FormControl>
                   <FormDescription>
-                    最终分组倍率 = 最高上游倍率 × 系数
+                    最终分组倍率 = 最高成本倍率 × 系数
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -172,7 +175,7 @@ export function SyncGroupRatioDialog(props: SyncGroupRatioDialogProps) {
               </Button>
               <Button
                 type='submit'
-                disabled={mutation.isPending || highestUpstreamRatio == null}
+                disabled={mutation.isPending || highestCostRatio == null}
               >
                 {mutation.isPending && <Spinner data-icon='inline-start' />}
                 保存系数并更新

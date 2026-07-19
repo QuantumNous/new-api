@@ -146,8 +146,8 @@ const CHANNEL_MONITOR_SORT_OPTIONS: Array<{
   { value: 'custom', label: '自定义顺序' },
   { value: 'channel_asc', label: '渠道名称：升序' },
   { value: 'channel_desc', label: '渠道名称：降序' },
-  { value: 'ratio_desc', label: '上游倍率：从高到低' },
-  { value: 'ratio_asc', label: '上游倍率：从低到高' },
+  { value: 'ratio_desc', label: '成本倍率：从高到低' },
+  { value: 'ratio_asc', label: '成本倍率：从低到高' },
   { value: 'first_token_asc', label: '首字：从低到高' },
   { value: 'first_token_desc', label: '首字：从高到低' },
   { value: 'tps_desc', label: 'TPS：从高到低' },
@@ -217,7 +217,7 @@ export function ChannelMonitor() {
     mutationFn: fetchChannelMonitorUpstreamRatio,
     onSuccess: (response, channelId) => {
       toast.success(
-        `已获取上游倍率：${formatMonitorRatio(response.data.result.ratio)}`
+        `已获取上游倍率 ${formatMonitorRatio(response.data.result.ratio)}，成本倍率 ${formatMonitorRatio(response.data.result.cost_ratio)}`
       )
       queryClient.invalidateQueries({
         queryKey: ['channel-monitor-history', channelId],
@@ -432,10 +432,13 @@ export function ChannelMonitor() {
     : (performanceModelOptions[0]?.value ?? '')
 
   const recordedCount = channels.filter(
-    (channel) => channel.ratio != null
+    (channel) => channel.cost_ratio != null
   ).length
   const changedCount = channels.filter((channel) => {
-    const change = getRatioChange(channel.ratio, channel.previous_ratio)
+    const change = getRatioChange(
+      channel.cost_ratio,
+      channel.previous_cost_ratio
+    )
     return change.direction === 'up' || change.direction === 'down'
   }).length
   const newAPIChannelCount = channels.filter(
@@ -443,6 +446,9 @@ export function ChannelMonitor() {
   ).length
   const sub2APIChannelCount = channels.filter(
     (channel) => channel.upstream?.type === 'sub2api'
+  ).length
+  const customUpstreamChannelCount = channels.filter(
+    (channel) => channel.upstream?.type === 'custom'
   ).length
 
   let pageContent: ReactNode
@@ -524,7 +530,8 @@ export function ChannelMonitor() {
                     if (
                       nextValue !== 'all' &&
                       nextValue !== 'new_api' &&
-                      nextValue !== 'sub2api'
+                      nextValue !== 'sub2api' &&
+                      nextValue !== 'custom'
                     ) {
                       return
                     }
@@ -534,7 +541,7 @@ export function ChannelMonitor() {
                   size='sm'
                   spacing={0}
                   aria-label='按上游类型筛选渠道'
-                  className='grid w-full grid-cols-3 sm:w-auto'
+                  className='grid w-full grid-cols-2 sm:w-auto sm:grid-cols-4'
                 >
                   <ToggleGroupItem value='all' className='w-full'>
                     全部 {channels.length}
@@ -544,6 +551,9 @@ export function ChannelMonitor() {
                   </ToggleGroupItem>
                   <ToggleGroupItem value='sub2api' className='w-full'>
                     Sub2API {sub2APIChannelCount}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value='custom' className='w-full'>
+                    自定义 {customUpstreamChannelCount}
                   </ToggleGroupItem>
                 </ToggleGroup>
               )}

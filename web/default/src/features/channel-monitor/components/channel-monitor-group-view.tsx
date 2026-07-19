@@ -67,35 +67,45 @@ type ChannelMonitorGroupViewProps = {
 export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
   const groupsWithSortedChannels = useMemo(
     () =>
-      props.groups.map((group) => ({
-        group,
-        channels: [...group.channels].sort((leftChannel, rightChannel) => {
-          const leftEnabled = leftChannel.status === CHANNEL_STATUS.ENABLED
-          const rightEnabled = rightChannel.status === CHANNEL_STATUS.ENABLED
-          if (leftEnabled !== rightEnabled) return leftEnabled ? -1 : 1
+      props.groups
+        .map((group) => ({
+          group,
+          channels: [...group.channels].sort((leftChannel, rightChannel) => {
+            const leftEnabled = leftChannel.status === CHANNEL_STATUS.ENABLED
+            const rightEnabled = rightChannel.status === CHANNEL_STATUS.ENABLED
+            if (leftEnabled !== rightEnabled) return leftEnabled ? -1 : 1
 
-          const leftRatio =
-            leftChannel.ratio != null && Number.isFinite(leftChannel.ratio)
-              ? leftChannel.ratio
-              : null
-          const rightRatio =
-            rightChannel.ratio != null && Number.isFinite(rightChannel.ratio)
-              ? rightChannel.ratio
-              : null
+            const leftRatio =
+              leftChannel.cost_ratio != null &&
+              Number.isFinite(leftChannel.cost_ratio)
+                ? leftChannel.cost_ratio
+                : null
+            const rightRatio =
+              rightChannel.cost_ratio != null &&
+              Number.isFinite(rightChannel.cost_ratio)
+                ? rightChannel.cost_ratio
+                : null
 
-          if (leftRatio != null && rightRatio != null) {
-            const ratioOrder = leftRatio - rightRatio
-            if (ratioOrder !== 0) return ratioOrder
-          } else if (leftRatio != null) {
-            return -1
-          } else if (rightRatio != null) {
-            return 1
-          }
+            if (leftRatio != null && rightRatio != null) {
+              const ratioOrder = leftRatio - rightRatio
+              if (ratioOrder !== 0) return ratioOrder
+            } else if (leftRatio != null) {
+              return -1
+            } else if (rightRatio != null) {
+              return 1
+            }
 
-          const nameOrder = leftChannel.name.localeCompare(rightChannel.name)
-          return nameOrder !== 0 ? nameOrder : leftChannel.id - rightChannel.id
+            const nameOrder = leftChannel.name.localeCompare(rightChannel.name)
+            return nameOrder !== 0
+              ? nameOrder
+              : leftChannel.id - rightChannel.id
+          }),
+        }))
+        .sort((leftGroup, rightGroup) => {
+          const ratioOrder = leftGroup.group.ratio - rightGroup.group.ratio
+          if (ratioOrder !== 0) return ratioOrder
+          return leftGroup.group.name.localeCompare(rightGroup.group.name)
         }),
-      })),
     [props.groups]
   )
 
@@ -135,7 +145,7 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
             <TableRow>
               <TableHead>分组</TableHead>
               <TableHead>分组倍率</TableHead>
-              <TableHead>关联渠道与上游倍率</TableHead>
+              <TableHead>关联渠道与成本倍率</TableHead>
               <TableHead className='w-24 text-right'>操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -149,7 +159,7 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
               for (const channel of group.channels) {
                 if (channel.status !== CHANNEL_STATUS.ENABLED) continue
                 const targetRatio = getChannelGroupTargetRatio(
-                  channel.ratio,
+                  channel.cost_ratio,
                   group.coefficient
                 )
                 if (
@@ -201,14 +211,20 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
                         {groupEntry.channels.map((channel) => {
                           const channelEnabled =
                             channel.status === CHANNEL_STATUS.ENABLED
-                          const ratio = formatMonitorRatio(channel.ratio)
+                          const ratio = formatMonitorRatio(channel.cost_ratio)
+                          const upstreamRatio = formatMonitorRatio(
+                            channel.ratio
+                          )
+                          const conversionFactor = formatMonitorRatio(
+                            channel.conversion_factor
+                          )
 
                           return (
                             <Badge
                               key={channel.id}
                               variant={channelEnabled ? 'secondary' : 'outline'}
                               className='max-w-56'
-                              title={`${channel.name} × ${ratio}`}
+                              title={`${channel.name}：成本倍率 ${ratio}（上游 ${upstreamRatio} × 换算 ${conversionFactor}）`}
                             >
                               <span
                                 className={cn(
@@ -238,13 +254,13 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
                               variant='ghost'
                               size='icon-sm'
                               onClick={() => props.onSyncGroup(group)}
-                              aria-label='按最高上游倍率更新'
+                              aria-label='按最高成本倍率更新'
                             >
                               <HugeiconsIcon icon={Refresh01Icon} />
                             </Button>
                           }
                         />
-                        <TooltipContent>按最高上游倍率更新</TooltipContent>
+                        <TooltipContent>按最高成本倍率更新</TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger

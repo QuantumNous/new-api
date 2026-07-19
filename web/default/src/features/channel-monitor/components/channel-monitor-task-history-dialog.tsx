@@ -94,7 +94,7 @@ const SMART_SCHEDULE_STRATEGY_LABELS: Record<
   ChannelMonitorSmartScheduleStrategy | 'stability',
   string
 > = {
-  ratio: '按上游倍率',
+  ratio: '按成本倍率',
   first_token: '按首字',
   tps: '按 TPS',
   stability: '按稳定性',

@@ -93,9 +93,16 @@ func TestFetchChannelMonitorUpstreamGroupRatioUsesChannelProxy(t *testing.T) {
 		AuthType:    NewAPIUpstreamAuthPublic,
 		Proxy:       proxyServer.URL,
 		SkipBalance: true,
+		CostConversion: ChannelMonitorCostConversion{
+			Mode:        ChannelMonitorCostConversionRecharge,
+			PaidCNY:     100,
+			CreditedUSD: 200,
+		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 0.75, result.Ratio)
+	assert.Equal(t, 0.5, result.ConversionFactor)
+	assert.Equal(t, 0.375, result.CostRatio)
 	assert.EqualValues(t, 1, requestCount.Load())
 }
 
