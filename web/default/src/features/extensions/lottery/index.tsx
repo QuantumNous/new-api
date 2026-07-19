@@ -59,7 +59,6 @@ export function LotteryPage() {
   const [drawing, setDrawing] = useState(false)
   const [result, setResult] = useState<LotteryDrawResult | null>(null)
   const [resultOpen, setResultOpen] = useState(false)
-  const [thursdayDismissed, setThursdayDismissed] = useState(false)
 
   const query = useQuery({
     queryKey: ['lottery-status'],
@@ -67,6 +66,9 @@ export function LotteryPage() {
   })
 
   const data = query.data
+  const isCrazyThursday = !!data?.is_crazy_thursday
+  const meetsRedemptionRequirement = !!data?.meets_redemption_requirement
+  const canDraw = !!data?.can_draw
   const symbols = useMemo(() => {
     if (!data) return []
     return useBet
@@ -123,15 +125,15 @@ export function LotteryPage() {
   let spinLabel = t('SPIN')
   if (drawing) {
     spinLabel = t('SPINNING')
-  } else if (data && !data.meets_redemption_requirement) {
+  } else if (data && !meetsRedemptionRequirement) {
     spinLabel = t('Redeem code required')
-  } else if (!data?.can_draw) {
+  } else if (!canDraw) {
     spinLabel = t('Already spun today')
   }
 
   async function runDraw() {
-    if (!data?.can_draw || drawing) return
-    if (!data.meets_redemption_requirement) {
+    if (!data || !canDraw || drawing) return
+    if (!meetsRedemptionRequirement) {
       toast.error(
         t(
           'Please redeem a code before playing. Crazy Thursday does not require this.'
@@ -210,27 +212,46 @@ export function LotteryPage() {
 
         {data ? (
           <div className='space-y-6'>
-            {data.is_crazy_thursday && !thursdayDismissed ? (
-              <Alert className='border-amber-400/50 bg-amber-500/10'>
-                <AlertTitle>{t('Crazy Thursday!')}</AlertTitle>
-                <AlertDescription className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                  <span>
+            {isCrazyThursday ? (
+              <Alert
+                className={cn(
+                  'relative overflow-hidden border-0 px-4 py-4 text-white shadow-[0_10px_30px_rgba(220,38,38,0.45)] sm:px-5 sm:py-5',
+                  'bg-[linear-gradient(135deg,#F87171_0%,#EF4444_35%,#DC2626_70%,#991B1B_100%)]',
+                  'ring-2 ring-red-300 ring-offset-2 ring-offset-background'
+                )}
+              >
+                <div className='pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.28),transparent_45%)]' />
+                <div className='pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-yellow-300/25 blur-2xl' />
+                <div className='relative flex flex-col items-center justify-center gap-2 text-center'>
+                  <AlertTitle className='flex items-center justify-center gap-2 text-xl font-black tracking-wide text-white drop-shadow sm:gap-3 sm:text-2xl'>
+                    <span
+                      className='inline-block animate-bounce text-2xl sm:text-3xl'
+                      style={{ animationDelay: '0ms' }}
+                      aria-hidden
+                    >
+                      🔥
+                    </span>
+                    <span className='inline-block animate-bounce [animation-duration:900ms]'>
+                      {t('Crazy Thursday!')}
+                    </span>
+                    <span
+                      className='inline-block animate-bounce text-2xl sm:text-3xl'
+                      style={{ animationDelay: '150ms' }}
+                      aria-hidden
+                    >
+                      🔥
+                    </span>
+                  </AlertTitle>
+                  <AlertDescription className='animate-bounce text-base font-semibold leading-relaxed text-red-50 [animation-delay:80ms] [animation-duration:1.05s] sm:text-lg'>
                     {t(
                       'Prize pool and free prize amounts are doubled today. V me 50!'
                     )}
-                  </span>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => setThursdayDismissed(true)}
-                  >
-                    {t('Got it')}
-                  </Button>
-                </AlertDescription>
+                  </AlertDescription>
+                </div>
               </Alert>
             ) : null}
 
-            {data.require_redemption && !data.meets_redemption_requirement ? (
+            {data.require_redemption && !meetsRedemptionRequirement ? (
               <Alert variant='destructive'>
                 <AlertTitle>{t('Redeem code required')}</AlertTitle>
                 <AlertDescription>
@@ -261,16 +282,16 @@ export function LotteryPage() {
               rows={board.rows}
               cols={board.cols}
               slots={board.slots}
-              crazyThursday={data.is_crazy_thursday}
-              canDraw={data.can_draw}
+              crazyThursday={isCrazyThursday}
+              canDraw={canDraw}
               drawing={drawing}
               activeIndex={
                 marquee.activeIndex ??
-                (!data.can_draw ? settledCellIndex : null)
+                (!canDraw ? settledCellIndex : null)
               }
               blinkOn={marquee.blinkOn}
               phase={
-                result && !data.can_draw && marquee.phase === 'idle'
+                result && !canDraw && marquee.phase === 'idle'
                   ? 'done'
                   : marquee.phase
               }
@@ -290,7 +311,7 @@ export function LotteryPage() {
                 <Switch
                   checked={useBet}
                   onCheckedChange={setUseBet}
-                  disabled={!data.can_draw || drawing}
+                  disabled={!canDraw || drawing}
                 />
               </div>
 
@@ -304,7 +325,7 @@ export function LotteryPage() {
                     min={data.min_bet_usd}
                     max={maxBetAllowed}
                     value={betUsd}
-                    disabled={!data.can_draw || drawing}
+                    disabled={!canDraw || drawing}
                     onChange={(e) => setBetUsd(Number(e.target.value) || 0)}
                   />
                   <p className='text-muted-foreground text-xs'>
@@ -330,10 +351,10 @@ export function LotteryPage() {
               <Button
                 className={cn(
                   'h-12 w-full text-base font-bold tracking-wider',
-                  data.is_crazy_thursday &&
+                  isCrazyThursday &&
                     'bg-amber-500 text-black hover:bg-amber-400'
                 )}
-                disabled={!data.can_draw || drawing || symbols.length === 0}
+                disabled={!canDraw || drawing || symbols.length === 0}
                 onClick={() => void runDraw()}
               >
                 {drawing ? (
