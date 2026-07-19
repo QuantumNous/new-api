@@ -699,18 +699,6 @@ func ListChannelMonitorUpstreamGroups(c *gin.Context) {
 			})
 			return
 		}
-		monitor, findErr := model.GetChannelRatioMonitor(channelId)
-		if findErr != nil ||
-			monitor.UpstreamType != config.Type ||
-			monitor.UpstreamBaseURL != config.BaseURL ||
-			monitor.UpstreamAuthType != config.AuthType ||
-			monitor.UpstreamAccessToken != config.AccessToken {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"success": false,
-				"message": "Sub2API 请先保存上游配置，再获取可用分组",
-			})
-			return
-		}
 	}
 
 	result, fetchErr := service.FetchChannelMonitorUpstreamGroups(c.Request.Context(), config, channel.GetKeys())

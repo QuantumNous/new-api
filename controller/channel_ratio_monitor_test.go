@@ -823,6 +823,61 @@ func TestListChannelMonitorUpstreamGroupsUsesSavedSub2APIToken(t *testing.T) {
 	assert.Equal(t, "jwt-token", monitor.UpstreamAccessToken)
 }
 
+func TestListChannelMonitorUpstreamGroupsAcceptsUnsavedSub2APIToken(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	disableChannelMonitorSSRFProtection(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		assert.Equal(t, "Bearer jwt-token", r.Header.Get("Authorization"))
+		switch r.URL.Path {
+		case "/api/v1/groups/available":
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":7,"name":"vip","rate_multiplier":1.25}]}`))
+		case "/api/v1/groups/rates":
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{}}`))
+		case "/api/v1/keys":
+			assert.Equal(t, "secret", r.URL.Query().Get("search"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"items":[{"id":99,"key":"secret","group_id":7}],"total":1,"page":1,"page_size":1000,"pages":1}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      21,
+		Name:    "unconfigured sub2api",
+		Key:     "secret",
+		Group:   "vip",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":                 service.Sub2APIUpstreamType,
+		"base_url":             server.URL,
+		"group":                "",
+		"auth_type":            service.Sub2APIAuthToken,
+		"access_token":         "jwt-token",
+		"balance_sync_enabled": false,
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/21/upstream/groups", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "21"}}
+	ListChannelMonitorUpstreamGroups(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var response channelMonitorUpstreamGroupsAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Len(t, response.Data.Groups, 1)
+	assert.Equal(t, "vip", response.Data.Groups[0].Name)
+	assert.Equal(t, "vip", response.Data.AppliedGroup)
+
+	_, err := model.GetChannelRatioMonitor(21)
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
 func TestApplyChannelMonitorUpstreamGroupUpdatesRemoteTokenAndRecordsRatio(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	disableChannelMonitorSSRFProtection(t)

@@ -151,16 +151,13 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   )
   const [upstreamVersion, setUpstreamVersion] = useState<string | null>(null)
   const savedUpstream = props.channel.upstream
-  const initialGroup =
-    savedUpstream?.group || props.channel.groups[0] || 'default'
+  const initialGroup = savedUpstream?.group || ''
   const [upstreamGroups, setUpstreamGroups] = useState<
     ChannelMonitorUpstreamGroup[]
   >([])
   const [groupInputValue, setGroupInputValue] = useState(initialGroup)
   const [groupComboboxOpen, setGroupComboboxOpen] = useState(false)
-  const [savedCredential, setSavedCredential] = useState<
-    Parameters<typeof createUpstreamConfigSchema>[0]
-  >(
+  const savedCredential: Parameters<typeof createUpstreamConfigSchema>[0] =
     savedUpstream
       ? {
           type: savedUpstream.type,
@@ -168,7 +165,6 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
           hasAccessToken: savedUpstream.has_access_token,
         }
       : null
-  )
   const schema = createUpstreamConfigSchema(savedCredential)
   const form = useForm<UpstreamConfigFormValues>({
     resolver: zodResolver(schema) as Resolver<UpstreamConfigFormValues>,
@@ -270,31 +266,12 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
     },
   })
   const groupsMutation = useMutation({
-    mutationFn: async (values: UpstreamConfigFormValues) => {
+    mutationFn: (values: UpstreamConfigFormValues) => {
       const config = createUpstreamRequest(values)
-      await saveChannelMonitorUpstreamConfig({
+      return listChannelMonitorUpstreamGroups({
         channelId: props.channel.id,
         config,
       })
-      setSavedCredential({
-        type: values.upstreamType,
-        authType: values.authType,
-        hasAccessToken:
-          (values.upstreamType === 'new_api' && values.authType === 'user') ||
-          (values.upstreamType === 'sub2api' &&
-            values.authType === 'token' &&
-            (hasMatchingSavedAccessToken || values.accessToken.trim() !== '')),
-      })
-      queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
-      try {
-        return await listChannelMonitorUpstreamGroups({
-          channelId: props.channel.id,
-          config,
-        })
-      } finally {
-        form.setValue('accessToken', '', { shouldDirty: false })
-        form.clearErrors('accessToken')
-      }
     },
     onSuccess: (response) => {
       setUpstreamGroups(response.data.groups)
@@ -352,13 +329,24 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
     },
   })
 
+  const requireGroup = (values: UpstreamConfigFormValues) => {
+    if (values.group.trim()) return true
+    form.setError('group', {
+      type: 'manual',
+      message: '请输入上游分组',
+    })
+    return false
+  }
+
   const handleSave = form.handleSubmit((values) => {
+    if (!requireGroup(values)) return
     saveMutation.mutate({
       channelId: props.channel.id,
       config: createUpstreamRequest(values),
     })
   })
   const handleTest = form.handleSubmit((values) => {
+    if (!requireGroup(values)) return
     testMutation.mutate({
       channelId: props.channel.id,
       config: createUpstreamRequest(values),
@@ -368,6 +356,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
     groupsMutation.mutate(values)
   })
   const handleApplyGroup = form.handleSubmit((values) => {
+    if (!requireGroup(values)) return
     applyGroupMutation.mutate(values)
   })
   const handleOpenSub2APILogin = () => {

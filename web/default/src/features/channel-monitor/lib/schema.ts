@@ -195,11 +195,7 @@ export function createUpstreamConfigSchema(
         .min(1, '请输入面板地址')
         .max(2048, '面板地址过长')
         .url({ error: '请输入有效的面板地址' }),
-      group: z
-        .string()
-        .trim()
-        .min(1, '请输入上游分组')
-        .max(64, '上游分组不能超过 64 个字符'),
+      group: z.string().trim().max(64, '上游分组不能超过 64 个字符'),
       authType: z.enum(['public', 'user', 'api_key', 'token']),
       userId: z.coerce.number().int().min(0, '上游用户 ID 必须大于 0'),
       accessToken: z.string().trim().max(4096, '访问令牌过长'),
