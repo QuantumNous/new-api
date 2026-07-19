@@ -346,16 +346,25 @@ func TestSubmitAsyncImagePersistsStandardGenerationLogSnapshot(t *testing.T) {
 	user, token := seedAsyncImageSubmitIdentity(t)
 	info := newAsyncImageSubmitRelayInfo(user, token, 120)
 	request := info.Request.(*dto.ImageRequest)
-	n := uint(1)
-	request.N = &n
 	request.Size = "1024x1024"
 	request.Quality = "high"
 	request.OutputFormat = json.RawMessage(`"png"`)
+	request.Extra = map[string]json.RawMessage{
+		"aspect_ratio": json.RawMessage(`"16:9"`),
+		"resolution":   json.RawMessage(`"2K"`),
+		"batch_size":   json.RawMessage(`3`),
+	}
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 
-	apiErr := SubmitAsyncImage(c, info, request, nil)
+	apiErr := SubmitAsyncImage(
+		c,
+		info,
+		request,
+		nil,
+		&PreparedAsyncImageRequest{ConfigurationStored: true, RelayMode: relayconstant.RelayModeImagesGenerations},
+	)
 	require.Nil(t, apiErr)
 
 	var task model.Task
@@ -367,10 +376,29 @@ func TestSubmitAsyncImagePersistsStandardGenerationLogSnapshot(t *testing.T) {
 	var fields map[string]json.RawMessage
 	require.NoError(t, common.Unmarshal(stored.Body, &fields))
 	assert.JSONEq(t, `"a lighthouse in rain"`, string(fields["prompt"]))
-	assert.JSONEq(t, `1`, string(fields["n"]))
+	assert.JSONEq(t, `3`, string(fields["n"]))
 	assert.JSONEq(t, `"1024x1024"`, string(fields["size"]))
 	assert.JSONEq(t, `"high"`, string(fields["quality"]))
 	assert.JSONEq(t, `"png"`, string(fields["output_format"]))
+	assert.JSONEq(t, `"16:9"`, string(fields["aspect_ratio"]))
+	assert.JSONEq(t, `"2K"`, string(fields["resolution"]))
+}
+
+func TestMarshalAsyncImageBillingSnapshotRequestCanonicalizesNestedCount(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:  "provider-image-model",
+		Prompt: "draw",
+		Extra: map[string]json.RawMessage{
+			"input": json.RawMessage(`{"num_outputs":4,"prompt":"provider prompt"}`),
+		},
+	}
+
+	body, err := marshalAsyncImageBillingSnapshotRequest(request)
+	require.NoError(t, err)
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(body, &fields))
+	assert.JSONEq(t, `4`, string(fields["n"]))
+	assert.JSONEq(t, `{"num_outputs":4,"prompt":"provider prompt"}`, string(fields["input"]))
 }
 
 func TestSubmitAsyncImagePersistsStandardEditLogSnapshot(t *testing.T) {
