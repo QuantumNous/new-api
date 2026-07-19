@@ -141,6 +141,8 @@ type TaskPrivateData struct {
 	BillingDBApplied     bool                `json:"billing_db_applied,omitempty"`
 	TokenPreConsumed     int                 `json:"token_pre_consumed,omitempty"`
 	TokenBillingEnabled  bool                `json:"token_billing_enabled,omitempty"`
+	WalletLegacyDebit    bool                `json:"wallet_legacy_debit,omitempty"`
+	TokenLegacyDebit     bool                `json:"token_legacy_debit,omitempty"`
 	FinalQuotaClamp      *common.QuotaClamp  `json:"final_quota_clamp,omitempty"`
 	ClientRequestHash    string              `json:"client_request_hash,omitempty"`
 	ChannelMultiKeyIndex int                 `json:"channel_multi_key_index,omitempty"`

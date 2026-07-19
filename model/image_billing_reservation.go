@@ -40,7 +40,9 @@ type ImageBillingReservation struct {
 	ExpectedQuota        int                           `json:"expected_quota"`
 	FundingSource        string                        `json:"funding_source" gorm:"type:varchar(20)"`
 	WalletReserved       int                           `json:"wallet_reserved"`
+	WalletLegacyDebit    bool                          `json:"-" gorm:"column:wallet_legacy_debit"`
 	TokenReserved        int                           `json:"token_reserved"`
+	TokenLegacyDebit     bool                          `json:"-" gorm:"column:token_legacy_debit"`
 	SubscriptionID       int                           `json:"subscription_id" gorm:"index"`
 	SubscriptionReserved int64                         `json:"subscription_reserved"`
 	Status               ImageBillingReservationStatus `json:"status" gorm:"type:varchar(20);index:idx_image_billing_reservation_due,priority:1"`
@@ -54,19 +56,28 @@ func imageReservationCacheField(taskID string) string {
 	return "ImageTaskReservation:" + taskID
 }
 
+func imageReservationCacheModeField(taskID string) string {
+	return "ImageTaskReservationMode:" + taskID
+}
+
 func imageReservationCachePinMember(taskID string) string {
 	return "reservation:" + taskID
 }
 
 func applyImageReservationCacheDebit(cacheKey string, pinsKey string, quotaField string, unlimitedField string, taskID string, amount int64) (bool, error) {
+	applied, _, err := applyImageReservationCacheDebitWithMode(cacheKey, pinsKey, quotaField, unlimitedField, taskID, amount)
+	return applied, err
+}
+
+func applyImageReservationCacheDebitWithMode(cacheKey string, pinsKey string, quotaField string, unlimitedField string, taskID string, amount int64) (bool, bool, error) {
 	if !common.RedisEnabled {
-		return false, nil
+		return false, false, nil
 	}
 	if common.RDB == nil {
-		return false, errors.New("redis is enabled but unavailable")
+		return false, false, errors.New("redis is enabled but unavailable")
 	}
 	if cacheKey == "" || pinsKey == "" || quotaField == "" || taskID == "" || amount <= 0 || amount > int64(common.MaxQuota) {
-		return false, errors.New("image reservation cache debit is invalid")
+		return false, false, errors.New("image reservation cache debit is invalid")
 	}
 
 	const script = `
@@ -83,9 +94,16 @@ if tagged then
   if tonumber(tagged) ~= amount then
     return -3
   end
+  local tagged_mode = redis.call('HGET', KEYS[1], ARGV[9]) or 'normal'
+  if tagged_mode ~= 'normal' and tagged_mode ~= 'legacy' then
+    return -3
+  end
   redis.call('SADD', KEYS[2], ARGV[7])
   redis.call('EXPIRE', KEYS[2], ARGV[8])
   redis.call('EXPIRE', KEYS[1], ARGV[8])
+  if tagged_mode == 'legacy' then
+    return 4
+  end
   return 2
 end
 local unlimited = false
@@ -96,14 +114,26 @@ if not unlimited and current < amount then
   return -1
 end
 local next_quota = current - amount
-if next_quota < tonumber(ARGV[5]) or next_quota > tonumber(ARGV[6]) then
+local normal_debit = current >= tonumber(ARGV[5]) and current <= tonumber(ARGV[6]) and
+  next_quota >= tonumber(ARGV[5]) and next_quota <= tonumber(ARGV[6])
+local legacy_debit = current > tonumber(ARGV[6]) and current <= tonumber(ARGV[10]) and
+  next_quota >= tonumber(ARGV[5]) and next_quota <= tonumber(ARGV[10]) and next_quota < current
+if not normal_debit and not legacy_debit then
   return -3
 end
 redis.call('HINCRBY', KEYS[1], ARGV[1], -amount)
 redis.call('HSET', KEYS[1], ARGV[3], amount)
+if legacy_debit then
+  redis.call('HSET', KEYS[1], ARGV[9], 'legacy')
+else
+  redis.call('HSET', KEYS[1], ARGV[9], 'normal')
+end
 redis.call('SADD', KEYS[2], ARGV[7])
 redis.call('EXPIRE', KEYS[2], ARGV[8])
 redis.call('EXPIRE', KEYS[1], ARGV[8])
+if legacy_debit then
+  return 3
+end
 return 1
 `
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -120,21 +150,27 @@ return 1
 		common.MaxQuota,
 		imageReservationCachePinMember(taskID),
 		imageTaskQuotaCacheHoldSeconds,
+		imageReservationCacheModeField(taskID),
+		common.MaxLegacyQuota,
 	).Int64()
 	if err != nil {
-		return false, fmt.Errorf("apply image reservation cache debit: %w", err)
+		return false, false, fmt.Errorf("apply image reservation cache debit: %w", err)
 	}
 	switch result {
 	case 1:
-		return true, nil
+		return true, false, nil
 	case 2:
-		return false, nil
+		return false, false, nil
+	case 3:
+		return true, true, nil
+	case 4:
+		return false, true, nil
 	case -1:
-		return false, ErrImageBillingReservationQuotaInsufficient
+		return false, false, ErrImageBillingReservationQuotaInsufficient
 	case -2:
-		return false, errors.New("image reservation quota cache is unavailable")
+		return false, false, errors.New("image reservation quota cache is unavailable")
 	default:
-		return false, errors.New("image reservation quota cache conflicts with task state")
+		return false, false, errors.New("image reservation quota cache conflicts with task state")
 	}
 }
 
@@ -176,11 +212,13 @@ if redis.call('EXISTS', KEYS[1]) == 0 then
 end
 local tagged = redis.call('HGET', KEYS[1], ARGV[2])
 if not tagged then
+  redis.call('HDEL', KEYS[1], ARGV[8])
   release_pin()
   return 0
 end
 if ARGV[7] == '0' then
   redis.call('HDEL', KEYS[1], ARGV[2])
+  redis.call('HDEL', KEYS[1], ARGV[8])
   release_pin()
   return 1
 end
@@ -189,12 +227,21 @@ local current = tonumber(redis.call('HGET', KEYS[1], ARGV[1]))
 if not amount or amount <= 0 or amount > tonumber(ARGV[3]) or current == nil then
   return -1
 end
+local tagged_mode = redis.call('HGET', KEYS[1], ARGV[8]) or 'normal'
+if tagged_mode ~= 'normal' and tagged_mode ~= 'legacy' then
+  return -1
+end
 local next_quota = current + amount
-if next_quota < tonumber(ARGV[4]) or next_quota > tonumber(ARGV[3]) then
+local max_restore = tonumber(ARGV[3])
+if tagged_mode == 'legacy' then
+  max_restore = tonumber(ARGV[9])
+end
+if next_quota < tonumber(ARGV[4]) or next_quota > max_restore then
   return -1
 end
 redis.call('HINCRBY', KEYS[1], ARGV[1], amount)
 redis.call('HDEL', KEYS[1], ARGV[2])
+redis.call('HDEL', KEYS[1], ARGV[8])
 release_pin()
 return 1
 `
@@ -211,6 +258,8 @@ return 1
 		imageReservationCachePinMember(taskID),
 		cacheTTL,
 		restoreFlag,
+		imageReservationCacheModeField(taskID),
+		common.MaxLegacyQuota,
 	).Int64()
 	if err != nil {
 		return fmt.Errorf("restore image reservation cache debit: %w", err)
@@ -421,12 +470,12 @@ func ReserveImageTaskWalletQuota(taskID string, userID int, quota int) error {
 
 	return withUserQuotaCacheLock(userID, func() error {
 		cacheDebited := false
+		var cacheLegacyDebit *bool
 		if common.RedisEnabled {
 			if err := ensureUserQuotaCache(userID); err != nil {
 				return err
 			}
-			var err error
-			cacheDebited, err = applyImageReservationCacheDebit(
+			cacheApplied, legacyDebit, err := applyImageReservationCacheDebitWithMode(
 				getUserCacheKey(userID),
 				imageTaskUserQuotaPinsKey(userID),
 				"Quota",
@@ -434,15 +483,17 @@ func ReserveImageTaskWalletQuota(taskID string, userID int, quota int) error {
 				taskID,
 				int64(quota),
 			)
+			cacheDebited = cacheApplied
 			if err != nil {
 				if errors.Is(err, ErrImageBillingReservationQuotaInsufficient) {
 					return fmt.Errorf("%w: user quota is not enough", err)
 				}
 				return err
 			}
+			cacheLegacyDebit = &legacyDebit
 		}
 
-		applied, err := reserveImageTaskWalletQuotaDB(taskID, userID, quota)
+		applied, _, err := reserveImageTaskWalletQuotaDBWithMode(taskID, userID, quota, cacheLegacyDebit)
 		// Once the transaction callback applied the DB debit, a returned commit
 		// error is ambiguous: the server may still have committed it. Keep the
 		// tagged cache debit for terminal recovery instead of risking over-credit.
@@ -462,8 +513,69 @@ func ReserveImageTaskWalletQuota(taskID string, userID int, quota int) error {
 }
 
 func reserveImageTaskWalletQuotaDB(taskID string, userID int, quota int) (bool, error) {
+	applied, _, err := reserveImageTaskWalletQuotaDBWithMode(taskID, userID, quota, nil)
+	return applied, err
+}
+
+func reserveImageTaskWalletQuotaDBWithMode(taskID string, userID int, quota int, expectedLegacyDebit *bool) (bool, bool, error) {
 	applied := false
+	legacyDebit := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		var reservation ImageBillingReservation
+		if err := lockForUpdate(tx).Where("task_id = ?", taskID).First(&reservation).Error; err != nil {
+			return err
+		}
+		if reservation.Status != ImageBillingReservationPreparing {
+			return ErrImageBillingReservationNotPreparing
+		}
+		if reservation.UserID != userID {
+			return errors.New("image wallet reservation user mismatch")
+		}
+		if reservation.WalletReserved != 0 {
+			if reservation.WalletReserved != quota || reservation.FundingSource != "wallet" {
+				return errors.New("conflicting image wallet reservation")
+			}
+			legacyDebit = reservation.WalletLegacyDebit
+			if expectedLegacyDebit != nil && legacyDebit != *expectedLegacyDebit {
+				return errors.New("image wallet reservation cache mode conflicts with durable state")
+			}
+			return nil
+		}
+		if reservation.SubscriptionReserved != 0 || (reservation.FundingSource != "" && reservation.FundingSource != "wallet") {
+			return errors.New("conflicting image wallet reservation")
+		}
+
+		var user User
+		if err := lockForUpdate(tx.Unscoped()).Select("id", "quota").Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+		delta := -int64(quota)
+		nextQuota, ok := checkedQuotaAdd(int64(user.Quota), delta)
+		if !ok || !quotaValueFitsInt(nextQuota) {
+			return errors.New("image wallet reservation quota is out of range")
+		}
+		legacyStorageAllowed, err := quotaStorageAllowsLegacyDebit(tx, &User{}, "quota", int64(user.Quota), delta)
+		if err != nil {
+			return err
+		}
+		if !billingAdjustmentNextQuotaAllowed(int64(user.Quota), nextQuota, delta, legacyStorageAllowed) {
+			return errors.New("image wallet reservation quota is out of range")
+		}
+		if nextQuota < 0 {
+			return fmt.Errorf("%w: user quota is not enough", ErrImageBillingReservationQuotaInsufficient)
+		}
+		legacyDebit = int64(user.Quota) > int64(common.MaxQuota)
+		if expectedLegacyDebit != nil && legacyDebit != *expectedLegacyDebit {
+			return errors.New("image wallet reservation cache mode conflicts with database balance")
+		}
+
+		debit := tx.Unscoped().Model(&User{}).Where("id = ?", userID).Update("quota", int(nextQuota))
+		if debit.Error != nil {
+			return debit.Error
+		}
+		if debit.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
 		now := common.GetTimestamp()
 		claim := tx.Model(&ImageBillingReservation{}).
 			Where(
@@ -475,40 +587,21 @@ func reserveImageTaskWalletQuotaDB(taskID string, userID int, quota int) (bool, 
 				"wallet",
 			).
 			Updates(map[string]any{
-				"funding_source":  "wallet",
-				"wallet_reserved": quota,
-				"updated_at":      now,
+				"funding_source":      "wallet",
+				"wallet_reserved":     quota,
+				"wallet_legacy_debit": legacyDebit,
+				"updated_at":          now,
 			})
 		if claim.Error != nil {
 			return claim.Error
 		}
 		if claim.RowsAffected == 0 {
-			var current ImageBillingReservation
-			if err := tx.Where("task_id = ?", taskID).First(&current).Error; err != nil {
-				return err
-			}
-			if current.Status != ImageBillingReservationPreparing {
-				return ErrImageBillingReservationNotPreparing
-			}
-			if current.UserID != userID || current.WalletReserved != quota || current.FundingSource != "wallet" {
-				return errors.New("conflicting image wallet reservation")
-			}
-			return nil
-		}
-
-		debit := tx.Model(&User{}).
-			Where("id = ? AND quota >= ?", userID, quota).
-			Update("quota", gorm.Expr("quota - ?", quota))
-		if debit.Error != nil {
-			return debit.Error
-		}
-		if debit.RowsAffected != 1 {
-			return fmt.Errorf("%w: user quota is not enough", ErrImageBillingReservationQuotaInsufficient)
+			return errors.New("image wallet reservation claim lost")
 		}
 		applied = true
 		return nil
 	})
-	return applied, err
+	return applied, legacyDebit, err
 }
 
 // ReserveImageTaskTokenQuota atomically records and applies the token leg.
@@ -522,12 +615,12 @@ func ReserveImageTaskTokenQuota(taskID string, tokenID int, key string, quota in
 
 	return withTokenQuotaCacheLock(key, func() error {
 		cacheDebited := false
+		var cacheLegacyDebit *bool
 		if common.RedisEnabled {
 			if err := ensureTokenQuotaCache(tokenID, key); err != nil {
 				return err
 			}
-			var err error
-			cacheDebited, err = applyImageReservationCacheDebit(
+			cacheApplied, legacyDebit, err := applyImageReservationCacheDebitWithMode(
 				fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
 				imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
 				constant.TokenFiledRemainQuota,
@@ -535,15 +628,17 @@ func ReserveImageTaskTokenQuota(taskID string, tokenID int, key string, quota in
 				taskID,
 				int64(quota),
 			)
+			cacheDebited = cacheApplied
 			if err != nil {
 				if errors.Is(err, ErrImageBillingReservationQuotaInsufficient) {
 					return errors.New("token quota is not enough")
 				}
 				return err
 			}
+			cacheLegacyDebit = &legacyDebit
 		}
 
-		applied, err := reserveImageTaskTokenQuotaDB(taskID, tokenID, quota)
+		applied, _, err := reserveImageTaskTokenQuotaDBWithMode(taskID, tokenID, quota, cacheLegacyDebit)
 		if cacheDebited && !applied {
 			if cacheErr := restoreImageReservationCacheDebit(
 				fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
@@ -560,50 +655,91 @@ func ReserveImageTaskTokenQuota(taskID string, tokenID int, key string, quota in
 }
 
 func reserveImageTaskTokenQuotaDB(taskID string, tokenID int, quota int) (bool, error) {
+	applied, _, err := reserveImageTaskTokenQuotaDBWithMode(taskID, tokenID, quota, nil)
+	return applied, err
+}
+
+func reserveImageTaskTokenQuotaDBWithMode(taskID string, tokenID int, quota int, expectedLegacyDebit *bool) (bool, bool, error) {
 	applied := false
+	legacyDebit := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		var reservation ImageBillingReservation
+		if err := lockForUpdate(tx).Where("task_id = ?", taskID).First(&reservation).Error; err != nil {
+			return err
+		}
+		if reservation.Status != ImageBillingReservationPreparing {
+			return ErrImageBillingReservationNotPreparing
+		}
+		if reservation.TokenID != tokenID {
+			return errors.New("image token reservation token mismatch")
+		}
+		if reservation.TokenReserved != 0 {
+			if reservation.TokenReserved != quota {
+				return errors.New("conflicting image token reservation")
+			}
+			legacyDebit = reservation.TokenLegacyDebit
+			if expectedLegacyDebit != nil && legacyDebit != *expectedLegacyDebit {
+				return errors.New("image token reservation cache mode conflicts with durable state")
+			}
+			return nil
+		}
+
+		var token Token
+		if err := lockForUpdate(tx.Unscoped()).Where("id = ?", tokenID).First(&token).Error; err != nil {
+			return err
+		}
+		delta := -int64(quota)
+		nextRemain, remainOK := checkedQuotaAdd(int64(token.RemainQuota), delta)
+		nextUsed, usedOK := checkedQuotaSubtract(int64(token.UsedQuota), delta)
+		if !remainOK || !usedOK || !quotaValueFitsInt(nextRemain) || !quotaValueFitsInt(nextUsed) ||
+			nextUsed < 0 || nextUsed > int64(common.MaxQuota) {
+			return errors.New("image token reservation quota is out of range")
+		}
+		legacyStorageAllowed, err := quotaStorageAllowsLegacyDebit(tx, &Token{}, "remain_quota", int64(token.RemainQuota), delta)
+		if err != nil {
+			return err
+		}
+		if !billingAdjustmentNextQuotaAllowed(int64(token.RemainQuota), nextRemain, delta, legacyStorageAllowed) {
+			return errors.New("image token reservation quota is out of range")
+		}
+		if !token.UnlimitedQuota && nextRemain < 0 {
+			return errors.New("token quota is not enough")
+		}
+		legacyDebit = int64(token.RemainQuota) > int64(common.MaxQuota)
+		if expectedLegacyDebit != nil && legacyDebit != *expectedLegacyDebit {
+			return errors.New("image token reservation cache mode conflicts with database balance")
+		}
+
+		debit := tx.Unscoped().Model(&Token{}).Where("id = ?", tokenID).Updates(map[string]any{
+			"remain_quota":  int(nextRemain),
+			"used_quota":    int(nextUsed),
+			"accessed_time": common.GetTimestamp(),
+		})
+		if debit.Error != nil {
+			return debit.Error
+		}
+		if debit.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
 		now := common.GetTimestamp()
 		claim := tx.Model(&ImageBillingReservation{}).
 			Where("task_id = ? AND token_id = ? AND status = ? AND token_reserved = 0", taskID, tokenID, ImageBillingReservationPreparing).
 			Updates(map[string]any{
-				"token_reserved": quota,
-				"token_required": true,
-				"updated_at":     now,
+				"token_reserved":     quota,
+				"token_required":     true,
+				"token_legacy_debit": legacyDebit,
+				"updated_at":         now,
 			})
 		if claim.Error != nil {
 			return claim.Error
 		}
 		if claim.RowsAffected == 0 {
-			var current ImageBillingReservation
-			if err := tx.Where("task_id = ?", taskID).First(&current).Error; err != nil {
-				return err
-			}
-			if current.Status != ImageBillingReservationPreparing {
-				return ErrImageBillingReservationNotPreparing
-			}
-			if current.TokenID != tokenID || current.TokenReserved != quota {
-				return errors.New("conflicting image token reservation")
-			}
-			return nil
-		}
-
-		debit := tx.Model(&Token{}).
-			Where("id = ? AND (remain_quota >= ? OR unlimited_quota = ?)", tokenID, quota, true).
-			Updates(map[string]any{
-				"remain_quota":  gorm.Expr("remain_quota - ?", quota),
-				"used_quota":    gorm.Expr("used_quota + ?", quota),
-				"accessed_time": common.GetTimestamp(),
-			})
-		if debit.Error != nil {
-			return debit.Error
-		}
-		if debit.RowsAffected != 1 {
-			return errors.New("token quota is not enough")
+			return errors.New("image token reservation claim lost")
 		}
 		applied = true
 		return nil
 	})
-	return applied, err
+	return applied, legacyDebit, err
 }
 
 // PreConsumeImageTaskSubscription writes the subscription pre-consume record
@@ -741,6 +877,41 @@ func RefundImageTaskWalletQuota(taskID string, userID int) error {
 	})
 }
 
+// refundImageTaskWalletQuotaBalanceTx restores one durable reservation debit.
+// A legacy flag only widens the exact inverse operation to MaxLegacyQuota; it
+// never permits an unrelated credit or an oversized single reservation.
+func refundImageTaskWalletQuotaBalanceTx(tx *gorm.DB, userID int, amount int, legacyDebit bool) error {
+	if tx == nil || userID <= 0 || amount <= 0 || amount > common.MaxQuota {
+		return errors.New("image wallet reservation refund is out of range")
+	}
+	var user User
+	if err := lockForUpdate(tx.Unscoped()).Select("id", "quota").Where("id = ?", userID).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("image wallet reservation refund lost: %w", err)
+		}
+		return err
+	}
+	nextQuota, ok := checkedQuotaAdd(int64(user.Quota), int64(amount))
+	if !ok || !quotaValueFitsInt(nextQuota) || (!legacyDebit && nextQuota > int64(common.MaxQuota)) {
+		return errors.New("image wallet reservation refund lost")
+	}
+	legacyStorageAllowed, err := quotaStorageAllowsLegacyDebit(tx, &User{}, "quota", nextQuota, -int64(amount))
+	if err != nil {
+		return err
+	}
+	if !billingAdjustmentNextQuotaAllowed(nextQuota, int64(user.Quota), -int64(amount), legacyStorageAllowed) {
+		return errors.New("image wallet reservation refund lost")
+	}
+	result := tx.Unscoped().Model(&User{}).Where("id = ?", userID).Update("quota", int(nextQuota))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errors.New("image wallet reservation refund lost")
+	}
+	return nil
+}
+
 func refundImageTaskWalletQuotaDB(taskID string, userID int) (bool, int, error) {
 	refunded := false
 	amount := 0
@@ -765,17 +936,11 @@ func refundImageTaskWalletQuotaDB(taskID string, userID int) (bool, int, error) 
 		if amount < 0 || amount > common.MaxQuota {
 			return errors.New("image wallet reservation refund is out of range")
 		}
-		walletRefund := tx.Unscoped().Model(&User{}).
-			Where("id = ? AND quota <= ?", userID, common.MaxQuota-amount).
-			Update("quota", gorm.Expr("quota + ?", amount))
-		if walletRefund.Error != nil {
-			return walletRefund.Error
-		}
-		if walletRefund.RowsAffected != 1 {
-			return errors.New("image wallet reservation refund lost")
+		if err := refundImageTaskWalletQuotaBalanceTx(tx, userID, amount, reservation.WalletLegacyDebit); err != nil {
+			return err
 		}
 		ledger := tx.Model(&ImageBillingReservation{}).Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationPreparing).
-			Updates(map[string]any{"wallet_reserved": 0, "updated_at": common.GetTimestamp()})
+			Updates(map[string]any{"wallet_reserved": 0, "wallet_legacy_debit": false, "updated_at": common.GetTimestamp()})
 		if ledger.Error != nil {
 			return ledger.Error
 		}
@@ -811,6 +976,46 @@ func RefundImageTaskTokenQuota(taskID string, tokenID int, key string) error {
 	})
 }
 
+// refundImageTaskTokenQuotaBalanceTx is the token-side exact inverse used by
+// both preparing refunds and active-task permanent compensation.
+func refundImageTaskTokenQuotaBalanceTx(tx *gorm.DB, tokenID int, amount int, legacyDebit bool) error {
+	if tx == nil || tokenID <= 0 || amount <= 0 || amount > common.MaxQuota {
+		return errors.New("image token reservation refund is out of range")
+	}
+	var token Token
+	if err := lockForUpdate(tx.Unscoped()).Select("id", "remain_quota", "used_quota").Where("id = ?", tokenID).First(&token).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("image token reservation refund lost: %w", err)
+		}
+		return err
+	}
+	nextRemain, remainOK := checkedQuotaAdd(int64(token.RemainQuota), int64(amount))
+	nextUsed, usedOK := checkedQuotaSubtract(int64(token.UsedQuota), int64(amount))
+	if !remainOK || !usedOK || !quotaValueFitsInt(nextRemain) || !quotaValueFitsInt(nextUsed) ||
+		nextUsed < 0 || nextUsed > int64(common.MaxQuota) || (!legacyDebit && nextRemain > int64(common.MaxQuota)) {
+		return errors.New("image token reservation refund lost")
+	}
+	legacyStorageAllowed, err := quotaStorageAllowsLegacyDebit(tx, &Token{}, "remain_quota", nextRemain, -int64(amount))
+	if err != nil {
+		return err
+	}
+	if !billingAdjustmentNextQuotaAllowed(nextRemain, int64(token.RemainQuota), -int64(amount), legacyStorageAllowed) {
+		return errors.New("image token reservation refund lost")
+	}
+	result := tx.Unscoped().Model(&Token{}).Where("id = ?", tokenID).Updates(map[string]any{
+		"remain_quota":  int(nextRemain),
+		"used_quota":    int(nextUsed),
+		"accessed_time": common.GetTimestamp(),
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errors.New("image token reservation refund lost")
+	}
+	return nil
+}
+
 func refundImageTaskTokenQuotaDB(taskID string, tokenID int) (bool, int, error) {
 	refunded := false
 	amount := 0
@@ -835,21 +1040,11 @@ func refundImageTaskTokenQuotaDB(taskID string, tokenID int) (bool, int, error) 
 		if amount < 0 || amount > common.MaxQuota {
 			return errors.New("image token reservation refund is out of range")
 		}
-		tokenRefund := tx.Unscoped().Model(&Token{}).
-			Where("id = ? AND remain_quota <= ? AND used_quota >= ?", tokenID, common.MaxQuota-amount, amount).
-			Updates(map[string]any{
-				"remain_quota":  gorm.Expr("remain_quota + ?", amount),
-				"used_quota":    gorm.Expr("used_quota - ?", amount),
-				"accessed_time": common.GetTimestamp(),
-			})
-		if tokenRefund.Error != nil {
-			return tokenRefund.Error
-		}
-		if tokenRefund.RowsAffected != 1 {
-			return errors.New("image token reservation refund lost")
+		if err := refundImageTaskTokenQuotaBalanceTx(tx, tokenID, amount, reservation.TokenLegacyDebit); err != nil {
+			return err
 		}
 		ledger := tx.Model(&ImageBillingReservation{}).Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationPreparing).
-			Updates(map[string]any{"token_reserved": 0, "updated_at": common.GetTimestamp()})
+			Updates(map[string]any{"token_reserved": 0, "token_legacy_debit": false, "updated_at": common.GetTimestamp()})
 		if ledger.Error != nil {
 			return ledger.Error
 		}
@@ -934,6 +1129,8 @@ func ActivatePreparedImageTask(task *Task, cleanups ...*ImageInputCleanup) (bool
 		candidate.PrivateData.TokenId = reservation.TokenID
 		candidate.PrivateData.TokenPreConsumed = reservation.TokenReserved
 		candidate.PrivateData.TokenBillingEnabled = reservation.TokenRequired
+		candidate.PrivateData.WalletLegacyDebit = reservation.WalletLegacyDebit
+		candidate.PrivateData.TokenLegacyDebit = reservation.TokenLegacyDebit
 		candidate.UpdatedAt = common.GetTimestamp()
 		update := tx.Model(&Task{}).
 			Where("id = ? AND task_id = ? AND platform = ? AND status = ?", task.ID, task.TaskID, constant.TaskPlatformOpenAIImage, TaskStatusReserving).
@@ -1175,35 +1372,24 @@ func refundImageBillingReservationDB(taskID string, reason string) (bool, int, i
 			}
 		}
 		if reservation.WalletReserved > 0 {
-			walletRefund := tx.Unscoped().Model(&User{}).
-				Where("id = ? AND quota <= ?", reservation.UserID, common.MaxQuota-reservation.WalletReserved).
-				Update("quota", gorm.Expr("quota + ?", reservation.WalletReserved))
-			if walletRefund.Error != nil {
-				return walletRefund.Error
-			}
-			if walletRefund.RowsAffected != 1 {
-				return errors.New("image wallet reservation refund lost")
+			if err := refundImageTaskWalletQuotaBalanceTx(
+				tx,
+				reservation.UserID,
+				reservation.WalletReserved,
+				reservation.WalletLegacyDebit,
+			); err != nil {
+				return err
 			}
 			walletRefunded = reservation.WalletReserved
 		}
 		if reservation.TokenReserved > 0 {
-			tokenRefund := tx.Unscoped().Model(&Token{}).
-				Where(
-					"id = ? AND remain_quota <= ? AND used_quota >= ?",
-					reservation.TokenID,
-					common.MaxQuota-reservation.TokenReserved,
-					reservation.TokenReserved,
-				).
-				Updates(map[string]any{
-					"remain_quota":  gorm.Expr("remain_quota + ?", reservation.TokenReserved),
-					"used_quota":    gorm.Expr("used_quota - ?", reservation.TokenReserved),
-					"accessed_time": common.GetTimestamp(),
-				})
-			if tokenRefund.Error != nil {
-				return tokenRefund.Error
-			}
-			if tokenRefund.RowsAffected != 1 {
-				return errors.New("image token reservation refund lost")
+			if err := refundImageTaskTokenQuotaBalanceTx(
+				tx,
+				reservation.TokenID,
+				reservation.TokenReserved,
+				reservation.TokenLegacyDebit,
+			); err != nil {
+				return err
 			}
 			tokenRefunded = reservation.TokenReserved
 		}
@@ -1217,7 +1403,9 @@ func refundImageBillingReservationDB(taskID string, reason string) (bool, int, i
 			Updates(map[string]any{
 				"status":                ImageBillingReservationRefunded,
 				"wallet_reserved":       0,
+				"wallet_legacy_debit":   false,
 				"token_reserved":        0,
+				"token_legacy_debit":    false,
 				"subscription_reserved": 0,
 				"failure_reason":        reason,
 				"updated_at":            now,

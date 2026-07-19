@@ -824,31 +824,23 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 				}
 			}
 			if reservation.WalletReserved > 0 {
-				walletRefund := tx.Unscoped().Model(&User{}).
-					Where("id = ? AND quota <= ?", reservation.UserID, common.MaxQuota-reservation.WalletReserved).
-					Update("quota", gorm.Expr("quota + ?", reservation.WalletReserved))
-				if walletRefund.Error != nil || walletRefund.RowsAffected != 1 {
+				if err := refundImageTaskWalletQuotaBalanceTx(
+					tx,
+					reservation.UserID,
+					reservation.WalletReserved,
+					reservation.WalletLegacyDebit,
+				); err != nil {
 					return errors.New("refund image wallet reservation failed")
 				}
 				walletRefunded = reservation.WalletReserved
 			}
 			if reservation.TokenReserved > 0 {
-				tokenRefund := tx.Unscoped().Model(&Token{}).
-					Where(
-						"id = ? AND remain_quota <= ? AND used_quota >= ?",
-						reservation.TokenID,
-						common.MaxQuota-reservation.TokenReserved,
-						reservation.TokenReserved,
-					).
-					Updates(map[string]any{
-						"remain_quota":  gorm.Expr("remain_quota + ?", reservation.TokenReserved),
-						"used_quota":    gorm.Expr("used_quota - ?", reservation.TokenReserved),
-						"accessed_time": common.GetTimestamp(),
-					})
-				if tokenRefund.Error != nil {
-					return tokenRefund.Error
-				}
-				if tokenRefund.RowsAffected != 1 {
+				if err := refundImageTaskTokenQuotaBalanceTx(
+					tx,
+					reservation.TokenID,
+					reservation.TokenReserved,
+					reservation.TokenLegacyDebit,
+				); err != nil {
 					return errors.New("refund image token reservation failed")
 				}
 				tokenRefunded = reservation.TokenReserved
@@ -885,7 +877,9 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 				Updates(map[string]any{
 					"status":                ImageBillingReservationRefunded,
 					"wallet_reserved":       0,
+					"wallet_legacy_debit":   false,
 					"token_reserved":        0,
+					"token_legacy_debit":    false,
 					"subscription_reserved": 0,
 					"failure_reason":        reason,
 					"updated_at":            now,
