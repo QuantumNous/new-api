@@ -36,10 +36,16 @@ func TestNormalizeImageGenerationsRequestPathOtherUpstream(t *testing.T) {
 	model := "gpt-image-2"
 	mode := relayconstant.RelayModeImagesGenerations
 
+	// Default (submitPathMode unset) now submits to the sync endpoint for any upstream;
+	// async upstreams that reply with a task_id are polled server-side in relay-openai.go.
 	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model, "")
-	require.Equal(t, "/v1/images/generations/async", got)
+	require.Equal(t, "/v1/images/generations", got)
 
 	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model, "")
+	require.Equal(t, "/v1/images/generations", got)
+
+	// Upstreams whose task submit lives only at /async must opt in explicitly.
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model, "generations_async")
 	require.Equal(t, "/v1/images/generations/async", got)
 }
 

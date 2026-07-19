@@ -180,35 +180,24 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 }
 
 // normalizeImageGenerationsRequestPath maps client async/sync paths to upstream capabilities.
-// Some OpenAI-compatible image hubs serve gpt-image-2 from POST /v1/images/generations
-// and do not implement /async.
+// Default (submitPathMode unset): submit to the SYNC endpoint /v1/images/generations and
+// strip any /async suffix. Sync upstreams return the image directly; async upstreams that
+// return a task_id on the sync endpoint are still polled server-side by relay-openai.go
+// (isClientAsyncImageGenerationsPath is false), so the client sees a sync response either way.
+// Only upstreams that expose task submission EXCLUSIVELY at /images/generations/async need to
+// opt in with channel setting ImageGenerationSubmitPath="generations_async".
 func normalizeImageGenerationsRequestPath(requestPath, channelBaseURL string, relayMode int, modelName, submitPathMode string) string {
 	if relayMode != relayconstant.RelayModeImagesGenerations {
 		return requestPath
 	}
-	switch strings.ToLower(strings.TrimSpace(submitPathMode)) {
-	case "generations":
-		return strings.TrimSuffix(requestPath, "/async")
-	case "generations_async":
+	if strings.EqualFold(strings.TrimSpace(submitPathMode), "generations_async") {
 		if strings.HasSuffix(requestPath, "/images/generations") {
 			return requestPath + "/async"
 		}
 		return requestPath
 	}
-	if !common.UsesAsyncImageTaskUpstream(modelName) {
-		return requestPath
-	}
-	isSyncImageUpstream := isSyncGptImage2ImageBase(channelBaseURL)
-	if strings.HasSuffix(requestPath, "/images/generations/async") {
-		if isSyncImageUpstream {
-			return strings.TrimSuffix(requestPath, "/async")
-		}
-		return requestPath
-	}
-	if strings.HasSuffix(requestPath, "/images/generations") && !isSyncImageUpstream {
-		return requestPath + "/async"
-	}
-	return requestPath
+	// Default and explicit "generations": always use the sync submit path.
+	return strings.TrimSuffix(requestPath, "/async")
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
