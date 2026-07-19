@@ -149,6 +149,32 @@ func TestImagePricingProfileUsesResponsesLimitOnlyForPlainOpenAIChannels(t *test
 	assert.Equal(t, common.MaxImageGenerationCount, *adaptorN.Max)
 }
 
+func TestGeminiImagePricingProfilesPublishOnlyVerifiedOutputControls(t *testing.T) {
+	tests := []struct {
+		name        string
+		model       string
+		channelType int
+	}{
+		{name: "flash 3.1", model: "gemini-3.1-flash-image-preview", channelType: constant.ChannelTypeGemini},
+		{name: "pro 3", model: "gemini-3-pro-image-preview", channelType: constant.ChannelTypeGemini},
+		{name: "legacy via vertex", model: "gemini-2.5-flash-image", channelType: constant.ChannelTypeVertexAi},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			profile := imageAPIProfileForPricing(test.model, []AbilityWithChannel{{ChannelType: test.channelType}})
+			parameters := imageProfileParameterNames(profile)
+			assert.Contains(t, parameters, "aspect_ratio")
+			assert.Contains(t, parameters, "resolution")
+			assert.NotContains(t, parameters, "output_format")
+
+			n := imageProfileParameter(t, profile, "n")
+			require.NotNil(t, n.Max)
+			assert.Equal(t, 1, *n.Max)
+		})
+	}
+}
+
 func TestImagePricingProfileNarrowsFluxCapabilitiesByChannel(t *testing.T) {
 	replicateProfile := imageAPIProfileForPricing("black-forest-labs/FLUX.1-schnell", []AbilityWithChannel{{ChannelType: constant.ChannelTypeReplicate}})
 	replicateParameters := imageProfileParameterNames(replicateProfile)

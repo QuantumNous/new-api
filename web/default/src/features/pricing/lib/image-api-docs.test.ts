@@ -74,6 +74,11 @@ describe('async image API samples', () => {
   test('cURL documents the accepted task and polling contract', () => {
     const sample = buildAsyncImageSample('curl', context)
 
+    assert.match(sample, /Requires Bash, curl, and Python 3/)
+    assert.match(
+      sample,
+      /: "\$\{OPWAN_API_KEY:\?Set OPWAN_API_KEY before running\}"/
+    )
     assert.match(sample, /HTTP\/1\.1 202 Accepted/)
     assert.match(
       sample,
@@ -85,38 +90,94 @@ describe('async image API samples', () => {
     assert.match(sample, /"resolution": "2K"/)
     assert.match(
       sample,
-      /"webhook_url": "https:\/\/example\.com\/webhooks\/images"/
-    )
-    assert.match(sample, /"webhook_secret": "<YOUR_WEBHOOK_SECRET>"/)
-    assert.match(
-      sample,
-      /IDEMPOTENCY_KEY="image-request-\$\(uuidgen\)"\nTASK_RESPONSE="\$\(/
+      /IDEMPOTENCY_KEY="image-request-\$\(python3 -c 'import uuid; print\(uuid\.uuid4\(\)\)'\)"/
     )
     assert.match(sample, /Idempotency-Key: \$IDEMPOTENCY_KEY/)
+    assert.match(sample, /--max-time "\$REQUEST_TIMEOUT_SECONDS"/)
+    assert.match(sample, /readonly POLL_TIMEOUT_SECONDS=900/)
+    assert.match(sample, /if \[ "\$HTTP_STATUS" != "202" \]/)
+    assert.match(sample, /if \[ "\$HTTP_STATUS" != "200" \]/)
+    assert.match(sample, /RETRY_AFTER_SECONDS="\$\(read_retry_after\)"/)
+    assert.match(sample, /POLL_DEADLINE=/)
+    assert.match(sample, /--max-time "\$POLL_REQUEST_TIMEOUT_SECONDS"/)
     assert.match(
       sample,
       /python3 -c 'import json, sys; print\(json\.load\(sys\.stdin\)\["task_id"\]\)'/
     )
     assert.match(
       sample,
-      /curl -sS "https:\/\/api\.example\.com\/v1\/images\/generations\/\$\{TASK_ID\}"/
+      /"https:\/\/api\.example\.com\/v1\/images\/generations\/\$\{TASK_ID\}"/
     )
-    assert.match(sample, /while :; do/)
-    assert.match(sample, /completed\|failed\) break ;;/)
-    assert.match(sample, /sleep 2/)
+    assert.match(sample, /while \[ "\$TASK_STATUS" != "completed" \]/)
+    assert.match(sample, /sleep "\$RETRY_AFTER_SECONDS"/)
     assert.match(sample, /\["result"\]\["data"\]\[0\]\["url"\]/)
+    assert.doesNotMatch(sample, /"webhook_url"/)
+    assert.doesNotMatch(sample, /"webhook_secret"/)
     assert.doesNotMatch(sample, /image-request-001/)
+    assert.doesNotMatch(sample, /uuidgen/)
     assert.doesNotMatch(sample, /client\.images\.generate/)
   })
 
-  test('JavaScript polls terminal status before reading the OSS URL', () => {
-    const sample = buildAsyncImageSample('javascript', context)
+  test('Python validates the async HTTP contract and bounds polling time', () => {
+    const sample = buildAsyncImageSample('python', context)
 
-    assert.match(sample, /while \(task\.status !== 'completed'/)
-    assert.match(sample, /\$\{task\.task_id\}/)
-    assert.match(sample, /task\.result\?\.data\?\.\[0\]\?\.url/)
-    assert.match(sample, /crypto\.randomUUID\(\)/)
-    assert.doesNotMatch(sample, /image-request-001/)
+    assert.match(sample, /Requires Python 3\.9\+ and requests 2\.x/)
+    assert.match(sample, /api_key = os\.getenv\("OPWAN_API_KEY"\)/)
+    assert.match(sample, /Set OPWAN_API_KEY before running/)
+    assert.match(sample, /timeout=timeout_seconds/)
+    assert.match(sample, /poll_timeout_seconds = 900/)
+    assert.match(sample, /require_status\(response, 202, "Submit"\)/)
+    assert.match(sample, /require_status\(response, 200, "Poll"\)/)
+    assert.match(sample, /response\.headers\.get\("Retry-After", "2"\)/)
+    assert.match(sample, /poll_deadline = time\.monotonic\(\)/)
+    assert.match(
+      sample,
+      /timeout_seconds=min\(request_timeout_seconds, remaining\)/
+    )
+    assert.match(sample, /requests uses per-operation network timeouts/)
+    assert.match(sample, /if time\.monotonic\(\) >= poll_deadline:/)
+    assert.match(
+      sample,
+      /Completed task did not include result\.data\[0\]\.url/
+    )
+    assert.doesNotMatch(sample, /"webhook_url"/)
+    assert.doesNotMatch(sample, /"webhook_secret"/)
+  })
+
+  test('JavaScript and TypeScript samples are explicit Node or Bun programs', () => {
+    for (const language of ['javascript', 'typescript'] as const) {
+      const sample = buildAsyncImageSample(language, context)
+
+      assert.match(sample, /Requires Node\.js 18\+ in ESM mode or Bun 1\.0\+/)
+      assert.match(sample, /import \{ randomUUID \} from 'node:crypto'/)
+      assert.match(sample, /if \(!apiKey\) throw new Error/)
+      assert.match(sample, /AbortSignal\.timeout\(timeoutMs\)/)
+      assert.match(sample, /const pollTimeoutMs = 900_000/)
+      assert.match(sample, /await requireStatus\(response, 202, 'Submit'\)/)
+      assert.match(sample, /await requireStatus\(response, 200, 'Poll'\)/)
+      assert.match(sample, /headers\.get\('Retry-After'\) \?\? 2/)
+      assert.match(
+        sample,
+        /const pollDeadline = Date\.now\(\) \+ pollTimeoutMs/
+      )
+      assert.match(sample, /if \(remainingMs <= 0\)/)
+      assert.match(sample, /Math\.min\(requestTimeoutMs, remainingMs\)/)
+      assert.match(sample, /while \(task\.status !== 'completed'/)
+      assert.match(sample, /\$\{taskId\}/)
+      assert.match(
+        sample,
+        /const resultUrl = task\.result\?\.data\?\.\[0\]\?\.url/
+      )
+      assert.match(
+        sample,
+        /Completed task did not include result\.data\[0\]\.url/
+      )
+      assert.match(sample, /console\.log\(resultUrl\)/)
+      assert.doesNotMatch(sample, /console\.log\(task\.result/)
+      assert.doesNotMatch(sample, /"webhook_url"/)
+      assert.doesNotMatch(sample, /"webhook_secret"/)
+      assert.doesNotMatch(sample, /image-request-001/)
+    }
   })
 
   test('image-to-image samples include a reference image input', () => {

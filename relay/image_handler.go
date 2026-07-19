@@ -371,7 +371,12 @@ func validateAsyncImageProviderCapabilities(c *gin.Context, info *relaycommon.Re
 	capabilities := common.ImageModelCapabilitiesForModel(model)
 	if request.N != nil && capabilities.MaxOutputImages > 0 && *request.N > uint(capabilities.MaxOutputImages) {
 		switch capabilities.Family {
-		case common.ImageModelFamilyImagen, common.ImageModelFamilyDallE3:
+		case common.ImageModelFamilyGeminiFlash31,
+			common.ImageModelFamilyGeminiPro3,
+			common.ImageModelFamilyGeminiLegacy:
+			return fmt.Errorf("model %s supports only n=1", info.UpstreamModelName)
+		case common.ImageModelFamilyImagen,
+			common.ImageModelFamilyDallE3:
 			return fmt.Errorf("model %s supports at most %d output images", info.UpstreamModelName, capabilities.MaxOutputImages)
 		}
 	}

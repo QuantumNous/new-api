@@ -5211,6 +5211,16 @@
     "Random seed used by the image model": "Случайное начальное значение модели изображения",
     "Number of denoising steps": "Количество шагов шумоподавления",
     "Guidance scale used by the image model": "Шкала управления модели изображения",
-    "Classifier-free guidance value": "Значение управления без классификатора"
+    "Classifier-free guidance value": "Значение управления без классификатора",
+    "cURL runtime: Bash, curl, and Python 3.": "Среда cURL: Bash, curl и Python 3.",
+    "Python runtime: Python 3.9+ with requests 2.x.": "Среда Python: Python 3.9+ с requests 2.x.",
+    "TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.": "Среда TypeScript: Bun 1.0+ или Node.js 18+ в режиме ESM с загрузчиком TypeScript.",
+    "JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.": "Среда JavaScript: Bun 1.0+ или Node.js 18+ в режиме ESM.",
+    "Webhook delivery and signature": "Доставка и подпись webhook",
+    "webhook_url and webhook_secret are optional fields inside input. The callback must be a publicly reachable HTTPS URL.": "webhook_url и webhook_secret — необязательные поля внутри input. URL обратного вызова должен быть общедоступным адресом HTTPS.",
+    "Terminal task notifications use at-least-once delivery. Deduplicate retries with X-Webhook-Delivery-Id and return a 2xx response.": "Уведомления о конечном состоянии доставляются как минимум один раз. Удаляйте дубликаты повторных доставок по X-Webhook-Delivery-Id и возвращайте ответ 2xx.",
+    "When webhook_secret is set, verify X-Webhook-Timestamp, X-Webhook-Delivery-Id, and X-Webhook-Signature, and reject timestamps outside your replay window.": "Если задан webhook_secret, проверяйте X-Webhook-Timestamp, X-Webhook-Delivery-Id и X-Webhook-Signature и отклоняйте временные метки вне окна защиты от повторного воспроизведения.",
+    "Signing input": "Данные для подписи",
+    "Compute HMAC-SHA256 with webhook_secret and compare X-Webhook-Signature (v1=<hex>) in constant time.": "Вычислите HMAC-SHA256 с webhook_secret и сравнивайте X-Webhook-Signature (v1=<hex>) за постоянное время."
   }
 }

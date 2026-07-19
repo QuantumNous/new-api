@@ -5211,6 +5211,16 @@
     "Random seed used by the image model": "Graine aléatoire utilisée par le modèle d'image",
     "Number of denoising steps": "Nombre d'étapes de débruitage",
     "Guidance scale used by the image model": "Échelle de guidage utilisée par le modèle d'image",
-    "Classifier-free guidance value": "Valeur de guidage sans classificateur"
+    "Classifier-free guidance value": "Valeur de guidage sans classificateur",
+    "cURL runtime: Bash, curl, and Python 3.": "Environnement cURL : Bash, curl et Python 3.",
+    "Python runtime: Python 3.9+ with requests 2.x.": "Environnement Python : Python 3.9+ avec requests 2.x.",
+    "TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.": "Environnement TypeScript : Bun 1.0+, ou Node.js 18+ en mode ESM avec un exécuteur TypeScript.",
+    "JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.": "Environnement JavaScript : Bun 1.0+ ou Node.js 18+ en mode ESM.",
+    "Webhook delivery and signature": "Livraison et signature des webhooks",
+    "webhook_url and webhook_secret are optional fields inside input. The callback must be a publicly reachable HTTPS URL.": "webhook_url et webhook_secret sont des champs facultatifs dans input. Le rappel doit utiliser une URL HTTPS publique et accessible.",
+    "Terminal task notifications use at-least-once delivery. Deduplicate retries with X-Webhook-Delivery-Id and return a 2xx response.": "Les notifications d’état final sont livrées au moins une fois. Dédupliquez les tentatives avec X-Webhook-Delivery-Id et renvoyez une réponse 2xx.",
+    "When webhook_secret is set, verify X-Webhook-Timestamp, X-Webhook-Delivery-Id, and X-Webhook-Signature, and reject timestamps outside your replay window.": "Lorsque webhook_secret est défini, vérifiez X-Webhook-Timestamp, X-Webhook-Delivery-Id et X-Webhook-Signature, puis rejetez les horodatages hors de votre fenêtre anti-rejeu.",
+    "Signing input": "Données à signer",
+    "Compute HMAC-SHA256 with webhook_secret and compare X-Webhook-Signature (v1=<hex>) in constant time.": "Calculez HMAC-SHA256 avec webhook_secret et comparez X-Webhook-Signature (v1=<hex>) en temps constant."
   }
 }

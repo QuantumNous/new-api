@@ -5211,6 +5211,16 @@
     "Random seed used by the image model": "画像モデルが使用する乱数シード",
     "Number of denoising steps": "ノイズ除去ステップ数",
     "Guidance scale used by the image model": "画像モデルが使用するガイダンススケール",
-    "Classifier-free guidance value": "分類器なしガイダンス値"
+    "Classifier-free guidance value": "分類器なしガイダンス値",
+    "cURL runtime: Bash, curl, and Python 3.": "cURL 実行環境：Bash、curl、Python 3。",
+    "Python runtime: Python 3.9+ with requests 2.x.": "Python 実行環境：Python 3.9+ と requests 2.x。",
+    "TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.": "TypeScript 実行環境：Bun 1.0+、または ESM モードの Node.js 18+ と TypeScript ランナー。",
+    "JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.": "JavaScript 実行環境：Bun 1.0+ または ESM モードの Node.js 18+。",
+    "Webhook delivery and signature": "Webhook 配信と署名",
+    "webhook_url and webhook_secret are optional fields inside input. The callback must be a publicly reachable HTTPS URL.": "webhook_url と webhook_secret は input 内の任意フィールドです。コールバック先には公開アクセス可能な HTTPS URL が必要です。",
+    "Terminal task notifications use at-least-once delivery. Deduplicate retries with X-Webhook-Delivery-Id and return a 2xx response.": "終端状態のタスク通知は少なくとも 1 回配信されます。X-Webhook-Delivery-Id で再送を重複排除し、2xx レスポンスを返してください。",
+    "When webhook_secret is set, verify X-Webhook-Timestamp, X-Webhook-Delivery-Id, and X-Webhook-Signature, and reject timestamps outside your replay window.": "webhook_secret を設定した場合は、X-Webhook-Timestamp、X-Webhook-Delivery-Id、X-Webhook-Signature を検証し、リプレイ防止期間外のタイムスタンプを拒否してください。",
+    "Signing input": "署名対象",
+    "Compute HMAC-SHA256 with webhook_secret and compare X-Webhook-Signature (v1=<hex>) in constant time.": "webhook_secret で HMAC-SHA256 を計算し、X-Webhook-Signature（v1=<hex>）を定時間で比較してください。"
   }
 }

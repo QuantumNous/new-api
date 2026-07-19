@@ -5211,6 +5211,16 @@
     "Random seed used by the image model": "Random seed used by the image model",
     "Number of denoising steps": "Number of denoising steps",
     "Guidance scale used by the image model": "Guidance scale used by the image model",
-    "Classifier-free guidance value": "Classifier-free guidance value"
+    "Classifier-free guidance value": "Classifier-free guidance value",
+    "cURL runtime: Bash, curl, and Python 3.": "cURL runtime: Bash, curl, and Python 3.",
+    "Python runtime: Python 3.9+ with requests 2.x.": "Python runtime: Python 3.9+ with requests 2.x.",
+    "TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.": "TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.",
+    "JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.": "JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.",
+    "Webhook delivery and signature": "Webhook delivery and signature",
+    "webhook_url and webhook_secret are optional fields inside input. The callback must be a publicly reachable HTTPS URL.": "webhook_url and webhook_secret are optional fields inside input. The callback must be a publicly reachable HTTPS URL.",
+    "Terminal task notifications use at-least-once delivery. Deduplicate retries with X-Webhook-Delivery-Id and return a 2xx response.": "Terminal task notifications use at-least-once delivery. Deduplicate retries with X-Webhook-Delivery-Id and return a 2xx response.",
+    "When webhook_secret is set, verify X-Webhook-Timestamp, X-Webhook-Delivery-Id, and X-Webhook-Signature, and reject timestamps outside your replay window.": "When webhook_secret is set, verify X-Webhook-Timestamp, X-Webhook-Delivery-Id, and X-Webhook-Signature, and reject timestamps outside your replay window.",
+    "Signing input": "Signing input",
+    "Compute HMAC-SHA256 with webhook_secret and compare X-Webhook-Signature (v1=<hex>) in constant time.": "Compute HMAC-SHA256 with webhook_secret and compare X-Webhook-Signature (v1=<hex>) in constant time."
   }
 }

@@ -161,6 +161,14 @@ func TestValidateAsyncImageProviderCapabilitiesRejectsUnsupportedCombinations(t 
 			message: "use png",
 		},
 		{
+			name: "gemini output count",
+			info: &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+				ApiType: constant.APITypeGemini, UpstreamModelName: "gemini-3.1-flash-image-preview",
+			}},
+			request: &dto.ImageRequest{Model: "gemini-3.1-flash-image-preview", N: &two},
+			message: "supports only n=1",
+		},
+		{
 			name: "seedream reference input",
 			info: &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
 				ApiType: constant.APITypeVolcEngine, ChannelType: constant.ChannelTypeVolcEngine, UpstreamModelName: "doubao-seedream-4-0-250828",
