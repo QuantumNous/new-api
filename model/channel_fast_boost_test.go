@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // seedThreeChannelHealth registers one fast channel (#17) and two slow ones
@@ -166,4 +168,37 @@ func TestFastAndSlowSelectionFactors(t *testing.T) {
 	if score, f := ChannelSelectionFactors(cold); f || score != 1 {
 		t.Fatalf("cold channel: got score=%.2f fast=%v, want score=1 fast=false", score, f)
 	}
+}
+
+func TestFastChannelClassificationUsesExitHysteresis(t *testing.T) {
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	stableFast := ChannelHealthKey{ChannelID: 117, Model: "gpt-5.6-sol-hysteresis", Path: "/v1/responses"}
+	for i := 0; i < 6; i++ {
+		RecordChannelOutcome(stableFast, ChannelOutcome{StatusCode: 200, Latency: 1800 * time.Millisecond})
+	}
+	_, fast := ChannelSelectionFactors(stableFast)
+	require.True(t, fast, "a channel measured below the fast-entry threshold should enter the fast set")
+
+	// One ordinary latency spike moves the EWMA just above 2s. It should not
+	// instantly remove the channel from the fast set and collapse its selection
+	// weight by 8x; only sustained degradation past the exit threshold should.
+	RecordChannelOutcome(stableFast, ChannelOutcome{StatusCode: 200, Latency: 3400 * time.Millisecond})
+	_, fast = ChannelSelectionFactors(stableFast)
+	assert.True(t, fast, "a measured-fast channel should ride out a small EWMA excursion above 2s")
+
+	RecordChannelOutcome(stableFast, ChannelOutcome{StatusCode: 200, Latency: 8 * time.Second})
+	_, fast = ChannelSelectionFactors(stableFast)
+	assert.False(t, fast, "a measured-fast channel must leave the fast set after sustained degradation")
+
+	neverFast := ChannelHealthKey{ChannelID: 118, Model: "gpt-5.6-sol-hysteresis", Path: "/v1/responses"}
+	RecordChannelOutcome(neverFast, ChannelOutcome{StatusCode: 200, Latency: 2500 * time.Millisecond})
+	_, fast = ChannelSelectionFactors(neverFast)
+	assert.False(t, fast, "a channel must cross the 2s entry threshold before it can receive fast-channel weighting")
 }
