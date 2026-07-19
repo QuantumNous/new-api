@@ -39,7 +39,9 @@ interface InvitePromoDialogProps {
 
 export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink }: InvitePromoDialogProps) {
   const { t } = useTranslation()
-  const { copiedText, copyToClipboard } = useCopyToClipboard()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({
+    successMessage: t('Copied! Share it with your friends'),
+  })
   const isCopied = copiedText === affiliateLink
 
   return (
@@ -87,7 +89,7 @@ export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink 
           onClick={() => copyToClipboard(affiliateLink)}
         >
           {isCopied ? <Check className='size-4' /> : <Copy className='size-4' />}
-          {t('Copy link & invite friends')}
+          {t('Copy referral link')}
         </Button>
       </DialogContent>
     </Dialog>
