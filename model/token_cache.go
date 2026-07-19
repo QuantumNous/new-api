@@ -117,6 +117,10 @@ func applyTokenQuotaCacheDelta(key string, delta int64) error {
 }
 
 func applyTokenQuotaCacheDeltaOnce(key string, delta int64, operationKey string) error {
+	return applyTokenQuotaCacheDeltaOnceWithLegacyPolicy(key, delta, operationKey, false)
+}
+
+func applyTokenQuotaCacheDeltaOnceWithLegacyPolicy(key string, delta int64, operationKey string, allowLegacyDebit bool) error {
 	if !common.RedisEnabled {
 		return nil
 	}
@@ -124,7 +128,7 @@ func applyTokenQuotaCacheDeltaOnce(key string, delta int64, operationKey string)
 		return errors.New("redis is enabled but unavailable")
 	}
 	tokenHMAC := common.GenerateHMAC(key)
-	_, err := common.RedisHApplyDeltaAndInvalidateWithGenerationOnce(
+	_, err := common.RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
 		fmt.Sprintf("token:%s", tokenHMAC),
 		imageTaskTokenQuotaPinsKey(tokenHMAC),
 		imageTaskTokenQuotaInvalidationKey(tokenHMAC),
@@ -134,6 +138,7 @@ func applyTokenQuotaCacheDeltaOnce(key string, delta int64, operationKey string)
 		delta,
 		operationKey,
 		30*24*time.Hour,
+		allowLegacyDebit,
 	)
 	return err
 }

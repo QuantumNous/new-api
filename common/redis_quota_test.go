@@ -241,6 +241,53 @@ func TestRedisPinnedHashAppliesCommittedQuotaDeltaBeforeInvalidation(t *testing.
 	assert.Equal(t, int64(1), RDB.Exists(ctx, invalidationKey).Val())
 }
 
+func TestRedisPinnedHashAllowsOnlyCoherentLegacyDebit(t *testing.T) {
+	useQuotaTestRedis(t)
+	ctx := context.Background()
+
+	const (
+		cacheKey        = "user:legacy-debit"
+		pinsKey         = "billing:pins:user:legacy-debit"
+		invalidationKey = "billing:invalidate:user:legacy-debit"
+		generationKey   = "billing:generation:user:legacy-debit"
+	)
+	legacyBalance := int64(MaxQuota) + 100
+	require.NoError(t, RDB.HSet(ctx, cacheKey, "Id", 13, "Quota", legacyBalance).Err())
+	require.NoError(t, RDB.SAdd(ctx, pinsKey, "task-legacy").Err())
+
+	_, err := RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
+		cacheKey, pinsKey, invalidationKey, generationKey, time.Hour,
+		"Quota", -10, "legacy-debit-op", time.Hour, true,
+	)
+	require.NoError(t, err)
+	updatedLegacy, err := RDB.HGet(ctx, cacheKey, "Quota").Int64()
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance-10, updatedLegacy)
+
+	// A normal-range pinned snapshot cannot be adjusted using a DB legacy
+	// balance: doing so would create a divergent reconciliation ledger.
+	const staleKey = "user:legacy-debit-stale"
+	const stalePinsKey = "billing:pins:user:legacy-debit-stale"
+	const staleInvalidationKey = "billing:invalidate:user:legacy-debit-stale"
+	const staleGenerationKey = "billing:generation:user:legacy-debit-stale"
+	require.NoError(t, RDB.HSet(ctx, staleKey, "Id", 14, "Quota", 100).Err())
+	require.NoError(t, RDB.SAdd(ctx, stalePinsKey, "task-stale").Err())
+	_, err = RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
+		staleKey, stalePinsKey, staleInvalidationKey, staleGenerationKey, time.Hour,
+		"Quota", -10, "legacy-stale-op", time.Hour, true,
+	)
+	require.ErrorIs(t, err, ErrRedisQuotaUnavailable)
+	staleValue, err := RDB.HGet(ctx, staleKey, "Quota").Int64()
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), staleValue)
+
+	_, err = RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
+		cacheKey, pinsKey, invalidationKey, generationKey, time.Hour,
+		"Quota", 10, "legacy-credit-op", time.Hour, true,
+	)
+	require.ErrorIs(t, err, ErrRedisQuotaUnavailable)
+}
+
 func TestRedisPinnedHashRejectsDeltaWhenQuotaSnapshotIsIncomplete(t *testing.T) {
 	useQuotaTestRedis(t)
 	ctx := context.Background()

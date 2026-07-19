@@ -12,8 +12,11 @@ import (
 // integers in the database, so an oversized product must clamp to the int32
 // range instead of wrapping around and turning a charge into a credit.
 const (
-	MaxQuota = math.MaxInt32
-	MinQuota = math.MinInt32
+	// MaxLegacyQuota bounds the one-way compatibility window for balances
+	// written above the current int32 ceiling by older deployments.
+	MaxQuota       = math.MaxInt32
+	MinQuota       = math.MinInt32
+	MaxLegacyQuota = math.MaxUint32
 )
 
 // QuotaClampKind identifies why a quota conversion had to be saturated.

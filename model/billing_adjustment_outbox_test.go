@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -451,10 +452,83 @@ func TestBillingAdjustmentCreditPreservesImageReservationHeadroom(t *testing.T) 
 func TestBillingAdjustmentQuotaAllowsLegacyOversizedDebitOnly(t *testing.T) {
 	legacyBalance := int64(common.MaxQuota) + 100
 
-	assert.True(t, billingAdjustmentNextQuotaAllowed(legacyBalance-10, -10))
-	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance+10, 10))
-	assert.True(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxQuota)-10, 10))
-	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MinQuota)-1, -10))
+	assert.True(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance-10, -10))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance+10, 10))
+	assert.True(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxQuota)-10, int64(common.MaxQuota), 10))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MinQuota)-1, int64(common.MinQuota)-1, -10))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(int64(common.MaxLegacyQuota)+1, int64(common.MaxLegacyQuota), -1))
+	assert.False(t, billingAdjustmentNextQuotaAllowed(legacyBalance, legacyBalance+1, -1))
+}
+
+func TestBillingAdjustmentQuotaArithmeticRejectsInt64Overflow(t *testing.T) {
+	if _, ok := checkedQuotaAdd(math.MaxInt64, 1); ok {
+		t.Fatal("quota addition overflow must be rejected")
+	}
+	if _, ok := checkedQuotaAdd(math.MinInt64, -1); ok {
+		t.Fatal("quota addition underflow must be rejected")
+	}
+	if _, ok := checkedQuotaSubtract(math.MinInt64, 1); ok {
+		t.Fatal("quota subtraction underflow must be rejected")
+	}
+	if _, ok := checkedQuotaSubtract(math.MaxInt64, -1); ok {
+		t.Fatal("quota subtraction overflow must be rejected")
+	}
+}
+
+func TestBillingAdjustmentLegacyOversizedDebitUpdatesPinnedDatabaseAndCache(t *testing.T) {
+	truncateTables(t)
+	useImageTaskTestRedis(t)
+
+	legacyBalance := common.MaxQuota + 100
+	user := &User{Username: "legacy-oversized-wallet", Quota: legacyBalance, Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(user).Error)
+	token := &Token{
+		UserId:      user.Id,
+		Key:         "legacy-oversized-token",
+		Name:        "legacy-oversized",
+		Status:      common.TokenStatusEnabled,
+		RemainQuota: legacyBalance,
+		UsedQuota:   10,
+	}
+	require.NoError(t, DB.Create(token).Error)
+	require.NoError(t, populateUserCache(*user))
+	require.NoError(t, cacheSetToken(*token))
+	ctx := context.Background()
+	require.NoError(t, common.RDB.SAdd(ctx, imageTaskUserQuotaPinsKey(user.Id), "legacy-task").Err())
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	require.NoError(t, common.RDB.SAdd(ctx, imageTaskTokenQuotaPinsKey(tokenHMAC), "legacy-task").Err())
+
+	rows, err := EnqueueBillingAdjustments([]BillingAdjustmentSpec{
+		{RequestID: "legacy-oversized-debit", Phase: BillingAdjustmentPhaseSettle, Leg: BillingAdjustmentLegWallet, UserID: user.Id, Delta: -10},
+		{RequestID: "legacy-oversized-debit", Phase: BillingAdjustmentPhaseSettle, Leg: BillingAdjustmentLegToken, UserID: user.Id, TokenID: token.Id, Delta: -10},
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	for i := range rows {
+		require.NoError(t, ProcessBillingAdjustmentOutbox(rows[i].Id))
+	}
+
+	var storedUser User
+	require.NoError(t, DB.First(&storedUser, user.Id).Error)
+	assert.Equal(t, legacyBalance-10, storedUser.Quota)
+	var storedToken Token
+	require.NoError(t, DB.First(&storedToken, token.Id).Error)
+	assert.Equal(t, legacyBalance-10, storedToken.RemainQuota)
+	assert.Equal(t, 20, storedToken.UsedQuota)
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance-10, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance-10, cachedToken.RemainQuota)
+
+	var delivered []BillingAdjustmentOutbox
+	require.NoError(t, DB.Where("request_id = ?", "legacy-oversized-debit").Find(&delivered).Error)
+	for _, row := range delivered {
+		assert.True(t, row.DBApplied)
+		assert.True(t, row.CacheApplied)
+		assert.Equal(t, billingAdjustmentDelivered, row.Status)
+	}
 }
 
 func TestCleanupTerminalBillingAdjustmentOutboxPreservesActiveRows(t *testing.T) {

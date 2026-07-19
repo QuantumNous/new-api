@@ -111,13 +111,17 @@ func applyUserQuotaCacheDelta(userId int, delta int64) error {
 }
 
 func applyUserQuotaCacheDeltaOnce(userId int, delta int64, operationKey string) error {
+	return applyUserQuotaCacheDeltaOnceWithLegacyPolicy(userId, delta, operationKey, false)
+}
+
+func applyUserQuotaCacheDeltaOnceWithLegacyPolicy(userId int, delta int64, operationKey string, allowLegacyDebit bool) error {
 	if !common.RedisEnabled {
 		return nil
 	}
 	if common.RDB == nil {
 		return fmt.Errorf("redis is enabled but unavailable")
 	}
-	_, err := common.RedisHApplyDeltaAndInvalidateWithGenerationOnce(
+	_, err := common.RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
 		getUserCacheKey(userId),
 		imageTaskUserQuotaPinsKey(userId),
 		imageTaskUserQuotaInvalidationKey(userId),
@@ -127,6 +131,7 @@ func applyUserQuotaCacheDeltaOnce(userId int, delta int64, operationKey string) 
 		delta,
 		operationKey,
 		30*24*time.Hour,
+		allowLegacyDebit,
 	)
 	return err
 }

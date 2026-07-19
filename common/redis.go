@@ -267,6 +267,7 @@ func RedisHInvalidateWithGeneration(
 		0,
 		"",
 		0,
+		false,
 	)
 }
 
@@ -297,14 +298,16 @@ func RedisHApplyDeltaAndInvalidateWithGeneration(
 		delta,
 		"",
 		0,
+		false,
 	)
 }
 
-// RedisHApplyDeltaAndInvalidateWithGenerationOnce is the replay-safe form used
-// by durable billing outboxes. operationKey is written by the same Lua script
-// only after the cache delta/invalidation succeeds, so retrying after an
-// ambiguous network result cannot apply a pinned-ledger delta twice.
-func RedisHApplyDeltaAndInvalidateWithGenerationOnce(
+// RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy is the replay-safe
+// form with an explicit compatibility mode for bounded legacy oversized
+// balances. In that mode a pinned cache must also contain an oversized
+// balance; a normal-range stale snapshot is rejected instead of being
+// adjusted against a different database value.
+func RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
 	key string,
 	pinsKey string,
 	invalidationKey string,
@@ -314,6 +317,7 @@ func RedisHApplyDeltaAndInvalidateWithGenerationOnce(
 	delta int64,
 	operationKey string,
 	operationTTL time.Duration,
+	allowLegacyDebit bool,
 ) (int64, error) {
 	if deltaField == "" {
 		return 0, errors.New("redis quota delta field is required")
@@ -335,6 +339,36 @@ func RedisHApplyDeltaAndInvalidateWithGenerationOnce(
 		delta,
 		operationKey,
 		operationTTL,
+		allowLegacyDebit,
+	)
+}
+
+// RedisHApplyDeltaAndInvalidateWithGenerationOnce is the replay-safe form used
+// by durable billing outboxes. operationKey is written by the same Lua script
+// only after the cache delta/invalidation succeeds, so retrying after an
+// ambiguous network result cannot apply a pinned-ledger delta twice.
+func RedisHApplyDeltaAndInvalidateWithGenerationOnce(
+	key string,
+	pinsKey string,
+	invalidationKey string,
+	generationKey string,
+	hold time.Duration,
+	deltaField string,
+	delta int64,
+	operationKey string,
+	operationTTL time.Duration,
+) (int64, error) {
+	return RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
+		key,
+		pinsKey,
+		invalidationKey,
+		generationKey,
+		hold,
+		deltaField,
+		delta,
+		operationKey,
+		operationTTL,
+		false,
 	)
 }
 
@@ -349,6 +383,7 @@ func redisHInvalidateWithGeneration(
 	delta int64,
 	operationKey string,
 	operationTTL time.Duration,
+	allowLegacyDebit bool,
 ) (int64, error) {
 	statusEnabled := 0
 	status := 0
@@ -368,8 +403,12 @@ func redisHInvalidateWithGeneration(
 			operationSeconds = 1
 		}
 	}
+	legacyDebitEnabled := 0
+	if allowLegacyDebit {
+		legacyDebitEnabled = 1
+	}
 	const script = `
-if ARGV[8] == '1' and redis.call('EXISTS', KEYS[5]) == 1 then
+if ARGV[10] == '1' and redis.call('EXISTS', KEYS[5]) == 1 then
   return tonumber(redis.call('GET', KEYS[4])) or 0
 end
 local generation = redis.call('INCR', KEYS[4])
@@ -381,23 +420,30 @@ if redis.call('SCARD', KEYS[2]) > 0 then
   if ARGV[4] ~= '' and tonumber(ARGV[5]) ~= 0 then
     local id = redis.call('HGET', KEYS[1], 'Id')
     local current = tonumber(redis.call('HGET', KEYS[1], ARGV[4]))
-    local next_value = current and current + tonumber(ARGV[5]) or nil
-    if not id or not next_value or next_value < tonumber(ARGV[6]) or next_value > tonumber(ARGV[7]) then
+    local delta = tonumber(ARGV[5])
+    local next_value = current and delta and current + delta or nil
+    local in_current_range = next_value and next_value >= tonumber(ARGV[6]) and next_value <= tonumber(ARGV[7]) and
+      ARGV[9] ~= '1'
+    local legacy_debit = ARGV[9] == '1' and current and next_value and delta and
+      current > tonumber(ARGV[7]) and current <= tonumber(ARGV[8]) and
+      next_value >= tonumber(ARGV[6]) and next_value <= tonumber(ARGV[8]) and
+      delta < 0 and next_value < current
+    if not id or not current or not delta or not next_value or not (in_current_range or legacy_debit) then
       redis.call('SET', KEYS[3], '1', 'EX', ARGV[1])
       return -1
     end
     redis.call('HINCRBY', KEYS[1], ARGV[4], ARGV[5])
   end
   redis.call('SET', KEYS[3], '1', 'EX', ARGV[1])
-  if ARGV[8] == '1' then
-    redis.call('SET', KEYS[5], '1', 'EX', ARGV[9])
+  if ARGV[10] == '1' then
+    redis.call('SET', KEYS[5], '1', 'EX', ARGV[11])
   end
   return generation
 end
 redis.call('DEL', KEYS[1])
 redis.call('DEL', KEYS[3])
-if ARGV[8] == '1' then
-  redis.call('SET', KEYS[5], '1', 'EX', ARGV[9])
+if ARGV[10] == '1' then
+  redis.call('SET', KEYS[5], '1', 'EX', ARGV[11])
 end
 return generation
 `
@@ -412,6 +458,8 @@ return generation
 		delta,
 		MinQuota,
 		MaxQuota,
+		MaxLegacyQuota,
+		legacyDebitEnabled,
 		operationEnabled,
 		operationSeconds,
 	).Int64()

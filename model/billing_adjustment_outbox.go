@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -439,11 +440,41 @@ func outstandingImageReservationQuery(tx *gorm.DB) *gorm.DB {
 // above the current int32 ceiling before quota saturation was enforced.
 // Refusing those debits would leave every post-consume settlement escrowed
 // forever even though subtracting a bounded charge is safe.
-func billingAdjustmentNextQuotaAllowed(nextQuota, delta int64) bool {
+func billingAdjustmentNextQuotaAllowed(currentQuota, nextQuota, delta int64) bool {
 	if nextQuota < int64(common.MinQuota) {
 		return false
 	}
-	return delta < 0 || nextQuota <= int64(common.MaxQuota)
+	if nextQuota <= int64(common.MaxQuota) {
+		return true
+	}
+	return currentQuota > int64(common.MaxQuota) &&
+		currentQuota <= int64(common.MaxLegacyQuota) &&
+		nextQuota <= int64(common.MaxLegacyQuota) &&
+		delta < 0 && nextQuota < currentQuota
+}
+
+func checkedQuotaAdd(current, delta int64) (int64, bool) {
+	if delta > 0 && current > math.MaxInt64-delta {
+		return 0, false
+	}
+	if delta < 0 && current < math.MinInt64-delta {
+		return 0, false
+	}
+	return current + delta, true
+}
+
+func checkedQuotaSubtract(current, delta int64) (int64, bool) {
+	if delta > 0 && current < math.MinInt64+delta {
+		return 0, false
+	}
+	if delta < 0 && current > math.MaxInt64+delta {
+		return 0, false
+	}
+	return current - delta, true
+}
+
+func quotaValueFitsInt(value int64) bool {
+	return int64(int(value)) == value
 }
 
 func applyBillingAdjustmentDatabaseClaim(row *BillingAdjustmentOutbox, expectedStatus string, releaseOwner bool) error {
@@ -461,6 +492,9 @@ func applyBillingAdjustmentDatabaseClaim(row *BillingAdjustmentOutbox, expectedS
 		if stored.DBApplied {
 			return nil
 		}
+		if stored.Delta == 0 || stored.Delta < int64(common.MinQuota) || stored.Delta > int64(common.MaxQuota) {
+			return fmt.Errorf("billing adjustment delta is out of range: %d", stored.Delta)
+		}
 
 		switch stored.Leg {
 		case BillingAdjustmentLegWallet:
@@ -468,8 +502,9 @@ func applyBillingAdjustmentDatabaseClaim(row *BillingAdjustmentOutbox, expectedS
 			if err := lockForUpdate(tx.Unscoped()).Select("id", "quota").Where("id = ?", stored.UserID).First(&user).Error; err != nil {
 				return err
 			}
-			nextQuota := int64(user.Quota) + stored.Delta
-			if !billingAdjustmentNextQuotaAllowed(nextQuota, stored.Delta) {
+			nextQuota, ok := checkedQuotaAdd(int64(user.Quota), stored.Delta)
+			if !ok || !quotaValueFitsInt(nextQuota) ||
+				!billingAdjustmentNextQuotaAllowed(int64(user.Quota), nextQuota, stored.Delta) {
 				return fmt.Errorf("%w: wallet current=%d delta=%d", ErrBillingAdjustmentBalanceBlocked, user.Quota, stored.Delta)
 			}
 			if stored.Delta > 0 {
@@ -497,10 +532,17 @@ func applyBillingAdjustmentDatabaseClaim(row *BillingAdjustmentOutbox, expectedS
 			if err := lockForUpdate(tx.Unscoped()).Where("id = ?", stored.TokenID).First(&token).Error; err != nil {
 				return err
 			}
-			nextRemain := int64(token.RemainQuota) + stored.Delta
-			nextUsed := int64(token.UsedQuota) - stored.Delta
-			if !billingAdjustmentNextQuotaAllowed(nextRemain, stored.Delta) ||
-				nextUsed < 0 || (stored.Delta > 0 && nextUsed > int64(common.MaxQuota)) {
+			nextRemain, remainOK := checkedQuotaAdd(int64(token.RemainQuota), stored.Delta)
+			nextUsed, usedOK := checkedQuotaSubtract(int64(token.UsedQuota), stored.Delta)
+			usedDeltaOK := stored.Delta != math.MinInt64
+			usedDelta := int64(0)
+			if usedDeltaOK {
+				usedDelta = -stored.Delta
+			}
+			if !remainOK || !usedOK || !quotaValueFitsInt(nextRemain) || !quotaValueFitsInt(nextUsed) ||
+				!usedDeltaOK ||
+				!billingAdjustmentNextQuotaAllowed(int64(token.RemainQuota), nextRemain, stored.Delta) ||
+				nextUsed < 0 || !billingAdjustmentNextQuotaAllowed(int64(token.UsedQuota), nextUsed, usedDelta) {
 				return fmt.Errorf("%w: token remain=%d used=%d delta=%d", ErrBillingAdjustmentBalanceBlocked, token.RemainQuota, token.UsedQuota, stored.Delta)
 			}
 			if stored.Delta > 0 {
@@ -578,6 +620,28 @@ func billingAdjustmentCacheOperationKey(row *BillingAdjustmentOutbox) string {
 	return "billing:quota-cache-operation:" + hex.EncodeToString(common.Sha256Raw([]byte(identity)))
 }
 
+func billingAdjustmentUsesLegacyDebitCachePolicy(row *BillingAdjustmentOutbox) (bool, error) {
+	if row == nil || row.Delta >= 0 {
+		return false, nil
+	}
+	switch row.Leg {
+	case BillingAdjustmentLegWallet:
+		var user User
+		if err := DB.Unscoped().Select("quota").Where("id = ?", row.UserID).First(&user).Error; err != nil {
+			return false, err
+		}
+		return int64(user.Quota) > int64(common.MaxQuota), nil
+	case BillingAdjustmentLegToken:
+		var token Token
+		if err := DB.Unscoped().Select("remain_quota").Where("id = ?", row.TokenID).First(&token).Error; err != nil {
+			return false, err
+		}
+		return int64(token.RemainQuota) > int64(common.MaxQuota), nil
+	default:
+		return false, nil
+	}
+}
+
 func applyBillingAdjustmentCache(row *BillingAdjustmentOutbox, tokenKey string) error {
 	if row.CacheApplied {
 		return nil
@@ -586,11 +650,15 @@ func applyBillingAdjustmentCache(row *BillingAdjustmentOutbox, tokenKey string) 
 		return nil
 	}
 	operationKey := billingAdjustmentCacheOperationKey(row)
+	allowLegacyDebit, err := billingAdjustmentUsesLegacyDebitCachePolicy(row)
+	if err != nil {
+		return err
+	}
 	switch row.Leg {
 	case BillingAdjustmentLegWallet:
-		return applyUserQuotaCacheDeltaOnce(row.UserID, row.Delta, operationKey)
+		return applyUserQuotaCacheDeltaOnceWithLegacyPolicy(row.UserID, row.Delta, operationKey, allowLegacyDebit)
 	case BillingAdjustmentLegToken:
-		return applyTokenQuotaCacheDeltaOnce(tokenKey, row.Delta, operationKey)
+		return applyTokenQuotaCacheDeltaOnceWithLegacyPolicy(tokenKey, row.Delta, operationKey, allowLegacyDebit)
 	default:
 		return fmt.Errorf("unsupported billing adjustment cache leg: %s", row.Leg)
 	}
