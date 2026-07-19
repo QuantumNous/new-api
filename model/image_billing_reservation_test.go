@@ -250,6 +250,24 @@ func TestImageBillingReservationRejectsBalanceAboveLegacyCeiling(t *testing.T) {
 	assert.Zero(t, reservation.TokenReserved)
 }
 
+func TestImageBillingReservationRejectsTokenUsedQuotaOverflow(t *testing.T) {
+	_, token, task := seedPreparedImageBillingReservation(t, "token-used-overflow", 1)
+	require.NoError(t, DB.Model(&Token{}).Where("id = ?", token.Id).Updates(map[string]any{
+		"remain_quota": 1000,
+		"used_quota":   common.MaxQuota,
+	}).Error)
+
+	err := ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 1)
+	require.Error(t, err)
+
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, 1000, token.RemainQuota)
+	assert.Equal(t, common.MaxQuota, token.UsedQuota)
+	reservation, err := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Zero(t, reservation.TokenReserved)
+}
+
 func TestImageBillingReservationWalletTokenRecoveryIsIdempotent(t *testing.T) {
 	redisServer := useImageTaskTestRedis(t)
 	user, token, task := seedPreparedImageBillingReservation(t, "recover", 100)
