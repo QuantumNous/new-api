@@ -1639,8 +1639,7 @@ func buildGeminiImagineRequestFromImage(request dto.ImageRequest) *dto.GeminiCha
 	case resNorm == "1K" || qualNorm == "standard" || qualNorm == "medium" || qualNorm == "low" || qualNorm == "auto" || qualNorm == "1k":
 		imageConfig["imageSize"] = "1K"
 	case resNorm == "0.5K":
-		// 0.5K is not supported by this upstream; fall back to 1K silently.
-		imageConfig["imageSize"] = "1K"
+		imageConfig["imageSize"] = "512"
 	}
 	if len(imageConfig) > 0 {
 		if b, err := common.Marshal(imageConfig); err == nil {
