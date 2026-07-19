@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect, useRef } from 'react'
 import { Gift, Check, Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -29,6 +30,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CopyButton } from '@/components/copy-button'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { trackInvitePromoEvent } from '../../api'
 
 interface InvitePromoDialogProps {
   open: boolean
@@ -43,6 +45,21 @@ export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink 
     successMessage: t('Copied! Share it with your friends'),
   })
   const isCopied = copiedText === affiliateLink
+  const wasOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      void trackInvitePromoEvent('invite_popup_impression')
+    }
+    wasOpenRef.current = open
+  }, [open])
+
+  async function handleCopy() {
+    const success = await copyToClipboard(affiliateLink)
+    if (success) {
+      void trackInvitePromoEvent('invite_popup_copy')
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,6 +96,9 @@ export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink 
               iconClassName='size-4'
               tooltip={t('Copy referral link')}
               aria-label={t('Copy referral link')}
+              onCopied={() => {
+                void trackInvitePromoEvent('invite_popup_copy')
+              }}
             />
           </div>
         </div>
@@ -86,7 +106,7 @@ export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink 
         <Button
           className='mt-2 w-full border-0 text-white shadow-md shadow-amber-500/30 hover:brightness-105'
           style={{ background: 'linear-gradient(135deg, #f59e0b, #ea580c)' }}
-          onClick={() => copyToClipboard(affiliateLink)}
+          onClick={handleCopy}
         >
           {isCopied ? <Check className='size-4' /> : <Copy className='size-4' />}
           {t('Copy referral link')}

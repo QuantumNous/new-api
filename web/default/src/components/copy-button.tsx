@@ -37,6 +37,7 @@ interface CopyButtonProps {
   size?: 'default' | 'sm' | 'lg' | 'icon'
   tooltip?: string
   successTooltip?: string
+  onCopied?: (value: string) => void
   'aria-label'?: string
 }
 
@@ -49,6 +50,7 @@ export function CopyButton({
   size = 'icon',
   tooltip,
   successTooltip,
+  onCopied,
   'aria-label': ariaLabel,
 }: CopyButtonProps) {
   const { t } = useTranslation()
@@ -64,7 +66,12 @@ export function CopyButton({
       variant={variant}
       size={size}
       className={cn('shrink-0', className)}
-      onClick={() => copyToClipboard(value)}
+      onClick={async () => {
+        const success = await copyToClipboard(value)
+        if (success) {
+          onCopied?.(value)
+        }
+      }}
       aria-label={isCopied ? copiedAriaLabel : resolvedAriaLabel}
     >
       {isCopied ? (

@@ -407,3 +407,17 @@ export async function getFirstTopupPromo(): Promise<FirstTopupPromoInfo | null> 
   }
   return null
 }
+
+export type InvitePromoTrackEvent =
+  | 'invite_popup_impression'
+  | 'invite_popup_copy'
+
+export async function trackInvitePromoEvent(
+  event: InvitePromoTrackEvent
+): Promise<void> {
+  try {
+    await api.post('/api/user/invite_promo_event', { event })
+  } catch {
+    // ignore tracking failures
+  }
+}

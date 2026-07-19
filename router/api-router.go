@@ -106,6 +106,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.DELETE("/passkey", controller.PasskeyDelete)
 				selfRoute.GET("/aff", controller.GetAffCode)
 				selfRoute.GET("/referral_code", controller.GetReferralCode)
+				selfRoute.POST("/invite_promo_event", controller.RecordInvitePromoEvent)
 				selfRoute.GET("/aff_logs", controller.GetAffLogs)
 				selfRoute.GET("/invite_list", controller.GetInviteList)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
