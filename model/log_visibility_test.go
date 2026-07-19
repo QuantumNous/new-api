@@ -90,6 +90,7 @@ func TestUserLogQueriesHideRetryAttempts(t *testing.T) {
 	assert.Equal(t, int64(1), errorTotal)
 	require.Len(t, userErrorLogs, 1)
 	assert.Equal(t, "request-final-failure", userErrorLogs[0].RequestId)
+	assert.Equal(t, "status_code=500", userErrorLogs[0].Content)
 
 	tokenLogs, err := GetLogByTokenId(7)
 	require.NoError(t, err)
@@ -107,6 +108,7 @@ func TestUserLogQueriesHideRetryAttempts(t *testing.T) {
 	}
 	assert.Equal(t, 2, retryAttemptCount)
 	assert.Contains(t, adminLogs[3].Content, "temporary upstream failure")
+	assert.Contains(t, adminLogs[0].Content, "final upstream failure")
 }
 
 func TestClickHouseRetryAttemptColumn(t *testing.T) {

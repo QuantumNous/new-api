@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -119,6 +120,31 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		logs[i].ChannelName = ""
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
+		if logs[i].Type == LogTypeError {
+			statusCode := 0
+			if otherMap != nil {
+				switch value := otherMap["status_code"].(type) {
+				case int:
+					statusCode = value
+				case int64:
+					statusCode = int(value)
+				case float64:
+					statusCode = int(value)
+				case string:
+					statusCode, _ = strconv.Atoi(strings.TrimSpace(value))
+				}
+			}
+			if statusCode == 0 && strings.HasPrefix(logs[i].Content, "status_code=") {
+				value := strings.TrimPrefix(logs[i].Content, "status_code=")
+				if end := strings.IndexAny(value, ", \t\r\n"); end >= 0 {
+					value = value[:end]
+				}
+				statusCode, _ = strconv.Atoi(value)
+			}
+			if statusCode >= 100 && statusCode <= 599 {
+				logs[i].Content = fmt.Sprintf("status_code=%d", statusCode)
+			}
+		}
 		if otherMap != nil {
 			// Remove admin-only debug fields.
 			delete(otherMap, "admin_info")

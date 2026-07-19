@@ -6,8 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -80,6 +82,70 @@ func TestPrepareNextRelayAttemptClearsPendingAutoGroupResetForDedicatedRetries(t
 			require.Equal(t, 3, retryParam.GetRetry())
 		})
 	}
+}
+
+func TestPrepareNextRelayAttemptFallsBackToConfiguredSystemRetry(t *testing.T) {
+	originalRetryTimes := common.RetryTimes
+	originalRanges := operation_setting.AutomaticRetryStatusCodeRanges
+	t.Cleanup(func() {
+		common.RetryTimes = originalRetryTimes
+		operation_setting.AutomaticRetryStatusCodeRanges = originalRanges
+	})
+	common.RetryTimes = 2
+	operation_setting.AutomaticRetryStatusCodeRanges = []operation_setting.StatusCodeRange{
+		{Start: 400, End: 400},
+		{Start: 503, End: 503},
+		{Start: 524, End: 524},
+	}
+
+	tests := []struct {
+		name       string
+		statusCode int
+		message    string
+	}{
+		{name: "400 upstream failed", statusCode: 400, message: "Upstream request failed"},
+		{name: "503", statusCode: 503, message: "upstream unavailable"},
+		{name: "524", statusCode: 524, message: "upstream timeout"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			retry := 0
+			retryParam := &service.RetryParam{Retry: &retry}
+			budget := relayRetryBudget{
+				retry400UpstreamFailedRemaining: 1,
+				retry503Remaining:               1,
+				retry524Remaining:               1,
+			}
+			apiErr := types.NewOpenAIError(errors.New(test.message), types.ErrorCodeBadResponseStatusCode, test.statusCode)
+
+			require.True(t, prepareNextRelayAttempt(c, relayconstant.RelayModeResponses, apiErr, retryParam, &budget))
+			require.Zero(t, retryParam.GetRetry())
+			require.True(t, prepareNextRelayAttempt(c, relayconstant.RelayModeResponses, apiErr, retryParam, &budget))
+			require.Equal(t, 1, retryParam.GetRetry())
+		})
+	}
+}
+
+func TestPrepareNextRelayAttemptStopsWhenSystemRetryDoesNotIncludeStatus(t *testing.T) {
+	originalRetryTimes := common.RetryTimes
+	originalRanges := operation_setting.AutomaticRetryStatusCodeRanges
+	t.Cleanup(func() {
+		common.RetryTimes = originalRetryTimes
+		operation_setting.AutomaticRetryStatusCodeRanges = originalRanges
+	})
+	common.RetryTimes = 2
+	operation_setting.AutomaticRetryStatusCodeRanges = nil
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	retry := 0
+	retryParam := &service.RetryParam{Retry: &retry}
+	budget := relayRetryBudget{}
+	apiErr := types.NewOpenAIError(errors.New("upstream unavailable"), types.ErrorCodeBadResponseStatusCode, 503)
+
+	require.False(t, prepareNextRelayAttempt(c, relayconstant.RelayModeResponses, apiErr, retryParam, &budget))
+	require.Zero(t, retryParam.GetRetry())
 }
 
 func TestShouldRetry502StillUsesDefaultBudget(t *testing.T) {

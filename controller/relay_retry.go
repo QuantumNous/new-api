@@ -49,10 +49,7 @@ func prepareNextRelayAttempt(
 		case apiError.StatusCode == 524:
 			remaining = &retryBudget.retry524Remaining
 		}
-		if remaining != nil && *remaining <= 0 {
-			return false
-		}
-		if remaining != nil {
+		if remaining != nil && *remaining > 0 {
 			*remaining = *remaining - 1
 			// Consume a pending auto-group reset without spending a normal retry.
 			retryIndex := retryParam.GetRetry()
