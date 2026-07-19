@@ -72,6 +72,46 @@ func lotteryIsThursday() bool {
 	return lotteryNowFunc().Weekday() == time.Thursday
 }
 
+// userHasRedeemedCode 是否至少成功兑换过一次兑换码。
+// 已使用兑换码可能被定时任务软删除，因此必须 Unscoped；并回退查充值日志兼容更早数据。
+func userHasRedeemedCode(userId int) (bool, error) {
+	var id int
+	err := DB.Unscoped().Model(&Redemption{}).
+		Select("id").
+		Where("used_user_id = ? AND status = ?", userId, common.RedemptionCodeStatusUsed).
+		Limit(1).
+		Take(&id).Error
+	if err == nil {
+		return true, nil
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, err
+	}
+
+	// 回退：兑换成功会写「通过兑换码充值」的 topup 日志
+	var logId int
+	err = DB.Model(&Log{}).
+		Select("id").
+		Where("user_id = ? AND type = ? AND content LIKE ?", userId, LogTypeTopup, "%通过兑换码充值%").
+		Limit(1).
+		Take(&logId).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// checkLotteryRedemptionGate 平时需兑换过码；疯狂星期四 / 管理员 / 关闭开关时放行
+func checkLotteryRedemptionGate(userId int, requireRedemption bool, isThursday bool, isAdmin bool) (meets bool, err error) {
+	if !requireRedemption || isThursday || isAdmin {
+		return true, nil
+	}
+	return userHasRedeemedCode(userId)
+}
+
 // GetUserLotteryState 获取用户抽奖状态（供 GET API）
 func GetUserLotteryState(userId int) (map[string]interface{}, error) {
 	setting := operation_setting.GetLotterySetting()
@@ -102,6 +142,11 @@ func GetUserLotteryState(userId int) (map[string]interface{}, error) {
 
 	streak, _ := getLotteryThanksStreak(userId)
 	userQuota, _ := GetUserQuota(userId, false)
+	isAdmin := IsAdmin(userId)
+	meetsRedemption, err := checkLotteryRedemptionGate(userId, setting.RequireRedemption, isThursday, isAdmin)
+	if err != nil {
+		return nil, err
+	}
 
 	freePrizes := make([]map[string]interface{}, 0, len(setting.FreePrizes))
 	for _, p := range setting.FreePrizes {
@@ -139,8 +184,8 @@ func GetUserLotteryState(userId int) (map[string]interface{}, error) {
 		}
 	}
 
-	// 管理员不限制每日次数，方便自测
-	canDraw := todayDraw == nil || IsAdmin(userId)
+	// 管理员不限制每日次数，方便自测；未兑换过码（非周四）不可抽
+	canDraw := (todayDraw == nil || isAdmin) && meetsRedemption
 
 	// 用户侧只返回展示奖池，不暴露真实限额与剩余
 	displayPoolUSD := operation_setting.ResolvedDisplayDailyPoolUSD(setting)
@@ -149,6 +194,8 @@ func GetUserLotteryState(userId int) (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"enabled":                          true,
 		"can_draw":                         canDraw,
+		"meets_redemption_requirement":     meetsRedemption,
+		"require_redemption":               setting.RequireRedemption,
 		"is_crazy_thursday":                isThursday,
 		"display_daily_pool_usd":           displayPoolUSD,
 		"effective_display_daily_pool_usd": effectiveDisplayPoolUSD,
@@ -181,6 +228,14 @@ func UserLotteryDraw(userId int, betUSD float64, clientIP string) (*LotteryResul
 	today := lotteryToday()
 	isThursday := lotteryIsThursday()
 	isAdmin := IsAdmin(userId)
+
+	meetsRedemption, err := checkLotteryRedemptionGate(userId, setting.RequireRedemption, isThursday, isAdmin)
+	if err != nil {
+		return nil, err
+	}
+	if !meetsRedemption {
+		return nil, errors.New("请先使用兑换码充值后再参与抽奖（疯狂星期四无需兑换）")
+	}
 
 	var existing int64
 	if err := DB.Model(&LotteryDraw{}).Where("user_id = ? AND draw_date = ?", userId, today).Count(&existing).Error; err != nil {

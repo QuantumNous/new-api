@@ -28,9 +28,11 @@ type LotterySetting struct {
 	DisplayDailyPoolUSD float64 `json:"display_daily_pool_usd"`
 	MinBetUSD           float64 `json:"min_bet_usd"`
 	MaxBetUSD           float64 `json:"max_bet_usd"`
-	MaxDrawsPerIPPerDay int     `json:"max_draws_per_ip_per_day"` // 0=不限制
-	FreePrizes          []LotteryPrize `json:"free_prizes"`
-	BetPrizes           []LotteryPrize `json:"bet_prizes"`
+	MaxDrawsPerIPPerDay int `json:"max_draws_per_ip_per_day"` // 0=不限制
+	// RequireRedemption 平时需至少成功兑换过一次兑换码才可参与；疯狂星期四跳过此限制。
+	RequireRedemption bool           `json:"require_redemption"`
+	FreePrizes        []LotteryPrize `json:"free_prizes"`
+	BetPrizes         []LotteryPrize `json:"bet_prizes"`
 }
 
 var lotterySetting = LotterySetting{
@@ -40,6 +42,7 @@ var lotterySetting = LotterySetting{
 	MinBetUSD:           0.01, // $0.01
 	MaxBetUSD:           10,   // $10
 	MaxDrawsPerIPPerDay: 3,
+	RequireRedemption:   true,
 	FreePrizes: []LotteryPrize{
 		{Name: "谢谢惠顾", Usd: 0, Weight: 28, IsThanks: true},
 		{Name: "安慰奖", Usd: 0.01, Weight: 18},

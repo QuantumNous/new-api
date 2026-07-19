@@ -123,12 +123,22 @@ export function LotteryPage() {
   let spinLabel = t('SPIN')
   if (drawing) {
     spinLabel = t('SPINNING')
+  } else if (data && !data.meets_redemption_requirement) {
+    spinLabel = t('Redeem code required')
   } else if (!data?.can_draw) {
     spinLabel = t('Already spun today')
   }
 
   async function runDraw() {
     if (!data?.can_draw || drawing) return
+    if (!data.meets_redemption_requirement) {
+      toast.error(
+        t(
+          'Please redeem a code before playing. Crazy Thursday does not require this.'
+        )
+      )
+      return
+    }
     if (turnstileEnabled && !turnstileToken) {
       toast.error(t('Please complete the human verification first'))
       return
@@ -216,6 +226,17 @@ export function LotteryPage() {
                   >
                     {t('Got it')}
                   </Button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {data.require_redemption && !data.meets_redemption_requirement ? (
+              <Alert variant='destructive'>
+                <AlertTitle>{t('Redeem code required')}</AlertTitle>
+                <AlertDescription>
+                  {t(
+                    'Please redeem a code before playing. Crazy Thursday does not require this.'
+                  )}
                 </AlertDescription>
               </Alert>
             ) : null}

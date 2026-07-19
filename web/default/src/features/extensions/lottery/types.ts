@@ -47,6 +47,10 @@ export type LotteryTodayDraw = {
 export type LotteryStatus = {
   enabled: boolean
   can_draw: boolean
+  /** Whether the user may play under the redemption-code gate. */
+  meets_redemption_requirement: boolean
+  /** When true, non-Thursday draws require at least one redeemed code. */
+  require_redemption: boolean
   is_crazy_thursday: boolean
   /** User-facing marketing pool (not the real payout cap). */
   display_daily_pool_usd: number

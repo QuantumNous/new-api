@@ -67,6 +67,7 @@ const schema = z.object({
   minBetUsd: z.coerce.number().min(0),
   maxBetUsd: z.coerce.number().min(0),
   maxDrawsPerIpPerDay: z.coerce.number().int().min(0),
+  requireRedemption: z.boolean(),
   freePrizes: z.array(freePrizeSchema).min(1),
   betPrizes: z.array(betPrizeSchema).min(1),
 })
@@ -150,6 +151,7 @@ export function LotterySettingsSection({
     minBetUsd: number
     maxBetUsd: number
     maxDrawsPerIpPerDay: number
+    requireRedemption: boolean
     freePrizesJson: string
     betPrizesJson: string
   }
@@ -166,6 +168,7 @@ export function LotterySettingsSection({
       minBetUsd: defaultValues.minBetUsd,
       maxBetUsd: defaultValues.maxBetUsd,
       maxDrawsPerIpPerDay: defaultValues.maxDrawsPerIpPerDay,
+      requireRedemption: defaultValues.requireRedemption,
       freePrizes: parseFreePrizes(defaultValues.freePrizesJson),
       betPrizes: parseBetPrizes(defaultValues.betPrizesJson),
     },
@@ -179,6 +182,7 @@ export function LotterySettingsSection({
       minBetUsd: defaultValues.minBetUsd,
       maxBetUsd: defaultValues.maxBetUsd,
       maxDrawsPerIpPerDay: defaultValues.maxDrawsPerIpPerDay,
+      requireRedemption: defaultValues.requireRedemption,
       freePrizes: parseFreePrizes(defaultValues.freePrizesJson),
       betPrizes: parseBetPrizes(defaultValues.betPrizesJson),
     })
@@ -223,6 +227,10 @@ export function LotterySettingsSection({
       {
         key: 'lottery_setting.max_draws_per_ip_per_day',
         value: String(values.maxDrawsPerIpPerDay),
+      },
+      {
+        key: 'lottery_setting.require_redemption',
+        value: String(values.requireRedemption),
       },
       {
         key: 'lottery_setting.free_prizes',
@@ -317,6 +325,32 @@ export function LotterySettingsSection({
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='requireRedemption'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>
+                      {t('Require redemption code to play')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'On normal days, users must have redeemed at least one code. Crazy Thursday skips this requirement.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={updateOption.isPending || isSubmitting}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
               )}
             />
 

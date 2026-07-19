@@ -198,6 +198,7 @@ export type ExtensionsSettings = {
   'lottery_setting.min_bet_usd': number
   'lottery_setting.max_bet_usd': number
   'lottery_setting.max_draws_per_ip_per_day': number
+  'lottery_setting.require_redemption': boolean
   'lottery_setting.free_prizes': string
   'lottery_setting.bet_prizes': string
 }

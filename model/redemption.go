@@ -23,7 +23,7 @@ type Redemption struct {
 	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
 	RedeemedTime int64          `json:"redeemed_time" gorm:"bigint"`
 	Count        int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId   int            `json:"used_user_id"`
+	UsedUserId   int            `json:"used_user_id" gorm:"index"`
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
 	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
 }

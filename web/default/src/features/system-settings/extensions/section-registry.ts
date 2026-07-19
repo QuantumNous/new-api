@@ -69,6 +69,8 @@ const EXTENSIONS_SECTIONS = [
           maxBetUsd: settings['lottery_setting.max_bet_usd'] ?? 10,
           maxDrawsPerIpPerDay:
             settings['lottery_setting.max_draws_per_ip_per_day'] ?? 3,
+          requireRedemption:
+            settings['lottery_setting.require_redemption'] ?? true,
           freePrizesJson:
             settings['lottery_setting.free_prizes'] ||
             '[{"name":"谢谢惠顾","usd":0,"weight":28,"is_thanks":true}]',

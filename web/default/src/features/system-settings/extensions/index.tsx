@@ -35,6 +35,7 @@ const defaultExtensionsSettings: ExtensionsSettings = {
   'lottery_setting.min_bet_usd': 0.01,
   'lottery_setting.max_bet_usd': 10,
   'lottery_setting.max_draws_per_ip_per_day': 3,
+  'lottery_setting.require_redemption': true,
   'lottery_setting.free_prizes': '[]',
   'lottery_setting.bet_prizes': '[]',
 }
