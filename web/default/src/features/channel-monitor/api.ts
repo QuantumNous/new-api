@@ -35,6 +35,7 @@ import type {
   ChannelMonitorUpstreamConfig,
   ChannelMonitorUpstreamGroupsResult,
   ChannelMonitorUpstreamRequest,
+  ChannelMonitorUpstreamVersionResult,
   ChannelRatioHistoryPage,
   NewAPIGroupRatioResult,
 } from './types'
@@ -203,6 +204,15 @@ export async function saveChannelMonitorUpstreamConfig(request: {
     `/api/channel_monitor/channel/${request.channelId}/upstream`,
     request.config
   )
+  return ensureChannelMonitorSuccess(response.data)
+}
+
+export async function fetchChannelMonitorSub2APIUpstreamVersion(
+  baseUrl: string
+) {
+  const response = await api.post<
+    ChannelMonitorApiResponse<ChannelMonitorUpstreamVersionResult>
+  >('/api/channel_monitor/upstream/version', { base_url: baseUrl })
   return ensureChannelMonitorSuccess(response.data)
 }
 

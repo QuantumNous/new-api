@@ -52,10 +52,11 @@ type channelMonitorUpstreamRequest struct {
 	AuthType                string          `json:"auth_type"`
 	UserId                  int             `json:"user_id"`
 	AccessToken             string          `json:"access_token"`
-	RefreshToken            string          `json:"refresh_token"`
 	SingleChannelAction     string          `json:"single_channel_action"`
 	MultipleChannelsAction  string          `json:"multiple_channels_action"`
 	BalanceWarningThreshold json.RawMessage `json:"balance_warning_threshold"`
+	RatioSyncEnabled        *bool           `json:"ratio_sync_enabled"`
+	BalanceSyncEnabled      *bool           `json:"balance_sync_enabled"`
 }
 
 type channelMonitorUpstreamConfig struct {
@@ -65,10 +66,11 @@ type channelMonitorUpstreamConfig struct {
 	AuthType                string   `json:"auth_type"`
 	UserId                  int      `json:"user_id"`
 	HasAccessToken          bool     `json:"has_access_token"`
-	HasRefreshToken         bool     `json:"has_refresh_token"`
 	SingleChannelAction     string   `json:"single_channel_action"`
 	MultipleChannelsAction  string   `json:"multiple_channels_action"`
 	BalanceWarningThreshold *float64 `json:"balance_warning_threshold"`
+	RatioSyncEnabled        bool     `json:"ratio_sync_enabled"`
+	BalanceSyncEnabled      bool     `json:"balance_sync_enabled"`
 }
 
 type channelMonitorItem struct {
@@ -122,10 +124,11 @@ func channelMonitorUpstreamFromModel(monitor model.ChannelRatioMonitor) *channel
 		AuthType:                monitor.UpstreamAuthType,
 		UserId:                  monitor.UpstreamUserId,
 		HasAccessToken:          monitor.UpstreamAccessToken != "",
-		HasRefreshToken:         monitor.UpstreamRefreshToken != "",
 		SingleChannelAction:     normalizeChannelMonitorPolicyAction(monitor.SingleChannelAction),
 		MultipleChannelsAction:  normalizeChannelMonitorPolicyAction(monitor.MultipleChannelsAction),
 		BalanceWarningThreshold: monitor.BalanceWarningThreshold,
+		RatioSyncEnabled:        !monitor.UpstreamRatioSyncDisabled,
+		BalanceSyncEnabled:      !monitor.UpstreamBalanceSyncDisabled,
 	}
 }
 
@@ -170,10 +173,11 @@ func resolveChannelMonitorUpstreamRequest(channel *model.Channel, request channe
 	}
 	request.AuthType = strings.TrimSpace(request.AuthType)
 	config := service.ChannelMonitorUpstreamConfig{
-		Type:     request.Type,
-		BaseURL:  normalizedBaseURL,
-		Group:    request.Group,
-		AuthType: request.AuthType,
+		Type:        request.Type,
+		BaseURL:     normalizedBaseURL,
+		Group:       request.Group,
+		AuthType:    request.AuthType,
+		SkipBalance: request.BalanceSyncEnabled != nil && !*request.BalanceSyncEnabled,
 	}
 	switch request.Type {
 	case service.NewAPIUpstreamType:
@@ -209,14 +213,21 @@ func resolveChannelMonitorUpstreamRequest(channel *model.Channel, request channe
 		}
 		return config, nil
 	case service.Sub2APIUpstreamType:
-		if request.AuthType != service.Sub2APIAuthRefreshToken {
+		if request.AuthType == service.Sub2APIAuthAPIKey {
+			if len(channel.GetKeys()) == 0 {
+				return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API API Key 认证需要先在渠道中配置上游 API Key")
+			}
+			config.ChannelKeys = channel.GetKeys()
+			return config, nil
+		}
+		if request.AuthType != service.Sub2APIAuthToken {
 			return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API 认证方式无效")
 		}
-		config.RefreshToken = strings.TrimSpace(request.RefreshToken)
-		if utf8.RuneCountInString(config.RefreshToken) > 4096 {
-			return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API Refresh Token 过长")
+		config.AccessToken = strings.TrimSpace(request.AccessToken)
+		if utf8.RuneCountInString(config.AccessToken) > 4096 {
+			return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API Token 过长")
 		}
-		if config.RefreshToken == "" {
+		if config.AccessToken == "" {
 			monitor, findErr := model.GetChannelRatioMonitor(channel.Id)
 			if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
 				return service.ChannelMonitorUpstreamConfig{}, findErr
@@ -225,11 +236,11 @@ func resolveChannelMonitorUpstreamRequest(channel *model.Channel, request channe
 				monitor.UpstreamType == config.Type &&
 				monitor.UpstreamBaseURL == config.BaseURL &&
 				monitor.UpstreamAuthType == config.AuthType {
-				config.RefreshToken = monitor.UpstreamRefreshToken
+				config.AccessToken = monitor.UpstreamAccessToken
 			}
 		}
-		if config.RefreshToken == "" {
-			return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API Refresh Token 不能为空")
+		if config.AccessToken == "" {
+			return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API Token 不能为空")
 		}
 		return config, nil
 	default:
@@ -555,7 +566,7 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的渠道 ID")
 		return
 	}
-	channel, err := model.GetChannelById(channelId, false)
+	channel, err := model.GetChannelById(channelId, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -577,6 +588,18 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		return
 	}
 	hasExistingMonitor := findErr == nil
+	ratioSyncEnabled := true
+	balanceSyncEnabled := true
+	if hasExistingMonitor {
+		ratioSyncEnabled = !existingMonitor.UpstreamRatioSyncDisabled
+		balanceSyncEnabled = !existingMonitor.UpstreamBalanceSyncDisabled
+	}
+	if request.RatioSyncEnabled != nil {
+		ratioSyncEnabled = *request.RatioSyncEnabled
+	}
+	if request.BalanceSyncEnabled != nil {
+		balanceSyncEnabled = *request.BalanceSyncEnabled
+	}
 
 	singleChannelAction := strings.TrimSpace(request.SingleChannelAction)
 	multipleChannelAction := strings.TrimSpace(request.MultipleChannelsAction)
@@ -625,10 +648,13 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		config.AuthType,
 		config.UserID,
 		config.AccessToken,
-		config.RefreshToken,
-		singleChannelAction,
-		multipleChannelAction,
-		balanceWarningThreshold,
+		model.ChannelRatioUpstreamOptions{
+			SingleChannelAction:     singleChannelAction,
+			MultipleChannelsAction:  multipleChannelAction,
+			BalanceWarningThreshold: balanceWarningThreshold,
+			RatioSyncEnabled:        ratioSyncEnabled,
+			BalanceSyncEnabled:      balanceSyncEnabled,
+		},
 	)
 	if err != nil {
 		common.ApiError(c, err)
@@ -638,6 +664,7 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		"id": channelId, "upstream_type": config.Type, "group": config.Group, "auth_type": config.AuthType,
 		"single_channel_action": singleChannelAction, "multiple_channels_action": multipleChannelAction,
 		"balance_warning_threshold": balanceWarningThreshold,
+		"ratio_sync_enabled":        ratioSyncEnabled, "balance_sync_enabled": balanceSyncEnabled,
 	})
 	common.ApiSuccess(c, channelMonitorUpstreamFromModel(monitor))
 }
@@ -665,12 +692,19 @@ func ListChannelMonitorUpstreamGroups(c *gin.Context) {
 		return
 	}
 	if config.Type == service.Sub2APIUpstreamType {
+		if config.AuthType != service.Sub2APIAuthToken {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Sub2API API Key 认证不支持获取或应用分组，请手动填写分组或切换为 Token 认证",
+			})
+			return
+		}
 		monitor, findErr := model.GetChannelRatioMonitor(channelId)
 		if findErr != nil ||
 			monitor.UpstreamType != config.Type ||
 			monitor.UpstreamBaseURL != config.BaseURL ||
 			monitor.UpstreamAuthType != config.AuthType ||
-			monitor.UpstreamRefreshToken != config.RefreshToken {
+			monitor.UpstreamAccessToken != config.AccessToken {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Sub2API 请先保存上游配置，再获取可用分组",
@@ -680,16 +714,6 @@ func ListChannelMonitorUpstreamGroups(c *gin.Context) {
 	}
 
 	result, fetchErr := service.FetchChannelMonitorUpstreamGroups(c.Request.Context(), config, channel.GetKeys())
-	if result.NextRefreshToken != "" {
-		if err := model.RotateChannelRatioUpstreamRefreshToken(
-			channelId,
-			config.RefreshToken,
-			result.NextRefreshToken,
-		); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	}
 	if fetchErr != nil {
 		common.ApiError(c, fetchErr)
 		return
@@ -703,7 +727,7 @@ func TestChannelMonitorUpstreamConfig(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的渠道 ID")
 		return
 	}
-	channel, err := model.GetChannelById(channelId, false)
+	channel, err := model.GetChannelById(channelId, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -719,12 +743,12 @@ func TestChannelMonitorUpstreamConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	if config.Type == service.Sub2APIUpstreamType {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Sub2API Refresh Token 使用后会轮换，请先保存配置，再从渠道列表获取倍率",
-		})
+	if request.RatioSyncEnabled != nil && !*request.RatioSyncEnabled {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "上游倍率同步已关闭，无需测试获取"})
 		return
+	}
+	if config.Type == service.Sub2APIUpstreamType {
+		config.ChannelKeys = channel.GetKeys()
 	}
 	result, err := service.FetchChannelMonitorUpstreamGroupRatio(c.Request.Context(), config)
 	if err != nil {
@@ -742,7 +766,13 @@ type channelMonitorFetchOutcome struct {
 	BalanceRecorded bool
 }
 
-func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor model.ChannelRatioMonitor, operatorId int, operatorUsername string) (outcome channelMonitorFetchOutcome, err error) {
+func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor model.ChannelRatioMonitor, channelKeys []string, operatorId int, operatorUsername string) (outcome channelMonitorFetchOutcome, err error) {
+	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType {
+		return outcome, errors.New("请先保存上游配置")
+	}
+	if monitor.UpstreamRatioSyncDisabled {
+		return outcome, errors.New("该渠道已关闭上游倍率同步")
+	}
 	defer func() {
 		if err == nil {
 			return
@@ -751,34 +781,32 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 			err = fmt.Errorf("%w（记录失败状态失败：%v）", err, statusErr)
 		}
 	}()
-
-	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType {
-		return outcome, errors.New("请先保存上游配置")
-	}
-	if monitor.UpstreamType == service.Sub2APIUpstreamType &&
-		(monitor.UpstreamAuthType != service.Sub2APIAuthRefreshToken || monitor.UpstreamRefreshToken == "") {
-		return outcome, errors.New("请重新保存 Sub2API Refresh Token 配置")
+	if monitor.UpstreamType == service.Sub2APIUpstreamType {
+		switch monitor.UpstreamAuthType {
+		case service.Sub2APIAuthAPIKey:
+			if len(channelKeys) == 0 {
+				return outcome, errors.New("Sub2API API Key 认证需要当前渠道配置上游 API Key")
+			}
+		case service.Sub2APIAuthToken:
+			if monitor.UpstreamAccessToken == "" {
+				return outcome, errors.New("请重新保存 Sub2API Token 配置")
+			}
+		default:
+			return outcome, errors.New("Sub2API 认证方式无效")
+		}
 	}
 
 	result, fetchErr := service.FetchChannelMonitorUpstreamGroupRatio(ctx, service.ChannelMonitorUpstreamConfig{
-		Type:         monitor.UpstreamType,
-		BaseURL:      monitor.UpstreamBaseURL,
-		Group:        monitor.UpstreamGroup,
-		AuthType:     monitor.UpstreamAuthType,
-		UserID:       monitor.UpstreamUserId,
-		AccessToken:  monitor.UpstreamAccessToken,
-		RefreshToken: monitor.UpstreamRefreshToken,
+		Type:        monitor.UpstreamType,
+		BaseURL:     monitor.UpstreamBaseURL,
+		Group:       monitor.UpstreamGroup,
+		AuthType:    monitor.UpstreamAuthType,
+		UserID:      monitor.UpstreamUserId,
+		AccessToken: monitor.UpstreamAccessToken,
+		ChannelKeys: channelKeys,
+		SkipBalance: monitor.UpstreamBalanceSyncDisabled,
 	})
 	outcome.Result = result
-	if result.NextRefreshToken != "" {
-		if err := model.RotateChannelRatioUpstreamRefreshToken(
-			monitor.ChannelId,
-			monitor.UpstreamRefreshToken,
-			result.NextRefreshToken,
-		); err != nil {
-			return outcome, err
-		}
-	}
 	if result.Balance.Amount != nil || strings.TrimSpace(result.Balance.Error) != "" {
 		if balanceErr := model.RecordChannelRatioMonitorBalance(
 			monitor.ChannelId,
@@ -814,13 +842,48 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 	return outcome, nil
 }
 
+func fetchAndRecordChannelMonitorUpstreamBalance(ctx context.Context, monitor model.ChannelRatioMonitor, channelKeys []string) (result service.ChannelMonitorUpstreamBalanceResult, err error) {
+	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType {
+		return result, errors.New("请先保存上游配置")
+	}
+	if monitor.UpstreamBalanceSyncDisabled {
+		return result, errors.New("该渠道已关闭上游余额同步")
+	}
+
+	result, fetchErr := service.FetchChannelMonitorUpstreamBalance(
+		ctx,
+		service.ChannelMonitorUpstreamConfig{
+			Type:        monitor.UpstreamType,
+			BaseURL:     monitor.UpstreamBaseURL,
+			AuthType:    monitor.UpstreamAuthType,
+			UserID:      monitor.UpstreamUserId,
+			AccessToken: monitor.UpstreamAccessToken,
+			ChannelKeys: channelKeys,
+		},
+	)
+	if fetchErr == nil && result.Amount == nil {
+		fetchErr = errors.New("上游未返回余额")
+	}
+	if fetchErr != nil {
+		if recordErr := model.RecordChannelRatioMonitorBalance(monitor.ChannelId, nil, fetchErr.Error()); recordErr != nil {
+			fetchErr = fmt.Errorf("%w（记录余额失败状态失败：%v）", fetchErr, recordErr)
+		}
+		return result, fetchErr
+	}
+	if err := model.RecordChannelRatioMonitorBalance(monitor.ChannelId, result.Amount, ""); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
 func FetchChannelMonitorUpstreamRatio(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil || channelId <= 0 {
 		common.ApiErrorMsg(c, "无效的渠道 ID")
 		return
 	}
-	if _, err := model.GetChannelById(channelId, false); err != nil {
+	channel, err := model.GetChannelById(channelId, true)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -833,8 +896,12 @@ func FetchChannelMonitorUpstreamRatio(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if monitor.UpstreamRatioSyncDisabled {
+		common.ApiErrorMsg(c, "该渠道已关闭上游倍率同步")
+		return
+	}
 	operatorId, operatorUsername := getChannelMonitorOperator(c)
-	outcome, err := fetchAndRecordChannelMonitorUpstreamRatio(c.Request.Context(), monitor, operatorId, operatorUsername)
+	outcome, err := fetchAndRecordChannelMonitorUpstreamRatio(c.Request.Context(), monitor, channel.GetKeys(), operatorId, operatorUsername)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -860,7 +927,8 @@ func FetchChannelMonitorUpstreamBalance(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的渠道 ID")
 		return
 	}
-	if _, err := model.GetChannelById(channelId, false); err != nil {
+	channel, err := model.GetChannelById(channelId, true)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -873,38 +941,13 @@ func FetchChannelMonitorUpstreamBalance(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-
-	result, fetchErr := service.FetchChannelMonitorUpstreamBalance(
-		c.Request.Context(),
-		service.ChannelMonitorUpstreamConfig{
-			Type:         monitor.UpstreamType,
-			BaseURL:      monitor.UpstreamBaseURL,
-			AuthType:     monitor.UpstreamAuthType,
-			UserID:       monitor.UpstreamUserId,
-			AccessToken:  monitor.UpstreamAccessToken,
-			RefreshToken: monitor.UpstreamRefreshToken,
-		},
-	)
-	if result.NextRefreshToken != "" {
-		if rotateErr := model.RotateChannelRatioUpstreamRefreshToken(
-			channelId,
-			monitor.UpstreamRefreshToken,
-			result.NextRefreshToken,
-		); rotateErr != nil {
-			fetchErr = fmt.Errorf("保存 Sub2API 新 Refresh Token 失败: %w", rotateErr)
-		}
-	}
-	if fetchErr == nil && result.Amount == nil {
-		fetchErr = errors.New("上游未返回余额")
-	}
-	if fetchErr != nil {
-		if recordErr := model.RecordChannelRatioMonitorBalance(channelId, nil, fetchErr.Error()); recordErr != nil {
-			fetchErr = fmt.Errorf("%w（记录余额失败状态失败：%v）", fetchErr, recordErr)
-		}
-		common.ApiError(c, fetchErr)
+	if monitor.UpstreamBalanceSyncDisabled {
+		common.ApiErrorMsg(c, "该渠道已关闭上游余额同步")
 		return
 	}
-	if err := model.RecordChannelRatioMonitorBalance(channelId, result.Amount, ""); err != nil {
+
+	result, err := fetchAndRecordChannelMonitorUpstreamBalance(c.Request.Context(), monitor, channel.GetKeys())
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -938,25 +981,15 @@ func ApplyChannelMonitorUpstreamGroup(c *gin.Context) {
 	applyResult, applyErr := service.ApplyChannelMonitorUpstreamGroup(
 		c.Request.Context(),
 		service.ChannelMonitorUpstreamConfig{
-			Type:         monitor.UpstreamType,
-			BaseURL:      monitor.UpstreamBaseURL,
-			Group:        monitor.UpstreamGroup,
-			AuthType:     monitor.UpstreamAuthType,
-			UserID:       monitor.UpstreamUserId,
-			AccessToken:  monitor.UpstreamAccessToken,
-			RefreshToken: monitor.UpstreamRefreshToken,
+			Type:        monitor.UpstreamType,
+			BaseURL:     monitor.UpstreamBaseURL,
+			Group:       monitor.UpstreamGroup,
+			AuthType:    monitor.UpstreamAuthType,
+			UserID:      monitor.UpstreamUserId,
+			AccessToken: monitor.UpstreamAccessToken,
 		},
 		channel.GetKeys(),
 	)
-	if applyResult.Result.NextRefreshToken != "" {
-		if rotateErr := model.RotateChannelRatioUpstreamRefreshToken(
-			channelId,
-			monitor.UpstreamRefreshToken,
-			applyResult.Result.NextRefreshToken,
-		); rotateErr != nil {
-			applyErr = fmt.Errorf("保存 Sub2API 新 Refresh Token 失败: %w", rotateErr)
-		}
-	}
 	if applyErr != nil {
 		if applyResult.KeysUpdated > 0 {
 			applyErr = fmt.Errorf("已切换 %d 个上游令牌，但后续操作失败: %w", applyResult.KeysUpdated, applyErr)

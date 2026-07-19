@@ -181,7 +181,6 @@ type SavedUpstreamCredential = {
   type: ChannelMonitorUpstreamType
   authType: ChannelMonitorUpstreamAuthType
   hasAccessToken: boolean
-  hasRefreshToken: boolean
 } | null
 
 export function createUpstreamConfigSchema(
@@ -201,12 +200,13 @@ export function createUpstreamConfigSchema(
         .trim()
         .min(1, '请输入上游分组')
         .max(64, '上游分组不能超过 64 个字符'),
-      authType: z.enum(['public', 'user', 'refresh_token']),
+      authType: z.enum(['public', 'user', 'api_key', 'token']),
       userId: z.coerce.number().int().min(0, '上游用户 ID 必须大于 0'),
       accessToken: z.string().trim().max(4096, '访问令牌过长'),
-      refreshToken: z.string().trim().max(4096, 'Refresh Token 过长'),
       singleChannelAction: z.enum(channelMonitorPolicyActions),
       multipleChannelsAction: z.enum(channelMonitorPolicyActions),
+      ratioSyncEnabled: z.boolean(),
+      balanceSyncEnabled: z.boolean(),
       balanceWarningThreshold: z
         .number()
         .finite('余额预警值必须是有效数字')
@@ -220,9 +220,6 @@ export function createUpstreamConfigSchema(
         savedCredential.authType === values.authType
       const hasSavedAccessToken =
         hasSavedCredential && savedCredential?.hasAccessToken === true
-      const hasSavedRefreshToken =
-        hasSavedCredential && savedCredential?.hasRefreshToken === true
-
       if (values.upstreamType === 'new_api') {
         if (values.authType !== 'public' && values.authType !== 'user') {
           context.addIssue({
@@ -250,7 +247,8 @@ export function createUpstreamConfigSchema(
         return
       }
 
-      if (values.authType !== 'refresh_token') {
+      if (values.authType === 'api_key') return
+      if (values.authType !== 'token') {
         context.addIssue({
           code: 'custom',
           path: ['authType'],
@@ -258,11 +256,11 @@ export function createUpstreamConfigSchema(
         })
         return
       }
-      if (!values.refreshToken && !hasSavedRefreshToken) {
+      if (!values.accessToken && !hasSavedAccessToken) {
         context.addIssue({
           code: 'custom',
-          path: ['refreshToken'],
-          message: '请输入 Sub2API Refresh Token',
+          path: ['accessToken'],
+          message: '请输入 Sub2API Token（旧版访问令牌）',
         })
       }
     })

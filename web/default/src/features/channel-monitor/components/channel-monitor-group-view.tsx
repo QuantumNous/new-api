@@ -22,6 +22,7 @@ import {
   Settings02Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { useMemo } from 'react'
 
 import {
   Alert,
@@ -51,10 +52,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { CHANNEL_STATUS } from '@/features/channels/constants'
+import { cn } from '@/lib/utils'
 
 import { formatMonitorRatio, getChannelGroupTargetRatio } from '../lib/format'
 import type { GroupMonitorItem } from '../types'
-import { ChannelMonitorFetchStatus } from './channel-monitor-fetch-status'
 
 type ChannelMonitorGroupViewProps = {
   groups: GroupMonitorItem[]
@@ -64,6 +65,36 @@ type ChannelMonitorGroupViewProps = {
 }
 
 export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
+  const groupsWithSortedChannels = useMemo(
+    () =>
+      props.groups.map((group) => ({
+        group,
+        channels: [...group.channels].sort((leftChannel, rightChannel) => {
+          const leftRatio =
+            leftChannel.ratio != null && Number.isFinite(leftChannel.ratio)
+              ? leftChannel.ratio
+              : null
+          const rightRatio =
+            rightChannel.ratio != null && Number.isFinite(rightChannel.ratio)
+              ? rightChannel.ratio
+              : null
+
+          if (leftRatio != null && rightRatio != null) {
+            const ratioOrder = leftRatio - rightRatio
+            if (ratioOrder !== 0) return ratioOrder
+          } else if (leftRatio != null) {
+            return -1
+          } else if (rightRatio != null) {
+            return 1
+          }
+
+          const nameOrder = leftChannel.name.localeCompare(rightChannel.name)
+          return nameOrder !== 0 ? nameOrder : leftChannel.id - rightChannel.id
+        }),
+      })),
+    [props.groups]
+  )
+
   if (props.groups.length === 0) {
     return (
       <Empty className='min-h-72'>
@@ -105,7 +136,8 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {props.groups.map((group) => {
+            {groupsWithSortedChannels.map((groupEntry) => {
+              const group = groupEntry.group
               const enabledChannelCount = group.channels.filter(
                 (channel) => channel.status === CHANNEL_STATUS.ENABLED
               ).length
@@ -164,30 +196,37 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className='min-w-80 whitespace-normal'>
+                  <TableCell className='min-w-72 whitespace-normal'>
                     {group.channels.length === 0 ? (
                       <span className='text-muted-foreground'>-</span>
                     ) : (
-                      <div className='grid gap-1.5 lg:grid-cols-2'>
-                        {group.channels.map((channel) => {
+                      <div className='flex max-h-36 flex-wrap content-start gap-1.5 overflow-y-auto overscroll-contain py-0.5 pr-1'>
+                        {groupEntry.channels.map((channel) => {
+                          const channelEnabled =
+                            channel.status === CHANNEL_STATUS.ENABLED
+                          const ratio = formatMonitorRatio(channel.ratio)
+
                           return (
-                            <div
+                            <Badge
                               key={channel.id}
-                              className='bg-muted/40 flex min-w-0 items-center justify-between gap-3 rounded-md px-2.5 py-1.5'
+                              variant={channelEnabled ? 'secondary' : 'outline'}
+                              className='max-w-56'
+                              title={`${channel.name} × ${ratio}`}
                             >
-                              <span className='truncate text-sm'>
+                              <span
+                                className={cn(
+                                  'max-w-32 truncate',
+                                  !channelEnabled &&
+                                    'text-muted-foreground line-through'
+                                )}
+                              >
                                 {channel.name}
                               </span>
-                              <span className='flex items-center gap-2'>
-                                <ChannelMonitorFetchStatus channel={channel} />
-                                {channel.status !== CHANNEL_STATUS.ENABLED && (
-                                  <Badge variant='outline'>已禁用</Badge>
-                                )}
-                                <span className='font-mono text-sm font-medium'>
-                                  {formatMonitorRatio(channel.ratio)}
-                                </span>
+                              <span aria-hidden='true'>×</span>
+                              <span className='shrink-0 font-mono tabular-nums'>
+                                {ratio}
                               </span>
-                            </div>
+                            </Badge>
                           )
                         })}
                       </div>

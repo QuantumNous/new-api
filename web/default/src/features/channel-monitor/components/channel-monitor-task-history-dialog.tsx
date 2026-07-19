@@ -224,6 +224,11 @@ function ChannelTaskProgress(props: {
             余额预警 <strong>{result.balance_warnings}</strong>
           </span>
         )}
+        {(result.skipped ?? 0) > 0 && (
+          <span>
+            已跳过 <strong>{result.skipped}</strong>
+          </span>
+        )}
         <span
           className={cn(
             'inline-flex items-center gap-1.5',

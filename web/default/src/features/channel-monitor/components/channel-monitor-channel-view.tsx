@@ -177,6 +177,9 @@ function ChannelUpstreamBalanceCell(props: ChannelUpstreamBalanceCellProps) {
   if (!props.channel.upstream) {
     return <span className='text-muted-foreground'>-</span>
   }
+  if (!props.channel.upstream.balance_sync_enabled) {
+    return <span className='text-muted-foreground text-xs'>余额同步已关闭</span>
+  }
   if (props.channel.upstream_balance == null) {
     if (props.channel.last_balance_error) {
       return (
@@ -320,7 +323,7 @@ export function ChannelMonitorChannelView(
                 </TableCell>
                 <TableCell className='whitespace-normal'>
                   <div className='flex min-w-0 items-start gap-1'>
-                    {channel.upstream ? (
+                    {channel.upstream?.balance_sync_enabled ? (
                       <ChannelActionButton
                         label='更新上游余额'
                         icon={Refresh01Icon}
@@ -338,7 +341,7 @@ export function ChannelMonitorChannelView(
                 </TableCell>
                 <TableCell className='whitespace-normal'>
                   <div className='flex min-w-0 items-start gap-0'>
-                    {channel.upstream ? (
+                    {channel.upstream?.ratio_sync_enabled ? (
                       <ChannelActionButton
                         label='更新上游倍率'
                         icon={Refresh01Icon}
@@ -362,8 +365,15 @@ export function ChannelMonitorChannelView(
                         />
                       </div>
                       {channel.upstream ? (
-                        <div className='text-muted-foreground mt-0.5 truncate text-xs'>
-                          上游分组：{channel.upstream.group}
+                        <div className='mt-0.5 flex min-w-0 flex-col gap-0.5'>
+                          <span className='text-muted-foreground truncate text-xs'>
+                            上游分组：{channel.upstream.group}
+                          </span>
+                          {!channel.upstream.ratio_sync_enabled ? (
+                            <span className='text-muted-foreground text-xs'>
+                              倍率同步已关闭
+                            </span>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

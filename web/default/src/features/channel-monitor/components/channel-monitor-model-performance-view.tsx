@@ -20,7 +20,6 @@ import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMemo, useState } from 'react'
 
-import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -37,10 +36,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { CHANNEL_STATUS_CONFIG } from '@/features/channels/constants'
+import { CHANNEL_STATUS } from '@/features/channels/constants'
 import { formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
-import { CHANNEL_MONITOR_STATUS_LABELS } from '../constants'
 import type {
   ChannelMonitorItem,
   ChannelMonitorPerformanceMetric,
@@ -145,24 +144,24 @@ export function ChannelMonitorModelPerformanceView(
   return (
     <div className='flex flex-col gap-3'>
       <div className='overflow-hidden rounded-lg border'>
-        <Table className='min-w-[1040px]'>
+        <Table className='min-w-[920px]'>
           <TableHeader>
             <TableRow>
               <TableHead className='w-14 text-center'>排名</TableHead>
               <TableHead>渠道</TableHead>
               <TableHead>平均首字</TableHead>
               <TableHead>平均 TPS</TableHead>
-              <TableHead>最近一次</TableHead>
               <TableHead>有效样本</TableHead>
               <TableHead>最后请求</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {visibleRows.map((row, rowIndex) => {
-              const statusConfig =
-                CHANNEL_STATUS_CONFIG[
-                  row.channel.status as keyof typeof CHANNEL_STATUS_CONFIG
-                ] ?? CHANNEL_STATUS_CONFIG[0]
+              const channelEnabled =
+                row.channel.status === CHANNEL_STATUS.ENABLED
+              const channelStatusLabel = channelEnabled
+                ? '渠道已启用'
+                : '渠道已停用'
               return (
                 <TableRow key={`${props.selectedModel}:${row.channel.id}`}>
                   <TableCell className='text-muted-foreground text-center font-mono text-xs'>
@@ -172,6 +171,15 @@ export function ChannelMonitorModelPerformanceView(
                   </TableCell>
                   <TableCell>
                     <div className='flex min-w-44 items-center gap-2'>
+                      <span
+                        className={cn(
+                          'size-2 shrink-0 rounded-full',
+                          channelEnabled ? 'bg-success' : 'bg-destructive'
+                        )}
+                        role='img'
+                        aria-label={channelStatusLabel}
+                        title={channelStatusLabel}
+                      />
                       <div className='flex min-w-0 flex-col gap-0.5'>
                         <span className='truncate font-medium'>
                           {row.channel.name}
@@ -180,14 +188,6 @@ export function ChannelMonitorModelPerformanceView(
                           ID {row.channel.id}
                         </span>
                       </div>
-                      <StatusBadge
-                        label={
-                          CHANNEL_MONITOR_STATUS_LABELS[row.channel.status] ??
-                          '未知'
-                        }
-                        variant={statusConfig.variant}
-                        copyable={false}
-                      />
                     </div>
                   </TableCell>
                   <TableCell>
@@ -202,29 +202,21 @@ export function ChannelMonitorModelPerformanceView(
                   </TableCell>
                   <TableCell>
                     <div className='flex min-w-28 flex-col gap-0.5 text-xs'>
-                      <div className='flex items-baseline gap-1.5'>
-                        <span className='text-muted-foreground'>首字</span>
-                        <ChannelMonitorFirstTokenValue
-                          value={row.metric?.latest_first_token_ms ?? null}
-                        />
-                      </div>
-                      <div className='flex items-baseline gap-1.5'>
-                        <span className='text-muted-foreground'>TPS</span>
-                        <ChannelMonitorTPSValue
-                          value={row.metric?.latest_tps ?? null}
-                        />
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className='flex min-w-28 flex-col gap-0.5 text-xs'>
                       {row.metric ? (
                         <>
                           <span>{row.metric.sample_count} 次请求</span>
-                          <span className='text-muted-foreground'>
-                            首字 {row.metric.first_token_sample_count} · TPS{' '}
-                            {row.metric.tps_sample_count}
-                          </span>
+                          <div className='flex items-baseline gap-1.5'>
+                            <span className='text-muted-foreground'>首字</span>
+                            <ChannelMonitorFirstTokenValue
+                              value={row.metric.latest_first_token_ms}
+                            />
+                          </div>
+                          <div className='flex items-baseline gap-1.5'>
+                            <span className='text-muted-foreground'>TPS</span>
+                            <ChannelMonitorTPSValue
+                              value={row.metric.latest_tps}
+                            />
+                          </div>
                         </>
                       ) : (
                         <span className='text-muted-foreground'>暂无样本</span>

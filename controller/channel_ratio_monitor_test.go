@@ -638,15 +638,134 @@ func TestSaveChannelMonitorUpstreamConfigManagesBalanceWarningThreshold(t *testi
 	}
 }
 
-func TestListChannelMonitorUpstreamGroupsRotatesSavedSub2APIToken(t *testing.T) {
+func TestSaveChannelMonitorUpstreamConfigManagesSyncCapabilities(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	baseURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      12,
+		Name:    "custom upstream",
+		Key:     "secret",
+		Group:   "vip",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":                 service.NewAPIUpstreamType,
+		"base_url":             baseURL,
+		"group":                "vip",
+		"auth_type":            service.NewAPIUpstreamAuthPublic,
+		"ratio_sync_enabled":   false,
+		"balance_sync_enabled": false,
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/12/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "12"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var response channelMonitorUpstreamConfigAPIResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	assert.False(t, response.Data.RatioSyncEnabled)
+	assert.False(t, response.Data.BalanceSyncEnabled)
+	monitor, err := model.GetChannelRatioMonitor(12)
+	require.NoError(t, err)
+	assert.True(t, monitor.UpstreamRatioSyncDisabled)
+	assert.True(t, monitor.UpstreamBalanceSyncDisabled)
+
+	delete(request, "ratio_sync_enabled")
+	delete(request, "balance_sync_enabled")
+	request["group"] = "standard"
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/12/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "12"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	monitor, err = model.GetChannelRatioMonitor(12)
+	require.NoError(t, err)
+	assert.True(t, monitor.UpstreamRatioSyncDisabled)
+	assert.True(t, monitor.UpstreamBalanceSyncDisabled)
+
+	request["ratio_sync_enabled"] = true
+	request["balance_sync_enabled"] = true
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/12/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "12"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	monitor, err = model.GetChannelRatioMonitor(12)
+	require.NoError(t, err)
+	assert.False(t, monitor.UpstreamRatioSyncDisabled)
+	assert.False(t, monitor.UpstreamBalanceSyncDisabled)
+}
+
+func TestSaveChannelMonitorSub2APIConfigPersistsToken(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	baseURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      13,
+		Name:    "session-bound upstream",
+		Key:     "secret",
+		Group:   "vip",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":          service.Sub2APIUpstreamType,
+		"base_url":      baseURL,
+		"group":         "vip",
+		"auth_type":     service.Sub2APIAuthToken,
+		"access_token":  "jwt-token",
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/13/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "13"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	monitor, err := model.GetChannelRatioMonitor(13)
+	require.NoError(t, err)
+	assert.Equal(t, "jwt-token", monitor.UpstreamAccessToken)
+	assert.NotContains(t, recorder.Body.String(), "jwt-token")
+}
+
+func TestSaveChannelMonitorSub2APIConfigAllowsChannelKeyOnly(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	baseURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      14,
+		Name:    "api-key-only upstream",
+		Key:     "sk-direct",
+		Group:   "vip",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":      service.Sub2APIUpstreamType,
+		"base_url":  baseURL,
+		"group":     "vip",
+		"auth_type": service.Sub2APIAuthAPIKey,
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/14/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "14"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	monitor, err := model.GetChannelRatioMonitor(14)
+	require.NoError(t, err)
+	assert.Equal(t, service.Sub2APIUpstreamType, monitor.UpstreamType)
+	assert.Equal(t, service.Sub2APIAuthAPIKey, monitor.UpstreamAuthType)
+	assert.Empty(t, monitor.UpstreamAccessToken)
+	assert.Contains(t, recorder.Body.String(), `"has_access_token":false`)
+}
+
+func TestListChannelMonitorUpstreamGroupsUsesSavedSub2APIToken(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	disableChannelMonitorSSRFProtection(t)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		assert.Equal(t, "Bearer jwt-token", r.Header.Get("Authorization"))
 		switch r.URL.Path {
-		case "/api/v1/auth/refresh":
-			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"next-refresh-token"}}`))
 		case "/api/v1/groups/available":
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":7,"name":"vip","rate_multiplier":1.25}]}`))
 		case "/api/v1/groups/rates":
@@ -674,16 +793,16 @@ func TestListChannelMonitorUpstreamGroupsRotatesSavedSub2APIToken(t *testing.T) 
 		UpstreamType:         service.Sub2APIUpstreamType,
 		UpstreamBaseURL:      server.URL,
 		UpstreamGroup:        "vip",
-		UpstreamAuthType:     service.Sub2APIAuthRefreshToken,
-		UpstreamRefreshToken: "old-refresh-token",
+		UpstreamAuthType:     service.Sub2APIAuthToken,
+		UpstreamAccessToken:  "jwt-token",
 	}).Error)
 
 	request := map[string]any{
 		"type":          service.Sub2APIUpstreamType,
 		"base_url":      server.URL,
 		"group":         "vip",
-		"auth_type":     service.Sub2APIAuthRefreshToken,
-		"refresh_token": "",
+		"auth_type":     service.Sub2APIAuthToken,
+		"access_token":  "",
 	}
 	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/20/upstream/groups", request)
 	ctx.Params = gin.Params{{Key: "id", Value: "20"}}
@@ -701,8 +820,7 @@ func TestListChannelMonitorUpstreamGroupsRotatesSavedSub2APIToken(t *testing.T) 
 
 	monitor, err := model.GetChannelRatioMonitor(20)
 	require.NoError(t, err)
-	assert.Equal(t, "next-refresh-token", monitor.UpstreamRefreshToken)
-	assert.NotContains(t, recorder.Body.String(), "next-refresh-token")
+	assert.Equal(t, "jwt-token", monitor.UpstreamAccessToken)
 }
 
 func TestApplyChannelMonitorUpstreamGroupUpdatesRemoteTokenAndRecordsRatio(t *testing.T) {
@@ -825,6 +943,42 @@ func TestFetchChannelMonitorUpstreamBalanceRecordsSnapshot(t *testing.T) {
 	assert.InDelta(t, 3.5, *monitor.UpstreamBalance, 1e-9)
 	assert.NotZero(t, monitor.LastBalanceTime)
 	assert.Empty(t, monitor.LastBalanceError)
+}
+
+func TestManualUpstreamRefreshSkipsDisabledCapabilities(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	var upstreamRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamRequests.Add(1)
+		http.Error(w, "unsupported", http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 24, Name: "custom upstream", Key: "secret", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId:                   24,
+		UpstreamType:                service.NewAPIUpstreamType,
+		UpstreamBaseURL:             server.URL,
+		UpstreamGroup:               "vip",
+		UpstreamAuthType:            service.NewAPIUpstreamAuthPublic,
+		UpstreamRatioSyncDisabled:   true,
+		UpstreamBalanceSyncDisabled: true,
+	}).Error)
+
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/24/upstream/fetch", nil)
+	ctx.Params = gin.Params{{Key: "id", Value: "24"}}
+	FetchChannelMonitorUpstreamRatio(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "该渠道已关闭上游倍率同步")
+
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/24/upstream/balance/fetch", nil)
+	ctx.Params = gin.Params{{Key: "id", Value: "24"}}
+	FetchChannelMonitorUpstreamBalance(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "该渠道已关闭上游余额同步")
+	assert.Zero(t, upstreamRequests.Load())
 }
 
 func TestResolveChannelMonitorUpstreamRequestDoesNotReuseCredentialsAcrossHosts(t *testing.T) {
@@ -1044,6 +1198,97 @@ func TestSyncChannelMonitorGroupRatioUsesHighestEnabledChannel(t *testing.T) {
 	assert.InDelta(t, 1.1, getChannelMonitorGroupCoefficients()["vip"], 1e-9)
 }
 
+func TestRunChannelRatioMonitorTaskRespectsPerChannelSyncCapabilities(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		channelMonitorAutoUpdateRetryCountOption: "0",
+	})
+	disableChannelMonitorSSRFProtection(t)
+
+	var ratioRequests atomic.Int32
+	var balanceRequests atomic.Int32
+	var statusRequests atomic.Int32
+	var unexpectedRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/user/self/groups":
+			ratioRequests.Add(1)
+			assert.Equal(t, "42", r.Header.Get("New-Api-User"))
+			assert.Equal(t, "Bearer ratio-token", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"vip":{"ratio":1.25}}}`))
+		case "/api/user/self":
+			balanceRequests.Add(1)
+			assert.Equal(t, "43", r.Header.Get("New-Api-User"))
+			assert.Equal(t, "Bearer balance-token", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota":500}}`))
+		case "/api/status":
+			statusRequests.Add(1)
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota_per_unit":100}}`))
+		default:
+			unexpectedRequests.Add(1)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	channels := []model.Channel{
+		{Id: 1, Name: "ratio only", Key: "ratio-key", Group: "vip", Status: common.ChannelStatusEnabled},
+		{Id: 2, Name: "balance only", Key: "balance-key", Group: "vip", Status: common.ChannelStatusEnabled},
+		{Id: 3, Name: "fully disabled", Key: "disabled-key", Group: "vip", Status: common.ChannelStatusEnabled},
+	}
+	require.NoError(t, db.Create(&channels).Error)
+	monitors := []model.ChannelRatioMonitor{
+		{
+			ChannelId: 1, Ratio: 1, UpdatedTime: 1,
+			UpstreamType: service.NewAPIUpstreamType, UpstreamBaseURL: server.URL,
+			UpstreamGroup: "vip", UpstreamAuthType: service.NewAPIUpstreamAuthUser,
+			UpstreamUserId: 42, UpstreamAccessToken: "ratio-token",
+			UpstreamBalanceSyncDisabled: true,
+		},
+		{
+			ChannelId:    2,
+			UpstreamType: service.NewAPIUpstreamType, UpstreamBaseURL: server.URL,
+			UpstreamGroup: "vip", UpstreamAuthType: service.NewAPIUpstreamAuthUser,
+			UpstreamUserId: 43, UpstreamAccessToken: "balance-token",
+			UpstreamRatioSyncDisabled: true,
+		},
+		{
+			ChannelId:    3,
+			UpstreamType: service.NewAPIUpstreamType, UpstreamBaseURL: server.URL,
+			UpstreamGroup: "vip", UpstreamAuthType: service.NewAPIUpstreamAuthUser,
+			UpstreamUserId: 44, UpstreamAccessToken: "disabled-token",
+			UpstreamRatioSyncDisabled: true, UpstreamBalanceSyncDisabled: true,
+		},
+	}
+	require.NoError(t, db.Create(&monitors).Error)
+
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 3, summary.Total)
+	assert.Equal(t, 2, summary.Updated)
+	assert.Equal(t, 1, summary.Changed)
+	assert.Equal(t, 1, summary.BalanceUpdated)
+	assert.Equal(t, 1, summary.Skipped)
+	assert.Zero(t, summary.Failed)
+	assert.EqualValues(t, 1, ratioRequests.Load())
+	assert.EqualValues(t, 1, balanceRequests.Load())
+	assert.EqualValues(t, 1, statusRequests.Load())
+	assert.Zero(t, unexpectedRequests.Load())
+
+	ratioMonitor, err := model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	assert.InDelta(t, 1.25, ratioMonitor.Ratio, 1e-9)
+	assert.Nil(t, ratioMonitor.UpstreamBalance)
+	assert.Empty(t, ratioMonitor.LastBalanceError)
+
+	balanceMonitor, err := model.GetChannelRatioMonitor(2)
+	require.NoError(t, err)
+	assert.Zero(t, balanceMonitor.UpdatedTime)
+	require.NotNil(t, balanceMonitor.UpstreamBalance)
+	assert.InDelta(t, 5, *balanceMonitor.UpstreamBalance, 1e-9)
+}
+
 func TestRunChannelRatioMonitorTaskContinuesAfterFailure(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	useChannelMonitorOptionMap(t, map[string]string{})
@@ -1106,6 +1351,47 @@ func TestRunChannelRatioMonitorTaskContinuesAfterFailure(t *testing.T) {
 	assert.Equal(t, model.ChannelRatioFetchStatusSucceeded, monitor.LastFetchStatus)
 	assert.Empty(t, monitor.LastFetchError)
 	assert.Zero(t, monitor.ConsecutiveFailures)
+}
+
+func TestRunChannelRatioMonitorTaskDoesNotRetrySub2APIAuthenticationFailure(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		channelMonitorAutoUpdateRetryCountOption: "2",
+	})
+	disableChannelMonitorSSRFProtection(t)
+
+	var requestCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		assert.Equal(t, "/api/v1/groups/available", r.URL.Path)
+		assert.Equal(t, "Bearer jwt-token", r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"code":401,"message":"token expired","data":null}`))
+	}))
+	defer server.Close()
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 1, Name: "session bound", Key: "test-key", Group: "vip", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId: 1, UpstreamType: service.Sub2APIUpstreamType, UpstreamBaseURL: server.URL,
+		UpstreamGroup: "vip", UpstreamAuthType: service.Sub2APIAuthToken,
+		UpstreamAccessToken: "jwt-token",
+	}).Error)
+
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.Failed)
+	assert.Zero(t, summary.Retried)
+	require.Len(t, summary.Failures, 1)
+	assert.Contains(t, summary.Failures[0].Error, "token expired")
+	assert.NotContains(t, summary.Failures[0].Error, "重试")
+	assert.EqualValues(t, 1, requestCount.Load())
+
+	monitor, err := model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	assert.Equal(t, 1, monitor.ConsecutiveFailures)
 }
 
 func TestRunChannelRatioMonitorTaskRecoversAfterRetry(t *testing.T) {
@@ -1394,7 +1680,7 @@ func TestRunChannelRatioMonitorTaskEmailsUpdateFailures(t *testing.T) {
 	assert.Equal(t, 1, emailCalls)
 	assert.Contains(t, subject, "1 项更新失败")
 	assert.Equal(t, "alerts@example.com", receiver)
-	assert.Contains(t, content, "上游倍率更新失败")
+	assert.Contains(t, content, "上游同步失败")
 	assert.Contains(t, content, "&lt;Failing &amp; API&gt;")
 	assert.Contains(t, content, "502 Bad Gateway")
 }

@@ -54,7 +54,11 @@ export type ChannelMonitorItem = {
 
 export type ChannelMonitorUpstreamType = 'new_api' | 'sub2api'
 
-export type ChannelMonitorUpstreamAuthType = 'public' | 'user' | 'refresh_token'
+export type ChannelMonitorUpstreamAuthType =
+  | 'public'
+  | 'user'
+  | 'api_key'
+  | 'token'
 
 export type ChannelMonitorUpstreamConfig = {
   type: ChannelMonitorUpstreamType
@@ -63,10 +67,11 @@ export type ChannelMonitorUpstreamConfig = {
   auth_type: ChannelMonitorUpstreamAuthType
   user_id: number
   has_access_token: boolean
-  has_refresh_token: boolean
   single_channel_action: ChannelMonitorPolicyAction
   multiple_channels_action: ChannelMonitorPolicyAction
   balance_warning_threshold: number | null
+  ratio_sync_enabled: boolean
+  balance_sync_enabled: boolean
 }
 
 export type ChannelMonitorUpstreamRequest = {
@@ -76,10 +81,16 @@ export type ChannelMonitorUpstreamRequest = {
   auth_type: ChannelMonitorUpstreamAuthType
   user_id: number
   access_token: string
-  refresh_token: string
   single_channel_action: ChannelMonitorPolicyAction
   multiple_channels_action: ChannelMonitorPolicyAction
   balance_warning_threshold: number | null
+  ratio_sync_enabled: boolean
+  balance_sync_enabled: boolean
+}
+
+export type ChannelMonitorUpstreamVersionResult = {
+  version: string
+  endpoint: string
 }
 
 export type NewAPIGroupRatioResult = {

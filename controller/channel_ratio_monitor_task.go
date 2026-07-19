@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"net/http"
@@ -28,6 +29,7 @@ type channelRatioMonitorTaskResult struct {
 	Changed                 int                              `json:"changed"`
 	BalanceUpdated          int                              `json:"balance_updated"`
 	BalanceWarnings         int                              `json:"balance_warnings,omitempty"`
+	Skipped                 int                              `json:"skipped,omitempty"`
 	Failed                  int                              `json:"failed"`
 	GroupsUpdated           int                              `json:"groups_updated"`
 	GroupUpdateFailed       bool                             `json:"group_update_failed,omitempty"`
@@ -58,7 +60,7 @@ func (result *channelRatioMonitorTaskResult) recordFailure(channelId int, channe
 	if len(nameRunes) > 128 {
 		nameRunes = nameRunes[:128]
 	}
-	errorMessage := "上游倍率获取失败"
+	errorMessage := "上游同步失败"
 	if failure != nil && strings.TrimSpace(failure.Error()) != "" {
 		errorMessage = strings.TrimSpace(failure.Error())
 	}
@@ -219,8 +221,13 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 			return summary, ctx.Err()
 		default:
 		}
+		if monitor.UpstreamRatioSyncDisabled && monitor.UpstreamBalanceSyncDisabled {
+			summary.Skipped++
+			reportProgress(index+1, summary.Total)
+			continue
+		}
 
-		channel, err := model.GetChannelById(monitor.ChannelId, false)
+		channel, err := model.GetChannelById(monitor.ChannelId, true)
 		if err != nil {
 			summary.recordFailure(monitor.ChannelId, "", err)
 			if statusErr := model.RecordChannelRatioMonitorFetchFailure(monitor.ChannelId, err.Error()); statusErr != nil {
@@ -233,6 +240,8 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 
 		var outcome channelMonitorFetchOutcome
 		var recordedBalance *float64
+		ratioUpdated := false
+		syncSkipped := false
 		retriesUsed := 0
 		for attempt := 0; attempt <= settings.AutoUpdateRetryCount; attempt++ {
 			if attempt > 0 {
@@ -252,12 +261,30 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 				summary.Retried++
 			}
 
-			outcome, err = fetchAndRecordChannelMonitorUpstreamRatio(ctx, monitor, 0, "系统自动更新")
-			if outcome.BalanceRecorded && outcome.Result.Balance.Amount != nil {
-				balance := *outcome.Result.Balance.Amount
-				recordedBalance = &balance
+			if monitor.UpstreamRatioSyncDisabled && monitor.UpstreamBalanceSyncDisabled {
+				syncSkipped = true
+				err = nil
+				break
 			}
-			if err == nil || attempt == settings.AutoUpdateRetryCount {
+			ratioUpdated = false
+			if !monitor.UpstreamRatioSyncDisabled {
+				outcome, err = fetchAndRecordChannelMonitorUpstreamRatio(ctx, monitor, channel.GetKeys(), 0, "系统自动更新")
+				ratioUpdated = err == nil
+				if outcome.BalanceRecorded && outcome.Result.Balance.Amount != nil {
+					balance := *outcome.Result.Balance.Amount
+					recordedBalance = &balance
+				}
+			} else {
+				var balanceResult service.ChannelMonitorUpstreamBalanceResult
+				balanceResult, err = fetchAndRecordChannelMonitorUpstreamBalance(ctx, monitor, channel.GetKeys())
+				if balanceResult.Amount != nil {
+					balance := *balanceResult.Amount
+					recordedBalance = &balance
+				}
+			}
+			if err == nil ||
+				attempt == settings.AutoUpdateRetryCount ||
+				errors.Is(err, service.ErrChannelMonitorUpstreamAuthentication) {
 				break
 			}
 			logger.LogWarn(ctx, fmt.Sprintf(
@@ -268,6 +295,11 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 				settings.AutoUpdateRetryCount,
 				err,
 			))
+		}
+		if syncSkipped {
+			summary.Skipped++
+			reportProgress(index+1, summary.Total)
+			continue
 		}
 		if recordedBalance != nil {
 			balance := *recordedBalance
@@ -297,21 +329,23 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 			if retriesUsed > 0 {
 				summary.RecoveredAfterRetry++
 			}
-			policyInputs[monitor.ChannelId] = channelMonitorPolicyInput{
-				UpstreamRatio:          outcome.Result.Ratio,
-				SingleChannelAction:    monitor.SingleChannelAction,
-				MultipleChannelsAction: monitor.MultipleChannelsAction,
-			}
-			if outcome.Changed {
-				summary.Changed++
-				emailChanges = append(emailChanges, channelRatioMonitorEmailChange{
-					ChannelId:     monitor.ChannelId,
-					ChannelName:   channel.Name,
-					UpstreamType:  monitor.UpstreamType,
-					UpstreamGroup: monitor.UpstreamGroup,
-					OldRatio:      monitor.Ratio,
-					NewRatio:      outcome.Result.Ratio,
-				})
+			if ratioUpdated {
+				policyInputs[monitor.ChannelId] = channelMonitorPolicyInput{
+					UpstreamRatio:          outcome.Result.Ratio,
+					SingleChannelAction:    monitor.SingleChannelAction,
+					MultipleChannelsAction: monitor.MultipleChannelsAction,
+				}
+				if outcome.Changed {
+					summary.Changed++
+					emailChanges = append(emailChanges, channelRatioMonitorEmailChange{
+						ChannelId:     monitor.ChannelId,
+						ChannelName:   channel.Name,
+						UpstreamType:  monitor.UpstreamType,
+						UpstreamGroup: monitor.UpstreamGroup,
+						OldRatio:      monitor.Ratio,
+						NewRatio:      outcome.Result.Ratio,
+					})
+				}
 			}
 		}
 		reportProgress(index+1, summary.Total)
@@ -392,7 +426,7 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 	}
 
 	if summary.Failed > 0 {
-		content.WriteString("<h3>上游倍率更新失败</h3>")
+		content.WriteString("<h3>上游同步失败</h3>")
 		fmt.Fprintf(&content, "<p>共 %d 个渠道在重试后仍未更新成功。</p>", summary.Failed)
 		if len(summary.Failures) > 0 {
 			content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")

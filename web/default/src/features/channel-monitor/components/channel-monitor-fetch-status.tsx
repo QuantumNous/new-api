@@ -37,6 +37,10 @@ type ChannelMonitorFetchStatusProps = {
 export function ChannelMonitorFetchStatus(
   props: ChannelMonitorFetchStatusProps
 ) {
+  if (props.channel.upstream && !props.channel.upstream.ratio_sync_enabled) {
+    return <Badge variant='outline'>倍率同步已关闭</Badge>
+  }
+
   if (props.channel.last_fetch_status === 'failed') {
     const failureCount = Math.max(1, props.channel.consecutive_failures)
 

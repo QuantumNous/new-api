@@ -23,6 +23,7 @@ func registerChannelMonitorRoutes(apiRouter *gin.RouterGroup) {
 		monitorRoute.GET("/channel/:id/history", controller.GetChannelMonitorHistory)
 		monitorRoute.PUT("/channel/:id/upstream", controller.SaveChannelMonitorUpstreamConfig)
 		monitorRoute.POST("/channel/:id/upstream/groups", controller.ListChannelMonitorUpstreamGroups)
+		monitorRoute.POST("/upstream/version", controller.FetchChannelMonitorSub2APIUpstreamVersion)
 		monitorRoute.POST("/channel/:id/upstream/test", controller.TestChannelMonitorUpstreamConfig)
 		monitorRoute.POST("/channel/:id/upstream/fetch", controller.FetchChannelMonitorUpstreamRatio)
 		monitorRoute.POST("/channel/:id/upstream/balance/fetch", controller.FetchChannelMonitorUpstreamBalance)

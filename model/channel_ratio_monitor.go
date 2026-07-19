@@ -19,43 +19,49 @@ const (
 )
 
 type ChannelRatioMonitor struct {
-	Id                      int      `json:"id"`
-	ChannelId               int      `json:"channel_id" gorm:"uniqueIndex;not null"`
-	Ratio                   float64  `json:"ratio" gorm:"not null"`
-	PreviousRatio           *float64 `json:"previous_ratio"`
-	Remark                  string   `json:"remark" gorm:"type:varchar(255);default:''"`
-	UpdatedTime             int64    `json:"updated_time" gorm:"bigint;index"`
-	UpdatedBy               int      `json:"updated_by" gorm:"index"`
-	UpdatedByUsername       string   `json:"updated_by_username" gorm:"type:varchar(64);default:''"`
-	LastFetchStatus         string   `json:"last_fetch_status" gorm:"type:varchar(16);index"`
-	LastFetchError          string   `json:"last_fetch_error" gorm:"type:varchar(255)"`
-	LastFetchTime           int64    `json:"last_fetch_time" gorm:"bigint;index"`
-	ConsecutiveFailures     int      `json:"consecutive_failures"`
-	UpstreamBalance         *float64 `json:"upstream_balance"`
-	LastBalanceTime         int64    `json:"last_balance_time" gorm:"bigint"`
-	LastBalanceError        string   `json:"last_balance_error" gorm:"type:varchar(255)"`
-	BalanceWarningThreshold *float64 `json:"balance_warning_threshold"`
-	BalanceAlertNotified    bool     `json:"balance_alert_notified"`
-	UpstreamType            string   `json:"upstream_type" gorm:"type:varchar(32)"`
-	UpstreamBaseURL         string   `json:"upstream_base_url" gorm:"type:text"`
-	UpstreamGroup           string   `json:"upstream_group" gorm:"type:varchar(64)"`
-	UpstreamAuthType        string   `json:"upstream_auth_type" gorm:"type:varchar(16)"`
-	UpstreamUserId          int      `json:"upstream_user_id"`
-	UpstreamAccessToken     string   `json:"-" gorm:"type:text"`
-	UpstreamRefreshToken    string   `json:"-" gorm:"type:text"`
-	SingleChannelAction     string   `json:"single_channel_action" gorm:"type:varchar(32)"`
-	MultipleChannelsAction  string   `json:"multiple_channels_action" gorm:"type:varchar(32)"`
-	SmartScheduleExcluded   bool     `json:"smart_schedule_excluded"`
-	SmartScheduleGroup      string   `json:"smart_schedule_group" gorm:"type:varchar(64)"`
-	LastScheduleStatus      string   `json:"last_schedule_status" gorm:"type:varchar(16);index"`
-	LastScheduleError       string   `json:"last_schedule_error" gorm:"type:varchar(255)"`
-	LastScheduleScore       *float64 `json:"last_schedule_score"`
-	LastSchedulePriority    int64    `json:"last_schedule_priority" gorm:"bigint"`
-	LastScheduleWeight      uint     `json:"last_schedule_weight"`
-	LastScheduleTime        int64    `json:"last_schedule_time" gorm:"bigint;index"`
-	// Legacy Sub2API credentials are cleared when the configuration is next saved.
-	UpstreamUsername string `json:"-" gorm:"type:varchar(255)"`
-	UpstreamPassword string `json:"-" gorm:"type:text"`
+	Id                          int      `json:"id"`
+	ChannelId                   int      `json:"channel_id" gorm:"uniqueIndex;not null"`
+	Ratio                       float64  `json:"ratio" gorm:"not null"`
+	PreviousRatio               *float64 `json:"previous_ratio"`
+	Remark                      string   `json:"remark" gorm:"type:varchar(255);default:''"`
+	UpdatedTime                 int64    `json:"updated_time" gorm:"bigint;index"`
+	UpdatedBy                   int      `json:"updated_by" gorm:"index"`
+	UpdatedByUsername           string   `json:"updated_by_username" gorm:"type:varchar(64);default:''"`
+	LastFetchStatus             string   `json:"last_fetch_status" gorm:"type:varchar(16);index"`
+	LastFetchError              string   `json:"last_fetch_error" gorm:"type:varchar(255)"`
+	LastFetchTime               int64    `json:"last_fetch_time" gorm:"bigint;index"`
+	ConsecutiveFailures         int      `json:"consecutive_failures"`
+	UpstreamBalance             *float64 `json:"upstream_balance"`
+	LastBalanceTime             int64    `json:"last_balance_time" gorm:"bigint"`
+	LastBalanceError            string   `json:"last_balance_error" gorm:"type:varchar(255)"`
+	BalanceWarningThreshold     *float64 `json:"balance_warning_threshold"`
+	BalanceAlertNotified        bool     `json:"balance_alert_notified"`
+	UpstreamType                string   `json:"upstream_type" gorm:"type:varchar(32)"`
+	UpstreamBaseURL             string   `json:"upstream_base_url" gorm:"type:text"`
+	UpstreamGroup               string   `json:"upstream_group" gorm:"type:varchar(64)"`
+	UpstreamAuthType            string   `json:"upstream_auth_type" gorm:"type:varchar(16)"`
+	UpstreamUserId              int      `json:"upstream_user_id"`
+	UpstreamAccessToken         string   `json:"-" gorm:"type:text"`
+	UpstreamRatioSyncDisabled   bool     `json:"-"`
+	UpstreamBalanceSyncDisabled bool     `json:"-"`
+	SingleChannelAction         string   `json:"single_channel_action" gorm:"type:varchar(32)"`
+	MultipleChannelsAction      string   `json:"multiple_channels_action" gorm:"type:varchar(32)"`
+	SmartScheduleExcluded       bool     `json:"smart_schedule_excluded"`
+	SmartScheduleGroup          string   `json:"smart_schedule_group" gorm:"type:varchar(64)"`
+	LastScheduleStatus          string   `json:"last_schedule_status" gorm:"type:varchar(16);index"`
+	LastScheduleError           string   `json:"last_schedule_error" gorm:"type:varchar(255)"`
+	LastScheduleScore           *float64 `json:"last_schedule_score"`
+	LastSchedulePriority        int64    `json:"last_schedule_priority" gorm:"bigint"`
+	LastScheduleWeight          uint     `json:"last_schedule_weight"`
+	LastScheduleTime            int64    `json:"last_schedule_time" gorm:"bigint;index"`
+}
+
+type ChannelRatioUpstreamOptions struct {
+	SingleChannelAction     string
+	MultipleChannelsAction  string
+	BalanceWarningThreshold *float64
+	RatioSyncEnabled        bool
+	BalanceSyncEnabled      bool
 }
 
 type ChannelSmartScheduleResultUpdate struct {
@@ -99,7 +105,7 @@ func GetChannelRatioMonitor(channelId int) (ChannelRatioMonitor, error) {
 	return monitor, err
 }
 
-func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL string, group string, authType string, userId int, accessToken string, refreshToken string, singleChannelAction string, multipleChannelAction string, balanceWarningThreshold *float64) (monitor ChannelRatioMonitor, err error) {
+func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL string, group string, authType string, userId int, accessToken string, options ChannelRatioUpstreamOptions) (monitor ChannelRatioMonitor, err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		findErr := lockForUpdate(tx).Where("channel_id = ?", channelId).First(&monitor).Error
 		if errors.Is(findErr, gorm.ErrRecordNotFound) {
@@ -111,12 +117,12 @@ func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL 
 			monitor.UpstreamBaseURL != baseURL ||
 			monitor.UpstreamAuthType != authType ||
 			monitor.UpstreamUserId != userId ||
-			monitor.UpstreamAccessToken != accessToken ||
-			monitor.UpstreamRefreshToken != refreshToken
+			monitor.UpstreamAccessToken != accessToken
 		balanceWarningThresholdChanged :=
-			(monitor.BalanceWarningThreshold == nil) != (balanceWarningThreshold == nil) ||
-				(monitor.BalanceWarningThreshold != nil && balanceWarningThreshold != nil &&
-					*monitor.BalanceWarningThreshold != *balanceWarningThreshold)
+			(monitor.BalanceWarningThreshold == nil) != (options.BalanceWarningThreshold == nil) ||
+				(monitor.BalanceWarningThreshold != nil && options.BalanceWarningThreshold != nil &&
+					*monitor.BalanceWarningThreshold != *options.BalanceWarningThreshold)
+		balanceSyncChanged := monitor.UpstreamBalanceSyncDisabled != !options.BalanceSyncEnabled
 
 		monitor.UpstreamType = upstreamType
 		monitor.UpstreamBaseURL = baseURL
@@ -124,44 +130,27 @@ func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL 
 		monitor.UpstreamAuthType = authType
 		monitor.UpstreamUserId = userId
 		monitor.UpstreamAccessToken = accessToken
-		monitor.UpstreamRefreshToken = refreshToken
-		monitor.SingleChannelAction = singleChannelAction
-		monitor.MultipleChannelsAction = multipleChannelAction
-		if balanceWarningThreshold == nil {
+		monitor.UpstreamRatioSyncDisabled = !options.RatioSyncEnabled
+		monitor.UpstreamBalanceSyncDisabled = !options.BalanceSyncEnabled
+		monitor.SingleChannelAction = options.SingleChannelAction
+		monitor.MultipleChannelsAction = options.MultipleChannelsAction
+		if options.BalanceWarningThreshold == nil {
 			monitor.BalanceWarningThreshold = nil
 		} else {
-			value := *balanceWarningThreshold
+			value := *options.BalanceWarningThreshold
 			monitor.BalanceWarningThreshold = &value
 		}
-		monitor.UpstreamUsername = ""
-		monitor.UpstreamPassword = ""
 		if upstreamAccountChanged {
 			monitor.UpstreamBalance = nil
 			monitor.LastBalanceTime = 0
 			monitor.LastBalanceError = ""
 		}
-		if upstreamAccountChanged || balanceWarningThresholdChanged {
+		if upstreamAccountChanged || balanceWarningThresholdChanged || balanceSyncChanged {
 			monitor.BalanceAlertNotified = false
 		}
 		return tx.Save(&monitor).Error
 	})
 	return monitor, err
-}
-
-func RotateChannelRatioUpstreamRefreshToken(channelId int, oldToken string, newToken string) error {
-	if oldToken == "" || newToken == "" || oldToken == newToken {
-		return errors.New("Sub2API Refresh Token 轮换结果无效")
-	}
-	result := DB.Model(&ChannelRatioMonitor{}).
-		Where("channel_id = ? AND upstream_refresh_token = ?", channelId, oldToken).
-		Update("upstream_refresh_token", newToken)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected != 1 {
-		return errors.New("Sub2API Refresh Token 已被其他请求更新，请重新保存配置")
-	}
-	return nil
 }
 
 func SaveChannelSmartScheduleConfig(channelId int, excluded bool, group string) (monitor ChannelRatioMonitor, err error) {

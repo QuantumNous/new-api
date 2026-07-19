@@ -23,7 +23,10 @@ const (
 	NewAPIUpstreamAuthPublic = "public"
 	NewAPIUpstreamAuthUser   = "user"
 	Sub2APIUpstreamType      = "sub2api"
-	Sub2APIAuthRefreshToken  = "refresh_token"
+	// Sub2APIAuthAPIKey is for versions exposing /v1/sub2api/billing (v0.1.157+).
+	Sub2APIAuthAPIKey = "api_key"
+	// Sub2APIAuthToken is for legacy versions where the panel JWT can call /api/v1/* directly.
+	Sub2APIAuthToken = "token"
 
 	maxUpstreamGroupRatioResponseBytes = 1 << 20
 	maxUpstreamGroupRatio              = 1_000_000
@@ -31,16 +34,35 @@ const (
 	upstreamGroupApplyTimeout          = 30 * time.Second
 )
 
+var ErrChannelMonitorUpstreamAuthentication = errors.New("channel monitor upstream authentication failed")
+
+type channelMonitorUpstreamAuthenticationError struct {
+	cause error
+}
+
+func (err *channelMonitorUpstreamAuthenticationError) Error() string {
+	return err.cause.Error()
+}
+
+func (err *channelMonitorUpstreamAuthenticationError) Unwrap() error {
+	return err.cause
+}
+
+func (err *channelMonitorUpstreamAuthenticationError) Is(target error) bool {
+	return target == ErrChannelMonitorUpstreamAuthentication
+}
+
 // ChannelMonitorUpstreamConfig contains the credentials needed to read a
 // group multiplier from a configured upstream panel.
 type ChannelMonitorUpstreamConfig struct {
-	Type         string
-	BaseURL      string
-	Group        string
-	AuthType     string
-	UserID       int
-	AccessToken  string
-	RefreshToken string
+	Type        string
+	BaseURL     string
+	Group       string
+	AuthType    string
+	UserID      int
+	AccessToken string
+	ChannelKeys []string
+	SkipBalance bool
 }
 
 type NewAPIGroupRatioConfig struct {
@@ -52,17 +74,15 @@ type NewAPIGroupRatioConfig struct {
 }
 
 type NewAPIGroupRatioResult struct {
-	Ratio            float64                             `json:"ratio"`
-	Endpoint         string                              `json:"endpoint"`
-	Balance          ChannelMonitorUpstreamBalanceResult `json:"balance"`
-	NextRefreshToken string                              `json:"-"`
+	Ratio    float64                             `json:"ratio"`
+	Endpoint string                              `json:"endpoint"`
+	Balance  ChannelMonitorUpstreamBalanceResult `json:"balance"`
 }
 
 type ChannelMonitorUpstreamBalanceResult struct {
-	Amount           *float64 `json:"amount"`
-	Endpoint         string   `json:"endpoint,omitempty"`
-	Error            string   `json:"error,omitempty"`
-	NextRefreshToken string   `json:"-"`
+	Amount   *float64 `json:"amount"`
+	Endpoint string   `json:"endpoint,omitempty"`
+	Error    string   `json:"error,omitempty"`
 }
 
 type ChannelMonitorUpstreamGroup struct {
@@ -77,7 +97,6 @@ type ChannelMonitorUpstreamGroupsResult struct {
 	Balance           ChannelMonitorUpstreamBalanceResult `json:"balance"`
 	AppliedGroup      string                              `json:"applied_group,omitempty"`
 	AppliedGroupError string                              `json:"applied_group_error,omitempty"`
-	NextRefreshToken  string                              `json:"-"`
 }
 
 func sortChannelMonitorUpstreamGroups(groups []ChannelMonitorUpstreamGroup) {
@@ -98,9 +117,12 @@ type ChannelMonitorUpstreamGroupApplyResult struct {
 }
 
 type Sub2APIGroupRatioConfig struct {
-	BaseURL      string
-	Group        string
-	RefreshToken string
+	BaseURL     string
+	Group       string
+	AuthType    string
+	AccessToken string
+	ChannelKeys []string
+	SkipBalance bool
 }
 
 type newAPIGroupRatioEntry struct {
@@ -215,18 +237,23 @@ func FetchChannelMonitorUpstreamGroupRatio(ctx context.Context, config ChannelMo
 		if err != nil {
 			return result, err
 		}
-		balance, balanceErr := fetchNewAPIUpstreamBalance(ctx, client, newAPIConfig, ValidateSSRFProtectedFetchURL)
-		if balanceErr != nil {
-			result.Balance.Error = balanceErr.Error()
-		} else {
-			result.Balance = balance
+		if !config.SkipBalance {
+			balance, balanceErr := fetchNewAPIUpstreamBalance(ctx, client, newAPIConfig, ValidateSSRFProtectedFetchURL)
+			if balanceErr != nil {
+				result.Balance.Error = balanceErr.Error()
+			} else {
+				result.Balance = balance
+			}
 		}
 		return result, nil
 	case Sub2APIUpstreamType:
 		return fetchSub2APIGroupRatio(ctx, client, Sub2APIGroupRatioConfig{
-			BaseURL:      config.BaseURL,
-			Group:        config.Group,
-			RefreshToken: config.RefreshToken,
+			BaseURL:     config.BaseURL,
+			Group:       config.Group,
+			AuthType:    config.AuthType,
+			AccessToken: config.AccessToken,
+			ChannelKeys: config.ChannelKeys,
+			SkipBalance: config.SkipBalance,
 		}, ValidateSSRFProtectedFetchURL)
 	default:
 		return NewAPIGroupRatioResult{}, errors.New("不支持的上游类型")
@@ -248,8 +275,10 @@ func FetchChannelMonitorUpstreamBalance(ctx context.Context, config ChannelMonit
 		}, ValidateSSRFProtectedFetchURL)
 	case Sub2APIUpstreamType:
 		return fetchSub2APIUpstreamBalance(ctx, client, Sub2APIGroupRatioConfig{
-			BaseURL:      config.BaseURL,
-			RefreshToken: config.RefreshToken,
+			BaseURL:     config.BaseURL,
+			AuthType:    config.AuthType,
+			AccessToken: config.AccessToken,
+			ChannelKeys: config.ChannelKeys,
 		}, ValidateSSRFProtectedFetchURL)
 	default:
 		return ChannelMonitorUpstreamBalanceResult{}, errors.New("不支持的上游类型")
@@ -370,8 +399,10 @@ func FetchChannelMonitorUpstreamGroups(ctx context.Context, config ChannelMonito
 		return result, nil
 	case Sub2APIUpstreamType:
 		return fetchSub2APIUpstreamGroups(ctx, client, Sub2APIGroupRatioConfig{
-			BaseURL:      config.BaseURL,
-			RefreshToken: config.RefreshToken,
+			BaseURL:     config.BaseURL,
+			AuthType:    config.AuthType,
+			AccessToken: config.AccessToken,
+			SkipBalance: config.SkipBalance,
 		}, channelKeys, ValidateSSRFProtectedFetchURL)
 	default:
 		return ChannelMonitorUpstreamGroupsResult{}, errors.New("不支持的上游类型")
@@ -435,7 +466,6 @@ func applyChannelMonitorUpstreamGroup(ctx context.Context, client *http.Client, 
 	secrets := []string{
 		accessToken,
 		strings.TrimPrefix(accessToken, "Bearer "),
-		config.RefreshToken,
 	}
 	for _, key := range keys {
 		secrets = append(secrets, key, url.QueryEscape(key))
@@ -804,20 +834,6 @@ type sub2APIResponse struct {
 	Data    json.RawMessage `json:"data"`
 }
 
-type sub2APIRefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token"`
-}
-
-type sub2APIRefreshTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-type sub2APISession struct {
-	AccessToken  string
-	RefreshToken string
-}
-
 type sub2APIKeyEntry struct {
 	ID          int64    `json:"id"`
 	Key         string   `json:"key"`
@@ -840,6 +856,18 @@ type sub2APIUserProfile struct {
 	Balance float64 `json:"balance"`
 }
 
+type sub2APIKeyBillingResponse struct {
+	Object                  string          `json:"object"`
+	SchemaVersion           int             `json:"schema_version"`
+	BillingScope            string          `json:"billing_scope"`
+	EffectiveRateMultiplier json.RawMessage `json:"effective_rate_multiplier"`
+}
+
+type sub2APIUsageResponse struct {
+	Mode    string   `json:"mode"`
+	Balance *float64 `json:"balance"`
+}
+
 func FetchSub2APIGroupRatio(ctx context.Context, config Sub2APIGroupRatioConfig) (NewAPIGroupRatioResult, error) {
 	client := GetSSRFProtectedHTTPClient()
 	if client == nil {
@@ -853,62 +881,218 @@ func fetchSub2APIGroupRatio(ctx context.Context, client *http.Client, config Sub
 	if group == "" {
 		return NewAPIGroupRatioResult{}, errors.New("请输入上游分组")
 	}
-	groupsResult, err := fetchSub2APIUpstreamGroups(ctx, client, config, nil, validateURL)
-	result := NewAPIGroupRatioResult{
-		Balance:          groupsResult.Balance,
-		NextRefreshToken: groupsResult.NextRefreshToken,
+	config.Group = group
+	switch strings.TrimSpace(config.AuthType) {
+	case Sub2APIAuthAPIKey:
+		baseURL, err := normalizeSub2APIBaseURL(config.BaseURL)
+		if err != nil {
+			return NewAPIGroupRatioResult{}, err
+		}
+		config.BaseURL = baseURL
+		keys, err := normalizeChannelMonitorKeys(config.ChannelKeys)
+		if err != nil {
+			return NewAPIGroupRatioResult{}, err
+		}
+		if len(keys) == 0 {
+			return NewAPIGroupRatioResult{}, errors.New("Sub2API API Key 认证需要当前渠道配置上游 API Key")
+		}
+		config.ChannelKeys = keys
+		result, err := fetchSub2APIKeyGroupRatio(ctx, client, config, validateURL)
+		if err != nil {
+			return result, redactUpstreamGroupRatioSecrets(err, keys...)
+		}
+		if !config.SkipBalance {
+			balance, balanceErr := fetchSub2APIKeyBalance(ctx, client, config, validateURL)
+			if balanceErr != nil {
+				result.Balance.Error = redactUpstreamGroupRatioSecrets(balanceErr, keys...).Error()
+			} else {
+				result.Balance = balance
+			}
+		}
+		return result, nil
+	case Sub2APIAuthToken:
+		baseURL, accessToken, err := normalizeSub2APITokenConfig(config)
+		if err != nil {
+			return NewAPIGroupRatioResult{}, err
+		}
+		config.BaseURL = baseURL
+		config.AccessToken = accessToken
+		groupsResult, fetchErr := fetchSub2APIUpstreamGroups(ctx, client, config, nil, validateURL)
+		result := NewAPIGroupRatioResult{Balance: groupsResult.Balance}
+		if fetchErr != nil {
+			return result, fetchErr
+		}
+		for _, entry := range groupsResult.Groups {
+			if entry.Name == group || entry.ID == group {
+				result.Ratio = entry.Ratio
+				result.Endpoint = entry.Endpoint
+				return result, nil
+			}
+		}
+		return result, fmt.Errorf("Sub2API 当前账号不可见分组 %q", group)
+	default:
+		return NewAPIGroupRatioResult{}, errors.New("Sub2API 认证方式无效")
 	}
-	if err != nil {
-		return result, err
-	}
-	for _, entry := range groupsResult.Groups {
-		if entry.Name == group || entry.ID == group {
-			result.Ratio = entry.Ratio
-			result.Endpoint = entry.Endpoint
-			return result, nil
+}
+
+func fetchSub2APIKeyGroupRatio(ctx context.Context, client *http.Client, config Sub2APIGroupRatioConfig, validateURL func(string) error) (NewAPIGroupRatioResult, error) {
+	requestContext, cancel := context.WithTimeout(ctx, upstreamGroupRatioTimeout)
+	defer cancel()
+	result := NewAPIGroupRatioResult{Endpoint: "/v1/sub2api/billing"}
+	var resolvedRatio *float64
+	for _, channelKey := range config.ChannelKeys {
+		body, err := requestSub2APIKeyEndpoint(
+			requestContext,
+			client,
+			config.BaseURL+"/v1/sub2api/billing",
+			channelKey,
+			"读取渠道 API Key 倍率",
+			validateURL,
+		)
+		if err != nil {
+			return result, err
+		}
+
+		var payload sub2APIKeyBillingResponse
+		if err := common.Unmarshal(body, &payload); err != nil || len(payload.EffectiveRateMultiplier) == 0 {
+			return result, errors.New("Sub2API API Key 倍率响应格式无效")
+		}
+		if payload.Object != "" && payload.Object != "sub2api.key_billing" {
+			return result, errors.New("Sub2API API Key 倍率响应对象无效")
+		}
+		ratio, parseErr := parseUpstreamGroupRatio(payload.EffectiveRateMultiplier)
+		if parseErr != nil {
+			return result, fmt.Errorf("Sub2API API Key 倍率: %w", parseErr)
+		}
+		if resolvedRatio == nil {
+			value := ratio
+			resolvedRatio = &value
+			continue
+		}
+		if math.Abs(*resolvedRatio-ratio) > 1e-9 {
+			return result, fmt.Errorf("Sub2API 当前渠道的多个 API Key 返回了不同倍率（%.6g 和 %.6g）", *resolvedRatio, ratio)
 		}
 	}
-	return result, fmt.Errorf("Sub2API 当前账号不可见分组 %q", group)
+	if resolvedRatio == nil {
+		return result, errors.New("Sub2API API Key 认证没有可用的渠道 API Key")
+	}
+	result.Ratio = *resolvedRatio
+	return result, nil
+}
+
+func fetchSub2APIKeyBalance(ctx context.Context, client *http.Client, config Sub2APIGroupRatioConfig, validateURL func(string) error) (ChannelMonitorUpstreamBalanceResult, error) {
+	if len(config.ChannelKeys) == 0 {
+		return ChannelMonitorUpstreamBalanceResult{}, errors.New("Sub2API API Key 认证没有可用的渠道 API Key")
+	}
+	requestContext, cancel := context.WithTimeout(ctx, upstreamGroupRatioTimeout)
+	defer cancel()
+	body, err := requestSub2APIKeyEndpoint(
+		requestContext,
+		client,
+		config.BaseURL+"/v1/usage",
+		config.ChannelKeys[0],
+		"读取渠道 API Key 余额",
+		validateURL,
+	)
+	if err != nil {
+		return ChannelMonitorUpstreamBalanceResult{}, err
+	}
+	var payload sub2APIUsageResponse
+	if err := common.Unmarshal(body, &payload); err != nil || payload.Mode == "quota_limited" ||
+		payload.Balance == nil ||
+		math.IsNaN(*payload.Balance) || math.IsInf(*payload.Balance, 0) {
+		return ChannelMonitorUpstreamBalanceResult{}, errors.New("Sub2API API Key 余额响应中没有钱包余额")
+	}
+	return ChannelMonitorUpstreamBalanceResult{
+		Amount:   payload.Balance,
+		Endpoint: "/v1/usage",
+	}, nil
+}
+
+func requestSub2APIKeyEndpoint(ctx context.Context, client *http.Client, requestURL string, channelKey string, operation string, validateURL func(string) error) ([]byte, error) {
+	if validateURL != nil {
+		if err := validateURL(requestURL); err != nil {
+			return nil, err
+		}
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Accept", "application/json")
+	key := strings.TrimSpace(channelKey)
+	if len(key) >= len("Bearer ") && strings.EqualFold(key[:len("Bearer ")], "Bearer ") {
+		key = strings.TrimSpace(key[len("Bearer "):])
+	}
+	if key == "" {
+		return nil, errors.New("Sub2API API Key 不能为空")
+	}
+	request.Header.Set("Authorization", "Bearer "+key)
+
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("Sub2API %s失败: %w", operation, err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxUpstreamGroupRatioResponseBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("Sub2API %s失败: %w", operation, err)
+	}
+	if len(body) > maxUpstreamGroupRatioResponseBytes {
+		return nil, errors.New("Sub2API 上游响应过大")
+	}
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+		return nil, &channelMonitorUpstreamAuthenticationError{cause: fmt.Errorf("Sub2API %s认证失败: 上游返回 %s", operation, response.Status)}
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Sub2API %s失败: 上游返回 %s", operation, response.Status)
+	}
+	return body, nil
 }
 
 func fetchSub2APIUpstreamGroups(ctx context.Context, client *http.Client, config Sub2APIGroupRatioConfig, channelKeys []string, validateURL func(string) error) (ChannelMonitorUpstreamGroupsResult, error) {
-	baseURL, refreshToken, err := normalizeSub2APIConfig(config)
+	authType := strings.TrimSpace(config.AuthType)
+	if authType == Sub2APIAuthAPIKey {
+		return ChannelMonitorUpstreamGroupsResult{}, errors.New("Sub2API API Key 认证不支持获取上游分组，请切换为 Token（旧版）认证")
+	}
+	if authType != Sub2APIAuthToken {
+		return ChannelMonitorUpstreamGroupsResult{}, errors.New("Sub2API 认证方式无效")
+	}
+	baseURL, accessToken, err := normalizeSub2APITokenConfig(config)
 	if err != nil {
 		return ChannelMonitorUpstreamGroupsResult{}, err
 	}
+	config.BaseURL = baseURL
+	config.AccessToken = accessToken
 	timeout := upstreamGroupRatioTimeout
 	if len(channelKeys) > 0 {
 		timeout = upstreamGroupApplyTimeout
 	}
 	requestContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	session, err := refreshSub2APISession(requestContext, client, baseURL, refreshToken, validateURL)
-	result := ChannelMonitorUpstreamGroupsResult{NextRefreshToken: session.RefreshToken}
+	result, err := fetchSub2APIUpstreamGroupsWithToken(requestContext, client, baseURL, accessToken, validateURL)
 	if err != nil {
-		return result, redactUpstreamGroupRatioSecrets(err, refreshToken, session.RefreshToken, session.AccessToken)
+		return result, redactUpstreamGroupRatioSecrets(err, accessToken)
 	}
-	result, err = fetchSub2APIUpstreamGroupsWithSession(requestContext, client, baseURL, session.AccessToken, validateURL)
-	result.NextRefreshToken = session.RefreshToken
-	if err != nil {
-		return result, redactUpstreamGroupRatioSecrets(err, refreshToken, session.RefreshToken, session.AccessToken)
-	}
-	balance, balanceErr := fetchSub2APIUpstreamBalanceWithSession(requestContext, client, baseURL, session.AccessToken, validateURL)
-	if balanceErr != nil {
-		result.Balance.Error = redactUpstreamGroupRatioSecrets(balanceErr, refreshToken, session.RefreshToken, session.AccessToken).Error()
-	} else {
-		result.Balance = balance
+	if !config.SkipBalance {
+		balance, balanceErr := fetchSub2APIUpstreamBalanceWithToken(requestContext, client, baseURL, accessToken, validateURL)
+		if balanceErr != nil {
+			result.Balance.Error = redactUpstreamGroupRatioSecrets(balanceErr, accessToken).Error()
+		} else {
+			result.Balance = balance
+		}
 	}
 	if len(channelKeys) > 0 {
-		appliedGroupID, appliedGroupErr := fetchSub2APIUpstreamKeyGroupWithSession(
+		appliedGroupID, appliedGroupErr := fetchSub2APIUpstreamKeyGroupWithToken(
 			requestContext,
 			client,
 			baseURL,
-			session.AccessToken,
+			accessToken,
 			channelKeys,
 			validateURL,
 		)
 		if appliedGroupErr != nil {
-			secrets := []string{refreshToken, session.RefreshToken, session.AccessToken}
+			secrets := []string{accessToken}
 			for _, channelKey := range channelKeys {
 				secrets = append(secrets, channelKey, url.QueryEscape(channelKey))
 			}
@@ -926,7 +1110,7 @@ func fetchSub2APIUpstreamGroups(ctx context.Context, client *http.Client, config
 	return result, nil
 }
 
-func fetchSub2APIUpstreamKeyGroupWithSession(ctx context.Context, client *http.Client, baseURL string, accessToken string, channelKeys []string, validateURL func(string) error) (string, error) {
+func fetchSub2APIUpstreamKeyGroupWithToken(ctx context.Context, client *http.Client, baseURL string, accessToken string, channelKeys []string, validateURL func(string) error) (string, error) {
 	keys, err := normalizeChannelMonitorKeys(channelKeys)
 	if err != nil {
 		return "", err
@@ -956,26 +1140,45 @@ func fetchSub2APIUpstreamKeyGroupWithSession(ctx context.Context, client *http.C
 }
 
 func fetchSub2APIUpstreamBalance(ctx context.Context, client *http.Client, config Sub2APIGroupRatioConfig, validateURL func(string) error) (ChannelMonitorUpstreamBalanceResult, error) {
-	baseURL, refreshToken, err := normalizeSub2APIConfig(config)
-	if err != nil {
-		return ChannelMonitorUpstreamBalanceResult{}, err
+	switch strings.TrimSpace(config.AuthType) {
+	case Sub2APIAuthAPIKey:
+		baseURL, err := normalizeSub2APIBaseURL(config.BaseURL)
+		if err != nil {
+			return ChannelMonitorUpstreamBalanceResult{}, err
+		}
+		config.BaseURL = baseURL
+		keys, err := normalizeChannelMonitorKeys(config.ChannelKeys)
+		if err != nil {
+			return ChannelMonitorUpstreamBalanceResult{}, err
+		}
+		if len(keys) == 0 {
+			return ChannelMonitorUpstreamBalanceResult{}, errors.New("Sub2API API Key 认证需要当前渠道配置上游 API Key")
+		}
+		config.ChannelKeys = keys
+		balance, err := fetchSub2APIKeyBalance(ctx, client, config, validateURL)
+		return balance, redactUpstreamGroupRatioSecrets(err, keys...)
+	case Sub2APIAuthToken:
+		baseURL, accessToken, err := normalizeSub2APITokenConfig(config)
+		if err != nil {
+			return ChannelMonitorUpstreamBalanceResult{}, err
+		}
+		return fetchSub2APIUpstreamBalanceWithToken(ctx, client, baseURL, accessToken, validateURL)
+	default:
+		return ChannelMonitorUpstreamBalanceResult{}, errors.New("Sub2API 认证方式无效")
 	}
+}
+
+func fetchSub2APIUpstreamBalanceWithToken(ctx context.Context, client *http.Client, baseURL string, accessToken string, validateURL func(string) error) (ChannelMonitorUpstreamBalanceResult, error) {
 	requestContext, cancel := context.WithTimeout(ctx, upstreamGroupRatioTimeout)
 	defer cancel()
-	session, err := refreshSub2APISession(requestContext, client, baseURL, refreshToken, validateURL)
-	result := ChannelMonitorUpstreamBalanceResult{NextRefreshToken: session.RefreshToken}
+	result, err := fetchSub2APIProfileBalance(requestContext, client, baseURL, accessToken, validateURL)
 	if err != nil {
-		return result, redactUpstreamGroupRatioSecrets(err, refreshToken, session.RefreshToken, session.AccessToken)
-	}
-	result, err = fetchSub2APIUpstreamBalanceWithSession(requestContext, client, baseURL, session.AccessToken, validateURL)
-	result.NextRefreshToken = session.RefreshToken
-	if err != nil {
-		return result, redactUpstreamGroupRatioSecrets(err, refreshToken, session.RefreshToken, session.AccessToken)
+		return result, redactUpstreamGroupRatioSecrets(err, accessToken)
 	}
 	return result, nil
 }
 
-func fetchSub2APIUpstreamBalanceWithSession(ctx context.Context, client *http.Client, baseURL string, accessToken string, validateURL func(string) error) (ChannelMonitorUpstreamBalanceResult, error) {
+func fetchSub2APIProfileBalance(ctx context.Context, client *http.Client, baseURL string, accessToken string, validateURL func(string) error) (ChannelMonitorUpstreamBalanceResult, error) {
 	profileData, err := requestSub2API(
 		ctx,
 		client,
@@ -1000,60 +1203,29 @@ func fetchSub2APIUpstreamBalanceWithSession(ctx context.Context, client *http.Cl
 	}, nil
 }
 
-func normalizeSub2APIConfig(config Sub2APIGroupRatioConfig) (string, string, error) {
+func normalizeSub2APIBaseURL(value string) (string, error) {
+	return NormalizeNewAPIBaseURL(value)
+}
+
+func normalizeSub2APITokenConfig(config Sub2APIGroupRatioConfig) (string, string, error) {
 	baseURL, err := NormalizeNewAPIBaseURL(config.BaseURL)
 	if err != nil {
 		return "", "", err
 	}
-	refreshToken := strings.TrimSpace(config.RefreshToken)
-	if refreshToken == "" {
-		return "", "", errors.New("请输入 Sub2API Refresh Token")
+	accessToken := strings.TrimSpace(config.AccessToken)
+	if len(accessToken) >= len("Bearer ") && strings.EqualFold(accessToken[:len("Bearer ")], "Bearer ") {
+		accessToken = strings.TrimSpace(accessToken[len("Bearer "):])
 	}
-	if len([]rune(refreshToken)) > 4096 {
-		return "", "", errors.New("Sub2API Refresh Token 过长")
+	if accessToken == "" {
+		return "", "", errors.New("请输入 Sub2API Token（旧版）")
 	}
-	return baseURL, refreshToken, nil
+	if len([]rune(accessToken)) > 4096 {
+		return "", "", errors.New("Sub2API Token 过长")
+	}
+	return baseURL, accessToken, nil
 }
 
-func refreshSub2APISession(ctx context.Context, client *http.Client, baseURL string, refreshToken string, validateURL func(string) error) (sub2APISession, error) {
-	refreshBody, err := common.Marshal(sub2APIRefreshTokenRequest{RefreshToken: refreshToken})
-	if err != nil {
-		return sub2APISession{}, err
-	}
-	refreshData, err := requestSub2API(
-		ctx,
-		client,
-		http.MethodPost,
-		baseURL+"/api/v1/auth/refresh",
-		refreshBody,
-		"",
-		"刷新登录凭据",
-		validateURL,
-	)
-	if err != nil {
-		return sub2APISession{}, err
-	}
-	var refreshed sub2APIRefreshTokenResponse
-	if err := common.Unmarshal(refreshData, &refreshed); err != nil {
-		return sub2APISession{}, errors.New("Sub2API 刷新凭据响应格式无效")
-	}
-	session := sub2APISession{
-		AccessToken:  strings.TrimSpace(refreshed.AccessToken),
-		RefreshToken: strings.TrimSpace(refreshed.RefreshToken),
-	}
-	if session.RefreshToken == "" {
-		return sub2APISession{}, errors.New("Sub2API 刷新响应中没有新的 Refresh Token")
-	}
-	if session.RefreshToken == refreshToken {
-		return sub2APISession{}, errors.New("Sub2API 没有轮换 Refresh Token")
-	}
-	if session.AccessToken == "" {
-		return session, errors.New("Sub2API 刷新响应中没有访问令牌")
-	}
-	return session, nil
-}
-
-func fetchSub2APIUpstreamGroupsWithSession(ctx context.Context, client *http.Client, baseURL string, accessToken string, validateURL func(string) error) (ChannelMonitorUpstreamGroupsResult, error) {
+func fetchSub2APIUpstreamGroupsWithToken(ctx context.Context, client *http.Client, baseURL string, accessToken string, validateURL func(string) error) (ChannelMonitorUpstreamGroupsResult, error) {
 	result := ChannelMonitorUpstreamGroupsResult{}
 	groupsData, err := requestSub2API(
 		ctx,
@@ -1127,10 +1299,18 @@ func fetchSub2APIUpstreamGroupsWithSession(ctx context.Context, client *http.Cli
 }
 
 func applySub2APIUpstreamGroup(ctx context.Context, client *http.Client, config ChannelMonitorUpstreamConfig, channelKeys []string, validateURL func(string) error) (result ChannelMonitorUpstreamGroupApplyResult, err error) {
-	baseURL, refreshToken, err := normalizeSub2APIConfig(Sub2APIGroupRatioConfig{
-		BaseURL:      config.BaseURL,
-		Group:        config.Group,
-		RefreshToken: config.RefreshToken,
+	authType := strings.TrimSpace(config.AuthType)
+	if authType == Sub2APIAuthAPIKey {
+		return result, errors.New("Sub2API API Key 认证不支持应用上游分组，请切换为 Token（旧版）认证")
+	}
+	if authType != Sub2APIAuthToken {
+		return result, errors.New("Sub2API 认证方式无效")
+	}
+	baseURL, accessToken, err := normalizeSub2APITokenConfig(Sub2APIGroupRatioConfig{
+		BaseURL:     config.BaseURL,
+		Group:       config.Group,
+		AuthType:    config.AuthType,
+		AccessToken: config.AccessToken,
 	})
 	if err != nil {
 		return result, err
@@ -1140,24 +1320,18 @@ func applySub2APIUpstreamGroup(ctx context.Context, client *http.Client, config 
 		return result, errors.New("请输入上游分组")
 	}
 
-	var session sub2APISession
 	defer func() {
 		if err == nil {
 			return
 		}
-		secrets := []string{refreshToken, session.RefreshToken, session.AccessToken}
+		secrets := []string{accessToken}
 		for _, channelKey := range channelKeys {
 			secrets = append(secrets, channelKey, url.QueryEscape(channelKey))
 		}
 		err = redactUpstreamGroupRatioSecrets(err, secrets...)
 	}()
 
-	session, err = refreshSub2APISession(ctx, client, baseURL, refreshToken, validateURL)
-	result.Result.NextRefreshToken = session.RefreshToken
-	if err != nil {
-		return result, err
-	}
-	groupsResult, err := fetchSub2APIUpstreamGroupsWithSession(ctx, client, baseURL, session.AccessToken, validateURL)
+	groupsResult, err := fetchSub2APIUpstreamGroupsWithToken(ctx, client, baseURL, accessToken, validateURL)
 	if err != nil {
 		return result, err
 	}
@@ -1180,11 +1354,11 @@ func applySub2APIUpstreamGroup(ctx context.Context, client *http.Client, config 
 	result.Result.Endpoint = targetGroup.Endpoint
 
 	for index, channelKey := range channelKeys {
-		apiKey, findErr := findSub2APIKey(ctx, client, baseURL, session.AccessToken, channelKey, validateURL)
+		apiKey, findErr := findSub2APIKey(ctx, client, baseURL, accessToken, channelKey, validateURL)
 		if findErr != nil {
 			return result, fmt.Errorf("查找第 %d 个 Sub2API API Key 失败: %w", index+1, findErr)
 		}
-		if updateErr := updateSub2APIKeyGroup(ctx, client, baseURL, session.AccessToken, apiKey, targetGroupID, validateURL); updateErr != nil {
+		if updateErr := updateSub2APIKeyGroup(ctx, client, baseURL, accessToken, apiKey, targetGroupID, validateURL); updateErr != nil {
 			return result, fmt.Errorf("更新第 %d 个 Sub2API API Key 失败: %w", index+1, updateErr)
 		}
 		result.KeysUpdated++
@@ -1264,6 +1438,10 @@ func requestSub2API(ctx context.Context, client *http.Client, method string, req
 		httpRequest.Header.Set("Content-Type", "application/json")
 	}
 	if accessToken != "" {
+		accessToken = strings.TrimSpace(accessToken)
+		if len(accessToken) >= len("Bearer ") && strings.EqualFold(accessToken[:len("Bearer ")], "Bearer ") {
+			accessToken = strings.TrimSpace(accessToken[len("Bearer "):])
+		}
 		httpRequest.Header.Set("Authorization", "Bearer "+accessToken)
 	}
 
@@ -1283,7 +1461,11 @@ func requestSub2API(ctx context.Context, client *http.Client, method string, req
 	var payload sub2APIResponse
 	if err := common.Unmarshal(responseBody, &payload); err != nil {
 		if response.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Sub2API %s失败: 上游返回 %s", operation, response.Status)
+			upstreamErr := fmt.Errorf("Sub2API %s失败: 上游返回 %s", operation, response.Status)
+			if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+				return nil, &channelMonitorUpstreamAuthenticationError{cause: upstreamErr}
+			}
+			return nil, upstreamErr
 		}
 		return nil, fmt.Errorf("Sub2API %s响应格式无效", operation)
 	}
@@ -1292,7 +1474,12 @@ func requestSub2API(ctx context.Context, client *http.Client, method string, req
 		if message == "" {
 			message = response.Status
 		}
-		return nil, fmt.Errorf("Sub2API %s失败: %w", operation, upstreamGroupRatioMessage(message))
+		upstreamErr := fmt.Errorf("Sub2API %s失败: %w", operation, upstreamGroupRatioMessage(message))
+		if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden ||
+			payload.Code == http.StatusUnauthorized || payload.Code == http.StatusForbidden {
+			return nil, &channelMonitorUpstreamAuthenticationError{cause: upstreamErr}
+		}
+		return nil, upstreamErr
 	}
 	return payload.Data, nil
 }
@@ -1334,6 +1521,7 @@ func redactUpstreamGroupRatioSecrets(err error, secrets ...string) error {
 	if err == nil {
 		return nil
 	}
+	authenticationFailure := errors.Is(err, ErrChannelMonitorUpstreamAuthentication)
 	message := err.Error()
 	for _, secret := range secrets {
 		secret = strings.TrimSpace(secret)
@@ -1341,5 +1529,9 @@ func redactUpstreamGroupRatioSecrets(err error, secrets ...string) error {
 			message = strings.ReplaceAll(message, secret, "[REDACTED]")
 		}
 	}
-	return errors.New(message)
+	redactedErr := errors.New(message)
+	if authenticationFailure {
+		return &channelMonitorUpstreamAuthenticationError{cause: redactedErr}
+	}
+	return redactedErr
 }

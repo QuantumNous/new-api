@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -150,34 +151,36 @@ func TestFetchNewAPIUpstreamKeyGroupUsesChannelAPIKey(t *testing.T) {
 	assert.Equal(t, "vip", group)
 }
 
-func TestFetchSub2APIUpstreamBalanceRotatesRefreshToken(t *testing.T) {
+func TestFetchSub2APITokenReadsGroupsRatesAndBalance(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer legacy-jwt", r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v1/auth/refresh":
-			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"next-refresh-token"}}`))
+		case "/api/v1/groups/available":
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":7,"name":"vip","rate_multiplier":1.25}]}`))
+		case "/api/v1/groups/rates":
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"7":1.75}}`))
 		case "/api/v1/user/profile":
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"balance":7.25}}`))
+		case "/api/v1/auth/refresh":
+			t.Fatal("legacy token mode must not call refresh endpoint")
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	defer server.Close()
 
-	result, err := fetchSub2APIUpstreamBalance(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
-		BaseURL:      server.URL,
-		RefreshToken: "old-refresh-token",
+	result, err := fetchSub2APIGroupRatio(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
+		BaseURL:     server.URL,
+		Group:       "vip",
+		AuthType:    Sub2APIAuthToken,
+		AccessToken: "legacy-jwt",
 	}, nil)
 	require.NoError(t, err)
-	require.NotNil(t, result.Amount)
-	assert.InDelta(t, 7.25, *result.Amount, 1e-9)
-	assert.Equal(t, "/api/v1/user/profile", result.Endpoint)
-	assert.Equal(t, "next-refresh-token", result.NextRefreshToken)
-
-	serialized, err := common.Marshal(result)
-	require.NoError(t, err)
-	assert.NotContains(t, string(serialized), "next-refresh-token")
+	assert.InDelta(t, 1.75, result.Ratio, 1e-9)
+	assert.Equal(t, "/api/v1/groups/rates", result.Endpoint)
+	require.NotNil(t, result.Balance.Amount)
+	assert.InDelta(t, 7.25, *result.Balance.Amount, 1e-9)
 }
 
 func TestFetchNewAPIGroupRatioRejectsAutomaticGroupWithoutFixedRatio(t *testing.T) {
@@ -306,18 +309,15 @@ func TestApplyNewAPIUpstreamGroupRequiresUserAuthentication(t *testing.T) {
 	assert.Zero(t, result.KeysUpdated)
 }
 
-func TestApplySub2APIUpstreamGroupUpdatesMatchingAPIKey(t *testing.T) {
+func TestApplySub2APITokenUpdatesMatchingAPIKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v1/auth/refresh":
-			assert.Equal(t, http.MethodPost, r.Method)
-			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"next-refresh-token"}}`))
 		case "/api/v1/groups/available":
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
+			assert.Equal(t, "Bearer legacy-jwt", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":7,"name":"vip","rate_multiplier":1.25}]}`))
 		case "/api/v1/groups/rates":
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
+			assert.Equal(t, "Bearer legacy-jwt", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"7":1.75}}`))
 		case "/api/v1/keys":
 			assert.Equal(t, http.MethodGet, r.Method)
@@ -325,7 +325,7 @@ func TestApplySub2APIUpstreamGroupUpdatesMatchingAPIKey(t *testing.T) {
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"items":[{"id":99,"key":"sk-sub2api","ip_whitelist":["10.0.0.1"],"ip_blacklist":["192.0.2.1"]}],"total":1,"page":1,"page_size":100,"pages":1}}`))
 		case "/api/v1/keys/99":
 			assert.Equal(t, http.MethodPut, r.Method)
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
+			assert.Equal(t, "Bearer legacy-jwt", r.Header.Get("Authorization"))
 			var request sub2APIKeyUpdateRequest
 			require.NoError(t, common.DecodeJson(r.Body, &request))
 			assert.Equal(t, int64(7), request.GroupID)
@@ -339,35 +339,30 @@ func TestApplySub2APIUpstreamGroupUpdatesMatchingAPIKey(t *testing.T) {
 	defer server.Close()
 
 	result, err := applyChannelMonitorUpstreamGroup(context.Background(), server.Client(), ChannelMonitorUpstreamConfig{
-		Type:         Sub2APIUpstreamType,
-		BaseURL:      server.URL,
-		Group:        "vip",
-		AuthType:     Sub2APIAuthRefreshToken,
-		RefreshToken: "old-refresh-token",
+		Type:        Sub2APIUpstreamType,
+		BaseURL:     server.URL,
+		Group:       "vip",
+		AuthType:    Sub2APIAuthToken,
+		AccessToken: "legacy-jwt",
 	}, []string{"sk-sub2api"}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.KeysUpdated)
 	assert.Equal(t, 1.75, result.Result.Ratio)
 	assert.Equal(t, "/api/v1/groups/rates", result.Result.Endpoint)
-	assert.Equal(t, "next-refresh-token", result.Result.NextRefreshToken)
 }
 
-func TestFetchSub2APIGroupRatioRefreshesTokenAndUsesAvailableGroupRatio(t *testing.T) {
+func TestFetchSub2APITokenCanSkipBalance(t *testing.T) {
+	var balanceRequests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v1/auth/refresh":
-			assert.Equal(t, http.MethodPost, r.Method)
-			var refresh sub2APIRefreshTokenRequest
-			require.NoError(t, common.DecodeJson(r.Body, &refresh))
-			assert.Equal(t, "old-refresh-token", refresh.RefreshToken)
-			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"new-refresh-token"}}`))
 		case "/api/v1/groups/available":
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":7,"name":"vip","rate_multiplier":1.375}]}`))
 		case "/api/v1/groups/rates":
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{}}`))
+		case "/api/v1/user/profile":
+			balanceRequests.Add(1)
+			http.Error(w, "unsupported", http.StatusNotFound)
 		default:
 			http.NotFound(w, r)
 		}
@@ -375,31 +370,28 @@ func TestFetchSub2APIGroupRatioRefreshesTokenAndUsesAvailableGroupRatio(t *testi
 	defer server.Close()
 
 	result, err := fetchSub2APIGroupRatio(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
-		BaseURL:      server.URL,
-		Group:        "vip",
-		RefreshToken: "old-refresh-token",
+		BaseURL:     server.URL,
+		Group:       "vip",
+		AuthType:    Sub2APIAuthToken,
+		AccessToken: "legacy-jwt",
+		SkipBalance: true,
 	}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1.375, result.Ratio)
-	assert.Equal(t, "/api/v1/groups/available", result.Endpoint)
-	assert.Equal(t, "new-refresh-token", result.NextRefreshToken)
-
-	serialized, err := common.Marshal(result)
-	require.NoError(t, err)
-	assert.NotContains(t, string(serialized), "new-refresh-token")
+	assert.Nil(t, result.Balance.Amount)
+	assert.Empty(t, result.Balance.Error)
+	assert.Zero(t, balanceRequests.Load())
 }
 
-func TestFetchSub2APIGroupRatioPrefersUserRateAndCanMatchGroupID(t *testing.T) {
+func TestFetchSub2APITokenPrefersUserRateAndCanMatchGroupID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v1/auth/refresh":
-			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"next-refresh-token"}}`))
 		case "/api/v1/groups/available":
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
+			assert.Equal(t, "Bearer legacy-jwt", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":42,"name":"standard","rate_multiplier":"0.625"}]}`))
 		case "/api/v1/groups/rates":
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
+			assert.Equal(t, "Bearer legacy-jwt", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"42":1.75}}`))
 		default:
 			http.NotFound(w, r)
@@ -408,28 +400,26 @@ func TestFetchSub2APIGroupRatioPrefersUserRateAndCanMatchGroupID(t *testing.T) {
 	defer server.Close()
 
 	result, err := fetchSub2APIGroupRatio(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
-		BaseURL:      server.URL,
-		Group:        "42",
-		RefreshToken: "old-refresh-token",
+		BaseURL:     server.URL,
+		Group:       "42",
+		AuthType:    Sub2APIAuthToken,
+		AccessToken: "legacy-jwt",
 	}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1.75, result.Ratio)
 	assert.Equal(t, "/api/v1/groups/rates", result.Endpoint)
-	assert.Equal(t, "next-refresh-token", result.NextRefreshToken)
 }
 
 func TestFetchSub2APIUpstreamGroupsMergesUserRates(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v1/auth/refresh":
-			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"next-refresh-token"}}`))
 		case "/api/v1/groups/available":
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":9,"name":"alpha","rate_multiplier":1.2},{"id":3,"name":"zeta","rate_multiplier":0.8}]}`))
 		case "/api/v1/groups/rates":
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"9":1.75}}`))
 		case "/api/v1/user/profile":
-			assert.Equal(t, "Bearer user-jwt", r.Header.Get("Authorization"))
+			assert.Equal(t, "Bearer legacy-jwt", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"balance":23.5}}`))
 		default:
 			http.NotFound(w, r)
@@ -438,11 +428,11 @@ func TestFetchSub2APIUpstreamGroupsMergesUserRates(t *testing.T) {
 	defer server.Close()
 
 	result, err := fetchSub2APIUpstreamGroups(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
-		BaseURL:      server.URL,
-		RefreshToken: "old-refresh-token",
+		BaseURL:     server.URL,
+		AuthType:    Sub2APIAuthToken,
+		AccessToken: "legacy-jwt",
 	}, nil, nil)
 	require.NoError(t, err)
-	assert.Equal(t, "next-refresh-token", result.NextRefreshToken)
 	require.Len(t, result.Groups, 2)
 	assert.Equal(t, "3", result.Groups[0].ID)
 	assert.Equal(t, "zeta", result.Groups[0].Name)
@@ -456,20 +446,35 @@ func TestFetchSub2APIUpstreamGroupsMergesUserRates(t *testing.T) {
 	assert.InDelta(t, 23.5, *result.Balance.Amount, 1e-9)
 	assert.Equal(t, "/api/v1/user/profile", result.Balance.Endpoint)
 
-	serialized, err := common.Marshal(result)
-	require.NoError(t, err)
-	assert.NotContains(t, string(serialized), "next-refresh-token")
 }
 
-func TestFetchSub2APIGroupRatioReturnsRotatedTokenWhenGroupFetchFails(t *testing.T) {
+func TestFetchSub2APITokenClassifiesAuthenticationFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"code":401,"message":"token expired"}`))
+	}))
+	defer server.Close()
+
+	_, err := fetchSub2APIGroupRatio(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
+		BaseURL:     server.URL,
+		Group:       "vip",
+		AuthType:    Sub2APIAuthToken,
+		AccessToken: "legacy-jwt",
+		SkipBalance: true,
+	}, nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrChannelMonitorUpstreamAuthentication)
+}
+
+func TestFetchSub2APIGroupRatioUsesChannelKeyBillingAndUsage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v1/auth/refresh":
-			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"new-refresh-token"}}`))
-		case "/api/v1/groups/available":
-			w.WriteHeader(http.StatusBadGateway)
-			_, _ = w.Write([]byte(`{"code":502,"message":"temporary upstream failure: old-refresh-token new-refresh-token user-jwt"}`))
+		case "/v1/sub2api/billing":
+			assert.Equal(t, "Bearer sk-direct", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"object":"sub2api.key_billing","schema_version":1,"billing_scope":"token","effective_rate_multiplier":1.375}`))
+		case "/v1/usage":
+			assert.Equal(t, "Bearer sk-direct", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"mode":"unrestricted","balance":12.5}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -477,31 +482,111 @@ func TestFetchSub2APIGroupRatioReturnsRotatedTokenWhenGroupFetchFails(t *testing
 	defer server.Close()
 
 	result, err := fetchSub2APIGroupRatio(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
-		BaseURL:      server.URL,
-		Group:        "vip",
-		RefreshToken: "old-refresh-token",
+		BaseURL:     server.URL,
+		Group:       "vip",
+		AuthType:    Sub2APIAuthAPIKey,
+		ChannelKeys: []string{"sk-direct"},
 	}, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "temporary upstream failure")
-	assert.NotContains(t, err.Error(), "old-refresh-token")
-	assert.NotContains(t, err.Error(), "new-refresh-token")
-	assert.NotContains(t, err.Error(), "user-jwt")
-	assert.Equal(t, "new-refresh-token", result.NextRefreshToken)
+	require.NoError(t, err)
+	assert.InDelta(t, 1.375, result.Ratio, 1e-9)
+	require.NotNil(t, result.Balance.Amount)
+	assert.InDelta(t, 12.5, *result.Balance.Amount, 1e-9)
+	assert.Equal(t, "/v1/usage", result.Balance.Endpoint)
 }
 
-func TestFetchSub2APIGroupRatioRejectsUnrotatedRefreshToken(t *testing.T) {
+func TestFetchSub2APIGroupRatioAPIKeyModeDoesNotUseTokenBranch(t *testing.T) {
+	var directRequests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		assert.Equal(t, "/api/v1/auth/refresh", r.URL.Path)
-		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"user-jwt","refresh_token":"same-refresh-token"}}`))
+		switch r.URL.Path {
+		case "/v1/sub2api/billing":
+			directRequests.Add(1)
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer server.Close()
 
 	_, err := fetchSub2APIGroupRatio(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
-		BaseURL:      server.URL,
-		Group:        "vip",
-		RefreshToken: "same-refresh-token",
+		BaseURL:     server.URL,
+		Group:       "vip",
+		AuthType:    Sub2APIAuthAPIKey,
+		ChannelKeys: []string{"sk-old-version"},
+		SkipBalance: true,
 	}, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "没有轮换")
+	assert.EqualValues(t, 1, directRequests.Load())
+	assert.Contains(t, err.Error(), "404")
+}
+
+func TestFetchSub2APIGroupRatioAPIKeyModeReportsAuthenticationFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/v1/sub2api/billing" {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"type":"permission_error","message":"invalid API key"}}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	_, err := fetchSub2APIGroupRatio(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
+		BaseURL:     server.URL,
+		Group:       "vip",
+		AuthType:    Sub2APIAuthAPIKey,
+		ChannelKeys: []string{"sk-invalid"},
+		SkipBalance: true,
+	}, nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrChannelMonitorUpstreamAuthentication)
+	assert.NotContains(t, err.Error(), "sk-invalid")
+}
+
+func TestFetchSub2APIUpstreamBalanceAPIKeyModeRequiresWalletBalance(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/usage":
+			_, _ = w.Write([]byte(`{"mode":"quota_limited","remaining":100,"balance":999}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	_, err := fetchSub2APIUpstreamBalance(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
+		BaseURL:     server.URL,
+		AuthType:    Sub2APIAuthAPIKey,
+		ChannelKeys: []string{"sk-quota"},
+	}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "没有钱包余额")
+}
+
+func TestFetchSub2APIGroupRatioRejectsDifferentChannelKeyBillingRatios(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/sub2api/billing" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		ratio := "1.0"
+		if r.Header.Get("Authorization") == "Bearer sk-two" {
+			ratio = "1.2"
+		}
+		_, _ = w.Write([]byte(`{"object":"sub2api.key_billing","effective_rate_multiplier":` + ratio + `}`))
+	}))
+	defer server.Close()
+
+	_, err := fetchSub2APIGroupRatio(context.Background(), server.Client(), Sub2APIGroupRatioConfig{
+		BaseURL:     server.URL,
+		Group:       "vip",
+		AuthType:    Sub2APIAuthAPIKey,
+		ChannelKeys: []string{"sk-one", "sk-two"},
+		SkipBalance: true,
+	}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "多个 API Key")
 }
