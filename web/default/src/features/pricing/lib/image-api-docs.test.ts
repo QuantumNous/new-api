@@ -20,7 +20,11 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
 import type { ModelApiProfile } from '../types'
-import { buildAsyncImageSample } from './image-api-docs'
+import {
+  buildAsyncImageSample,
+  IMAGE_SAMPLE_LANGUAGES,
+  STANDARD_SAMPLE_LANGUAGES,
+} from './image-api-docs'
 
 const profile: ModelApiProfile = {
   kind: 'image',
@@ -71,6 +75,22 @@ const editProfile: ModelApiProfile = {
 }
 
 describe('async image API samples', () => {
+  test('image samples add Bash without exposing it to standard endpoints', () => {
+    assert.deepEqual(IMAGE_SAMPLE_LANGUAGES, [
+      'curl',
+      'bash',
+      'python',
+      'typescript',
+      'javascript',
+    ])
+    assert.deepEqual(STANDARD_SAMPLE_LANGUAGES, [
+      'curl',
+      'python',
+      'typescript',
+      'javascript',
+    ])
+  })
+
   test('cURL stays copy-friendly and shows submit plus poll requests', () => {
     const sample = buildAsyncImageSample('curl', context)
 
