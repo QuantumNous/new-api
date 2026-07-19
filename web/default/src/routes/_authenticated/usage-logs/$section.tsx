@@ -45,6 +45,7 @@ const usageLogsSearchSchema = z.object({
   username: z.string().optional().catch(''),
   requestId: z.string().optional().catch(''),
   upstreamRequestId: z.string().optional().catch(''),
+  includeModelTest: z.boolean().optional(),
   startTime: z.number().optional(),
   endTime: z.number().optional(),
 })
@@ -57,15 +58,20 @@ export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
         params: { section: USAGE_LOGS_DEFAULT_SECTION },
       })
     }
-    // type 仅 common 使用，非 common 时清掉 URL 里的 type
+    // type/includeModelTest 仅 common 使用，非 common 时清掉 URL 参数
     const hasTypeSearch = Array.isArray(search?.type)
       ? search.type.length > 0
       : search?.type != null && search.type !== ''
-    if (params.section !== 'common' && hasTypeSearch) {
+    const hasModelTestSearch = search?.includeModelTest != null
+    if (params.section !== 'common' && (hasTypeSearch || hasModelTestSearch)) {
       throw redirect({
         to: '/usage-logs/$section',
         params: { section: params.section },
-        search: { ...search, type: undefined },
+        search: {
+          ...search,
+          type: undefined,
+          includeModelTest: undefined,
+        },
         replace: true,
       })
     }

@@ -215,6 +215,9 @@ export function buildApiParams(config: {
     ...(searchParams.upstreamRequestId
       ? { upstream_request_id: String(searchParams.upstreamRequestId) }
       : {}),
+    ...(isAdmin && searchParams.includeModelTest === true
+      ? { include_model_test: true }
+      : {}),
     ...buildTimeRangeParams(searchParams, false),
   }
 

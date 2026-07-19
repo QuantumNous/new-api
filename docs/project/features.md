@@ -31,7 +31,7 @@
 | 计费 | 模型倍率、固定价格、动态表达式计费、预扣、实际用量结算、失败退款和违规费用 | `relay/helper/price.go`、`service/billing_session.go`、`service/quota.go`、`pkg/billingexpr/` | 定价、钱包、日志和系统计费设置 |
 | 钱包与充值 | 余额、兑换码、充值订单、邀请额度转移及多支付渠道 | `controller/topup*.go`、`controller/redemption.go`、`model/topup.go` | `features/wallet/`、`features/redemption-codes/` |
 | 订阅 | 订阅计划、用户订阅、周期额度重置、余额/支付渠道购买及资金来源偏好 | `controller/subscription*.go`、`service/subscription_reset_task.go`、`model/subscription.go` | `features/subscriptions/`、`features/wallet/` |
-| 日志与统计 | 请求日志、任务日志、用户/管理员统计、排行榜、渠道亲和统计和用量聚合 | `controller/log.go`、`controller/usedata.go`、`controller/rankings.go`、`model/log.go` | `features/usage-logs/`、`features/dashboard/`、`features/rankings/` |
+| 日志与统计 | 请求日志、任务日志、用户/管理员统计、排行榜、渠道亲和统计和用量聚合；管理员通用日志默认排除渠道模型测试日志，可按需包含 | `controller/log.go`、`controller/usedata.go`、`controller/rankings.go`、`model/log.go` | `features/usage-logs/`、`features/dashboard/`、`features/rankings/` |
 | 系统配置 | 站点、鉴权、运营、模型、计费、内容、支付和主题配置；数据库 Option 热更新 | `controller/option.go`、`setting/`、`model/option.go` | `features/system-settings/` |
 | 运维 | 健康状态、性能指标、日志文件、GC、磁盘缓存、渠道自动测试、凭证刷新和上游模型更新 | `controller/performance.go`、`controller/perf_metrics.go`、`main.go` | 性能与系统设置页面 |
 | 国际化与主题 | 后端中英文消息；默认前端多语言、明暗主题和布局配置；经典前端兼容 | `i18n/`、`setting/system_setting/` | `web/default/src/i18n/`、`web/default/src/context/` |
