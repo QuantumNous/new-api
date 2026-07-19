@@ -103,7 +103,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         itemKey: 'task',
         to: '/task',
         className:
-          localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
+          isAdmin() && localStorage.getItem('enable_task') === 'true'
+            ? ''
+            : 'tableHiddle',
       },
     ];
 
@@ -118,6 +120,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     localStorage.getItem('enable_data_export'),
     localStorage.getItem('enable_drawing'),
     localStorage.getItem('enable_task'),
+    isAdmin(),
     t,
     isModuleVisible,
   ]);

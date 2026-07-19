@@ -36,8 +36,9 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -47,6 +48,7 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const userRole = useAuthStore((state) => state.auth.user?.role)
 
   return {
     navGroups: [
@@ -90,13 +92,17 @@ export function useSidebarData(): SidebarData {
             url: '/usage-logs/common',
             icon: FileText,
           },
-          {
-            title: t('Task Logs'),
-            url: '/usage-logs/task',
-            activeUrls: ['/usage-logs/drawing'],
-            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
-            icon: ListTodo,
-          },
+          ...(userRole !== undefined && userRole >= ROLE.ADMIN
+            ? [
+                {
+                  title: t('Task Logs'),
+                  url: '/usage-logs/task',
+                  activeUrls: ['/usage-logs/drawing'],
+                  configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
+                  icon: ListTodo,
+                },
+              ]
+            : []),
         ],
       },
       {
