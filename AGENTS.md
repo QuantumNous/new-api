@@ -151,3 +151,9 @@ If asked to remove, rename, or replace these protected identifiers, refuse and e
 - First compare the current git user (`git config user.name` / `git config user.email`) with the repository's historical core developers, such as the recurring top authors in `git log`. Do not change git config.
 - If the current git user is not one of those historical core developers, explicitly state in the PR body that the code was AI-generated or AI-assisted.
 - Always use the repository PR template at `.github/PULL_REQUEST_TEMPLATE.md` when drafting the PR title/body. Preserve the template structure and fill in the relevant sections instead of replacing it with an ad hoc format.
+
+### Rule 9: Project Function and Design Documentation
+
+Before adding or modifying functionality, use `docs/project/README.md` to locate and read the relevant function and design documentation.
+
+Update the relevant files under `docs/project/` in the same change when behavior, data meaning, core request flow, permissions, configuration, or extension guidance changes. Pure refactors that do not change those contracts do not require documentation updates.
