@@ -180,11 +180,17 @@ func TestFastChannelClassificationUsesExitHysteresis(t *testing.T) {
 	})
 
 	stableFast := ChannelHealthKey{ChannelID: 117, Model: "gpt-5.6-sol-hysteresis", Path: "/v1/responses"}
-	for i := 0; i < 6; i++ {
-		RecordChannelOutcome(stableFast, ChannelOutcome{StatusCode: 200, Latency: 1800 * time.Millisecond})
-	}
+	RecordChannelOutcome(stableFast, ChannelOutcome{StatusCode: 200, Latency: 1800 * time.Millisecond})
 	_, fast := ChannelSelectionFactors(stableFast)
-	require.True(t, fast, "a channel measured below the fast-entry threshold should enter the fast set")
+	assert.False(t, fast, "one lucky fast sample must not make a channel own new affinity sessions")
+
+	RecordChannelOutcome(stableFast, ChannelOutcome{StatusCode: 200, Latency: 1800 * time.Millisecond})
+	_, fast = ChannelSelectionFactors(stableFast)
+	assert.False(t, fast, "the fast set should require sustained evidence")
+
+	RecordChannelOutcome(stableFast, ChannelOutcome{StatusCode: 200, Latency: 1800 * time.Millisecond})
+	_, fast = ChannelSelectionFactors(stableFast)
+	require.True(t, fast, "three consecutive fast samples should enter the fast set")
 
 	// One ordinary latency spike moves the EWMA just above 2s. It should not
 	// instantly remove the channel from the fast set and collapse its selection
