@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -1066,6 +1067,20 @@ func TestResolveChannelMonitorUpstreamRequestDoesNotReuseCredentialsAcrossHosts(
 	}, true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "访问令牌")
+}
+
+func TestResolveChannelMonitorUpstreamRequestIncludesChannelProxy(t *testing.T) {
+	channel := &model.Channel{Id: 21}
+	channel.SetSetting(dto.ChannelSettings{Proxy: "socks5://127.0.0.1:1080"})
+
+	config, err := resolveChannelMonitorUpstreamRequest(channel, channelMonitorUpstreamRequest{
+		Type:     service.NewAPIUpstreamType,
+		BaseURL:  "https://upstream.example",
+		Group:    "vip",
+		AuthType: service.NewAPIUpstreamAuthPublic,
+	}, true)
+	require.NoError(t, err)
+	assert.Equal(t, "socks5://127.0.0.1:1080", config.Proxy)
 }
 
 func TestPlanChannelMonitorPolicyActions(t *testing.T) {

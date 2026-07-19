@@ -403,7 +403,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
     const value = baseUrl.trim()
     if (!value) return
     setUpstreamVersion(null)
-    versionMutation.mutate(value)
+    versionMutation.mutate({ channelId: props.channel.id, baseUrl: value })
   }
   const pending =
     saveMutation.isPending ||

@@ -34,14 +34,14 @@ type channelMonitorSub2APIPublicSettingsResponse struct {
 
 // FetchSub2APIUpstreamVersion reads the public build version without requiring
 // either a Sub2API API Key or a legacy JWT token.
-func FetchSub2APIUpstreamVersion(ctx context.Context, baseURL string) (ChannelMonitorUpstreamVersionResult, error) {
+func FetchSub2APIUpstreamVersion(ctx context.Context, baseURL string, proxyURL string) (ChannelMonitorUpstreamVersionResult, error) {
 	normalizedBaseURL, err := NormalizeNewAPIBaseURL(baseURL)
 	if err != nil {
 		return ChannelMonitorUpstreamVersionResult{}, err
 	}
-	client := GetSSRFProtectedHTTPClient()
-	if client == nil {
-		return ChannelMonitorUpstreamVersionResult{}, errors.New("上游请求客户端未初始化")
+	client, err := NewSSRFProtectedHTTPClientWithProxy(proxyURL)
+	if err != nil {
+		return ChannelMonitorUpstreamVersionResult{}, err
 	}
 
 	requestURL := normalizedBaseURL + channelMonitorSub2APIPublicSettingsEndpoint

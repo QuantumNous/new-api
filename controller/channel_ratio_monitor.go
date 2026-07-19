@@ -177,6 +177,7 @@ func resolveChannelMonitorUpstreamRequest(channel *model.Channel, request channe
 		BaseURL:     normalizedBaseURL,
 		Group:       request.Group,
 		AuthType:    request.AuthType,
+		Proxy:       channel.GetSetting().Proxy,
 		SkipBalance: request.BalanceSyncEnabled != nil && !*request.BalanceSyncEnabled,
 	}
 	switch request.Type {
@@ -754,7 +755,7 @@ type channelMonitorFetchOutcome struct {
 	BalanceRecorded bool
 }
 
-func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor model.ChannelRatioMonitor, channelKeys []string, operatorId int, operatorUsername string) (outcome channelMonitorFetchOutcome, err error) {
+func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor model.ChannelRatioMonitor, channelKeys []string, proxyURL string, operatorId int, operatorUsername string) (outcome channelMonitorFetchOutcome, err error) {
 	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType {
 		return outcome, errors.New("请先保存上游配置")
 	}
@@ -792,6 +793,7 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 		UserID:      monitor.UpstreamUserId,
 		AccessToken: monitor.UpstreamAccessToken,
 		ChannelKeys: channelKeys,
+		Proxy:       proxyURL,
 		SkipBalance: monitor.UpstreamBalanceSyncDisabled,
 	})
 	outcome.Result = result
@@ -830,7 +832,7 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 	return outcome, nil
 }
 
-func fetchAndRecordChannelMonitorUpstreamBalance(ctx context.Context, monitor model.ChannelRatioMonitor, channelKeys []string) (result service.ChannelMonitorUpstreamBalanceResult, err error) {
+func fetchAndRecordChannelMonitorUpstreamBalance(ctx context.Context, monitor model.ChannelRatioMonitor, channelKeys []string, proxyURL string) (result service.ChannelMonitorUpstreamBalanceResult, err error) {
 	if monitor.UpstreamType != service.NewAPIUpstreamType && monitor.UpstreamType != service.Sub2APIUpstreamType {
 		return result, errors.New("请先保存上游配置")
 	}
@@ -847,6 +849,7 @@ func fetchAndRecordChannelMonitorUpstreamBalance(ctx context.Context, monitor mo
 			UserID:      monitor.UpstreamUserId,
 			AccessToken: monitor.UpstreamAccessToken,
 			ChannelKeys: channelKeys,
+			Proxy:       proxyURL,
 		},
 	)
 	if fetchErr == nil && result.Amount == nil {
@@ -889,7 +892,7 @@ func FetchChannelMonitorUpstreamRatio(c *gin.Context) {
 		return
 	}
 	operatorId, operatorUsername := getChannelMonitorOperator(c)
-	outcome, err := fetchAndRecordChannelMonitorUpstreamRatio(c.Request.Context(), monitor, channel.GetKeys(), operatorId, operatorUsername)
+	outcome, err := fetchAndRecordChannelMonitorUpstreamRatio(c.Request.Context(), monitor, channel.GetKeys(), channel.GetSetting().Proxy, operatorId, operatorUsername)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -934,7 +937,7 @@ func FetchChannelMonitorUpstreamBalance(c *gin.Context) {
 		return
 	}
 
-	result, err := fetchAndRecordChannelMonitorUpstreamBalance(c.Request.Context(), monitor, channel.GetKeys())
+	result, err := fetchAndRecordChannelMonitorUpstreamBalance(c.Request.Context(), monitor, channel.GetKeys(), channel.GetSetting().Proxy)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -975,6 +978,7 @@ func ApplyChannelMonitorUpstreamGroup(c *gin.Context) {
 			AuthType:    monitor.UpstreamAuthType,
 			UserID:      monitor.UpstreamUserId,
 			AccessToken: monitor.UpstreamAccessToken,
+			Proxy:       channel.GetSetting().Proxy,
 		},
 		channel.GetKeys(),
 	)

@@ -213,6 +213,13 @@ func TestGetSSRFProtectedHTTPClientFallsBackToDefaultClientWhenProtectionDisable
 	require.Same(t, expected, GetSSRFProtectedHTTPClient())
 }
 
+func TestNewSSRFProtectedHTTPClientWithProxyRejectsInvalidProxy(t *testing.T) {
+	client, err := NewSSRFProtectedHTTPClientWithProxy("not-a-proxy")
+	require.Error(t, err)
+	require.Nil(t, client)
+	require.Contains(t, err.Error(), "创建渠道代理客户端失败")
+}
+
 func TestProtectedFetchRoundTripperUsesConfiguredProxy(t *testing.T) {
 	configureSSRFTestFetchSetting(t)
 	proxyURL := mustParseURL(t, "http://127.0.0.1:3128")

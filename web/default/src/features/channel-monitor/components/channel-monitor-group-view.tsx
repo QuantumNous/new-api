@@ -70,6 +70,10 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
       props.groups.map((group) => ({
         group,
         channels: [...group.channels].sort((leftChannel, rightChannel) => {
+          const leftEnabled = leftChannel.status === CHANNEL_STATUS.ENABLED
+          const rightEnabled = rightChannel.status === CHANNEL_STATUS.ENABLED
+          if (leftEnabled !== rightEnabled) return leftEnabled ? -1 : 1
+
           const leftRatio =
             leftChannel.ratio != null && Number.isFinite(leftChannel.ratio)
               ? leftChannel.ratio

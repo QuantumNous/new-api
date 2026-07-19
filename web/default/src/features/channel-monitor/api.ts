@@ -207,12 +207,15 @@ export async function saveChannelMonitorUpstreamConfig(request: {
   return ensureChannelMonitorSuccess(response.data)
 }
 
-export async function fetchChannelMonitorSub2APIUpstreamVersion(
+export async function fetchChannelMonitorSub2APIUpstreamVersion(request: {
+  channelId: number
   baseUrl: string
-) {
+}) {
   const response = await api.post<
     ChannelMonitorApiResponse<ChannelMonitorUpstreamVersionResult>
-  >('/api/channel_monitor/upstream/version', { base_url: baseUrl })
+  >(`/api/channel_monitor/channel/${request.channelId}/upstream/version`, {
+    base_url: request.baseUrl,
+  })
   return ensureChannelMonitorSuccess(response.data)
 }
 

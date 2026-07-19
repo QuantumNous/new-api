@@ -16,7 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ChannelMonitorItem, ChannelMonitorSortMode } from '../types'
+import { CHANNEL_STATUS } from '@/features/channels/constants'
+
+import type {
+  ChannelMonitorChannelPerformance,
+  ChannelMonitorItem,
+  ChannelMonitorSortMode,
+} from '../types'
+
+function compareChannelEnabledStatus(
+  first: ChannelMonitorItem,
+  second: ChannelMonitorItem
+) {
+  const firstEnabled = first.status === CHANNEL_STATUS.ENABLED
+  const secondEnabled = second.status === CHANNEL_STATUS.ENABLED
+  if (firstEnabled === secondEnabled) return 0
+  return firstEnabled ? -1 : 1
+}
 
 function compareChannelNames(
   first: ChannelMonitorItem,
@@ -50,26 +66,56 @@ export function orderChannelsByCustomOrder(
 export function sortChannelMonitorItems(
   channels: ChannelMonitorItem[],
   sortMode: ChannelMonitorSortMode,
-  channelOrder: number[]
+  channelOrder: number[],
+  performanceByChannel: ReadonlyMap<number, ChannelMonitorChannelPerformance>
 ) {
   if (sortMode === 'custom') {
-    return orderChannelsByCustomOrder(channels, channelOrder)
+    return orderChannelsByCustomOrder(channels, channelOrder).sort(
+      compareChannelEnabledStatus
+    )
   }
 
   return [...channels].sort((first, second) => {
+    const statusComparison = compareChannelEnabledStatus(first, second)
+    if (statusComparison !== 0) return statusComparison
+
     if (sortMode === 'channel_asc' || sortMode === 'channel_desc') {
       const comparison = compareChannelNames(first, second)
       return sortMode === 'channel_asc' ? comparison : -comparison
     }
 
-    if (first.ratio == null && second.ratio == null) {
+    if (sortMode === 'ratio_asc' || sortMode === 'ratio_desc') {
+      if (first.ratio == null && second.ratio == null) {
+        return compareChannelNames(first, second)
+      }
+      if (first.ratio == null) return 1
+      if (second.ratio == null) return -1
+      const ratioComparison = first.ratio - second.ratio
+      if (ratioComparison !== 0) {
+        return sortMode === 'ratio_asc' ? ratioComparison : -ratioComparison
+      }
       return compareChannelNames(first, second)
     }
-    if (first.ratio == null) return 1
-    if (second.ratio == null) return -1
-    const ratioComparison = first.ratio - second.ratio
-    if (ratioComparison !== 0) {
-      return sortMode === 'ratio_asc' ? ratioComparison : -ratioComparison
+
+    const firstPerformance = performanceByChannel.get(first.id)
+    const secondPerformance = performanceByChannel.get(second.id)
+    const firstTokenSort =
+      sortMode === 'first_token_asc' || sortMode === 'first_token_desc'
+    const firstValue = firstTokenSort
+      ? firstPerformance?.average_first_token_ms
+      : firstPerformance?.average_tps
+    const secondValue = firstTokenSort
+      ? secondPerformance?.average_first_token_ms
+      : secondPerformance?.average_tps
+    if (firstValue == null && secondValue == null) {
+      return compareChannelNames(first, second)
+    }
+    if (firstValue == null) return 1
+    if (secondValue == null) return -1
+    const performanceComparison = firstValue - secondValue
+    if (performanceComparison !== 0) {
+      const ascending = sortMode === 'first_token_asc' || sortMode === 'tps_asc'
+      return ascending ? performanceComparison : -performanceComparison
     }
     return compareChannelNames(first, second)
   })

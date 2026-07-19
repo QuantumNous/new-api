@@ -33,8 +33,42 @@ func TestFetchSub2APIUpstreamVersionReadsPublicSettings(t *testing.T) {
 	fetchSetting.EnableSSRFProtection = false
 	httpClient = server.Client()
 
-	result, err := FetchSub2APIUpstreamVersion(context.Background(), server.URL)
+	result, err := FetchSub2APIUpstreamVersion(context.Background(), server.URL, "")
 	require.NoError(t, err)
 	assert.Equal(t, "0.1.161", result.Version)
 	assert.Equal(t, channelMonitorSub2APIPublicSettingsEndpoint, result.Endpoint)
+}
+
+func TestFetchSub2APIUpstreamVersionUsesChannelProxy(t *testing.T) {
+	fetchSetting := system_setting.GetFetchSetting()
+	originalFetchSetting := *fetchSetting
+	t.Cleanup(func() {
+		*fetchSetting = originalFetchSetting
+	})
+	fetchSetting.EnableSSRFProtection = true
+	fetchSetting.AllowPrivateIp = true
+	fetchSetting.DomainFilterMode = false
+	fetchSetting.IpFilterMode = false
+	fetchSetting.DomainList = nil
+	fetchSetting.IpList = nil
+	fetchSetting.AllowedPorts = []string{"80"}
+	fetchSetting.ApplyIPFilterForDomain = true
+	ResetProxyClientCache()
+	t.Cleanup(ResetProxyClientCache)
+
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "93.184.216.34", r.URL.Host)
+		assert.Equal(t, channelMonitorSub2APIPublicSettingsEndpoint, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"version":"0.1.162"}}`))
+	}))
+	defer proxyServer.Close()
+
+	result, err := FetchSub2APIUpstreamVersion(
+		context.Background(),
+		"http://93.184.216.34",
+		proxyServer.URL,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "0.1.162", result.Version)
 }

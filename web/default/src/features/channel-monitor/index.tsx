@@ -147,6 +147,10 @@ const CHANNEL_MONITOR_SORT_OPTIONS: Array<{
   { value: 'channel_desc', label: '渠道名称：降序' },
   { value: 'ratio_desc', label: '上游倍率：从高到低' },
   { value: 'ratio_asc', label: '上游倍率：从低到高' },
+  { value: 'first_token_asc', label: '首字：从低到高' },
+  { value: 'first_token_desc', label: '首字：从高到低' },
+  { value: 'tps_desc', label: 'TPS：从高到低' },
+  { value: 'tps_asc', label: 'TPS：从低到高' },
 ]
 const CHANNEL_MONITOR_PERFORMANCE_RANGE_OPTIONS = [
   { value: '15', label: '近 15 分钟', shortLabel: '近15分钟' },
@@ -180,6 +184,10 @@ export function ChannelMonitor() {
         case 'channel_desc':
         case 'ratio_asc':
         case 'ratio_desc':
+        case 'first_token_asc':
+        case 'first_token_desc':
+        case 'tps_asc':
+        case 'tps_desc':
           return storedSortMode
         default:
           return 'ratio_asc'
@@ -296,35 +304,26 @@ export function ChannelMonitor() {
   }, [channels, groupCoefficients, groupRatios])
 
   const normalizedSearch = search.trim().toLocaleLowerCase()
-  const filteredChannels = useMemo(() => {
-    const matchingChannels = channels.filter((channel) => {
-      if (
-        upstreamFilter !== 'all' &&
-        channel.upstream?.type !== upstreamFilter
-      ) {
-        return false
-      }
-      if (!normalizedSearch) return true
-      return (
-        channel.name.toLocaleLowerCase().includes(normalizedSearch) ||
-        String(channel.id).includes(normalizedSearch) ||
-        channel.groups.some((group) =>
-          group.toLocaleLowerCase().includes(normalizedSearch)
+  const matchingChannels = useMemo(
+    () =>
+      channels.filter((channel) => {
+        if (
+          upstreamFilter !== 'all' &&
+          channel.upstream?.type !== upstreamFilter
+        ) {
+          return false
+        }
+        if (!normalizedSearch) return true
+        return (
+          channel.name.toLocaleLowerCase().includes(normalizedSearch) ||
+          String(channel.id).includes(normalizedSearch) ||
+          channel.groups.some((group) =>
+            group.toLocaleLowerCase().includes(normalizedSearch)
+          )
         )
-      )
-    })
-    return sortChannelMonitorItems(
-      matchingChannels,
-      channelSortMode,
-      channelOrder
-    )
-  }, [
-    channelOrder,
-    channels,
-    channelSortMode,
-    normalizedSearch,
-    upstreamFilter,
-  ])
+      }),
+    [channels, normalizedSearch, upstreamFilter]
+  )
   const filteredGroups = useMemo(() => {
     if (!normalizedSearch) return groups
     return groups.filter(
@@ -393,6 +392,16 @@ export function ChannelMonitor() {
     }
     return result
   }, [performanceMetrics])
+  const filteredChannels = useMemo(
+    () =>
+      sortChannelMonitorItems(
+        matchingChannels,
+        channelSortMode,
+        channelOrder,
+        performanceByChannel
+      ),
+    [channelOrder, channelSortMode, matchingChannels, performanceByChannel]
+  )
   const performanceModelOptions = useMemo(
     () =>
       [...new Set(performanceMetrics.map((metric) => metric.model_name))]

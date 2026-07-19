@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,6 +57,46 @@ func TestFetchNewAPIGroupRatioFromPublicPricing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0.75, result.Ratio)
 	assert.Equal(t, "/api/pricing", result.Endpoint)
+}
+
+func TestFetchChannelMonitorUpstreamGroupRatioUsesChannelProxy(t *testing.T) {
+	fetchSetting := system_setting.GetFetchSetting()
+	originalFetchSetting := *fetchSetting
+	t.Cleanup(func() {
+		*fetchSetting = originalFetchSetting
+	})
+	fetchSetting.EnableSSRFProtection = true
+	fetchSetting.AllowPrivateIp = true
+	fetchSetting.DomainFilterMode = false
+	fetchSetting.IpFilterMode = false
+	fetchSetting.DomainList = nil
+	fetchSetting.IpList = nil
+	fetchSetting.AllowedPorts = []string{"80"}
+	fetchSetting.ApplyIPFilterForDomain = true
+	ResetProxyClientCache()
+	t.Cleanup(ResetProxyClientCache)
+
+	var requestCount atomic.Int32
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		assert.Equal(t, "93.184.216.34", r.URL.Host)
+		assert.Equal(t, "/api/pricing", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"group_ratio":{"vip":0.75}}`))
+	}))
+	defer proxyServer.Close()
+
+	result, err := FetchChannelMonitorUpstreamGroupRatio(context.Background(), ChannelMonitorUpstreamConfig{
+		Type:        NewAPIUpstreamType,
+		BaseURL:     "http://93.184.216.34",
+		Group:       "vip",
+		AuthType:    NewAPIUpstreamAuthPublic,
+		Proxy:       proxyServer.URL,
+		SkipBalance: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 0.75, result.Ratio)
+	assert.EqualValues(t, 1, requestCount.Load())
 }
 
 func TestFetchNewAPIGroupRatioFallsBackToPublicUserGroups(t *testing.T) {

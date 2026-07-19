@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,10 @@ type ssrfProtectedRoundTripper struct {
 	transports map[string]*http.Transport
 }
 
+type ssrfProtectedProxyRoundTripper struct {
+	base http.RoundTripper
+}
+
 func currentFetchProtection() (*common.SSRFProtection, bool, error) {
 	fetchSetting := system_setting.GetFetchSetting()
 	if !fetchSetting.EnableSSRFProtection {
@@ -57,6 +62,43 @@ func currentFetchProtection() (*common.SSRFProtection, bool, error) {
 
 func newProtectedFetchHTTPClient() *http.Client {
 	return newProtectedFetchHTTPClientWithDialer(nil, nil, nil)
+}
+
+// NewSSRFProtectedHTTPClientWithProxy returns a protected client that uses the
+// same proxy transport as normal channel relay requests.
+func NewSSRFProtectedHTTPClientWithProxy(proxyURL string) (*http.Client, error) {
+	proxyURL = strings.TrimSpace(proxyURL)
+	if proxyURL == "" {
+		client := GetSSRFProtectedHTTPClient()
+		if client == nil {
+			return nil, fmt.Errorf("上游请求客户端未初始化")
+		}
+		return client, nil
+	}
+
+	proxyClient, err := NewProxyHttpClient(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("创建渠道代理客户端失败: %w", err)
+	}
+	baseTransport := proxyClient.Transport
+	if baseTransport == nil {
+		baseTransport = http.DefaultTransport
+	}
+	return &http.Client{
+		Transport:     &ssrfProtectedProxyRoundTripper{base: baseTransport},
+		CheckRedirect: checkProtectedFetchRedirect,
+		Timeout:       proxyClient.Timeout,
+	}, nil
+}
+
+func (t *ssrfProtectedProxyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req == nil || req.URL == nil {
+		return nil, fmt.Errorf("invalid request")
+	}
+	if err := ValidateSSRFProtectedFetchURL(req.URL.String()); err != nil {
+		return nil, err
+	}
+	return t.base.RoundTrip(req)
 }
 
 func newProtectedFetchHTTPClientWithDialer(resolver ssrfResolver, dialContext func(ctx context.Context, network, address string) (net.Conn, error), getProtection func() (*common.SSRFProtection, bool, error)) *http.Client {

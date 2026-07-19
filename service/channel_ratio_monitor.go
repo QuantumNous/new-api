@@ -62,6 +62,7 @@ type ChannelMonitorUpstreamConfig struct {
 	UserID      int
 	AccessToken string
 	ChannelKeys []string
+	Proxy       string
 	SkipBalance bool
 }
 
@@ -220,9 +221,9 @@ func NormalizeNewAPIBaseURL(value string) (string, error) {
 }
 
 func FetchChannelMonitorUpstreamGroupRatio(ctx context.Context, config ChannelMonitorUpstreamConfig) (NewAPIGroupRatioResult, error) {
-	client := GetSSRFProtectedHTTPClient()
-	if client == nil {
-		return NewAPIGroupRatioResult{}, errors.New("上游请求客户端未初始化")
+	client, err := NewSSRFProtectedHTTPClientWithProxy(config.Proxy)
+	if err != nil {
+		return NewAPIGroupRatioResult{}, err
 	}
 	switch config.Type {
 	case NewAPIUpstreamType:
@@ -261,9 +262,9 @@ func FetchChannelMonitorUpstreamGroupRatio(ctx context.Context, config ChannelMo
 }
 
 func FetchChannelMonitorUpstreamBalance(ctx context.Context, config ChannelMonitorUpstreamConfig) (ChannelMonitorUpstreamBalanceResult, error) {
-	client := GetSSRFProtectedHTTPClient()
-	if client == nil {
-		return ChannelMonitorUpstreamBalanceResult{}, errors.New("上游请求客户端未初始化")
+	client, err := NewSSRFProtectedHTTPClientWithProxy(config.Proxy)
+	if err != nil {
+		return ChannelMonitorUpstreamBalanceResult{}, err
 	}
 	switch config.Type {
 	case NewAPIUpstreamType:
@@ -370,9 +371,9 @@ func fetchNewAPIUpstreamBalance(ctx context.Context, client *http.Client, config
 }
 
 func FetchChannelMonitorUpstreamGroups(ctx context.Context, config ChannelMonitorUpstreamConfig, channelKeys []string) (ChannelMonitorUpstreamGroupsResult, error) {
-	client := GetSSRFProtectedHTTPClient()
-	if client == nil {
-		return ChannelMonitorUpstreamGroupsResult{}, errors.New("上游请求客户端未初始化")
+	client, err := NewSSRFProtectedHTTPClientWithProxy(config.Proxy)
+	if err != nil {
+		return ChannelMonitorUpstreamGroupsResult{}, err
 	}
 	switch config.Type {
 	case NewAPIUpstreamType:
@@ -430,9 +431,9 @@ func normalizeChannelMonitorKeys(channelKeys []string) ([]string, error) {
 }
 
 func ApplyChannelMonitorUpstreamGroup(ctx context.Context, config ChannelMonitorUpstreamConfig, channelKeys []string) (ChannelMonitorUpstreamGroupApplyResult, error) {
-	client := GetSSRFProtectedHTTPClient()
-	if client == nil {
-		return ChannelMonitorUpstreamGroupApplyResult{}, errors.New("上游请求客户端未初始化")
+	client, err := NewSSRFProtectedHTTPClientWithProxy(config.Proxy)
+	if err != nil {
+		return ChannelMonitorUpstreamGroupApplyResult{}, err
 	}
 	return applyChannelMonitorUpstreamGroup(ctx, client, config, channelKeys, ValidateSSRFProtectedFetchURL)
 }
