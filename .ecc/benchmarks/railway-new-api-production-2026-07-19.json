@@ -2,11 +2,16 @@
   "service": "new-api",
   "project": "new-api",
   "environment": "production",
-  "captured_at_utc": "2026-07-19T05:06:25Z",
+  "captured_at_utc": "2026-07-19T05:10:40Z",
   "window": "1h",
+  "window_start_utc": "2026-07-19T04:09:40Z",
+  "window_end_utc": "2026-07-19T05:10:40Z",
   "log_query": {
     "format": "json",
-    "line_limit": 5000,
+    "aggregation": "segmented Railway queries with duplicate message/timestamp removal",
+    "segment_line_limit": 5000,
+    "application_log_lines": 9243,
+    "http_log_entries": 1860,
     "raw_payloads_retained": false
   },
   "deployment": {
@@ -17,44 +22,61 @@
     "branch": "main"
   },
   "metrics": {
-    "frt_samples": 760,
+    "frt_samples": 1437,
     "frt_ms": {
-      "p50": 2179,
-      "p95": 5780,
-      "p99": 11706,
-      "max": 25205,
-      "over_5000": 60
+      "mean": 2725,
+      "p50": 2117,
+      "p95": 5576,
+      "p99": 9732,
+      "max": 25205
     },
     "client_gone": {
-      "events": 21,
-      "idle_before_cut_ms": {
-        "under_100": 14,
-        "under_1000": 21,
-        "average": 101.6,
-        "max": 340
+      "log_lines": 74,
+      "estimated_flows": 37,
+      "diagnostics_sample": {
+        "events": 21,
+        "idle_before_cut_ms": {
+          "under_100": 14,
+          "under_1000": 21,
+          "average": 101.6,
+          "max": 340
+        }
       }
     },
     "billing_errors": {
-      "settling_billing": 13,
-      "token_quota_adjustment": 8
+      "settling_billing_redis_unavailable_err_lines": 24,
+      "settling_billing_total_mentions": 38,
+      "token_quota_adjustment_err_lines": 0
     },
     "upstream_errors": {
-      "response_header_timeout": 8,
-      "lines_containing_503": 161
+      "response_header_timeout": 9,
+      "application_503_mentions": 3,
+      "http_503_requests": 2,
+      "http_4xx_requests": 48
     }
   },
   "hot_channels": [
-    {"channel_id": 46, "requests": 289, "average_frt_ms": 2975, "over_5000": 21},
-    {"channel_id": 58, "requests": 235, "average_frt_ms": 2060, "over_5000": 4},
-    {"channel_id": 56, "requests": 107, "average_frt_ms": 3125, "over_5000": 8},
-    {"channel_id": 45, "requests": 46, "average_frt_ms": 3964, "over_5000": 12},
-    {"channel_id": 52, "requests": 36, "average_frt_ms": 3939, "over_5000": 7}
+    {"channel_id": 45, "requests": 397, "average_frt_ms": 2865, "p95_frt_ms": 6108, "max_frt_ms": 16795},
+    {"channel_id": 46, "requests": 327, "average_frt_ms": 2961, "p95_frt_ms": 5564, "max_frt_ms": 20302},
+    {"channel_id": 58, "requests": 272, "average_frt_ms": 2060, "p95_frt_ms": 4087, "max_frt_ms": 18103},
+    {"channel_id": 59, "requests": 189, "average_frt_ms": 2142, "p95_frt_ms": 4250, "max_frt_ms": 9732},
+    {"channel_id": 56, "requests": 185, "average_frt_ms": 2825, "p95_frt_ms": 5027, "max_frt_ms": 13372},
+    {"channel_id": 52, "requests": 38, "average_frt_ms": 4169, "p95_frt_ms": 8281, "max_frt_ms": 10760}
   ],
   "header_timeout_hosts": {
-    "aiccxx.cn": 5,
+    "aiccxx.cn": 6,
     "sub.sixoner.com": 1,
     "api.hostcentral.cc": 1,
     "ai.zyyun.xyz": 1
+  },
+  "header_timeout_channels": {
+    "41": 2,
+    "32": 1,
+    "45": 1,
+    "51": 1,
+    "52": 1,
+    "53": 1,
+    "59": 1
   },
   "representative_errors": [
     "redis quota cache is unavailable",
