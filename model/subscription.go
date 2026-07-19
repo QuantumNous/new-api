@@ -481,7 +481,28 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	return target, nil
 }
 
-func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+// CreateUserSubscriptionFromPlanTx creates a subscription row for userId.
+// customEndTime overrides the plan's own duration when greater than zero;
+// callers that follow the plan schedule pass 0.
+func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, customEndTime int64) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanTx(tx, userId, plan, source, customEndTime, subscriptionCreateOverrides{})
+}
+
+// subscriptionCreateOverrides carries the extra state a replace-mode grant has
+// to thread into the new row; the zero value keeps the standard purchase path.
+type subscriptionCreateOverrides struct {
+	// skipPurchaseLimit bypasses the MaxPurchasePerUser count. Replace mode
+	// sets it after cancelling the rows being replaced: the swap is net-zero
+	// on subscription count, but the cancelled rows would still be counted.
+	skipPurchaseLimit bool
+	// prevUserGroup seeds PrevUserGroup when the user is already in the
+	// plan's upgrade group (so no fresh snapshot is taken). Replace mode
+	// passes the snapshot of the row it cancelled; without it the new row
+	// would lose the origin group and the user could never be downgraded.
+	prevUserGroup string
+}
+
+func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, customEndTime int64, overrides subscriptionCreateOverrides) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -498,7 +519,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if err := lockForUpdate(tx).Where("id = ?", userId).First(&lockedUser).Error; err != nil {
 		return nil, err
 	}
-	if plan.MaxPurchasePerUser > 0 {
+	if plan.MaxPurchasePerUser > 0 && !overrides.skipPurchaseLimit {
 		var count int64
 		if err := tx.Model(&UserSubscription{}).
 			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
@@ -509,11 +530,17 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestampFrom(tx)
 	now := time.Unix(nowUnix, 0)
-	endUnix, err := calcPlanEndTime(now, plan)
-	if err != nil {
-		return nil, err
+	endUnix := customEndTime
+	if endUnix <= 0 {
+		var err error
+		endUnix, err = calcPlanEndTime(now, plan)
+		if err != nil {
+			return nil, err
+		}
+	} else if endUnix <= nowUnix {
+		return nil, errors.New("到期时间必须晚于当前时间")
 	}
 	resetBase := now
 	nextReset := calcNextResetTime(resetBase, plan, endUnix)
@@ -534,6 +561,11 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 				Update("group", upgradeGroup).Error; err != nil {
 				return nil, err
 			}
+		} else {
+			// Already elevated (e.g. by the row a replace grant just
+			// cancelled): keep the carried-over origin snapshot so expiry
+			// can still revert the user.
+			prevGroup = strings.TrimSpace(overrides.prevUserGroup)
 		}
 	}
 	allowWalletOverflow := true
@@ -602,7 +634,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order", 0)
 		if err != nil {
 			return err
 		}
@@ -700,8 +732,74 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 	})
 }
 
-// Admin bind (no payment). Creates a UserSubscription from a plan.
-func AdminBindSubscription(userId int, planId int, sourceNote string) (string, error) {
+// How an admin grant treats the user's existing active subscription of the same plan.
+const (
+	// SubscriptionGrantCreate always inserts a new subscription row.
+	SubscriptionGrantCreate = "create"
+	// SubscriptionGrantRenew extends the existing row's end time instead of
+	// inserting, so a renewal does not consume another MaxPurchasePerUser slot.
+	SubscriptionGrantRenew = "renew"
+	// SubscriptionGrantReplace cancels the existing rows, then inserts a new one.
+	SubscriptionGrantReplace = "replace"
+)
+
+// AdminGrantOptions carries the optional knobs of an admin grant.
+// The zero value reproduces the historical behaviour: create a new
+// subscription that follows the plan's own duration.
+type AdminGrantOptions struct {
+	Mode    string
+	EndTime int64
+}
+
+func NormalizeGrantMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case SubscriptionGrantRenew:
+		return SubscriptionGrantRenew
+	case SubscriptionGrantReplace:
+		return SubscriptionGrantReplace
+	default:
+		return SubscriptionGrantCreate
+	}
+}
+
+// renewUserSubscriptionTx pushes an active subscription's end time further out.
+// A custom end time wins outright; otherwise the plan duration is applied on top
+// of whichever is later, the current end time or now, so renewing early does not
+// throw away remaining time.
+func renewUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, customEndTime int64, nowUnix int64) error {
+	endUnix := customEndTime
+	if endUnix <= 0 {
+		base := sub.EndTime
+		if base < nowUnix {
+			base = nowUnix
+		}
+		var err error
+		endUnix, err = calcPlanEndTime(time.Unix(base, 0), plan)
+		if err != nil {
+			return err
+		}
+	}
+	if endUnix <= nowUnix {
+		return errors.New("到期时间必须晚于当前时间")
+	}
+	// Keep an already-scheduled future reset so a mid-cycle renewal does not
+	// shift base-relative (custom-period) schedules. Recompute only when the
+	// schedule was switched off (calcNextResetTime zeroes it whenever the next
+	// reset would fall past the old end time) or the new end time invalidates it.
+	nextReset := sub.NextResetTime
+	if nextReset <= 0 || nextReset > endUnix {
+		nextReset = calcNextResetTime(time.Unix(nowUnix, 0), plan, endUnix)
+	}
+	return tx.Model(&UserSubscription{}).Where("id = ?", sub.Id).
+		Updates(map[string]interface{}{
+			"end_time":        endUnix,
+			"next_reset_time": nextReset,
+			"updated_at":      common.GetTimestamp(),
+		}).Error
+}
+
+// Admin bind (no payment). Creates, renews or replaces a UserSubscription.
+func AdminBindSubscription(userId int, planId int, opts AdminGrantOptions) (string, error) {
 	if userId <= 0 || planId <= 0 {
 		return "", errors.New("invalid userId or planId")
 	}
@@ -709,8 +807,49 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	if err != nil {
 		return "", err
 	}
+	mode := NormalizeGrantMode(opts.Mode)
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		_, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
+		if mode == SubscriptionGrantCreate {
+			_, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin", opts.EndTime)
+			return err
+		}
+		nowUnix := getDBTimestampFrom(tx)
+		var actives []UserSubscription
+		if err := lockForUpdate(tx).
+			Where("user_id = ? AND plan_id = ? AND status = ? AND end_time > ?", userId, planId, "active", nowUnix).
+			Order("end_time DESC").Find(&actives).Error; err != nil {
+			return err
+		}
+		if mode == SubscriptionGrantRenew {
+			if len(actives) == 0 {
+				// Nothing to extend; fall back to a fresh subscription.
+				_, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin", opts.EndTime)
+				return err
+			}
+			return renewUserSubscriptionTx(tx, &actives[0], plan, opts.EndTime, nowUnix)
+		}
+		// Carry the origin-group snapshot of the rows being replaced: the new
+		// row is created while the user is still in the upgrade group, so it
+		// cannot take its own snapshot.
+		carriedPrevGroup := ""
+		for _, sub := range actives {
+			if carriedPrevGroup == "" {
+				carriedPrevGroup = strings.TrimSpace(sub.PrevUserGroup)
+			}
+			if err := tx.Model(&UserSubscription{}).Where("id = ?", sub.Id).
+				Updates(map[string]interface{}{
+					"status":     "cancelled",
+					"updated_at": common.GetTimestamp(),
+				}).Error; err != nil {
+				return err
+			}
+		}
+		// Replacing is net-zero on subscription count, so the cancelled rows
+		// must not consume MaxPurchasePerUser slots against the new one.
+		_, err := createUserSubscriptionFromPlanTx(tx, userId, plan, "admin", opts.EndTime, subscriptionCreateOverrides{
+			skipPurchaseLimit: len(actives) > 0,
+			prevUserGroup:     carriedPrevGroup,
+		})
 		return err
 	})
 	if err != nil {
@@ -721,6 +860,59 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 		return fmt.Sprintf("用户分组将升级到 %s", plan.UpgradeGroup), nil
 	}
 	return "", nil
+}
+
+// SubscriptionGrantFailure explains why one user of a batch grant was skipped.
+type SubscriptionGrantFailure struct {
+	UserId int    `json:"user_id"`
+	Reason string `json:"reason"`
+}
+
+type SubscriptionGrantBatchResult struct {
+	PlanId         int                        `json:"plan_id"`
+	PlanTitle      string                     `json:"plan_title"`
+	SuccessCount   int                        `json:"success_count"`
+	FailedCount    int                        `json:"failed_count"`
+	Failed         []SubscriptionGrantFailure `json:"failed"`
+	SucceededUsers []int                      `json:"-"`
+}
+
+// AdminBindSubscriptionBatch grants the plan to each user in its own
+// transaction, so one rejected user (purchase limit, missing account) does not
+// roll back the others. Failures are reported per user instead of aborting.
+func AdminBindSubscriptionBatch(userIds []int, planId int, opts AdminGrantOptions) (*SubscriptionGrantBatchResult, error) {
+	if planId <= 0 {
+		return nil, errors.New("invalid planId")
+	}
+	if len(userIds) == 0 {
+		return nil, errors.New("用户列表为空")
+	}
+	plan, err := GetSubscriptionPlanById(planId)
+	if err != nil {
+		return nil, err
+	}
+	// Failed must serialize as [] rather than null when every user succeeds;
+	// the frontend result view indexes into it unconditionally.
+	result := &SubscriptionGrantBatchResult{
+		PlanId:    planId,
+		PlanTitle: plan.Title,
+		Failed:    []SubscriptionGrantFailure{},
+	}
+	seen := make(map[int]bool, len(userIds))
+	for _, userId := range userIds {
+		if userId <= 0 || seen[userId] {
+			continue
+		}
+		seen[userId] = true
+		if _, err := AdminBindSubscription(userId, planId, opts); err != nil {
+			result.FailedCount++
+			result.Failed = append(result.Failed, SubscriptionGrantFailure{UserId: userId, Reason: err.Error()})
+			continue
+		}
+		result.SuccessCount++
+		result.SucceededUsers = append(result.SucceededUsers, userId)
+	}
+	return result, nil
 }
 
 func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
@@ -781,7 +973,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			}
 		}
 
-		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance); err != nil {
+		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance, 0); err != nil {
 			return err
 		}
 

@@ -38,6 +38,53 @@ export const RESET_PERIODS = [
   { value: 'custom', labelKey: 'Custom (seconds)' },
 ] as const
 
+// ============================================================================
+// Admin Grant Mode Options
+// ============================================================================
+
+export const GRANT_MODES = [
+  {
+    value: 'create',
+    labelKey: 'New subscription',
+    descKey: 'Always add a new subscription record',
+  },
+  {
+    value: 'renew',
+    labelKey: 'Renew',
+    descKey:
+      'Adjust the end time of the existing active subscription of the same plan, without adding a record. Falls back to new subscription when there is none',
+  },
+  {
+    value: 'replace',
+    labelKey: 'Replace',
+    descKey:
+      'Invalidate the existing active subscription of the same plan, then add a new record',
+  },
+] as const
+
+export function getGrantModeOptions(t: TFunction) {
+  return GRANT_MODES.map((m) => ({ value: m.value, label: t(m.labelKey) }))
+}
+
+export function getGrantModeDescription(t: TFunction, mode: string) {
+  return t(GRANT_MODES.find((m) => m.value === mode)?.descKey || '')
+}
+
+export function getEndTimeHint(
+  t: TFunction,
+  mode: string,
+  hasCustomTime: boolean
+) {
+  if (mode === 'renew') {
+    return hasCustomTime
+      ? t(
+          'In renew mode a custom time overwrites the end time directly, which may shorten the subscription'
+        )
+      : t('Leave empty to extend by one plan period from the current expiry')
+  }
+  return t('Leave empty to use the plan default duration')
+}
+
 export function getDurationUnitOptions(t: TFunction) {
   return DURATION_UNITS.map((u) => ({ value: u.value, label: t(u.labelKey) }))
 }

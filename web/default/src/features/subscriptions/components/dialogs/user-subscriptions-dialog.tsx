@@ -22,7 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DataTableRowActionMenu, StaticDataTable } from '@/components/data-table'
+import {
+  DataTableRowActionMenu,
+  StaticDataTable,
+} from '@/components/data-table'
+import { DateTimePicker } from '@/components/datetime-picker'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,
@@ -53,6 +57,7 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { formatQuota } from '@/lib/format'
+import { addTimeToDate } from '@/lib/time'
 
 import {
   getAdminPlans,
@@ -62,8 +67,17 @@ import {
   deleteUserSubscription,
   resetUserSubscriptionsByPlan,
 } from '../../api'
+import {
+  getEndTimeHint,
+  getGrantModeDescription,
+  getGrantModeOptions,
+} from '../../constants'
 import { formatTimestamp } from '../../lib'
-import type { PlanRecord, UserSubscriptionRecord } from '../../types'
+import type {
+  PlanRecord,
+  SubscriptionGrantMode,
+  UserSubscriptionRecord,
+} from '../../types'
 
 interface Props {
   open: boolean
@@ -114,6 +128,8 @@ export function UserSubscriptionsDialog(props: Props) {
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [subs, setSubs] = useState<UserSubscriptionRecord[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
+  const [mode, setMode] = useState<SubscriptionGrantMode>('create')
+  const [endTime, setEndTime] = useState<Date | undefined>(undefined)
   const [resetting, setResetting] = useState(false)
   const [advanceResetTime, setAdvanceResetTime] = useState(true)
   const [resetAction, setResetAction] = useState<{
@@ -124,6 +140,8 @@ export function UserSubscriptionsDialog(props: Props) {
     type: 'invalidate' | 'delete'
     subId: number
   } | null>(null)
+
+  const grantModeOptions = useMemo(() => getGrantModeOptions(t), [t])
 
   const planTitleMap = useMemo(() => {
     const map = new Map<number, string>()
@@ -153,6 +171,8 @@ export function UserSubscriptionsDialog(props: Props) {
   useEffect(() => {
     if (props.open && props.user?.id) {
       setSelectedPlanId('')
+      setMode('create')
+      setEndTime(undefined)
       loadData()
     }
   }, [props.open, props.user?.id, loadData])
@@ -166,10 +186,13 @@ export function UserSubscriptionsDialog(props: Props) {
     try {
       const res = await createUserSubscription(props.user.id, {
         plan_id: Number(selectedPlanId),
+        mode,
+        end_time: endTime ? Math.floor(endTime.getTime() / 1000) : 0,
       })
       if (res.success) {
         toast.success(res.data?.message || t('Added successfully'))
         setSelectedPlanId('')
+        setEndTime(undefined)
         await loadData()
         props.onSuccess?.()
       }
@@ -242,41 +265,115 @@ export function UserSubscriptionsDialog(props: Props) {
           </SheetHeader>
 
           <div className={sideDrawerFormClassName()}>
-            <div className='flex gap-2'>
-              <Select
-                items={plans.map((p) => ({
-                  value: String(p.plan.id),
-                  label: (
-                    <>
-                      {p.plan.title}($
-                      {Number(p.plan.price_amount || 0).toFixed(2)})
-                    </>
-                  ),
-                }))}
-                value={selectedPlanId}
-                onValueChange={(v) => v !== null && setSelectedPlanId(v)}
-              >
-                <SelectTrigger className='flex-1'>
-                  <SelectValue placeholder={t('Select subscription plan')} />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {plans.map((p) => (
-                      <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                        {p.plan.title} ($
+            <div className='flex flex-col gap-3 rounded-md border p-3'>
+              <div className='flex gap-2'>
+                <Select
+                  items={plans.map((p) => ({
+                    value: String(p.plan.id),
+                    label: (
+                      <>
+                        {p.plan.title}($
                         {Number(p.plan.price_amount || 0).toFixed(2)})
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={handleCreate}
-                disabled={creating || !selectedPlanId}
-              >
-                <Plus className='mr-1 h-4 w-4' />
-                {t('Add subscription')}
-              </Button>
+                      </>
+                    ),
+                  }))}
+                  value={selectedPlanId}
+                  onValueChange={(v) => v !== null && setSelectedPlanId(v)}
+                >
+                  <SelectTrigger className='flex-1'>
+                    <SelectValue placeholder={t('Select subscription plan')} />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {plans.map((p) => (
+                        <SelectItem key={p.plan.id} value={String(p.plan.id)}>
+                          {p.plan.title} ($
+                          {Number(p.plan.price_amount || 0).toFixed(2)})
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Select
+                  items={grantModeOptions}
+                  value={mode}
+                  onValueChange={(v) =>
+                    v !== null && setMode(v as SubscriptionGrantMode)
+                  }
+                >
+                  <SelectTrigger className='w-36'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {grantModeOptions.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={handleCreate}
+                  disabled={creating || !selectedPlanId}
+                >
+                  <Plus className='mr-1 h-4 w-4' />
+                  {t('Add subscription')}
+                </Button>
+              </div>
+
+              <p className='text-muted-foreground text-sm'>
+                {getGrantModeDescription(t, mode)}
+              </p>
+
+              <div className='flex flex-col gap-2'>
+                <span className='text-sm font-medium'>
+                  {t('Custom expiration time')}
+                </span>
+                <DateTimePicker
+                  value={endTime}
+                  onChange={setEndTime}
+                  placeholder={t('Use the plan default duration')}
+                />
+                <div className='grid grid-cols-4 gap-1.5 sm:flex sm:gap-2'>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setEndTime(addTimeToDate(0, 0, 0))}
+                  >
+                    {t('Plan default')}
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setEndTime(addTimeToDate(1, 0, 0))}
+                  >
+                    {t('1M')}
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setEndTime(addTimeToDate(0, 7, 0))}
+                  >
+                    {t('1W')}
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setEndTime(addTimeToDate(0, 1, 0))}
+                  >
+                    {t('1 Day')}
+                  </Button>
+                </div>
+                <p className='text-muted-foreground text-sm'>
+                  {getEndTimeHint(t, mode, !!endTime)}
+                </p>
+              </div>
             </div>
 
             <StaticDataTable

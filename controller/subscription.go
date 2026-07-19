@@ -349,8 +349,10 @@ func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 }
 
 type AdminBindSubscriptionRequest struct {
-	UserId int `json:"user_id"`
-	PlanId int `json:"plan_id"`
+	UserId  int    `json:"user_id"`
+	PlanId  int    `json:"plan_id"`
+	Mode    string `json:"mode"`
+	EndTime int64  `json:"end_time"`
 }
 
 func AdminBindSubscription(c *gin.Context) {
@@ -363,12 +365,13 @@ func AdminBindSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
+	opts := model.AdminGrantOptions{Mode: req.Mode, EndTime: req.EndTime}
+	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, opts)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	recordSubscriptionGrantLogs(c, req.UserId, req.PlanId)
+	recordSubscriptionGrantLogs(c, req.UserId, req.PlanId, opts)
 	if msg != "" {
 		common.ApiSuccess(c, gin.H{"message": msg})
 		return
@@ -393,7 +396,16 @@ func AdminListUserSubscriptions(c *gin.Context) {
 }
 
 type AdminCreateUserSubscriptionRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId  int    `json:"plan_id"`
+	Mode    string `json:"mode"`
+	EndTime int64  `json:"end_time"`
+}
+
+type AdminBindSubscriptionBatchRequest struct {
+	UserIds []int  `json:"user_ids"`
+	PlanId  int    `json:"plan_id"`
+	Mode    string `json:"mode"`
+	EndTime int64  `json:"end_time"`
 }
 
 type AdminResetSubscriptionRequest struct {
@@ -420,18 +432,56 @@ func recordSubscriptionResetUserLogs(result *model.SubscriptionResetResult, admi
 
 // recordSubscriptionGrantLogs records both the target user's manage log and the
 // operator audit entry after an admin grants a subscription without payment.
-func recordSubscriptionGrantLogs(c *gin.Context, userId int, planId int) {
+func recordSubscriptionGrantLogs(c *gin.Context, userId int, planId int, opts model.AdminGrantOptions) {
 	planTitle := ""
 	if plan, err := model.GetSubscriptionPlanById(planId); err == nil && plan != nil {
 		planTitle = plan.Title
 	}
+	mode := model.NormalizeGrantMode(opts.Mode)
 	model.RecordLogWithAdminInfo(userId, model.LogTypeManage,
 		fmt.Sprintf("管理员为你开通订阅套餐 %s（ID: %d）", planTitle, planId), auditOperatorInfo(c))
 	recordManageAuditFor(c, userId, "subscription.admin_grant", map[string]interface{}{
 		"target_user_id": userId,
 		"plan_id":        planId,
 		"plan_title":     planTitle,
+		"mode":           mode,
+		"end_time":       opts.EndTime,
 	})
+}
+
+// AdminBindSubscriptionBatch grants one plan to several users at once.
+func AdminBindSubscriptionBatch(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
+	var req AdminBindSubscriptionBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 || len(req.UserIds) == 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	opts := model.AdminGrantOptions{Mode: req.Mode, EndTime: req.EndTime}
+	result, err := model.AdminBindSubscriptionBatch(req.UserIds, req.PlanId, opts)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	adminInfo := auditOperatorInfo(c)
+	content := fmt.Sprintf("管理员为你开通订阅套餐 %s（ID: %d）", result.PlanTitle, result.PlanId)
+	for _, userId := range result.SucceededUsers {
+		model.RecordLogWithAdminInfo(userId, model.LogTypeManage, content, adminInfo)
+	}
+	recordManageAudit(c, "subscription.admin_grant_batch", map[string]interface{}{
+		"plan_id":       result.PlanId,
+		"plan_title":    result.PlanTitle,
+		"mode":          model.NormalizeGrantMode(req.Mode),
+		"end_time":      req.EndTime,
+		"user_ids":      result.SucceededUsers,
+		"count":         result.SuccessCount,
+		"success_count": result.SuccessCount,
+		"failed_count":  result.FailedCount,
+	})
+	common.ApiSuccess(c, result)
 }
 
 // AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
@@ -450,12 +500,13 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
+	opts := model.AdminGrantOptions{Mode: req.Mode, EndTime: req.EndTime}
+	msg, err := model.AdminBindSubscription(userId, req.PlanId, opts)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	recordSubscriptionGrantLogs(c, userId, req.PlanId)
+	recordSubscriptionGrantLogs(c, userId, req.PlanId, opts)
 	if msg != "" {
 		common.ApiSuccess(c, gin.H{"message": msg})
 		return
