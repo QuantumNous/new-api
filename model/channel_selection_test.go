@@ -158,6 +158,45 @@ func TestGetRandomSatisfiedChannelSkipsOpenHealthKey(t *testing.T) {
 	}
 }
 
+func TestPreferMeasuredFastRespectsConfiguredZeroWeight(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.MemoryCacheEnabled = true
+	common.AdaptiveChannelHealthEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	priority := int64(10)
+	zeroWeight := uint(0)
+	activeWeight := uint(100)
+	const modelName = "gpt-5.6-sol-affinity-weight"
+	SetChannelCacheForTest(map[int]*Channel{
+		717: {Id: 717, Status: common.ChannelStatusEnabled, Weight: &zeroWeight, Priority: &priority},
+		741: {Id: 741, Status: common.ChannelStatusEnabled, Weight: &activeWeight, Priority: &priority},
+	}, map[string]map[string][]int{
+		"default": {modelName: {717, 741}},
+	})
+
+	for i := 0; i < 6; i++ {
+		RecordChannelOutcome(ChannelHealthKey{ChannelID: 717, Model: modelName, Path: "/v1/responses"}, ChannelOutcome{StatusCode: 200, Latency: 1500 * time.Millisecond})
+		RecordChannelOutcome(ChannelHealthKey{ChannelID: 741, Model: modelName, Path: "/v1/responses"}, ChannelOutcome{StatusCode: 200, Latency: 6 * time.Second})
+	}
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", modelName, 0, ChannelSelectionOptions{
+		Path:               "/v1/responses",
+		PreferMeasuredFast: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 741, selected.Id, "fast affinity preference must not revive a channel configured with zero weight")
+}
+
 // TestSelectAcquirableChannelFallsBackWhenInitialPickLosesAcquireRace
 // reproduces the "forward-only retry" bug: the weighted-selection loop must
 // try every candidate (wrapping around), not just those at or after the
