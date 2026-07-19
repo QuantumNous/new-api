@@ -71,8 +71,24 @@ const editProfile: ModelApiProfile = {
 }
 
 describe('async image API samples', () => {
-  test('cURL documents the accepted task and polling contract', () => {
+  test('cURL stays copy-friendly and shows submit plus poll requests', () => {
     const sample = buildAsyncImageSample('curl', context)
+
+    assert.match(sample, /curl https:\/\/api\.example\.com\/v1\/images\/generations/)
+    assert.match(sample, /Idempotency-Key: image-request-<UNIQUE_ID>/)
+    assert.match(
+      sample,
+      /curl "https:\/\/api\.example\.com\/v1\/images\/generations\/<TASK_ID>"/
+    )
+    assert.match(sample, /HTTP\/1\.1 202 Accepted/)
+    assert.doesNotMatch(sample, /set -euo pipefail/)
+    assert.doesNotMatch(sample, /python3/)
+    assert.doesNotMatch(sample, /read_retry_after/)
+    assert.doesNotMatch(sample, /while \[/)
+  })
+
+  test('Bash documents the runnable accepted task and polling contract', () => {
+    const sample = buildAsyncImageSample('bash', context)
 
     assert.match(sample, /Requires Bash, curl, and Python 3/)
     assert.match(
