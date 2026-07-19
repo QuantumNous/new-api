@@ -731,6 +731,7 @@ export function ChannelMutateDrawer({
   const currentPriority = form.watch('priority')
   const currentWeight = form.watch('weight')
   const currentTestModel = form.watch('test_model')
+  const currentDisableAutoTest = form.watch('disable_auto_test')
   const currentAutoBan = form.watch('auto_ban')
   const currentTag = form.watch('tag')
   const currentRemark = form.watch('remark')
@@ -996,6 +997,7 @@ export function ChannelMutateDrawer({
     currentPriority ||
     currentWeight ||
     currentTestModel?.trim() ||
+    currentDisableAutoTest === true ||
     (currentAutoBan ?? 1) !== 1
   )
   const internalNotesConfigured = Boolean(
@@ -3712,6 +3714,29 @@ export function ChannelMutateDrawer({
                                       onCheckedChange={(checked) =>
                                         field.onChange(checked ? 1 : 0)
                                       }
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name='disable_auto_test'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>
+                                      {t('Skip Scheduled Tests')}
+                                    </FormLabel>
+                                    <FormDescription>
+                                      {t(FIELD_DESCRIPTIONS.DISABLE_AUTO_TEST)}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value === true}
+                                      onCheckedChange={field.onChange}
                                     />
                                   </FormControl>
                                 </FormItem>

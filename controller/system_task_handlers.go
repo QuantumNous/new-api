@@ -47,11 +47,12 @@ func (channelTestHandler) NewPayload() any { return nil }
 
 // channelTestTaskPayload controls one channel_test run. A nil/empty payload is a
 // scheduled run, which uses the configured monitor ChannelTestMode and does not
-// notify. A manual "test all channels" trigger sets Mode=scheduled_all and
-// Notify=true to reproduce the legacy manual behavior (test every channel and
-// notify root on completion).
+// notify. A manual "test all channels" trigger sets Manual=true,
+// Mode=scheduled_all, and Notify=true to ignore per-channel scheduled-test
+// exclusions and notify root on completion.
 type channelTestTaskPayload struct {
 	Mode   string `json:"mode,omitempty"`
+	Manual bool   `json:"manual,omitempty"`
 	Notify bool   `json:"notify,omitempty"`
 }
 
@@ -61,7 +62,7 @@ func (channelTestHandler) Run(ctx context.Context, task *model.SystemTask, runne
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
 		return
 	}
-	summary, err := runChannelTestTask(ctx, payload.Mode, payload.Notify, service.NewSystemTaskProgressReporter(task, runnerID))
+	summary, err := runChannelTestTask(ctx, payload.Mode, payload.Manual, payload.Notify, service.NewSystemTaskProgressReporter(task, runnerID))
 	if err != nil {
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
 		return
