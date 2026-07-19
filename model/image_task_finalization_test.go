@@ -535,57 +535,6 @@ func TestFinalizeImageTaskMissingTagPreservesConcurrentCacheDelta(t *testing.T) 
 	assert.True(t, redisServer.Exists(imageTaskTokenQuotaInvalidationKey(tokenHMAC)))
 }
 
-func TestFinalizeImageTaskFlushesPendingQuotaBeforePositiveDelta(t *testing.T) {
-	truncateTables(t)
-	oldRedisEnabled, oldBatchUpdateEnabled := common.RedisEnabled, common.BatchUpdateEnabled
-	common.RedisEnabled = false
-	common.BatchUpdateEnabled = true
-	for _, type_ := range []int{BatchUpdateTypeUserQuota, BatchUpdateTypeTokenQuota} {
-		batchUpdateLocks[type_].Lock()
-		batchUpdateStores[type_] = make(map[int]int)
-		batchUpdateLocks[type_].Unlock()
-	}
-	t.Cleanup(func() {
-		common.RedisEnabled = oldRedisEnabled
-		common.BatchUpdateEnabled = oldBatchUpdateEnabled
-		for _, type_ := range []int{BatchUpdateTypeUserQuota, BatchUpdateTypeTokenQuota} {
-			batchUpdateLocks[type_].Lock()
-			batchUpdateStores[type_] = make(map[int]int)
-			batchUpdateLocks[type_].Unlock()
-		}
-	})
-
-	user, token, _, task := seedImageTaskBillingState(t, "pending-positive-delta", 100)
-	addNewRecord(BatchUpdateTypeUserQuota, user.Id, -850)
-	addNewRecord(BatchUpdateTypeTokenQuota, token.Id, -850)
-	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 200)
-	require.NoError(t, err)
-	require.True(t, won)
-
-	finalized, err := FinalizeImageTask(task.TaskID)
-	require.NoError(t, err)
-	require.True(t, finalized.Applied)
-	assert.Equal(t, TaskStatus(TaskStatusFailure), finalized.Task.Status)
-	assert.Contains(t, finalized.Task.FailReason, "wallet quota insufficient")
-
-	require.NoError(t, DB.First(user, user.Id).Error)
-	assert.Equal(t, 150, user.Quota)
-	assert.Zero(t, user.UsedQuota)
-	require.NoError(t, DB.First(token, token.Id).Error)
-	assert.Equal(t, 150, token.RemainQuota)
-	assert.Equal(t, 850, token.UsedQuota)
-	assert.GreaterOrEqual(t, user.Quota, 0)
-	assert.GreaterOrEqual(t, token.RemainQuota, 0)
-	batchUpdateLocks[BatchUpdateTypeUserQuota].Lock()
-	_, userPending := batchUpdateStores[BatchUpdateTypeUserQuota][user.Id]
-	batchUpdateLocks[BatchUpdateTypeUserQuota].Unlock()
-	batchUpdateLocks[BatchUpdateTypeTokenQuota].Lock()
-	_, tokenPending := batchUpdateStores[BatchUpdateTypeTokenQuota][token.Id]
-	batchUpdateLocks[BatchUpdateTypeTokenQuota].Unlock()
-	assert.False(t, userPending)
-	assert.False(t, tokenPending)
-}
-
 func TestFinalizeImageTaskPositiveDeltaUsesConcurrentCacheBalance(t *testing.T) {
 	truncateTables(t)
 	oldRedisEnabled := common.RedisEnabled
@@ -869,6 +818,56 @@ func TestFinalizeImageTaskFailsAndRefundsWhenTokenCannotCoverActualUsage(t *test
 	assert.Zero(t, token.UsedQuota)
 	require.NoError(t, DB.First(channel, channel.Id).Error)
 	assert.Zero(t, channel.UsedQuota)
+}
+
+func TestFinalizeImageTaskUsesLockedDBBalanceWhenRedisSnapshotIsStale(t *testing.T) {
+	tests := []struct {
+		name       string
+		lowerDB    func(t *testing.T, user *User, token *Token)
+		wantReason string
+	}{
+		{
+			name: "wallet",
+			lowerDB: func(t *testing.T, user *User, _ *Token) {
+				require.NoError(t, DB.Model(user).Update("quota", 20).Error)
+			},
+			wantReason: "wallet quota insufficient",
+		},
+		{
+			name: "token",
+			lowerDB: func(t *testing.T, _ *User, token *Token) {
+				require.NoError(t, DB.Model(token).Update("remain_quota", 20).Error)
+			},
+			wantReason: "token quota insufficient",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			truncateTables(t)
+			useImageTaskTestRedis(t)
+			user, token, channel, task := seedImageTaskBillingState(t, "stale-db-"+tt.name, 100)
+			require.NoError(t, populateUserCache(*user))
+			require.NoError(t, cacheSetToken(*token))
+			tt.lowerDB(t, user, token)
+
+			won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 140)
+			require.NoError(t, err)
+			require.True(t, won)
+			finalized, err := FinalizeImageTask(task.TaskID)
+			require.NoError(t, err)
+			require.True(t, finalized.Applied)
+			assert.Equal(t, TaskStatus(TaskStatusFailure), finalized.Task.Status)
+			assert.Contains(t, finalized.Task.FailReason, tt.wantReason)
+
+			require.NoError(t, DB.First(user, user.Id).Error)
+			require.NoError(t, DB.First(token, token.Id).Error)
+			require.NoError(t, DB.First(channel, channel.Id).Error)
+			assert.GreaterOrEqual(t, user.Quota, 0)
+			assert.GreaterOrEqual(t, token.RemainQuota, 0)
+			assert.Zero(t, channel.UsedQuota)
+		})
+	}
 }
 
 func TestImageTaskOldAttemptLosesFinalizingCAS(t *testing.T) {

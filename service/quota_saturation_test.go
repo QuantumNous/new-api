@@ -99,6 +99,17 @@ func TestPreConsumeBillingRejectsSaturatedQuotaBeforeDeduction(t *testing.T) {
 	require.Nil(t, info.Billing)
 }
 
+func TestCalcViolationFeeQuotaReportsOverflow(t *testing.T) {
+	quota, clamp := calcViolationFeeQuota(1, 1)
+	require.Equal(t, common.QuotaFromFloat(common.QuotaPerUnit), quota)
+	require.Nil(t, clamp)
+
+	quota, clamp = calcViolationFeeQuota(1e300, 1e300)
+	require.Equal(t, common.MaxQuota, quota)
+	require.NotNil(t, clamp)
+	require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
+}
+
 func TestPreConsumeBillingRejectsNegativeQuotaBeforeDeduction(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(nil)

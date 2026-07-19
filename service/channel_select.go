@@ -18,7 +18,10 @@ type RetryParam struct {
 	RequestPath        string
 	Retry              *int
 	ExcludedChannelIDs map[int]struct{}
-	resetNextTry       bool
+	// AvoidChannelHosts is a same-request preference inside the selected auto
+	// group and priority tier; it never overrides operator group/priority order.
+	AvoidChannelHosts map[string]struct{}
+	resetNextTry      bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -119,6 +122,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			channel, _ = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
 				ExcludedChannelIDs: param.ExcludedChannelIDs,
+				AvoidChannelHosts:  param.AvoidChannelHosts,
 				// Raw path matches Advanced Custom routes; normalized path keys the
 				// bounded channel-health registry.
 				RequestPath: param.RequestPath,
@@ -168,6 +172,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	} else {
 		channel, err = model.GetRandomSatisfiedChannelWithOptions(param.TokenGroup, param.ModelName, param.GetRetry(), model.ChannelSelectionOptions{
 			ExcludedChannelIDs: param.ExcludedChannelIDs,
+			AvoidChannelHosts:  param.AvoidChannelHosts,
 			// Raw path matches Advanced Custom routes; normalized path keys the
 			// bounded channel-health registry.
 			RequestPath: param.RequestPath,

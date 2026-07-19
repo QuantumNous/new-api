@@ -2,6 +2,7 @@ package model
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -9,6 +10,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestImageTaskBillingLogRequestIDDoesNotTruncateLongTaskIdentity(t *testing.T) {
+	prefix := strings.Repeat("provider-task-prefix-", 8)
+	first := imageTaskBillingLogRequestID(prefix + "first")
+	second := imageTaskBillingLogRequestID(prefix + "second")
+
+	assert.Len(t, first, billingAdjustmentRequestIDMax)
+	assert.Len(t, second, billingAdjustmentRequestIDMax)
+	assert.NotEqual(t, first, second)
+}
 
 func TestFinalizeImageTaskEnqueuesAndDeliversBillingLogIdempotently(t *testing.T) {
 	truncateTables(t)
@@ -176,6 +187,75 @@ func TestCompensatePermanentImageTaskFinalizationRollsBackPreparedRedisCache(t *
 	require.NoError(t, DB.First(token, token.Id).Error)
 	assert.Equal(t, 1000, token.RemainQuota)
 	assert.Zero(t, token.UsedQuota)
+}
+
+func TestCompensatePermanentImageTaskFinalizationRefundsSurvivingPinnedLedger(t *testing.T) {
+	truncateTables(t)
+	redisServer := useImageTaskTestRedis(t)
+	user, token, _, task := seedImageTaskBillingState(t, "prepared-cache-compensation-with-peer", 100)
+	require.NoError(t, DB.Model(user).Update("request_count", math.MaxInt).Error)
+	require.NoError(t, DB.Create(&ImageBillingReservation{
+		TaskID:         task.TaskID,
+		UserID:         user.Id,
+		TokenID:        token.Id,
+		ExpectedQuota:  100,
+		FundingSource:  "wallet",
+		WalletReserved: 100,
+		TokenRequired:  true,
+		TokenReserved:  100,
+		Status:         ImageBillingReservationActive,
+	}).Error)
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 140)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	_, err = FinalizeImageTask(task.TaskID)
+	permanent, ok := IsPermanentImageTaskFinalizationError(err)
+	require.True(t, ok)
+	assert.False(t, permanent.BillingDBApplied)
+
+	const peerTaskID = "task_image_finalize_compensation_peer"
+	require.NoError(t, prepareImageTaskCacheAdjustment(imageTaskCacheAdjustment{
+		taskID:     peerTaskID,
+		userID:     user.Id,
+		userDelta:  -25,
+		tokenKey:   token.Key,
+		tokenDelta: -25,
+	}, user, token))
+
+	compensated, err := CompensatePermanentImageTaskFinalization(task.TaskID, "invalid billing state")
+	require.NoError(t, err)
+	require.NotNil(t, compensated)
+	assert.True(t, compensated.Applied)
+
+	rawUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 975, rawUser.Quota)
+	rawToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 975, rawToken.RemainQuota)
+	userPeerPinned, err := redisServer.SIsMember(imageTaskUserQuotaPinsKey(user.Id), peerTaskID)
+	require.NoError(t, err)
+	assert.True(t, userPeerPinned)
+	tokenPeerPinned, err := redisServer.SIsMember(imageTaskTokenQuotaPinsKey(common.GenerateHMAC(token.Key)), peerTaskID)
+	require.NoError(t, err)
+	assert.True(t, tokenPeerPinned)
+	userCompensationPinned, err := redisServer.SIsMember(imageTaskUserQuotaPinsKey(user.Id), task.TaskID)
+	require.NoError(t, err)
+	assert.False(t, userCompensationPinned)
+	tokenCompensationPinned, err := redisServer.SIsMember(imageTaskTokenQuotaPinsKey(common.GenerateHMAC(token.Key)), task.TaskID)
+	require.NoError(t, err)
+	assert.False(t, tokenCompensationPinned)
+	assert.False(t, redisServer.Exists("billing:image-task-cache:"+task.TaskID))
+	assert.True(t, redisServer.Exists("billing:image-task-cache:"+peerTaskID))
+
+	var storedUser User
+	require.NoError(t, DB.First(&storedUser, user.Id).Error)
+	assert.Equal(t, 1000, storedUser.Quota)
+	var storedToken Token
+	require.NoError(t, DB.First(&storedToken, token.Id).Error)
+	assert.Equal(t, 1000, storedToken.RemainQuota)
+	assert.Zero(t, storedToken.UsedQuota)
 }
 
 func TestCompensatePermanentImageTaskFinalizationRefundsSoftDeletedToken(t *testing.T) {

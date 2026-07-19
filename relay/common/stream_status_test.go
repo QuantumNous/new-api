@@ -168,6 +168,27 @@ func TestStreamStatus_SetEndReasonWithSource(t *testing.T) {
 	assert.False(t, s.EndedAt.IsZero())
 }
 
+func TestStreamStatus_ProtocolTerminalOverridesConcurrentTransportEnd(t *testing.T) {
+	s := NewStreamStatus()
+	s.SetEndReasonWithSource(StreamEndReasonClientGone, fmt.Errorf("context canceled"), "main_context_done")
+	s.SetProtocolTerminalEndReasonWithSource(StreamEndReasonDone, nil, "handler_done")
+
+	snapshot := s.Snapshot()
+	assert.Equal(t, StreamEndReasonDone, snapshot.EndReason)
+	assert.Equal(t, "handler_done", snapshot.EndSource)
+}
+
+func TestStreamStatus_ProtocolTerminalCannotBeOverwritten(t *testing.T) {
+	s := NewStreamStatus()
+	s.SetProtocolTerminalEndReasonWithSource(StreamEndReasonUpstreamFailed, fmt.Errorf("server error"), "upstream_terminal")
+	s.SetEndReasonWithSource(StreamEndReasonEOF, nil, "scanner_eof")
+	s.SetProtocolTerminalEndReasonWithSource(StreamEndReasonDone, nil, "handler_done")
+
+	snapshot := s.Snapshot()
+	assert.Equal(t, StreamEndReasonUpstreamFailed, snapshot.EndReason)
+	assert.Equal(t, "upstream_terminal", snapshot.EndSource)
+}
+
 func TestStreamStatus_RecordDataReceived(t *testing.T) {
 	t.Parallel()
 	s := NewStreamStatus()

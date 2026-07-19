@@ -256,6 +256,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// Reset per-attempt so an empty-response flag from a prior attempt cannot
 		// leak into this attempt's health outcome.
 		relayInfo.UpstreamEmptyResponse = false
+		relayInfo.AttemptUpstreamHost = ""
 		attemptStart := time.Now()
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -292,7 +293,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogInfo(c, "client canceled the request; skipping retry and channel attribution")
 			break
 		}
-
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
 		// Bound total retry wall-clock so a request cannot spend minutes cycling
@@ -306,6 +306,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+		if shouldAvoidRetryHost(newAPIError) {
+			host := relayRetryHost(relayInfo)
+			if host != "" {
+				if retryParam.AvoidChannelHosts == nil {
+					retryParam.AvoidChannelHosts = make(map[string]struct{})
+				}
+				retryParam.AvoidChannelHosts[host] = struct{}{}
+				logger.LogInfo(c, fmt.Sprintf("transport retry will prefer a different upstream host than %s", host))
+			}
+		}
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -318,6 +328,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func relayRetryHost(relayInfo *relaycommon.RelayInfo) string {
+	if relayInfo == nil {
+		return ""
+	}
+	if relayInfo.AttemptUpstreamHost != "" {
+		return model.NormalizeChannelBaseURLHost(relayInfo.AttemptUpstreamHost)
+	}
+	return model.NormalizeChannelBaseURLHost(relayInfo.ChannelBaseUrl)
 }
 
 // ReplayAsyncImageGeneration resolves accepted idempotent image requests after
@@ -523,6 +543,12 @@ func isClientCanceledError(apiErr *types.NewAPIError) bool {
 	return apiErr != nil && errors.Is(apiErr, context.Canceled)
 }
 
+func shouldAvoidRetryHost(apiErr *types.NewAPIError) bool {
+	return apiErr != nil &&
+		apiErr.GetErrorCode() == types.ErrorCodeDoRequestFailed &&
+		!isClientCanceledError(apiErr)
+}
+
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
 		return false
@@ -592,6 +618,9 @@ func shouldCooldownSlowChannel(info *relaycommon.RelayInfo, attemptStart time.Ti
 		return 0, false
 	}
 	frt := info.FirstResponseTime.Sub(attemptStart)
+	if info.StreamStatus != nil && !info.StreamStatus.IsNormalEnd() {
+		return frt, false
+	}
 	if info.AffinityColdStart {
 		// We released this request's prompt-cache affinity, so this channel is
 		// answering from a cold cache and its first token pays a full prefill

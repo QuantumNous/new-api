@@ -11,8 +11,13 @@ import (
 )
 
 const (
-	tokenQuotaLockWait = 2 * time.Second
-	tokenQuotaLockTTL  = 30 * time.Second
+	quotaCacheLockWait = 2 * time.Second
+	quotaCacheLockTTL  = 30 * time.Second
+)
+
+var (
+	errQuotaCacheLockUnavailable = errors.New("quota cache lock is unavailable")
+	errQuotaCacheLockTimeout     = errors.New("quota cache lock timed out")
 )
 
 func cacheSetToken(token Token) error {
@@ -36,40 +41,119 @@ func cacheSetTokenIfAbsent(token Token) error {
 	return err
 }
 
-func cacheDeleteToken(key string) error {
-	tokenHMAC := common.GenerateHMAC(key)
-	return invalidateImageTaskQuotaCache(
+func tokenQuotaCacheGenerationKey(key string) string {
+	return fmt.Sprintf("billing:quota-cache-generation:token:%s", common.GenerateHMAC(key))
+}
+
+func tokenQuotaCacheGeneration(key string) (int64, error) {
+	if !common.RedisEnabled {
+		return 0, nil
+	}
+	if common.RDB == nil {
+		return 0, errors.New("redis is enabled but unavailable")
+	}
+	return common.RedisGeneration(tokenQuotaCacheGenerationKey(key))
+}
+
+func cacheSetTokenAtGeneration(token Token, generation int64) (bool, error) {
+	if !common.RedisEnabled {
+		return false, nil
+	}
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	generationKey := tokenQuotaCacheGenerationKey(token.Key)
+	token.Clean()
+	return common.RedisHSetObjIfGeneration(
 		fmt.Sprintf("token:%s", tokenHMAC),
 		imageTaskTokenQuotaPinsKey(tokenHMAC),
 		imageTaskTokenQuotaInvalidationKey(tokenHMAC),
-		common.TokenStatusDisabled,
+		generationKey,
+		generation,
+		&token,
+		time.Duration(common.RedisKeyCacheSeconds())*time.Second,
 	)
 }
 
-func cacheIncrTokenQuota(key string, increment int64) error {
-	key = common.GenerateHMAC(key)
-	err := common.RedisHIncrBy(fmt.Sprintf("token:%s", key), constant.TokenFiledRemainQuota, increment)
-	if err != nil {
-		return err
+func invalidateTokenQuotaCacheWithStatus(key string, invalidStatus *int) error {
+	if !common.RedisEnabled {
+		return nil
 	}
-	return nil
+	if common.RDB == nil {
+		return errors.New("redis is enabled but unavailable")
+	}
+	tokenHMAC := common.GenerateHMAC(key)
+	_, err := common.RedisHInvalidateWithGeneration(
+		fmt.Sprintf("token:%s", tokenHMAC),
+		imageTaskTokenQuotaPinsKey(tokenHMAC),
+		imageTaskTokenQuotaInvalidationKey(tokenHMAC),
+		tokenQuotaCacheGenerationKey(key),
+		time.Duration(imageTaskQuotaCacheHoldSeconds)*time.Second,
+		invalidStatus,
+	)
+	return err
+}
+
+func invalidateTokenQuotaCache(key string) error {
+	return invalidateTokenQuotaCacheWithStatus(key, nil)
+}
+
+func applyTokenQuotaCacheDelta(key string, delta int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	if common.RDB == nil {
+		return errors.New("redis is enabled but unavailable")
+	}
+	tokenHMAC := common.GenerateHMAC(key)
+	_, err := common.RedisHApplyDeltaAndInvalidateWithGeneration(
+		fmt.Sprintf("token:%s", tokenHMAC),
+		imageTaskTokenQuotaPinsKey(tokenHMAC),
+		imageTaskTokenQuotaInvalidationKey(tokenHMAC),
+		tokenQuotaCacheGenerationKey(key),
+		time.Duration(imageTaskQuotaCacheHoldSeconds)*time.Second,
+		constant.TokenFiledRemainQuota,
+		delta,
+	)
+	return err
+}
+
+func applyTokenQuotaCacheDeltaOnce(key string, delta int64, operationKey string) error {
+	return applyTokenQuotaCacheDeltaOnceWithLegacyPolicy(key, delta, operationKey, false)
+}
+
+func applyTokenQuotaCacheDeltaOnceWithLegacyPolicy(key string, delta int64, operationKey string, allowLegacyDebit bool) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	if common.RDB == nil {
+		return errors.New("redis is enabled but unavailable")
+	}
+	tokenHMAC := common.GenerateHMAC(key)
+	_, err := common.RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
+		fmt.Sprintf("token:%s", tokenHMAC),
+		imageTaskTokenQuotaPinsKey(tokenHMAC),
+		imageTaskTokenQuotaInvalidationKey(tokenHMAC),
+		tokenQuotaCacheGenerationKey(key),
+		time.Duration(imageTaskQuotaCacheHoldSeconds)*time.Second,
+		constant.TokenFiledRemainQuota,
+		delta,
+		operationKey,
+		30*24*time.Hour,
+		allowLegacyDebit,
+	)
+	return err
+}
+
+func cacheDeleteToken(key string) error {
+	invalidStatus := common.TokenStatusDisabled
+	return invalidateTokenQuotaCacheWithStatus(key, &invalidStatus)
+}
+
+func cacheIncrTokenQuota(key string, increment int64) error {
+	return applyTokenQuotaCacheDelta(key, increment)
 }
 
 func cacheDecrTokenQuota(key string, decrement int64) error {
 	return cacheIncrTokenQuota(key, -decrement)
-}
-
-func cacheTryDecrTokenQuota(key string, decrement int64) error {
-	if !common.RedisEnabled {
-		return nil
-	}
-	key = common.GenerateHMAC(key)
-	return common.RedisHDecrByIfEnough(
-		fmt.Sprintf("token:%s", key),
-		constant.TokenFiledRemainQuota,
-		"UnlimitedQuota",
-		decrement,
-	)
 }
 
 func cacheSetTokenField(key string, field string, value string) error {
@@ -99,65 +183,129 @@ func cacheGetTokenByKey(key string) (*Token, error) {
 	return &token, nil
 }
 
+func cacheGetTokenByKeyForRead(key string) (*Token, error) {
+	hmacKey := common.GenerateHMAC(key)
+	if !common.RedisEnabled {
+		return nil, fmt.Errorf("redis is not enabled")
+	}
+	var token Token
+	err := common.RedisHGetObjIfValid(
+		fmt.Sprintf("token:%s", hmacKey),
+		imageTaskTokenQuotaInvalidationKey(hmacKey),
+		&token,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if token.Id == 0 {
+		return nil, fmt.Errorf("incomplete token cache")
+	}
+	token.Key = key
+	return &token, nil
+}
+
 func ensureTokenQuotaCache(tokenId int, key string) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	if token, err := cacheGetTokenByKey(key); err == nil && token.Id == tokenId {
-		return nil
-	}
+	var lastErr error
+	for attempt := 0; attempt < quotaCachePopulateAttempts; attempt++ {
+		if token, err := cacheGetTokenByKey(key); err == nil && token.Id == tokenId {
+			return nil
+		}
 
-	var token Token
-	if err := DB.Where(&Token{Id: tokenId, Key: key}).First(&token).Error; err != nil {
-		return err
+		generation, err := tokenQuotaCacheGeneration(key)
+		if err != nil {
+			return err
+		}
+		var token Token
+		if err := DB.Unscoped().Where(&Token{Id: tokenId, Key: key}).First(&token).Error; err != nil {
+			return err
+		}
+		if token.DeletedAt.Valid {
+			token.Status = common.TokenStatusDisabled
+		}
+		if _, err := cacheSetTokenAtGeneration(token, generation); err != nil {
+			return err
+		}
+		cached, err := cacheGetTokenByKey(key)
+		if err == nil && cached.Id == tokenId {
+			return nil
+		}
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = fmt.Errorf("token quota cache id mismatch")
+		}
 	}
-	if err := cacheSetTokenIfAbsent(token); err != nil {
-		return err
-	}
-	cached, err := cacheGetTokenByKey(key)
-	if err != nil {
-		return fmt.Errorf("failed to initialize token quota cache: %w", err)
-	}
-	if cached.Id != tokenId {
-		return fmt.Errorf("token quota cache id mismatch")
-	}
-	return nil
+	return fmt.Errorf("failed to initialize token quota cache after generation retries: %w", lastErr)
 }
 
-// withTokenQuotaCacheLock serializes explicit token quota edits with durable
-// async reservations across gateway nodes. Normal delta-only cache writes do
-// not replace complete token snapshots and do not need this lock.
+// withTokenQuotaCacheLock serializes explicit token edits with durable async
+// reservations across gateway nodes. DB-first quota mutations invalidate their
+// snapshots by generation and do not replace the pinned reconciliation hash.
 func withTokenQuotaCacheLock(key string, fn func() error) error {
+	if key == "" {
+		return errors.New("token key is required")
+	}
+	return withQuotaCacheLock(fmt.Sprintf("lock:token-quota:%s", common.GenerateHMAC(key)), fn)
+}
+
+func withUserQuotaCacheLock(userId int, fn func() error) error {
+	if userId <= 0 {
+		return errors.New("user id is required")
+	}
+	return withQuotaCacheLock(fmt.Sprintf("lock:user-quota:%d", userId), fn)
+}
+
+func withImageTaskQuotaCacheLocks(userId int, tokenKey string, fn func() error) error {
+	return withUserQuotaCacheLock(userId, func() error {
+		if err := reconcileUserBillingAdjustmentCacheLocked(userId); err != nil {
+			return fmt.Errorf("reconcile durable user quota cache adjustments before image task: %w", err)
+		}
+		if tokenKey == "" {
+			return fn()
+		}
+		return withTokenQuotaCacheLock(tokenKey, func() error {
+			var token Token
+			if err := DB.Unscoped().Where(&Token{Key: tokenKey}).First(&token).Error; err != nil {
+				return err
+			}
+			if err := reconcileTokenBillingAdjustmentCacheLocked(token.Id, tokenKey); err != nil {
+				return fmt.Errorf("reconcile durable token quota cache adjustments before image task: %w", err)
+			}
+			return fn()
+		})
+	})
+}
+
+func withQuotaCacheLock(lockKey string, fn func() error) error {
 	if fn == nil {
-		return errors.New("token quota operation is required")
+		return errors.New("quota operation is required")
 	}
 	if !common.RedisEnabled {
 		return fn()
 	}
 	if common.RDB == nil {
-		return errors.New("redis is enabled but unavailable")
-	}
-	if key == "" {
-		return errors.New("token key is required")
+		return fmt.Errorf("%w: redis is enabled but unavailable", errQuotaCacheLockUnavailable)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), tokenQuotaLockWait)
+	ctx, cancel := context.WithTimeout(context.Background(), quotaCacheLockWait)
 	defer cancel()
-	lockKey := fmt.Sprintf("lock:token-quota:%s", common.GenerateHMAC(key))
 	lockValue := common.GetUUID()
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		acquired, err := common.RDB.SetNX(ctx, lockKey, lockValue, tokenQuotaLockTTL).Result()
+		acquired, err := common.RDB.SetNX(ctx, lockKey, lockValue, quotaCacheLockTTL).Result()
 		if err != nil {
-			return fmt.Errorf("acquire token quota lock: %w", err)
+			return fmt.Errorf("%w: %v", errQuotaCacheLockUnavailable, err)
 		}
 		if acquired {
 			break
 		}
 		select {
 		case <-ctx.Done():
-			return errors.New("timed out acquiring token quota lock")
+			return errQuotaCacheLockTimeout
 		case <-ticker.C:
 		}
 	}

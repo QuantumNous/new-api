@@ -1,5 +1,14 @@
 package model
 
+import (
+	"errors"
+	"fmt"
+
+	"github.com/QuantumNous/new-api/common"
+
+	"gorm.io/gorm"
+)
+
 type Midjourney struct {
 	Id          int    `json:"id"`
 	Code        int    `json:"code"`
@@ -181,6 +190,50 @@ func (midjourney *Midjourney) UpdateWithStatus(fromStatus string) (bool, error) 
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+// UpdateWithStatusAndRefund commits the terminal Midjourney transition and
+// its wallet refund claim atomically. The cache/database delivery is retried
+// from the durable outbox if it cannot complete after the transaction commits.
+func (midjourney *Midjourney) UpdateWithStatusAndRefund(fromStatus string) (bool, error) {
+	if midjourney == nil || midjourney.Id <= 0 || midjourney.UserId <= 0 {
+		return false, errors.New("persisted Midjourney task is required")
+	}
+	if midjourney.Quota <= 0 || midjourney.Quota > common.MaxQuota {
+		return false, fmt.Errorf("Midjourney refund quota is out of range: %d", midjourney.Quota)
+	}
+
+	var adjustment *BillingAdjustmentOutbox
+	won := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(midjourney).Where("status = ?", fromStatus).Select("*").Updates(midjourney)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		won = true
+		var err error
+		adjustment, err = EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
+			RequestID: fmt.Sprintf("mj-refund:%d", midjourney.Id),
+			Phase:     BillingAdjustmentPhaseTaskRefund,
+			Leg:       BillingAdjustmentLegWallet,
+			UserID:    midjourney.UserId,
+			Delta:     int64(midjourney.Quota),
+		}, false)
+		return err
+	})
+	if err != nil {
+		return false, err
+	}
+	if !won {
+		return false, nil
+	}
+	if err := ProcessBillingAdjustmentOutbox(adjustment.Id); err != nil {
+		common.SysLog(fmt.Sprintf("Midjourney refund queued for retry: task_id=%d outbox_id=%d err=%v", midjourney.Id, adjustment.Id, err))
+	}
+	return true, nil
 }
 
 func MjBulkUpdate(mjIds []string, params map[string]any) error {

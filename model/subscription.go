@@ -502,7 +502,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestamp(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -723,11 +723,16 @@ func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
 	if common.QuotaPerUnit <= 0 {
 		return 0, errors.New("额度单位配置错误")
 	}
-	quota := decimal.NewFromFloat(priceAmount).
+	quota, clamp := common.QuotaFromDecimalChecked(decimal.NewFromFloat(priceAmount).
 		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
-		Ceil().
-		IntPart()
-	return int(quota), nil
+		Ceil())
+	if clamp != nil {
+		return 0, fmt.Errorf("套餐价格对应额度超出允许范围: %w", clamp)
+	}
+	if quota <= 0 {
+		return 0, errors.New("套餐价格对应额度无效")
+	}
+	return quota, nil
 }
 
 // PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.
@@ -740,77 +745,101 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	var logMoney float64
 	var chargedQuota int
 	var upgradeGroup string
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		plan, err := getSubscriptionPlanByIdTx(tx, planId)
-		if err != nil {
-			return err
-		}
-		if !plan.Enabled {
-			return errors.New("套餐未启用")
-		}
-		if plan.PriceAmount < 0 {
-			return errors.New("套餐价格不能为负数")
-		}
-		if plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
-			return errors.New("该套餐不允许使用余额兑换")
-		}
-
-		requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount)
-		if err != nil {
-			return err
-		}
-
-		var user User
-		if err := lockForUpdate(tx).Where("id = ?", userId).First(&user).Error; err != nil {
-			return err
-		}
-		if requiredQuota > 0 && user.Quota < requiredQuota {
-			return errors.New("余额不足")
-		}
-		if requiredQuota > 0 {
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("quota", gorm.Expr("quota - ?", requiredQuota)).Error; err != nil {
+	operationID := "subscription-balance-" + common.GetUUID()
+	var cacheOutbox *BillingAdjustmentOutbox
+	err := withUserQuotaCacheLock(userId, func() error {
+		if err := DB.Transaction(func(tx *gorm.DB) error {
+			plan, err := getSubscriptionPlanByIdTx(tx, planId)
+			if err != nil {
 				return err
 			}
-		}
+			if !plan.Enabled {
+				return errors.New("套餐未启用")
+			}
+			if plan.PriceAmount < 0 {
+				return errors.New("套餐价格不能为负数")
+			}
+			if plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
+				return errors.New("该套餐不允许使用余额兑换")
+			}
 
-		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance); err != nil {
+			requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount)
+			if err != nil {
+				return err
+			}
+
+			var user User
+			if err := lockForUpdate(tx).Where("id = ?", userId).First(&user).Error; err != nil {
+				return err
+			}
+			if requiredQuota > 0 && user.Quota < requiredQuota {
+				return errors.New("余额不足")
+			}
+			if requiredQuota > 0 {
+				if err := tx.Model(&User{}).Where("id = ?", userId).
+					Update("quota", gorm.Expr("quota - ?", requiredQuota)).Error; err != nil {
+					return err
+				}
+			}
+
+			if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance); err != nil {
+				return err
+			}
+
+			now := common.GetTimestamp()
+			tradeNo := fmt.Sprintf("SUBBALUSR%dNO%s%d", userId, common.GetRandomString(6), time.Now().UnixNano())
+			order := &SubscriptionOrder{
+				UserId:          userId,
+				PlanId:          plan.Id,
+				Money:           plan.PriceAmount,
+				TradeNo:         tradeNo,
+				PaymentMethod:   PaymentMethodBalance,
+				PaymentProvider: PaymentProviderBalance,
+				Status:          common.TopUpStatusSuccess,
+				CreateTime:      now,
+				CompleteTime:    now,
+				ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
+			}
+			if err := tx.Create(order).Error; err != nil {
+				return err
+			}
+			if requiredQuota > 0 {
+				cacheOutbox, err = EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
+					RequestID: operationID,
+					Phase:     BillingAdjustmentPhaseDirect,
+					Leg:       BillingAdjustmentLegWallet,
+					UserID:    userId,
+					Delta:     -int64(requiredQuota),
+				}, true)
+				if err != nil {
+					return err
+				}
+			}
+
+			logPlanTitle = plan.Title
+			logMoney = plan.PriceAmount
+			chargedQuota = requiredQuota
+			upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+			return nil
+		}); err != nil {
 			return err
 		}
-
-		now := common.GetTimestamp()
-		tradeNo := fmt.Sprintf("SUBBALUSR%dNO%s%d", userId, common.GetRandomString(6), time.Now().UnixNano())
-		order := &SubscriptionOrder{
-			UserId:          userId,
-			PlanId:          plan.Id,
-			Money:           plan.PriceAmount,
-			TradeNo:         tradeNo,
-			PaymentMethod:   PaymentMethodBalance,
-			PaymentProvider: PaymentProviderBalance,
-			Status:          common.TopUpStatusSuccess,
-			CreateTime:      now,
-			CompleteTime:    now,
-			ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
+		if cacheOutbox == nil {
+			return nil
 		}
-		if err := tx.Create(order).Error; err != nil {
-			return err
+		if err := applyBillingAdjustmentCache(cacheOutbox, ""); err != nil {
+			common.SysLog("subscription balance cache reconciliation queued: " + err.Error())
+			return nil
 		}
-
-		logPlanTitle = plan.Title
-		logMoney = plan.PriceAmount
-		chargedQuota = requiredQuota
-		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		if err := markBillingAdjustmentCacheReconciled(cacheOutbox); err != nil {
+			common.SysLog("subscription balance cache acknowledgement queued: " + err.Error())
+		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
 
-	if chargedQuota > 0 {
-		if err := cacheDecrUserQuota(userId, int64(chargedQuota)); err != nil {
-			common.SysLog("failed to decrease user quota cache after subscription balance purchase: " + err.Error())
-		}
-	}
 	if upgradeGroup != "" {
 		_ = UpdateUserGroupCache(userId, upgradeGroup)
 	}
@@ -1343,11 +1372,12 @@ func preConsumeUserSubscriptionTx(tx *gorm.DB, requestId string, userId int, _ s
 			return nil, err
 		}
 		usedBefore := sub.AmountUsed
-		if sub.AmountTotal > 0 {
-			remain := sub.AmountTotal - usedBefore
-			if remain < amount {
-				continue
-			}
+		usedAfter, err := checkedInt64Add(usedBefore, amount)
+		if err != nil {
+			return nil, err
+		}
+		if sub.AmountTotal > 0 && usedAfter > sub.AmountTotal {
+			continue
 		}
 		record := &SubscriptionPreConsumeRecord{
 			RequestId:          requestId,
@@ -1378,7 +1408,7 @@ func preConsumeUserSubscriptionTx(tx *gorm.DB, requestId string, userId int, _ s
 			}
 			return nil, err
 		}
-		sub.AmountUsed += amount
+		sub.AmountUsed = usedAfter
 		if err := tx.Save(&sub).Error; err != nil {
 			return nil, err
 		}
@@ -1528,7 +1558,10 @@ func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, del
 		First(&sub).Error; err != nil {
 		return err
 	}
-	newUsed := sub.AmountUsed + delta
+	newUsed, err := checkedInt64Add(sub.AmountUsed, delta)
+	if err != nil {
+		return err
+	}
 	if newUsed < 0 {
 		newUsed = 0
 	}

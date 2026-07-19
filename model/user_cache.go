@@ -13,6 +13,10 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
+var scheduleQuotaCacheRefresh = func(refresh func()) {
+	gopool.Go(refresh)
+}
+
 // UserBase struct remains the same as it represents the cached data structure
 type UserBase struct {
 	Id       int    `json:"id"`
@@ -23,6 +27,8 @@ type UserBase struct {
 	Username string `json:"username"`
 	Setting  string `json:"setting"`
 }
+
+const quotaCachePopulateAttempts = 3
 
 func (user *UserBase) WriteContext(c *gin.Context) {
 	common.SetContextKey(c, constant.ContextKeyUserGroup, user.Group)
@@ -49,17 +55,91 @@ func getUserCacheKey(userId int) string {
 	return fmt.Sprintf("user:%d", userId)
 }
 
-// invalidateUserCache clears user cache
-func invalidateUserCache(userId int) error {
+func userQuotaCacheGenerationKey(userId int) string {
+	return fmt.Sprintf("billing:quota-cache-generation:user:%d", userId)
+}
+
+func userQuotaCacheGeneration(userId int) (int64, error) {
+	if !common.RedisEnabled {
+		return 0, nil
+	}
+	if common.RDB == nil {
+		return 0, fmt.Errorf("redis is enabled but unavailable")
+	}
+	return common.RedisGeneration(userQuotaCacheGenerationKey(userId))
+}
+
+func invalidateUserQuotaCacheWithStatus(userId int, invalidStatus *int) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	return invalidateImageTaskQuotaCache(
+	if common.RDB == nil {
+		return fmt.Errorf("redis is enabled but unavailable")
+	}
+	_, err := common.RedisHInvalidateWithGeneration(
 		getUserCacheKey(userId),
 		imageTaskUserQuotaPinsKey(userId),
 		imageTaskUserQuotaInvalidationKey(userId),
-		common.UserStatusDisabled,
+		userQuotaCacheGenerationKey(userId),
+		time.Duration(imageTaskQuotaCacheHoldSeconds)*time.Second,
+		invalidStatus,
 	)
+	return err
+}
+
+func invalidateUserQuotaCache(userId int) error {
+	return invalidateUserQuotaCacheWithStatus(userId, nil)
+}
+
+func applyUserQuotaCacheDelta(userId int, delta int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	if common.RDB == nil {
+		return fmt.Errorf("redis is enabled but unavailable")
+	}
+	_, err := common.RedisHApplyDeltaAndInvalidateWithGeneration(
+		getUserCacheKey(userId),
+		imageTaskUserQuotaPinsKey(userId),
+		imageTaskUserQuotaInvalidationKey(userId),
+		userQuotaCacheGenerationKey(userId),
+		time.Duration(imageTaskQuotaCacheHoldSeconds)*time.Second,
+		"Quota",
+		delta,
+	)
+	return err
+}
+
+func applyUserQuotaCacheDeltaOnce(userId int, delta int64, operationKey string) error {
+	return applyUserQuotaCacheDeltaOnceWithLegacyPolicy(userId, delta, operationKey, false)
+}
+
+func applyUserQuotaCacheDeltaOnceWithLegacyPolicy(userId int, delta int64, operationKey string, allowLegacyDebit bool) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	if common.RDB == nil {
+		return fmt.Errorf("redis is enabled but unavailable")
+	}
+	_, err := common.RedisHApplyDeltaAndInvalidateWithGenerationOncePolicy(
+		getUserCacheKey(userId),
+		imageTaskUserQuotaPinsKey(userId),
+		imageTaskUserQuotaInvalidationKey(userId),
+		userQuotaCacheGenerationKey(userId),
+		time.Duration(imageTaskQuotaCacheHoldSeconds)*time.Second,
+		"Quota",
+		delta,
+		operationKey,
+		30*24*time.Hour,
+		allowLegacyDebit,
+	)
+	return err
+}
+
+// invalidateUserCache clears user cache
+func invalidateUserCache(userId int) error {
+	invalidStatus := common.UserStatusDisabled
+	return invalidateUserQuotaCacheWithStatus(userId, &invalidStatus)
 }
 
 // InvalidateUserCache is the exported version of invalidateUserCache.
@@ -79,6 +159,21 @@ func populateUserCache(user User) error {
 		time.Duration(common.RedisKeyCacheSeconds())*time.Second,
 	)
 	return err
+}
+
+func populateUserCacheAtGeneration(user User, generation int64) (bool, error) {
+	if !common.RedisEnabled {
+		return false, nil
+	}
+	return common.RedisHSetObjIfGeneration(
+		getUserCacheKey(user.Id),
+		imageTaskUserQuotaPinsKey(user.Id),
+		imageTaskUserQuotaInvalidationKey(user.Id),
+		userQuotaCacheGenerationKey(user.Id),
+		generation,
+		user.ToBaseUser(),
+		time.Duration(common.RedisKeyCacheSeconds())*time.Second,
+	)
 }
 
 // updateUserCache refreshes non-quota user cache fields.
@@ -105,30 +200,34 @@ func updateUserCache(user User) error {
 
 // GetUserCache gets complete user cache from hash
 func GetUserCache(userId int) (userCache *UserBase, err error) {
-	var user *User
-	var fromDB bool
-	defer func() {
-		// Update Redis cache asynchronously on successful DB read
-		if shouldUpdateRedis(fromDB, err) && user != nil {
-			gopool.Go(func() {
-				if err := populateUserCache(*user); err != nil {
-					common.SysLog("failed to update user status cache: " + err.Error())
-				}
-			})
-		}
-	}()
-
 	// Try getting from Redis first
-	userCache, err = cacheGetUserBase(userId)
-	if err == nil {
+	userCache, err = cacheGetUserBaseForRead(userId)
+	if err == nil && userCache.Status == common.UserStatusEnabled && userCache.Quota > 0 {
 		return userCache, nil
 	}
+	cachedForConfirmation := userCache
+
+	generation, generationErr := userQuotaCacheGeneration(userId)
 
 	// If Redis fails, get from DB
-	fromDB = true
-	user, err = GetUserById(userId, false)
+	user, err := GetUserById(userId, false)
 	if err != nil {
 		return nil, err // Return nil and error if DB lookup fails
+	}
+	if cachedForConfirmation != nil &&
+		(cachedForConfirmation.Quota != user.Quota || cachedForConfirmation.Status != user.Status) {
+		if cacheErr := invalidateUserQuotaCache(userId); cacheErr != nil {
+			common.SysLog("failed to invalidate stale user cache after DB confirmation: " + cacheErr.Error())
+		}
+		generationErr = fmt.Errorf("stale cache invalidated")
+	}
+	if generationErr == nil && common.RedisEnabled {
+		cacheUser := *user
+		scheduleQuotaCacheRefresh(func() {
+			if _, err := populateUserCacheAtGeneration(cacheUser, generation); err != nil {
+				common.SysLog("failed to update user status cache: " + err.Error())
+			}
+		})
 	}
 
 	// Create cache object from user data
@@ -143,6 +242,25 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 	}
 
 	return userCache, nil
+}
+
+func cacheGetUserBaseForRead(userId int) (*UserBase, error) {
+	if !common.RedisEnabled {
+		return nil, fmt.Errorf("redis is not enabled")
+	}
+	var userCache UserBase
+	err := common.RedisHGetObjIfValid(
+		getUserCacheKey(userId),
+		imageTaskUserQuotaInvalidationKey(userId),
+		&userCache,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if userCache.Id != userId {
+		return nil, fmt.Errorf("incomplete user cache for user %d", userId)
+	}
+	return &userCache, nil
 }
 
 func cacheGetUserBase(userId int) (*UserBase, error) {
@@ -165,40 +283,42 @@ func ensureUserQuotaCache(userId int) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	if _, err := cacheGetUserBase(userId); err == nil {
-		return nil
-	}
+	var lastErr error
+	for attempt := 0; attempt < quotaCachePopulateAttempts; attempt++ {
+		if _, err := cacheGetUserBase(userId); err == nil {
+			return nil
+		}
 
-	var user User
-	if err := DB.First(&user, userId).Error; err != nil {
-		return err
+		generation, err := userQuotaCacheGeneration(userId)
+		if err != nil {
+			return err
+		}
+		var user User
+		if err := DB.Unscoped().First(&user, userId).Error; err != nil {
+			return err
+		}
+		if user.DeletedAt.Valid {
+			user.Status = common.UserStatusDisabled
+		}
+		if _, err := populateUserCacheAtGeneration(user, generation); err != nil {
+			return err
+		}
+		if _, err := cacheGetUserBase(userId); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
 	}
-	if err := populateUserCache(user); err != nil {
-		return err
-	}
-	if _, err := cacheGetUserBase(userId); err != nil {
-		return fmt.Errorf("failed to initialize user quota cache: %w", err)
-	}
-	return nil
+	return fmt.Errorf("failed to initialize user quota cache after generation retries: %w", lastErr)
 }
 
 // Add atomic quota operations using hash fields
 func cacheIncrUserQuota(userId int, delta int64) error {
-	if !common.RedisEnabled {
-		return nil
-	}
-	return common.RedisHIncrBy(getUserCacheKey(userId), "Quota", delta)
+	return applyUserQuotaCacheDelta(userId, delta)
 }
 
 func cacheDecrUserQuota(userId int, delta int64) error {
 	return cacheIncrUserQuota(userId, -delta)
-}
-
-func cacheTryDecrUserQuota(userId int, delta int64) error {
-	if !common.RedisEnabled {
-		return nil
-	}
-	return common.RedisHDecrByIfEnough(getUserCacheKey(userId), "Quota", "", delta)
 }
 
 // Helper functions to get individual fields if needed

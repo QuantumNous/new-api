@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -147,7 +148,12 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
 	}
 
-	err = PostConsumeQuota(relayInfo, quota, 0, false)
+	if relayInfo.RequestId == "" {
+		relayInfo.RequestId = common.NewRequestId()
+	}
+	chargeSequence := atomic.AddInt64(&relayInfo.RealtimeBillingSequence, 1)
+	chargeRequestID := fmt.Sprintf("%s:realtime:%d", relayInfo.RequestId, chargeSequence)
+	err = postConsumeQuotaDurable(relayInfo, quota, 0, false, model.BillingAdjustmentPhasePostConsume, chargeRequestID)
 	if err != nil {
 		return err
 	}
@@ -414,49 +420,75 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	return nil
 }
 
-func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool) (err error) {
+// PostConsumeQuotaDurable is for charges made only after the upstream action
+// has already succeeded. It durably records the funding and token legs in one
+// transaction before returning, so a Redis outage or a failure on either leg
+// cannot silently lose the other adjustment.
+func PostConsumeQuotaDurable(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool, phase string) error {
+	if relayInfo == nil {
+		return errors.New("relay info is required")
+	}
+	if relayInfo.RequestId == "" {
+		relayInfo.RequestId = common.NewRequestId()
+	}
+	return postConsumeQuotaDurable(relayInfo, quota, preConsumedQuota, sendEmail, phase, relayInfo.RequestId)
+}
 
-	// 1) Consume from wallet quota OR subscription item
-	if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
-		if relayInfo.SubscriptionId == 0 {
+func postConsumeQuotaDurable(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool, phase string, requestID string) error {
+	if relayInfo == nil {
+		return errors.New("relay info is required")
+	}
+	quotaDelta := int64(quota)
+	if quotaDelta < -int64(common.MaxQuota) || quotaDelta > int64(common.MaxQuota) {
+		return fmt.Errorf("post-consume quota is out of range: %d", quota)
+	}
+	if quotaDelta == 0 {
+		return nil
+	}
+	if requestID == "" {
+		return errors.New("billing adjustment request id is required")
+	}
+	specs := make([]model.BillingAdjustmentSpec, 0, 2)
+	if relayInfo.BillingSource == BillingSourceSubscription {
+		if relayInfo.SubscriptionId <= 0 {
 			return errors.New("subscription id is missing")
 		}
-		delta := int64(quota)
-		if delta != 0 {
-			if err := model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionId, delta); err != nil {
-				return err
-			}
-			relayInfo.SubscriptionPostDelta += delta
-		}
+		specs = append(specs, model.BillingAdjustmentSpec{
+			RequestID:      requestID,
+			Phase:          phase,
+			Leg:            model.BillingAdjustmentLegSubscription,
+			UserID:         relayInfo.UserId,
+			SubscriptionID: relayInfo.SubscriptionId,
+			Delta:          quotaDelta,
+		})
 	} else {
-		// Wallet
-		if quota > 0 {
-			err = model.DecreaseUserQuota(relayInfo.UserId, quota, false)
-		} else {
-			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
-		}
-		if err != nil {
-			return err
-		}
+		specs = append(specs, model.BillingAdjustmentSpec{
+			RequestID: requestID,
+			Phase:     phase,
+			Leg:       model.BillingAdjustmentLegWallet,
+			UserID:    relayInfo.UserId,
+			Delta:     -quotaDelta,
+		})
 	}
-
 	if !relayInfo.IsPlayground {
-		if quota > 0 {
-			err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
-		} else {
-			err = model.IncreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, -quota)
-		}
-		if err != nil {
-			return err
-		}
+		specs = append(specs, model.BillingAdjustmentSpec{
+			RequestID: requestID,
+			Phase:     phase,
+			Leg:       model.BillingAdjustmentLegToken,
+			UserID:    relayInfo.UserId,
+			TokenID:   relayInfo.TokenId,
+			Delta:     -quotaDelta,
+		})
 	}
-
-	if sendEmail {
-		if (quota + preConsumedQuota) != 0 {
-			checkAndSendQuotaNotify(relayInfo, quota, preConsumedQuota)
-		}
+	if err := enqueueBillingAdjustments(specs); err != nil {
+		return err
 	}
-
+	if relayInfo.BillingSource == BillingSourceSubscription {
+		relayInfo.SubscriptionPostDelta += quotaDelta
+	}
+	if sendEmail && quota+preConsumedQuota != 0 {
+		checkAndSendQuotaNotify(relayInfo, quota, preConsumedQuota)
+	}
 	return nil
 }
 

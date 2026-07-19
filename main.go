@@ -129,6 +129,10 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// Retry post-dispatch wallet/token/subscription adjustments that could not
+	// complete synchronously (for example while the Redis quota lock is busy).
+	service.StartBillingAdjustmentOutboxWorker()
+
 	// Report this process as a system instance so the System Info page can show
 	// all currently alive nodes in multi-instance deployments.
 	service.StartSystemInstanceReporter()

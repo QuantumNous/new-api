@@ -75,6 +75,21 @@ func TestShouldCooldownSlowChannelTripsOnGenuinelySlowAttempt(t *testing.T) {
 	}
 }
 
+func TestShouldCooldownSlowChannelSkipsTerminalClientErrors(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	status := relaycommon.NewStreamStatus()
+	status.SetEndReason(relaycommon.StreamEndReasonTerminalClientError, nil)
+	info := &relaycommon.RelayInfo{
+		StartTime:         base,
+		FirstResponseTime: base.Add(35 * time.Second),
+		StreamStatus:      status,
+	}
+
+	if frt, slow := shouldCooldownSlowChannel(info, base); slow {
+		t.Fatalf("a client-semantic terminal error must not cool the channel (frt=%v)", frt)
+	}
+}
+
 // TestShouldCooldownSlowChannelSkipsNonAttributable covers the guards: no
 // response sent, and a first response that predates this attempt (set by an
 // earlier failed attempt) — neither should cool the channel.

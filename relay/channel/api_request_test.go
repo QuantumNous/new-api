@@ -1,14 +1,30 @@
 package channel
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type wssHostTestAdaptor struct {
+	Adaptor
+	requestURL string
+}
+
+func (a wssHostTestAdaptor) GetRequestURL(_ *relaycommon.RelayInfo) (string, error) {
+	return a.requestURL, nil
+}
+
+func (wssHostTestAdaptor) SetupRequestHeader(_ *gin.Context, _ *http.Header, _ *relaycommon.RelayInfo) error {
+	return nil
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()
@@ -31,6 +47,47 @@ func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
 	require.Empty(t, headers)
+}
+
+func TestRecordAttemptUpstreamHostUsesResolvedRequestURL(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodPost, "https://Actual.Example:8443/v1/responses", nil)
+	info := &relaycommon.RelayInfo{}
+	recordAttemptUpstreamHost(req, info)
+	require.Equal(t, "actual.example", info.AttemptUpstreamHost)
+}
+
+func TestRecordAttemptUpstreamURLSupportsWebSocketRoutes(t *testing.T) {
+	t.Parallel()
+
+	upstreamURL, err := url.Parse("wss://Realtime.Example:8443/v1/realtime")
+	require.NoError(t, err)
+	info := &relaycommon.RelayInfo{}
+	recordAttemptUpstreamURL(upstreamURL, info)
+	require.Equal(t, "realtime.example", info.AttemptUpstreamHost)
+}
+
+func TestDoWssRequestRecordsResolvedHostBeforeDialFailure(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "websocket unavailable", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	wssURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/v1/realtime"
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil)
+	info := &relaycommon.RelayInfo{}
+
+	conn, err := DoWssRequest(wssHostTestAdaptor{requestURL: wssURL}, c, info, io.Reader(nil))
+	require.Error(t, err)
+	require.Nil(t, conn)
+	require.Equal(t, serverURL.Hostname(), info.AttemptUpstreamHost)
 }
 
 func TestProcessHeaderOverride_ChannelTestSkipsClientHeaderPlaceholder(t *testing.T) {

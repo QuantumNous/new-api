@@ -97,7 +97,22 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			return
 		}
 		switch streamResponse.Type {
-		case "response.completed":
+		case "error":
+			failureErr := fmt.Errorf("upstream responses stream failed")
+			if streamResponse.Message != "" {
+				failureErr = fmt.Errorf("upstream responses stream failed: %s", streamResponse.Message)
+			}
+			upstreamErr := &types.OpenAIError{
+				Code:    streamResponse.Code,
+				Message: streamResponse.Message,
+				Param:   streamResponse.Param,
+			}
+			if isResponsesChannelFailure(upstreamErr) {
+				sr.UpstreamFailed(failureErr)
+			} else {
+				sr.TerminalClientError(failureErr)
+			}
+		case "response.completed", "response.failed", "response.incomplete":
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
@@ -117,11 +132,28 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 						usage.PromptTokensDetails.CacheWriteTokens = streamResponse.Response.Usage.InputTokensDetails.CacheWriteTokens
 					}
 				}
-				if streamResponse.Response.HasImageGenerationCall() {
+				if streamResponse.Type == "response.completed" && streamResponse.Response.HasImageGenerationCall() {
 					c.Set("image_generation_call", true)
 					c.Set("image_generation_call_quality", streamResponse.Response.GetQuality())
 					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
 				}
+			}
+			if streamResponse.Type == "response.failed" {
+				failureErr := fmt.Errorf("upstream responses stream failed")
+				var upstreamErr *types.OpenAIError
+				if streamResponse.Response != nil {
+					upstreamErr = streamResponse.Response.GetOpenAIError()
+					if upstreamErr != nil && upstreamErr.Message != "" {
+						failureErr = fmt.Errorf("upstream responses stream failed: %s", upstreamErr.Message)
+					}
+				}
+				if isResponsesChannelFailure(upstreamErr) {
+					sr.UpstreamFailed(failureErr)
+				} else {
+					sr.TerminalClientError(failureErr)
+				}
+			} else {
+				sr.Done()
 			}
 		case "response.output_text.delta":
 			// 处理输出文本
@@ -179,6 +211,38 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func isResponsesChannelFailure(upstreamErr *types.OpenAIError) bool {
+	if upstreamErr == nil {
+		return true
+	}
+	code := ""
+	if value, ok := upstreamErr.Code.(string); ok {
+		code = strings.ToLower(strings.TrimSpace(value))
+	}
+	switch code {
+	case "server_error", "rate_limit_exceeded", "invalid_api_key", "authentication_error",
+		"permission_denied", "service_unavailable", "overloaded_error":
+		return true
+	}
+
+	switch code {
+	case "invalid_prompt", "bio_policy", "invalid_image", "invalid_image_format", "invalid_base64_image",
+		"invalid_image_url", "image_too_large", "image_too_small", "image_parse_error",
+		"image_content_policy_violation", "invalid_image_mode", "image_file_too_large",
+		"unsupported_image_media_type", "empty_image_file", "failed_to_download_image",
+		"image_file_not_found", "context_length_exceeded", "content_policy_violation",
+		"invalid_request_error", "bad_request", "validation_error", "unsupported_value":
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(upstreamErr.Type)) {
+	case "invalid_request_error", "bad_request", "validation_error":
+		return false
+	default:
+		return true
+	}
 }
 
 func streamStatusSummary(info *relaycommon.RelayInfo) string {

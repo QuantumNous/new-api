@@ -419,7 +419,7 @@ func ReserveImageTaskWalletQuota(taskID string, userID int, quota int) error {
 		return errors.New("wallet reservation quota is out of range")
 	}
 
-	return withFlushedBatchQuota(BatchUpdateTypeUserQuota, userID, increaseUserQuota, func() error {
+	return withUserQuotaCacheLock(userID, func() error {
 		cacheDebited := false
 		if common.RedisEnabled {
 			if err := ensureUserQuotaCache(userID); err != nil {
@@ -521,43 +521,41 @@ func ReserveImageTaskTokenQuota(taskID string, tokenID int, key string, quota in
 	}
 
 	return withTokenQuotaCacheLock(key, func() error {
-		return withFlushedBatchQuota(BatchUpdateTypeTokenQuota, tokenID, increaseTokenQuota, func() error {
-			cacheDebited := false
-			if common.RedisEnabled {
-				if err := ensureTokenQuotaCache(tokenID, key); err != nil {
-					return err
-				}
-				var err error
-				cacheDebited, err = applyImageReservationCacheDebit(
-					fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
-					imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
-					constant.TokenFiledRemainQuota,
-					"UnlimitedQuota",
-					taskID,
-					int64(quota),
-				)
-				if err != nil {
-					if errors.Is(err, ErrImageBillingReservationQuotaInsufficient) {
-						return errors.New("token quota is not enough")
-					}
-					return err
-				}
+		cacheDebited := false
+		if common.RedisEnabled {
+			if err := ensureTokenQuotaCache(tokenID, key); err != nil {
+				return err
 			}
+			var err error
+			cacheDebited, err = applyImageReservationCacheDebit(
+				fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
+				imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
+				constant.TokenFiledRemainQuota,
+				"UnlimitedQuota",
+				taskID,
+				int64(quota),
+			)
+			if err != nil {
+				if errors.Is(err, ErrImageBillingReservationQuotaInsufficient) {
+					return errors.New("token quota is not enough")
+				}
+				return err
+			}
+		}
 
-			applied, err := reserveImageTaskTokenQuotaDB(taskID, tokenID, quota)
-			if cacheDebited && !applied {
-				if cacheErr := restoreImageReservationCacheDebit(
-					fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
-					imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
-					imageTaskTokenQuotaInvalidationKey(common.GenerateHMAC(key)),
-					constant.TokenFiledRemainQuota,
-					taskID,
-				); cacheErr != nil {
-					common.SysLog("failed to compensate image token reservation cache: " + cacheErr.Error())
-				}
+		applied, err := reserveImageTaskTokenQuotaDB(taskID, tokenID, quota)
+		if cacheDebited && !applied {
+			if cacheErr := restoreImageReservationCacheDebit(
+				fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
+				imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
+				imageTaskTokenQuotaInvalidationKey(common.GenerateHMAC(key)),
+				constant.TokenFiledRemainQuota,
+				taskID,
+			); cacheErr != nil {
+				common.SysLog("failed to compensate image token reservation cache: " + cacheErr.Error())
 			}
-			return err
-		})
+		}
+		return err
 	})
 }
 
@@ -725,7 +723,7 @@ func RefundImageTaskWalletQuota(taskID string, userID int) error {
 	if strings.TrimSpace(taskID) == "" || userID <= 0 {
 		return errors.New("task id and user id are required")
 	}
-	return withFlushedBatchQuota(BatchUpdateTypeUserQuota, userID, increaseUserQuota, func() error {
+	return withUserQuotaCacheLock(userID, func() error {
 		_, _, err := refundImageTaskWalletQuotaDB(taskID, userID)
 		if err != nil {
 			return err
@@ -764,7 +762,11 @@ func refundImageTaskWalletQuotaDB(taskID string, userID int) (bool, int, error) 
 		if amount == 0 {
 			return nil
 		}
-		walletRefund := tx.Unscoped().Model(&User{}).Where("id = ?", userID).
+		if amount < 0 || amount > common.MaxQuota {
+			return errors.New("image wallet reservation refund is out of range")
+		}
+		walletRefund := tx.Unscoped().Model(&User{}).
+			Where("id = ? AND quota <= ?", userID, common.MaxQuota-amount).
 			Update("quota", gorm.Expr("quota + ?", amount))
 		if walletRefund.Error != nil {
 			return walletRefund.Error
@@ -772,9 +774,13 @@ func refundImageTaskWalletQuotaDB(taskID string, userID int) (bool, int, error) 
 		if walletRefund.RowsAffected != 1 {
 			return errors.New("image wallet reservation refund lost")
 		}
-		if err := tx.Model(&ImageBillingReservation{}).Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationPreparing).
-			Updates(map[string]any{"wallet_reserved": 0, "updated_at": common.GetTimestamp()}).Error; err != nil {
-			return err
+		ledger := tx.Model(&ImageBillingReservation{}).Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationPreparing).
+			Updates(map[string]any{"wallet_reserved": 0, "updated_at": common.GetTimestamp()})
+		if ledger.Error != nil {
+			return ledger.Error
+		}
+		if ledger.RowsAffected != 1 {
+			return errors.New("image wallet reservation refund lost")
 		}
 		refunded = true
 		return nil
@@ -788,22 +794,20 @@ func RefundImageTaskTokenQuota(taskID string, tokenID int, key string) error {
 		return errors.New("task id, token id, and token key are required")
 	}
 	return withTokenQuotaCacheLock(key, func() error {
-		return withFlushedBatchQuota(BatchUpdateTypeTokenQuota, tokenID, increaseTokenQuota, func() error {
-			_, _, err := refundImageTaskTokenQuotaDB(taskID, tokenID)
-			if err != nil {
-				return err
-			}
-			if common.RedisEnabled {
-				return restoreImageReservationCacheDebit(
-					fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
-					imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
-					imageTaskTokenQuotaInvalidationKey(common.GenerateHMAC(key)),
-					constant.TokenFiledRemainQuota,
-					taskID,
-				)
-			}
-			return nil
-		})
+		_, _, err := refundImageTaskTokenQuotaDB(taskID, tokenID)
+		if err != nil {
+			return err
+		}
+		if common.RedisEnabled {
+			return restoreImageReservationCacheDebit(
+				fmt.Sprintf("token:%s", common.GenerateHMAC(key)),
+				imageTaskTokenQuotaPinsKey(common.GenerateHMAC(key)),
+				imageTaskTokenQuotaInvalidationKey(common.GenerateHMAC(key)),
+				constant.TokenFiledRemainQuota,
+				taskID,
+			)
+		}
+		return nil
 	})
 }
 
@@ -828,20 +832,29 @@ func refundImageTaskTokenQuotaDB(taskID string, tokenID int) (bool, int, error) 
 		if amount == 0 {
 			return nil
 		}
-		tokenRefund := tx.Unscoped().Model(&Token{}).Where("id = ?", tokenID).Updates(map[string]any{
-			"remain_quota":  gorm.Expr("remain_quota + ?", amount),
-			"used_quota":    gorm.Expr("used_quota - ?", amount),
-			"accessed_time": common.GetTimestamp(),
-		})
+		if amount < 0 || amount > common.MaxQuota {
+			return errors.New("image token reservation refund is out of range")
+		}
+		tokenRefund := tx.Unscoped().Model(&Token{}).
+			Where("id = ? AND remain_quota <= ? AND used_quota >= ?", tokenID, common.MaxQuota-amount, amount).
+			Updates(map[string]any{
+				"remain_quota":  gorm.Expr("remain_quota + ?", amount),
+				"used_quota":    gorm.Expr("used_quota - ?", amount),
+				"accessed_time": common.GetTimestamp(),
+			})
 		if tokenRefund.Error != nil {
 			return tokenRefund.Error
 		}
 		if tokenRefund.RowsAffected != 1 {
 			return errors.New("image token reservation refund lost")
 		}
-		if err := tx.Model(&ImageBillingReservation{}).Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationPreparing).
-			Updates(map[string]any{"token_reserved": 0, "updated_at": common.GetTimestamp()}).Error; err != nil {
-			return err
+		ledger := tx.Model(&ImageBillingReservation{}).Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationPreparing).
+			Updates(map[string]any{"token_reserved": 0, "updated_at": common.GetTimestamp()})
+		if ledger.Error != nil {
+			return ledger.Error
+		}
+		if ledger.RowsAffected != 1 {
+			return errors.New("image token reservation refund lost")
 		}
 		refunded = true
 		return nil
@@ -1105,24 +1118,18 @@ func RefundImageBillingReservation(taskID string, reason string) (bool, error) {
 
 	applied := false
 	refund := func() error {
-		return withFlushedImageQuotaBatches(reservation.UserID, reservation.TokenID, func() error {
-			var txErr error
-			applied, _, _, txErr = refundImageBillingReservationDB(taskID, reason)
-			if txErr != nil {
-				return txErr
-			}
-			reservation, txErr = GetImageBillingReservation(taskID)
-			if txErr != nil || reservation.Status != ImageBillingReservationRefunded {
-				return txErr
-			}
-			return reconcileRefundedImageBillingReservationCache(reservation, tokenKey)
-		})
+		var txErr error
+		applied, _, _, txErr = refundImageBillingReservationDB(taskID, reason)
+		if txErr != nil {
+			return txErr
+		}
+		reservation, txErr = GetImageBillingReservation(taskID)
+		if txErr != nil || reservation.Status != ImageBillingReservationRefunded {
+			return txErr
+		}
+		return reconcileRefundedImageBillingReservationCache(reservation, tokenKey)
 	}
-	if tokenKey != "" {
-		err = withTokenQuotaCacheLock(tokenKey, refund)
-	} else {
-		err = refund()
-	}
+	err = withImageTaskQuotaCacheLocks(reservation.UserID, tokenKey, refund)
 	if err != nil {
 		return applied, err
 	}
@@ -1157,6 +1164,10 @@ func refundImageBillingReservationDB(taskID string, reason string) (bool, int, i
 		if task.Status != TaskStatusReserving {
 			return errors.New("image billing reservation task is no longer reserving")
 		}
+		if reservation.WalletReserved < 0 || reservation.WalletReserved > common.MaxQuota ||
+			reservation.TokenReserved < 0 || reservation.TokenReserved > common.MaxQuota {
+			return errors.New("image billing reservation refund is out of range")
+		}
 
 		if reservation.SubscriptionReserved > 0 {
 			if err := refundSubscriptionPreConsumeTx(tx, reservation.RequestID); err != nil {
@@ -1164,7 +1175,8 @@ func refundImageBillingReservationDB(taskID string, reason string) (bool, int, i
 			}
 		}
 		if reservation.WalletReserved > 0 {
-			walletRefund := tx.Unscoped().Model(&User{}).Where("id = ?", reservation.UserID).
+			walletRefund := tx.Unscoped().Model(&User{}).
+				Where("id = ? AND quota <= ?", reservation.UserID, common.MaxQuota-reservation.WalletReserved).
 				Update("quota", gorm.Expr("quota + ?", reservation.WalletReserved))
 			if walletRefund.Error != nil {
 				return walletRefund.Error
@@ -1175,11 +1187,18 @@ func refundImageBillingReservationDB(taskID string, reason string) (bool, int, i
 			walletRefunded = reservation.WalletReserved
 		}
 		if reservation.TokenReserved > 0 {
-			tokenRefund := tx.Unscoped().Model(&Token{}).Where("id = ?", reservation.TokenID).Updates(map[string]any{
-				"remain_quota":  gorm.Expr("remain_quota + ?", reservation.TokenReserved),
-				"used_quota":    gorm.Expr("used_quota - ?", reservation.TokenReserved),
-				"accessed_time": common.GetTimestamp(),
-			})
+			tokenRefund := tx.Unscoped().Model(&Token{}).
+				Where(
+					"id = ? AND remain_quota <= ? AND used_quota >= ?",
+					reservation.TokenID,
+					common.MaxQuota-reservation.TokenReserved,
+					reservation.TokenReserved,
+				).
+				Updates(map[string]any{
+					"remain_quota":  gorm.Expr("remain_quota + ?", reservation.TokenReserved),
+					"used_quota":    gorm.Expr("used_quota - ?", reservation.TokenReserved),
+					"accessed_time": common.GetTimestamp(),
+				})
 			if tokenRefund.Error != nil {
 				return tokenRefund.Error
 			}

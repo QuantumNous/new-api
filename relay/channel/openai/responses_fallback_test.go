@@ -1,11 +1,13 @@
 package openai
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -20,6 +22,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type cancelOnFlushWriter struct {
+	gin.ResponseWriter
+	cancel context.CancelFunc
+}
+
+var responsesTestMu sync.Mutex
+
+func (w *cancelOnFlushWriter) Flush() {
+	w.ResponseWriter.Flush()
+	w.cancel()
+}
+
 func init() {
 	gin.SetMode(gin.TestMode)
 	// CountTextToken requires the cl100k_base tokenizer; production callers
@@ -29,6 +43,8 @@ func init() {
 
 func setupResponsesTest(t *testing.T, body io.Reader) (*gin.Context, *http.Response, *relaycommon.RelayInfo, *httptest.ResponseRecorder) {
 	t.Helper()
+	responsesTestMu.Lock()
+	t.Cleanup(responsesTestMu.Unlock)
 
 	oldTimeout := constant.StreamingTimeout
 	constant.StreamingTimeout = 30
@@ -80,10 +96,173 @@ func extractSyntheticEvent(t *testing.T, recorder *httptest.ResponseRecorder) (s
 func TestResponsesStreamCtx_ObserveTerminalEvents(t *testing.T) {
 	t.Parallel()
 
-	for _, terminal := range []string{"response.completed", "response.failed", "response.incomplete"} {
+	for _, terminal := range []string{"response.completed", "response.failed", "response.incomplete", "error"} {
 		ctx := newResponsesStreamCtx()
 		ctx.observe(dto.ResponsesStreamResponse{Type: terminal})
 		assert.True(t, ctx.seenTerminal, "%s must set seenTerminal", terminal)
+	}
+}
+
+func TestOaiResponsesStreamHandlerStopsOnErrorEvent(t *testing.T) {
+	upstreamReader, upstreamWriter := io.Pipe()
+	t.Cleanup(func() { _ = upstreamWriter.Close() })
+	writeErr := make(chan error, 1)
+	go func() {
+		_, err := io.WriteString(upstreamWriter, "data: {\"type\":\"error\",\"code\":\"invalid_prompt\",\"message\":\"prompt rejected\"}\n\n")
+		writeErr <- err
+	}()
+
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(""))
+	resp.Body = upstreamReader
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NoError(t, <-writeErr)
+	require.NotNil(t, usage)
+	assert.Contains(t, recorder.Body.String(), `"type":"error"`)
+
+	snapshot := info.StreamStatus.Snapshot()
+	assert.Equal(t, relaycommon.StreamEndReasonTerminalClientError, snapshot.EndReason)
+}
+
+func TestOaiResponsesStreamHandlerStopsAfterTerminalEvent(t *testing.T) {
+	upstreamReader, upstreamWriter := io.Pipe()
+	t.Cleanup(func() {
+		_ = upstreamWriter.Close()
+	})
+	payload := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_test","status":"completed","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`,
+		"",
+		`data: {"type":"response.output_text.delta","delta":"late event"}`,
+		"",
+	}, "\n")
+	writeErr := make(chan error, 1)
+	go func() {
+		_, err := io.WriteString(upstreamWriter, payload)
+		writeErr <- err
+	}()
+
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(""))
+	resp.Body = upstreamReader
+	constant.StreamingTimeout = 1
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NoError(t, <-writeErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 3, usage.TotalTokens)
+	assert.NotContains(t, recorder.Body.String(), "late event")
+
+	snapshot := info.StreamStatus.Snapshot()
+	assert.Equal(t, relaycommon.StreamEndReasonDone, snapshot.EndReason)
+	assert.Equal(t, "handler_done", snapshot.EndSource)
+}
+
+func TestOaiResponsesStreamHandlerTerminalFailureWinsImmediateEOF(t *testing.T) {
+	body := `data: {"type":"response.failed","response":{"id":"resp_test","status":"failed","error":{"code":"server_error","message":"upstream failed"},"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}` + "\n\n"
+	c, resp, info, _ := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 3, usage.TotalTokens)
+	assert.Equal(t, relaycommon.StreamEndReasonUpstreamFailed, info.StreamStatus.Snapshot().EndReason)
+}
+
+func TestOaiResponsesStreamHandlerTerminalWinsClientCloseAfterFlush(t *testing.T) {
+	body := `data: {"type":"response.completed","response":{"id":"resp_test","status":"completed","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}` + "\n\n"
+	c, resp, info, _ := setupResponsesTest(t, strings.NewReader(body))
+	requestCtx, cancel := context.WithCancel(c.Request.Context())
+	c.Request = c.Request.WithContext(requestCtx)
+	c.Writer = &cancelOnFlushWriter{ResponseWriter: c.Writer, cancel: cancel}
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.Snapshot().EndReason)
+}
+
+func TestOaiResponsesStreamHandlerPreservesTerminalUsageAndClassifiesFailure(t *testing.T) {
+	tests := []struct {
+		name       string
+		eventType  string
+		status     string
+		errorJSON  string
+		wantReason relaycommon.StreamEndReason
+	}{
+		{
+			name:       "incomplete is a normal terminal",
+			eventType:  "response.incomplete",
+			status:     "incomplete",
+			wantReason: relaycommon.StreamEndReasonDone,
+		},
+		{
+			name:       "failed is an upstream failure",
+			eventType:  "response.failed",
+			status:     "failed",
+			errorJSON:  `,"error":{"code":"server_error","message":"upstream failed"}`,
+			wantReason: relaycommon.StreamEndReasonUpstreamFailed,
+		},
+		{
+			name:       "invalid prompt is a terminal client error",
+			eventType:  "response.failed",
+			status:     "failed",
+			errorJSON:  `,"error":{"type":"invalid_request_error","code":"invalid_prompt","message":"prompt rejected"}`,
+			wantReason: relaycommon.StreamEndReasonTerminalClientError,
+		},
+		{
+			name:       "invalid upstream key is a channel failure",
+			eventType:  "response.failed",
+			status:     "failed",
+			errorJSON:  `,"error":{"type":"invalid_request_error","code":"invalid_api_key","message":"bad upstream key"}`,
+			wantReason: relaycommon.StreamEndReasonUpstreamFailed,
+		},
+		{
+			name:       "invalid request type classifies unknown semantic code as client error",
+			eventType:  "response.failed",
+			status:     "failed",
+			errorJSON:  `,"error":{"type":"invalid_request_error","code":"unsupported_value","message":"unsupported parameter value"}`,
+			wantReason: relaycommon.StreamEndReasonTerminalClientError,
+		},
+		{
+			name:       "unknown failure defaults to channel failure",
+			eventType:  "response.failed",
+			status:     "failed",
+			errorJSON:  `,"error":{"code":"provider_unknown_failure","message":"unknown"}`,
+			wantReason: relaycommon.StreamEndReasonUpstreamFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := fmt.Sprintf(
+				"data: {\"type\":%q,\"response\":{\"id\":\"resp_test\",\"status\":%q,\"usage\":{\"input_tokens\":11,\"output_tokens\":7,\"total_tokens\":18,\"input_tokens_details\":{\"cached_tokens\":3},\"output_tokens_details\":{\"reasoning_tokens\":5}}%s}}\n\n",
+				tt.eventType,
+				tt.status,
+				tt.errorJSON,
+			)
+			upstreamReader, upstreamWriter := io.Pipe()
+			t.Cleanup(func() { _ = upstreamWriter.Close() })
+			writeErr := make(chan error, 1)
+			go func() {
+				_, err := io.WriteString(upstreamWriter, body)
+				writeErr <- err
+			}()
+			c, resp, info, _ := setupResponsesTest(t, strings.NewReader(""))
+			resp.Body = upstreamReader
+
+			usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+			require.Nil(t, apiErr)
+			require.NoError(t, <-writeErr)
+			require.NotNil(t, usage)
+			assert.Equal(t, 11, usage.PromptTokens)
+			assert.Equal(t, 7, usage.CompletionTokens)
+			assert.Equal(t, 18, usage.TotalTokens)
+			assert.Equal(t, 3, usage.PromptTokensDetails.CachedTokens)
+			assert.Equal(t, 5, usage.CompletionTokenDetails.ReasoningTokens)
+
+			snapshot := info.StreamStatus.Snapshot()
+			assert.Equal(t, tt.wantReason, snapshot.EndReason)
+		})
 	}
 }
 

@@ -22,6 +22,10 @@ import (
 func TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure(t *testing.T) {
 	upstreamErr := types.NewErrorWithStatusCode(errors.New("do request failed"), types.ErrorCodeDoRequestFailed, http.StatusBadGateway)
 	localErr := types.NewErrorWithStatusCode(errors.New("convert request failed"), types.ErrorCodeConvertRequestFailed, http.StatusInternalServerError)
+	failedStream := relaycommon.NewStreamStatus()
+	failedStream.SetEndReason(relaycommon.StreamEndReasonUpstreamFailed, errors.New("upstream response.failed"))
+	clientTerminalStream := relaycommon.NewStreamStatus()
+	clientTerminalStream.SetEndReason(relaycommon.StreamEndReasonTerminalClientError, errors.New("invalid prompt"))
 
 	tests := []struct {
 		name         string
@@ -33,6 +37,9 @@ func TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure(t *testing.T) {
 		{name: "clean success", apiErr: nil, relayInfo: &relaycommon.RelayInfo{}, wantStatus: http.StatusOK, wantLocalErr: false},
 		{name: "nil relay info", apiErr: nil, relayInfo: nil, wantStatus: http.StatusOK, wantLocalErr: false},
 		{name: "empty upstream response", apiErr: nil, relayInfo: &relaycommon.RelayInfo{UpstreamEmptyResponse: true}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
+		{name: "upstream terminal failure", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: failedStream}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
+		{name: "client terminal failure", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: clientTerminalStream}, wantStatus: http.StatusBadRequest, wantLocalErr: false},
+		{name: "client terminal failure wins over empty usage", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: clientTerminalStream, UpstreamEmptyResponse: true}, wantStatus: http.StatusBadRequest, wantLocalErr: false},
 		{name: "upstream error wins over empty flag", apiErr: upstreamErr, relayInfo: &relaycommon.RelayInfo{UpstreamEmptyResponse: true}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
 		{name: "gateway-local error", apiErr: localErr, relayInfo: &relaycommon.RelayInfo{}, wantStatus: http.StatusInternalServerError, wantLocalErr: true},
 	}

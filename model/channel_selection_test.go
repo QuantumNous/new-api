@@ -2,11 +2,16 @@ package model
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
@@ -186,6 +191,323 @@ func TestGetRandomSatisfiedChannelExcludesAttemptedChannelOnRetry(t *testing.T) 
 	if selected == nil || selected.Id != 29 {
 		t.Fatalf("expected unattempted channel 29, got %#v", selected)
 	}
+}
+
+func TestGetRandomSatisfiedChannelPrefersDifferentHostAfterTransportFailure(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(100)
+	sharedURL := "https://SHARED.example:443/v1"
+	otherURL := "https://other.example/v1"
+	channels := map[int]*Channel{
+		17: {Id: 17, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority, BaseURL: &sharedURL},
+		29: {Id: 29, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority, BaseURL: &sharedURL},
+		41: {Id: 41, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority, BaseURL: &otherURL},
+	}
+	SetChannelCacheForTest(channels, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17, 29, 41}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		ExcludedChannelIDs:   map[int]struct{}{17: {}},
+		AvoidChannelHosts:    map[string]struct{}{"shared.example": {}},
+		AllowCoolingFallback: true,
+		Path:                 "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 41, selected.Id)
+}
+
+func TestGetRandomSatisfiedChannelFallsBackToAvoidedHostWhenNoAlternative(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(100)
+	sharedURL := "https://shared.example/v1"
+	channels := map[int]*Channel{
+		17: {Id: 17, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority, BaseURL: &sharedURL},
+		29: {Id: 29, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority, BaseURL: &sharedURL},
+	}
+	SetChannelCacheForTest(channels, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17, 29}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		ExcludedChannelIDs: map[int]struct{}{17: {}},
+		AvoidChannelHosts:  map[string]struct{}{"shared.example": {}},
+		Path:               "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 29, selected.Id)
+}
+
+func TestSelectAcquirableChannelFallsBackToAvoidedHostAfterPreferredLeaseRace(t *testing.T) {
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	preferredKey := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.5", Path: "/v1/responses"}
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		RecordChannelOutcome(preferredKey, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+	adaptiveChannelHealth.mu.Lock()
+	adaptiveChannelHealth.entries[preferredKey].openUntil = time.Now().Add(-time.Second)
+	adaptiveChannelHealth.mu.Unlock()
+	require.True(t, AcquireChannelHealth(preferredKey))
+
+	selected, err := selectAcquirableChannelWithFallback(
+		[]*Channel{{Id: 41}}, []int{100},
+		[]*Channel{{Id: 29}}, []int{100},
+		"gpt-5.5", "/v1/responses",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 29, selected.Id)
+}
+
+func TestGetRandomSatisfiedChannelKeepsPriorityAheadOfHostPreference(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	highPriority := int64(20)
+	lowPriority := int64(10)
+	weight := uint(100)
+	sharedURL := "https://shared.example/v1"
+	otherURL := "https://other.example/v1"
+	SetChannelCacheForTest(map[int]*Channel{
+		29: {Id: 29, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &highPriority, BaseURL: &sharedURL},
+		41: {Id: 41, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &lowPriority, BaseURL: &otherURL},
+	}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {29, 41}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		AvoidChannelHosts: map[string]struct{}{"shared.example": {}},
+		Path:              "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 29, selected.Id)
+}
+
+func TestGetRandomSatisfiedChannelRetryPrefersDifferentHostWithinTargetPriority(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	highPriority := int64(20)
+	targetPriority := int64(10)
+	weight := uint(100)
+	sharedURL := "https://shared.example/v1"
+	otherURL := "https://other.example/v1"
+	SetChannelCacheForTest(map[int]*Channel{
+		29: {Id: 29, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &highPriority, BaseURL: &otherURL},
+		41: {Id: 41, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &targetPriority, BaseURL: &sharedURL},
+		53: {Id: 53, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &targetPriority, BaseURL: &otherURL},
+	}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {29, 41, 53}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 1, ChannelSelectionOptions{
+		AvoidChannelHosts: map[string]struct{}{"shared.example": {}},
+		Path:              "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 53, selected.Id)
+}
+
+func TestGetChannelPrefersDifferentHostWithoutMemoryCache(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+
+	priority := int64(10)
+	weight := uint(100)
+	sharedURL := "https://shared.example/v1"
+	otherURL := "https://other.example/v1"
+	channels := []Channel{
+		{Id: 17, Type: 1, Key: "key-17", Status: common.ChannelStatusEnabled, Name: "failed", Weight: &weight, Priority: &priority, BaseURL: &sharedURL},
+		{Id: 29, Type: 1, Key: "key-29", Status: common.ChannelStatusEnabled, Name: "same-host", Weight: &weight, Priority: &priority, BaseURL: &sharedURL},
+		{Id: 41, Type: 1, Key: "key-41", Status: common.ChannelStatusEnabled, Name: "other-host", Weight: &weight, Priority: &priority, BaseURL: &otherURL},
+	}
+	require.NoError(t, DB.Create(&channels).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "default", Model: "gpt-5.5", ChannelId: 17, Enabled: true, Priority: &priority, Weight: weight},
+		{Group: "default", Model: "gpt-5.5", ChannelId: 29, Enabled: true, Priority: &priority, Weight: weight},
+		{Group: "default", Model: "gpt-5.5", ChannelId: 41, Enabled: true, Priority: &priority, Weight: weight},
+	}).Error)
+
+	selected, err := GetChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		ExcludedChannelIDs: map[int]struct{}{17: {}},
+		AvoidChannelHosts:  map[string]struct{}{"shared.example": {}},
+		Path:               "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 41, selected.Id)
+}
+
+func TestAvoidedHostLookupDoesNotOverwriteMalformedChannel(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+
+	priority := int64(10)
+	weight := uint(100)
+	baseURL := "https://malformed.example/v1"
+	channel := Channel{
+		Id:            73,
+		Type:          constant.ChannelTypeAdvancedCustom,
+		Key:           "preserve-secret-key",
+		Status:        common.ChannelStatusEnabled,
+		Name:          "preserve-name",
+		Weight:        &weight,
+		Priority:      &priority,
+		BaseURL:       &baseURL,
+		Models:        "gpt-5.5",
+		Group:         "default",
+		OtherSettings: "{malformed",
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+
+	avoided := avoidedHostChannelIDs(
+		[]Ability{{ChannelId: channel.Id}},
+		map[string]struct{}{"malformed.example": {}},
+		"/v1/responses",
+		"gpt-5.5",
+	)
+	assert.Contains(t, avoided, channel.Id)
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, channel.Id).Error)
+	assert.Equal(t, channel.Key, stored.Key)
+	assert.Equal(t, channel.Status, stored.Status)
+	assert.Equal(t, channel.Name, stored.Name)
+	assert.Equal(t, channel.Models, stored.Models)
+	assert.Equal(t, channel.Group, stored.Group)
+	assert.Equal(t, channel.OtherSettings, stored.OtherSettings)
+}
+
+func TestGetChannelUsesAdvancedCustomRouteHostWithoutMemoryCache(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+
+	priority := int64(10)
+	weight := uint(100)
+	baseA := "https://configured-a.example"
+	baseB := "https://configured-b.example"
+	channels := []Channel{
+		{Id: 81, Type: constant.ChannelTypeAdvancedCustom, Key: "key-81", Status: common.ChannelStatusEnabled, Name: "failed-real", Weight: &weight, Priority: &priority, BaseURL: &baseA, Models: "gpt-5.5", Group: "default"},
+		{Id: 82, Type: constant.ChannelTypeAdvancedCustom, Key: "key-82", Status: common.ChannelStatusEnabled, Name: "other-real", Weight: &weight, Priority: &priority, BaseURL: &baseB, Models: "gpt-5.5", Group: "default"},
+	}
+	channels[0].SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "https://failed-real.example/v1/responses"}}}})
+	channels[1].SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "https://other-real.example/v1/responses"}}}})
+	require.NoError(t, DB.Create(&channels).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "default", Model: "gpt-5.5", ChannelId: 81, Enabled: true, Priority: &priority, Weight: weight},
+		{Group: "default", Model: "gpt-5.5", ChannelId: 82, Enabled: true, Priority: &priority, Weight: weight},
+	}).Error)
+
+	selected, err := GetChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		AvoidChannelHosts: map[string]struct{}{"failed-real.example": {}},
+		RequestPath:       "/v1/responses",
+		Path:              "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 82, selected.Id)
+}
+
+func TestSelectAcquirableAbilityFallsBackToAvoidedHostAfterPreferredLeaseRace(t *testing.T) {
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	preferredKey := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.5", Path: "/v1/responses"}
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		RecordChannelOutcome(preferredKey, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+	adaptiveChannelHealth.mu.Lock()
+	adaptiveChannelHealth.entries[preferredKey].openUntil = time.Now().Add(-time.Second)
+	adaptiveChannelHealth.mu.Unlock()
+	require.True(t, AcquireChannelHealth(preferredKey))
+
+	selectedID := selectAcquirableAbilityChannelIdWithFallback(
+		[]Ability{{ChannelId: 41}}, []int{100},
+		[]Ability{{ChannelId: 29}}, []int{100},
+		"gpt-5.5", "/v1/responses",
+	)
+	assert.Equal(t, 29, selectedID)
+}
+
+func TestNormalizeChannelBaseURLHost(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "shared.example", NormalizeChannelBaseURLHost(" https://SHARED.example:443/v1 "))
+	assert.Equal(t, "shared.example", NormalizeChannelBaseURLHost("shared.example/v1"))
+	assert.Empty(t, NormalizeChannelBaseURLHost(""))
+}
+
+func TestGetRandomSatisfiedChannelUsesAdvancedCustomRouteHost(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(100)
+	baseA := "https://configured-a.example"
+	baseB := "https://configured-b.example"
+	SetChannelCacheForTest(map[int]*Channel{
+		17: {Id: 17, Type: constant.ChannelTypeAdvancedCustom, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority, BaseURL: &baseA},
+		29: {Id: 29, Type: constant.ChannelTypeAdvancedCustom, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority, BaseURL: &baseB},
+	}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17, 29}},
+	})
+	channel2advancedCustomConfig = map[int]*dto.AdvancedCustomConfig{
+		17: {Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "https://failed-real.example/v1/responses"}}},
+		29: {Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "https://other-real.example/v1/responses"}}},
+	}
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		AvoidChannelHosts: map[string]struct{}{"failed-real.example": {}},
+		RequestPath:       "/v1/responses",
+		Path:              "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 29, selected.Id)
 }
 
 func TestGetRandomSatisfiedChannelDoesNotReuseCoolingChannelOnRetry(t *testing.T) {

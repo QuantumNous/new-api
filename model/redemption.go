@@ -148,9 +148,9 @@ func Redeem(key string, userId int) (quota int, err error) {
 		keyCol = `"key"`
 	}
 	common.RandomSleep()
+	var adjustment *BillingAdjustmentOutbox
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
-		if err != nil {
+		if err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error; err != nil {
 			return errors.New("无效的兑换码")
 		}
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
@@ -159,9 +159,13 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("该兑换码已过期")
 		}
+		var user User
+		if err := tx.Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
+			return errors.New("无效的 user id")
+		}
+
 		// Compare-and-swap on status: only the transaction that flips
-		// enabled -> used may credit quota, so a concurrent redeem of the
-		// same code loses here even without a row lock (e.g. on SQLite).
+		// enabled -> used may enqueue the durable credit claim.
 		result := tx.Model(&Redemption{}).
 			Where("id = ? AND status = ?", redemption.Id, common.RedemptionCodeStatusEnabled).
 			Updates(map[string]interface{}{
@@ -175,12 +179,21 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if result.RowsAffected == 0 {
 			return errors.New("该兑换码已被使用")
 		}
-		return tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+		var enqueueErr error
+		adjustment, enqueueErr = EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
+			RequestID: fmt.Sprintf("redemption:%d", redemption.Id),
+			Phase:     BillingAdjustmentPhaseExternalCredit,
+			Leg:       BillingAdjustmentLegWallet,
+			UserID:    userId,
+			Delta:     int64(redemption.Quota),
+		}, false)
+		return enqueueErr
 	})
 	if err != nil {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, ErrRedeemFailed
 	}
+	processExternalCreditBestEffort(adjustment, "redemption")
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
 	return redemption.Quota, nil
 }

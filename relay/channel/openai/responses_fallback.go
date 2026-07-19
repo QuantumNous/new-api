@@ -32,7 +32,7 @@ import (
 // responsesStreamCtx accumulates everything we need to synthesize a faithful
 // terminal event if the upstream never sends one.
 type responsesStreamCtx struct {
-	seenTerminal     bool // response.{completed,failed,incomplete} arrived from upstream
+	seenTerminal     bool // response.{completed,failed,incomplete} or error arrived upstream
 	responseID       string
 	model            string
 	createdAt        int64
@@ -52,7 +52,7 @@ func newResponsesStreamCtx() *responsesStreamCtx {
 // is up-to-date when synthesis runs.
 func (ctx *responsesStreamCtx) observe(ev dto.ResponsesStreamResponse) {
 	switch ev.Type {
-	case "response.completed", "response.failed", "response.incomplete":
+	case "response.completed", "response.failed", "response.incomplete", "error":
 		ctx.seenTerminal = true
 	case "response.output_text.delta":
 		if ev.Delta != "" {

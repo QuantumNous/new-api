@@ -385,25 +385,23 @@ func TestImageBillingReservationRefundPreservesConcurrentUnrelatedCacheDebits(t 
 
 	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
 	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
-	require.NoError(t, cacheDecrUserQuota(user.Id, 30))
-	require.NoError(t, cacheDecrTokenQuota(token.Key, 30))
+	require.NoError(t, DecreaseUserQuotaDirect(user.Id, 30))
+	require.NoError(t, DecreaseTokenQuotaDirect(token.Id, token.Key, 30))
 
 	applied, err := RefundImageBillingReservation(task.TaskID, "submission abandoned while unrelated debits continue")
 	require.NoError(t, err)
 	require.True(t, applied)
 
-	cachedUser, err := cacheGetUserBase(user.Id)
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	assert.False(t, redisServer.Exists(getUserCacheKey(user.Id)))
+	assert.False(t, redisServer.Exists("token:"+tokenHMAC))
+
+	cachedUser, err := GetUserCache(user.Id)
 	require.NoError(t, err)
 	assert.Equal(t, 970, cachedUser.Quota)
-	cachedToken, err := cacheGetTokenByKey(token.Key)
+	cachedToken, err := GetTokenByKey(token.Key, false)
 	require.NoError(t, err)
 	assert.Equal(t, 970, cachedToken.RemainQuota)
-
-	tokenHMAC := common.GenerateHMAC(token.Key)
-	assert.True(t, redisServer.Exists(getUserCacheKey(user.Id)))
-	assert.True(t, redisServer.Exists("token:"+tokenHMAC))
-	assert.Empty(t, redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
-	assert.Empty(t, redisServer.HGet("token:"+tokenHMAC, imageReservationCacheField(task.TaskID)))
 }
 
 func TestImageBillingReservationRefundWaitsForTokenSnapshotLock(t *testing.T) {
@@ -644,6 +642,84 @@ func TestRefundImageTaskWalletQuotaDoesNotClearLedgerWhenUserIsHardDeleted(t *te
 	require.NoError(t, lookupErr)
 	assert.Equal(t, ImageBillingReservationPreparing, reservation.Status)
 	assert.Equal(t, 100, reservation.WalletReserved)
+}
+
+func TestRefundImageTaskWalletQuotaRejectsOverflowedRefundBalance(t *testing.T) {
+	user, _, task := seedPreparedImageBillingReservation(t, "wallet-refund-overflow", 100)
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", common.MaxQuota).Error)
+
+	err := RefundImageTaskWalletQuota(task.TaskID, user.Id)
+	require.ErrorContains(t, err, "image wallet reservation refund lost")
+
+	var storedUser User
+	require.NoError(t, DB.First(&storedUser, user.Id).Error)
+	assert.Equal(t, common.MaxQuota, storedUser.Quota)
+	reservation, lookupErr := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, lookupErr)
+	assert.Equal(t, ImageBillingReservationPreparing, reservation.Status)
+	assert.Equal(t, 100, reservation.WalletReserved)
+}
+
+func TestRefundImageTaskTokenQuotaRejectsUsedQuotaUnderflow(t *testing.T) {
+	_, token, task := seedPreparedImageBillingReservation(t, "token-refund-underflow", 100)
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+	require.NoError(t, DB.Model(&Token{}).Where("id = ?", token.Id).Update("used_quota", 50).Error)
+
+	err := RefundImageTaskTokenQuota(task.TaskID, token.Id, token.Key)
+	require.ErrorContains(t, err, "image token reservation refund lost")
+
+	var storedToken Token
+	require.NoError(t, DB.First(&storedToken, token.Id).Error)
+	assert.Equal(t, 900, storedToken.RemainQuota)
+	assert.Equal(t, 50, storedToken.UsedQuota)
+	reservation, lookupErr := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, lookupErr)
+	assert.Equal(t, ImageBillingReservationPreparing, reservation.Status)
+	assert.Equal(t, 100, reservation.TokenReserved)
+}
+
+func TestImageBillingReservationRefundRejectsOverflowedTokenBalance(t *testing.T) {
+	_, token, task := seedPreparedImageBillingReservation(t, "full-token-refund-overflow", 100)
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+	require.NoError(t, DB.Model(&Token{}).Where("id = ?", token.Id).Update("remain_quota", common.MaxQuota).Error)
+
+	applied, err := RefundImageBillingReservation(task.TaskID, "corrupt token refund headroom")
+	require.ErrorContains(t, err, "image token reservation refund lost")
+	assert.False(t, applied)
+
+	var storedToken Token
+	require.NoError(t, DB.First(&storedToken, token.Id).Error)
+	assert.Equal(t, common.MaxQuota, storedToken.RemainQuota)
+	assert.Equal(t, 100, storedToken.UsedQuota)
+	reservation, lookupErr := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, lookupErr)
+	assert.Equal(t, ImageBillingReservationPreparing, reservation.Status)
+	assert.Equal(t, 100, reservation.TokenReserved)
+	var storedTask Task
+	require.NoError(t, DB.First(&storedTask, task.ID).Error)
+	assert.Equal(t, TaskStatus(TaskStatusReserving), storedTask.Status)
+}
+
+func TestImageBillingReservationRefundRejectsOverflowedWalletBalance(t *testing.T) {
+	user, _, task := seedPreparedImageBillingReservation(t, "full-wallet-refund-overflow", 100)
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", common.MaxQuota).Error)
+
+	applied, err := RefundImageBillingReservation(task.TaskID, "corrupt wallet refund headroom")
+	require.ErrorContains(t, err, "image wallet reservation refund lost")
+	assert.False(t, applied)
+
+	var storedUser User
+	require.NoError(t, DB.First(&storedUser, user.Id).Error)
+	assert.Equal(t, common.MaxQuota, storedUser.Quota)
+	reservation, lookupErr := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, lookupErr)
+	assert.Equal(t, ImageBillingReservationPreparing, reservation.Status)
+	assert.Equal(t, 100, reservation.WalletReserved)
+	var storedTask Task
+	require.NoError(t, DB.First(&storedTask, task.ID).Error)
+	assert.Equal(t, TaskStatus(TaskStatusReserving), storedTask.Status)
 }
 
 func TestImageBillingReservationDoesNotClearLedgerWhenTokenIsHardDeleted(t *testing.T) {

@@ -42,6 +42,8 @@ func TestMain(m *testing.M) {
 		&ImageInputCleanup{},
 		&ImageTaskBillingLogOutbox{},
 		&ImageTaskBillingLogReceipt{},
+		&BillingAdjustmentOutbox{},
+		&Midjourney{},
 		&User{},
 		&Token{},
 		&PasskeyCredential{},
@@ -77,6 +79,8 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM image_input_cleanups")
 		DB.Exec("DELETE FROM image_task_billing_log_outboxes")
 		DB.Exec("DELETE FROM image_task_billing_log_receipts")
+		DB.Exec("DELETE FROM billing_adjustment_outboxes")
+		DB.Exec("DELETE FROM midjourneys")
 		DB.Exec("DELETE FROM tasks")
 		DB.Exec("DELETE FROM passkey_credentials")
 		DB.Exec("DELETE FROM two_fa_backup_codes")

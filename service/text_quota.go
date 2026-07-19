@@ -393,7 +393,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if summary.TotalTokens == 0 {
 		extraContent = append(extraContent, "上游没有返回 Token 计费信息（可能是上游超时）")
 		message := fmt.Sprintf("total tokens is 0, userId %d, channelId %d, tokenId %d, model %s, pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota)
-		if relayInfo.StreamStatus != nil && relayInfo.StreamStatus.Snapshot().EndReason == relaycommon.StreamEndReasonClientGone {
+		endReason := relaycommon.StreamEndReasonNone
+		if relayInfo.StreamStatus != nil {
+			endReason = relayInfo.StreamStatus.Snapshot().EndReason
+		}
+		if endReason == relaycommon.StreamEndReasonClientGone || endReason == relaycommon.StreamEndReasonTerminalClientError {
 			logger.LogInfo(ctx, message)
 		} else {
 			// Upstream returned 200 but nothing billable and no output, and the

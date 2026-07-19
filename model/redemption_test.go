@@ -104,8 +104,10 @@ func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 	t.Helper()
 	require.NoError(t, DB.AutoMigrate(&Redemption{}))
 	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	require.NoError(t, DB.Where("phase = ? AND request_id LIKE ?", BillingAdjustmentPhaseExternalCredit, "redemption:%").Delete(&BillingAdjustmentOutbox{}).Error)
 	t.Cleanup(func() {
 		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+		require.NoError(t, DB.Where("phase = ? AND request_id LIKE ?", BillingAdjustmentPhaseExternalCredit, "redemption:%").Delete(&BillingAdjustmentOutbox{}).Error)
 		DB.Exec("DELETE FROM users")
 		DB.Exec("DELETE FROM logs")
 	})

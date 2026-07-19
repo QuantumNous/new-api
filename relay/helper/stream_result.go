@@ -37,7 +37,29 @@ func (r *StreamResult) Stop(err error) {
 // Done signals that the handler has finished processing normally
 // (e.g., Dify "message_end"). The stream stops after this chunk.
 func (r *StreamResult) Done() {
-	r.status.SetEndReasonWithSource(relaycommon.StreamEndReasonDone, nil, "handler_done")
+	r.status.SetProtocolTerminalEndReasonWithSource(relaycommon.StreamEndReasonDone, nil, "handler_done")
+	r.stopped = true
+}
+
+// UpstreamFailed stops after a protocol-level terminal failure that was
+// already forwarded to the client. It must not trigger an HTTP retry, but it
+// remains distinguishable from a healthy terminal for channel scoring.
+func (r *StreamResult) UpstreamFailed(err error) {
+	if err != nil {
+		r.status.RecordError(err.Error())
+	}
+	r.status.SetProtocolTerminalEndReasonWithSource(relaycommon.StreamEndReasonUpstreamFailed, err, "upstream_terminal")
+	r.stopped = true
+}
+
+// TerminalClientError stops after a protocol-level failure caused by request
+// or content semantics. It remains visible in diagnostics without penalizing
+// the channel as an infrastructure failure.
+func (r *StreamResult) TerminalClientError(err error) {
+	if err != nil {
+		r.status.RecordError(err.Error())
+	}
+	r.status.SetProtocolTerminalEndReasonWithSource(relaycommon.StreamEndReasonTerminalClientError, err, "upstream_terminal")
 	r.stopped = true
 }
 

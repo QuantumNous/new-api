@@ -36,6 +36,53 @@ type BillingSession struct {
 	mu               sync.Mutex
 }
 
+// adjustmentSpecs translates usage deltas into durable balance mutations.
+// Positive usage consumes quota; wallet/token balances therefore receive the
+// opposite signed delta while subscription amount_used receives it directly.
+func (s *BillingSession) adjustmentSpecs(phase string, fundingUsageDelta int, tokenUsageDelta int) ([]model.BillingAdjustmentSpec, error) {
+	if s.relayInfo == nil {
+		return nil, errors.New("billing adjustment request id is required")
+	}
+	if s.relayInfo.RequestId == "" {
+		s.relayInfo.RequestId = common.NewRequestId()
+	}
+	specs := make([]model.BillingAdjustmentSpec, 0, 2)
+	if fundingUsageDelta != 0 {
+		switch funding := s.funding.(type) {
+		case *WalletFunding:
+			specs = append(specs, model.BillingAdjustmentSpec{
+				RequestID: s.relayInfo.RequestId,
+				Phase:     phase,
+				Leg:       model.BillingAdjustmentLegWallet,
+				UserID:    funding.userId,
+				Delta:     -int64(fundingUsageDelta),
+			})
+		case *SubscriptionFunding:
+			specs = append(specs, model.BillingAdjustmentSpec{
+				RequestID:      s.relayInfo.RequestId,
+				Phase:          phase,
+				Leg:            model.BillingAdjustmentLegSubscription,
+				UserID:         funding.userId,
+				SubscriptionID: funding.subscriptionId,
+				Delta:          int64(fundingUsageDelta),
+			})
+		default:
+			return nil, fmt.Errorf("unsupported funding source: %s", s.funding.Source())
+		}
+	}
+	if tokenUsageDelta != 0 && !s.relayInfo.IsPlayground {
+		specs = append(specs, model.BillingAdjustmentSpec{
+			RequestID: s.relayInfo.RequestId,
+			Phase:     phase,
+			Leg:       model.BillingAdjustmentLegToken,
+			UserID:    s.relayInfo.UserId,
+			TokenID:   s.relayInfo.TokenId,
+			Delta:     -int64(tokenUsageDelta),
+		})
+	}
+	return specs, nil
+}
+
 // Settle 根据实际消耗额度进行结算。
 // 资金来源和令牌额度分两步提交：若资金来源已提交但令牌调整失败，
 // 会标记 fundingSettled 防止 Refund 对已提交的资金来源执行退款。
@@ -47,6 +94,21 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	}
 	delta := actualQuota - s.preConsumedQuota
 	if delta == 0 {
+		s.settled = true
+		return nil
+	}
+	if s.relayInfo.BillingReservationTaskID == "" {
+		specs, err := s.adjustmentSpecs(model.BillingAdjustmentPhaseSettle, delta, delta)
+		if err != nil {
+			return err
+		}
+		if err := enqueueBillingAdjustments(specs); err != nil {
+			return fmt.Errorf("enqueue billing settlement: %w", err)
+		}
+		s.fundingSettled = true
+		if s.funding.Source() == BillingSourceSubscription {
+			s.relayInfo.SubscriptionPostDelta += int64(delta)
+		}
 		s.settled = true
 		return nil
 	}
@@ -84,6 +146,45 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	s.mu.Lock()
 	if s.settled || s.refunded || !s.needsRefundLocked() {
 		s.mu.Unlock()
+		return
+	}
+	if s.relayInfo.BillingReservationTaskID == "" {
+		fundingUsageDelta := 0
+		switch funding := s.funding.(type) {
+		case *WalletFunding:
+			fundingUsageDelta = -funding.consumed
+		case *SubscriptionFunding:
+			totalReserved := funding.preConsumed + int64(s.extraReserved)
+			if totalReserved > int64(common.MaxQuota) {
+				common.SysError(fmt.Sprintf("billing refund exceeds quota range: request_id=%s amount=%d", s.relayInfo.RequestId, totalReserved))
+				s.mu.Unlock()
+				return
+			}
+			fundingUsageDelta = -int(totalReserved)
+		default:
+			common.SysError("unsupported billing source during refund: " + s.funding.Source())
+			s.mu.Unlock()
+			return
+		}
+		tokenUsageDelta := -s.tokenConsumed
+		specs, err := s.adjustmentSpecs(model.BillingAdjustmentPhaseRefund, fundingUsageDelta, tokenUsageDelta)
+		if err != nil {
+			common.SysError("build billing refund outbox: " + err.Error())
+			s.mu.Unlock()
+			return
+		}
+		if err := enqueueBillingAdjustments(specs); err != nil {
+			common.SysError("enqueue billing refund: " + err.Error())
+			s.mu.Unlock()
+			return
+		}
+		s.refunded = true
+		s.mu.Unlock()
+		logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 已持久化返还预扣费（token_quota=%s, funding=%s）",
+			s.relayInfo.UserId,
+			logger.FormatQuota(s.tokenConsumed),
+			s.funding.Source(),
+		))
 		return
 	}
 	s.refunded = true
@@ -180,7 +281,9 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 		return err
 	}
 	if err := s.reserveToken(delta); err != nil {
-		s.rollbackFundingReserve(delta)
+		if rollbackErr := s.rollbackFundingReserve(delta); rollbackErr != nil {
+			return fmt.Errorf("%w; funding rollback enqueue failed: %v", err, rollbackErr)
+		}
 		return err
 	}
 
@@ -221,11 +324,24 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	if err := s.funding.PreConsume(effectiveQuota); err != nil {
 		// 预扣费失败，回滚令牌额度
 		if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
-			if rollbackErr := s.increaseTokenQuota(s.tokenConsumed); rollbackErr != nil {
-				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
-					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
+			var rollbackErr error
+			if s.relayInfo.BillingReservationTaskID == "" {
+				specs, specErr := s.adjustmentSpecs(model.BillingAdjustmentPhasePreConsumeRollback, 0, -s.tokenConsumed)
+				if specErr != nil {
+					rollbackErr = specErr
+				} else {
+					rollbackErr = enqueueBillingAdjustments(specs)
+				}
+			} else {
+				rollbackErr = s.increaseTokenQuota(s.tokenConsumed)
 			}
-			s.tokenConsumed = 0
+			if rollbackErr != nil {
+				common.SysLog(fmt.Sprintf("error durably rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
+					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
+				err = fmt.Errorf("%w; token rollback enqueue failed: %v", err, rollbackErr)
+			} else {
+				s.tokenConsumed = 0
+			}
 		}
 		if errors.Is(err, model.ErrImageBillingReservationQuotaInsufficient) {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
@@ -276,7 +392,20 @@ func (s *BillingSession) reserveFunding(delta int) error {
 	}
 }
 
-func (s *BillingSession) rollbackFundingReserve(delta int) {
+func (s *BillingSession) rollbackFundingReserve(delta int) error {
+	if s.relayInfo.BillingReservationTaskID == "" {
+		specs, err := s.adjustmentSpecs(model.BillingAdjustmentPhaseReserveRollback, -delta, 0)
+		if err != nil {
+			return err
+		}
+		if err := enqueueBillingAdjustments(specs); err != nil {
+			return err
+		}
+		if funding, ok := s.funding.(*WalletFunding); ok {
+			funding.consumed -= delta
+		}
+		return nil
+	}
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
 		var err error
@@ -287,13 +416,18 @@ func (s *BillingSession) rollbackFundingReserve(delta int) {
 		}
 		if err != nil {
 			common.SysLog("error rolling back wallet funding reserve: " + err.Error())
-		} else {
-			funding.consumed -= delta
+			return err
 		}
+		funding.consumed -= delta
+		return nil
 	case *SubscriptionFunding:
 		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
 			common.SysLog("error rolling back subscription funding reserve: " + err.Error())
+			return err
 		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported funding source: %s", s.funding.Source())
 	}
 }
 
@@ -336,28 +470,34 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 		return false
 	}
 
-	// 检查令牌是否充足
-	tokenTrusted := s.relayInfo.TokenUnlimited
-	if !tokenTrusted {
-		tokenQuota := c.GetInt("token_quota")
-		tokenTrusted = tokenQuota > trustQuota
-	}
-	if !tokenTrusted {
+	// Cached quota is only a fast negative filter. A failed Redis invalidation
+	// can leave an older high value behind, so the trust bypass must always be
+	// granted from durable token and wallet rows.
+	if !s.relayInfo.TokenUnlimited && c.GetInt("token_quota") <= trustQuota {
 		return false
 	}
 
-	switch s.funding.Source() {
-	case BillingSourceWallet:
-		return s.relayInfo.UserQuota > trustQuota
-	case BillingSourceSubscription:
+	if s.funding.Source() == BillingSourceSubscription {
 		// 订阅不能启用信任旁路。原因：
 		// 1. PreConsumeUserSubscription 要求 amount>0 来创建预扣记录并锁定订阅
 		// 2. SubscriptionFunding.PreConsume 忽略参数，始终用 s.amount 预扣
 		// 3. 若信任旁路将 effectiveQuota 设为 0，会导致 preConsumedQuota 与实际订阅预扣不一致
 		return false
-	default:
+	}
+	if s.funding.Source() != BillingSourceWallet || s.relayInfo.UserQuota <= trustQuota {
 		return false
 	}
+
+	token, err := model.GetTokenByKey(s.relayInfo.TokenKey, true)
+	if err != nil || token == nil || token.Status != common.TokenStatusEnabled {
+		return false
+	}
+	if !token.UnlimitedQuota && token.RemainQuota <= trustQuota {
+		return false
+	}
+
+	userQuota, err := model.GetUserQuota(s.relayInfo.UserId, true)
+	return err == nil && userQuota > trustQuota
 }
 
 // syncRelayInfo 将 BillingSession 的状态同步到 RelayInfo 的兼容字段上。
