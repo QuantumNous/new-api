@@ -1642,6 +1642,8 @@ func buildGeminiImagineRequestFromImage(request dto.ImageRequest) *dto.GeminiCha
 
 // GeminiImagineContentHandler parses a generateContent response (inlineData image
 // parts) and returns it in the OpenAI /v1/images/generations shape (b64_json).
+// It also caches the image locally and sets "image_result_url" on the context so
+// the admin log can show a preview thumbnail (same as gpt-image-2 / other image channels).
 func GeminiImagineContentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
@@ -1679,6 +1681,15 @@ func GeminiImagineContentHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	if jsonErr != nil {
 		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
 	}
+
+	// Cache b64 image locally → apimaster.ai CDN URL so the admin log can show a
+	// thumbnail preview (same behaviour as gpt-image-2 and other image channels).
+	rewritten := service.RewriteImageResponseBodyWithHeaders(jsonResponse, nil)
+	if resultURL := service.ExtractFirstImageURLFromResponse(rewritten); resultURL != "" {
+		c.Set("image_result_url", resultURL)
+		jsonResponse = rewritten
+	}
+
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(http.StatusOK)
 	_, _ = c.Writer.Write(jsonResponse)
