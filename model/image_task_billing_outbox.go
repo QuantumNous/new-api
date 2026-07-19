@@ -486,6 +486,8 @@ func markImageTaskBillingLogOutboxDelivered(outbox *ImageTaskBillingLogOutbox) e
 			"lease_until":  0,
 			"delivered_at": now,
 			"updated_at":   now,
+			"content":      "",
+			"other":        "",
 			"last_error":   "",
 		})
 	if result.Error != nil {
