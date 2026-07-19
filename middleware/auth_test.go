@@ -222,3 +222,102 @@ func TestAdminAuthRejectsDeletedSessionUser(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 	require.False(t, handlerCalled)
 }
+
+func TestAdminAuthDoesNotTrustSessionRoleWhenCacheLacksRole(t *testing.T) {
+	// Session cookie claims admin; DB user is demoted to common. Even if a
+	// cache snapshot returns Role==0 (pre-Role schema), auth must not restore
+	// the cookie role — fail closed by reloading from DB.
+	db := setupTokenOrUserAuthTestDB(t)
+	user := &model.User{
+		Id:       106,
+		Username: "demoted-user",
+		Password: "not-used-in-test",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("admin-auth-role-test"))))
+	router.GET("/login", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("id", user.Id)
+		session.Set("username", user.Username)
+		session.Set("role", common.RoleAdminUser) // stale elevated cookie
+		session.Set("status", common.UserStatusEnabled)
+		session.Set("group", "default")
+		require.NoError(t, session.Save())
+		c.Status(http.StatusNoContent)
+	})
+	handlerCalled := false
+	var gotRole, gotStatus int
+	router.GET("/admin", AdminAuth(), func(c *gin.Context) {
+		handlerCalled = true
+		gotRole = c.GetInt("role")
+		gotStatus = c.GetInt("status")
+		c.Status(http.StatusNoContent)
+	})
+
+	cookies := tokenOrUserAuthSessionCookies(t, router, user.Id)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	request.Header.Set("New-Api-User", fmt.Sprintf("%d", user.Id))
+	for _, sessionCookie := range cookies {
+		request.AddCookie(sessionCookie)
+	}
+	router.ServeHTTP(recorder, request)
+
+	// Demoted user must not pass AdminAuth.
+	require.Equal(t, http.StatusOK, recorder.Code) // authHelper returns 200 + success:false
+	require.False(t, handlerCalled)
+	require.Contains(t, recorder.Body.String(), "false")
+	_ = gotRole
+	_ = gotStatus
+}
+
+func TestUserAuthPropagatesStatusIntoContext(t *testing.T) {
+	db := setupTokenOrUserAuthTestDB(t)
+	user := &model.User{
+		Id:       107,
+		Username: "status-user",
+		Password: "not-used-in-test",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "premium",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("user-auth-status-test"))))
+	router.GET("/login", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("id", user.Id)
+		session.Set("username", "stale-name")
+		session.Set("role", common.RoleCommonUser)
+		session.Set("status", common.UserStatusEnabled)
+		session.Set("group", "default")
+		require.NoError(t, session.Save())
+		c.Status(http.StatusNoContent)
+	})
+	router.GET("/me", UserAuth(), func(c *gin.Context) {
+		require.Equal(t, user.Username, c.GetString("username"))
+		require.Equal(t, user.Role, c.GetInt("role"))
+		require.Equal(t, user.Status, c.GetInt("status"))
+		require.Equal(t, user.Group, c.GetString("user_group"))
+		c.Status(http.StatusNoContent)
+	})
+
+	cookies := tokenOrUserAuthSessionCookies(t, router, user.Id)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/me", nil)
+	request.Header.Set("New-Api-User", fmt.Sprintf("%d", user.Id))
+	for _, sessionCookie := range cookies {
+		request.AddCookie(sessionCookie)
+	}
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNoContent, recorder.Code)
+}

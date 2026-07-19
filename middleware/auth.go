@@ -189,11 +189,18 @@ func authHelper(c *gin.Context, minRole int) {
 				return
 			}
 		} else {
-			username = full.Username
-			// Prefer cached role; fall back to session only if cache is pre-Role schema.
-			if full.Role != 0 {
-				role = full.Role
+			// Authorization always comes from cache/DB snapshot - never fall
+			// back to session role/status. A pre-Role Redis entry leaves Role==0
+			// (zero value); treat that as stale and force a DB reload so we do
+			// not restore a cookie's potentially elevated administrator role.
+			if full.Role == 0 && model.DB != nil {
+				_ = model.InvalidateUserCache(asIntID(id))
+				if dbUser, dbErr := model.GetUserById(asIntID(id), false); dbErr == nil && dbUser != nil {
+					full = dbUser.ToBaseUser()
+				}
 			}
+			username = full.Username
+			role = full.Role
 			status = full.Status
 			userGroup = full.Group
 		}
@@ -234,6 +241,7 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
 	c.Set("username", username)
 	c.Set("role", role)
+	c.Set("status", status)
 	c.Set("id", id)
 	c.Set("group", userGroup)
 	c.Set("user_group", userGroup)
