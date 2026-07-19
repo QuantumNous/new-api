@@ -120,6 +120,45 @@ func TestGetChannelPreferMeasuredFastWithoutMemoryCache(t *testing.T) {
 	}
 }
 
+func TestGetChannelPreferMeasuredFastRespectsZeroWeightWithoutMemoryCache(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	priority := int64(10)
+	zeroWeight := uint(0)
+	activeWeight := uint(100)
+	const modelName = "gpt-5.6-sol-db-affinity-weight"
+	channels := []Channel{
+		{Id: 817, Type: 1, Key: "key-817", Status: common.ChannelStatusEnabled, Name: "fast-zero-weight", Weight: &zeroWeight, Priority: &priority, Models: modelName, Group: "default"},
+		{Id: 841, Type: 1, Key: "key-841", Status: common.ChannelStatusEnabled, Name: "slow-active", Weight: &activeWeight, Priority: &priority, Models: modelName, Group: "default"},
+	}
+	require.NoError(t, DB.Create(&channels).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "default", Model: modelName, ChannelId: 817, Enabled: true, Priority: &priority, Weight: zeroWeight},
+		{Group: "default", Model: modelName, ChannelId: 841, Enabled: true, Priority: &priority, Weight: activeWeight},
+	}).Error)
+
+	for i := 0; i < 6; i++ {
+		RecordChannelOutcome(ChannelHealthKey{ChannelID: 817, Model: modelName, Path: "/v1/responses"}, ChannelOutcome{StatusCode: 200, Latency: 1500 * time.Millisecond})
+		RecordChannelOutcome(ChannelHealthKey{ChannelID: 841, Model: modelName, Path: "/v1/responses"}, ChannelOutcome{StatusCode: 200, Latency: 6 * time.Second})
+	}
+
+	selected, err := GetChannelWithOptions("default", modelName, 0, ChannelSelectionOptions{
+		Path:               "/v1/responses",
+		PreferMeasuredFast: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 841, selected.Id, "the DB selector must not make a zero-weight fast channel exclusive")
+}
+
 func TestGetRandomSatisfiedChannelSkipsOpenHealthKey(t *testing.T) {
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
@@ -242,6 +281,38 @@ func TestSelectAcquirableChannelFallsBackWhenInitialPickLosesAcquireRace(t *test
 			t.Fatalf("attempt %d: selected = %#v, want channel 17", i, selected)
 		}
 	}
+}
+
+func TestFastPreferenceFallsBackWhenFastLeaseIsLost(t *testing.T) {
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	fast := &Channel{Id: 917}
+	slow := &Channel{Id: 941}
+	key := ChannelHealthKey{ChannelID: fast.Id, Model: "gpt-5.6-sol-fast-race", Path: "/v1/responses"}
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		RecordChannelOutcome(key, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+	adaptiveChannelHealth.mu.Lock()
+	adaptiveChannelHealth.entries[key].openUntil = time.Now().Add(-time.Second)
+	adaptiveChannelHealth.mu.Unlock()
+	require.True(t, AcquireChannelHealth(key), "setup should consume the fast channel's half-open probe lease")
+
+	selected, err := selectAcquirableChannelWithFastFallback(
+		[]*Channel{fast}, []int{100},
+		[]*Channel{fast, slow}, []int{100, 100},
+		nil, nil,
+		nil, nil,
+		"gpt-5.6-sol-fast-race", "/v1/responses",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, slow.Id, selected.Id, "losing the fast lease must fall back to the original viable pool")
 }
 
 func TestGetRandomSatisfiedChannelExcludesAttemptedChannelOnRetry(t *testing.T) {
