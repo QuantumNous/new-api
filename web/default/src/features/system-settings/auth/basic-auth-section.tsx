@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Form,
   FormControl,
@@ -33,7 +35,9 @@ import {
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useStatus } from '@/hooks/use-status'
 
+import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -62,7 +66,9 @@ type BasicAuthSectionProps = {
 
 export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
   const updateOption = useUpdateOption()
+  const [saveConfirmed, setSaveConfirmed] = useState(false)
 
   const formDefaults = useMemo<BasicAuthFormValues>(
     () => ({
@@ -81,6 +87,9 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
   })
 
   useResetForm(form, formDefaults)
+
+  const registrationEnabled = form.watch('RegisterEnabled')
+  const selfUseModeEnabled = Boolean(status?.self_use_mode_enabled)
 
   const onSubmit = async (data: BasicAuthFormValues) => {
     const updates: Array<{ key: string; value: string | boolean }> = []
@@ -101,9 +110,18 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
       }
     })
 
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
+    if (updates.length === 0) {
+      toast.info(t('No changes to save'))
+      return
     }
+
+    for (const update of updates) {
+      const result = await updateOption.mutateAsync(update)
+      if (!result.success) return
+    }
+
+    form.reset(data)
+    setSaveConfirmed(true)
   }
 
   return (
@@ -113,7 +131,22 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
+            saveLabel={
+              saveConfirmed && !form.formState.isDirty
+                ? 'Saved'
+                : 'Save Changes'
+            }
           />
+          <FormDirtyIndicator isDirty={form.formState.isDirty} />
+          {selfUseModeEnabled && registrationEnabled && (
+            <Alert>
+              <AlertDescription>
+                {t(
+                  'Self-Use Mode hides public registration. Disable it under System Behavior to show the registration entry.'
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
           <FormField
             control={form.control}
             name='PasswordLoginEnabled'

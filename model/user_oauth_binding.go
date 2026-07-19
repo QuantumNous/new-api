@@ -95,7 +95,11 @@ func CreateUserOAuthBindingWithTx(tx *gorm.DB, binding *UserOAuthBinding) error 
 
 	// Check if this provider user ID is already taken (use tx to check within the same transaction)
 	var count int64
-	tx.Model(&UserOAuthBinding{}).Where("provider_id = ? AND provider_user_id = ?", binding.ProviderId, binding.ProviderUserId).Count(&count)
+	if err := tx.Model(&UserOAuthBinding{}).
+		Where("provider_id = ? AND provider_user_id = ?", binding.ProviderId, binding.ProviderUserId).
+		Count(&count).Error; err != nil {
+		return err
+	}
 	if count > 0 {
 		return errors.New("this OAuth account is already bound to another user")
 	}

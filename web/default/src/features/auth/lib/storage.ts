@@ -30,6 +30,11 @@ const STORAGE_KEYS = {
   STATUS: 'status',
 } as const
 
+const LEGACY_INVITATION_CODE_STORAGE_KEYS = [
+  'registration:invitation-code',
+  'invitation_code',
+] as const
+
 // ============================================================================
 // User ID Storage
 // ============================================================================
@@ -102,5 +107,20 @@ export function saveAffiliateCode(code: string): void {
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save affiliate code:', error)
+  }
+}
+
+// ============================================================================
+// Legacy Registration Invitation Code Cleanup
+// ============================================================================
+
+export function clearLegacyInvitationCodeStorage(): void {
+  if (typeof window === 'undefined') return
+  try {
+    LEGACY_INVITATION_CODE_STORAGE_KEYS.forEach((key) => {
+      window.localStorage.removeItem(key)
+    })
+  } catch {
+    /* empty */
   }
 }

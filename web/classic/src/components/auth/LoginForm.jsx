@@ -39,6 +39,7 @@ import {
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
+  wechatLoginByCode,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import {
@@ -189,9 +190,7 @@ const LoginForm = () => {
     }
     setWechatCodeSubmitLoading(true);
     try {
-      const res = await API.get(
-        `/api/oauth/wechat?code=${inputs.wechat_verification_code}`,
-      );
+      const res = await wechatLoginByCode(inputs.wechat_verification_code);
       const { success, message, data } = res.data;
       if (success) {
         userDispatch({ type: 'login', payload: data });

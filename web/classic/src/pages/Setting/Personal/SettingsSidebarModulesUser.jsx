@@ -106,6 +106,7 @@ export default function SettingsSidebarModulesUser() {
         models: isSidebarModuleAllowed('admin', 'models'),
         deployment: isSidebarModuleAllowed('admin', 'deployment'),
         redemption: isSidebarModuleAllowed('admin', 'redemption'),
+        invitation: isSidebarModuleAllowed('admin', 'invitation'),
         user: isSidebarModuleAllowed('admin', 'user'),
         setting: isSidebarModuleAllowed('admin', 'setting'),
       };
@@ -247,6 +248,12 @@ export default function SettingsSidebarModulesUser() {
               });
             }
           });
+          if (isSidebarSectionAllowed('admin')) {
+            filteredUserConf.admin = {
+              invitation: isSidebarModuleAllowed('admin', 'invitation'),
+              ...(filteredUserConf.admin || {}),
+            };
+          }
           setSidebarModulesUser(filteredUserConf);
           console.log('权限过滤后的用户配置:', filteredUserConf);
         } else {
@@ -348,6 +355,11 @@ export default function SettingsSidebarModulesUser() {
           key: 'redemption',
           title: t('兑换码管理'),
           description: t('兑换码生成管理'),
+        },
+        {
+          key: 'invitation',
+          title: t('注册邀请码'),
+          description: t('注册邀请码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
         {

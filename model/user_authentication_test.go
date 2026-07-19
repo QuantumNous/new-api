@@ -24,6 +24,7 @@ func TestHardDeleteUserPurgesAuthenticationDataWhenRedisFails(t *testing.T) {
 	require.NoError(t, DB.Create(&TwoFABackupCode{UserId: user.Id, CodeHash: "hash"}).Error)
 	require.NoError(t, DB.Create(&PasskeyCredential{UserID: user.Id, CredentialID: "credential", PublicKey: "public-key"}).Error)
 	require.NoError(t, DB.Create(&UserOAuthBinding{UserId: user.Id, ProviderId: 1, ProviderUserId: "provider-user"}).Error)
+	require.NoError(t, EnsureAuthIdentity(user.Id, AuthIdentityProviderGitHub, "github-user"))
 
 	oldRedisEnabled, oldRDB := common.RedisEnabled, common.RDB
 	common.RedisEnabled = true
@@ -54,6 +55,7 @@ func TestHardDeleteUserPurgesAuthenticationDataWhenRedisFails(t *testing.T) {
 		&TwoFA{},
 		&TwoFABackupCode{},
 		&PasskeyCredential{},
+		&AuthIdentity{},
 		&UserOAuthBinding{},
 	} {
 		require.NoError(t, DB.Unscoped().Model(record).Where("user_id = ?", user.Id).Count(&count).Error)

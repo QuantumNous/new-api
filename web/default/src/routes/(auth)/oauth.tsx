@@ -22,6 +22,7 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { wechatLoginByCode } from '@/features/auth/api'
+import { clearLegacyInvitationCodeStorage } from '@/features/auth/lib/storage'
 import { getSelf } from '@/lib/api'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
@@ -37,6 +38,7 @@ function OAuthComponent() {
   useEffect(() => {
     ;(async () => {
       try {
+        clearLegacyInvitationCodeStorage()
         if (search?.provider === 'wechat' && search.code) {
           await wechatLoginByCode(search.code)
         }

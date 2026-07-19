@@ -1,8 +1,11 @@
 package model
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -13,11 +16,82 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
+}
+
+const (
+	InvitationCodeRequiredOptionKey = "InvitationCodeRequired"
+	InvitationCodeMethodsOptionKey  = "InvitationCodeMethods"
+)
+
+var (
+	ErrInvitationCodeOptionRequiresAtomicUpdate = errors.New("invitation code settings must be updated through the atomic invitation-code endpoint")
+	ErrInvitationCodeSettingsUnavailable        = errors.New("authoritative invitation code settings are unavailable")
+	ErrInvalidOptionKey                         = errors.New("option key contains unsupported characters")
+	invitationCodeOptionUpdateMutex             sync.Mutex
+)
+
+func invitationCodeOptionKeysInLockOrder() []string {
+	return []string{
+		InvitationCodeRequiredOptionKey,
+		InvitationCodeMethodsOptionKey,
+	}
+}
+
+func IsInvitationCodeOptionKey(key string) bool {
+	normalized, ok := normalizeProtectedOptionKey(key)
+	if !ok {
+		return false
+	}
+	return normalized == "invitationcoderequired" || normalized == "invitationcodemethods"
+}
+
+// normalizeProtectedOptionKey approximates the equivalences used by common
+// case-insensitive MySQL collations for ASCII option keys. Punctuation that is
+// valid in ordinary option names is ignored here so a collation cannot make a
+// look-alike key update one of the protected invitation rows.
+func normalizeProtectedOptionKey(key string) (string, bool) {
+	key = strings.TrimSpace(key)
+	var normalized strings.Builder
+	normalized.Grow(len(key))
+	for index := 0; index < len(key); index++ {
+		character := key[index]
+		switch {
+		case character >= 'A' && character <= 'Z':
+			normalized.WriteByte(character + ('a' - 'A'))
+		case character >= 'a' && character <= 'z':
+			normalized.WriteByte(character)
+		case character >= '0' && character <= '9':
+			normalized.WriteByte(character)
+		case character == '.' || character == '_' || character == '-':
+			continue
+		default:
+			return "", false
+		}
+	}
+	return normalized.String(), true
+}
+
+func validateOptionKey(key string) error {
+	if key == "" {
+		return ErrInvalidOptionKey
+	}
+	for index := 0; index < len(key); index++ {
+		character := key[index]
+		if (character >= 'A' && character <= 'Z') ||
+			(character >= 'a' && character <= 'z') ||
+			(character >= '0' && character <= '9') ||
+			character == '.' || character == '_' || character == '-' {
+			continue
+		}
+		return ErrInvalidOptionKey
+	}
+	return nil
 }
 
 func AllOption() ([]*Option, error) {
@@ -27,7 +101,54 @@ func AllOption() ([]*Option, error) {
 	return options, err
 }
 
+func ensureInvitationCodeOptionRows(options []*Option) ([]*Option, error) {
+	found := make(map[string]bool, 2)
+	for _, option := range options {
+		normalized, ok := normalizeProtectedOptionKey(option.Key)
+		if ok {
+			found[normalized] = true
+		}
+	}
+	if found["invitationcoderequired"] && found["invitationcodemethods"] {
+		return options, nil
+	}
+
+	defaults := common.DefaultInvitationCodeSettings()
+	methodsJSON, err := common.Marshal(defaults.Methods)
+	if err != nil {
+		return nil, err
+	}
+	defaultValues := map[string]string{
+		InvitationCodeRequiredOptionKey: strconv.FormatBool(defaults.Required),
+		InvitationCodeMethodsOptionKey:  string(methodsJSON),
+	}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		for _, key := range invitationCodeOptionKeysInLockOrder() {
+			option := &Option{Key: key, Value: defaultValues[key]}
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(option).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return AllOption()
+}
+
 func InitOptionMap() {
+	invitationCodeOptionUpdateMutex.Lock()
+	defer invitationCodeOptionUpdateMutex.Unlock()
+
+	invitationSettings := common.GetInvitationCodeSettings()
+	invitationMethodsJSON := "[]"
+	if encodedMethods, err := common.Marshal(invitationSettings.Methods); err != nil {
+		common.SysError("failed to encode invitation code settings: " + err.Error())
+	} else {
+		invitationMethodsJSON = string(encodedMethods)
+	}
+
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap = make(map[string]string)
 
@@ -45,6 +166,8 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
+	common.OptionMap[InvitationCodeRequiredOptionKey] = strconv.FormatBool(invitationSettings.Required)
+	common.OptionMap[InvitationCodeMethodsOptionKey] = invitationMethodsJSON
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
@@ -183,41 +306,294 @@ func InitOptionMap() {
 	}
 
 	common.OptionMapRWMutex.Unlock()
-	loadOptionsFromDatabase()
+	if err := loadOptionsFromDatabaseLocked(); err != nil {
+		common.SysError("failed to load options from database: " + err.Error())
+	}
 }
 
-func loadOptionsFromDatabase() {
-	options, _ := AllOption()
+func loadOptionsFromDatabase() error {
+	invitationCodeOptionUpdateMutex.Lock()
+	defer invitationCodeOptionUpdateMutex.Unlock()
+	return loadOptionsFromDatabaseLocked()
+}
+
+func loadOptionsFromDatabaseLocked() error {
+	options, err := AllOption()
+	if err != nil {
+		return err
+	}
+	options, err = ensureInvitationCodeOptionRows(options)
+	if err != nil {
+		return err
+	}
+	invitationSettings, repairLegacyEmptyMethods, invitationErr := invitationCodeSettingsFromOptions(options)
+
 	for _, option := range options {
+		if IsInvitationCodeOptionKey(option.Key) {
+			continue
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
+
+	if invitationErr != nil {
+		return fmt.Errorf("invalid invitation code settings in database: %w", invitationErr)
+	}
+	var repairPersistenceErr error
+	if repairLegacyEmptyMethods {
+		repairedSettings, repaired, err := repairLegacyInvitationCodeSettings()
+		if err != nil {
+			common.SysError("failed to persist repaired invitation code settings: " + err.Error())
+			repairPersistenceErr = err
+		} else {
+			invitationSettings = repairedSettings
+			if repaired {
+				common.SysLog("invitation code settings had required=true with no methods; repaired methods to [linuxdo]")
+			}
+		}
+	}
+	if err := applyInvitationCodeSettings(invitationSettings); err != nil {
+		return err
+	}
+	if repairPersistenceErr != nil {
+		return fmt.Errorf("failed to persist repaired invitation code settings: %w", repairPersistenceErr)
+	}
+	return nil
 }
 
 func SyncOptions(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
 		common.SysLog("syncing options from database")
-		loadOptionsFromDatabase()
+		if err := loadOptionsFromDatabase(); err != nil {
+			common.SysError("failed to sync options from database: " + err.Error())
+		}
 	}
 }
 
 func UpdateOption(key string, value string) error {
-	// Save to database first
-	option := Option{
-		Key: key,
+	if IsInvitationCodeOptionKey(key) {
+		return ErrInvitationCodeOptionRequiresAtomicUpdate
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
+	if err := validateOptionKey(key); err != nil {
+		return err
+	}
+	if err := saveOption(DB, key, value); err != nil {
+		return err
+	}
 	// Update OptionMap
 	return updateOptionMap(key, value)
+}
+
+func UpdateInvitationCodeSettings(required bool, methods []string) (common.InvitationCodeSettings, error) {
+	settings, err := common.NormalizeInvitationCodeSettings(required, methods)
+	if err != nil {
+		return common.InvitationCodeSettings{}, err
+	}
+
+	invitationCodeOptionUpdateMutex.Lock()
+	defer invitationCodeOptionUpdateMutex.Unlock()
+	if err := persistInvitationCodeSettings(settings); err != nil {
+		return common.InvitationCodeSettings{}, err
+	}
+	if err := applyInvitationCodeSettings(settings); err != nil {
+		return common.InvitationCodeSettings{}, err
+	}
+	return settings, nil
+}
+
+func invitationCodeSettingsFromOptions(options []*Option) (common.InvitationCodeSettings, bool, error) {
+	settings := common.DefaultInvitationCodeSettings()
+	methodsFound := false
+	for _, option := range options {
+		normalizedKey, ok := normalizeProtectedOptionKey(option.Key)
+		if !ok {
+			continue
+		}
+		switch normalizedKey {
+		case "invitationcoderequired":
+			required, err := strconv.ParseBool(strings.TrimSpace(option.Value))
+			if err != nil {
+				return common.InvitationCodeSettings{}, false, fmt.Errorf("invalid %s value: %w", InvitationCodeRequiredOptionKey, err)
+			}
+			settings.Required = required
+		case "invitationcodemethods":
+			methodsFound = true
+			methods, err := common.ParseInvitationCodeMethodsJSON(option.Value)
+			if err != nil {
+				return common.InvitationCodeSettings{}, false, fmt.Errorf("invalid %s value: %w", InvitationCodeMethodsOptionKey, err)
+			}
+			settings.Methods = methods
+		}
+	}
+
+	repairLegacyEmptyMethods := settings.Required && (!methodsFound || len(settings.Methods) == 0)
+	if repairLegacyEmptyMethods {
+		settings.Methods = common.DefaultInvitationCodeSettings().Methods
+	}
+	normalized, err := common.NormalizeInvitationCodeSettings(settings.Required, settings.Methods)
+	if err != nil {
+		return common.InvitationCodeSettings{}, false, err
+	}
+	return normalized, repairLegacyEmptyMethods, nil
+}
+
+func persistInvitationCodeSettings(settings common.InvitationCodeSettings) error {
+	methodsJSON, err := common.Marshal(settings.Methods)
+	if err != nil {
+		return err
+	}
+	values := map[string]string{
+		InvitationCodeRequiredOptionKey: strconv.FormatBool(settings.Required),
+		InvitationCodeMethodsOptionKey:  string(methodsJSON),
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		for _, key := range invitationCodeOptionKeysInLockOrder() {
+			if err := saveOption(tx, key, values[key]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func invitationCodeSettingsWithTx(tx *gorm.DB, lockRows bool) (common.InvitationCodeSettings, error) {
+	if tx == nil {
+		return common.InvitationCodeSettings{}, errors.New("database transaction is required")
+	}
+	options := make([]*Option, 0, 2)
+	found := make(map[string]bool, 2)
+	for _, key := range invitationCodeOptionKeysInLockOrder() {
+		option := &Option{}
+		query := tx.Where(map[string]any{"key": key})
+		if lockRows {
+			query = lockForShare(query)
+		}
+		err := query.Take(option).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			continue
+		}
+		if err != nil {
+			return common.InvitationCodeSettings{}, err
+		}
+		options = append(options, option)
+		if normalizedKey, ok := normalizeProtectedOptionKey(option.Key); ok {
+			found[normalizedKey] = true
+		}
+	}
+	if !found["invitationcoderequired"] || !found["invitationcodemethods"] {
+		return common.InvitationCodeSettings{}, ErrInvitationCodeSettingsUnavailable
+	}
+	settings, _, err := invitationCodeSettingsFromOptions(options)
+	if err != nil {
+		return common.InvitationCodeSettings{}, fmt.Errorf("%w: %v", ErrInvitationCodeSettingsUnavailable, err)
+	}
+	return settings, nil
+}
+
+func GetInvitationCodeSettingsFromDatabase() (common.InvitationCodeSettings, error) {
+	if DB == nil {
+		return common.InvitationCodeSettings{}, errors.New("database is not initialized")
+	}
+	settings := common.InvitationCodeSettings{}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		settings, err = invitationCodeSettingsWithTx(tx, false)
+		return err
+	})
+	return settings, err
+}
+
+// WithInvitationCodeSettingsTransaction holds the authoritative invitation
+// settings rows for the lifetime of a registration transaction. This makes an
+// administrator's completed configuration update a hard admission boundary
+// across application instances instead of relying on periodic in-memory sync.
+func WithInvitationCodeSettingsTransaction(fn func(tx *gorm.DB, settings common.InvitationCodeSettings) error) error {
+	if fn == nil {
+		return errors.New("invitation settings transaction callback is required")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		settings, err := invitationCodeSettingsWithTx(tx, true)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvitationCodeSettingsUnavailable, err)
+		}
+		return fn(tx, settings)
+	})
+}
+
+// repairLegacyInvitationCodeSettings re-reads and locks the invitation pair
+// before repairing it. Another instance may have committed a newer atomic pair
+// after this process observed the legacy snapshot; in that case the newer pair
+// is returned unchanged instead of being overwritten by the fallback repair.
+func repairLegacyInvitationCodeSettings() (common.InvitationCodeSettings, bool, error) {
+	effectiveSettings := common.DefaultInvitationCodeSettings()
+	repaired := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		options := make([]*Option, 0, 2)
+		for _, key := range []string{
+			InvitationCodeRequiredOptionKey,
+			InvitationCodeMethodsOptionKey,
+		} {
+			option := &Option{}
+			err := lockForUpdate(tx).Where(map[string]any{"key": key}).Take(option).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			options = append(options, option)
+		}
+
+		settings, stillLegacy, err := invitationCodeSettingsFromOptions(options)
+		if err != nil {
+			return err
+		}
+		effectiveSettings = settings
+		if !stillLegacy {
+			return nil
+		}
+
+		methodsJSON, err := common.Marshal(settings.Methods)
+		if err != nil {
+			return err
+		}
+		if err := saveOption(tx, InvitationCodeMethodsOptionKey, string(methodsJSON)); err != nil {
+			return err
+		}
+		repaired = true
+		return nil
+	})
+	return effectiveSettings, repaired, err
+}
+
+func applyInvitationCodeSettings(settings common.InvitationCodeSettings) error {
+	methodsJSON, err := common.Marshal(settings.Methods)
+	if err != nil {
+		return err
+	}
+
+	common.OptionMapRWMutex.Lock()
+	defer common.OptionMapRWMutex.Unlock()
+	if _, err := common.ApplyInvitationCodeSettings(settings.Required, settings.Methods); err != nil {
+		return err
+	}
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	common.OptionMap[InvitationCodeRequiredOptionKey] = strconv.FormatBool(settings.Required)
+	common.OptionMap[InvitationCodeMethodsOptionKey] = string(methodsJSON)
+	return nil
+}
+
+func saveOption(db *gorm.DB, key string, value string) error {
+	option := Option{Key: key, Value: value}
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "key"}},
+		DoUpdates: clause.AssignmentColumns([]string{"value"}),
+	}).Create(&option).Error
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
@@ -229,14 +605,17 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	for key := range values {
+		if IsInvitationCodeOptionKey(key) {
+			return ErrInvitationCodeOptionRequiresAtomicUpdate
+		}
+		if err := validateOptionKey(key); err != nil {
+			return err
+		}
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
-			option := Option{Key: k}
-			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
-				return err
-			}
-			option.Value = v
-			if err := tx.Save(&option).Error; err != nil {
+			if err := saveOption(tx, k, v); err != nil {
 				return err
 			}
 		}
@@ -254,6 +633,12 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if IsInvitationCodeOptionKey(key) {
+		return ErrInvitationCodeOptionRequiresAtomicUpdate
+	}
+	if err := validateOptionKey(key); err != nil {
+		return err
+	}
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value

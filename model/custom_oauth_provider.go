@@ -70,6 +70,10 @@ func (CustomOAuthProvider) TableName() string {
 	return "custom_oauth_providers"
 }
 
+func NormalizeCustomOAuthProviderSlug(slug string) string {
+	return strings.ToLower(strings.TrimSpace(slug))
+}
+
 // GetAllCustomOAuthProviders returns all custom OAuth providers
 func GetAllCustomOAuthProviders() ([]*CustomOAuthProvider, error) {
 	var providers []*CustomOAuthProvider
@@ -97,7 +101,7 @@ func GetCustomOAuthProviderById(id int) (*CustomOAuthProvider, error) {
 // GetCustomOAuthProviderBySlug returns a custom OAuth provider by slug
 func GetCustomOAuthProviderBySlug(slug string) (*CustomOAuthProvider, error) {
 	var provider CustomOAuthProvider
-	err := DB.Where("slug = ?", slug).First(&provider).Error
+	err := DB.Where("slug = ?", NormalizeCustomOAuthProviderSlug(slug)).First(&provider).Error
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +137,7 @@ func DeleteCustomOAuthProvider(id int) error {
 // Returns true on DB errors (fail-closed) to prevent slug conflicts
 func IsSlugTaken(slug string, excludeId int) bool {
 	var count int64
-	query := DB.Model(&CustomOAuthProvider{}).Where("slug = ?", slug)
+	query := DB.Model(&CustomOAuthProvider{}).Where("slug = ?", NormalizeCustomOAuthProviderSlug(slug))
 	if excludeId > 0 {
 		query = query.Where("id != ?", excludeId)
 	}
@@ -150,11 +154,13 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if provider.Name == "" {
 		return errors.New("provider name is required")
 	}
-	if provider.Slug == "" {
+	// Slug must be lowercase and contain only alphanumeric characters and hyphens.
+	// Normalize before every lookup and registry operation so case or surrounding
+	// whitespace cannot bypass reserved-provider conflict checks.
+	slug := NormalizeCustomOAuthProviderSlug(provider.Slug)
+	if slug == "" {
 		return errors.New("provider slug is required")
 	}
-	// Slug must be lowercase and contain only alphanumeric characters and hyphens
-	slug := strings.ToLower(provider.Slug)
 	for _, c := range slug {
 		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
 			return errors.New("provider slug must contain only lowercase letters, numbers, and hyphens")

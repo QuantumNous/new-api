@@ -23,3 +23,13 @@ func lockForUpdate(tx *gorm.DB) *gorm.DB {
 	}
 	return tx.Clauses(clause.Locking{Strength: "UPDATE"})
 }
+
+// lockForShare lets concurrent registrations read the same authoritative
+// configuration while still forcing a configuration update to wait until all
+// registrations admitted under the previous snapshot have committed.
+func lockForShare(tx *gorm.DB) *gorm.DB {
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		return tx
+	}
+	return tx.Clauses(clause.Locking{Strength: "SHARE"})
+}

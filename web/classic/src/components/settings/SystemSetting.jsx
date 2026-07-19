@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import {
   Button,
   Form,
@@ -39,16 +39,20 @@ import {
   showError,
   showSuccess,
   toBoolean,
+  getInvitationCodeMethods,
 } from '../../helpers';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import CustomOAuthSetting from './CustomOAuthSetting';
+import { StatusContext } from '../../context/Status';
 
 const SystemSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     PasswordLoginEnabled: '',
     PasswordRegisterEnabled: '',
+    InvitationCodeRequired: '',
+    InvitationCodeMethods: ['linuxdo'],
     EmailVerificationEnabled: '',
     GitHubOAuthEnabled: '',
     GitHubClientId: '',
@@ -117,6 +121,7 @@ const SystemSetting = () => {
   const [loading, setLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const formApiRef = useRef(null);
+  const invitationSavePendingRef = useRef(false);
   const [emailDomainWhitelist, setEmailDomainWhitelist] = useState([]);
   const [showPasswordLoginConfirmModal, setShowPasswordLoginConfirmModal] =
     useState(false);
@@ -127,13 +132,16 @@ const SystemSetting = () => {
   const [domainList, setDomainList] = useState([]);
   const [ipList, setIpList] = useState([]);
   const [allowedPorts, setAllowedPorts] = useState([]);
+  const [statusState, statusDispatch] = useContext(StatusContext);
 
   const getOptions = async () => {
     setLoading(true);
     const res = await API.get('/api/option/');
     const { success, message, data } = res.data;
     if (success) {
-      let newInputs = {};
+      let newInputs = {
+        InvitationCodeMethods: ['linuxdo'],
+      };
       data.forEach((item) => {
         switch (item.key) {
           case 'TopupGroupRatio':
@@ -173,8 +181,17 @@ const SystemSetting = () => {
               setAllowedPorts(['80', '443', '8080', '8443']);
             }
             break;
+          case 'InvitationCodeMethods':
+            try {
+              const methods = item.value ? JSON.parse(item.value) : ['linuxdo'];
+              item.value = Array.isArray(methods) ? methods : ['linuxdo'];
+            } catch (e) {
+              item.value = ['linuxdo'];
+            }
+            break;
           case 'PasswordLoginEnabled':
           case 'PasswordRegisterEnabled':
+          case 'InvitationCodeRequired':
           case 'EmailVerificationEnabled':
           case 'GitHubOAuthEnabled':
           case 'WeChatAuthEnabled':
@@ -216,6 +233,10 @@ const SystemSetting = () => {
             break;
         }
         newInputs[item.key] = item.value;
+      });
+      newInputs.InvitationCodeMethods = getInvitationCodeMethods({
+        invitation_code_required: toBoolean(newInputs.InvitationCodeRequired),
+        invitation_code_methods: newInputs.InvitationCodeMethods,
       });
       setInputs(newInputs);
       setOriginInputs(newInputs);
@@ -699,6 +720,14 @@ const SystemSetting = () => {
   const handleCheckboxChange = async (optionKey, event) => {
     const value = event.target.checked;
 
+    if (optionKey === 'InvitationCodeRequired') {
+      setInputs((currentInputs) => ({
+        ...currentInputs,
+        InvitationCodeRequired: value,
+      }));
+      return;
+    }
+
     if (optionKey === 'PasswordLoginEnabled' && !value) {
       setShowPasswordLoginConfirmModal(true);
     } else {
@@ -706,6 +735,90 @@ const SystemSetting = () => {
     }
     if (optionKey === 'LinuxDOOAuthEnabled') {
       setLinuxDOOAuthEnabled(value);
+    }
+  };
+
+  const submitInvitationCodeSettings = async () => {
+    if (invitationSavePendingRef.current) return;
+
+    const values = formApiRef.current?.getValues() || {};
+    const methods = Array.isArray(values.InvitationCodeMethods)
+      ? values.InvitationCodeMethods
+      : [];
+    const required = toBoolean(
+      values.InvitationCodeRequired ?? inputs.InvitationCodeRequired,
+    );
+    if (required && methods.length === 0) {
+      showError(t('请至少选择一种需要邀请码的注册方式'));
+      return;
+    }
+
+    invitationSavePendingRef.current = true;
+    setLoading(true);
+    try {
+      const res = await API.put(
+        '/api/option/invitation-code',
+        {
+          required,
+          methods,
+        },
+        { skipErrorHandler: true },
+      );
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return;
+      }
+
+      const savedRequired = toBoolean(data?.required ?? required);
+      const savedMethods = getInvitationCodeMethods({
+        invitation_code_required: savedRequired,
+        invitation_code_methods: Array.isArray(data?.methods)
+          ? data.methods
+          : methods,
+      });
+      const invitationInputs = {
+        InvitationCodeRequired: savedRequired,
+        InvitationCodeMethods: savedMethods,
+      };
+
+      setInputs((currentInputs) => ({
+        ...currentInputs,
+        ...invitationInputs,
+      }));
+      setOriginInputs((currentInputs) => ({
+        ...currentInputs,
+        ...invitationInputs,
+      }));
+      formApiRef.current?.setValue('InvitationCodeRequired', savedRequired);
+      formApiRef.current?.setValue('InvitationCodeMethods', savedMethods);
+
+      let cachedStatus = {};
+      try {
+        const savedStatus = localStorage.getItem('status');
+        cachedStatus = savedStatus ? JSON.parse(savedStatus) || {} : {};
+      } catch (error) {
+        cachedStatus = {};
+      }
+      const nextStatus = {
+        ...cachedStatus,
+        ...(statusState?.status || {}),
+        invitation_code_required: savedRequired,
+        invitation_code_methods: savedMethods,
+      };
+      statusDispatch({ type: 'set', payload: nextStatus });
+      try {
+        localStorage.setItem('status', JSON.stringify(nextStatus));
+      } catch (error) {
+        console.error('Failed to update cached status:', error);
+      }
+
+      showSuccess(t('更新成功'));
+    } catch (error) {
+      showError(error.response?.data?.message || t('更新失败'));
+    } finally {
+      invitationSavePendingRef.current = false;
+      setLoading(false);
     }
   };
 
@@ -1061,6 +1174,37 @@ const SystemSetting = () => {
                       >
                         {t('允许新用户注册')}
                       </Form.Checkbox>
+                      <Form.Checkbox
+                        field='InvitationCodeRequired'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('InvitationCodeRequired', e)
+                        }
+                      >
+                        {t('新用户注册需要邀请码')}
+                      </Form.Checkbox>
+                      <Form.Select
+                        field='InvitationCodeMethods'
+                        label={t('需要邀请码的注册方式')}
+                        multiple
+                        optionList={[
+                          { value: 'password', label: t('密码注册') },
+                          { value: 'github', label: 'GitHub' },
+                          { value: 'discord', label: 'Discord' },
+                          { value: 'linuxdo', label: 'LinuxDO' },
+                          { value: 'oidc', label: 'OIDC' },
+                          { value: 'custom_oauth', label: t('自定义 OAuth') },
+                          { value: 'wechat', label: t('微信') },
+                        ]}
+                        placeholder={t('选择需要邀请码的注册方式')}
+                      />
+                      <Button
+                        loading={loading}
+                        disabled={loading}
+                        onClick={submitInvitationCodeSettings}
+                      >
+                        {t('保存邀请码设置')}
+                      </Button>
                       <Form.Checkbox
                         field='TurnstileCheckEnabled'
                         noLabel

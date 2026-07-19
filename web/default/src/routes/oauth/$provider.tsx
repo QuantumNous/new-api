@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import { clearLegacyInvitationCodeStorage } from '@/features/auth/lib/storage'
 import { api, getSelf } from '@/lib/api'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
@@ -164,6 +165,7 @@ function OAuthCallback() {
       }
 
       try {
+        clearLegacyInvitationCodeStorage()
         const config: OAuthRequestConfig = {
           params: { code: search.code, state: search.state },
           skipBusinessError: true,

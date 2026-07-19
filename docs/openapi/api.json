@@ -37,6 +37,9 @@
       "name": "兑换码"
     },
     {
+      "name": "注册邀请码"
+    },
+    {
       "name": "日志"
     },
     {
@@ -136,7 +139,58 @@
         "responses": {
           "200": {
             "description": "成功",
-            "headers": {}
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "version",
+                        "invitation_code_required",
+                        "invitation_code_methods"
+                      ],
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "invitation_code_required": {
+                          "type": "boolean"
+                        },
+                        "invitation_code_methods": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "password",
+                              "github",
+                              "discord",
+                              "linuxdo",
+                              "oidc",
+                              "custom_oauth",
+                              "wechat"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -543,6 +597,11 @@
                   },
                   "aff_code": {
                     "type": "string"
+                  },
+                  "invitation_code": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "管理员生成的注册邀请码；仅在对应注册方式启用邀请码要求时必填"
                   }
                 }
               }
@@ -868,38 +927,98 @@
     },
     "/api/oauth/state": {
       "get": {
+        "summary": "生成OAuth State（兼容GET）",
+        "deprecated": false,
+        "description": "🔓 无需鉴权。兼容既有的不含邀请码的登录或绑定流程：provider 必填，aff 可选。查询参数中只要出现 invitation_code（包括空值）就会被拒绝；需要携带邀请码时必须改用 POST JSON 请求体。服务端只持久化 state 的 SHA-256 摘要，并通过数据库条件删除原子消费；state 与当前会话及归一化后的 provider 绑定，10 分钟内有效且只能成功消费一次。",
+        "tags": [
+          "OAuth"
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "OAuth provider slug；服务端会去除首尾空白并转换为小写，回调 provider 必须与其严格匹配。"
+          },
+          {
+            "name": "aff",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "可选的推广码。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "state 生成结果；参数不合法时仍返回 HTTP 200，但 success=false 且不含 data。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthStateResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      },
+      "post": {
         "summary": "生成OAuth State",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权。携带邀请码时必须使用此 JSON 请求体接口，查询参数中的 invitation_code 会被拒绝，以避免邀请码进入浏览器历史、反向代理访问日志或 Referer。provider 必填；邀请码仅在 OAuth 回调创建新用户时使用。服务端只持久化 state 的 SHA-256 摘要，并通过数据库条件删除原子消费；state 与当前会话及归一化后的 provider 绑定，10 分钟内有效且只能成功消费一次。",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {}
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthStateRequest"
+              }
+            }
           }
         },
-        "security": [
-          {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+        "responses": {
+          "200": {
+            "description": "state 生成结果；请求体或参数不合法时仍返回 HTTP 200，但 success=false 且不含 data。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthStateResponse"
+                }
+              }
+            }
           }
-        ]
+        },
+        "security": []
       }
     },
     "/api/oauth/wechat": {
       "get": {
-        "summary": "微信OAuth登录",
-        "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "summary": "微信OAuth登录（兼容GET）",
+        "deprecated": true,
+        "description": "🔓 无需鉴权。仅兼容不携带邀请码的既有登录；只接受查询参数 code。查询参数中只要出现 invitation_code（包括空值）就会拒绝请求。新客户端应使用 POST JSON。",
         "tags": [
           "OAuth"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "成功",
@@ -914,6 +1033,42 @@
             "Combination1243": []
           }
         ]
+      },
+      "post": {
+        "summary": "微信OAuth登录",
+        "deprecated": false,
+        "description": "🔓 无需鉴权；code 和可选的新用户邀请码只能通过 JSON 请求体提交。查询参数中的 code 或 invitation_code 均会被拒绝。",
+        "tags": [
+          "OAuth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "invitation_code": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        }
       }
     },
     "/api/oauth/wechat/bind": {
@@ -3858,6 +4013,226 @@
         ]
       }
     },
+    "/api/invitation/": {
+      "get": {
+        "summary": "获取注册邀请码",
+        "description": "👨‍💼 需要管理员权限（Admin）",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        }
+      },
+      "post": {
+        "summary": "批量生成注册邀请码",
+        "description": "👨‍💼 需要管理员权限（Admin）。邀请码明文仅在本次响应中返回。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "count"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "expired_time": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "Unix 时间戳；0 表示永不过期"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功；data 为邀请码明文数组"
+          }
+        }
+      },
+      "put": {
+        "summary": "更新注册邀请码",
+        "description": "👨‍💼 需要管理员权限（Admin）",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "status_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCode"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        }
+      }
+    },
+    "/api/invitation/search": {
+      "get": {
+        "summary": "搜索注册邀请码",
+        "description": "👨‍💼 需要管理员权限（Admin）",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "enabled",
+                "disabled",
+                "used",
+                "expired"
+              ]
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        }
+      }
+    },
+    "/api/invitation/used": {
+      "delete": {
+        "summary": "删除所有已使用注册邀请码",
+        "description": "👨‍💼 需要管理员权限（Admin），使用软删除保留审计信息",
+        "tags": [
+          "注册邀请码"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；data 为删除数量"
+          }
+        }
+      }
+    },
+    "/api/invitation/{id}": {
+      "get": {
+        "summary": "获取指定注册邀请码",
+        "description": "👨‍💼 需要管理员权限（Admin）",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除指定注册邀请码",
+        "description": "👨‍💼 需要管理员权限（Admin）",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        }
+      }
+    },
     "/api/log/": {
       "get": {
         "summary": "获取所有日志",
@@ -4862,6 +5237,72 @@
         ]
       }
     },
+    "/api/option/invitation-code": {
+      "put": {
+        "summary": "原子更新邀请码配置",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。required 与 methods 必须同时提供且不得为 null，并在同一事务中保存。required=true 时 methods 不得为空；required=false 时允许空数组。方法名会去除首尾空白、转换为小写、去重并按字典序排序，未知方法会被拒绝。InvitationCodeRequired 与 InvitationCodeMethods 不允许再通过通用选项更新接口单独修改。",
+        "tags": [
+          "系统设置"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCodeConfig"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新结果。成功时 data 返回实际生效的、已归一化的完整配置对；业务校验或持久化失败时 HTTP 状态仍为 200，但 success=false 且不含 data。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/InvitationCodeConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON 无法解析，或 required / methods 任一字段缺失或为 null。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
     "/api/option/rest_model_ratio": {
       "post": {
         "summary": "重置模型倍率",
@@ -4975,6 +5416,94 @@
             "type": "string"
           },
           "data": {}
+        }
+      },
+      "InvitationCodeConfig": {
+        "type": "object",
+        "description": "邀请码总开关与适用注册方式组成的不可分割配置对。响应中的 methods 已转换为小写、去重并按字典序排序。",
+        "required": [
+          "required",
+          "methods"
+        ],
+        "properties": {
+          "required": {
+            "type": "boolean",
+            "description": "是否对 methods 列出的新用户注册方式强制要求邀请码。为 true 时 methods 至少包含一项。"
+          },
+          "methods": {
+            "type": "array",
+            "description": "受邀请码开关约束的注册方式。请求值会被去除首尾空白、转换为小写、去重并排序；required=false 时可为空数组。",
+            "items": {
+              "type": "string",
+              "enum": [
+                "password",
+                "github",
+                "discord",
+                "linuxdo",
+                "oidc",
+                "custom_oauth",
+                "wechat"
+              ]
+            }
+          }
+        },
+        "example": {
+          "required": true,
+          "methods": [
+            "linuxdo",
+            "password"
+          ]
+        }
+      },
+      "OAuthStateRequest": {
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "aff": {
+            "type": "string",
+            "description": "可选的推广码。"
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "description": "OAuth provider slug；服务端会去除首尾空白并转换为小写，回调 provider 必须与其严格匹配。"
+          },
+          "invitation_code": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "可选的邀请码，仅在回调创建新用户时使用；服务端会去除首尾空白。不得放入 GET 查询参数。"
+          }
+        },
+        "example": {
+          "aff": "AFF123",
+          "provider": "linuxdo",
+          "invitation_code": "INVITATION-CODE"
+        }
+      },
+      "OAuthStateResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "string",
+            "description": "生成的 OAuth state，仅在 success=true 时存在。"
+          }
+        },
+        "example": {
+          "success": true,
+          "message": "",
+          "data": "random-state"
         }
       },
       "PageInfo": {
@@ -5137,6 +5666,60 @@
           },
           "redeemed_time": {
             "type": "integer"
+          }
+        }
+      },
+      "InvitationCode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code_prefix": {
+            "type": "string",
+            "description": "邀请码安全前缀；完整邀请码不会再次返回"
+          },
+          "status": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "description": "1=启用，2=停用，3=已使用"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "disabled",
+              "used",
+              "expired"
+            ]
+          },
+          "created_by": {
+            "type": "integer"
+          },
+          "used_user_id": {
+            "type": "integer"
+          },
+          "used_username": {
+            "type": "string"
+          },
+          "created_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "used_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expired_time": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       }

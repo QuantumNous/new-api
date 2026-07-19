@@ -26,6 +26,7 @@ import {
   showSuccess,
   updateAPI,
   setUserData,
+  clearLegacyInvitationCodeStorage,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import Loading from '../common/ui/Loading';
@@ -62,6 +63,7 @@ const OAuth2Callback = (props) => {
       } else {
         userDispatch({ type: 'login', payload: data });
         localStorage.setItem('user', JSON.stringify(data));
+        clearLegacyInvitationCodeStorage();
         setUserData(data);
         updateAPI();
         showSuccess(t('登录成功！'));

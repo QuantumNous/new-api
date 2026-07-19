@@ -71,6 +71,22 @@ const (
 	MsgRedemptionExpireTimeInvalid = "redemption.expire_time_invalid"
 )
 
+// Invitation code related messages
+const (
+	MsgInvitationNameLength        = "invitation.name_length"
+	MsgInvitationCountPositive     = "invitation.count_positive"
+	MsgInvitationCountMax          = "invitation.count_max"
+	MsgInvitationCreateFailed      = "invitation.create_failed"
+	MsgInvitationNotProvided       = "invitation.not_provided"
+	MsgInvitationInvalid           = "invitation.invalid"
+	MsgInvitationUsed              = "invitation.used"
+	MsgInvitationExpired           = "invitation.expired"
+	MsgInvitationDisabled          = "invitation.disabled"
+	MsgInvitationExpireTimeInvalid = "invitation.expire_time_invalid"
+	MsgInvitationStatusInvalid     = "invitation.status_invalid"
+	MsgInvitationUsedCannotUpdate  = "invitation.used_cannot_update"
+)
+
 // User related messages
 const (
 	MsgUserPasswordLoginDisabled     = "user.password_login_disabled"

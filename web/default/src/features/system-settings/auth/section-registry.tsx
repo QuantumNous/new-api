@@ -23,6 +23,7 @@ import { BotProtectionSection } from './bot-protection-section'
 import { CustomOAuthSection } from './custom-oauth/custom-oauth-section'
 import { OAuthSection } from './oauth-section'
 import { PasskeySection } from './passkey-section'
+import { InvitationCodeSection } from './invitation-code-section'
 
 const AUTH_SECTIONS = [
   {
@@ -38,6 +39,18 @@ const AUTH_SECTIONS = [
           EmailDomainRestrictionEnabled: settings.EmailDomainRestrictionEnabled,
           EmailAliasRestrictionEnabled: settings.EmailAliasRestrictionEnabled,
           EmailDomainWhitelist: settings.EmailDomainWhitelist,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'invitation-code',
+    titleKey: 'Invitation codes',
+    build: (settings: AuthSettings) => (
+      <InvitationCodeSection
+        defaultValues={{
+          InvitationCodeRequired: settings.InvitationCodeRequired,
+          InvitationCodeMethods: settings.InvitationCodeMethods,
         }}
       />
     ),

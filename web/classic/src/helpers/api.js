@@ -36,7 +36,6 @@ export let API = axios.create({
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
@@ -48,7 +47,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -240,13 +238,19 @@ export const processGroupsData = (data, userGroup) => {
 
 // 原来components中的utils.js
 
-export async function getOAuthState() {
-  let path = '/api/oauth/state';
-  let affCode = localStorage.getItem('aff');
-  if (affCode && affCode.length > 0) {
-    path += `?aff=${affCode}`;
-  }
-  const res = await API.get(path);
+export async function getOAuthState(options = {}) {
+  const affCode = localStorage.getItem('aff');
+  const invitationCode = options.invitationCode?.trim() || '';
+  const stateParams = {
+    aff: affCode || undefined,
+    provider: options.provider || undefined,
+  };
+  const res = invitationCode
+    ? await API.post('/api/oauth/state', {
+        ...stateParams,
+        invitation_code: invitationCode,
+      })
+    : await API.get('/api/oauth/state', { params: stateParams });
   const { success, message, data } = res.data;
   if (success) {
     return data;
@@ -254,6 +258,13 @@ export async function getOAuthState() {
     showError(message);
     return '';
   }
+}
+
+export async function wechatLoginByCode(code, invitationCode) {
+  return API.post('/api/oauth/wechat', {
+    code,
+    invitation_code: invitationCode?.trim() || undefined,
+  });
 }
 
 async function prepareOAuthState(options = {}) {
@@ -265,11 +276,11 @@ async function prepareOAuthState(options = {}) {
     localStorage.removeItem('user');
     updateAPI();
   }
-  return await getOAuthState();
+  return await getOAuthState(options);
 }
 
 export async function onDiscordOAuthClicked(client_id, options = {}) {
-  const state = await prepareOAuthState(options);
+  const state = await prepareOAuthState({ ...options, provider: 'discord' });
   if (!state) return;
   const redirect_uri = `${window.location.origin}/oauth/discord`;
   const response_type = 'code';
@@ -285,7 +296,7 @@ export async function onOIDCClicked(
   openInNewTab = false,
   options = {},
 ) {
-  const state = await prepareOAuthState(options);
+  const state = await prepareOAuthState({ ...options, provider: 'oidc' });
   if (!state) return;
   const url = new URL(auth_url);
   url.searchParams.set('client_id', client_id);
@@ -297,7 +308,7 @@ export async function onOIDCClicked(
 }
 
 export async function onGitHubOAuthClicked(github_client_id, options = {}) {
-  const state = await prepareOAuthState(options);
+  const state = await prepareOAuthState({ ...options, provider: 'github' });
   if (!state) return;
   redirectToOAuthUrl(
     `https://github.com/login/oauth/authorize?client_id=${github_client_id}&state=${state}&scope=user:email`,
@@ -308,7 +319,7 @@ export async function onLinuxDOOAuthClicked(
   linuxdo_client_id,
   options = { shouldLogout: false },
 ) {
-  const state = await prepareOAuthState(options);
+  const state = await prepareOAuthState({ ...options, provider: 'linuxdo' });
   if (!state) return;
   redirectToOAuthUrl(
     `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
@@ -326,7 +337,10 @@ export async function onLinuxDOOAuthClicked(
  * @param {boolean} options.shouldLogout - Whether to logout first
  */
 export async function onCustomOAuthClicked(provider, options = {}) {
-  const state = await prepareOAuthState(options);
+  const state = await prepareOAuthState({
+    ...options,
+    provider: provider.slug,
+  });
   if (!state) return;
 
   try {

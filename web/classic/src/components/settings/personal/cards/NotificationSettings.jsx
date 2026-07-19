@@ -89,6 +89,7 @@ const NotificationSettings = ({
       deployment: true,
       subscription: true,
       redemption: true,
+      invitation: true,
       user: true,
       setting: true,
     },
@@ -173,6 +174,7 @@ const NotificationSettings = ({
         deployment: true,
         subscription: true,
         redemption: true,
+        invitation: true,
         user: true,
         setting: true,
       },
@@ -207,7 +209,13 @@ const NotificationSettings = ({
           } else {
             userConf = userRes.data.data.sidebar_modules;
           }
-          setSidebarModulesUser(userConf);
+          setSidebarModulesUser({
+            ...userConf,
+            admin: {
+              invitation: true,
+              ...(userConf.admin || {}),
+            },
+          });
         }
       } catch (error) {
         console.error('加载边栏配置失败:', error);
@@ -308,6 +316,11 @@ const NotificationSettings = ({
           key: 'redemption',
           title: t('兑换码管理'),
           description: t('兑换码生成管理'),
+        },
+        {
+          key: 'invitation',
+          title: t('注册邀请码'),
+          description: t('注册邀请码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
         {

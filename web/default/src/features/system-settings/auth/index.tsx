@@ -27,6 +27,8 @@ import {
 const defaultAuthSettings: AuthSettings = {
   PasswordLoginEnabled: true,
   PasswordRegisterEnabled: true,
+  InvitationCodeRequired: false,
+  InvitationCodeMethods: ['linuxdo'],
   EmailVerificationEnabled: false,
   RegisterEnabled: true,
   EmailDomainRestrictionEnabled: false,

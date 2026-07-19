@@ -17,6 +17,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const (
@@ -44,14 +45,6 @@ func TelegramBind(c *gin.Context) {
 		})
 		return
 	}
-	if model.IsTelegramIdAlreadyTaken(telegramId) {
-		c.JSON(200, gin.H{
-			"message": "该 Telegram 账户已被绑定",
-			"success": false,
-		})
-		return
-	}
-
 	session := sessions.Default(c)
 	id := session.Get("id")
 	user := model.User{Id: id.(int)}
@@ -69,8 +62,23 @@ func TelegramBind(c *gin.Context) {
 		})
 		return
 	}
-	user.TelegramId = telegramId
-	if err := user.Update(false); err != nil {
+	if model.IsTelegramIdAlreadyTaken(telegramId) {
+		legacyOwner := model.User{TelegramId: telegramId}
+		if err := legacyOwner.FillUserByTelegramId(); err == nil && legacyOwner.Id != 0 {
+			if err := model.EnsureAuthIdentity(legacyOwner.Id, model.AuthIdentityProviderTelegram, telegramId); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+	}
+	if err := model.SetBuiltInAuthIdentity(&user, model.AuthIdentityProviderTelegram, telegramId); err != nil {
+		if errors.Is(err, model.ErrAuthIdentityAlreadyBound) {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "该 Telegram 账户已被绑定",
+				"success": false,
+			})
+			return
+		}
 		c.JSON(200, gin.H{
 			"message": err.Error(),
 			"success": false,
@@ -100,10 +108,30 @@ func TelegramLogin(c *gin.Context) {
 		return
 	}
 
-	user := model.User{TelegramId: telegramId}
-	if err := user.FillUserByTelegramId(); err != nil {
+	user := model.User{}
+	boundUser, identityErr := model.GetUserByAuthIdentity(model.AuthIdentityProviderTelegram, telegramId)
+	if identityErr == nil {
+		user = *boundUser
+	} else if !errors.Is(identityErr, gorm.ErrRecordNotFound) {
+		common.ApiError(c, identityErr)
+		return
+	} else {
+		user.TelegramId = telegramId
+		if err := user.FillUserByTelegramId(); err != nil {
+			c.JSON(200, gin.H{
+				"message": err.Error(),
+				"success": false,
+			})
+			return
+		}
+		if err := model.EnsureAuthIdentity(user.Id, model.AuthIdentityProviderTelegram, telegramId); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	if user.Id == 0 || user.DeletedAt.Valid {
 		c.JSON(200, gin.H{
-			"message": err.Error(),
+			"message": "用户已注销",
 			"success": false,
 		})
 		return

@@ -1,19 +1,22 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type wechatLoginResponse struct {
@@ -40,7 +43,7 @@ func getWeChatIdByCode(code string) (string, error) {
 	}
 	defer httpResponse.Body.Close()
 	var res wechatLoginResponse
-	err = json.NewDecoder(httpResponse.Body).Decode(&res)
+	err = common.DecodeJson(httpResponse.Body, &res)
 	if err != nil {
 		return "", err
 	}
@@ -61,8 +64,42 @@ func WeChatAuth(c *gin.Context) {
 		})
 		return
 	}
-	code := c.Query("code")
-	wechatId, err := getWeChatIdByCode(code)
+	request := dto.WeChatAuthRequest{}
+	switch c.Request.Method {
+	case http.MethodGet:
+		if _, present := c.Request.URL.Query()["invitation_code"]; present {
+			// Keep GET only for invitation-free legacy login. New registrations must
+			// send invitation codes in the POST body so access logs and referrers do
+			// not carry the plaintext code.
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		request.Code = c.Query("code")
+	case http.MethodPost:
+		query := c.Request.URL.Query()
+		if _, present := query["code"]; present {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, present := query["invitation_code"]; present {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+	default:
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	request.Code = strings.TrimSpace(request.Code)
+	request.InvitationCode = strings.TrimSpace(request.InvitationCode)
+	if request.Code == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	wechatId, err := getWeChatIdByCode(request.Code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"message": err.Error(),
@@ -70,36 +107,76 @@ func WeChatAuth(c *gin.Context) {
 		})
 		return
 	}
-	user := model.User{
-		WeChatId: wechatId,
-	}
-	if model.IsWeChatIdAlreadyTaken(wechatId) {
-		err := user.FillUserByWeChatId()
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
-		}
-		if user.Id == 0 {
+	user := model.User{}
+	boundUser, identityErr := model.GetUserByAuthIdentity(model.AuthIdentityProviderWeChat, wechatId)
+	if identityErr == nil {
+		user = *boundUser
+		if user.Id == 0 || user.DeletedAt.Valid {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "用户已注销",
 			})
 			return
 		}
+	} else if !errors.Is(identityErr, gorm.ErrRecordNotFound) {
+		common.ApiError(c, identityErr)
+		return
+	} else if model.IsWeChatIdAlreadyTaken(wechatId) {
+		user.WeChatId = wechatId
+		if err := user.FillUserByWeChatId(); err != nil || user.Id == 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "用户已注销",
+			})
+			return
+		}
+		if err := model.EnsureAuthIdentity(user.Id, model.AuthIdentityProviderWeChat, wechatId); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	} else {
 		if common.RegisterEnabled {
-			user.Username = "wechat_" + strconv.Itoa(model.GetMaxUserId()+1)
+			if err := common.Validate.Struct(&request); err != nil {
+				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+				return
+			}
+			user.Username, err = generateOAuthUsername("wechat_")
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
 			user.DisplayName = "WeChat User"
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 
-			if err := user.Insert(0); err != nil {
+			registrationErr := service.RegisterNewUser(service.NewUserRegistration{
+				User:           &user,
+				Method:         common.InvitationRegistrationMethodWeChat,
+				InvitationCode: request.InvitationCode,
+				CreateRelated: func(tx *gorm.DB, createdUser *model.User) error {
+					return model.CreateBuiltInAuthIdentityWithTx(tx, createdUser, model.AuthIdentityProviderWeChat, wechatId)
+				},
+			})
+			if errors.Is(registrationErr, model.ErrAuthIdentityAlreadyBound) {
+				winner, winnerErr := model.GetUserByAuthIdentity(model.AuthIdentityProviderWeChat, wechatId)
+				if winnerErr == nil && winner.Id != 0 && !winner.DeletedAt.Valid {
+					user = *winner
+					registrationErr = nil
+				}
+			}
+			if registrationErr != nil {
+				if errors.Is(registrationErr, service.ErrInvitationCodeRejected) {
+					common.ApiErrorI18n(c, i18n.MsgInvitationInvalid)
+					return
+				}
+				if errors.Is(registrationErr, service.ErrRegistrationTemporarilyUnavailable) {
+					common.SysError("WeChat registration temporarily unavailable: " + registrationErr.Error())
+					common.ApiErrorI18n(c, i18n.MsgRetryLater)
+					return
+				}
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
-					"message": err.Error(),
+					"message": registrationErr.Error(),
 				})
 				return
 			}
@@ -151,13 +228,6 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
-	if model.IsWeChatIdAlreadyTaken(wechatId) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该微信账号已被绑定",
-		})
-		return
-	}
 	session := sessions.Default(c)
 	id := session.Get("id")
 	user := model.User{
@@ -168,9 +238,24 @@ func WeChatBind(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	user.WeChatId = wechatId
-	err = user.Update(false)
+	legacyOwner := model.User{WeChatId: wechatId}
+	if model.IsWeChatIdAlreadyTaken(wechatId) {
+		if fillErr := legacyOwner.FillUserByWeChatId(); fillErr == nil && legacyOwner.Id != 0 {
+			if ensureErr := model.EnsureAuthIdentity(legacyOwner.Id, model.AuthIdentityProviderWeChat, wechatId); ensureErr != nil {
+				common.ApiError(c, ensureErr)
+				return
+			}
+		}
+	}
+	err = model.SetBuiltInAuthIdentity(&user, model.AuthIdentityProviderWeChat, wechatId)
 	if err != nil {
+		if errors.Is(err, model.ErrAuthIdentityAlreadyBound) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "该微信账号已被绑定",
+			})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}

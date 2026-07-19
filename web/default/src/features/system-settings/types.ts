@@ -39,6 +39,19 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type InvitationCodeConfig = {
+  required: boolean
+  methods: string[]
+}
+
+export type UpdateInvitationCodeConfigRequest = InvitationCodeConfig
+
+export type UpdateInvitationCodeConfigResponse = {
+  success: boolean
+  message: string
+  data: InvitationCodeConfig
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
@@ -124,6 +137,8 @@ export type SiteSettings = {
 export type AuthSettings = {
   PasswordLoginEnabled: boolean
   PasswordRegisterEnabled: boolean
+  InvitationCodeRequired: boolean
+  InvitationCodeMethods: string[]
   EmailVerificationEnabled: boolean
   RegisterEnabled: boolean
   EmailDomainRestrictionEnabled: boolean

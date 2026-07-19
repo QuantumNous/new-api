@@ -31,22 +31,52 @@ import {
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
 } from '../lib/oauth'
+import {
+  isInvitationCodeRequired,
+  type InvitationRegistrationMethod,
+} from '../lib/invitation'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 
 type LogoutRequestConfig = AxiosRequestConfig & {
   skipErrorHandler?: boolean
 }
 
+type OAuthLoginOptions = {
+  registrationMode?: boolean
+  invitationCode?: string
+  onInvitationRequired?: () => void
+}
+
 /**
  * Hook for managing OAuth login
  */
-export function useOAuthLogin(status: SystemStatus | null) {
+export function useOAuthLogin(
+  status: SystemStatus | null,
+  options?: OAuthLoginOptions
+) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [githubButtonText, setGithubButtonText] = useState('')
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false)
   const githubTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { auth } = useAuthStore()
+
+  const getRegistrationState = async (
+    provider: string,
+    method: InvitationRegistrationMethod
+  ): Promise<string | null> => {
+    const invitationCode = options?.invitationCode?.trim() ?? ''
+    if (
+      options?.registrationMode &&
+      isInvitationCodeRequired(status, method) &&
+      !invitationCode
+    ) {
+      options.onInvitationRequired?.()
+      toast.error(t('Please enter an invitation code'))
+      return null
+    }
+    return getOAuthState(provider, invitationCode)
+  }
 
   useEffect(() => {
     setGithubButtonText(t('Continue with GitHub'))
@@ -95,7 +125,16 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     try {
       await resetSession()
-      const state = await getOAuthState()
+      const state = await getRegistrationState('github', 'github')
+      if (state === null) {
+        if (githubTimeoutRef.current) {
+          clearTimeout(githubTimeoutRef.current)
+        }
+        setIsLoading(false)
+        setGithubButtonText(t('Continue with GitHub'))
+        setGithubButtonDisabled(false)
+        return
+      }
       if (!state) {
         toast.error(t('Failed to initialize OAuth'))
         if (githubTimeoutRef.current) {
@@ -126,7 +165,8 @@ export function useOAuthLogin(status: SystemStatus | null) {
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await getOAuthState()
+      const state = await getRegistrationState('discord', 'discord')
+      if (state === null) return
       if (!state) {
         toast.error(t('Failed to initialize OAuth'))
         return
@@ -147,7 +187,8 @@ export function useOAuthLogin(status: SystemStatus | null) {
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await getOAuthState()
+      const state = await getRegistrationState('oidc', 'oidc')
+      if (state === null) return
       if (!state) {
         toast.error(t('Failed to initialize OAuth'))
         return
@@ -172,7 +213,8 @@ export function useOAuthLogin(status: SystemStatus | null) {
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await getOAuthState()
+      const state = await getRegistrationState('linuxdo', 'linuxdo')
+      if (state === null) return
       if (!state) {
         toast.error(t('Failed to initialize OAuth'))
         return
@@ -197,7 +239,8 @@ export function useOAuthLogin(status: SystemStatus | null) {
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await getOAuthState()
+      const state = await getRegistrationState(provider.slug, 'custom_oauth')
+      if (state === null) return
       if (!state) {
         toast.error(t('Failed to initialize OAuth'))
         return

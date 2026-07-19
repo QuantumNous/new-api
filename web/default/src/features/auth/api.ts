@@ -86,17 +86,35 @@ export async function githubOAuthStart(clientId: string, state: string) {
 }
 
 // Get OAuth state for CSRF protection
-export async function getOAuthState(): Promise<string> {
+export async function getOAuthState(
+  provider: string,
+  invitationCode?: string
+): Promise<string> {
   const aff =
     typeof window !== 'undefined' ? (localStorage.getItem('aff') ?? '') : ''
-  const res = await api.get('/api/oauth/state', { params: { aff } })
+  const trimmedInvitationCode = invitationCode?.trim() ?? ''
+  const res = trimmedInvitationCode
+    ? await api.post('/api/oauth/state', {
+        aff,
+        provider,
+        invitation_code: trimmedInvitationCode,
+      })
+    : await api.get('/api/oauth/state', {
+        params: { aff, provider },
+      })
   if (res.data?.success) return res.data.data
   return ''
 }
 
 // WeChat login by authorization code
-export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
-  const res = await api.get('/api/oauth/wechat', { params: { code } })
+export async function wechatLoginByCode(
+  code: string,
+  invitationCode?: string
+): Promise<ApiResponse> {
+  const res = await api.post('/api/oauth/wechat', {
+    code,
+    invitation_code: invitationCode?.trim() || undefined,
+  })
   return res.data
 }
 

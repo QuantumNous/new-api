@@ -561,4 +561,8 @@ export const STATIC_I18N_KEYS = [
   'Failed to load',
   'Expired at',
   'Cancelled at',
+
+  // Invitation code form validation
+  'Select at least one registration method',
+  'Expiration time must be in the future',
 ] as const
