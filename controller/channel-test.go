@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -908,30 +909,55 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 	summary := channelTestSummary{}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
-		disableThreshold = 10000000 // a impossible value
+		disableThreshold = 10000000 // an impossible value
 	}
 
 	total := len(channels)
-	for index, channel := range channels {
-		if ctx != nil && ctx.Err() != nil {
-			break
+
+	concurrency := operation_setting.GetMonitorSetting().ChannelTestConcurrency
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	if concurrency > total && total > 0 {
+		concurrency = total
+	}
+
+	var (
+		mu         sync.Mutex // guards summary
+		progressMu sync.Mutex // serializes report so progress stays monotonic
+		completed  int
+		wg         sync.WaitGroup
+		sem        = make(chan struct{}, concurrency)
+	)
+
+	// advanceProgress reports one more processed channel. report may persist
+	// progress to storage and is not assumed to be concurrency-safe, so calls are
+	// serialized here to keep the reported count ordered and monotonic.
+	advanceProgress := func() {
+		if report == nil {
+			return
 		}
-		if report != nil {
-			report(index, total) // channels completed before this one
-		}
-		if channel.Status == common.ChannelStatusManuallyDisabled {
-			continue
-		}
+		progressMu.Lock()
+		completed++
+		report(completed, total)
+		progressMu.Unlock()
+	}
+
+	if report != nil {
+		report(0, total)
+	}
+
+	// testOne runs a single channel test and folds its outcome into summary. It is
+	// safe to call from multiple goroutines: every testChannel call builds its own
+	// gin context and recorder, and the shared summary is mutex guarded.
+	testOne := func(channel *model.Channel) {
 		isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 		tik := time.Now()
 		result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
-		tok := time.Now()
-		milliseconds := tok.Sub(tik).Milliseconds()
+		milliseconds := time.Since(tik).Milliseconds()
 		if ctx != nil && ctx.Err() != nil {
-			break
+			return
 		}
-
-		summary.Tested++
 
 		shouldBanChannel := false
 		newAPIError := result.newAPIError
@@ -941,45 +967,91 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		}
 
 		// 当错误检查通过，才检查响应时间
-		if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
-			if milliseconds > disableThreshold {
-				err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
-				newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
-				shouldBanChannel = true
-			}
+		if common.AutomaticDisableChannelEnabled && !shouldBanChannel && milliseconds > disableThreshold {
+			err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
+			newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+			shouldBanChannel = true
 		}
 
+		banned := allowDisable && isChannelEnabled && shouldBanChannel && channel.GetAutoBan()
+		if banned {
+			processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		}
+		enabled := result.localErr == nil && !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status)
+		if enabled {
+			service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+		}
+		channel.UpdateResponseTime(milliseconds)
+
+		mu.Lock()
+		summary.Tested++
 		if newAPIError == nil {
 			summary.Succeeded++
 		} else {
 			summary.Failed++
 		}
-
-		// disable channel
-		if allowDisable && isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-			processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		if banned {
 			summary.Disabled++
 		}
-
-		// enable channel
-		if result.localErr == nil && !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
-			service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+		if enabled {
 			summary.Enabled++
 		}
+		mu.Unlock()
 
-		channel.UpdateResponseTime(milliseconds)
-		if common.RequestInterval > 0 {
+		advanceProgress()
+	}
+
+	dispatched := false
+dispatch:
+	for _, channel := range channels {
+		if ctx != nil && ctx.Err() != nil {
+			break
+		}
+		if channel.Status == common.ChannelStatusManuallyDisabled {
+			advanceProgress()
+			continue
+		}
+
+		// RequestInterval throttles how fast new tests are dispatched, spacing out
+		// upstream load even when tests run concurrently. Only throttle between
+		// dispatches, never before the first or after the last one.
+		if dispatched && common.RequestInterval > 0 {
 			if ctx == nil {
 				time.Sleep(common.RequestInterval)
 			} else {
+				timer := time.NewTimer(common.RequestInterval)
 				select {
 				case <-ctx.Done():
-					return summary
-				case <-time.After(common.RequestInterval):
+					timer.Stop()
+					break dispatch
+				case <-timer.C:
 				}
 			}
 		}
+
+		// Acquire a worker slot, honoring cancellation so a runner that loses its
+		// lease stops promptly.
+		if ctx == nil {
+			sem <- struct{}{}
+		} else {
+			select {
+			case <-ctx.Done():
+				break dispatch
+			case sem <- struct{}{}:
+			}
+		}
+
+		wg.Add(1)
+		go func(ch *model.Channel) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			testOne(ch)
+		}(channel)
+		dispatched = true
 	}
+
+	wg.Wait()
+
 	if report != nil && (ctx == nil || ctx.Err() == nil) {
 		report(total, total) // mark complete only when the full set was tested
 	}

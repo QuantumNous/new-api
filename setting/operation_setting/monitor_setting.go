@@ -11,6 +11,9 @@ type MonitorSetting struct {
 	AutoTestChannelEnabled bool    `json:"auto_test_channel_enabled"`
 	AutoTestChannelMinutes float64 `json:"auto_test_channel_minutes"`
 	ChannelTestMode        string  `json:"channel_test_mode"`
+	// ChannelTestConcurrency is the number of channels tested in parallel during
+	// a batch test run. 1 preserves the original fully sequential behavior.
+	ChannelTestConcurrency int `json:"test_concurrency"`
 }
 
 const (
@@ -23,6 +26,7 @@ var monitorSetting = MonitorSetting{
 	AutoTestChannelEnabled: false,
 	AutoTestChannelMinutes: 10,
 	ChannelTestMode:        ChannelTestModeScheduledAll,
+	ChannelTestConcurrency: 1,
 }
 
 func init() {
@@ -47,6 +51,15 @@ func GetMonitorSetting() *MonitorSetting {
 	}
 	if monitorSetting.ChannelTestMode != ChannelTestModePassiveRecovery {
 		monitorSetting.ChannelTestMode = ChannelTestModeScheduledAll
+	}
+	if v, ok := os.LookupEnv("CHANNEL_TEST_CONCURRENCY"); ok {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			// A non-positive override is normalized to 1 by the clamp below.
+			monitorSetting.ChannelTestConcurrency = parsed
+		}
+	}
+	if monitorSetting.ChannelTestConcurrency < 1 {
+		monitorSetting.ChannelTestConcurrency = 1
 	}
 	return &monitorSetting
 }

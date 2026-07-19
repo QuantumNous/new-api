@@ -4419,6 +4419,8 @@
     "Test Connection": "測試連接",
     "Test connectivity for:": "測試連接性：",
     "Test failed": "測試失敗",
+    "Test concurrency": "Test concurrency",
+    "Number of channels tested in parallel during a batch test (1 = one at a time).": "Number of channels tested in parallel during a batch test (1 = one at a time).",
     "Test interval (minutes)": "測試間隔 (分鐘)",
     "Test Latency": "測試延遲",
     "Test Mode": "測試模式",

@@ -4419,6 +4419,8 @@
     "Test Connection": "Проверить подключение",
     "Test connectivity for:": "Проверить подключение для:",
     "Test failed": "Тест не выполнен",
+    "Test concurrency": "Test concurrency",
+    "Number of channels tested in parallel during a batch test (1 = one at a time).": "Number of channels tested in parallel during a batch test (1 = one at a time).",
     "Test interval (minutes)": "Интервал проверки (минуты)",
     "Test Latency": "Проверить задержку",
     "Test Mode": "Тестовый режим",
