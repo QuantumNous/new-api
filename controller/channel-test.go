@@ -546,6 +546,14 @@ func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData ty
 	if tieredResult != nil {
 		service.InjectTieredBillingInfo(other, info, tieredResult)
 	}
+	// Image channels set image_result_url on context; carry it into the log so the
+	// admin log page can show a thumbnail preview (same as PostTextConsumeQuota does
+	// for non-test requests).
+	if c != nil {
+		if resultURL := strings.TrimSpace(c.GetString("image_result_url")); resultURL != "" {
+			other["result_url"] = resultURL
+		}
+	}
 	return other
 }
 
