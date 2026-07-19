@@ -1626,10 +1626,14 @@ func buildGeminiImagineRequestFromImage(request dto.ImageRequest) *dto.GeminiCha
 			}
 		}
 	}
-	switch request.Quality {
-	case "hd", "high", "2K":
+	// Map resolution/quality → imageSize. Resolution takes precedence over Quality
+	// since the playground (and most clients) pass "2k"/"4K" via Resolution, not Quality.
+	resNorm := strings.ToUpper(strings.TrimSpace(request.Resolution))
+	qualNorm := strings.ToLower(strings.TrimSpace(request.Quality))
+	switch {
+	case resNorm == "2K" || resNorm == "4K" || qualNorm == "hd" || qualNorm == "high" || qualNorm == "2k":
 		imageConfig["imageSize"] = "2K"
-	case "standard", "medium", "low", "auto", "1K":
+	case resNorm == "0.5K" || resNorm == "1K" || qualNorm == "standard" || qualNorm == "medium" || qualNorm == "low" || qualNorm == "auto" || qualNorm == "1k":
 		imageConfig["imageSize"] = "1K"
 	}
 	if len(imageConfig) > 0 {
