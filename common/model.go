@@ -15,6 +15,12 @@ var (
 		"prefix:gpt-image-",
 		"prefix:chatgpt-image",
 		"prefix:imagen-",
+		"prefix:gemini-2.0-flash-exp",
+		"prefix:gemini-2.5-flash-image",
+		"prefix:gemini-3-pro-image",
+		"prefix:gemini-3.1-pro-image",
+		"prefix:gemini-3.1-flash-image",
+		"prefix:gemini-3.1-flash-lite-image",
 		"nano-banana",
 		"black-forest-labs/flux",
 		"flux-",
@@ -51,7 +57,7 @@ func IsOpenAIResponseOnlyModel(modelName string) bool {
 }
 
 func IsImageGenerationModel(modelName string) bool {
-	modelName = strings.ToLower(modelName)
+	modelName = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelName)), "models/")
 	for _, m := range ImageGenerationModels {
 		if strings.Contains(modelName, m) {
 			return true
