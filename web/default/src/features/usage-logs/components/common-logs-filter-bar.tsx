@@ -57,11 +57,16 @@ type LogTypeValue = (typeof LOG_TYPE_FILTERS)[number]['value']
 const logTypeValueSet = new Set<string>(
   LOG_TYPE_FILTERS.map((type) => type.value)
 )
+const modelTestLogFilters = [
+  { label: 'Exclude Model Test Logs', value: 'exclude' },
+  { label: 'Include Model Test Logs', value: 'include' },
+] as const
 
 type CommonLogDraft = {
   sourceKey: string
   filters: CommonLogFilters
   logType: LogTypeValue
+  includeModelTest: boolean
 }
 
 function isLogTypeValue(value: string): value is LogTypeValue {
@@ -87,6 +92,7 @@ function buildSearchSourceKey(values: {
   username?: unknown
   requestId?: unknown
   upstreamRequestId?: unknown
+  includeModelTest?: unknown
   type?: unknown
 }) {
   return [
@@ -99,6 +105,7 @@ function buildSearchSourceKey(values: {
     values.username,
     values.requestId,
     values.upstreamRequestId,
+    values.includeModelTest,
     Array.isArray(values.type) ? values.type.join(',') : values.type,
   ]
     .map((value) => String(value ?? ''))
@@ -132,6 +139,7 @@ export function CommonLogsFilterBar<TData>(
       username: searchParams.username,
       requestId: searchParams.requestId,
       upstreamRequestId: searchParams.upstreamRequestId,
+      includeModelTest: searchParams.includeModelTest,
       type: searchParams.type,
     }
     const filters: CommonLogFilters = {
@@ -151,6 +159,7 @@ export function CommonLogsFilterBar<TData>(
       sourceKey: buildSearchSourceKey(sourceValues),
       filters,
       logType: getLogTypeValue(searchParams.type),
+      includeModelTest: searchParams.includeModelTest === true,
     }
   }, [
     searchParams.startTime,
@@ -162,6 +171,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.username,
     searchParams.requestId,
     searchParams.upstreamRequestId,
+    searchParams.includeModelTest,
     searchParams.type,
   ])
   const [draft, setDraft] = useState<CommonLogDraft>(() => searchState)
@@ -169,6 +179,7 @@ export function CommonLogsFilterBar<TData>(
     draft.sourceKey === searchState.sourceKey ? draft : searchState
   const filters = activeDraft.filters
   const logType = activeDraft.logType
+  const includeModelTest = activeDraft.includeModelTest
 
   const handleChange = useCallback(
     (field: keyof CommonLogFilters, value: Date | string | undefined) => {
@@ -179,6 +190,7 @@ export function CommonLogsFilterBar<TData>(
           sourceKey: searchState.sourceKey,
           filters: { ...base.filters, [field]: value },
           logType: base.logType,
+          includeModelTest: base.includeModelTest,
         }
       })
     },
@@ -193,12 +205,13 @@ export function CommonLogsFilterBar<TData>(
       search: {
         ...filterParams,
         type: [logType],
+        includeModelTest: isAdmin && includeModelTest ? true : undefined,
         page: 1,
       },
     })
     queryClient.invalidateQueries({ queryKey: ['logs'] })
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
-  }, [filters, logType, navigate, queryClient])
+  }, [filters, includeModelTest, isAdmin, logType, navigate, queryClient])
 
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
@@ -212,6 +225,7 @@ export function CommonLogsFilterBar<TData>(
       sourceKey: buildSearchSourceKey(resetSearch),
       filters: resetFilters,
       logType: LOG_TYPE_ALL_VALUE,
+      includeModelTest: false,
     })
 
     navigate({
@@ -220,6 +234,7 @@ export function CommonLogsFilterBar<TData>(
       search: {
         page: 1,
         ...resetSearch,
+        includeModelTest: undefined,
       },
     })
     queryClient.invalidateQueries({ queryKey: ['logs'] })
@@ -241,8 +256,13 @@ export function CommonLogsFilterBar<TData>(
     !!filters.upstreamRequestId
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
+  const hasModelTestFilter = isAdmin && includeModelTest
   const hasAdditionalFilters =
-    !!filters.model || !!filters.group || hasTypeFilter || hasExpandedFilters
+    !!filters.model ||
+    !!filters.group ||
+    hasTypeFilter ||
+    hasModelTestFilter ||
+    hasExpandedFilters
 
   const expandedFilterCount = [
     filters.token,
@@ -262,6 +282,18 @@ export function CommonLogsFilterBar<TData>(
   )
   const logTypeLabel =
     logTypeItems.find((type) => type.value === logType)?.label ?? t('All Types')
+  const modelTestLogItems = useMemo(
+    () =>
+      modelTestLogFilters.map((filter) => ({
+        value: filter.value,
+        label: t(filter.label),
+      })),
+    [t]
+  )
+  const modelTestLogLabel =
+    modelTestLogItems.find(
+      (filter) => filter.value === (includeModelTest ? 'include' : 'exclude')
+    )?.label ?? t('Exclude Model Test Logs')
 
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
@@ -339,6 +371,7 @@ export function CommonLogsFilterBar<TData>(
               sourceKey: searchState.sourceKey,
               filters: base.filters,
               logType: nextLogType,
+              includeModelTest: base.includeModelTest,
             }
           })
         }}
@@ -358,6 +391,41 @@ export function CommonLogsFilterBar<TData>(
       </Select>
     </LogsFilterField>
   )
+  const modelTestFilter = isAdmin ? (
+    <LogsFilterField>
+      <Select
+        items={modelTestLogItems}
+        value={includeModelTest ? 'include' : 'exclude'}
+        onValueChange={(value) => {
+          setDraft((current) => {
+            const base =
+              current.sourceKey === searchState.sourceKey
+                ? current
+                : searchState
+            return {
+              sourceKey: searchState.sourceKey,
+              filters: base.filters,
+              logType: base.logType,
+              includeModelTest: value === 'include',
+            }
+          })
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue>{modelTestLogLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {modelTestLogFilters.map((filter) => (
+              <SelectItem key={filter.value} value={filter.value}>
+                {t(filter.label)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </LogsFilterField>
+  ) : null
   const advancedFilters = (
     <>
       <LogsFilterField>
@@ -420,6 +488,7 @@ export function CommonLogsFilterBar<TData>(
           {modelFilter}
           {groupFilter}
           {typeFilter}
+          {modelTestFilter}
         </>
       }
       advancedFilters={advancedFilters}
@@ -429,12 +498,17 @@ export function CommonLogsFilterBar<TData>(
           {modelFilter}
           {groupFilter}
           {typeFilter}
+          {modelTestFilter}
           {advancedFilters}
         </>
       }
       mobileFilterCount={
-        [filters.model, filters.group, hasTypeFilter].filter(Boolean).length +
-        expandedFilterCount
+        [
+          filters.model,
+          filters.group,
+          hasTypeFilter,
+          hasModelTestFilter,
+        ].filter(Boolean).length + expandedFilterCount
       }
       hasAdvancedActiveFilters={hasExpandedFilters}
       advancedFilterCount={expandedFilterCount}
