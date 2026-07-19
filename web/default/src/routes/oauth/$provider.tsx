@@ -35,6 +35,7 @@ import {
 } from '@/features/auth/constants'
 import { startOAuthBindResponseDeadline } from '@/features/auth/lib/oauth-bind-window'
 import { api, applyAuthBundle, isAuthBundle } from '@/lib/api'
+import { getServerErrorMessageKey } from '@/lib/server-error-message'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
@@ -183,15 +184,25 @@ function OAuthCallback() {
           toast.success(i18next.t('Signed in successfully!'))
           return
         }
-        toast.error(response.data?.message || i18next.t('OAuth failed'))
+        const messageKey = getServerErrorMessageKey(response.data)
+        toast.error(
+          messageKey
+            ? i18next.t(messageKey)
+            : response.data?.message || i18next.t('OAuth failed')
+        )
       } catch (error: unknown) {
+        const messageKey = getServerErrorMessageKey(error)
         const responseMessage = (
           error as { response?: { data?: { message?: string } } }
         ).response?.data?.message
-        toast.error(
-          responseMessage ||
-            (error instanceof Error ? error.message : i18next.t('OAuth failed'))
-        )
+        if (!messageKey) {
+          toast.error(
+            responseMessage ||
+              (error instanceof Error
+                ? error.message
+                : i18next.t('OAuth failed'))
+          )
+        }
       }
       safeNavigate('/sign-in')
     })()

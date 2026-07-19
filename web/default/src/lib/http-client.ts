@@ -25,6 +25,7 @@ import {
   clearAuthentication,
   refreshAuthentication,
 } from '@/lib/auth-session'
+import { getServerErrorMessageKey } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
 declare module 'axios' {
@@ -87,7 +88,12 @@ api.interceptors.response.use(
       typeof response.data?.success === 'boolean' &&
       !response.data.success
     ) {
-      toast.error(response.data.message || t('Request failed'))
+      const messageKey = getServerErrorMessageKey(response.data)
+      toast.error(
+        messageKey
+          ? t(messageKey)
+          : response.data.message || t('Request failed')
+      )
     }
     return response
   },
@@ -123,8 +129,12 @@ api.interceptors.response.use(
         toast.error(t('Session expired!'))
       }
     } else if (!skipErrorHandler) {
-      const message =
-        error?.response?.data?.message || error?.message || t('Request failed')
+      const messageKey = getServerErrorMessageKey(error)
+      const message = messageKey
+        ? t(messageKey)
+        : error?.response?.data?.message ||
+          error?.message ||
+          t('Request failed')
       toast.error(message)
     }
     throw error

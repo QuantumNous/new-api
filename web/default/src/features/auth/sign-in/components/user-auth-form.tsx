@@ -54,6 +54,7 @@ import {
   prepareCredentialRequestOptions,
   isPasskeySupported as detectPasskeySupport,
 } from '@/lib/passkey'
+import { getServerErrorMessageKey } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -218,9 +219,11 @@ export function UserAuthForm({
         toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
       } else {
+        if (getServerErrorMessageKey(res)) return
         toast.error(res?.message || loginFailedMessage)
       }
-    } catch {
+    } catch (error: unknown) {
+      if (getServerErrorMessageKey(error)) return
       toast.error(loginFailedMessage)
     } finally {
       setIsWeChatSubmitting(false)
@@ -247,6 +250,7 @@ export function UserAuthForm({
     try {
       const begin = await beginPasskeyLogin()
       if (!begin.success) {
+        if (getServerErrorMessageKey(begin)) return
         throw new Error(begin.message || t('Failed to start Passkey login'))
       }
 
@@ -274,6 +278,7 @@ export function UserAuthForm({
 
       const finish = await finishPasskeyLogin(flowToken, assertion)
       if (!finish.success) {
+        if (getServerErrorMessageKey(finish)) return
         throw new Error(finish.message || t('Failed to complete Passkey login'))
       }
 
@@ -284,6 +289,7 @@ export function UserAuthForm({
       await handleLoginSuccess(finish.data, redirectTo)
       toast.success(t('Signed in with Passkey'))
     } catch (error: unknown) {
+      if (getServerErrorMessageKey(error)) return
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
         toast.info(t('Passkey login was cancelled or timed out'))
       } else if (error instanceof Error) {

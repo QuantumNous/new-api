@@ -51,6 +51,7 @@ import {
 } from '@/features/auth/lib/storage'
 import { useStatus } from '@/hooks/use-status'
 import { isAuthBundle } from '@/lib/api'
+import { getServerErrorMessageKey } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 export function SignUpForm({
@@ -219,9 +220,11 @@ export function SignUpForm({
         toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
       } else {
+        if (getServerErrorMessageKey(res)) return
         toast.error(res?.message || t('Login failed'))
       }
-    } catch {
+    } catch (error: unknown) {
+      if (getServerErrorMessageKey(error)) return
       toast.error(t('Login failed'))
     } finally {
       setIsWeChatSubmitting(false)

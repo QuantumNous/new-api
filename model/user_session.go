@@ -17,15 +17,22 @@ const (
 	UserSessionStatusRevoking = "revoking"
 	UserSessionStatusRevoked  = "revoked"
 
-	userSessionCacheSchema = 1
+	userSessionCacheSchema      = 1
+	userSessionListLimit        = 100
+	userSessionRevokeBatchSize  = 500
+	userSessionCleanupScanLimit = 1000
+	userSessionCleanupBatchSize = 500
 )
 
 var (
-	ErrUserSessionInvalid        = errors.New("user session is invalid")
-	ErrUserSessionInactive       = errors.New("user session is inactive")
-	ErrUserSessionRefreshInvalid = errors.New("user session refresh token is invalid")
-	ErrUserSessionRefreshRace    = errors.New("user session refresh is already in progress")
-	ErrUserSessionRefreshReuse   = errors.New("user session refresh token was reused")
+	ErrUserSessionInvalid               = errors.New("user session is invalid")
+	ErrUserSessionInactive              = errors.New("user session is inactive")
+	ErrUserSessionRefreshInvalid        = errors.New("user session refresh token is invalid")
+	ErrUserSessionRefreshRace           = errors.New("user session refresh is already in progress")
+	ErrUserSessionRefreshReuse          = errors.New("user session refresh token was reused")
+	ErrUserSessionLimit                 = errors.New("active user session limit reached")
+	ErrUserSessionIssuanceLimit         = errors.New("user session issuance limit reached")
+	errUserSessionCacheObservationStale = errors.New("user session cache observation is stale")
 )
 
 // UserSession is the server-side control plane for short-lived access JWTs.
@@ -33,20 +40,20 @@ var (
 // refresh secrets are never persisted.
 type UserSession struct {
 	SID                 string `json:"sid" gorm:"column:sid;type:varchar(64);primaryKey"`
-	UserID              int    `json:"user_id" gorm:"column:user_id;not null;index:idx_user_sessions_user_status_expiry,priority:1"`
+	UserID              int    `json:"user_id" gorm:"column:user_id;not null;index:idx_user_sessions_user_status_expiry,priority:1;index:idx_user_sessions_user_created,priority:1"`
 	Version             int64  `json:"version" gorm:"type:bigint;not null;default:1"`
 	UserAuthVersion     int64  `json:"user_auth_version" gorm:"type:bigint;not null"`
-	Status              string `json:"status" gorm:"type:varchar(16);not null;index:idx_user_sessions_user_status_expiry,priority:2"`
+	Status              string `json:"status" gorm:"type:varchar(16);not null;index:idx_user_sessions_user_status_expiry,priority:2;index:idx_user_sessions_status_revoked,priority:1"`
 	RefreshHash         string `json:"-" gorm:"type:char(64);not null"`
 	PreviousRefreshHash string `json:"-" gorm:"type:char(64)"`
 	PreviousValidUntil  int64  `json:"-" gorm:"type:bigint;not null;default:0"`
 	LoginMethod         string `json:"login_method" gorm:"type:varchar(32);not null"`
 	IP                  string `json:"ip" gorm:"type:varchar(64)"`
 	UserAgent           string `json:"user_agent" gorm:"type:text"`
-	CreatedAt           int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	CreatedAt           int64  `json:"created_at" gorm:"autoCreateTime;column:created_at;index:idx_user_sessions_user_created,priority:2"`
 	LastActiveAt        int64  `json:"last_active_at" gorm:"type:bigint;not null;column:last_active_at"`
-	ExpiresAt           int64  `json:"expires_at" gorm:"type:bigint;not null;column:expires_at;index:idx_user_sessions_user_status_expiry,priority:3"`
-	RevokedAt           int64  `json:"revoked_at,omitempty" gorm:"type:bigint;not null;default:0;column:revoked_at"`
+	ExpiresAt           int64  `json:"expires_at" gorm:"type:bigint;not null;column:expires_at;index:idx_user_sessions_user_status_expiry,priority:3;index:idx_user_sessions_expires_at"`
+	RevokedAt           int64  `json:"revoked_at,omitempty" gorm:"type:bigint;not null;default:0;column:revoked_at;index:idx_user_sessions_status_revoked,priority:2"`
 	RevokedReason       string `json:"revoked_reason,omitempty" gorm:"type:varchar(64);column:revoked_reason"`
 }
 
@@ -113,8 +120,13 @@ func userSessionCacheKey(sid string) string {
 	return "auth:session:" + digest
 }
 
+func userSessionCacheDeadline() time.Time {
+	return time.Now().Add(time.Duration(userCacheTTLSeconds()) * time.Second)
+}
+
 func CreateUserSession(session *UserSession) error {
-	if session == nil || session.SID == "" || session.UserID <= 0 || session.UserAuthVersion <= 0 || session.RefreshHash == "" || session.ExpiresAt <= time.Now().Unix() {
+	now := time.Now().Unix()
+	if session == nil || session.SID == "" || session.UserID <= 0 || session.UserAuthVersion <= 0 || session.RefreshHash == "" || session.ExpiresAt <= now {
 		return ErrUserSessionInvalid
 	}
 	if session.Version <= 0 {
@@ -127,15 +139,54 @@ func CreateUserSession(session *UserSession) error {
 		return ErrUserSessionInvalid
 	}
 	if session.LastActiveAt == 0 {
-		session.LastActiveAt = time.Now().Unix()
+		session.LastActiveAt = now
 	}
+	if session.CreatedAt == 0 {
+		session.CreatedAt = now
+	}
+	cacheDeadline := userSessionCacheDeadline()
 	if err := DB.Create(session).Error; err != nil {
 		return err
 	}
-	if err := writeUserSessionCache(session.cacheEntry()); err != nil {
+	if err := writeUserSessionCache(session.cacheEntry(), cacheDeadline); err != nil {
+		if errors.Is(err, errUserSessionCacheObservationStale) {
+			return confirmUserSessionActiveSnapshot(session)
+		}
+		if errors.Is(err, ErrUserSessionInactive) {
+			return err
+		}
 		common.SysLog("failed to populate newly created user session cache: " + err.Error())
 	}
 	return nil
+}
+
+func CountActiveUserSessions(userID int, now int64) (int64, error) {
+	if userID <= 0 {
+		return 0, ErrUserSessionInvalid
+	}
+	if now <= 0 {
+		now = time.Now().Unix()
+	}
+	var count int64
+	err := DB.Model(&UserSession{}).
+		Where("user_id = ? AND status = ? AND expires_at > ?", userID, UserSessionStatusActive, now).
+		Count(&count).Error
+	return count, err
+}
+
+// CountUserSessionsCreatedSince counts every issued row, regardless of its
+// current status or expiry. userID zero selects the global count.
+func CountUserSessionsCreatedSince(userID int, createdAfter int64) (int64, error) {
+	if userID < 0 || createdAfter <= 0 {
+		return 0, ErrUserSessionInvalid
+	}
+	query := DB.Model(&UserSession{}).Where("created_at > ?", createdAfter)
+	if userID > 0 {
+		query = query.Where("user_id = ?", userID)
+	}
+	var count int64
+	err := query.Count(&count).Error
+	return count, err
 }
 
 func GetUserSessionBySID(sid string) (*UserSession, error) {
@@ -165,6 +216,7 @@ func GetUserSessionCached(sid string) (*UserSession, error) {
 		}
 	}
 
+	cacheDeadline := userSessionCacheDeadline()
 	session, err := GetUserSessionBySID(sid)
 	if err != nil {
 		return nil, err
@@ -174,12 +226,18 @@ func GetUserSessionCached(sid string) (*UserSession, error) {
 		if common.RedisEnabled {
 			entry := session.cacheEntry()
 			entry.Status = UserSessionStatusRevoked
-			_ = writeUserSessionCache(entry)
+			_ = writeUserSessionCache(entry, time.Time{})
 		}
 		return nil, ErrUserSessionInactive
 	}
 	if common.RedisEnabled {
-		if err := writeUserSessionCache(session.cacheEntry()); err != nil {
+		if err := writeUserSessionCache(session.cacheEntry(), cacheDeadline); err != nil {
+			if errors.Is(err, errUserSessionCacheObservationStale) {
+				if confirmErr := confirmUserSessionActiveSnapshot(session); confirmErr != nil {
+					return nil, confirmErr
+				}
+				return session, nil
+			}
 			if errors.Is(err, ErrUserSessionInactive) {
 				return nil, err
 			}
@@ -203,13 +261,48 @@ func getUserSessionCache(sid string) (*userSessionCacheEntry, error) {
 	return &entry, nil
 }
 
-func writeUserSessionCache(entry *userSessionCacheEntry) error {
+// writeUserSessionCache writes a bounded Session snapshot. Active snapshots
+// must carry a deadline captured immediately before their authoritative
+// database read or mutation. Delayed fills inherit the unspent portion of that
+// window, so a stale active snapshot cannot outlive a short deny tombstone and
+// reactivate a revoked Session after the tombstone expires. Deny states pass a
+// zero deadline because their TTL starts when they are published.
+func writeUserSessionCache(entry *userSessionCacheEntry, cacheDeadline time.Time) error {
 	if entry == nil || !common.RedisEnabled {
 		return nil
 	}
-	ttl := entry.ExpiresAt - time.Now().Unix()
-	if ttl <= 0 {
-		ttl = 1
+	now := time.Now()
+	sessionExpiresAt := time.Unix(entry.ExpiresAt, 0)
+	sessionTTL := sessionExpiresAt.Sub(now)
+	var redisExpiration int64
+	if entry.Status == UserSessionStatusActive {
+		if cacheDeadline.IsZero() {
+			return ErrUserSessionInvalid
+		}
+		cacheTTL := cacheDeadline.Sub(now)
+		if cacheTTL <= 0 {
+			return errUserSessionCacheObservationStale
+		}
+		if sessionTTL <= 0 {
+			return ErrUserSessionInactive
+		}
+		cacheExpiresAt := cacheDeadline
+		if sessionExpiresAt.Before(cacheExpiresAt) {
+			cacheExpiresAt = sessionExpiresAt
+		}
+		if cacheExpiresAt.Sub(now) < time.Millisecond {
+			return errUserSessionCacheObservationStale
+		}
+		redisExpiration = cacheExpiresAt.UnixMilli()
+	} else {
+		ttl := min(sessionTTL, time.Duration(userCacheTTLSeconds())*time.Second)
+		if ttl <= 0 {
+			ttl = time.Second
+		}
+		redisExpiration = ttl.Milliseconds()
+		if redisExpiration <= 0 {
+			redisExpiration = 1
+		}
 	}
 	entry.CacheSchema = userSessionCacheSchema
 	const script = `
@@ -227,17 +320,56 @@ redis.call('HSET', KEYS[1],
   'LoginMethod', ARGV[6], 'IP', ARGV[7], 'UserAgent', ARGV[8],
   'CreatedAt', ARGV[9], 'LastActiveAt', ARGV[10], 'ExpiresAt', ARGV[11],
   'RevokedAt', ARGV[12], 'RevokedReason', ARGV[13], 'CacheSchema', ARGV[14])
-redis.call('EXPIRE', KEYS[1], ARGV[15])
+if ARGV[5] == 'active' then
+  redis.call('PEXPIREAT', KEYS[1], ARGV[15])
+else
+  redis.call('PEXPIRE', KEYS[1], ARGV[15])
+end
 return 1`
 	result, err := common.RDB.Eval(context.Background(), script, []string{userSessionCacheKey(entry.SID)},
 		entry.SID, entry.UserID, entry.Version, entry.UserAuthVersion, entry.Status,
 		entry.LoginMethod, entry.IP, entry.UserAgent, entry.CreatedAt, entry.LastActiveAt,
-		entry.ExpiresAt, entry.RevokedAt, entry.RevokedReason, entry.CacheSchema, ttl,
+		entry.ExpiresAt, entry.RevokedAt, entry.RevokedReason, entry.CacheSchema, redisExpiration,
 	).Int()
 	if err != nil {
 		return err
 	}
 	if result == 0 {
+		return ErrUserSessionInactive
+	}
+	if entry.Status == UserSessionStatusActive {
+		completedAt := time.Now()
+		if !completedAt.Before(cacheDeadline) {
+			return errUserSessionCacheObservationStale
+		}
+		if !completedAt.Before(sessionExpiresAt) {
+			return ErrUserSessionInactive
+		}
+	}
+	return nil
+}
+
+func confirmUserSessionActiveSnapshot(session *UserSession) error {
+	if session == nil || session.SID == "" || session.UserID <= 0 || session.Version <= 0 || session.UserAuthVersion <= 0 {
+		return ErrUserSessionInvalid
+	}
+	var count int64
+	err := DB.Model(&UserSession{}).
+		Where(
+			"sid = ? AND user_id = ? AND status = ? AND revoked_at = ? AND expires_at > ? AND version = ? AND user_auth_version = ?",
+			session.SID,
+			session.UserID,
+			UserSessionStatusActive,
+			0,
+			time.Now().Unix(),
+			session.Version,
+			session.UserAuthVersion,
+		).
+		Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count != 1 {
 		return ErrUserSessionInactive
 	}
 	return nil
@@ -251,10 +383,10 @@ func writeUserSessionDenyFence(session *UserSession, status string, now int64, r
 	entry.Status = status
 	entry.RevokedAt = now
 	entry.RevokedReason = reason
-	return writeUserSessionCache(entry)
+	return writeUserSessionCache(entry, time.Time{})
 }
 
-func ListActiveUserSessions(userID int, now int64) ([]UserSession, error) {
+func ListActiveUserSessions(userID int, currentSID string, now int64) ([]UserSession, error) {
 	if userID <= 0 {
 		return nil, ErrUserSessionInvalid
 	}
@@ -268,10 +400,41 @@ func ListActiveUserSessions(userID int, now int64) ([]UserSession, error) {
 	if authVersion <= 0 {
 		return nil, ErrUserSessionInvalid
 	}
-	var sessions []UserSession
-	err := DB.Where("user_id = ? AND user_auth_version = ? AND status = ? AND expires_at > ?", userID, authVersion, UserSessionStatusActive, now).
-		Order("last_active_at DESC").Order("created_at DESC").Find(&sessions).Error
-	return sessions, err
+	sessions := make([]UserSession, 0, userSessionListLimit)
+	if currentSID != "" {
+		var current []UserSession
+		if err := DB.Where(
+			"user_id = ? AND user_auth_version = ? AND status = ? AND expires_at > ? AND sid = ?",
+			userID,
+			authVersion,
+			UserSessionStatusActive,
+			now,
+			currentSID,
+		).Limit(1).Find(&current).Error; err != nil {
+			return nil, err
+		}
+		if len(current) == 1 {
+			sessions = append(sessions, current[0])
+		}
+	}
+	remainingLimit := userSessionListLimit - len(sessions)
+
+	otherQuery := DB.Where(
+		"user_id = ? AND user_auth_version = ? AND status = ? AND expires_at > ?",
+		userID,
+		authVersion,
+		UserSessionStatusActive,
+		now,
+	)
+	if currentSID != "" {
+		otherQuery = otherQuery.Where("sid <> ?", currentSID)
+	}
+	var others []UserSession
+	if err := otherQuery.Order("last_active_at DESC").Order("created_at DESC").Limit(remainingLimit).Find(&others).Error; err != nil {
+		return nil, err
+	}
+	sessions = append(sessions, others...)
+	return sessions, nil
 }
 
 // RotateUserSessionRefresh atomically rotates HMAC digests. The UPDATE itself
@@ -291,6 +454,7 @@ func RotateUserSessionRefresh(userID int, sid, presentedHash, nextHash string, n
 		return nil, ErrUserSessionInvalid
 	}
 	for range 3 {
+		cacheDeadline := userSessionCacheDeadline()
 		var session UserSession
 		if err := DB.Where("sid = ? AND user_id = ?", sid, userID).First(&session).Error; err != nil {
 			return nil, err
@@ -319,8 +483,16 @@ func RotateUserSessionRefresh(userID int, sid, presentedHash, nextHash string, n
 			session.PreviousValidUntil = now + graceSeconds
 			session.RefreshHash = nextHash
 			session.LastActiveAt = now
-			if err := writeUserSessionCache(session.cacheEntry()); err != nil && !errors.Is(err, ErrUserSessionInactive) {
-				common.SysLog("failed to update rotated user session cache: " + err.Error())
+			if err := writeUserSessionCache(session.cacheEntry(), cacheDeadline); err != nil {
+				if errors.Is(err, errUserSessionCacheObservationStale) {
+					if confirmErr := confirmUserSessionActiveSnapshot(&session); confirmErr != nil {
+						return nil, confirmErr
+					}
+				} else if errors.Is(err, ErrUserSessionInactive) {
+					return nil, err
+				} else {
+					common.SysLog("failed to update rotated user session cache: " + err.Error())
+				}
 			}
 			return &session, nil
 		}
@@ -355,7 +527,7 @@ func RotateUserSessionRefresh(userID int, sid, presentedHash, nextHash string, n
 		session.Status = UserSessionStatusRevoked
 		session.RevokedAt = now
 		session.RevokedReason = "refresh_reuse"
-		if err := writeUserSessionCache(session.cacheEntry()); err != nil {
+		if err := writeUserSessionCache(session.cacheEntry(), time.Time{}); err != nil {
 			common.SysLog("failed to cache refresh-reuse session revoke: " + err.Error())
 		}
 		return nil, ErrUserSessionRefreshReuse
@@ -409,7 +581,7 @@ func RevokeUserSession(userID int, sid, reason string) (bool, error) {
 		candidate.Status = UserSessionStatusRevoked
 		candidate.RevokedAt = now
 		candidate.RevokedReason = reason
-		if err := writeUserSessionCache(candidate.cacheEntry()); err != nil {
+		if err := writeUserSessionCache(candidate.cacheEntry(), time.Time{}); err != nil {
 			common.SysLog("failed to finalize user session revoke tombstone: " + err.Error())
 		}
 	}
@@ -465,7 +637,7 @@ func RevokeUserSessionByRefreshHash(sid, presentedHash, reason string) (bool, er
 		return false, err
 	}
 	if revoked {
-		if err := writeUserSessionCache(session.cacheEntry()); err != nil {
+		if err := writeUserSessionCache(session.cacheEntry(), time.Time{}); err != nil {
 			common.SysLog("failed to finalize refresh-authenticated session revoke tombstone: " + err.Error())
 		}
 	}
@@ -479,6 +651,7 @@ func AdvanceUserSessionAuthVersion(userID int, sid string, expectedSessionVersio
 	if userID <= 0 || sid == "" || expectedSessionVersion <= 0 || expectedUserAuthVersion <= 0 || nextUserAuthVersion <= expectedUserAuthVersion {
 		return nil, ErrUserSessionInvalid
 	}
+	cacheDeadline := userSessionCacheDeadline()
 	now := time.Now().Unix()
 	var session UserSession
 	err := DB.Transaction(func(tx *gorm.DB) error {
@@ -510,8 +683,14 @@ func AdvanceUserSessionAuthVersion(userID int, sid string, expectedSessionVersio
 	if err != nil {
 		return nil, err
 	}
-	if err := writeUserSessionCache(session.cacheEntry()); err != nil {
-		return nil, err
+	if err := writeUserSessionCache(session.cacheEntry(), cacheDeadline); err != nil {
+		if errors.Is(err, errUserSessionCacheObservationStale) {
+			if confirmErr := confirmUserSessionActiveSnapshot(&session); confirmErr != nil {
+				return nil, confirmErr
+			}
+		} else {
+			return nil, err
+		}
 	}
 	return &session, nil
 }
@@ -529,65 +708,157 @@ func revokeUserSessions(userID int, excludedSID, reason string) (int64, error) {
 		return 0, ErrUserSessionInvalid
 	}
 	now := time.Now().Unix()
-	query := DB.Where("user_id = ? AND status = ? AND expires_at > ?", userID, UserSessionStatusActive, now)
-	if excludedSID != "" {
-		query = query.Where("sid <> ?", excludedSID)
-	}
-	var candidates []UserSession
-	if err := query.Find(&candidates).Error; err != nil {
-		return 0, err
-	}
-	for i := range candidates {
-		if err := writeUserSessionDenyFence(&candidates[i], UserSessionStatusRevoking, now, reason); err != nil {
-			return 0, err
+	var totalAffected int64
+	for {
+		query := DB.Where("user_id = ? AND status = ? AND expires_at > ?", userID, UserSessionStatusActive, now)
+		if excludedSID != "" {
+			query = query.Where("sid <> ?", excludedSID)
 		}
-	}
-	if len(candidates) == 0 {
-		return 0, nil
-	}
+		var candidates []UserSession
+		if err := query.Order("sid").Limit(userSessionRevokeBatchSize).Find(&candidates).Error; err != nil {
+			return totalAffected, err
+		}
+		if len(candidates) == 0 {
+			return totalAffected, nil
+		}
+		for i := range candidates {
+			if err := writeUserSessionDenyFence(&candidates[i], UserSessionStatusRevoking, now, reason); err != nil {
+				return totalAffected, err
+			}
+		}
 
-	sids := make([]string, 0, len(candidates))
-	for i := range candidates {
-		sids = append(sids, candidates[i].SID)
-	}
-	var affected int64
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		var locked []UserSession
-		if err := lockForUpdate(tx).Where("sid IN ? AND status = ?", sids, UserSessionStatusActive).Find(&locked).Error; err != nil {
-			return err
+		sids := make([]string, 0, len(candidates))
+		for i := range candidates {
+			sids = append(sids, candidates[i].SID)
 		}
-		if len(locked) == 0 {
-			return nil
-		}
-		lockedSIDs := make([]string, 0, len(locked))
-		for i := range locked {
-			lockedSIDs = append(lockedSIDs, locked[i].SID)
-		}
-		result := tx.Model(&UserSession{}).Where("sid IN ? AND status = ?", lockedSIDs, UserSessionStatusActive).Updates(map[string]interface{}{
-			"status":         UserSessionStatusRevoked,
-			"revoked_at":     now,
-			"revoked_reason": reason,
+		var affected int64
+		var revoked []UserSession
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			if err := lockForUpdate(tx).Where("sid IN ? AND status = ?", sids, UserSessionStatusActive).Find(&revoked).Error; err != nil {
+				return err
+			}
+			if len(revoked) == 0 {
+				return nil
+			}
+			lockedSIDs := make([]string, 0, len(revoked))
+			for i := range revoked {
+				lockedSIDs = append(lockedSIDs, revoked[i].SID)
+			}
+			result := tx.Model(&UserSession{}).Where("sid IN ? AND status = ?", lockedSIDs, UserSessionStatusActive).Updates(map[string]interface{}{
+				"status":         UserSessionStatusRevoked,
+				"revoked_at":     now,
+				"revoked_reason": reason,
+			})
+			affected = result.RowsAffected
+			return result.Error
 		})
-		affected = result.RowsAffected
-		return result.Error
-	})
-	if err != nil {
-		return 0, err
-	}
-	for i := range candidates {
-		candidates[i].Status = UserSessionStatusRevoked
-		candidates[i].RevokedAt = now
-		candidates[i].RevokedReason = reason
-		if err := writeUserSessionCache(candidates[i].cacheEntry()); err != nil {
-			common.SysLog("failed to finalize bulk user session revoke tombstone: " + err.Error())
+		if err != nil {
+			return totalAffected, err
+		}
+		totalAffected += affected
+		for i := range revoked {
+			revoked[i].Status = UserSessionStatusRevoked
+			revoked[i].RevokedAt = now
+			revoked[i].RevokedReason = reason
+			if err := writeUserSessionCache(revoked[i].cacheEntry(), time.Time{}); err != nil {
+				common.SysLog("failed to finalize bulk user session revoke tombstone: " + err.Error())
+			}
 		}
 	}
-	return affected, nil
 }
 
 func DeleteExpiredUserSessions(now int64) error {
 	if now <= 0 {
 		now = time.Now().Unix()
 	}
-	return DB.Where("expires_at < ?", now).Delete(&UserSession{}).Error
+	if common.UserSessionRevokedRetentionDays <= 0 || common.UserSessionIssuanceWindowSeconds <= 0 {
+		return ErrUserSessionInvalid
+	}
+	issuanceCutoff := now - common.UserSessionIssuanceWindowSeconds
+	revokedBefore := now - int64(common.UserSessionRevokedRetentionDays)*24*60*60
+	return deleteExpiredUserSessionsBefore(now, issuanceCutoff, revokedBefore)
+}
+
+func DeleteOldRevokedUserSessions(now int64) error {
+	if now <= 0 {
+		now = time.Now().Unix()
+	}
+	if common.UserSessionRevokedRetentionDays <= 0 || common.UserSessionIssuanceWindowSeconds <= 0 {
+		return ErrUserSessionInvalid
+	}
+	issuanceCutoff := now - common.UserSessionIssuanceWindowSeconds
+	revokedBefore := now - int64(common.UserSessionRevokedRetentionDays)*24*60*60
+	return deleteRevokedUserSessionsBefore(revokedBefore, issuanceCutoff)
+}
+
+func deleteExpiredUserSessionsBefore(expiredBefore, issuanceCutoff, revokedBefore int64) error {
+	for {
+		var sids []string
+		if err := DB.Model(&UserSession{}).
+			Where(
+				"expires_at < ? AND created_at <= ? AND (status <> ? OR revoked_at <= 0 OR revoked_at < ?)",
+				expiredBefore,
+				issuanceCutoff,
+				UserSessionStatusRevoked,
+				revokedBefore,
+			).
+			Order("expires_at").Limit(userSessionCleanupScanLimit).Pluck("sid", &sids).Error; err != nil {
+			return err
+		}
+		if len(sids) == 0 {
+			return nil
+		}
+		for start := 0; start < len(sids); start += userSessionCleanupBatchSize {
+			end := start + userSessionCleanupBatchSize
+			if end > len(sids) {
+				end = len(sids)
+			}
+			if err := DB.Where("sid IN ?", sids[start:end]).
+				Where(
+					"expires_at < ? AND created_at <= ? AND (status <> ? OR revoked_at <= 0 OR revoked_at < ?)",
+					expiredBefore,
+					issuanceCutoff,
+					UserSessionStatusRevoked,
+					revokedBefore,
+				).
+				Delete(&UserSession{}).Error; err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func deleteRevokedUserSessionsBefore(revokedBefore, issuanceCutoff int64) error {
+	for {
+		var sids []string
+		if err := DB.Model(&UserSession{}).
+			Where(
+				"status = ? AND revoked_at > 0 AND revoked_at < ? AND created_at <= ?",
+				UserSessionStatusRevoked,
+				revokedBefore,
+				issuanceCutoff,
+			).
+			Order("revoked_at").Limit(userSessionCleanupScanLimit).Pluck("sid", &sids).Error; err != nil {
+			return err
+		}
+		if len(sids) == 0 {
+			return nil
+		}
+		for start := 0; start < len(sids); start += userSessionCleanupBatchSize {
+			end := start + userSessionCleanupBatchSize
+			if end > len(sids) {
+				end = len(sids)
+			}
+			if err := DB.Where("sid IN ?", sids[start:end]).
+				Where(
+					"status = ? AND revoked_at > 0 AND revoked_at < ? AND created_at <= ?",
+					UserSessionStatusRevoked,
+					revokedBefore,
+					issuanceCutoff,
+				).
+				Delete(&UserSession{}).Error; err != nil {
+				return err
+			}
+		}
+	}
 }

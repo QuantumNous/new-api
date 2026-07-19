@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 
 import { wechatLoginByCode } from '@/features/auth/api'
 import { applyAuthBundle, isAuthBundle } from '@/lib/api'
+import { getServerErrorMessageKey } from '@/lib/server-error-message'
 
 function OAuthComponent() {
   const navigate = useNavigate()
@@ -44,9 +45,16 @@ function OAuthComponent() {
             navigate({ to: target, replace: true })
             return
           }
+          if (getServerErrorMessageKey(res)) {
+            navigate({ to: '/sign-in', replace: true })
+            return
+          }
         }
-      } catch {
-        /* empty */
+      } catch (error: unknown) {
+        if (getServerErrorMessageKey(error)) {
+          navigate({ to: '/sign-in', replace: true })
+          return
+        }
       }
       toast.error(i18next.t('OAuth failed'))
       navigate({ to: '/sign-in', replace: true })

@@ -569,7 +569,7 @@
       "post": {
         "summary": "用户登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -595,6 +595,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -611,7 +631,7 @@
       "post": {
         "summary": "两步验证登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（登录流程）",
+        "description": "🔓 无需鉴权（登录流程）。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -638,6 +658,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -714,14 +754,14 @@
       "get": {
         "summary": "查看登录会话",
         "deprecated": false,
-        "description": "🔐 需要面板 Access Token；PAT 不能管理浏览器登录会话",
+        "description": "🔐 需要面板 Access Token；PAT 不能管理浏览器登录会话。只返回当前 user_auth_version 的有效会话，当前会话优先，最多 100 条。",
         "tags": [
           "用户登陆注册"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "返回当前用户的有效登录会话",
+            "description": "返回当前鉴权版本的有效登录会话",
             "headers": {}
           }
         },
@@ -768,7 +808,7 @@
       "post": {
         "summary": "撤销其他登录会话",
         "deprecated": false,
-        "description": "🔐 保留当前登录会话并撤销该用户的其他会话",
+        "description": "🔐 保留当前登录会话并撤销该用户的其他会话，包含列表不可见的旧 user_auth_version active 残留行",
         "tags": [
           "用户登陆注册"
         ],
@@ -840,7 +880,7 @@
       "post": {
         "summary": "完成Passkey登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -849,6 +889,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -865,7 +925,7 @@
       "get": {
         "summary": "GitHub OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -884,6 +944,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -900,7 +966,7 @@
       "get": {
         "summary": "Discord OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -919,6 +985,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -935,7 +1007,7 @@
       "get": {
         "summary": "OIDC登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -944,6 +1016,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -960,7 +1038,7 @@
       "get": {
         "summary": "LinuxDO OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -969,6 +1047,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -1040,7 +1124,7 @@
       "get": {
         "summary": "微信OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -1049,6 +1133,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -1150,7 +1240,7 @@
       "get": {
         "summary": "Telegram登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -1159,6 +1249,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -5162,6 +5258,32 @@
           "data": {}
         }
       },
+      "AuthSessionIssuanceError": {
+        "type": "object",
+        "required": [
+          "success",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "AUTH_SESSION_LIMIT",
+              "AUTH_SESSION_ISSUANCE_LIMIT"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "PageInfo": {
         "type": "object",
         "properties": {
@@ -5326,7 +5448,28 @@
         }
       }
     },
-    "responses": {},
+    "responses": {
+      "AuthSessionLimit": {
+        "description": "该用户的活跃登录 Session 已达上限",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthSessionIssuanceError"
+            }
+          }
+        }
+      },
+      "AuthSessionIssuanceLimit": {
+        "description": "该用户在统计窗口内创建的 Session 已达上限",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthSessionIssuanceError"
+            }
+          }
+        }
+      }
+    },
     "securitySchemes": {
       "SessionAuth1": {
         "type": "apiKey",
