@@ -59,6 +59,12 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
+		// Non-imagen image models (e.g. gemini-*-flash-image) generate images via the
+		// generateContent endpoint with responseModalities=[TEXT,IMAGE], not imagen :predict.
+		// Let OpenAI /v1/images/generations reach them by converting to a chat request.
+		if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+			return buildGeminiImagineRequestFromImage(request), nil
+		}
 		return nil, errors.New("not supported model for image generation, only imagen models are supported")
 	}
 
@@ -261,6 +267,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return GeminiImageHandler(c, info, resp)
+	}
+
+	// Non-imagen image models served via /v1/images/generations: the upstream replies
+	// with a generateContent payload (inlineData image parts); convert it to the OpenAI
+	// image response shape instead of the chat shape.
+	if info.RelayMode == constant.RelayModeImagesGenerations {
+		return GeminiImagineContentHandler(c, info, resp)
 	}
 
 	// check if the model is an embedding model

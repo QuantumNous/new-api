@@ -1592,6 +1592,110 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return usage, nil
 }
 
+// buildGeminiImagineRequestFromImage converts an OpenAI /v1/images/generations
+// request into a Gemini generateContent request for image-capable chat models
+// (gemini-*-flash-image), mapping size→aspectRatio and quality→imageSize.
+func buildGeminiImagineRequestFromImage(request dto.ImageRequest) *dto.GeminiChatRequest {
+	geminiRequest := &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{
+				Role:  "user",
+				Parts: []dto.GeminiPart{{Text: request.Prompt}},
+			},
+		},
+	}
+	geminiRequest.GenerationConfig.ResponseModalities = []string{"TEXT", "IMAGE"}
+
+	imageConfig := make(map[string]interface{})
+	size := strings.TrimSpace(request.Size)
+	if size != "" {
+		if strings.Contains(size, ":") {
+			imageConfig["aspectRatio"] = size
+		} else {
+			switch size {
+			case "1536x1024":
+				imageConfig["aspectRatio"] = "3:2"
+			case "1024x1536":
+				imageConfig["aspectRatio"] = "2:3"
+			case "1024x1792":
+				imageConfig["aspectRatio"] = "9:16"
+			case "1792x1024":
+				imageConfig["aspectRatio"] = "16:9"
+			case "256x256", "512x512", "1024x1024":
+				imageConfig["aspectRatio"] = "1:1"
+			}
+		}
+	}
+	switch request.Quality {
+	case "hd", "high", "2K":
+		imageConfig["imageSize"] = "2K"
+	case "standard", "medium", "low", "auto", "1K":
+		imageConfig["imageSize"] = "1K"
+	}
+	if len(imageConfig) > 0 {
+		if b, err := common.Marshal(imageConfig); err == nil {
+			geminiRequest.GenerationConfig.ImageConfig = b
+		}
+	}
+	return geminiRequest
+}
+
+// GeminiImagineContentHandler parses a generateContent response (inlineData image
+// parts) and returns it in the OpenAI /v1/images/generations shape (b64_json).
+func GeminiImagineContentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	_ = resp.Body.Close()
+
+	var geminiResponse dto.GeminiChatResponse
+	if jsonErr := common.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
+		return nil, types.NewOpenAIError(jsonErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	openAIResponse := dto.ImageResponse{
+		Created: common.GetTimestamp(),
+		Data:    make([]dto.ImageData, 0, 1),
+	}
+	var revisedPrompt string
+	for _, candidate := range geminiResponse.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "image") {
+				openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
+					B64Json:       part.InlineData.Data,
+					RevisedPrompt: revisedPrompt,
+				})
+			} else if part.Text != "" && !part.Thought {
+				revisedPrompt = part.Text
+			}
+		}
+	}
+	if len(openAIResponse.Data) == 0 {
+		return nil, types.NewOpenAIError(errors.New("no images generated"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	jsonResponse, jsonErr := json.Marshal(openAIResponse)
+	if jsonErr != nil {
+		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
+	}
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(http.StatusOK)
+	_, _ = c.Writer.Write(jsonResponse)
+
+	usage := &dto.Usage{}
+	if geminiResponse.UsageMetadata.TotalTokenCount > 0 {
+		usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
+		usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount
+		usage.TotalTokens = geminiResponse.UsageMetadata.TotalTokenCount
+	} else {
+		const imageTokens = 258
+		usage.PromptTokens = imageTokens * len(openAIResponse.Data)
+		usage.TotalTokens = usage.PromptTokens
+	}
+	return usage, nil
+}
+
 type GeminiModelsResponse struct {
 	Models        []dto.GeminiModel `json:"models"`
 	NextPageToken string            `json:"nextPageToken"`
