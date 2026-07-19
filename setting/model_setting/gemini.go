@@ -21,8 +21,9 @@ var defaultGeminiSettings = GeminiSettings{
 		"default": "OFF",
 	},
 	VersionSettings: map[string]string{
-		"default":        "v1beta",
-		"gemini-1.0-pro": "v1",
+		"default":                "v1beta",
+		"gemini-1.0-pro":         "v1",
+		"gemini-3.1-flash-image": "v1",
 	},
 	SupportedImagineModels: []string{
 		"gemini-2.0-flash-exp-image-generation",
