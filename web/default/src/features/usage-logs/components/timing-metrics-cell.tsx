@@ -75,13 +75,15 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
     firstTokenSeconds == null
       ? 'neutral'
       : getFirstResponseTimeColor(firstTokenSeconds)
-  const totalTimeVariant = getResponseTimeColor(
-    props.useTimeSec,
-    props.completionTokens
-  )
+  const hasTotalTime = Number.isFinite(props.useTimeSec) && props.useTimeSec > 0
+  const totalTimeVariant: StatusVariant = hasTotalTime
+    ? getResponseTimeColor(props.useTimeSec, props.completionTokens)
+    : 'neutral'
   const firstTokenLabel =
     firstTokenSeconds == null ? t('N/A') : formatUseTime(firstTokenSeconds)
-  const totalTimeLabel = formatUseTime(props.useTimeSec)
+  const totalTimeLabel = hasTotalTime
+    ? formatUseTime(props.useTimeSec)
+    : t('N/A')
 
   const labels = (
     <div className='flex min-h-8 min-w-0 flex-col justify-center gap-0.5 text-xs leading-tight'>
@@ -99,9 +101,7 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
           <span className='text-muted-foreground shrink-0'>
             {t('First token')}
           </span>
-          <span
-            className={cn('tabular-nums', textColorMap[firstTokenVariant])}
-          >
+          <span className={cn('tabular-nums', textColorMap[firstTokenVariant])}>
             {firstTokenLabel}
           </span>
         </div>
@@ -116,9 +116,7 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
             )}
           />
         )}
-        <span className='text-muted-foreground shrink-0'>
-          {t('Duration')}
-        </span>
+        <span className='text-muted-foreground shrink-0'>{t('Duration')}</span>
         <span className={cn('tabular-nums', textColorMap[totalTimeVariant])}>
           {totalTimeLabel}
         </span>
@@ -128,9 +126,7 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
 
   if (indicator === 'dot') {
     return (
-      <div className={cn('flex items-stretch', props.className)}>
-        {labels}
-      </div>
+      <div className={cn('flex items-stretch', props.className)}>{labels}</div>
     )
   }
 

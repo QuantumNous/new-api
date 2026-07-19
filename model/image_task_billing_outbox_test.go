@@ -30,7 +30,8 @@ type imageTaskBillingLogOtherSnapshot struct {
 			WebhookConfigured bool   `json:"webhook_configured"`
 		} `json:"request"`
 		Result struct {
-			Images []struct {
+			PublicBase string `json:"public_base"`
+			Images     []struct {
 				URL           string `json:"url"`
 				RevisedPrompt string `json:"revised_prompt"`
 			} `json:"images"`
@@ -88,6 +89,7 @@ func TestFinalizeImageTaskEnqueuesAndDeliversBillingLogIdempotently(t *testing.T
 func TestFinalizeImageTaskBillingLogSnapshotsTaskInfo(t *testing.T) {
 	truncateTables(t)
 	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "false")
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example")
 	_, _, _, task := seedImageTaskBillingState(t, "billing-log-task-info", 100)
 	task.SubmitTime = common.GetTimestamp() - 9
 	task.Properties.OriginModelName = "gpt-image-2"
@@ -151,6 +153,7 @@ func TestFinalizeImageTaskBillingLogSnapshotsTaskInfo(t *testing.T) {
 	assert.Equal(t, finalized.Task.FinishTime, other.TaskInfo.Timing.CompletedAt)
 	assert.Equal(t, (finalized.Task.FinishTime-task.SubmitTime)*1000, other.TaskInfo.Timing.TotalMS)
 	assert.Equal(t, 2, other.TaskInfo.Result.Count)
+	assert.Equal(t, "https://cdn.example", other.TaskInfo.Result.PublicBase)
 	require.Len(t, other.TaskInfo.Result.Images, 2)
 	assert.Equal(t, "https://cdn.example/images/first.png", other.TaskInfo.Result.Images[0].URL)
 	assert.Equal(t, "revised first prompt", other.TaskInfo.Result.Images[0].RevisedPrompt)
@@ -305,6 +308,7 @@ func TestImageTaskBillingLogDoesNotLeakPrivateTaskData(t *testing.T) {
 }
 
 func TestImageTaskLogResultSnapshotPreservesDuplicateOutputCount(t *testing.T) {
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example")
 	task := &Task{Status: TaskStatusSuccess}
 	result := imageTaskLogResultSnapshot(task, []dto.ImageData{
 		{Url: "https://cdn.example/images/same.png"},
@@ -314,6 +318,36 @@ func TestImageTaskLogResultSnapshotPreservesDuplicateOutputCount(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, 2, result.Count)
 	assert.Len(t, result.Images, 1)
+}
+
+func TestImageTaskLogResultSnapshotRestrictsConfiguredPublicBase(t *testing.T) {
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example/generated")
+	task := &Task{Status: TaskStatusSuccess}
+	result := imageTaskLogResultSnapshot(task, []dto.ImageData{
+		{Url: "https://cdn.example/generated/ok.png"},
+		{Url: "https://cdn.example/other.png"},
+		{Url: "https://cdn.example/generated/tracked.png?token=secret"},
+		{Url: "https://127.0.0.1.nip.io/generated/ssrf.png"},
+	})
+
+	require.NotNil(t, result)
+	assert.Equal(t, "https://cdn.example/generated", result.PublicBase)
+	assert.Equal(t, 4, result.Count)
+	require.Len(t, result.Images, 1)
+	assert.Equal(t, "https://cdn.example/generated/ok.png", result.Images[0].URL)
+}
+
+func TestImageTaskLogResultSnapshotFailsClosedWithoutPublicBase(t *testing.T) {
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "")
+	task := &Task{Status: TaskStatusSuccess}
+	result := imageTaskLogResultSnapshot(task, []dto.ImageData{{
+		Url: "https://provider.example/generated.png",
+	}})
+
+	require.NotNil(t, result)
+	assert.Empty(t, result.PublicBase)
+	assert.Equal(t, 1, result.Count)
+	assert.Empty(t, result.Images)
 }
 
 func TestImageTaskBillingLogOutboxStaleLeaseCannotOverwriteReclaimedLease(t *testing.T) {

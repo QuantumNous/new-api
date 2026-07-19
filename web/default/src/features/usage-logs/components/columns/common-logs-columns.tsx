@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { GitBranch, Sparkles, KeyRound } from 'lucide-react'
+import { GitBranch, ImageIcon, Sparkles, KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -51,6 +51,12 @@ import {
   renderAuditContent,
 } from '../../lib/format'
 import {
+  formatImageTaskDuration,
+  getImageTaskMedia,
+  getImageTaskStreamSummary,
+  parseImageTaskInfo,
+} from '../../lib/image-task-info'
+import {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
@@ -58,6 +64,7 @@ import {
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
+import { ImageDialog } from '../dialogs/image-dialog'
 import { ModelBadge } from '../model-badge'
 import { TimingMetricsCell, StreamTpsCell } from '../timing-metrics-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
@@ -628,6 +635,21 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       header: t('Stream'),
       cell: ({ row }) => {
         const log = row.original
+        const imageTaskInfo = parseImageTaskInfo(log.other)
+        if (imageTaskInfo) {
+          const summary = getImageTaskStreamSummary(imageTaskInfo)
+          return (
+            <div className='flex shrink-0 flex-col items-start justify-center gap-0.5 text-xs leading-tight'>
+              <span className='text-info inline-flex items-center gap-1 font-medium'>
+                <ImageIcon className='size-3' aria-hidden='true' />
+                {t('Async task')}
+              </span>
+              <span className='text-muted-foreground/60 px-0.5 tabular-nums'>
+                {summary.imageCount} × {t('Image')}
+              </span>
+            </div>
+          )
+        }
         if (!isTimingLogType(log.type)) return null
 
         const useTime = row.getValue('use_time') as number
@@ -751,11 +773,41 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       header: t('Timing'),
       cell: ({ row }) => {
         const log = row.original
+        const useTime = row.getValue('use_time') as number
+        const imageTaskInfo = parseImageTaskInfo(log.other)
+
+        if (imageTaskInfo) {
+          const durationLabel = formatImageTaskDuration(imageTaskInfo, useTime)
+          const isImageSuccess = imageTaskInfo.status === 'SUCCESS'
+          let durationBarTone = 'bg-neutral/80'
+          let durationTextTone = 'text-muted-foreground'
+          if (durationLabel !== 'N/A') {
+            if (isImageSuccess) {
+              durationBarTone = 'bg-success/90'
+              durationTextTone = 'text-success'
+            } else if (imageTaskInfo.status === 'FAILURE') {
+              durationBarTone = 'bg-destructive/80'
+              durationTextTone = 'text-destructive'
+            }
+          }
+          return (
+            <div className='flex min-h-8 items-center gap-2 text-xs leading-tight'>
+              <span
+                aria-hidden='true'
+                className={`h-8 w-1 shrink-0 rounded-full ${durationBarTone}`}
+              />
+              <div className='flex min-w-0 flex-col justify-center gap-0.5'>
+                <span className='text-muted-foreground'>{t('Duration')}</span>
+                <span className={cn('tabular-nums', durationTextTone)}>
+                  {durationLabel === 'N/A' ? t('N/A') : durationLabel}
+                </span>
+              </div>
+            </div>
+          )
+        }
         if (!isTimingLogType(log.type)) return null
 
-        const useTime = row.getValue('use_time') as number
         const other = parseLogOther(log.other)
-
         return (
           <TimingMetricsCell
             useTimeSec={useTime}
@@ -772,8 +824,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       header: t('Details'),
       cell: function DetailsCell({ row }) {
         const [dialogOpen, setDialogOpen] = useState(false)
+        const [imageDialogOpen, setImageDialogOpen] = useState(false)
         const log = row.original
         const other = parseLogOther(log.other)
+        const imageTaskInfo = parseImageTaskInfo(log.other)
+        const media = imageTaskInfo ? getImageTaskMedia(imageTaskInfo) : null
 
         const segments = buildDetailSegments(log, other, t, isAdmin)
         const primary = segments[0]
@@ -811,14 +866,61 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <>
-            <button
-              type='button'
-              className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
-              onClick={() => setDialogOpen(true)}
-              title={t('Click to view full details')}
-            >
-              {detailPreview}
-            </button>
+            <div className='flex max-w-[220px] items-center gap-2'>
+              {media?.thumbnail && (
+                <button
+                  type='button'
+                  className='border-border/70 focus-visible:ring-ring bg-muted relative size-9 shrink-0 overflow-hidden rounded-md border focus-visible:ring-2 focus-visible:outline-none'
+                  onClick={() => setImageDialogOpen(true)}
+                  title={t('Click to view image')}
+                  aria-label={
+                    media.gallery.length > 1
+                      ? `${t('Click to view image')} (${media.gallery.length})`
+                      : t('Click to view image')
+                  }
+                >
+                  <img
+                    src={media.thumbnail.url}
+                    alt={media.thumbnail.revised_prompt || t('Generated image')}
+                    className='h-full w-full object-cover'
+                    loading='lazy'
+                    decoding='async'
+                    referrerPolicy='no-referrer'
+                    onError={(event) => {
+                      event.currentTarget.style.visibility = 'hidden'
+                    }}
+                  />
+                  {media.gallery.length > 1 && (
+                    <span
+                      aria-hidden='true'
+                      className='absolute right-0 bottom-0 rounded-tl bg-black/70 px-1 text-[9px] leading-4 text-white'
+                    >
+                      +{media.gallery.length - 1}
+                    </span>
+                  )}
+                </button>
+              )}
+              <button
+                type='button'
+                className='group flex min-w-0 flex-1 items-center gap-1 text-left text-xs'
+                onClick={() => setDialogOpen(true)}
+                title={t('Click to view full details')}
+              >
+                {detailPreview}
+              </button>
+            </div>
+            {media?.thumbnail && (
+              <ImageDialog
+                imageUrl={media.thumbnail.url}
+                images={media.gallery.map((image) => ({
+                  url: image.url,
+                  revisedPrompt: image.revised_prompt,
+                }))}
+                taskId={other?.task_id}
+                open={imageDialogOpen}
+                onOpenChange={setImageDialogOpen}
+              />
+            )}
             <DetailsDialog
               log={log}
               isAdmin={isAdmin}

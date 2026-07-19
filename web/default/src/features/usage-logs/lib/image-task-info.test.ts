@@ -23,6 +23,7 @@ import {
   formatImageTaskDuration,
   getImageTaskMedia,
   getImageTaskStreamSummary,
+  getSafeImageUrl,
   parseImageTaskInfo,
 } from './image-task-info'
 
@@ -31,13 +32,14 @@ const completedTaskInfo = {
   kind: 'image_generation',
   status: 'SUCCESS',
   result: {
+    public_base: 'https://cdn.example.com/generated',
     images: [
       {
         url: 'https://cdn.example.com/generated/first.png',
         revised_prompt: 'A calmer evening sky',
       },
       {
-        url: 'http://cdn.example.com/generated/second.jpg',
+        url: 'https://cdn.example.com/generated/second.jpg',
         width: 1024,
         height: 1024,
       },
@@ -61,12 +63,16 @@ describe('image task log presentation', () => {
     assert.equal(taskInfo.version, 1)
     assert.equal(taskInfo.kind, 'image_generation')
     assert.equal(taskInfo.status, 'SUCCESS')
+    assert.equal(
+      taskInfo.result.public_base,
+      'https://cdn.example.com/generated'
+    )
     assert.equal(taskInfo.result.count, 2)
     assert.deepEqual(
       taskInfo.result.images.map((image) => image.url),
       [
         'https://cdn.example.com/generated/first.png',
-        'http://cdn.example.com/generated/second.jpg',
+        'https://cdn.example.com/generated/second.jpg',
       ]
     )
     assert.equal(
@@ -74,6 +80,8 @@ describe('image task log presentation', () => {
       'A calmer evening sky'
     )
     assert.equal(taskInfo.timing?.total_ms, 18_765)
+    assert.equal(taskInfo.timing?.submitted_at, 1_720_000_000)
+    assert.equal(taskInfo.timing?.completed_at, 1_720_000_019)
   })
 
   test('returns null for malformed, unrelated, or unsupported task_info', () => {
@@ -89,6 +97,14 @@ describe('image task log presentation', () => {
       parseImageTaskInfo(
         JSON.stringify({
           task_info: { version: 2, kind: 'image_generation' },
+        })
+      ),
+      null
+    )
+    assert.equal(
+      parseImageTaskInfo(
+        JSON.stringify({
+          task_info: { version: 1, kind: 'image_generation', status: ' ' },
         })
       ),
       null
@@ -146,14 +162,136 @@ describe('image task log presentation', () => {
     })
   })
 
+  test('preserves a bounded declared count when image URLs are redacted', () => {
+    const taskInfo = parseImageTaskInfo(
+      JSON.stringify({
+        task_info: {
+          version: 1,
+          kind: 'image_generation',
+          status: 'SUCCESS',
+          result: { images: [], count: 2 },
+        },
+      })
+    )
+
+    assert.ok(taskInfo)
+    assert.deepEqual(getImageTaskStreamSummary(taskInfo), {
+      kind: 'async-image',
+      imageCount: 2,
+    })
+    assert.deepEqual(getImageTaskMedia(taskInfo), {
+      thumbnail: undefined,
+      gallery: [],
+    })
+
+    const oversized = parseImageTaskInfo(
+      JSON.stringify({
+        task_info: {
+          version: 1,
+          kind: 'image_generation',
+          status: 'SUCCESS',
+          result: { images: [], count: 1_000_000 },
+        },
+      })
+    )
+    assert.ok(oversized)
+    assert.equal(getImageTaskStreamSummary(oversized).imageCount, 128)
+
+    const twentyImages = parseImageTaskInfo(
+      JSON.stringify({
+        task_info: {
+          version: 1,
+          kind: 'image_generation',
+          status: 'SUCCESS',
+          result: {
+            images: Array.from({ length: 20 }, (_, index) => ({
+              url: `https://cdn.example.com/generated/${index}.png`,
+            })),
+            public_base: 'https://cdn.example.com/generated',
+            count: 20,
+          },
+        },
+      })
+    )
+    assert.ok(twentyImages)
+    assert.equal(getImageTaskStreamSummary(twentyImages).imageCount, 20)
+    assert.equal(getImageTaskMedia(twentyImages).gallery.length, 20)
+  })
+
   test('accepts only HTTP image URLs and exposes thumbnail and gallery data', () => {
+    assert.equal(
+      getSafeImageUrl('https://cdn.example.com/generated/first.png'),
+      'https://cdn.example.com/generated/first.png'
+    )
+    assert.equal(
+      getSafeImageUrl('https://user:pass@example.com/image.png'),
+      null
+    )
+    assert.equal(getSafeImageUrl('javascript:alert(1)'), null)
+    assert.equal(getSafeImageUrl('http://127.0.0.1/private.png'), null)
+    assert.equal(
+      getSafeImageUrl('http://169.254.169.254/latest/meta-data'),
+      null
+    )
+    assert.equal(getSafeImageUrl('http://192.168.1.10/private.png'), null)
+    assert.equal(getSafeImageUrl('http://localhost/private.png'), null)
+    assert.equal(getSafeImageUrl('http://[fe80::1]/private.png'), null)
+    assert.equal(getSafeImageUrl('http://[::ffff:7f00:1]/private.png'), null)
+    assert.equal(getSafeImageUrl('http://[::7f00:1]/private.png'), null)
+    assert.equal(getSafeImageUrl('http://[fec0::1]/private.png'), null)
+    assert.equal(getSafeImageUrl('https://127.0.0.1.nip.io/private.png'), null)
+
+    const trustedBase = new URL('https://cdn.example.com/generated')
+    assert.equal(
+      getSafeImageUrl(
+        'https://cdn.example.com/generated/first.png',
+        trustedBase
+      ),
+      'https://cdn.example.com/generated/first.png'
+    )
+    assert.equal(
+      getSafeImageUrl('https://cdn.example.com/other.png', trustedBase),
+      null
+    )
+    assert.equal(
+      getSafeImageUrl(
+        'https://cdn.example.com/generated/tracked.png?token=secret',
+        trustedBase
+      ),
+      null
+    )
+    assert.equal(
+      getSafeImageUrl('https://attacker.example/image.png', trustedBase),
+      null
+    )
+
+    const untrustedTaskInfo = parseImageTaskInfo(
+      JSON.stringify({
+        task_info: {
+          version: 1,
+          kind: 'image_generation',
+          status: 'SUCCESS',
+          result: {
+            images: [{ url: 'https://attacker.example/generated.png' }],
+            count: 1,
+          },
+        },
+      })
+    )
+    assert.ok(untrustedTaskInfo)
+    assert.equal(untrustedTaskInfo.result.count, 1)
+    assert.deepEqual(getImageTaskMedia(untrustedTaskInfo).gallery, [])
+
     const taskInfo = parseImageTaskInfo(
       JSON.stringify({
         task_info: {
           ...completedTaskInfo,
           result: {
+            ...completedTaskInfo.result,
             images: [
               ...completedTaskInfo.result.images,
+              { url: 'https://attacker.example/generated.png' },
+              { url: 'https://127.0.0.1.nip.io/generated.png' },
               { url: 'javascript:alert(1)' },
               { url: 'data:image/png;base64,AAAA' },
               { url: 'file:///tmp/private.png' },
@@ -177,7 +315,7 @@ describe('image task log presentation', () => {
       media.gallery.map((image) => image.url),
       [
         'https://cdn.example.com/generated/first.png',
-        'http://cdn.example.com/generated/second.jpg',
+        'https://cdn.example.com/generated/second.jpg',
       ]
     )
     assert.equal(media.gallery[0]?.revised_prompt, 'A calmer evening sky')

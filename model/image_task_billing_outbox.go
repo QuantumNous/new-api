@@ -73,8 +73,9 @@ type imageTaskLogImage struct {
 }
 
 type imageTaskLogResult struct {
-	Images []imageTaskLogImage `json:"images"`
-	Count  int                 `json:"count"`
+	PublicBase string              `json:"public_base,omitempty"`
+	Images     []imageTaskLogImage `json:"images"`
+	Count      int                 `json:"count"`
 }
 
 type imageTaskLogTiming struct {
@@ -240,16 +241,62 @@ func imageTaskLogInputCount(fields map[string]json.RawMessage) int {
 	return count
 }
 
+func imageTaskLogPublicBase() *url.URL {
+	rawBase := strings.TrimSpace(common.GetEnvOrDefaultString("CLOUDFLARE_R2_PUBLIC_BASE", ""))
+	if rawBase == "" {
+		return nil
+	}
+	parsed, err := url.Parse(rawBase)
+	if err != nil ||
+		parsed.Host == "" ||
+		parsed.User != nil ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil
+	}
+	return parsed
+}
+
+func imageTaskLogURLMatchesPublicBase(candidate, publicBase *url.URL) bool {
+	if publicBase == nil {
+		return false
+	}
+	if !strings.EqualFold(candidate.Scheme, publicBase.Scheme) ||
+		!strings.EqualFold(candidate.Hostname(), publicBase.Hostname()) ||
+		candidate.Port() != publicBase.Port() {
+		return false
+	}
+	basePath := strings.TrimRight(publicBase.EscapedPath(), "/")
+	if basePath == "" || basePath == "/" {
+		return true
+	}
+	candidatePath := candidate.EscapedPath()
+	return candidatePath == basePath || strings.HasPrefix(candidatePath, basePath+"/")
+}
+
 func imageTaskLogResultSnapshot(task *Task, images []dto.ImageData) *imageTaskLogResult {
 	if task == nil || task.Status != TaskStatusSuccess {
 		return nil
 	}
+	publicBase := imageTaskLogPublicBase()
 	result := &imageTaskLogResult{Images: make([]imageTaskLogImage, 0, len(images))}
+	if publicBase != nil {
+		result.PublicBase = strings.TrimRight(publicBase.String(), "/")
+	}
 	seen := make(map[string]struct{}, len(images)+1)
 	appendImage := func(rawURL, revisedPrompt string) {
 		value := strings.TrimSpace(rawURL)
 		parsed, err := url.Parse(value)
-		if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		if err != nil ||
+			parsed.Host == "" ||
+			parsed.User != nil ||
+			parsed.RawQuery != "" ||
+			parsed.Fragment != "" ||
+			(parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return
+		}
+		if !imageTaskLogURLMatchesPublicBase(parsed, publicBase) {
 			return
 		}
 		if _, exists := seen[value]; exists {
