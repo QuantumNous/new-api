@@ -3884,6 +3884,16 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "include_model_test",
+            "in": "query",
+            "description": "是否包含渠道模型测试日志，默认不包含",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -3933,7 +3943,18 @@
         "tags": [
           "日志"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "include_model_test",
+            "in": "query",
+            "description": "统计中是否包含渠道模型测试日志，默认不包含",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "成功",
