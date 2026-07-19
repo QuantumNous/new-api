@@ -45,6 +45,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const botProtectionSchema = z.object({
   TurnstileCheckEnabled: z.boolean(),
+  RegisterPageWithCaptchaEnabled: z.boolean(),
   TurnstileSiteKey: z.string().optional(),
   TurnstileSecretKey: z.string().optional(),
 })
@@ -99,6 +100,29 @@ export function BotProtectionSection({
                   <FormDescription>
                     {t(
                       'Protect login and registration with Cloudflare Turnstile'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='RegisterPageWithCaptchaEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Require CAPTCHA for Registration')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Require Cloudflare Turnstile verification specifically for registration and sending email verification codes'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>

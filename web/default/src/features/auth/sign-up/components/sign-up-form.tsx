@@ -66,13 +66,19 @@ export function SignUpForm({
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
+  const signupTurnstileRequired = useMemo(() => {
+    return !!(
+      (status?.turnstile_check || status?.register_page_with_captcha) &&
+      status?.turnstile_site_key
+    )
+  }, [status])
   const {
     isTurnstileEnabled,
     turnstileSiteKey,
     turnstileToken,
     setTurnstileToken,
     validateTurnstile,
-  } = useTurnstile()
+  } = useTurnstile({ forceEnable: signupTurnstileRequired })
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,

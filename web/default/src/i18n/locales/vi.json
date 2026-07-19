@@ -3766,6 +3766,8 @@
     "requests served": "yêu cầu đã phục vụ",
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "Các yêu cầu sẽ được chuyển tiếp đến worker này. Dấu gạch chéo ở cuối được tự động loại bỏ.",
     "Requests:": "Yêu cầu:",
+    "Require CAPTCHA for Registration": "Yêu cầu CAPTCHA khi đăng ký",
+    "Require Cloudflare Turnstile verification specifically for registration and sending email verification codes": "Yêu cầu xác minh Cloudflare Turnstile cụ thể cho việc đăng ký và gửi mã xác minh email",
     "Require email verification for new accounts": "Yêu cầu xác minh email cho tài khoản mới",
     "Require job success before follow-up actions": "Yêu cầu công việc thành công trước các hành động tiếp theo",
     "Require login to view models": "Yêu cầu đăng nhập để xem các mô hình",

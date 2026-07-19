@@ -3766,6 +3766,8 @@
     "requests served": "requests served",
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "Requests will be forwarded to this worker. Trailing slashes are removed automatically.",
     "Requests:": "Requests:",
+    "Require CAPTCHA for Registration": "Require CAPTCHA for Registration",
+    "Require Cloudflare Turnstile verification specifically for registration and sending email verification codes": "Require Cloudflare Turnstile verification specifically for registration and sending email verification codes",
     "Require email verification for new accounts": "Require email verification for new accounts",
     "Require job success before follow-up actions": "Require job success before follow-up actions",
     "Require login to view models": "Require login to view models",

@@ -3766,6 +3766,8 @@
     "requests served": "requêtes traitées",
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "Les requêtes seront transmises à ce worker. Les barres obliques finales sont automatiquement supprimées.",
     "Requests:": "Requêtes :",
+    "Require CAPTCHA for Registration": "Exiger un CAPTCHA pour l'inscription",
+    "Require Cloudflare Turnstile verification specifically for registration and sending email verification codes": "Exiger la vérification Cloudflare Turnstile spécifiquement pour l'inscription et l'envoi de codes de vérification par e-mail",
     "Require email verification for new accounts": "Exiger la vérification de l'e-mail pour les nouveaux comptes",
     "Require job success before follow-up actions": "Exiger le succès de la tâche avant les actions de suivi",
     "Require login to view models": "Exiger la connexion pour voir les modèles",

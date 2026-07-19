@@ -3766,6 +3766,8 @@
     "requests served": "処理されたリクエスト",
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "リクエストはこのワーカーに転送されます。末尾のスラッシュは自動的に削除されます。",
     "Requests:": "リクエスト:",
+    "Require CAPTCHA for Registration": "新規登録時にCAPTCHAを必須にする",
+    "Require Cloudflare Turnstile verification specifically for registration and sending email verification codes": "ユーザー登録およびメール検証コード送信時に Cloudflare Turnstile 検証を必须にします",
     "Require email verification for new accounts": "新しいアカウントにメール認証を要求する",
     "Require job success before follow-up actions": "フォローアップ アクション前にジョブの成功を要求",
     "Require login to view models": "モデルを表示するにはログインを要求する",

@@ -107,6 +107,7 @@ const AUTH_SECTIONS = [
       <BotProtectionSection
         defaultValues={{
           TurnstileCheckEnabled: settings.TurnstileCheckEnabled,
+          RegisterPageWithCaptchaEnabled: settings.RegisterPageWithCaptchaEnabled,
           TurnstileSiteKey: settings.TurnstileSiteKey,
           TurnstileSecretKey: settings.TurnstileSecretKey,
         }}

@@ -625,6 +625,7 @@
     "允许 speed 透传": "允許 speed 透傳",
     "允许 stream_options.include_obfuscation 透传": "",
     "允许 Turnstile 用户校验": "允許 Turnstile 使用者校驗",
+    "注册及发送邮箱验证码时需要 Turnstile 校验": "註冊及發送電子郵件驗證碼時需要 Turnstile 校驗",
     "允许不安全的 Origin（HTTP）": "允許不安全的 Origin（HTTP）",
     "允许回调（会泄露服务器 IP 地址）": "允許回調（會洩露伺服器 IP 位址）",
     "允许在 Stripe 支付中输入促销码": "允許在 Stripe 支付中輸入促銷碼",

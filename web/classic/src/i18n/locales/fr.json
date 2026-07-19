@@ -635,6 +635,7 @@
     "允许 speed 透传": "Autoriser la transmission de speed",
     "允许 stream_options.include_obfuscation 透传": "Autoriser la transmission de stream_options.include_obfuscation",
     "允许 Turnstile 用户校验": "Autoriser la vérification des utilisateurs Turnstile",
+    "注册及发送邮箱验证码时需要 Turnstile 校验": "Exiger la vérification Turnstile pour l'inscription et l'envoi de codes de vérification par e-mail",
     "允许不安全的 Origin（HTTP）": "Autoriser une origine non sécurisée (HTTP)",
     "允许回调（会泄露服务器 IP 地址）": "Autoriser le rappel (divulguera l'adresse IP du serveur)",
     "允许在 Stripe 支付中输入促销码": "Autoriser la saisie de codes promotionnels lors du paiement Stripe",

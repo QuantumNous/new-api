@@ -3766,6 +3766,8 @@
     "requests served": "服务请求数",
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "请求将被转发到此 Worker。末尾的斜杠会自动移除。",
     "Requests:": "请求：",
+    "Require CAPTCHA for Registration": "注册时启用人机验证",
+    "Require Cloudflare Turnstile verification specifically for registration and sending email verification codes": "仅在注册和发送邮箱验证码时要求进行 Cloudflare Turnstile 验证",
     "Require email verification for new accounts": "要求新账户验证邮箱",
     "Require job success before follow-up actions": "在后续操作前要求任务成功",
     "Require login to view models": "要求登录才能查看模型",
