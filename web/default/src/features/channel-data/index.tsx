@@ -182,6 +182,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const NON_LLM_MODEL_IDS = new Set([
+  'gemini-3.1-flash-image',
   'gemini-3.1-flash-image-preview',
   'gpt-image-2',
   'sora-2',

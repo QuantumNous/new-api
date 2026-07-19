@@ -26,7 +26,7 @@
   { "model_id": "grok-4.5", "label": "Grok 4.5", "accent": "#94a3b8" },
   { "model_id": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro", "accent": "#4285f4" },
   { "model_id": "gemini-3.5-flash", "label": "Gemini 3.5 Flash", "accent": "#4285f4" },
-  { "model_id": "gemini-3.1-flash-image-preview", "label": "Nano Banana 2", "accent": "#4285f4" },
+  { "model_id": "gemini-3.1-flash-image", "label": "Nano Banana 2", "accent": "#4285f4" },
   { "model_id": "gpt-image-2", "label": "Image 2", "accent": "#22d3ee" },
   { "model_id": "sora-2", "label": "Sora 2", "accent": "#22d3ee" },
   { "model_id": "sora-2-pro", "label": "Sora 2 Pro", "accent": "#22d3ee" },

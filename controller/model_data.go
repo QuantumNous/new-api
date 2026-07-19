@@ -985,9 +985,8 @@ func ToggleChannelStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "action must be enable or disable"})
 		return
 	}
-	// Expand canonical name → all known aliases (e.g. gemini-3.1-flash-image-preview
-	// ↔ gemini-3.1-flash-image) so toggle works regardless of which variant the
-	// frontend tab is using.
+	// Expand canonical name → all known aliases so toggle works regardless of
+	// which variant the frontend tab is using.
 	modelCandidates := service.ModelNameCandidates(req.Model)
 	// Update all ability rows for this (channel_id, model) across all groups.
 	if err := model.DB.Table("abilities").
@@ -995,6 +994,17 @@ func ToggleChannelStatus(c *gin.Context) {
 		Update("enabled", enabled).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
+	}
+	// abilities.enabled controls UI visibility only; actual routing uses channels.status.
+	// Sync channels.status so the disable/enable takes effect in the routing cache.
+	if enabled {
+		model.DB.Table("channels").
+			Where("id = ? AND status = ?", req.ChannelID, common.ChannelStatusManuallyDisabled).
+			Updates(map[string]any{"status": common.ChannelStatusEnabled, "consecutive_fingerprint_pass": 0})
+	} else {
+		model.DB.Table("channels").
+			Where("id = ? AND status = ?", req.ChannelID, common.ChannelStatusEnabled).
+			Updates(map[string]any{"status": common.ChannelStatusManuallyDisabled})
 	}
 	// When re-enabling, also bring the channel back to enabled regardless of how
 	// it was disabled — both fingerprint auto-disable (status=3) AND operator
