@@ -93,6 +93,13 @@ type imageTaskCacheCoordinator struct {
 	commit  func(imageTaskCacheAdjustment) error
 }
 
+func imageLegacyDebitMarker(legacy bool) int {
+	if legacy {
+		return 1
+	}
+	return 0
+}
+
 var (
 	errImageTaskWalletQuotaInsufficient = errors.New("image task wallet quota is insufficient")
 	errImageTaskTokenQuotaInsufficient  = errors.New("image task token quota is insufficient")
@@ -263,6 +270,23 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 		}
 		cacheAdjustment.walletLegacyDebit = task.PrivateData.WalletLegacyDebit
 		cacheAdjustment.tokenLegacyDebit = task.PrivateData.TokenLegacyDebit
+		var reservation ImageBillingReservation
+		reservationQuery := lockForUpdate(tx).Where("task_id = ?", task.TaskID).First(&reservation)
+		if reservationQuery.Error != nil && !errors.Is(reservationQuery.Error, gorm.ErrRecordNotFound) {
+			return reservationQuery.Error
+		}
+		if reservationQuery.Error == nil && reservation.Status != ImageBillingReservationRefunded {
+			if reservation.UserID != task.UserId {
+				return fmt.Errorf("image task %s billing reservation user mismatch", task.TaskID)
+			}
+			if err := normalizeImageReservationQuotaModeTx(tx, &reservation); err != nil {
+				return fmt.Errorf("normalize image task %s billing reservation: %w", task.TaskID, err)
+			}
+			cacheAdjustment.walletLegacyDebit = reservation.WalletLegacyDebit
+			cacheAdjustment.tokenLegacyDebit = reservation.TokenLegacyDebit
+			task.PrivateData.WalletLegacyDebit = reservation.WalletLegacyDebit
+			task.PrivateData.TokenLegacyDebit = reservation.TokenLegacyDebit
+		}
 
 		targetStatus := task.PrivateData.BillingFinalStatus
 		if targetStatus != TaskStatusSuccess && targetStatus != TaskStatusFailure {
@@ -1215,7 +1239,7 @@ return 1
 // phase did not commit. It invalidates the affected quota snapshots before the
 // compensating database refund, so either side of a crash reloads authoritative
 // balances instead of leaving a terminal task pinned in Redis.
-func rollbackPreparedImageTaskCache(taskID string, userID int, tokenKey string) error {
+func rollbackPreparedImageTaskCache(taskID string, userID int, tokenKey string, walletLegacyDebit bool, tokenLegacyDebit bool) error {
 	if !common.RedisEnabled {
 		return nil
 	}
@@ -1237,15 +1261,15 @@ end
 
 local expected_user_delta = nil
 local expected_token_delta = nil
-local expected_user_legacy = '0'
-local expected_token_legacy = '0'
+local expected_user_legacy = ARGV[12]
+local expected_token_legacy = ARGV[13]
 if state then
   local marker_user_key = redis.call('HGET', KEYS[1], 'user_key')
   local marker_token_key = redis.call('HGET', KEYS[1], 'token_key')
   local marker_user_delta = redis.call('HGET', KEYS[1], 'user_delta')
   local marker_token_delta = redis.call('HGET', KEYS[1], 'token_delta')
-  local marker_user_legacy = redis.call('HGET', KEYS[1], 'wallet_legacy_debit') or '0'
-  local marker_token_legacy = redis.call('HGET', KEYS[1], 'token_legacy_debit') or '0'
+	local marker_user_legacy = redis.call('HGET', KEYS[1], 'wallet_legacy_debit') or ARGV[12]
+	local marker_token_legacy = redis.call('HGET', KEYS[1], 'token_legacy_debit') or ARGV[13]
   if not marker_user_key or not marker_token_key or not marker_user_delta or not marker_token_delta then
     return -4
   end
@@ -1368,6 +1392,8 @@ return 1
 		imageTaskQuotaCacheHoldSeconds,
 		constant.TokenFiledRemainQuota,
 		int64(common.MaxLegacyQuota),
+		imageLegacyDebitMarker(walletLegacyDebit),
+		imageLegacyDebitMarker(tokenLegacyDebit),
 	).Int64()
 	if err != nil {
 		return fmt.Errorf("%w: rollback task %s: %v", errImageTaskQuotaCacheUnavailable, taskID, err)

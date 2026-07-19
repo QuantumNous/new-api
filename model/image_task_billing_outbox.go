@@ -798,6 +798,9 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 				reservation.TokenReserved < 0 || reservation.TokenReserved > common.MaxQuota {
 				return fmt.Errorf("image task %s billing reservation quota is out of range", taskID)
 			}
+			if err := normalizeImageReservationQuotaModeTx(tx, &reservation); err != nil {
+				return fmt.Errorf("normalize image task %s billing reservation: %w", taskID, err)
+			}
 			if reservation.TokenReserved > 0 && lockedTokenKey == "" {
 				return fmt.Errorf("image task %s billing token cache identity is unavailable", taskID)
 			}
@@ -811,7 +814,13 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 					return fmt.Errorf("image task %s billing token cache identity changed", taskID)
 				}
 			}
-			if err := rollbackPreparedImageTaskCache(taskID, lockedUserID, lockedTokenKey); err != nil {
+			if err := rollbackPreparedImageTaskCache(
+				taskID,
+				lockedUserID,
+				lockedTokenKey,
+				reservation.WalletLegacyDebit,
+				reservation.TokenLegacyDebit,
+			); err != nil {
 				return fmt.Errorf("rollback permanent image task cache: %w", err)
 			}
 			previousQuota := task.Quota
@@ -829,6 +838,7 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 					reservation.UserID,
 					reservation.WalletReserved,
 					reservation.WalletLegacyDebit,
+					reservation.QuotaModeVersion,
 				); err != nil {
 					return errors.New("refund image wallet reservation failed")
 				}
@@ -840,6 +850,7 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 					reservation.TokenID,
 					reservation.TokenReserved,
 					reservation.TokenLegacyDebit,
+					reservation.QuotaModeVersion,
 				); err != nil {
 					return errors.New("refund image token reservation failed")
 				}

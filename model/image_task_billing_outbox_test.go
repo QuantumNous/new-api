@@ -1,9 +1,11 @@
 package model
 
 import (
+	"context"
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -433,6 +435,105 @@ func TestCompensatePermanentImageTaskFinalizationRefundsActiveReservation(t *tes
 	var outbox ImageTaskBillingLogOutbox
 	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&outbox).Error)
 	assert.Equal(t, LogTypeRefund, outbox.LogType)
+}
+
+func TestCompensatePermanentImageTaskFinalizationRefundsLegacyActiveReservation(t *testing.T) {
+	truncateTables(t)
+	user, token, _, task := seedImageTaskBillingState(t, "legacy-permanent-compensation", 100)
+	legacyBalance := common.MaxQuota + 100_000
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", legacyBalance-100).Error)
+	require.NoError(t, DB.Model(&Token{}).Where("id = ?", token.Id).Updates(map[string]any{
+		"remain_quota": legacyBalance - 100,
+		"used_quota":   100,
+	}).Error)
+	require.NoError(t, DB.Create(&ImageBillingReservation{
+		TaskID:            task.TaskID,
+		UserID:            user.Id,
+		TokenID:           token.Id,
+		ExpectedQuota:     100,
+		FundingSource:     "wallet",
+		WalletReserved:    100,
+		WalletLegacyDebit: true,
+		TokenRequired:     true,
+		TokenReserved:     100,
+		TokenLegacyDebit:  true,
+		Status:            ImageBillingReservationActive,
+	}).Error)
+	task.Status = TaskStatusFinalizing
+	task.PrivateData.BillingFinalStatus = TaskStatusSuccess
+	task.PrivateData.BillingActualQuota = common.MaxQuota + 1
+	require.NoError(t, DB.Model(task).Select("status", "private_data").Updates(task).Error)
+
+	compensated, err := CompensatePermanentImageTaskFinalization(task.TaskID, "invalid legacy final quota")
+	require.NoError(t, err)
+	require.NotNil(t, compensated)
+	require.True(t, compensated.Applied)
+
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, legacyBalance, user.Quota)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, legacyBalance, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	var reservation ImageBillingReservation
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&reservation).Error)
+	assert.Equal(t, ImageBillingReservationRefunded, reservation.Status)
+	assert.Zero(t, reservation.WalletReserved)
+	assert.False(t, reservation.WalletLegacyDebit)
+	assert.Zero(t, reservation.TokenReserved)
+	assert.False(t, reservation.TokenLegacyDebit)
+}
+
+func TestCompensatePermanentImageTaskFinalizationRecoversLegacyCacheWithoutMarkerMode(t *testing.T) {
+	truncateTables(t)
+	redisServer := useImageTaskTestRedis(t)
+	user, token, _, task := seedImageTaskBillingState(t, "legacy-cache-marker", 100)
+	legacyBalance := common.MaxQuota + 100_000
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", legacyBalance-100).Error)
+	require.NoError(t, DB.Model(&Token{}).Where("id = ?", token.Id).Updates(map[string]any{
+		"remain_quota": legacyBalance - 100,
+		"used_quota":   100,
+	}).Error)
+	require.NoError(t, populateUserCache(*user))
+	require.NoError(t, cacheSetToken(*token))
+	redisServer.SetTTL(getUserCacheKey(user.Id), time.Minute)
+	redisServer.SetTTL("token:"+common.GenerateHMAC(token.Key), time.Minute)
+	require.NoError(t, DB.Model(user).Update("request_count", math.MaxInt).Error)
+	require.NoError(t, DB.Create(&ImageBillingReservation{
+		TaskID:            task.TaskID,
+		UserID:            user.Id,
+		TokenID:           token.Id,
+		ExpectedQuota:     100,
+		FundingSource:     "wallet",
+		WalletReserved:    100,
+		WalletLegacyDebit: true,
+		TokenRequired:     true,
+		TokenReserved:     100,
+		TokenLegacyDebit:  true,
+		Status:            ImageBillingReservationActive,
+	}).Error)
+	task.Status = TaskStatusFinalizing
+	task.PrivateData.BillingFinalStatus = TaskStatusSuccess
+	task.PrivateData.BillingActualQuota = 140
+	require.NoError(t, DB.Model(task).Select("status", "private_data").Updates(task).Error)
+
+	_, err := FinalizeImageTask(task.TaskID)
+	permanent, ok := IsPermanentImageTaskFinalizationError(err)
+	require.True(t, ok)
+	require.False(t, permanent.BillingDBApplied)
+	markerKey := "billing:image-task-cache:" + task.TaskID
+	assert.Equal(t, "prepared", redisServer.HGet(markerKey, "state"))
+	require.NoError(t, common.RDB.HDel(context.Background(), markerKey, "wallet_legacy_debit", "token_legacy_debit").Err())
+
+	compensated, err := CompensatePermanentImageTaskFinalization(task.TaskID, "recover legacy cache marker")
+	require.NoError(t, err)
+	require.NotNil(t, compensated)
+	require.True(t, compensated.Applied)
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, legacyBalance, user.Quota)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, legacyBalance, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	assert.False(t, redisServer.Exists(markerKey))
 }
 
 func TestCompensatePermanentImageTaskFinalizationRollsBackPreparedRedisCache(t *testing.T) {
