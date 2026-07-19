@@ -144,6 +144,112 @@ func populateImageReservationTestCache(t *testing.T, redisServer interface{ SetT
 	redisServer.SetTTL("token:"+common.GenerateHMAC(token.Key), time.Minute)
 }
 
+func setImageReservationLegacyBalances(t *testing.T, user *User, token *Token, balance int) {
+	t.Helper()
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", balance).Error)
+	require.NoError(t, DB.Model(&Token{}).Where("id = ?", token.Id).Updates(map[string]any{
+		"remain_quota": balance,
+		"used_quota":   0,
+	}).Error)
+	require.NoError(t, DB.First(user, user.Id).Error)
+	require.NoError(t, DB.First(token, token.Id).Error)
+}
+
+func TestImageBillingReservationRefundsBoundedLegacyBalancesBeforeActivation(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "bounded-legacy-refund", 100)
+	legacyBalance := common.MaxQuota + 100_000
+	setImageReservationLegacyBalances(t, user, token, legacyBalance)
+	populateImageReservationTestCache(t, redisServer, user, token)
+
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, legacyBalance-100, user.Quota)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, legacyBalance-100, token.RemainQuota)
+	assert.Equal(t, 100, token.UsedQuota)
+
+	applied, err := RefundImageBillingReservation(task.TaskID, "legacy submission abandoned")
+	require.NoError(t, err)
+	require.True(t, applied)
+
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, legacyBalance, user.Quota)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, legacyBalance, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance, cachedToken.RemainQuota)
+}
+
+func TestFinalizeImageTaskRefundsBoundedLegacyBalancesAfterActivation(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "bounded-legacy-finalize", 100)
+	legacyBalance := common.MaxQuota + 100_000
+	setImageReservationLegacyBalances(t, user, token, legacyBalance)
+	populateImageReservationTestCache(t, redisServer, user, token)
+
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 100))
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, 100))
+	task.Quota = 100
+	activated, err := ActivatePreparedImageTask(task)
+	require.NoError(t, err)
+	require.True(t, activated)
+
+	task.Status = TaskStatusInProgress
+	task.Attempt = 1
+	task.StartTime = common.GetTimestamp()
+	require.NoError(t, DB.Model(task).Select("status", "attempt", "start_time").Updates(task).Error)
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusFailure, 0)
+	require.NoError(t, err)
+	require.True(t, won)
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+	assert.Equal(t, TaskStatus(TaskStatusFailure), finalized.Task.Status)
+
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, legacyBalance, user.Quota)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, legacyBalance, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance, cachedToken.RemainQuota)
+}
+
+func TestImageBillingReservationRejectsBalanceAboveLegacyCeiling(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	user, token, task := seedPreparedImageBillingReservation(t, "unbounded-legacy", 1)
+	unboundedBalance := int(common.MaxLegacyQuota) + 1
+	setImageReservationLegacyBalances(t, user, token, unboundedBalance)
+	populateImageReservationTestCache(t, redisServer, user, token)
+
+	err := ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, 1)
+	require.Error(t, err)
+	err = ReserveImageTaskWalletQuota(task.TaskID, user.Id, 1)
+	require.Error(t, err)
+
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, unboundedBalance, user.Quota)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, unboundedBalance, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	reservation, err := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Zero(t, reservation.WalletReserved)
+	assert.Zero(t, reservation.TokenReserved)
+}
+
 func TestImageBillingReservationWalletTokenRecoveryIsIdempotent(t *testing.T) {
 	redisServer := useImageTaskTestRedis(t)
 	user, token, task := seedPreparedImageBillingReservation(t, "recover", 100)
