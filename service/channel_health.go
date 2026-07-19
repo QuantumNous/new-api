@@ -114,6 +114,8 @@ func channelHealthOutcomeStatus(apiErr *types.NewAPIError, relayInfo *relaycommo
 			return http.StatusBadGateway, false
 		case relaycommon.StreamEndReasonTerminalClientError:
 			return http.StatusBadRequest, false
+		case relaycommon.StreamEndReasonInternalError:
+			return http.StatusInternalServerError, true
 		}
 	}
 	if relayInfo != nil && relayInfo.UpstreamEmptyResponse {

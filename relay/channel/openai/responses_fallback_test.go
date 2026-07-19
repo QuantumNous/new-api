@@ -33,6 +33,11 @@ type failOnceOnNeedleWriter struct {
 	failed bool
 }
 
+type alwaysFailOnNeedleWriter struct {
+	gin.ResponseWriter
+	needle string
+}
+
 var responsesTestMu sync.Mutex
 
 func (w *cancelOnFlushWriter) Flush() {
@@ -43,6 +48,13 @@ func (w *cancelOnFlushWriter) Flush() {
 func (w *failOnceOnNeedleWriter) Write(data []byte) (int, error) {
 	if !w.failed && strings.Contains(string(data), w.needle) {
 		w.failed = true
+		return 0, io.ErrClosedPipe
+	}
+	return w.ResponseWriter.Write(data)
+}
+
+func (w *alwaysFailOnNeedleWriter) Write(data []byte) (int, error) {
+	if strings.Contains(string(data), w.needle) {
 		return 0, io.ErrClosedPipe
 	}
 	return w.ResponseWriter.Write(data)
@@ -109,15 +121,23 @@ func responsesTerminalEvents(t *testing.T, body string) []string {
 	t.Helper()
 
 	var events []string
+	currentEvent := ""
 	for _, line := range strings.Split(body, "\n") {
-		if !strings.HasPrefix(line, "event: ") {
+		if strings.HasPrefix(line, "event: ") {
+			currentEvent = strings.TrimSpace(strings.TrimPrefix(line, "event: "))
 			continue
 		}
-		eventType := strings.TrimSpace(strings.TrimPrefix(line, "event: "))
-		switch eventType {
-		case "response.completed", "response.failed", "response.incomplete", "error":
-			events = append(events, eventType)
+		if !strings.HasPrefix(line, "data: ") {
+			continue
 		}
+		switch currentEvent {
+		case "response.completed", "response.failed", "response.incomplete", "error":
+			var payload map[string]any
+			require.NoError(t, common.UnmarshalJsonStr(strings.TrimPrefix(line, "data: "), &payload))
+			require.Equal(t, currentEvent, payload["type"], "SSE event and data.type must match")
+			events = append(events, currentEvent)
+		}
+		currentEvent = ""
 	}
 	return events
 }
@@ -202,14 +222,101 @@ func TestOaiResponsesStreamHandlerCommitsTerminalOnlyAfterSuccessfulWrite(t *tes
 		``,
 	}, "\n\n")
 	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
-	writer := &failOnceOnNeedleWriter{ResponseWriter: c.Writer, needle: "event: response.completed"}
+	writer := &failOnceOnNeedleWriter{ResponseWriter: c.Writer, needle: `"type":"response.completed"`}
 	c.Writer = writer
 
 	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
 	require.Nil(t, apiErr)
 	require.NotNil(t, usage)
 	require.True(t, writer.failed, "fixture must fail the first terminal write")
-	require.Equal(t, []string{"response.completed"}, responsesTerminalEvents(t, recorder.Body.String()))
+	got := recorder.Body.String()
+	require.Equal(t, []string{"response.completed"}, responsesTerminalEvents(t, got))
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, got, "response.completed"), &payload))
+	response := payload["response"].(map[string]any)
+	require.Equal(t, "resp_test", response["id"])
+	usagePayload := response["usage"].(map[string]any)
+	require.EqualValues(t, 1, usagePayload["input_tokens"])
+	require.EqualValues(t, 2, usagePayload["output_tokens"])
+	require.EqualValues(t, 3, usagePayload["total_tokens"])
+	require.Equal(t, 1, usage.PromptTokens)
+	require.Equal(t, 2, usage.CompletionTokens)
+	require.Equal(t, 3, usage.TotalTokens)
+}
+
+func TestOaiResponsesStreamHandlerRetriesExactFailedTerminalAfterWriteFailure(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"partial"}`,
+		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"type":"server_error","code":"server_error","message":"provider failed"},"usage":{"input_tokens":4,"output_tokens":5,"total_tokens":9}}}`,
+		``,
+	}, "\n\n")
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+	writer := &failOnceOnNeedleWriter{ResponseWriter: c.Writer, needle: `"type":"response.failed"`}
+	c.Writer = writer
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	require.True(t, writer.failed)
+	got := recorder.Body.String()
+	require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, got))
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, got, "response.failed"), &payload))
+	response := payload["response"].(map[string]any)
+	require.Equal(t, "resp_failed", response["id"])
+	errorPayload := response["error"].(map[string]any)
+	require.Equal(t, "server_error", errorPayload["code"])
+	require.Equal(t, "provider failed", errorPayload["message"])
+	usagePayload := response["usage"].(map[string]any)
+	require.EqualValues(t, 4, usagePayload["input_tokens"])
+	require.EqualValues(t, 5, usagePayload["output_tokens"])
+	require.EqualValues(t, 9, usagePayload["total_tokens"])
+}
+
+func TestOaiResponsesStreamHandlerMalformedChunkEndsWithFailedTerminal(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"partial"}`,
+		`data: {not-json}`,
+		``,
+	}, "\n\n")
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, recorder.Body.String()))
+	require.Equal(t, relaycommon.StreamEndReasonUpstreamFailed, info.StreamStatus.Snapshot().EndReason)
+}
+
+func TestOaiResponsesStreamHandlerDeltaWriteFailureEndsWithFailedTerminal(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"first"}`,
+		`data: {"type":"response.output_text.delta","delta":"second"}`,
+		``,
+	}, "\n\n")
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+	writer := &failOnceOnNeedleWriter{ResponseWriter: c.Writer, needle: `"delta":"second"`}
+	c.Writer = writer
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	require.True(t, writer.failed)
+	require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, recorder.Body.String()))
+	require.Equal(t, relaycommon.StreamEndReasonInternalError, info.StreamStatus.Snapshot().EndReason)
+}
+
+func TestOaiResponsesStreamHandlerNormalizationFailureDoesNotCommitRawTerminal(t *testing.T) {
+	body := `data: {"type":"response.completed","ignored":1e10000,"response":{"id":"resp_bad_number","status":"completed"}}` + "\n\n"
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, recorder.Body.String()))
+	require.Equal(t, relaycommon.StreamEndReasonUpstreamFailed, info.StreamStatus.Snapshot().EndReason)
 }
 
 func TestOaiResponsesStreamHandlerStopsAfterTerminalEvent(t *testing.T) {
@@ -662,6 +769,184 @@ func TestOaiResponsesStreamHandlerNormalizesIncompleteTerminalEnvelope(t *testin
 			assert.IsType(t, float64(0), usagePayload["total_tokens"])
 		})
 	}
+}
+
+func TestOaiResponsesStreamHandlerRejectsNonObjectTerminalResponse(t *testing.T) {
+	body := `data: {"type":"response.completed","response":"invalid"}` + "\n\n"
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, recorder.Body.String()))
+	require.Equal(t, relaycommon.StreamEndReasonUpstreamFailed, info.StreamStatus.Snapshot().EndReason)
+}
+
+func TestOaiResponsesStreamHandlerAddsErrorToIncompleteFailedTerminal(t *testing.T) {
+	body := "data: {\"type\":\"response.failed\"}\n\n"
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	got := recorder.Body.String()
+	require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, got))
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, got, "response.failed"), &payload))
+	response, ok := payload["response"].(map[string]any)
+	require.True(t, ok)
+	errorPayload, ok := response["error"].(map[string]any)
+	require.True(t, ok, "response.failed must carry a parseable error object")
+	require.Equal(t, "stream_error", errorPayload["type"])
+	require.Equal(t, "upstream_failed", errorPayload["code"])
+	require.NotEmpty(t, errorPayload["message"])
+}
+
+func TestOaiResponsesStreamHandlerPreservesStringFailedError(t *testing.T) {
+	body := `data: {"type":"response.failed","response":{"id":"resp_string_error","error":"prompt rejected"}}` + "\n\n"
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	got := recorder.Body.String()
+	require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, got))
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, got, "response.failed"), &payload))
+	response := payload["response"].(map[string]any)
+	errorPayload := response["error"].(map[string]any)
+	require.Equal(t, "prompt rejected", errorPayload["message"])
+}
+
+func TestOaiResponsesStreamHandlerTerminalUsageFallsBackToAccumulatedUsage(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"response.in_progress","response":{"id":"resp_usage","usage":{"input_tokens":10,"output_tokens":2,"total_tokens":12}}}`,
+		`data: {"type":"response.output_text.delta","delta":"partial"}`,
+		`data: {"type":"response.in_progress","response":{"id":"resp_usage","usage":{}}}`,
+		`data: {"type":"response.completed","response":{"id":"resp_usage","usage":{}}}`,
+		``,
+	}, "\n\n")
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, recorder.Body.String(), "response.completed"), &payload))
+	usagePayload := payload["response"].(map[string]any)["usage"].(map[string]any)
+	require.EqualValues(t, 10, usagePayload["input_tokens"])
+	require.EqualValues(t, 2, usagePayload["output_tokens"])
+	require.EqualValues(t, 12, usagePayload["total_tokens"])
+}
+
+func TestOaiResponsesStreamHandlerMergesAccumulatedUsageDetails(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"response.in_progress","response":{"id":"resp_usage_details","usage":{"input_tokens":100,"output_tokens":10,"total_tokens":110,"input_tokens_details":{"cached_tokens":40,"cached_creation_tokens":30,"cache_write_tokens":20},"output_tokens_details":{"reasoning_tokens":5}}}}`,
+		`data: {"type":"response.in_progress","response":{"id":"resp_usage_details","usage":{}}}`,
+		`data: {"type":"response.completed","response":{"id":"resp_usage_details","usage":{"input_tokens_details":{},"output_tokens_details":{}}}}`,
+		``,
+	}, "\n\n")
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 100, usage.PromptTokens)
+	assert.Equal(t, 10, usage.CompletionTokens)
+	assert.Equal(t, 110, usage.TotalTokens)
+	assert.Equal(t, 40, usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 30, usage.PromptTokensDetails.CachedCreationTokens)
+	assert.Equal(t, 20, usage.PromptTokensDetails.CacheWriteTokens)
+	assert.Equal(t, 5, usage.CompletionTokenDetails.ReasoningTokens)
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, recorder.Body.String(), "response.completed"), &payload))
+	usagePayload := payload["response"].(map[string]any)["usage"].(map[string]any)
+	inputDetails := usagePayload["input_tokens_details"].(map[string]any)
+	outputDetails := usagePayload["output_tokens_details"].(map[string]any)
+	assert.EqualValues(t, 40, inputDetails["cached_tokens"])
+	assert.EqualValues(t, 30, inputDetails["cached_creation_tokens"])
+	assert.EqualValues(t, 20, inputDetails["cache_write_tokens"])
+	assert.EqualValues(t, 5, outputDetails["reasoning_tokens"])
+}
+
+func TestOaiResponsesStreamHandlerSyntheticTerminalCanonicalizesAccumulatedUsage(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"response.in_progress","response":{"id":"resp_synthetic_usage","usage":{"input_tokens":100,"output_tokens":10,"total_tokens":110,"input_tokens_details":{"cached_tokens":40,"cached_creation_tokens":30,"cache_write_tokens":20},"output_tokens_details":{"reasoning_tokens":5}}}}`,
+		`data: {"type":"response.in_progress","response":{"id":"resp_synthetic_usage","usage":{"input_tokens":120}}}`,
+		`data: {"type":"response.output_text.delta","delta":"partial"}`,
+		``,
+	}, "\n\n")
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 120, usage.PromptTokens)
+	assert.Equal(t, 10, usage.CompletionTokens)
+	assert.Equal(t, 130, usage.TotalTokens)
+	assert.Equal(t, 40, usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 30, usage.PromptTokensDetails.CachedCreationTokens)
+	assert.Equal(t, 20, usage.PromptTokensDetails.CacheWriteTokens)
+	assert.Equal(t, 5, usage.CompletionTokenDetails.ReasoningTokens)
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(responsesEventData(t, recorder.Body.String(), "response.completed"), &payload))
+	usagePayload := payload["response"].(map[string]any)["usage"].(map[string]any)
+	assert.EqualValues(t, 120, usagePayload["input_tokens"])
+	assert.EqualValues(t, 10, usagePayload["output_tokens"])
+	assert.EqualValues(t, 130, usagePayload["total_tokens"])
+}
+
+func TestOaiResponsesStreamHandlerEmptyUpstreamWritesFailedAndMarksFailure(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "empty body"},
+		{name: "bare done", body: "data: [DONE]\n\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(tt.body))
+
+			usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+			require.Equal(t, []string{"response.failed"}, responsesTerminalEvents(t, recorder.Body.String()))
+			require.Equal(t, relaycommon.StreamEndReasonUpstreamFailed, info.StreamStatus.Snapshot().EndReason)
+		})
+	}
+}
+
+func TestOaiResponsesStreamHandlerRecordsPermanentSyntheticTerminalWriteFailure(t *testing.T) {
+	body := `data: {"type":"response.output_text.delta","delta":"partial"}` + "\n\n"
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+	c.Writer = &alwaysFailOnNeedleWriter{ResponseWriter: c.Writer, needle: `"type":"response.completed"`}
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	require.Empty(t, responsesTerminalEvents(t, recorder.Body.String()))
+	require.True(t, info.StreamStatus.HasErrors())
+	require.NotEqual(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.Snapshot().EndReason)
+}
+
+func TestOaiResponsesStreamHandlerRetriesSyntheticTerminalAfterWriteFailure(t *testing.T) {
+	body := `data: {"type":"response.output_text.delta","delta":"partial"}` + "\n\n"
+	c, resp, info, recorder := setupResponsesTest(t, strings.NewReader(body))
+	writer := &failOnceOnNeedleWriter{ResponseWriter: c.Writer, needle: `"type":"response.completed"`}
+	c.Writer = writer
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	require.True(t, writer.failed)
+	require.Equal(t, []string{"response.completed"}, responsesTerminalEvents(t, recorder.Body.String()))
+	require.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.Snapshot().EndReason)
 }
 
 // -------- Usage payload shape (matches Codex's ResponseCompletedUsage) --------

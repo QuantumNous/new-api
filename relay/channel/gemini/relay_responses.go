@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
@@ -79,6 +81,9 @@ func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 }
 
 func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewOpenAIError(errors.New("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
 	responseID := helper.GetResponseID(c)
 	created := common.GetTimestamp()
 	state, err := relayconvert.NewResponseStreamState(types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses, relayconvert.ResponseStreamOptions{
@@ -93,6 +98,9 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 	toolCallIndexByChoice := make(map[int]map[string]int)
 	nextToolCallIndexByChoice := make(map[int]int)
 	var streamErr *types.NewAPIError
+	streamFailureReason := relaycommon.StreamEndReasonInternalError
+	streamWriter := openai.NewResponsesStreamWriter(c)
+	hasMeaningfulStreamData := false
 
 	sendEvent := func(event relayconvert.ChatToResponsesStreamEvent) bool {
 		data, err := common.Marshal(event.Payload)
@@ -100,7 +108,16 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 			return false
 		}
-		helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: event.Type}, string(data))
+		if err := streamWriter.WriteData(event.Type, string(data)); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			if contextErr := c.Request.Context().Err(); contextErr != nil {
+				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonClientGone, contextErr, "gemini_responses_write")
+			}
+			return false
+		}
+		if event.Type != "response.created" {
+			hasMeaningfulStreamData = true
+		}
 		return true
 	}
 	sendChunk := func(chunk *dto.ChatCompletionsStreamResponse) bool {
@@ -123,7 +140,32 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 	}
 
 	usage, streamAPIError := geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
+		if len(geminiResponse.Candidates) == 0 {
+			if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+				streamErr = types.NewOpenAIError(
+					errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),
+					types.ErrorCodePromptBlocked,
+					http.StatusBadRequest,
+				)
+				streamFailureReason = relaycommon.StreamEndReasonTerminalClientError
+				return false
+			}
+			if !dto.HasGeminiUsageMetadataTokens(geminiResponse.GetUsageMetadata()) {
+				common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "gemini_empty_candidates")
+				streamErr = types.NewOpenAIError(
+					errors.New("empty response from Gemini API"),
+					types.ErrorCodeEmptyResponse,
+					http.StatusInternalServerError,
+				)
+				streamFailureReason = relaycommon.StreamEndReasonUpstreamFailed
+				return false
+			}
+		}
+
 		response, isStop := streamResponseGeminiChat2OpenAI(geminiResponse)
+		if isStop || dto.HasGeminiUsageMetadataTokens(geminiResponse.GetUsageMetadata()) {
+			hasMeaningfulStreamData = true
+		}
 		response.Id = responseID
 		response.Created = created
 		response.Model = info.UpstreamModelName
@@ -162,28 +204,126 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 		}
 		return true
 	})
-	if streamAPIError != nil {
-		return usage, streamAPIError
-	}
-	if streamErr != nil {
-		return nil, streamErr
+	if streamAPIError != nil && streamErr == nil {
+		streamErr = streamAPIError
+		openAIError := streamAPIError.ToOpenAIError()
+		if openai.IsResponsesChannelFailure(&openAIError) {
+			streamFailureReason = relaycommon.StreamEndReasonUpstreamFailed
+		} else {
+			streamFailureReason = relaycommon.StreamEndReasonTerminalClientError
+		}
 	}
 
 	if usage != nil {
 		state.SetUsage(usage)
 	}
-	finalResults, err := relayconvert.FinalizeStreamResponse(c, info, state)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
-	}
-	for _, result := range finalResults {
-		event, ok := result.Value.(relayconvert.ChatToResponsesStreamEvent)
-		if !ok {
-			return nil, types.NewOpenAIError(fmt.Errorf("expected OAI responses stream event, got %T", result.Value), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	snapshot := info.StreamStatus.Snapshot()
+	if contextErr := c.Request.Context().Err(); contextErr != nil {
+		if !streamWriter.TerminalWritten() {
+			info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonClientGone, contextErr, "gemini_responses_post_scanner")
 		}
-		if !sendEvent(event) {
-			return nil, streamErr
+		return usage, nil
+	}
+	if streamErr == nil {
+		switch snapshot.EndReason {
+		case relaycommon.StreamEndReasonTimeout, relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonPingFail:
+			errorCode := types.ErrorCodeBadResponse
+			if snapshot.EndError != nil && strings.Contains(snapshot.EndError.Error(), "unmarshal:") {
+				errorCode = types.ErrorCodeBadResponseBody
+			}
+			streamEndErr := snapshot.EndError
+			if streamEndErr == nil {
+				streamEndErr = fmt.Errorf("Gemini stream ended: %s", snapshot.EndReason)
+			}
+			streamErr = types.NewOpenAIError(streamEndErr, errorCode, http.StatusInternalServerError)
+			streamFailureReason = relaycommon.StreamEndReasonUpstreamFailed
+		case relaycommon.StreamEndReasonPanic, relaycommon.StreamEndReasonHandlerStop:
+			errorCode := types.ErrorCodeBadResponse
+			streamEndErr := snapshot.EndError
+			if streamEndErr != nil && strings.Contains(streamEndErr.Error(), "unmarshal:") {
+				errorCode = types.ErrorCodeBadResponseBody
+				streamFailureReason = relaycommon.StreamEndReasonUpstreamFailed
+			} else {
+				streamFailureReason = relaycommon.StreamEndReasonInternalError
+			}
+			if streamEndErr == nil {
+				streamEndErr = fmt.Errorf("Gemini stream ended: %s", snapshot.EndReason)
+			}
+			streamErr = types.NewOpenAIError(streamEndErr, errorCode, http.StatusInternalServerError)
 		}
 	}
+	if streamErr == nil && !hasMeaningfulStreamData {
+		streamErr = types.NewOpenAIError(errors.New("empty response from Gemini stream"), types.ErrorCodeEmptyResponse, http.StatusBadGateway)
+		streamFailureReason = relaycommon.StreamEndReasonUpstreamFailed
+	}
+
+	if streamErr == nil {
+		finalResults, finalizeErr := relayconvert.FinalizeStreamResponse(c, info, state)
+		if finalizeErr != nil {
+			streamErr = types.NewOpenAIError(finalizeErr, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		} else {
+			for _, result := range finalResults {
+				event, ok := result.Value.(relayconvert.ChatToResponsesStreamEvent)
+				if !ok {
+					streamErr = types.NewOpenAIError(fmt.Errorf("expected OAI responses stream event, got %T", result.Value), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+					break
+				}
+				if !sendEvent(event) {
+					break
+				}
+			}
+		}
+	}
+	if streamErr == nil {
+		return usage, nil
+	}
+	if contextErr := c.Request.Context().Err(); contextErr != nil {
+		if !streamWriter.TerminalWritten() {
+			info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonClientGone, contextErr, "gemini_responses_terminal")
+		}
+		return usage, nil
+	}
+	if terminalType, retried, retryErr := streamWriter.RetryPendingTerminal(); retried {
+		if retryErr != nil {
+			if contextErr := c.Request.Context().Err(); contextErr != nil {
+				info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonClientGone, contextErr, "gemini_responses_terminal_retry")
+			} else {
+				info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonInternalError, retryErr, "gemini_responses_terminal_retry")
+			}
+			info.StreamStatus.RecordError(retryErr.Error())
+			return usage, nil
+		}
+		endReason := relaycommon.StreamEndReasonDone
+		var endErr error
+		if terminalType == "response.failed" {
+			endReason = streamFailureReason
+			endErr = streamErr
+		}
+		info.StreamStatus.SetProtocolTerminalEndReasonWithSource(endReason, endErr, "gemini_responses_terminal_retry")
+		return usage, nil
+	}
+	if !streamWriter.Started() {
+		return usage, streamErr
+	}
+	if !streamWriter.TerminalWritten() {
+		openAIError := streamErr.ToOpenAIError()
+		if err := streamWriter.WriteFailure(responseID, info.UpstreamModelName, created, usage, &openAIError); err != nil {
+			if _, retried, retryErr := streamWriter.RetryPendingTerminal(); retried && retryErr == nil {
+				info.StreamStatus.SetProtocolTerminalEndReasonWithSource(streamFailureReason, streamErr, "gemini_responses_terminal_retry")
+				return usage, nil
+			} else if retryErr != nil {
+				err = retryErr
+			}
+			logger.LogError(c, "failed to write Gemini Responses terminal error: "+err.Error())
+			if contextErr := c.Request.Context().Err(); contextErr != nil {
+				info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonClientGone, contextErr, "gemini_responses_terminal_write")
+			} else {
+				info.StreamStatus.OverrideEndReasonIfNoProtocolTerminal(relaycommon.StreamEndReasonInternalError, err, "gemini_responses_terminal_write")
+			}
+			info.StreamStatus.RecordError(err.Error())
+			return usage, nil
+		}
+	}
+	info.StreamStatus.SetProtocolTerminalEndReasonWithSource(streamFailureReason, streamErr, "gemini_responses_terminal")
 	return usage, nil
 }
