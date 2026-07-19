@@ -155,6 +155,16 @@ func TestFinalizeImageTaskBillingLogSnapshotsTaskInfo(t *testing.T) {
 	assert.Equal(t, "https://cdn.example/images/first.png", other.TaskInfo.Result.Images[0].URL)
 	assert.Equal(t, "revised first prompt", other.TaskInfo.Result.Images[0].RevisedPrompt)
 	assert.Equal(t, "https://cdn.example/images/second.webp", other.TaskInfo.Result.Images[1].URL)
+
+	require.NoError(t, DeliverImageTaskBillingLogOutbox(task.TaskID))
+	var deliveredOutbox ImageTaskBillingLogOutbox
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&deliveredOutbox).Error)
+	assert.Empty(t, deliveredOutbox.Other)
+	assert.Empty(t, deliveredOutbox.Content)
+	var deliveredLog Log
+	require.NoError(t, LOG_DB.Where("request_id = ?", deliveredOutbox.RequestID).First(&deliveredLog).Error)
+	assert.Contains(t, deliveredLog.Other, "A serene koi pond at sunset")
+	assert.Contains(t, deliveredLog.Other, "https://cdn.example/images/first.png")
 }
 
 func TestImageTaskBillingLogOutboxSnapshotsEndToEndUseTime(t *testing.T) {
