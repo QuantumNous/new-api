@@ -568,9 +568,6 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 		task.PrivateData.BillingFinalStatus = ""
 		task.PrivateData.BillingActualQuota = 0
 		task.PrivateData.BillingDBApplied = false
-		if task.PrivateData.BillingContext != nil {
-			task.PrivateData.BillingContext.ClearBillingRequestInput()
-		}
 		if err := deleteImageTaskArtifactTx(tx, task.TaskID); err != nil {
 			return err
 		}
@@ -583,6 +580,9 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 		}
 		if err := enqueueImageTaskBillingLogTx(tx, &task, result.PreviousQuota, billingLogReason); err != nil {
 			return err
+		}
+		if task.PrivateData.BillingContext != nil {
+			task.PrivateData.BillingContext.ClearBillingRequestInput()
 		}
 		update := tx.Model(&Task{}).
 			Where("id = ? AND status = ?", task.ID, TaskStatusFinalizing).

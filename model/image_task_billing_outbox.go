@@ -1,8 +1,11 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"net/url"
 	"strings"
 	"time"
 
@@ -31,6 +34,7 @@ type ImageTaskBillingLogOutbox struct {
 	CompletionTokens int    `json:"completion_tokens"`
 	ModelName        string `json:"model_name" gorm:"type:varchar(191)"`
 	Quota            int    `json:"quota"`
+	UseTime          int    `json:"use_time"`
 	TokenID          int    `json:"token_id"`
 	TokenName        string `json:"token_name" gorm:"type:varchar(191)"`
 	Group            string `json:"group" gorm:"type:varchar(191)"`
@@ -63,10 +67,226 @@ type ImageTaskBillingLogReceipt struct {
 	CreatedAt int64  `json:"created_at" gorm:"bigint"`
 }
 
+type imageTaskLogImage struct {
+	URL           string `json:"url"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
+}
+
+type imageTaskLogResult struct {
+	Images []imageTaskLogImage `json:"images"`
+	Count  int                 `json:"count"`
+}
+
+type imageTaskLogTiming struct {
+	SubmittedAt int64 `json:"submitted_at"`
+	CompletedAt int64 `json:"completed_at"`
+	TotalMS     int64 `json:"total_ms"`
+}
+
+type imageTaskLogInfo struct {
+	Version int                  `json:"version"`
+	Kind    string               `json:"kind"`
+	Status  TaskStatus           `json:"status"`
+	Request *imageTaskLogRequest `json:"request,omitempty"`
+	Result  *imageTaskLogResult  `json:"result,omitempty"`
+	Timing  imageTaskLogTiming   `json:"timing"`
+}
+
+type imageTaskLogRequest struct {
+	Operation         string `json:"operation"`
+	Prompt            string `json:"prompt,omitempty"`
+	Size              string `json:"size,omitempty"`
+	Quality           string `json:"quality,omitempty"`
+	N                 int    `json:"n,omitempty"`
+	OutputFormat      string `json:"output_format,omitempty"`
+	AspectRatio       string `json:"aspect_ratio,omitempty"`
+	Resolution        string `json:"resolution,omitempty"`
+	Style             string `json:"style,omitempty"`
+	InputImageCount   int    `json:"input_image_count"`
+	HasMask           bool   `json:"has_mask"`
+	WebhookConfigured bool   `json:"webhook_configured"`
+}
+
 func imageTaskBillingLogRequestID(taskID string) string {
 	// Keep the namespace separate from ordinary request IDs while hashing long
 	// provider task IDs instead of truncating them into a collision.
 	return NormalizeBillingAdjustmentRequestID("img-billing-" + strings.TrimSpace(taskID))
+}
+
+func imageTaskLogDuration(task *Task) (int, int64) {
+	if task == nil || task.SubmitTime <= 0 || task.FinishTime <= task.SubmitTime {
+		return 0, 0
+	}
+	durationSeconds := task.FinishTime - task.SubmitTime
+	useTime := durationSeconds
+	if useTime > math.MaxInt32 {
+		useTime = math.MaxInt32
+	}
+	totalMS := int64(math.MaxInt64)
+	if durationSeconds <= math.MaxInt64/1000 {
+		totalMS = durationSeconds * 1000
+	}
+	return int(useTime), totalMS
+}
+
+func imageTaskLogRequestSnapshot(tx *gorm.DB, task *Task) (*imageTaskLogRequest, error) {
+	if task == nil {
+		return nil, nil
+	}
+	request := &imageTaskLogRequest{Operation: "generation", N: 1}
+	if billing := task.PrivateData.BillingContext; billing != nil {
+		input, err := billing.ResolveBillingRequestInput()
+		if err == nil && input != nil && len(input.Body) > 0 {
+			fields := imageTaskLogRequestFields(input.Body)
+			request.Prompt = imageTaskLogString(fields["prompt"])
+			request.Size = imageTaskLogString(fields["size"])
+			request.Quality = imageTaskLogString(fields["quality"])
+			request.OutputFormat = imageTaskLogString(fields["output_format"])
+			request.AspectRatio = imageTaskLogString(fields["aspect_ratio"])
+			request.Resolution = imageTaskLogString(fields["resolution"])
+			request.Style = imageTaskLogString(fields["style"])
+			if n := imageTaskLogInt(fields["n"]); n > 0 && n <= dto.MaxImageN {
+				request.N = n
+			}
+			request.InputImageCount = imageTaskLogInputCount(fields)
+			request.HasMask = imageTaskLogHasValue(fields["mask"])
+			if request.InputImageCount > 0 || request.HasMask {
+				request.Operation = "edit"
+			}
+		}
+	}
+	if tx != nil {
+		var webhookCount int64
+		if err := tx.Model(&TaskWebhook{}).Where("task_id = ?", task.TaskID).Count(&webhookCount).Error; err != nil {
+			return nil, err
+		}
+		request.WebhookConfigured = webhookCount > 0
+	}
+	return request, nil
+}
+
+func imageTaskLogRequestFields(body []byte) map[string]json.RawMessage {
+	fields := map[string]json.RawMessage{}
+	if common.Unmarshal(body, &fields) != nil {
+		return fields
+	}
+	rawInput, ok := fields["input"]
+	if !ok || common.GetJsonType(rawInput) != "object" {
+		return fields
+	}
+	input := map[string]json.RawMessage{}
+	if common.Unmarshal(rawInput, &input) != nil {
+		return fields
+	}
+	for key, value := range input {
+		if _, exists := fields[key]; !exists {
+			fields[key] = value
+		}
+	}
+	return fields
+}
+
+func imageTaskLogString(raw json.RawMessage) string {
+	if len(raw) == 0 || common.GetJsonType(raw) == "null" {
+		return ""
+	}
+	var value string
+	if common.Unmarshal(raw, &value) != nil {
+		return ""
+	}
+	return value
+}
+
+func imageTaskLogInt(raw json.RawMessage) int {
+	if len(raw) == 0 || common.GetJsonType(raw) == "null" {
+		return 0
+	}
+	var value int
+	if common.Unmarshal(raw, &value) != nil {
+		return 0
+	}
+	return value
+}
+
+func imageTaskLogHasValue(raw json.RawMessage) bool {
+	if len(raw) == 0 || common.GetJsonType(raw) == "null" {
+		return false
+	}
+	if common.GetJsonType(raw) != "string" {
+		return true
+	}
+	return strings.TrimSpace(imageTaskLogString(raw)) != ""
+}
+
+func imageTaskLogInputCount(fields map[string]json.RawMessage) int {
+	count := 0
+	for _, field := range []string{"images", "image_input", "input_urls", "image"} {
+		raw := fields[field]
+		if len(raw) == 0 || common.GetJsonType(raw) == "null" {
+			continue
+		}
+		candidate := 1
+		if common.GetJsonType(raw) == "array" {
+			var values []json.RawMessage
+			if common.Unmarshal(raw, &values) != nil {
+				continue
+			}
+			candidate = len(values)
+		}
+		if candidate > count {
+			count = candidate
+		}
+	}
+	return count
+}
+
+func imageTaskLogResultSnapshot(task *Task, images []dto.ImageData) *imageTaskLogResult {
+	if task == nil || task.Status != TaskStatusSuccess {
+		return nil
+	}
+	result := &imageTaskLogResult{Images: make([]imageTaskLogImage, 0, len(images))}
+	seen := make(map[string]struct{}, len(images)+1)
+	appendImage := func(rawURL, revisedPrompt string) {
+		value := strings.TrimSpace(rawURL)
+		parsed, err := url.Parse(value)
+		if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return
+		}
+		if _, exists := seen[value]; exists {
+			return
+		}
+		seen[value] = struct{}{}
+		result.Images = append(result.Images, imageTaskLogImage{URL: value, RevisedPrompt: revisedPrompt})
+	}
+	for _, image := range images {
+		appendImage(image.Url, image.RevisedPrompt)
+	}
+	if len(result.Images) == 0 {
+		appendImage(task.PrivateData.ResultURL, "")
+	}
+	result.Count = len(result.Images)
+	return result
+}
+
+func imageTaskLogLastStage(task *Task) string {
+	if task == nil {
+		return ""
+	}
+	if task.Status == TaskStatusSuccess {
+		return "completed"
+	}
+	switch {
+	case task.UploadError != "":
+		return "upload"
+	case task.DownloadError != "":
+		return "download"
+	case task.ProviderError != "":
+		return "provider"
+	case task.WorkerError != "":
+		return "worker"
+	default:
+		return "failed"
+	}
 }
 
 func enqueueImageTaskBillingLogTx(tx *gorm.DB, task *Task, previousQuota int, reason string) error {
@@ -76,10 +296,6 @@ func enqueueImageTaskBillingLogTx(tx *gorm.DB, task *Task, previousQuota int, re
 	if task.Status != TaskStatusSuccess && task.Status != TaskStatusFailure {
 		return errors.New("image task billing outbox requires a terminal task")
 	}
-	if task.Status == TaskStatusFailure && previousQuota <= 0 {
-		// There was no pre-consume to refund, so there is no billing log.
-		return nil
-	}
 	if previousQuota < 0 || previousQuota > common.MaxQuota || task.Quota < 0 || task.Quota > common.MaxQuota {
 		return fmt.Errorf("image task %s billing outbox quota is out of range", task.TaskID)
 	}
@@ -87,16 +303,45 @@ func enqueueImageTaskBillingLogTx(tx *gorm.DB, task *Task, previousQuota int, re
 	logType := LogTypeConsume
 	logQuota := task.Quota
 	if task.Status == TaskStatusFailure {
-		logType = LogTypeRefund
-		logQuota = previousQuota
+		if previousQuota > 0 {
+			logType = LogTypeRefund
+			logQuota = previousQuota
+		} else {
+			logType = LogTypeError
+			logQuota = 0
+		}
 	}
 	if reason == "" {
 		reason = "async image usage reconciliation"
+	}
+	requestSnapshot, err := imageTaskLogRequestSnapshot(tx, task)
+	if err != nil {
+		return fmt.Errorf("snapshot image task request: %w", err)
+	}
+	useTime, totalMS := imageTaskLogDuration(task)
+	var response struct {
+		Data  []dto.ImageData `json:"data"`
+		Usage *dto.Usage      `json:"usage"`
+	}
+	if task.Status == TaskStatusSuccess && len(task.Data) > 0 {
+		_ = common.Unmarshal(task.Data, &response)
 	}
 	other := map[string]interface{}{
 		"task_id":            task.TaskID,
 		"pre_consumed_quota": previousQuota,
 		"actual_quota":       task.Quota,
+		"task_info": imageTaskLogInfo{
+			Version: 1,
+			Kind:    "image_generation",
+			Status:  task.Status,
+			Request: requestSnapshot,
+			Result:  imageTaskLogResultSnapshot(task, response.Data),
+			Timing: imageTaskLogTiming{
+				SubmittedAt: task.SubmitTime,
+				CompletedAt: task.FinishTime,
+				TotalMS:     totalMS,
+			},
+		},
 	}
 	if task.Status == TaskStatusFailure && task.FailReason != "" {
 		other["reason"] = task.FailReason
@@ -116,29 +361,36 @@ func enqueueImageTaskBillingLogTx(tx *gorm.DB, task *Task, previousQuota int, re
 			other["origin_model_name"] = billing.OriginModelName
 		}
 	}
-	if task.PrivateData.FinalQuotaClamp != nil {
-		other["admin_info"] = map[string]interface{}{
-			"quota_saturation": task.PrivateData.FinalQuotaClamp.AuditMap(),
-		}
+	if task.PrivateData.BillingSource != "" {
+		other["billing_source"] = task.PrivateData.BillingSource
 	}
+	adminInfo := map[string]interface{}{
+		"image_task": map[string]interface{}{
+			"worker_attempts":   task.WorkerAttempts,
+			"provider_attempts": task.ProviderAttempts,
+			"download_attempts": task.DownloadAttempts,
+			"upload_attempts":   task.UploadAttempts,
+			"finalize_attempts": task.FinalizeAttempts,
+			"last_stage":        imageTaskLogLastStage(task),
+		},
+	}
+	if task.PrivateData.FinalQuotaClamp != nil {
+		adminInfo["quota_saturation"] = task.PrivateData.FinalQuotaClamp.AuditMap()
+	}
+	other["admin_info"] = adminInfo
 
 	promptTokens, completionTokens := 0, 0
-	if task.Status == TaskStatusSuccess && len(task.Data) > 0 {
-		var response struct {
-			Usage *dto.Usage `json:"usage"`
+	if response.Usage != nil {
+		promptTokens = response.Usage.PromptTokens
+		completionTokens = response.Usage.CompletionTokens
+		if response.Usage.PromptTokensDetails.ImageTokens != 0 {
+			other["image_input_tokens"] = response.Usage.PromptTokensDetails.ImageTokens
 		}
-		if common.Unmarshal(task.Data, &response) == nil && response.Usage != nil {
-			promptTokens = response.Usage.PromptTokens
-			completionTokens = response.Usage.CompletionTokens
-			if response.Usage.PromptTokensDetails.ImageTokens != 0 {
-				other["image_input_tokens"] = response.Usage.PromptTokensDetails.ImageTokens
-			}
-			if response.Usage.CompletionTokenDetails.ImageTokens != 0 {
-				other["image_output_tokens"] = response.Usage.CompletionTokenDetails.ImageTokens
-			}
-			other["input_tokens"] = promptTokens
-			other["output_tokens"] = completionTokens
+		if response.Usage.CompletionTokenDetails.ImageTokens != 0 {
+			other["image_output_tokens"] = response.Usage.CompletionTokenDetails.ImageTokens
 		}
+		other["input_tokens"] = promptTokens
+		other["output_tokens"] = completionTokens
 	}
 	modelName := task.Properties.OriginModelName
 	if task.PrivateData.BillingContext != nil && task.PrivateData.BillingContext.OriginModelName != "" {
@@ -157,6 +409,7 @@ func enqueueImageTaskBillingLogTx(tx *gorm.DB, task *Task, previousQuota int, re
 		CompletionTokens: completionTokens,
 		ModelName:        modelName,
 		Quota:            logQuota,
+		UseTime:          useTime,
 		TokenID:          task.PrivateData.TokenId,
 		Group:            task.Group,
 		NodeName:         task.PrivateData.NodeName,
@@ -306,6 +559,7 @@ func deliverImageTaskBillingLog(outbox *ImageTaskBillingLogOutbox) (bool, error)
 			TokenName:        tokenName,
 			ModelName:        outbox.ModelName,
 			Quota:            outbox.Quota,
+			UseTime:          outbox.UseTime,
 			ChannelId:        outbox.ChannelID,
 			TokenId:          outbox.TokenID,
 			Group:            outbox.Group,
@@ -356,6 +610,7 @@ func deliverImageTaskBillingLog(outbox *ImageTaskBillingLogOutbox) (bool, error)
 			TokenName:        tokenName,
 			ModelName:        outbox.ModelName,
 			Quota:            outbox.Quota,
+			UseTime:          outbox.UseTime,
 			ChannelId:        outbox.ChannelID,
 			TokenId:          outbox.TokenID,
 			Group:            outbox.Group,
@@ -627,9 +882,6 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 			task.PrivateData.BillingFinalStatus = ""
 			task.PrivateData.BillingActualQuota = 0
 			task.PrivateData.BillingDBApplied = false
-			if task.PrivateData.BillingContext != nil {
-				task.PrivateData.BillingContext.ClearBillingRequestInput()
-			}
 			task.FinalizeAttempts = 0
 			task.FinalizeNextRetryAt = 0
 			task.FinalizeError = ""
@@ -641,6 +893,9 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 			}
 			if err := enqueueImageTaskBillingLogTx(tx, &task, previousQuota, reason); err != nil {
 				return err
+			}
+			if task.PrivateData.BillingContext != nil {
+				task.PrivateData.BillingContext.ClearBillingRequestInput()
 			}
 			update := tx.Model(&Task{}).Where("id = ? AND status = ?", task.ID, TaskStatusFinalizing).
 				Select("status", "quota", "progress", "finish_time", "updated_at", "fail_reason", "data", "checkpoint_data", "private_data", "finalize_attempts", "finalize_next_retry_at", "finalize_error").Updates(&task)
