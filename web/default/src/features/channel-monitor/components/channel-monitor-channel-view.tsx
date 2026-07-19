@@ -87,8 +87,7 @@ type ChannelMonitorChannelViewProps = {
   onViewHistory: (channel: ChannelMonitorItem) => void
   onUpdateSmartSchedule: (
     channel: ChannelMonitorItem,
-    excluded: boolean,
-    group: string
+    excluded: boolean
   ) => void
   smartScheduleEnabled: boolean
   fetchingBalanceChannelId: number | null
@@ -415,12 +414,11 @@ export function ChannelMonitorChannelView(
                   <TableCell className='whitespace-normal'>
                     <ChannelMonitorSmartScheduleCell
                       channel={channel}
-                      enabled={props.smartScheduleEnabled}
                       pending={
                         props.updatingSmartScheduleChannelId === channel.id
                       }
-                      onUpdate={(excluded, group) =>
-                        props.onUpdateSmartSchedule(channel, excluded, group)
+                      onUpdate={(excluded) =>
+                        props.onUpdateSmartSchedule(channel, excluded)
                       }
                     />
                   </TableCell>

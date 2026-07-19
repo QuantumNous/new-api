@@ -145,13 +145,6 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
               const enabledChannelCount = group.channels.filter(
                 (channel) => channel.status === CHANNEL_STATUS.ENABLED
               ).length
-              const scheduledChannelCount = group.channels.filter((channel) => {
-                if (channel.smart_schedule_excluded) return false
-                if (channel.smart_schedule_group) {
-                  return channel.smart_schedule_group === group.name
-                }
-                return channel.groups.length === 1
-              }).length
               let highestTargetRatio: number | null = null
               for (const channel of group.channels) {
                 if (channel.status !== CHANNEL_STATUS.ENABLED) continue
@@ -184,7 +177,7 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
                       <span className='font-medium'>{group.name}</span>
                       <span className='text-muted-foreground text-xs'>
                         {group.channels.length} 个渠道 · {enabledChannelCount}{' '}
-                        个启用 · {scheduledChannelCount} 个参与调度
+                        个启用
                       </span>
                     </div>
                   </TableCell>

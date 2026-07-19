@@ -47,7 +47,6 @@ type ChannelRatioMonitor struct {
 	SingleChannelAction         string   `json:"single_channel_action" gorm:"type:varchar(32)"`
 	MultipleChannelsAction      string   `json:"multiple_channels_action" gorm:"type:varchar(32)"`
 	SmartScheduleExcluded       bool     `json:"smart_schedule_excluded"`
-	SmartScheduleGroup          string   `json:"smart_schedule_group" gorm:"type:varchar(64)"`
 	LastScheduleStatus          string   `json:"last_schedule_status" gorm:"type:varchar(16);index"`
 	LastScheduleError           string   `json:"last_schedule_error" gorm:"type:varchar(255)"`
 	LastScheduleScore           *float64 `json:"last_schedule_score"`
@@ -153,7 +152,7 @@ func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL 
 	return monitor, err
 }
 
-func SaveChannelSmartScheduleConfig(channelId int, excluded bool, group string) (monitor ChannelRatioMonitor, err error) {
+func SaveChannelSmartScheduleConfig(channelId int, excluded bool) (monitor ChannelRatioMonitor, err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		findErr := lockForUpdate(tx).Where("channel_id = ?", channelId).First(&monitor).Error
 		if errors.Is(findErr, gorm.ErrRecordNotFound) {
@@ -163,7 +162,6 @@ func SaveChannelSmartScheduleConfig(channelId int, excluded bool, group string) 
 		}
 
 		monitor.SmartScheduleExcluded = excluded
-		monitor.SmartScheduleGroup = group
 		return tx.Save(&monitor).Error
 	})
 	return monitor, err

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -72,6 +73,7 @@ type ChannelMonitorSettingsDialogProps = {
 export function ChannelMonitorSettingsDialog(
   props: ChannelMonitorSettingsDialogProps
 ) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const form = useForm<ChannelMonitorSettingsFormValues>({
     resolver: zodResolver(
@@ -86,11 +88,14 @@ export function ChannelMonitorSettingsDialog(
       smartScheduleIntervalMinutes:
         props.settings.smart_schedule_interval_minutes,
       smartScheduleStrategy: props.settings.smart_schedule_strategy,
+      smartScheduleStabilityEnabled:
+        props.settings.smart_schedule_stability_enabled ?? false,
       smartScheduleApplyMode: props.settings.smart_schedule_apply_mode,
       smartSchedulePerformanceMinutes:
         props.settings.smart_schedule_performance_minutes,
       smartScheduleModel: props.settings.smart_schedule_model,
       smartScheduleMinSamples: props.settings.smart_schedule_min_samples,
+      smartScheduleForceReset: false,
     },
   })
   const emailNotificationEnabled = useWatch({
@@ -99,8 +104,31 @@ export function ChannelMonitorSettingsDialog(
   })
   const mutation = useMutation({
     mutationFn: updateChannelMonitorSettings,
-    onSuccess: () => {
-      toast.success('渠道监控设置已保存')
+    onSuccess: (response) => {
+      if (response.data.smart_schedule_force_reset_task_error) {
+        toast.error(
+          t(
+            'Settings saved, but the reset task could not be created: {{error}}',
+            {
+              error: response.data.smart_schedule_force_reset_task_error,
+            }
+          )
+        )
+      } else if (
+        response.data.smart_schedule_force_reset_task_created === true
+      ) {
+        toast.success(t('Settings saved and reset scheduling task created'))
+      } else if (
+        response.data.smart_schedule_force_reset_task_created === false
+      ) {
+        toast.warning(
+          t(
+            'Settings saved, but an existing scheduling task is running, so reset was not queued'
+          )
+        )
+      } else {
+        toast.success('渠道监控设置已保存')
+      }
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
       props.onOpenChange(false)
     },
@@ -114,11 +142,13 @@ export function ChannelMonitorSettingsDialog(
       smart_schedule_enabled: values.smartScheduleEnabled,
       smart_schedule_interval_minutes: values.smartScheduleIntervalMinutes,
       smart_schedule_strategy: values.smartScheduleStrategy,
+      smart_schedule_stability_enabled: values.smartScheduleStabilityEnabled,
       smart_schedule_apply_mode: values.smartScheduleApplyMode,
       smart_schedule_performance_minutes:
         values.smartSchedulePerformanceMinutes,
       smart_schedule_model: values.smartScheduleModel,
       smart_schedule_min_samples: values.smartScheduleMinSamples,
+      smart_schedule_force_reset: values.smartScheduleForceReset,
     })
   })
 

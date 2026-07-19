@@ -28,6 +28,10 @@ const (
 
 type channelSmartScheduleTaskHandler struct{}
 
+type channelSmartScheduleTaskPayload struct {
+	ForceReset bool `json:"force_reset,omitempty"`
+}
+
 type channelSmartSchedulePerformance struct {
 	FirstTokenSampleCount int
 	TPSSampleCount        int
@@ -43,7 +47,6 @@ type channelSmartSchedulePerformance struct {
 
 type channelSmartScheduleCandidate struct {
 	ChannelId             int
-	Group                 string
 	CurrentPriority       int64
 	CurrentWeight         uint
 	Ratio                 *float64
@@ -58,7 +61,6 @@ type channelSmartScheduleCandidate struct {
 
 type channelSmartSchedulePlanItem struct {
 	ChannelId       int
-	Group           string
 	Score           float64
 	CurrentPriority int64
 	CurrentWeight   uint
@@ -67,9 +69,8 @@ type channelSmartSchedulePlanItem struct {
 }
 
 type channelSmartSchedulePlan struct {
-	Items      []channelSmartSchedulePlanItem
-	Skipped    map[int]string
-	GroupCount int
+	Items   []channelSmartSchedulePlanItem
+	Skipped map[int]string
 }
 
 type channelSmartScheduleTaskFailure struct {
@@ -80,12 +81,13 @@ type channelSmartScheduleTaskFailure struct {
 
 type channelSmartScheduleTaskResult struct {
 	Strategy                string                            `json:"strategy"`
+	StabilityEnabled        bool                              `json:"stability_enabled"`
+	ForceReset              bool                              `json:"force_reset"`
 	ApplyMode               string                            `json:"apply_mode"`
 	Model                   string                            `json:"model"`
 	PerformanceMinutes      int                               `json:"performance_minutes"`
 	MinSamples              int                               `json:"min_samples"`
 	Total                   int                               `json:"total"`
-	Groups                  int                               `json:"groups"`
 	Planned                 int                               `json:"planned"`
 	Updated                 int                               `json:"updated"`
 	Unchanged               int                               `json:"unchanged"`
@@ -118,7 +120,16 @@ func (channelSmartScheduleTaskHandler) Interval() time.Duration {
 func (channelSmartScheduleTaskHandler) NewPayload() any { return nil }
 
 func (channelSmartScheduleTaskHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
-	summary, err := runChannelSmartScheduleOnce(ctx, service.NewSystemTaskProgressReporter(task, runnerID))
+	payload := channelSmartScheduleTaskPayload{}
+	if err := task.DecodePayload(&payload); err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, channelSmartScheduleTaskResult{}, err)
+		return
+	}
+	summary, err := runChannelSmartScheduleOnce(
+		ctx,
+		service.NewSystemTaskProgressReporter(task, runnerID),
+		payload.ForceReset,
+	)
 	if err != nil {
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, summary, err)
 		return
@@ -171,13 +182,15 @@ func (result *channelSmartScheduleTaskResult) recordFailure(channelId int, chann
 	})
 }
 
-func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(processed, total int)) (channelSmartScheduleTaskResult, error) {
+func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(processed, total int), forceReset bool) (channelSmartScheduleTaskResult, error) {
 	if reportProgress == nil {
 		reportProgress = func(int, int) {}
 	}
 	settings := getChannelMonitorSettings()
 	result := channelSmartScheduleTaskResult{
 		Strategy:           settings.SmartScheduleStrategy,
+		StabilityEnabled:   settings.SmartScheduleStabilityEnabled,
+		ForceReset:         forceReset,
 		ApplyMode:          settings.SmartScheduleApplyMode,
 		Model:              settings.SmartScheduleModel,
 		PerformanceMinutes: settings.SmartSchedulePerformanceMinutes,
@@ -196,8 +209,7 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 	needsPerformance := settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategyFirstToken ||
 		settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategyTPS ||
 		settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategySmart
-	needsStability := settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategyStability ||
-		settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategySmart
+	needsStability := settings.SmartScheduleStabilityEnabled
 	var metrics []model.ChannelMonitorPerformanceMetric
 	if needsPerformance {
 		metrics, err = model.GetChannelMonitorPerformanceMetrics(
@@ -308,60 +320,6 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 			continue
 		}
 
-		groups := channel.GetGroups()
-		group := monitor.SmartScheduleGroup
-		if group != "" {
-			groupExists := false
-			for _, channelGroup := range groups {
-				if channelGroup == group {
-					groupExists = true
-					break
-				}
-			}
-			if !groupExists {
-				statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(
-					channel.Id,
-					model.ChannelSmartScheduleStatusSkipped,
-					"调度归属分组已不在渠道关联分组中",
-					nil,
-					currentPriority,
-					currentWeight,
-					now,
-				))
-				result.Skipped++
-				continue
-			}
-		} else {
-			switch len(groups) {
-			case 0:
-				statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(
-					channel.Id,
-					model.ChannelSmartScheduleStatusSkipped,
-					"渠道没有关联分组",
-					nil,
-					currentPriority,
-					currentWeight,
-					now,
-				))
-				result.Skipped++
-				continue
-			case 1:
-				group = groups[0]
-			default:
-				statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(
-					channel.Id,
-					model.ChannelSmartScheduleStatusSkipped,
-					"关联多个分组，请指定调度归属分组",
-					nil,
-					currentPriority,
-					currentWeight,
-					now,
-				))
-				result.Skipped++
-				continue
-			}
-		}
-
 		var ratio *float64
 		if monitor.UpdatedTime > 0 && validateChannelMonitorRatio(&monitor.Ratio) {
 			value := monitor.Ratio
@@ -370,7 +328,6 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 		performance := performanceByChannel[channel.Id]
 		candidate := channelSmartScheduleCandidate{
 			ChannelId:          channel.Id,
-			Group:              group,
 			CurrentPriority:    currentPriority,
 			CurrentWeight:      currentWeight,
 			Ratio:              ratio,
@@ -390,10 +347,11 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 	plan := planChannelSmartSchedule(
 		candidates,
 		settings.SmartScheduleStrategy,
+		settings.SmartScheduleStabilityEnabled,
 		settings.SmartScheduleApplyMode,
 		settings.SmartScheduleMinSamples,
+		forceReset,
 	)
-	result.Groups = plan.GroupCount
 	result.Planned = len(plan.Items)
 	for _, candidate := range candidates {
 		reason, skipped := plan.Skipped[candidate.ChannelId]
@@ -501,7 +459,7 @@ func channelSmartScheduleStatusUpdate(channelId int, status string, message stri
 	}
 }
 
-func planChannelSmartSchedule(candidates []channelSmartScheduleCandidate, strategy string, applyMode string, minSamples int) channelSmartSchedulePlan {
+func planChannelSmartSchedule(candidates []channelSmartScheduleCandidate, strategy string, stabilityEnabled bool, applyMode string, minSamples int, forceReset bool) channelSmartSchedulePlan {
 	plan := channelSmartSchedulePlan{
 		Skipped: make(map[int]string),
 	}
@@ -510,45 +468,41 @@ func planChannelSmartSchedule(candidates []channelSmartScheduleCandidate, strate
 	}
 
 	type cohort struct {
-		Group      string
 		Candidates []channelSmartScheduleCandidate
 	}
-	cohorts := make(map[string]*cohort)
+	cohorts := make(map[int64]*cohort)
 	for _, candidate := range candidates {
-		if reason := channelSmartScheduleCandidateSkipReason(candidate, strategy, minSamples); reason != "" {
+		if reason := channelSmartScheduleCandidateSkipReason(candidate, strategy, stabilityEnabled, minSamples); reason != "" {
 			plan.Skipped[candidate.ChannelId] = reason
 			continue
 		}
-		key := candidate.Group
-		if applyMode == channelMonitorSmartScheduleApplyWeight {
-			key = fmt.Sprintf("%s\x00%d", candidate.Group, candidate.CurrentPriority)
+		var key int64
+		if applyMode == channelMonitorSmartScheduleApplyWeight && !forceReset {
+			key = candidate.CurrentPriority
 		}
-		groupCohort := cohorts[key]
-		if groupCohort == nil {
-			groupCohort = &cohort{Group: candidate.Group}
-			cohorts[key] = groupCohort
+		scheduleCohort := cohorts[key]
+		if scheduleCohort == nil {
+			scheduleCohort = &cohort{}
+			cohorts[key] = scheduleCohort
 		}
-		groupCohort.Candidates = append(groupCohort.Candidates, candidate)
+		scheduleCohort.Candidates = append(scheduleCohort.Candidates, candidate)
 	}
 
-	processedGroups := make(map[string]struct{})
-	for _, groupCohort := range cohorts {
-		if len(groupCohort.Candidates) < 2 {
-			reason := "同分组可调渠道不足 2 个"
-			if applyMode == channelMonitorSmartScheduleApplyWeight {
-				reason = "同分组同优先级的可调渠道不足 2 个"
+	for _, scheduleCohort := range cohorts {
+		if len(scheduleCohort.Candidates) < 2 {
+			reason := "可调渠道不足 2 个"
+			if applyMode == channelMonitorSmartScheduleApplyWeight && !forceReset {
+				reason = "同优先级可调渠道不足 2 个"
 			}
-			for _, candidate := range groupCohort.Candidates {
+			for _, candidate := range scheduleCohort.Candidates {
 				plan.Skipped[candidate.ChannelId] = reason
 			}
 			continue
 		}
-		processedGroups[groupCohort.Group] = struct{}{}
-
 		ratioMin, ratioMax := math.Inf(1), math.Inf(-1)
 		firstTokenMin, firstTokenMax := math.Inf(1), math.Inf(-1)
 		tpsMin, tpsMax := math.Inf(1), math.Inf(-1)
-		for _, candidate := range groupCohort.Candidates {
+		for _, candidate := range scheduleCohort.Candidates {
 			if candidate.Ratio != nil {
 				ratioMin = math.Min(ratioMin, *candidate.Ratio)
 				ratioMax = math.Max(ratioMax, *candidate.Ratio)
@@ -563,8 +517,8 @@ func planChannelSmartSchedule(candidates []channelSmartScheduleCandidate, strate
 			}
 		}
 
-		items := make([]channelSmartSchedulePlanItem, 0, len(groupCohort.Candidates))
-		for _, candidate := range groupCohort.Candidates {
+		items := make([]channelSmartSchedulePlanItem, 0, len(scheduleCohort.Candidates))
+		for _, candidate := range scheduleCohort.Candidates {
 			ratioScore := 0.0
 			if candidate.Ratio != nil {
 				ratioScore = channelSmartScheduleLowerIsBetterScore(*candidate.Ratio, ratioMin, ratioMax)
@@ -582,35 +536,48 @@ func planChannelSmartSchedule(candidates []channelSmartScheduleCandidate, strate
 				stabilityScore = channelSmartScheduleHigherIsBetterScore(*candidate.Stability, 0, 1)
 			}
 
-			score := 0.0
+			scoreTotal := 0.0
+			scoreCount := 0
 			switch strategy {
 			case channelMonitorSmartScheduleStrategyRatio:
-				score = ratioScore
+				scoreTotal = ratioScore
+				scoreCount = 1
 			case channelMonitorSmartScheduleStrategyFirstToken:
-				score = firstTokenScore
+				scoreTotal = firstTokenScore
+				scoreCount = 1
 			case channelMonitorSmartScheduleStrategyTPS:
-				score = tpsScore
-			case channelMonitorSmartScheduleStrategyStability:
-				score = stabilityScore
+				scoreTotal = tpsScore
+				scoreCount = 1
 			case channelMonitorSmartScheduleStrategySmart:
-				score = (ratioScore + firstTokenScore + tpsScore + stabilityScore) / 4
+				scoreTotal = ratioScore + firstTokenScore + tpsScore
+				scoreCount = 3
 			default:
 				continue
 			}
+			if stabilityEnabled {
+				scoreTotal += stabilityScore
+				scoreCount++
+			}
+			score := scoreTotal / float64(scoreCount)
 			targetWeight := uint(math.Round((channelMonitorSmartScheduleMinWeight+score*(channelMonitorSmartScheduleMaxWeight-channelMonitorSmartScheduleMinWeight))/channelMonitorSmartScheduleWeightStep) * channelMonitorSmartScheduleWeightStep)
 			if targetWeight < channelMonitorSmartScheduleMinWeight {
 				targetWeight = channelMonitorSmartScheduleMinWeight
 			} else if targetWeight > channelMonitorSmartScheduleMaxWeight {
 				targetWeight = channelMonitorSmartScheduleMaxWeight
 			}
-			targetWeight = channelSmartScheduleDampedWeight(candidate.CurrentWeight, targetWeight)
+			if !forceReset {
+				targetWeight = channelSmartScheduleDampedWeight(candidate.CurrentWeight, targetWeight)
+			}
+			targetPriority := candidate.CurrentPriority
+			if forceReset && applyMode == channelMonitorSmartScheduleApplyWeight {
+				targetPriority = 0
+			}
 			items = append(items, channelSmartSchedulePlanItem{
 				ChannelId:       candidate.ChannelId,
-				Group:           candidate.Group,
 				Score:           score,
 				CurrentPriority: candidate.CurrentPriority,
 				CurrentWeight:   candidate.CurrentWeight,
-				TargetPriority:  candidate.CurrentPriority,
+				TargetPriority:  targetPriority,
 				TargetWeight:    targetWeight,
 			})
 		}
@@ -634,16 +601,14 @@ func planChannelSmartSchedule(candidates []channelSmartScheduleCandidate, strate
 		plan.Items = append(plan.Items, items...)
 	}
 
-	plan.GroupCount = len(processedGroups)
 	sort.Slice(plan.Items, func(i int, j int) bool {
 		return plan.Items[i].ChannelId < plan.Items[j].ChannelId
 	})
 	return plan
 }
 
-func channelSmartScheduleCandidateSkipReason(candidate channelSmartScheduleCandidate, strategy string, minSamples int) string {
-	if (strategy == channelMonitorSmartScheduleStrategyStability || strategy == channelMonitorSmartScheduleStrategySmart) &&
-		!candidate.StabilityAvailable {
+func channelSmartScheduleCandidateSkipReason(candidate channelSmartScheduleCandidate, strategy string, stabilityEnabled bool, minSamples int) string {
+	if stabilityEnabled && !candidate.StabilityAvailable {
 		return "稳定性统计不可用，请开启消费日志和 ERROR_LOG_ENABLED"
 	}
 	if strategy == channelMonitorSmartScheduleStrategyRatio || strategy == channelMonitorSmartScheduleStrategySmart {
@@ -661,7 +626,7 @@ func channelSmartScheduleCandidateSkipReason(candidate channelSmartScheduleCandi
 			return fmt.Sprintf("TPS 样本不足（%d/%d）", candidate.TPSSampleCount, minSamples)
 		}
 	}
-	if strategy == channelMonitorSmartScheduleStrategyStability || strategy == channelMonitorSmartScheduleStrategySmart {
+	if stabilityEnabled {
 		if candidate.Stability == nil || candidate.StabilitySampleCount < int64(minSamples) {
 			return fmt.Sprintf("稳定性样本不足（%d/%d）", candidate.StabilitySampleCount, minSamples)
 		}

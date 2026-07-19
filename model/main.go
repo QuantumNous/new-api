@@ -305,6 +305,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := dropLegacyChannelSmartScheduleGroupColumn(); err != nil {
+		return err
+	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -379,6 +382,9 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if err := dropLegacyChannelSmartScheduleGroupColumn(); err != nil {
+		return err
+	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -390,6 +396,24 @@ func migrateDBFast() error {
 	}
 	common.SysLog("database migrated")
 	return nil
+}
+
+// SQLite needs the removed field in the migration schema while GORM rebuilds
+// the table for DropColumn. This type is not part of the runtime data model.
+type channelRatioMonitorLegacyScheduleGroup struct {
+	SmartScheduleGroup string `gorm:"type:varchar(64)"`
+}
+
+func (channelRatioMonitorLegacyScheduleGroup) TableName() string {
+	return "channel_ratio_monitors"
+}
+
+func dropLegacyChannelSmartScheduleGroupColumn() error {
+	legacyModel := &channelRatioMonitorLegacyScheduleGroup{}
+	if !DB.Migrator().HasTable(legacyModel) || !DB.Migrator().HasColumn(legacyModel, "SmartScheduleGroup") {
+		return nil
+	}
+	return DB.Migrator().DropColumn(legacyModel, "SmartScheduleGroup")
 }
 
 func migrateLOGDB() error {

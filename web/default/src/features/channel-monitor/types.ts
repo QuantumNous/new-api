@@ -42,7 +42,6 @@ export type ChannelMonitorItem = {
   last_balance_time: number
   last_balance_error: string
   smart_schedule_excluded: boolean
-  smart_schedule_group: string
   last_schedule_status: '' | 'succeeded' | 'skipped' | 'failed'
   last_schedule_error: string
   last_schedule_score: number | null
@@ -195,24 +194,26 @@ export type ChannelMonitorSettings = {
   smart_schedule_enabled: boolean
   smart_schedule_interval_minutes: number
   smart_schedule_strategy: ChannelMonitorSmartScheduleStrategy
+  smart_schedule_stability_enabled: boolean
   smart_schedule_apply_mode: ChannelMonitorSmartScheduleApplyMode
   smart_schedule_performance_minutes: ChannelMonitorPerformanceRangeMinutes
   smart_schedule_model: string
   smart_schedule_min_samples: number
+  smart_schedule_force_reset_task_created?: boolean
+  smart_schedule_force_reset_task_id?: string
+  smart_schedule_force_reset_task_error?: string
 }
 
 export type ChannelMonitorSmartScheduleStrategy =
   | 'ratio'
   | 'first_token'
   | 'tps'
-  | 'stability'
   | 'smart'
 
 export type ChannelMonitorSmartScheduleApplyMode = 'weight' | 'priority_weight'
 
 export type ChannelMonitorSmartScheduleConfig = {
   excluded: boolean
-  group: string
 }
 
 export type ChannelMonitorTaskRunResult = {
@@ -252,12 +253,13 @@ export type ChannelMonitorTaskResult = {
   groups_skipped?: number
   retried?: number
   recovered_after_retry?: number
-  strategy?: ChannelMonitorSmartScheduleStrategy
+  strategy?: ChannelMonitorSmartScheduleStrategy | 'stability'
+  stability_enabled?: boolean
+  force_reset?: boolean
   apply_mode?: ChannelMonitorSmartScheduleApplyMode
   model?: string
   performance_minutes?: number
   min_samples?: number
-  groups?: number
   planned?: number
   unchanged?: number
   skipped?: number

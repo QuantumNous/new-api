@@ -17,45 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { formatTimestampToDate } from '@/lib/format'
 
 import type { ChannelMonitorItem } from '../types'
 
-const UNASSIGNED_GROUP_VALUE = '__unassigned__'
-
 type ChannelMonitorSmartScheduleCellProps = {
   channel: ChannelMonitorItem
-  enabled: boolean
   pending: boolean
-  onUpdate: (excluded: boolean, group: string) => void
+  onUpdate: (excluded: boolean) => void
 }
 
 export function ChannelMonitorSmartScheduleCell(
   props: ChannelMonitorSmartScheduleCellProps
 ) {
   const participating = !props.channel.smart_schedule_excluded
-  const selectedGroup = props.channel.groups.includes(
-    props.channel.smart_schedule_group
-  )
-    ? props.channel.smart_schedule_group
-    : ''
-  const resolvedGroup =
-    selectedGroup ||
-    (props.channel.groups.length === 1 ? props.channel.groups[0] : '')
-  const groupOptions = [
-    { value: UNASSIGNED_GROUP_VALUE, label: '未指定归属分组' },
-    ...props.channel.groups.map((group) => ({ value: group, label: group })),
-  ]
 
   let statusContent = (
     <span className='text-muted-foreground text-xs'>等待首次调度</span>
@@ -109,7 +86,6 @@ export function ChannelMonitorSmartScheduleCell(
         <span>
           权重 <strong>{props.channel.weight}</strong>
         </span>
-        {!props.enabled && <Badge variant='outline'>自动关闭</Badge>}
         {props.pending && <Spinner className='size-3.5' />}
       </div>
 
@@ -118,49 +94,11 @@ export function ChannelMonitorSmartScheduleCell(
           <Switch
             checked={participating}
             disabled={props.pending}
-            onCheckedChange={(checked) =>
-              props.onUpdate(!checked, selectedGroup)
-            }
+            onCheckedChange={(checked) => props.onUpdate(!checked)}
             aria-label={`${participating ? '停止' : '启用'} ${props.channel.name} 的智能调度`}
           />
           <span className='text-xs'>参与调度</span>
         </div>
-        {participating && props.channel.groups.length > 1 && (
-          <Select
-            items={groupOptions}
-            value={selectedGroup || UNASSIGNED_GROUP_VALUE}
-            disabled={props.pending}
-            onValueChange={(value) => {
-              if (value === null) return
-              props.onUpdate(
-                false,
-                value === UNASSIGNED_GROUP_VALUE ? '' : value
-              )
-            }}
-          >
-            <SelectTrigger
-              size='sm'
-              className='w-36'
-              aria-label={`选择渠道 ${props.channel.name} 的调度归属分组`}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectGroup>
-                {groupOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        )}
-        {participating && props.channel.groups.length <= 1 && (
-          <span className='text-muted-foreground text-xs'>
-            归属：{resolvedGroup || '无分组'}
-          </span>
-        )}
       </div>
 
       {statusContent}

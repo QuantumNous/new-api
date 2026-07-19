@@ -18,8 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   FormControl,
   FormDescription,
@@ -55,7 +57,7 @@ const SCHEDULE_STRATEGY_OPTIONS = [
   {
     value: 'smart',
     label: '智能调度',
-    description: '上游倍率、首字、TPS、稳定性各占 25%',
+    description: '综合上游倍率、首字和 TPS',
   },
   {
     value: 'ratio',
@@ -71,11 +73,6 @@ const SCHEDULE_STRATEGY_OPTIONS = [
     value: 'tps',
     label: '按 TPS',
     description: '平均 TPS 越高，调度得分越高',
-  },
-  {
-    value: 'stability',
-    label: '按稳定性',
-    description: '成功率越高，调度得分越高',
   },
 ] as const
 
@@ -107,6 +104,7 @@ type ChannelMonitorSmartScheduleFieldsProps = {
 export function ChannelMonitorSmartScheduleFields(
   props: ChannelMonitorSmartScheduleFieldsProps
 ) {
+  const { t } = useTranslation()
   const modelOptions = useMemo(
     () => [
       { value: ALL_MODELS_VALUE, label: '全部模型汇总' },
@@ -125,7 +123,7 @@ export function ChannelMonitorSmartScheduleFields(
             <div className='flex flex-col gap-1'>
               <FormLabel>智能调度</FormLabel>
               <FormDescription>
-                定时按照统一调度方式调整各分组内渠道的优先级、权重
+                定时按照统一调度方式调整参与渠道的优先级、权重
               </FormDescription>
             </div>
             <FormControl>
@@ -173,6 +171,26 @@ export function ChannelMonitorSmartScheduleFields(
               }
             </FormDescription>
             <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={props.form.control}
+        name='smartScheduleStabilityEnabled'
+        render={({ field }) => (
+          <FormItem className='flex items-center justify-between gap-4'>
+            <div className='flex flex-col gap-1'>
+              <FormLabel>按稳定性</FormLabel>
+              <FormDescription>成功率越高，调度得分越高</FormDescription>
+            </div>
+            <FormControl>
+              <Switch
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                aria-label='按稳定性'
+              />
+            </FormControl>
           </FormItem>
         )}
       />
@@ -242,6 +260,33 @@ export function ChannelMonitorSmartScheduleFields(
               }
             </FormDescription>
             <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={props.form.control}
+        name='smartScheduleForceReset'
+        render={({ field }) => (
+          <FormItem className='flex items-start gap-3 rounded-lg border p-3'>
+            <FormControl>
+              <Checkbox
+                id='channel-monitor-force-smart-schedule-reset'
+                checked={field.value}
+                onCheckedChange={(checked) => field.onChange(checked === true)}
+                aria-label={t('Force reset priority and weight')}
+              />
+            </FormControl>
+            <div className='flex flex-col gap-1'>
+              <FormLabel htmlFor='channel-monitor-force-smart-schedule-reset'>
+                {t('Force reset priority and weight')}
+              </FormLabel>
+              <FormDescription>
+                {t(
+                  'Once saved, calculate eligible channels from the current logs and immediately apply their priority and weight. This is a one-time action.'
+                )}
+              </FormDescription>
+            </div>
           </FormItem>
         )}
       />
@@ -349,8 +394,8 @@ export function ChannelMonitorSmartScheduleFields(
       <Alert>
         <AlertTitle>调度规则</AlertTitle>
         <AlertDescription>
-          所有分组使用同一种调度方式。智能调度要求上游倍率、首字、TPS、稳定性四项数据都达到最少样本。关联多个分组的渠道仍需在渠道视图指定调度归属分组；关闭总开关后保留当前优先级和权重。
-          稳定性按成功调用数 ÷（成功调用数 +
+          启用的调度指标等权计算；开启按稳定性后，还要求稳定性达到最少样本。关闭总开关后保留当前优先级和权重。稳定性按成功调用数
+          ÷（成功调用数 +
           渠道错误数）计算，重试中的渠道错误也会计入；需要同时开启消费日志和
           ERROR_LOG_ENABLED。
         </AlertDescription>

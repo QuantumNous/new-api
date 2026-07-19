@@ -41,7 +41,6 @@ const channelMonitorSmartScheduleStrategies = [
   'ratio',
   'first_token',
   'tps',
-  'stability',
   'smart',
 ] as const satisfies readonly ChannelMonitorSmartScheduleStrategy[]
 
@@ -108,6 +107,7 @@ export function createChannelMonitorSettingsSchema() {
           '智能调度间隔不能超过 525600 分钟'
         ),
       smartScheduleStrategy: z.enum(channelMonitorSmartScheduleStrategies),
+      smartScheduleStabilityEnabled: z.boolean(),
       smartScheduleApplyMode: z.enum(channelMonitorSmartScheduleApplyModes),
       smartSchedulePerformanceMinutes: z.union([
         z.literal(15),
@@ -124,6 +124,7 @@ export function createChannelMonitorSettingsSchema() {
         .int('最少样本数必须是整数')
         .min(1, '最少样本数不能小于 1')
         .max(MAX_SMART_SCHEDULE_MIN_SAMPLES, '最少样本数不能超过 100000'),
+      smartScheduleForceReset: z.boolean(),
     })
     .superRefine((values, context) => {
       if (values.emailNotificationEnabled && !values.notificationEmail) {

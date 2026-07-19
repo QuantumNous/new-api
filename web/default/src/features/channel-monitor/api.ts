@@ -104,13 +104,11 @@ export async function runChannelMonitorRatioUpdate() {
 export async function updateChannelMonitorSmartScheduleConfig(request: {
   channelId: number
   excluded: boolean
-  group: string
 }) {
   const response = await api.put<
     ChannelMonitorApiResponse<ChannelMonitorSmartScheduleConfig>
   >(`/api/channel_monitor/channel/${request.channelId}/schedule`, {
     excluded: request.excluded,
-    group: request.group,
   })
   return ensureChannelMonitorSuccess(response.data)
 }
@@ -158,7 +156,9 @@ export async function syncChannelMonitorGroupRatio(request: {
 }
 
 export async function updateChannelMonitorSettings(
-  settings: ChannelMonitorSettings
+  settings: ChannelMonitorSettings & {
+    smart_schedule_force_reset?: boolean
+  }
 ) {
   const response = await api.put<
     ChannelMonitorApiResponse<ChannelMonitorSettings>

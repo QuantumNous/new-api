@@ -132,6 +132,7 @@ const DEFAULT_CHANNEL_MONITOR_SETTINGS: ChannelMonitorSettings = {
   smart_schedule_enabled: false,
   smart_schedule_interval_minutes: 10,
   smart_schedule_strategy: 'smart',
+  smart_schedule_stability_enabled: false,
   smart_schedule_apply_mode: 'weight',
   smart_schedule_performance_minutes: 60,
   smart_schedule_model: '',
@@ -719,11 +720,10 @@ export function ChannelMonitor() {
               onViewHistory={(channel) =>
                 setChannelDialog({ channelId: channel.id, type: 'history' })
               }
-              onUpdateSmartSchedule={(channel, excluded, group) =>
+              onUpdateSmartSchedule={(channel, excluded) =>
                 smartScheduleConfigMutation.mutate({
                   channelId: channel.id,
                   excluded,
-                  group,
                 })
               }
               smartScheduleEnabled={settings.smart_schedule_enabled}
@@ -910,7 +910,7 @@ export function ChannelMonitor() {
       )}
       {settingsOpen && (
         <ChannelMonitorSettingsDialog
-          key={`${settingsSection}:${settings.auto_update_interval_minutes}:${settings.auto_update_retry_count}:${settings.email_notification_enabled}:${settings.notification_email}:${settings.smart_schedule_enabled}:${settings.smart_schedule_interval_minutes}:${settings.smart_schedule_strategy}:${settings.smart_schedule_apply_mode}:${settings.smart_schedule_performance_minutes}:${settings.smart_schedule_model}:${settings.smart_schedule_min_samples}`}
+          key={`${settingsSection}:${settings.auto_update_interval_minutes}:${settings.auto_update_retry_count}:${settings.email_notification_enabled}:${settings.notification_email}:${settings.smart_schedule_enabled}:${settings.smart_schedule_interval_minutes}:${settings.smart_schedule_strategy}:${settings.smart_schedule_stability_enabled}:${settings.smart_schedule_apply_mode}:${settings.smart_schedule_performance_minutes}:${settings.smart_schedule_model}:${settings.smart_schedule_min_samples}`}
           settings={settings}
           modelOptions={smartScheduleModelOptions}
           initialSection={settingsSection}

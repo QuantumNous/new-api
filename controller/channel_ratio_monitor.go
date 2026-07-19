@@ -41,8 +41,7 @@ type groupRatioSyncRequest struct {
 }
 
 type channelSmartScheduleConfigUpdateRequest struct {
-	Excluded *bool   `json:"excluded"`
-	Group    *string `json:"group"`
+	Excluded *bool `json:"excluded"`
 }
 
 type channelMonitorUpstreamRequest struct {
@@ -99,7 +98,6 @@ type channelMonitorItem struct {
 	LastBalanceTime       int64                         `json:"last_balance_time"`
 	LastBalanceError      string                        `json:"last_balance_error"`
 	SmartScheduleExcluded bool                          `json:"smart_schedule_excluded"`
-	SmartScheduleGroup    string                        `json:"smart_schedule_group"`
 	LastScheduleStatus    string                        `json:"last_schedule_status"`
 	LastScheduleError     string                        `json:"last_schedule_error"`
 	LastScheduleScore     *float64                      `json:"last_schedule_score"`
@@ -311,7 +309,6 @@ func GetChannelMonitorOverview(c *gin.Context) {
 			item.LastBalanceTime = monitor.LastBalanceTime
 			item.LastBalanceError = monitor.LastBalanceError
 			item.SmartScheduleExcluded = monitor.SmartScheduleExcluded
-			item.SmartScheduleGroup = monitor.SmartScheduleGroup
 			item.LastScheduleStatus = monitor.LastScheduleStatus
 			item.LastScheduleError = monitor.LastScheduleError
 			item.LastScheduleScore = monitor.LastScheduleScore
@@ -350,8 +347,7 @@ func UpdateChannelMonitorSmartScheduleConfig(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的渠道 ID")
 		return
 	}
-	channel, err := model.GetChannelById(channelId, false)
-	if err != nil {
+	if _, err := model.GetChannelById(channelId, false); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -361,57 +357,21 @@ func UpdateChannelMonitorSmartScheduleConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效的参数"})
 		return
 	}
-	if request.Excluded == nil && request.Group == nil {
+	if request.Excluded == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "请提供要更新的调度设置"})
 		return
 	}
 
-	excluded := false
-	group := ""
-	existing, findErr := model.GetChannelRatioMonitor(channelId)
-	if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
-		common.ApiError(c, findErr)
-		return
-	}
-	if findErr == nil {
-		excluded = existing.SmartScheduleExcluded
-		group = existing.SmartScheduleGroup
-	}
-	if request.Excluded != nil {
-		excluded = *request.Excluded
-	}
-	if request.Group != nil {
-		group = strings.TrimSpace(*request.Group)
-		if utf8.RuneCountInString(group) > 64 {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "调度归属分组不能超过 64 个字符"})
-			return
-		}
-	}
-	if group != "" {
-		belongsToGroup := false
-		for _, channelGroup := range channel.GetGroups() {
-			if channelGroup == group {
-				belongsToGroup = true
-				break
-			}
-		}
-		if !belongsToGroup {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "调度归属分组必须是渠道已关联的分组"})
-			return
-		}
-	}
-
-	monitor, err := model.SaveChannelSmartScheduleConfig(channelId, excluded, group)
+	monitor, err := model.SaveChannelSmartScheduleConfig(channelId, *request.Excluded)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	recordManageAudit(c, "channel.monitor_smart_schedule_config_update", map[string]interface{}{
-		"id": channelId, "excluded": excluded, "group": group,
+		"id": channelId, "excluded": *request.Excluded,
 	})
 	common.ApiSuccess(c, gin.H{
 		"excluded": monitor.SmartScheduleExcluded,
-		"group":    monitor.SmartScheduleGroup,
 	})
 }
 

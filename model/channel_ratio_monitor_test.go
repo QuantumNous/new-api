@@ -325,10 +325,9 @@ func TestGetChannelRatioMonitorTasksFiltersOrdersAndPaginatesRuns(t *testing.T) 
 func TestChannelSmartScheduleConfigAndResultPersistWithoutRatioBaseline(t *testing.T) {
 	resetChannelRatioMonitorTables(t)
 
-	monitor, err := SaveChannelSmartScheduleConfig(31, false, "vip")
+	monitor, err := SaveChannelSmartScheduleConfig(31, false)
 	require.NoError(t, err)
 	assert.Zero(t, monitor.UpdatedTime)
-	assert.Equal(t, "vip", monitor.SmartScheduleGroup)
 	assert.False(t, monitor.SmartScheduleExcluded)
 
 	score := 0.82
@@ -352,6 +351,33 @@ func TestChannelSmartScheduleConfigAndResultPersistWithoutRatioBaseline(t *testi
 	assert.Equal(t, int64(100), monitor.LastSchedulePriority)
 	assert.Equal(t, uint(80), monitor.LastScheduleWeight)
 	assert.Equal(t, int64(123), monitor.LastScheduleTime)
+}
+
+func TestDropLegacyChannelSmartScheduleGroupColumnPreservesMonitorData(t *testing.T) {
+	resetChannelRatioMonitorTables(t)
+	require.NoError(t, dropLegacyChannelSmartScheduleGroupColumn())
+	t.Cleanup(func() {
+		require.NoError(t, dropLegacyChannelSmartScheduleGroupColumn())
+	})
+
+	require.NoError(t, DB.Create(&ChannelRatioMonitor{
+		ChannelId:   33,
+		Ratio:       1.25,
+		UpdatedTime: 100,
+	}).Error)
+	legacyModel := &channelRatioMonitorLegacyScheduleGroup{}
+	require.NoError(t, DB.Migrator().AddColumn(legacyModel, "SmartScheduleGroup"))
+	require.True(t, DB.Migrator().HasColumn(legacyModel, "SmartScheduleGroup"))
+	require.NoError(t, DB.Table("channel_ratio_monitors").
+		Where("channel_id = ?", 33).
+		Update("smart_schedule_group", "vip").Error)
+
+	require.NoError(t, dropLegacyChannelSmartScheduleGroupColumn())
+	assert.False(t, DB.Migrator().HasColumn(legacyModel, "SmartScheduleGroup"))
+	monitor, err := GetChannelRatioMonitor(33)
+	require.NoError(t, err)
+	assert.Equal(t, 1.25, monitor.Ratio)
+	assert.Equal(t, int64(100), monitor.UpdatedTime)
 }
 
 func TestUpdateChannelSmartSchedulePriorityWeightKeepsAbilitiesInSync(t *testing.T) {

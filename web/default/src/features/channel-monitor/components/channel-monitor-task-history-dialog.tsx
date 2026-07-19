@@ -33,6 +33,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -90,7 +91,7 @@ const STATUS_LABELS: Record<ChannelMonitorTaskStatus, string> = {
 }
 
 const SMART_SCHEDULE_STRATEGY_LABELS: Record<
-  ChannelMonitorSmartScheduleStrategy,
+  ChannelMonitorSmartScheduleStrategy | 'stability',
   string
 > = {
   ratio: '按上游倍率',
@@ -281,6 +282,7 @@ function ChannelTaskProgress(props: {
 }
 
 function ChannelTaskPolicyResult(props: { task: ChannelMonitorTask }) {
+  const { t } = useTranslation()
   const result = props.task.result
   if (!result) return <span className='text-muted-foreground'>-</span>
   if (props.task.type === 'channel_smart_schedule') {
@@ -295,10 +297,12 @@ function ChannelTaskPolicyResult(props: { task: ChannelMonitorTask }) {
             ? SMART_SCHEDULE_STRATEGY_LABELS[result.strategy]
             : '智能调度'}{' '}
           · {applyModeLabel}
+          {result.stability_enabled ? ' · 按稳定性' : ''}
+          {result.force_reset ? ` · ${t('Forced recalculation')}` : ''}
         </span>
         <span className='text-muted-foreground'>
           {result.model ? `模型 ${result.model}` : '全部模型汇总'} ·{' '}
-          {result.performance_minutes ?? 0} 分钟 · {result.groups ?? 0} 个分组
+          {result.performance_minutes ?? 0} 分钟
         </span>
       </div>
     )
