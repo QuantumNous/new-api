@@ -1,0 +1,87 @@
+{
+  "service": "new-api",
+  "environment": "production",
+  "captured_at_utc": "2026-07-19T13:39:21Z",
+  "window_start_utc": "2026-07-19T12:50:47Z",
+  "window_end_utc": "2026-07-19T13:39:21Z",
+  "deployment": {
+    "id": "f8e7561a-abc5-46ba-ba06-992bb4dbc782",
+    "status": "SUCCESS",
+    "commit": "678fa3476d04b9f3268ae6c9f62a1da56f903514"
+  },
+  "production_frt_ms": {
+    "samples": 500,
+    "affinity_keys": 3,
+    "cache_hit_percent": 97.0,
+    "p50": 1915,
+    "p95": 5356,
+    "p99": 10038,
+    "max": 20319
+  },
+  "stable_affinity_channels": [
+    {
+      "channel_id": 17,
+      "requests": 160,
+      "p50_frt_ms": 1752,
+      "p95_frt_ms": 3958,
+      "max_frt_ms": 10955
+    },
+    {
+      "channel_id": 45,
+      "requests": 107,
+      "p50_frt_ms": 2776,
+      "p95_frt_ms": 6207,
+      "max_frt_ms": 8001
+    },
+    {
+      "channel_id": 46,
+      "requests": 122,
+      "p50_frt_ms": 2083,
+      "p95_frt_ms": 5022,
+      "max_frt_ms": 6466
+    },
+    {
+      "channel_id": 56,
+      "requests": 93,
+      "p50_frt_ms": 1761,
+      "p95_frt_ms": 3884,
+      "max_frt_ms": 17001
+    }
+  ],
+  "service_tier_priority_probe": [
+    {
+      "channel_id": 17,
+      "default_first_content_ms": 6492,
+      "priority_first_content_ms": 9159,
+      "status": 200
+    },
+    {
+      "channel_id": 46,
+      "default_first_content_ms": 7467,
+      "priority_first_content_ms": 17342,
+      "status": 200
+    }
+  ],
+  "selection_regression": {
+    "before": "a measured-slow channel was selected by the fourth fresh-affinity assignment",
+    "after": "500 of 500 fresh-affinity assignments selected the measured-fast channel",
+    "zero_weight_guard": "a measured-fast channel with configured weight zero remained unselectable",
+    "database_path": "the no-memory-cache selector also restricted fresh affinity to the measured-fast channel"
+  },
+  "representative_retry_outlier": {
+    "request_id": "202607191338431319985308268d9d6IXLpuebH",
+    "sticky_channel": 51,
+    "retry_channel": 48,
+    "use_channel": [51, 48],
+    "first_response_ms": 20319,
+    "final_stream_elapsed_ms": 7022,
+    "cache_tokens": 11776,
+    "prompt_tokens": 70125
+  },
+  "interpretation": [
+    "The dominant delay is upstream first-content latency, not Railway edge forwarding.",
+    "A normal weighted probe is unsafe for a fresh affinity key or an affinity failure retry because one slow pick pins the active session for a sliding one-hour TTL.",
+    "Warm sessions should not migrate solely for moderate latency because losing prompt cache can add a 20-40 second cold prefill.",
+    "The configured priority service tier was not enabled because direct upstream probes were slower on both tested providers."
+  ]
+}

@@ -126,6 +126,11 @@ type ChannelSelectionOptions struct {
 	// It must stay normalized: the health registry is bounded, so raw paths
 	// would explode its key cardinality.
 	Path string
+	// PreferMeasuredFast restricts selection to measured-fast channels when at
+	// least one exists in the chosen host/priority pool. Fresh affinity keys use
+	// it because a slow pick pins an active session for a sliding TTL rather than
+	// creating a cheap one-request probe.
+	PreferMeasuredFast bool
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
@@ -236,9 +241,42 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	if len(preferredChannels) == 0 && len(avoidedChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
 	}
-
 	preferredWeights := effectiveChannelSelectionWeights(preferredChannels, model, options.Path)
 	avoidedWeights := effectiveChannelSelectionWeights(avoidedChannels, model, options.Path)
+	if options.PreferMeasuredFast {
+		fastPreferred := make([]*Channel, 0, len(preferredChannels))
+		fastPreferredWeights := make([]int, 0, len(preferredChannels))
+		for i, channel := range preferredChannels {
+			_, fast := ChannelSelectionFactors(ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path})
+			if fast && preferredWeights[i] > 0 {
+				fastPreferred = append(fastPreferred, channel)
+				fastPreferredWeights = append(fastPreferredWeights, preferredWeights[i])
+			}
+		}
+
+		fastAvoided := make([]*Channel, 0, len(avoidedChannels))
+		fastAvoidedWeights := make([]int, 0, len(avoidedChannels))
+		for i, channel := range avoidedChannels {
+			_, fast := ChannelSelectionFactors(ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path})
+			if fast && avoidedWeights[i] > 0 {
+				fastAvoided = append(fastAvoided, channel)
+				fastAvoidedWeights = append(fastAvoidedWeights, avoidedWeights[i])
+			}
+		}
+		return selectAcquirableChannelWithFastFallback(
+			fastPreferred,
+			fastPreferredWeights,
+			preferredChannels,
+			preferredWeights,
+			fastAvoided,
+			fastAvoidedWeights,
+			avoidedChannels,
+			avoidedWeights,
+			model,
+			options.Path,
+		)
+	}
+
 	return selectAcquirableChannelWithFallback(
 		preferredChannels,
 		preferredWeights,
@@ -292,6 +330,46 @@ func selectAcquirableChannelWithFallback(preferred []*Channel, preferredWeights 
 		}
 	}
 	return selectAcquirableChannel(fallback, fallbackWeights, model, path)
+}
+
+func selectAcquirableChannelWithFastFallback(
+	fastPreferred []*Channel,
+	fastPreferredWeights []int,
+	preferred []*Channel,
+	preferredWeights []int,
+	fastFallback []*Channel,
+	fastFallbackWeights []int,
+	fallback []*Channel,
+	fallbackWeights []int,
+	model string,
+	path string,
+) (*Channel, error) {
+	pools := []struct {
+		channels []*Channel
+		weights  []int
+	}{
+		{fastPreferred, fastPreferredWeights},
+		{preferred, preferredWeights},
+		{fastFallback, fastFallbackWeights},
+		{fallback, fallbackWeights},
+	}
+	var lastErr error
+	for _, pool := range pools {
+		if len(pool.channels) == 0 {
+			continue
+		}
+		channel, err := selectAcquirableChannel(pool.channels, pool.weights, model, path)
+		if channel != nil {
+			return channel, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+	}
+	if lastErr == nil {
+		lastErr = errors.New("channel not found")
+	}
+	return nil, lastErr
 }
 
 // selectAcquirableChannel picks a weighted-random starting candidate, then
