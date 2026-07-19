@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -73,7 +72,6 @@ type ChannelMonitorSettingsDialogProps = {
 export function ChannelMonitorSettingsDialog(
   props: ChannelMonitorSettingsDialogProps
 ) {
-  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const form = useForm<ChannelMonitorSettingsFormValues>({
     resolver: zodResolver(
@@ -107,24 +105,17 @@ export function ChannelMonitorSettingsDialog(
     onSuccess: (response) => {
       if (response.data.smart_schedule_force_reset_task_error) {
         toast.error(
-          t(
-            'Settings saved, but the reset task could not be created: {{error}}',
-            {
-              error: response.data.smart_schedule_force_reset_task_error,
-            }
-          )
+          `设置已保存，但无法创建重算任务：${response.data.smart_schedule_force_reset_task_error}`
         )
       } else if (
         response.data.smart_schedule_force_reset_task_created === true
       ) {
-        toast.success(t('Settings saved and reset scheduling task created'))
+        toast.success('设置已保存，强制重算任务已创建')
       } else if (
         response.data.smart_schedule_force_reset_task_created === false
       ) {
         toast.warning(
-          t(
-            'Settings saved, but an existing scheduling task is running, so reset was not queued'
-          )
+          '设置已保存，但已有智能调度任务正在运行，本次强制重算未排队'
         )
       } else {
         toast.success('渠道监控设置已保存')

@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -104,7 +103,6 @@ type ChannelMonitorSmartScheduleFieldsProps = {
 export function ChannelMonitorSmartScheduleFields(
   props: ChannelMonitorSmartScheduleFieldsProps
 ) {
-  const { t } = useTranslation()
   const modelOptions = useMemo(
     () => [
       { value: ALL_MODELS_VALUE, label: '全部模型汇总' },
@@ -274,17 +272,15 @@ export function ChannelMonitorSmartScheduleFields(
                 id='channel-monitor-force-smart-schedule-reset'
                 checked={field.value}
                 onCheckedChange={(checked) => field.onChange(checked === true)}
-                aria-label={t('Force reset priority and weight')}
+                aria-label='强制重置优先级和权重'
               />
             </FormControl>
             <div className='flex flex-col gap-1'>
               <FormLabel htmlFor='channel-monitor-force-smart-schedule-reset'>
-                {t('Force reset priority and weight')}
+                强制重置优先级和权重
               </FormLabel>
               <FormDescription>
-                {t(
-                  'Once saved, calculate eligible channels from the current logs and immediately apply their priority and weight. This is a one-time action.'
-                )}
+                保存后，根据当前日志重新计算所有符合条件的参与渠道，并立即应用优先级和权重。此操作仅执行一次。
               </FormDescription>
             </div>
           </FormItem>
