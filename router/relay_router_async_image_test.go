@@ -1,8 +1,6 @@
 package router
 
 import (
-	"bytes"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestImageEditRoutesReplayAfterStrictTokenChecks(t *testing.T) {
+func TestUnifiedImageRouteReplaysImageInputAfterStrictTokenChecks(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
@@ -58,41 +56,35 @@ func TestImageEditRoutesReplayAfterStrictTokenChecks(t *testing.T) {
 
 	engine := gin.New()
 	SetRelayRouter(engine)
-	for index, path := range []string{"/v1/images/edits", "/v1/edits"} {
-		idempotencyKey := "edit-replay-" + strings.ReplaceAll(path, "/", "-")
-		clientRequestID := common.GenerateHMAC(idempotencyKey)
-		task := &model.Task{
-			TaskID:          "task_replayed_" + string(rune('a'+index)),
-			Platform:        constant.TaskPlatformOpenAIImage,
-			UserId:          user.Id,
-			ClientRequestID: &clientRequestID,
-			Status:          model.TaskStatusNotStart,
-			SubmitTime:      1700000000,
-		}
-		require.NoError(t, db.Create(task).Error)
-
-		var body bytes.Buffer
-		writer := multipart.NewWriter(&body)
-		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
-		require.NoError(t, writer.WriteField("prompt", "restyle"))
-		require.NoError(t, writer.WriteField("async", "true"))
-		part, createErr := writer.CreateFormFile("image", "source.png")
-		require.NoError(t, createErr)
-		_, createErr = part.Write([]byte("image-payload"))
-		require.NoError(t, createErr)
-		require.NoError(t, writer.Close())
-
-		request := httptest.NewRequest(http.MethodPost, path, &body)
-		request.Header.Set("Content-Type", writer.FormDataContentType())
-		request.Header.Set("Authorization", "Bearer sk-"+token.Key)
-		request.Header.Set("Idempotency-Key", idempotencyKey)
-		recorder := httptest.NewRecorder()
-		engine.ServeHTTP(recorder, request)
-
-		assert.Equal(t, http.StatusAccepted, recorder.Code, recorder.Body.String())
-		assert.Equal(t, "true", recorder.Header().Get("Idempotency-Replayed"))
-		assert.Contains(t, recorder.Body.String(), task.TaskID)
+	idempotencyKey := "unified-image-input-replay"
+	clientRequestID := common.GenerateHMAC(idempotencyKey)
+	task := &model.Task{
+		TaskID:          "task_replayed_image_input",
+		Platform:        constant.TaskPlatformOpenAIImage,
+		UserId:          user.Id,
+		ClientRequestID: &clientRequestID,
+		Status:          model.TaskStatusNotStart,
+		SubmitTime:      1700000000,
 	}
+	require.NoError(t, db.Create(task).Error)
+
+	body := strings.NewReader(`{
+		"model":"gpt-image-2",
+		"input":{
+			"prompt":"restyle the source image",
+			"image_input":["https://example.com/source.png"]
+		}
+	}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/generations", body)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer sk-"+token.Key)
+	request.Header.Set("Idempotency-Key", idempotencyKey)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusAccepted, recorder.Code, recorder.Body.String())
+	assert.Equal(t, "true", recorder.Header().Get("Idempotency-Replayed"))
+	assert.Contains(t, recorder.Body.String(), task.TaskID)
 }
 
 func TestImageSubmitRoutesRejectTokenBeforeReadingBody(t *testing.T) {
@@ -125,27 +117,34 @@ func TestImageSubmitRoutesRejectTokenBeforeReadingBody(t *testing.T) {
 
 	engine := gin.New()
 	SetRelayRouter(engine)
-	for _, testCase := range []struct {
-		path        string
-		contentType string
-	}{
-		{path: "/v1/images/generations", contentType: "application/json"},
-		{path: "/v1/images/edits", contentType: "multipart/form-data; boundary=security-test"},
-		{path: "/v1/edits", contentType: "multipart/form-data; boundary=security-test"},
-	} {
-		t.Run(testCase.path, func(t *testing.T) {
-			const bodySize = 1 << 20
-			body := strings.NewReader(strings.Repeat("x", bodySize))
-			request := httptest.NewRequest(http.MethodPost, testCase.path, body)
-			request.Header.Set("Content-Type", testCase.contentType)
-			request.Header.Set("Authorization", "Bearer sk-"+token.Key)
-			request.Header.Set("Idempotency-Key", "must-not-be-parsed")
+	const bodySize = 1 << 20
+	body := strings.NewReader(strings.Repeat("x", bodySize))
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/generations", body)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer sk-"+token.Key)
+	request.Header.Set("Idempotency-Key", "must-not-be-parsed")
+	recorder := httptest.NewRecorder()
+
+	engine.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusUnauthorized, recorder.Code, recorder.Body.String())
+	assert.Equal(t, bodySize, body.Len(), "request body must remain unread before strict token rejection")
+}
+
+func TestLegacyImageSubmitRoutesAreNotRegistered(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetRelayRouter(engine)
+
+	for _, path := range []string{"/v1/images/edits", "/v1/edits", "/v1/images/variations"} {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"gpt-image-2"}`))
+			request.Header.Set("Content-Type", "application/json")
 			recorder := httptest.NewRecorder()
 
 			engine.ServeHTTP(recorder, request)
 
-			assert.Equal(t, http.StatusUnauthorized, recorder.Code, recorder.Body.String())
-			assert.Equal(t, bodySize, body.Len(), "request body must remain unread before strict token rejection")
+			assert.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
 		})
 	}
 }

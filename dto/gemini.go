@@ -347,6 +347,7 @@ type GeminiChatGenerationConfig struct {
 	ThinkingConfig             *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
 	SpeechConfig               json.RawMessage       `json:"speechConfig,omitempty"` // RawMessage to allow flexible speech config
 	ImageConfig                json.RawMessage       `json:"imageConfig,omitempty"`  // RawMessage to allow flexible image config
+	imageOutputIntent          bool
 }
 
 // UnmarshalJSON allows GeminiChatGenerationConfig to accept both snake_case and camelCase fields.
@@ -376,6 +377,10 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
 	}
+	imageOutputIntent := geminiModalitiesContainImage(aux.Alias.ResponseModalities) ||
+		geminiModalitiesContainImage(aux.ResponseModalitiesSnake) ||
+		geminiImageConfigIsConfigured(aux.Alias.ImageConfig) ||
+		geminiImageConfigIsConfigured(aux.ImageConfigSnake)
 
 	*c = GeminiChatGenerationConfig(aux.Alias)
 
@@ -431,8 +436,29 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 	if len(aux.ImageConfigSnake) > 0 {
 		c.ImageConfig = aux.ImageConfigSnake
 	}
+	c.imageOutputIntent = imageOutputIntent
 
 	return nil
+}
+
+func (c GeminiChatGenerationConfig) HasImageOutputIntent() bool {
+	return c.imageOutputIntent ||
+		geminiModalitiesContainImage(c.ResponseModalities) ||
+		geminiImageConfigIsConfigured(c.ImageConfig)
+}
+
+func geminiModalitiesContainImage(modalities []string) bool {
+	for _, modality := range modalities {
+		if strings.EqualFold(strings.TrimSpace(modality), "image") {
+			return true
+		}
+	}
+	return false
+}
+
+func geminiImageConfigIsConfigured(raw json.RawMessage) bool {
+	text := strings.TrimSpace(string(raw))
+	return text != "" && !strings.EqualFold(text, "null")
 }
 
 type MediaResolution string

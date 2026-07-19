@@ -71,9 +71,9 @@ func Path2RelayMode(path string) int {
 	} else if strings.HasPrefix(path, "/v1/images/edits") {
 		relayMode = RelayModeImagesEdits
 	} else if strings.HasPrefix(path, "/v1/edits") {
-		// /v1/edits is retained as an alias of the OpenAI image-edit route.
-		// The router binds it to RelayFormatOpenAIImage, so classifying it as the
-		// retired text-edits mode would send an ImageRequest through TextHelper.
+		// Legacy async checkpoints can still contain the former public alias.
+		// Keep classifying it as image edits for task replay and rolling upgrades;
+		// the HTTP router no longer exposes this path.
 		relayMode = RelayModeImagesEdits
 	} else if strings.HasPrefix(path, "/v1/responses/compact") {
 		relayMode = RelayModeResponsesCompact

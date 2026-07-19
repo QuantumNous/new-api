@@ -509,6 +509,14 @@ func tryParseOperations(paramOverride map[string]interface{}) ([]ParamOperation,
 	return operations, true
 }
 
+// ParseParamOverrideOperations exposes the runtime parser for callers that
+// need to inspect an override program before applying it. Keeping inspection
+// on the same parser preserves shorthand conditions and all accepted input
+// shapes used by ApplyParamOverride.
+func ParseParamOverrideOperations(paramOverride map[string]interface{}) ([]ParamOperation, bool) {
+	return tryParseOperations(paramOverride)
+}
+
 func checkConditions(data []byte, contextJSON string, conditions []ConditionOperation, logic string) (bool, error) {
 	if len(conditions) == 0 {
 		return true, nil // 没有条件，直接通过

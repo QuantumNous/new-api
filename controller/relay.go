@@ -127,6 +127,33 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	preflightInfo := *relayInfo
+	preflightInfo.Request = nil
+	preflightInfo.InitChannelMeta(c)
+	if err := helper.ModelMappedHelper(c, &preflightInfo, nil); err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+		return
+	}
+	if err := helper.ValidateUnifiedImageEntryPoint(&preflightInfo, request); err != nil {
+		newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		return
+	}
+	switch relayFormat {
+	case types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses, types.RelayFormatOpenAIResponsesCompaction, types.RelayFormatClaude, types.RelayFormatGemini:
+		storage, bodyErr := common.GetBodyStorage(c)
+		if bodyErr != nil {
+			newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			return
+		}
+		if bodyErr := helper.ValidateUnifiedImagePayloadStorage(&preflightInfo, storage); bodyErr != nil {
+			newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			return
+		}
+	}
+	if overrideErr := helper.ValidateUnifiedImageParamOverride(&preflightInfo); overrideErr != nil {
+		newAPIError = types.NewErrorWithStatusCode(overrideErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		return
+	}
 	asyncImageRequest := false
 	if _, ok := request.(*dto.ImageRequest); ok &&
 		(relayInfo.RelayMode == relayconstant.RelayModeImagesGenerations ||

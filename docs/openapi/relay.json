@@ -187,7 +187,7 @@
       "post": {
         "summary": "创建聊天对话",
         "deprecated": false,
-        "description": "根据对话历史创建模型响应。支持流式和非流式响应。\n\n兼容 OpenAI Chat Completions API。\n",
+        "description": "根据对话历史创建文本或音频响应，支持流式和非流式。图片输出模型或 modalities 中包含 image 会返回 400；所有图片生成统一使用 POST /v1/images/generations。\n\n兼容 OpenAI Chat Completions API。\n",
         "operationId": "createChatCompletion",
         "tags": [
           "OpenAI格式(Chat)"
@@ -249,7 +249,7 @@
       "post": {
         "summary": "创建响应 (OpenAI Responses API)",
         "deprecated": false,
-        "description": "OpenAI Responses API，用于创建模型响应。\n支持多轮对话、工具调用、推理等功能。\n",
+        "description": "OpenAI Responses API，用于创建文本模型响应，支持多轮对话、工具调用、推理等功能。image_generation 工具或图片输出模型会返回 400；所有图片生成统一使用 POST /v1/images/generations。\n",
         "operationId": "createResponse",
         "tags": [
           "OpenAI格式(Responses)"
@@ -438,84 +438,6 @@
                 }
               }
             }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/v1/images/edits": {
-      "post": {
-        "summary": "异步编辑图像",
-        "deprecated": false,
-        "description": "OpenAI 兼容的异步图片编辑接口。上传的 image 和可选 mask 会先写入私有对象存储，接口立即返回 202 和 task_id；使用 Location 或 GET /v1/images/generations/{task_id} 轮询，也可以提供 callBackUrl 或 webhook_url 接收终态任务对象。最终 result.data 只返回对象存储中的持久 URL。",
-        "operationId": "createAsyncImageEdit",
-        "tags": [
-          "图片生成"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/ImageEditRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "任务已创建",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsyncImageTask"
-                }
-              }
-            },
-            "headers": {
-              "Location": {
-                "description": "任务轮询地址",
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Retry-After": {
-                "description": "建议的轮询间隔（秒）",
-                "schema": {
-                  "type": "integer"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/v1/edits": {
-      "post": {
-        "summary": "异步编辑图像（兼容别名）",
-        "deprecated": false,
-        "description": "与 POST /v1/images/edits 完全相同。",
-        "operationId": "createAsyncImageEditAlias",
-        "tags": [
-          "图片生成"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "$ref": "#/paths/~1v1~1images~1edits/post/requestBody"
-        },
-        "responses": {
-          "202": {
-            "$ref": "#/paths/~1v1~1images~1edits/post/responses/202"
           }
         },
         "security": [
@@ -1319,9 +1241,9 @@
     },
     "/v1beta/models/{model}:generateContent": {
       "post": {
-        "summary": "Gemini 图片(Nano Banana)",
+        "summary": "Gemini 内容生成（非图片）",
         "deprecated": false,
-        "description": "Gemini 图片生成",
+        "description": "Gemini 原生 generateContent 非图片接口，支持文本及模型允许的音频输出。图片生成不在此接口返回；使用生图模型或在 responseModalities 中请求 IMAGE 会返回 400，请统一改用 POST /v1/images/generations。",
         "operationId": "geminiRelayV1Beta",
         "tags": [
           "Gemini格式"
@@ -1332,7 +1254,7 @@
             "in": "path",
             "description": "模型名称",
             "required": true,
-            "example": "gemini-3-pro-image-preview",
+            "example": "gemini-2.5-flash",
             "schema": {
               "type": "string"
             }
@@ -1372,29 +1294,22 @@
                       "responseModalities": {
                         "type": "array",
                         "items": {
-                          "type": "string"
+                          "type": "string",
+                          "enum": [
+                            "TEXT",
+                            "AUDIO"
+                          ]
                         }
                       },
-                      "imageConfig": {
+                      "speechConfig": {
                         "type": "object",
-                        "properties": {
-                          "aspectRatio": {
-                            "type": "string"
-                          },
-                          "imageSize": {
-                            "type": "string"
-                          }
-                        }
+                        "description": "AUDIO 输出的语音配置；具体字段由 Gemini 模型能力决定"
                       }
-                    },
-                    "required": [
-                      "responseModalities"
-                    ]
+                    }
                   }
                 },
                 "required": [
-                  "contents",
-                  "generationConfig"
+                  "contents"
                 ]
               },
               "example": {
@@ -1403,20 +1318,15 @@
                     "role": "user",
                     "parts": [
                       {
-                        "text": "draw a cat"
+                        "text": "Explain how asynchronous image tasks work"
                       }
                     ]
                   }
                 ],
                 "generationConfig": {
                   "responseModalities": [
-                    "TEXT",
-                    "IMAGE"
-                  ],
-                  "imageConfig": {
-                    "aspectRatio": "16:9",
-                    "imageSize": "4K"
-                  }
+                    "TEXT"
+                  ]
                 }
               }
             }
@@ -2644,7 +2554,7 @@
         "properties": {
           "model": {
             "type": "string",
-            "description": "模型 ID",
+            "description": "文本或音频模型 ID；生图模型请改用 POST /v1/images/generations",
             "example": "gpt-4"
           },
           "messages": {
@@ -2782,6 +2692,7 @@
           },
           "modalities": {
             "type": "array",
+            "description": "此接口不支持 image 输出；图片生成请使用 POST /v1/images/generations",
             "items": {
               "type": "string",
               "enum": [
@@ -3010,7 +2921,8 @@
         ],
         "properties": {
           "model": {
-            "type": "string"
+            "type": "string",
+            "description": "文本模型 ID；生图模型请改用 POST /v1/images/generations"
           },
           "input": {
             "description": "输入内容，可以是字符串或消息数组",
@@ -3044,6 +2956,7 @@
           },
           "tools": {
             "type": "array",
+            "description": "不支持 image_generation 工具；图片生成请使用 POST /v1/images/generations",
             "items": {
               "type": "object",
               "properties": {}
@@ -3712,6 +3625,19 @@
                 ],
                 "example": "png"
               },
+              "size": {
+                "type": "string",
+                "description": "模型相关输出尺寸，例如 1024x1024 或 auto"
+              },
+              "quality": {
+                "type": "string",
+                "description": "模型相关质量档位，例如 high、medium、low、2K 或 4K"
+              },
+              "output_compression": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
               "negative_prompt": {
                 "type": "string",
                 "description": "可选的模型扩展字段；会随统一请求转发"
@@ -3768,100 +3694,6 @@
             "type": "boolean",
             "deprecated": true,
             "description": "兼容字段；无论取值为何，图像生成都使用异步任务"
-          },
-          "webhook_url": {
-            "type": "string",
-            "format": "uri",
-            "description": "可选的任务终态回调地址"
-          },
-          "callBackUrl": {
-            "type": "string",
-            "format": "uri",
-            "description": "webhook_url 的兼容别名"
-          },
-          "webhook_secret": {
-            "type": "string",
-            "description": "可选的 HMAC-SHA256 签名密钥，需要同时提供 webhook_url"
-          }
-        }
-      },
-      "ImageEditRequest": {
-        "type": "object",
-        "required": [
-          "image",
-          "prompt",
-          "model"
-        ],
-        "properties": {
-          "image": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 16,
-            "items": {
-              "type": "string",
-              "format": "binary"
-            },
-            "description": "一张或多张输入图片；multipart 中重复使用 image 字段上传"
-          },
-          "mask": {
-            "type": "string",
-            "format": "binary",
-            "description": "可选编辑蒙版；与 image 一样先写入私有对象存储，并在异步执行时重建 multipart 请求"
-          },
-          "prompt": {
-            "type": "string",
-            "maxLength": 20000
-          },
-          "model": {
-            "type": "string",
-            "example": "gpt-image-2-image-to-image"
-          },
-          "n": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 128,
-            "default": 1
-          },
-          "size": {
-            "type": "string"
-          },
-          "quality": {
-            "type": "string"
-          },
-          "response_format": {
-            "type": "string",
-            "enum": [
-              "url",
-              "b64_json"
-            ],
-            "description": "兼容字段；异步任务最终结果始终返回对象存储 URL"
-          },
-          "output_format": {
-            "type": "string",
-            "enum": [
-              "png",
-              "jpg",
-              "jpeg",
-              "webp"
-            ]
-          },
-          "output_compression": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "input_fidelity": {
-            "type": "string"
-          },
-          "async": {
-            "type": "boolean",
-            "deprecated": true,
-            "description": "兼容字段；无论取值为何都创建异步任务"
-          },
-          "stream": {
-            "type": "boolean",
-            "default": false,
-            "description": "异步图片任务不支持流式响应；传 true 返回 400"
           },
           "webhook_url": {
             "type": "string",

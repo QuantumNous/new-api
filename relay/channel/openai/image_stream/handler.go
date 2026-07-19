@@ -1,9 +1,9 @@
 package image_stream
 
-// Legacy synchronous entry point for gpt-image-* requests on
-// /v1/images/edits. New text-to-image and image-to-image integrations use the
-// durable /v1/images/generations task path. This handler bypasses the standard
-// adaptor.DoRequest path and
+// Legacy synchronous implementation retained for restored edit checkpoints and
+// direct internal callers. The public image surface uses the durable
+// /v1/images/generations task path for both text-to-image and image-to-image.
+// This handler bypasses the standard adaptor.DoRequest path and
 // instead:
 //
 //   1. Re-shapes the request into a /v1/responses + stream:true payload

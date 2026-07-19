@@ -59,14 +59,10 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
-	imageTaskRouter := router.Group("/v1/images/generations")
-	imageTaskRouter.Use(middleware.RouteTag("relay"))
-	imageTaskRouter.Use(middleware.TokenAuthReadOnly())
-	imageTaskRouter.GET("/:task_id", controller.GetImageGenerationTask)
-
-	imageGenerationSubmitRouter := router.Group("/v1/images/generations")
-	imageGenerationSubmitRouter.Use(middleware.RouteTag("relay"))
-	imageGenerationSubmitRouter.POST(
+	imageGenerationRouter := router.Group("/v1/images/generations")
+	imageGenerationRouter.Use(middleware.RouteTag("relay"))
+	imageGenerationRouter.GET("/:task_id", middleware.TokenAuthReadOnly(), controller.GetImageGenerationTask)
+	imageGenerationRouter.POST(
 		"",
 		middleware.SystemPerformanceCheck(),
 		middleware.TokenAuth(),
@@ -75,20 +71,6 @@ func SetRelayRouter(router *gin.Engine) {
 		middleware.Distribute(),
 		func(c *gin.Context) { controller.Relay(c, types.RelayFormatOpenAIImage) },
 	)
-
-	imageEditSubmitRouter := router.Group("/v1")
-	imageEditSubmitRouter.Use(middleware.RouteTag("relay"))
-	for _, path := range []string{"/edits", "/images/edits"} {
-		imageEditSubmitRouter.POST(
-			path,
-			middleware.SystemPerformanceCheck(),
-			middleware.TokenAuth(),
-			middleware.ModelRequestRateLimit(),
-			controller.ReplayAsyncImageGeneration,
-			middleware.Distribute(),
-			func(c *gin.Context) { controller.Relay(c, types.RelayFormatOpenAIImage) },
-		)
-	}
 
 	playgroundRouter := router.Group("/pg")
 	playgroundRouter.Use(middleware.RouteTag("relay"))
@@ -174,7 +156,6 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 
 		// not implemented
-		httpRouter.POST("/images/variations", controller.RelayNotImplemented)
 		httpRouter.GET("/files", controller.RelayNotImplemented)
 		httpRouter.POST("/files", controller.RelayNotImplemented)
 		httpRouter.DELETE("/files/:id", controller.RelayNotImplemented)
