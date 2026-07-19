@@ -696,13 +696,14 @@ func PingDB() error {
 }
 
 func PingDBContext(ctx context.Context) error {
-	// Keep the same throttle semantics as PingDB for background callers, but honor ctx.
+	// Throttle successful pings, but never hold pingMutex across the network I/O:
+	// a stuck DB would otherwise serialize every readiness probe behind one lock.
 	pingMutex.Lock()
-	defer pingMutex.Unlock()
-
 	if time.Since(lastPingTime) < time.Second*10 {
+		pingMutex.Unlock()
 		return nil
 	}
+	pingMutex.Unlock()
 
 	if DB == nil {
 		return fmt.Errorf("database is not initialized")
@@ -717,7 +718,10 @@ func PingDBContext(ctx context.Context) error {
 		log.Printf("Error pinging database: %v", err)
 		return err
 	}
+
+	pingMutex.Lock()
 	lastPingTime = time.Now()
+	pingMutex.Unlock()
 	return nil
 }
 

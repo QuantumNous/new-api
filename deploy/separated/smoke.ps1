@@ -59,7 +59,7 @@ Invoke-Check 'v1 without token is 401' {
 
 Invoke-Check 'readyz via proxy' {
     $r = Invoke-WebRequest -UseBasicParsing -Uri "$FrontendBase/readyz" -TimeoutSec 15
-    if ($r.StatusCode -ne 200 -and $r.StatusCode -ne 503) { throw "status $($r.StatusCode)" }
+    if ($r.StatusCode -ne 200) { throw "status $($r.StatusCode)" }
     if ($r.Content -notmatch '"status"') { throw 'missing status field' }
 }
 

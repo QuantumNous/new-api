@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 # Pure backend build: do not copy or synthesize web/*/dist; frontend_external excludes embed.
 RUN test -s VERSION \
-    && go build -trimpath -buildvcs=true -tags frontend_external \
+    && go build -trimpath -buildvcs=false -tags frontend_external \
         -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" \
         -o new-api
 

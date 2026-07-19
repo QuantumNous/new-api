@@ -61,14 +61,16 @@ func parseFrontendMode(value string) (frontendMode, error) {
 	}
 }
 
-func SetRouter(router *gin.Engine, assets ThemeAssets) {
-	_ = SetRouterForPlane(router, assets, PlaneAll)
+func SetRouter(router *gin.Engine, assets ThemeAssets) error {
+	return SetRouterForPlane(router, assets, PlaneAll)
 }
 
 func SetRouterForPlane(engine *gin.Engine, assets ThemeAssets, plane Plane) error {
-	if _, err := ParsePlane(string(plane)); err != nil {
+	normalizedPlane, err := ParsePlane(string(plane))
+	if err != nil {
 		return err
 	}
+	plane = normalizedPlane
 	engine.Use(middleware.CORS())
 	livenessHandler := func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "plane": plane})
