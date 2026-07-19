@@ -158,6 +158,7 @@ func setupAsyncImageSubmitTestDB(t *testing.T) {
 		&model.Task{},
 		&model.TaskWebhook{},
 		&model.ImageBillingReservation{},
+		&model.BillingAdjustmentOutbox{},
 		&model.ImageTaskBillingLogOutbox{},
 		&model.ImageTaskBillingLogReceipt{},
 		&model.ImageInputCleanup{},

@@ -64,6 +64,30 @@ func TestObserveStreamChannelQualityIgnoresClientGoneBeforeData(t *testing.T) {
 	}
 }
 
+func TestObserveStreamChannelQualityIgnoresClientTerminalErrors(t *testing.T) {
+	model.ClearChannelCooldownsForTest()
+	clearStreamChannelQualityForTest()
+	t.Cleanup(func() {
+		model.ClearChannelCooldownsForTest()
+		clearStreamChannelQualityForTest()
+	})
+
+	for i := 0; i < streamQualityFailureThreshold+1; i++ {
+		ObserveStreamChannelQuality(newStreamQualityRelayInfoWithEndError(
+			18,
+			"gpt-5.5",
+			relaycommon.StreamEndReasonTerminalClientError,
+			10,
+			"invalid prompt",
+			[]string{"stream error: invalid prompt"},
+		))
+	}
+
+	if model.IsChannelCoolingDown(18) {
+		t.Fatal("expected client-semantic terminal errors to avoid channel cooldown")
+	}
+}
+
 func TestObserveStreamChannelQualityCoolsTransportErrors(t *testing.T) {
 	model.ClearChannelCooldownsForTest()
 	clearStreamChannelQualityForTest()

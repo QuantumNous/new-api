@@ -64,13 +64,9 @@ type ImageTaskBillingLogReceipt struct {
 }
 
 func imageTaskBillingLogRequestID(taskID string) string {
-	// task IDs are bounded by the API and this prefix keeps the namespace
-	// separate from ordinary request IDs in the existing logs table.
-	requestID := "img-billing-" + strings.TrimSpace(taskID)
-	if len(requestID) > 64 {
-		requestID = requestID[:64]
-	}
-	return requestID
+	// Keep the namespace separate from ordinary request IDs while hashing long
+	// provider task IDs instead of truncating them into a collision.
+	return NormalizeBillingAdjustmentRequestID("img-billing-" + strings.TrimSpace(taskID))
 }
 
 func enqueueImageTaskBillingLogTx(tx *gorm.DB, task *Task, previousQuota int, reason string) error {
@@ -452,151 +448,232 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 	if len(reason) > 2000 {
 		reason = reason[:2000]
 	}
-	var result ImageTaskFinalizationResult
-	var userID, tokenID int
-	var tokenKey string
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		var task Task
-		if err := lockForUpdate(tx).Where("task_id = ? AND platform = ?", taskID, constant.TaskPlatformOpenAIImage).First(&task).Error; err != nil {
-			return err
-		}
-		if task.Status == TaskStatusSuccess || task.Status == TaskStatusFailure {
-			if err := scheduleImageInputCleanupTx(tx, task.TaskID, common.GetTimestamp()); err != nil {
-				return err
-			}
-			result.Task = &task
-			result.PreviousQuota = task.Quota
-			result.ActualQuota = task.Quota
-			return nil
-		}
-		if task.Status != TaskStatusFinalizing {
-			return fmt.Errorf("image task %s is not finalizing", taskID)
-		}
-		if task.PrivateData.BillingDBApplied {
-			return fmt.Errorf("image task %s billing database phase is already applied", taskID)
-		}
-		var reservation ImageBillingReservation
-		if err := lockForUpdate(tx).Where("task_id = ?", taskID).First(&reservation).Error; err != nil {
-			return fmt.Errorf("load active image billing reservation: %w", err)
-		}
-		if reservation.Status != ImageBillingReservationActive {
-			return fmt.Errorf("image task %s has no active billing reservation", taskID)
-		}
-		if reservation.UserID != task.UserId {
-			return fmt.Errorf("image task %s billing reservation user mismatch", taskID)
-		}
-		userID = reservation.UserID
-		tokenID = reservation.TokenID
-		if tokenID > 0 {
-			var token Token
-			tokenQuery := tx.Unscoped().Select(commonKeyCol).Where("id = ?", tokenID).First(&token)
-			if tokenQuery.Error != nil && !errors.Is(tokenQuery.Error, gorm.ErrRecordNotFound) {
-				return tokenQuery.Error
-			}
-			if tokenQuery.Error == nil {
-				tokenKey = token.Key
-			}
-		}
-		if err := rollbackPreparedImageTaskCache(taskID, userID, tokenKey); err != nil {
-			return fmt.Errorf("rollback permanent image task cache: %w", err)
-		}
-		previousQuota := task.Quota
-		if previousQuota < 0 || previousQuota > common.MaxQuota {
-			return fmt.Errorf("image task %s pre-consumed quota is out of range", taskID)
-		}
-		if reservation.SubscriptionReserved > 0 {
-			if reservation.RequestID == "" || refundSubscriptionPreConsumeTx(tx, reservation.RequestID) != nil {
-				return errors.New("refund image subscription reservation failed")
-			}
-		}
-		if reservation.WalletReserved > 0 {
-			walletRefund := tx.Unscoped().Model(&User{}).Where("id = ?", reservation.UserID).
-				Update("quota", gorm.Expr("quota + ?", reservation.WalletReserved))
-			if walletRefund.Error != nil || walletRefund.RowsAffected != 1 {
-				return errors.New("refund image wallet reservation failed")
-			}
-		}
-		if reservation.TokenReserved > 0 {
-			tokenRefund := tx.Unscoped().Model(&Token{}).Where("id = ?", reservation.TokenID).Updates(map[string]any{
-				"remain_quota":  gorm.Expr("remain_quota + ?", reservation.TokenReserved),
-				"used_quota":    gorm.Expr("used_quota - ?", reservation.TokenReserved),
-				"accessed_time": common.GetTimestamp(),
-			})
-			if tokenRefund.Error != nil {
-				return tokenRefund.Error
-			}
-			if tokenRefund.RowsAffected != 1 {
-				return errors.New("refund image token reservation failed")
-			}
-		}
-		now := common.GetTimestamp()
-		if err := tx.Model(&ImageBillingReservation{}).Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationActive).
-			Updates(map[string]any{
-				"status":                ImageBillingReservationRefunded,
-				"wallet_reserved":       0,
-				"token_reserved":        0,
-				"subscription_reserved": 0,
-				"failure_reason":        reason,
-				"updated_at":            now,
-			}).Error; err != nil {
-			return err
-		}
-		task.Status = TaskStatusFailure
-		task.Quota = 0
-		task.Progress = "100%"
-		task.FinishTime = now
-		task.UpdatedAt = now
-		task.FailReason = reason
-		task.Data = nil
-		task.CheckpointData = nil
-		task.PrivateData.ResultURL = ""
-		task.PrivateData.BillingFinalStatus = ""
-		task.PrivateData.BillingActualQuota = 0
-		task.PrivateData.BillingDBApplied = false
-		if task.PrivateData.BillingContext != nil {
-			task.PrivateData.BillingContext.ClearBillingRequestInput()
-		}
-		task.FinalizeAttempts = 0
-		task.FinalizeNextRetryAt = 0
-		task.FinalizeError = ""
-		if err := deleteImageTaskArtifactTx(tx, task.TaskID); err != nil {
-			return err
-		}
-		if err := scheduleImageInputCleanupTx(tx, task.TaskID, now); err != nil {
-			return err
-		}
-		if err := enqueueImageTaskBillingLogTx(tx, &task, previousQuota, reason); err != nil {
-			return err
-		}
-		update := tx.Model(&Task{}).Where("id = ? AND status = ?", task.ID, TaskStatusFinalizing).
-			Select("status", "quota", "progress", "finish_time", "updated_at", "fail_reason", "data", "checkpoint_data", "private_data", "finalize_attempts", "finalize_next_retry_at", "finalize_error").Updates(&task)
-		if update.Error != nil {
-			return update.Error
-		}
-		if update.RowsAffected != 1 {
-			return errors.New("image task permanent compensation lost its state lock")
-		}
-		result.Task = &task
-		result.PreviousQuota = previousQuota
-		result.ActualQuota = 0
-		result.Delta = -previousQuota
-		result.Applied = true
-		return nil
-	})
-	if err != nil {
+
+	var identity Task
+	if err := DB.Select("user_id", "status", "private_data").
+		Where("task_id = ? AND platform = ?", taskID, constant.TaskPlatformOpenAIImage).
+		First(&identity).Error; err != nil {
 		return nil, err
 	}
-	if common.RedisEnabled {
-		if userID > 0 {
-			if cacheErr := invalidateUserCache(userID); cacheErr != nil {
-				common.SysLog("failed to invalidate compensated image user cache: " + cacheErr.Error())
+	lockedUserID := identity.UserId
+	lockedTokenID := identity.PrivateData.TokenId
+	if identity.Status == TaskStatusFinalizing && !identity.PrivateData.BillingDBApplied {
+		var reservationIdentity ImageBillingReservation
+		if err := DB.Select("user_id", "token_id").Where("task_id = ?", taskID).First(&reservationIdentity).Error; err != nil {
+			return nil, fmt.Errorf("load active image billing reservation: %w", err)
+		}
+		if reservationIdentity.UserID != identity.UserId {
+			return nil, fmt.Errorf("image task %s billing reservation user mismatch", taskID)
+		}
+		lockedUserID = reservationIdentity.UserID
+		lockedTokenID = reservationIdentity.TokenID
+	}
+	lockedTokenKey := ""
+	if lockedTokenID > 0 {
+		var token Token
+		tokenQuery := DB.Unscoped().Select(commonKeyCol).Where("id = ?", lockedTokenID).First(&token)
+		if tokenQuery.Error != nil && !errors.Is(tokenQuery.Error, gorm.ErrRecordNotFound) {
+			return nil, tokenQuery.Error
+		}
+		if tokenQuery.Error == nil {
+			lockedTokenKey = token.Key
+		}
+	}
+
+	var result ImageTaskFinalizationResult
+	var walletRefunded, tokenRefunded int
+	var cacheOutboxes []*BillingAdjustmentOutbox
+	compensate := func() error {
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			var task Task
+			if err := lockForUpdate(tx).Where("task_id = ? AND platform = ?", taskID, constant.TaskPlatformOpenAIImage).First(&task).Error; err != nil {
+				return err
+			}
+			if task.Status == TaskStatusSuccess || task.Status == TaskStatusFailure {
+				if err := scheduleImageInputCleanupTx(tx, task.TaskID, common.GetTimestamp()); err != nil {
+					return err
+				}
+				result.Task = &task
+				result.PreviousQuota = task.Quota
+				result.ActualQuota = task.Quota
+				return nil
+			}
+			if task.Status != TaskStatusFinalizing {
+				return fmt.Errorf("image task %s is not finalizing", taskID)
+			}
+			if task.PrivateData.BillingDBApplied {
+				return fmt.Errorf("image task %s billing database phase is already applied", taskID)
+			}
+			var reservation ImageBillingReservation
+			if err := lockForUpdate(tx).Where("task_id = ?", taskID).First(&reservation).Error; err != nil {
+				return fmt.Errorf("load active image billing reservation: %w", err)
+			}
+			if reservation.Status != ImageBillingReservationActive {
+				return fmt.Errorf("image task %s has no active billing reservation", taskID)
+			}
+			if reservation.UserID != task.UserId {
+				return fmt.Errorf("image task %s billing reservation user mismatch", taskID)
+			}
+			if reservation.UserID != lockedUserID || reservation.TokenID != lockedTokenID {
+				return fmt.Errorf("image task %s billing reservation cache identity changed", taskID)
+			}
+			if reservation.WalletReserved < 0 || reservation.WalletReserved > common.MaxQuota ||
+				reservation.TokenReserved < 0 || reservation.TokenReserved > common.MaxQuota {
+				return fmt.Errorf("image task %s billing reservation quota is out of range", taskID)
+			}
+			if reservation.TokenReserved > 0 && lockedTokenKey == "" {
+				return fmt.Errorf("image task %s billing token cache identity is unavailable", taskID)
+			}
+			if lockedTokenID > 0 {
+				var token Token
+				tokenQuery := tx.Unscoped().Select(commonKeyCol).Where("id = ?", lockedTokenID).First(&token)
+				if tokenQuery.Error != nil && !errors.Is(tokenQuery.Error, gorm.ErrRecordNotFound) {
+					return tokenQuery.Error
+				}
+				if tokenQuery.Error == nil && token.Key != lockedTokenKey {
+					return fmt.Errorf("image task %s billing token cache identity changed", taskID)
+				}
+			}
+			if err := rollbackPreparedImageTaskCache(taskID, lockedUserID, lockedTokenKey); err != nil {
+				return fmt.Errorf("rollback permanent image task cache: %w", err)
+			}
+			previousQuota := task.Quota
+			if previousQuota < 0 || previousQuota > common.MaxQuota {
+				return fmt.Errorf("image task %s pre-consumed quota is out of range", taskID)
+			}
+			if reservation.SubscriptionReserved > 0 {
+				if reservation.RequestID == "" || refundSubscriptionPreConsumeTx(tx, reservation.RequestID) != nil {
+					return errors.New("refund image subscription reservation failed")
+				}
+			}
+			if reservation.WalletReserved > 0 {
+				walletRefund := tx.Unscoped().Model(&User{}).
+					Where("id = ? AND quota <= ?", reservation.UserID, common.MaxQuota-reservation.WalletReserved).
+					Update("quota", gorm.Expr("quota + ?", reservation.WalletReserved))
+				if walletRefund.Error != nil || walletRefund.RowsAffected != 1 {
+					return errors.New("refund image wallet reservation failed")
+				}
+				walletRefunded = reservation.WalletReserved
+			}
+			if reservation.TokenReserved > 0 {
+				tokenRefund := tx.Unscoped().Model(&Token{}).
+					Where(
+						"id = ? AND remain_quota <= ? AND used_quota >= ?",
+						reservation.TokenID,
+						common.MaxQuota-reservation.TokenReserved,
+						reservation.TokenReserved,
+					).
+					Updates(map[string]any{
+						"remain_quota":  gorm.Expr("remain_quota + ?", reservation.TokenReserved),
+						"used_quota":    gorm.Expr("used_quota - ?", reservation.TokenReserved),
+						"accessed_time": common.GetTimestamp(),
+					})
+				if tokenRefund.Error != nil {
+					return tokenRefund.Error
+				}
+				if tokenRefund.RowsAffected != 1 {
+					return errors.New("refund image token reservation failed")
+				}
+				tokenRefunded = reservation.TokenReserved
+			}
+			if walletRefunded > 0 {
+				outbox, err := EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
+					RequestID: "image-compensation:" + taskID,
+					Phase:     BillingAdjustmentPhaseImageCompensation,
+					Leg:       BillingAdjustmentLegWallet,
+					UserID:    reservation.UserID,
+					Delta:     int64(walletRefunded),
+				}, true)
+				if err != nil {
+					return err
+				}
+				cacheOutboxes = append(cacheOutboxes, outbox)
+			}
+			if tokenRefunded > 0 {
+				outbox, err := EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
+					RequestID: "image-compensation:" + taskID,
+					Phase:     BillingAdjustmentPhaseImageCompensation,
+					Leg:       BillingAdjustmentLegToken,
+					UserID:    reservation.UserID,
+					TokenID:   reservation.TokenID,
+					Delta:     int64(tokenRefunded),
+				}, true)
+				if err != nil {
+					return err
+				}
+				cacheOutboxes = append(cacheOutboxes, outbox)
+			}
+			now := common.GetTimestamp()
+			if err := tx.Model(&ImageBillingReservation{}).Where("id = ? AND status = ?", reservation.ID, ImageBillingReservationActive).
+				Updates(map[string]any{
+					"status":                ImageBillingReservationRefunded,
+					"wallet_reserved":       0,
+					"token_reserved":        0,
+					"subscription_reserved": 0,
+					"failure_reason":        reason,
+					"updated_at":            now,
+				}).Error; err != nil {
+				return err
+			}
+			task.Status = TaskStatusFailure
+			task.Quota = 0
+			task.Progress = "100%"
+			task.FinishTime = now
+			task.UpdatedAt = now
+			task.FailReason = reason
+			task.Data = nil
+			task.CheckpointData = nil
+			task.PrivateData.ResultURL = ""
+			task.PrivateData.BillingFinalStatus = ""
+			task.PrivateData.BillingActualQuota = 0
+			task.PrivateData.BillingDBApplied = false
+			if task.PrivateData.BillingContext != nil {
+				task.PrivateData.BillingContext.ClearBillingRequestInput()
+			}
+			task.FinalizeAttempts = 0
+			task.FinalizeNextRetryAt = 0
+			task.FinalizeError = ""
+			if err := deleteImageTaskArtifactTx(tx, task.TaskID); err != nil {
+				return err
+			}
+			if err := scheduleImageInputCleanupTx(tx, task.TaskID, now); err != nil {
+				return err
+			}
+			if err := enqueueImageTaskBillingLogTx(tx, &task, previousQuota, reason); err != nil {
+				return err
+			}
+			update := tx.Model(&Task{}).Where("id = ? AND status = ?", task.ID, TaskStatusFinalizing).
+				Select("status", "quota", "progress", "finish_time", "updated_at", "fail_reason", "data", "checkpoint_data", "private_data", "finalize_attempts", "finalize_next_retry_at", "finalize_error").Updates(&task)
+			if update.Error != nil {
+				return update.Error
+			}
+			if update.RowsAffected != 1 {
+				return errors.New("image task permanent compensation lost its state lock")
+			}
+			result.Task = &task
+			result.PreviousQuota = previousQuota
+			result.ActualQuota = 0
+			result.Delta = -previousQuota
+			result.Applied = true
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		for _, outbox := range cacheOutboxes {
+			if err := applyBillingAdjustmentCache(outbox, lockedTokenKey); err != nil {
+				common.SysLog(fmt.Sprintf("image compensation cache reconciliation queued: task_id=%s outbox_id=%d err=%v", taskID, outbox.Id, err))
+				continue
+			}
+			if err := markBillingAdjustmentCacheReconciled(outbox); err != nil {
+				common.SysLog(fmt.Sprintf("image compensation cache reconciliation ack queued: task_id=%s outbox_id=%d err=%v", taskID, outbox.Id, err))
 			}
 		}
-		if tokenID > 0 && tokenKey != "" {
-			if cacheErr := cacheDeleteToken(tokenKey); cacheErr != nil {
-				common.SysLog("failed to invalidate compensated image token cache: " + cacheErr.Error())
-			}
-		}
+		return nil
+	}
+	err := withImageTaskQuotaCacheLocks(lockedUserID, lockedTokenKey, compensate)
+	if err != nil {
+		return nil, err
 	}
 	return &result, nil
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -89,7 +90,45 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 	// 回退：无 BillingSession 时使用旧路径
 	quotaDelta := actualQuota - relayInfo.FinalPreConsumedQuota
 	if quotaDelta != 0 {
-		return PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
+		specs := make([]model.BillingAdjustmentSpec, 0, 2)
+		if relayInfo.BillingSource == BillingSourceSubscription {
+			if relayInfo.SubscriptionId <= 0 {
+				return fmt.Errorf("subscription id is missing")
+			}
+			specs = append(specs, model.BillingAdjustmentSpec{
+				RequestID:      relayInfo.RequestId,
+				Phase:          model.BillingAdjustmentPhaseSettle,
+				Leg:            model.BillingAdjustmentLegSubscription,
+				UserID:         relayInfo.UserId,
+				SubscriptionID: relayInfo.SubscriptionId,
+				Delta:          int64(quotaDelta),
+			})
+			relayInfo.SubscriptionPostDelta += int64(quotaDelta)
+		} else {
+			specs = append(specs, model.BillingAdjustmentSpec{
+				RequestID: relayInfo.RequestId,
+				Phase:     model.BillingAdjustmentPhaseSettle,
+				Leg:       model.BillingAdjustmentLegWallet,
+				UserID:    relayInfo.UserId,
+				Delta:     -int64(quotaDelta),
+			})
+		}
+		if !relayInfo.IsPlayground {
+			specs = append(specs, model.BillingAdjustmentSpec{
+				RequestID: relayInfo.RequestId,
+				Phase:     model.BillingAdjustmentPhaseSettle,
+				Leg:       model.BillingAdjustmentLegToken,
+				UserID:    relayInfo.UserId,
+				TokenID:   relayInfo.TokenId,
+				Delta:     -int64(quotaDelta),
+			})
+		}
+		if err := enqueueBillingAdjustments(specs); err != nil {
+			return fmt.Errorf("enqueue legacy billing settlement: %w", err)
+		}
+		if actualQuota != 0 {
+			checkAndSendQuotaNotify(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota)
+		}
 	}
 	return nil
 }

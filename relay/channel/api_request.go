@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -388,6 +389,9 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	if upstreamURL, parseErr := url.Parse(fullRequestURL); parseErr == nil {
+		recordAttemptUpstreamURL(upstreamURL, info)
+	}
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed to %s: %w", common.SanitizeURLForLog(fullRequestURL), err)
@@ -477,6 +481,7 @@ func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return doRequest(c, req, info)
 }
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	recordAttemptUpstreamHost(req, info)
 	var client *http.Client
 	var err error
 	if info.ChannelSetting.Proxy != "" {
@@ -524,6 +529,20 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	_ = req.Body.Close()
 	_ = c.Request.Body.Close()
 	return resp, nil
+}
+
+func recordAttemptUpstreamHost(req *http.Request, info *common.RelayInfo) {
+	if req == nil {
+		return
+	}
+	recordAttemptUpstreamURL(req.URL, info)
+}
+
+func recordAttemptUpstreamURL(upstreamURL *url.URL, info *common.RelayInfo) {
+	if upstreamURL == nil || info == nil {
+		return
+	}
+	info.AttemptUpstreamHost = strings.ToLower(strings.TrimSuffix(upstreamURL.Hostname(), "."))
 }
 
 func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {

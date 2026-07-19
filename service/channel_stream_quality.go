@@ -60,8 +60,10 @@ func ObserveStreamChannelQuality(relayInfo *relaycommon.RelayInfo) {
 func streamInstabilityReason(relayInfo *relaycommon.RelayInfo) string {
 	snapshot := relayInfo.StreamStatus.Snapshot()
 	switch snapshot.EndReason {
-	case relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonPingFail, relaycommon.StreamEndReasonTimeout:
+	case relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonPingFail, relaycommon.StreamEndReasonTimeout, relaycommon.StreamEndReasonUpstreamFailed:
 		return string(snapshot.EndReason)
+	case relaycommon.StreamEndReasonTerminalClientError:
+		return ""
 	case relaycommon.StreamEndReasonClientGone:
 		if isStreamTransportError(snapshot.EndError) || hasStreamTransportError(snapshot.Errors) {
 			return "client_gone_transport_error"

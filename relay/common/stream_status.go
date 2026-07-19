@@ -10,15 +10,17 @@ import (
 type StreamEndReason string
 
 const (
-	StreamEndReasonNone        StreamEndReason = ""
-	StreamEndReasonDone        StreamEndReason = "done"
-	StreamEndReasonTimeout     StreamEndReason = "timeout"
-	StreamEndReasonClientGone  StreamEndReason = "client_gone"
-	StreamEndReasonScannerErr  StreamEndReason = "scanner_error"
-	StreamEndReasonHandlerStop StreamEndReason = "handler_stop"
-	StreamEndReasonEOF         StreamEndReason = "eof"
-	StreamEndReasonPanic       StreamEndReason = "panic"
-	StreamEndReasonPingFail    StreamEndReason = "ping_fail"
+	StreamEndReasonNone                StreamEndReason = ""
+	StreamEndReasonDone                StreamEndReason = "done"
+	StreamEndReasonTimeout             StreamEndReason = "timeout"
+	StreamEndReasonClientGone          StreamEndReason = "client_gone"
+	StreamEndReasonScannerErr          StreamEndReason = "scanner_error"
+	StreamEndReasonHandlerStop         StreamEndReason = "handler_stop"
+	StreamEndReasonEOF                 StreamEndReason = "eof"
+	StreamEndReasonPanic               StreamEndReason = "panic"
+	StreamEndReasonPingFail            StreamEndReason = "ping_fail"
+	StreamEndReasonUpstreamFailed      StreamEndReason = "upstream_failed"
+	StreamEndReasonTerminalClientError StreamEndReason = "terminal_client_error"
 )
 
 const maxStreamErrorEntries = 20
@@ -77,6 +79,30 @@ func (s *StreamStatus) SetEndReasonWithSource(reason StreamEndReason, err error,
 		s.EndSource = source
 		s.EndedAt = time.Now()
 	})
+}
+
+// SetProtocolTerminalEndReasonWithSource records a terminal protocol event
+// that was already written successfully to the downstream client. Such an
+// event is more authoritative than a concurrent scanner EOF/[DONE], timeout,
+// or request-context cancellation observed around the same final flush.
+func (s *StreamStatus) SetProtocolTerminalEndReasonWithSource(reason StreamEndReason, err error, source string) {
+	if s == nil {
+		return
+	}
+	// Consume the one-shot setter so a later scanner/ping outcome cannot
+	// overwrite the protocol terminal recorded below.
+	s.endOnce.Do(func() {})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.EndReason == StreamEndReasonDone ||
+		s.EndReason == StreamEndReasonUpstreamFailed ||
+		s.EndReason == StreamEndReasonTerminalClientError {
+		return
+	}
+	s.EndReason = reason
+	s.EndError = err
+	s.EndSource = source
+	s.EndedAt = time.Now()
 }
 
 func (s *StreamStatus) RecordDataReceived() {

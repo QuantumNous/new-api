@@ -108,6 +108,14 @@ func channelHealthOutcomeStatus(apiErr *types.NewAPIError, relayInfo *relaycommo
 	if apiErr != nil {
 		return apiErr.StatusCode, !isChannelAttributableError(apiErr)
 	}
+	if relayInfo != nil && relayInfo.StreamStatus != nil {
+		switch relayInfo.StreamStatus.Snapshot().EndReason {
+		case relaycommon.StreamEndReasonUpstreamFailed:
+			return http.StatusBadGateway, false
+		case relaycommon.StreamEndReasonTerminalClientError:
+			return http.StatusBadRequest, false
+		}
+	}
 	if relayInfo != nil && relayInfo.UpstreamEmptyResponse {
 		return http.StatusBadGateway, false
 	}

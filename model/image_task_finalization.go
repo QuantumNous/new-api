@@ -153,8 +153,8 @@ return 1
 	).Err()
 }
 
-// FinalizeImageTask first fences local pending quota batches, then atomically
-// reserves the final cache delta before committing the durable billing rows.
+// FinalizeImageTask atomically reserves the final cache delta before
+// committing the durable billing rows.
 // BillingDBApplied makes the DB phase replay-safe; the Redis marker makes the
 // cache phase replay-safe across worker crashes and gateway nodes.
 func FinalizeImageTask(taskID string) (*ImageTaskFinalizationResult, error) {
@@ -197,18 +197,32 @@ func FinalizeImageTask(taskID string) (*ImageTaskFinalizationResult, error) {
 
 	var result *ImageTaskFinalizationResult
 	finalize := func() error {
-		return withFlushedImageQuotaBatches(identity.UserId, identity.PrivateData.TokenId, func() error {
-			var err error
-			result, err = finalizeImageTaskWithCache(taskID, defaultImageTaskCacheCoordinator)
-			return err
-		})
+		userGeneration, generationErr := userQuotaCacheGeneration(identity.UserId)
+		if generationErr != nil {
+			return generationErr
+		}
+		tokenGeneration := int64(0)
+		if tokenKey != "" {
+			tokenGeneration, generationErr = tokenQuotaCacheGeneration(tokenKey)
+			if generationErr != nil {
+				return generationErr
+			}
+		}
+		cacheCoordinator := defaultImageTaskCacheCoordinator
+		cacheCoordinator.prepare = func(adjustment imageTaskCacheAdjustment, user *User, token *Token) error {
+			return prepareImageTaskCacheAdjustmentAtGeneration(
+				adjustment,
+				user,
+				token,
+				userGeneration,
+				tokenGeneration,
+			)
+		}
+		var err error
+		result, err = finalizeImageTaskWithCache(taskID, cacheCoordinator)
+		return err
 	}
-	var err error
-	if tokenKey != "" {
-		err = withTokenQuotaCacheLock(tokenKey, finalize)
-	} else {
-		err = finalize()
-	}
+	err := withImageTaskQuotaCacheLocks(identity.UserId, tokenKey, finalize)
 	if err != nil && isImageTaskFinalizationInvariantError(err) {
 		var current Task
 		if queryErr := DB.Select("private_data").Where("task_id = ? AND platform = ?", taskID, constant.TaskPlatformOpenAIImage).First(&current).Error; queryErr == nil {
@@ -323,10 +337,10 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 					if subscription.AmountTotal > 0 && newAmountUsed > subscription.AmountTotal {
 						insufficientReason = "subscription quota insufficient during final settlement"
 					}
-				} else if delta > 0 && !common.RedisEnabled && user.Quota < delta {
+				} else if delta > 0 && user.Quota < delta {
 					insufficientReason = "wallet quota insufficient during final settlement"
 				}
-				if insufficientReason == "" && tokenDelta > 0 && hasToken && !common.RedisEnabled && !token.UnlimitedQuota && token.RemainQuota < tokenDelta {
+				if insufficientReason == "" && tokenDelta > 0 && hasToken && !token.UnlimitedQuota && token.RemainQuota < tokenDelta {
 					insufficientReason = "token quota insufficient during final settlement"
 				}
 			}
@@ -594,6 +608,37 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 }
 
 func prepareImageTaskCacheAdjustment(adjustment imageTaskCacheAdjustment, user *User, token *Token) error {
+	userGeneration := int64(0)
+	tokenGeneration := int64(0)
+	var err error
+	if adjustment.userDelta != 0 {
+		userGeneration, err = userQuotaCacheGeneration(adjustment.userID)
+		if err != nil {
+			return err
+		}
+	}
+	if adjustment.tokenDelta != 0 {
+		tokenGeneration, err = tokenQuotaCacheGeneration(adjustment.tokenKey)
+		if err != nil {
+			return err
+		}
+	}
+	return prepareImageTaskCacheAdjustmentAtGeneration(
+		adjustment,
+		user,
+		token,
+		userGeneration,
+		tokenGeneration,
+	)
+}
+
+func prepareImageTaskCacheAdjustmentAtGeneration(
+	adjustment imageTaskCacheAdjustment,
+	user *User,
+	token *Token,
+	userGeneration int64,
+	tokenGeneration int64,
+) error {
 	if !common.RedisEnabled || (adjustment.userDelta == 0 && adjustment.tokenDelta == 0) {
 		return nil
 	}
@@ -612,11 +657,13 @@ func prepareImageTaskCacheAdjustment(adjustment imageTaskCacheAdjustment, user *
 			if cacheUser.DeletedAt.Valid {
 				cacheUser.Status = common.UserStatusDisabled
 			}
-			if err := populateUserCache(cacheUser); err != nil {
-				return fmt.Errorf("%w: initialize user cache: %v", errImageTaskQuotaCacheUnavailable, err)
+			if populated, populateErr := populateUserCacheAtGeneration(cacheUser, userGeneration); populateErr != nil {
+				return fmt.Errorf("%w: initialize user cache: %v", errImageTaskQuotaCacheUnavailable, populateErr)
+			} else if !populated {
+				return fmt.Errorf("%w: user cache generation changed", errImageTaskQuotaCacheUnavailable)
 			}
-			if _, err := cacheGetUserBase(adjustment.userID); err != nil {
-				return fmt.Errorf("%w: verify user cache: %v", errImageTaskQuotaCacheUnavailable, err)
+			if _, verifyErr := cacheGetUserBase(adjustment.userID); verifyErr != nil {
+				return fmt.Errorf("%w: verify user cache: %v", errImageTaskQuotaCacheUnavailable, verifyErr)
 			}
 		}
 		if user.DeletedAt.Valid {
@@ -635,8 +682,10 @@ func prepareImageTaskCacheAdjustment(adjustment imageTaskCacheAdjustment, user *
 			if cacheToken.DeletedAt.Valid {
 				cacheToken.Status = common.TokenStatusDisabled
 			}
-			if err := cacheSetTokenIfAbsent(cacheToken); err != nil {
-				return fmt.Errorf("%w: initialize token cache: %v", errImageTaskQuotaCacheUnavailable, err)
+			if populated, populateErr := cacheSetTokenAtGeneration(cacheToken, tokenGeneration); populateErr != nil {
+				return fmt.Errorf("%w: initialize token cache: %v", errImageTaskQuotaCacheUnavailable, populateErr)
+			} else if !populated {
+				return fmt.Errorf("%w: token cache generation changed", errImageTaskQuotaCacheUnavailable)
 			}
 			cached, err = cacheGetTokenByKey(adjustment.tokenKey)
 			if err != nil {

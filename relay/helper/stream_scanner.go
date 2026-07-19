@@ -95,14 +95,18 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}
 
 	var (
-		stopChan    = make(chan bool, 3) // 增加缓冲区避免阻塞
-		scanner     = NewStreamScanner(resp.Body)
-		ticker      = time.NewTicker(streamingTimeout)
-		pingTicker  *time.Ticker
-		writeMutex  sync.Mutex     // Mutex to protect concurrent writes
-		wg          sync.WaitGroup // 用于等待所有 goroutine 退出
-		cleanupOnce sync.Once
-		stopOnce    sync.Once
+		stopChan         = make(chan bool, 3) // 增加缓冲区避免阻塞
+		scanner          = NewStreamScanner(resp.Body)
+		ticker           = time.NewTicker(streamingTimeout)
+		pingTicker       *time.Ticker
+		writeMutex       sync.Mutex     // Mutex to protect concurrent writes
+		wg               sync.WaitGroup // 用于等待所有 goroutine 退出
+		cleanupOnce      sync.Once
+		stopOnce         sync.Once
+		scannerOutcomeMu sync.Mutex
+		scannerEndReason relaycommon.StreamEndReason
+		scannerEndErr    error
+		scannerEndSource string
 	)
 
 	stop := func() {
@@ -261,7 +265,10 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			// 裸 [DONE] 行（无 data: 前缀）必须先处理：它长度正好是 6，
 			// 会通过下面的长度检查，再被 data[5:] 截成 "]" 当作数据下发。
 			if strings.TrimSpace(data) == "[DONE]" {
-				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonDone, nil, "scanner_done")
+				scannerOutcomeMu.Lock()
+				scannerEndReason = relaycommon.StreamEndReasonDone
+				scannerEndSource = "scanner_done"
+				scannerOutcomeMu.Unlock()
 				logger.LogDebug(c, "received [DONE], stopping scanner")
 				return
 			}
@@ -285,7 +292,10 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					return
 				}
 			} else {
-				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonDone, nil, "scanner_done")
+				scannerOutcomeMu.Lock()
+				scannerEndReason = relaycommon.StreamEndReasonDone
+				scannerEndSource = "scanner_done"
+				scannerOutcomeMu.Unlock()
 				logger.LogDebug(c, "received [DONE], stopping scanner")
 				return
 			}
@@ -306,10 +316,18 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 			if err != io.EOF {
 				logger.LogError(c, "scanner error: "+err.Error())
-				info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonScannerErr, err, "scanner_error")
+				scannerOutcomeMu.Lock()
+				scannerEndReason = relaycommon.StreamEndReasonScannerErr
+				scannerEndErr = err
+				scannerEndSource = "scanner_error"
+				scannerOutcomeMu.Unlock()
 			}
+			return
 		}
-		info.StreamStatus.SetEndReasonWithSource(relaycommon.StreamEndReasonEOF, nil, "scanner_eof")
+		scannerOutcomeMu.Lock()
+		scannerEndReason = relaycommon.StreamEndReasonEOF
+		scannerEndSource = "scanner_eof"
+		scannerOutcomeMu.Unlock()
 	})
 
 	// 主循环等待完成或超时
@@ -325,6 +343,16 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}
 
 	cleanup()
+	if info.StreamStatus.Snapshot().EndReason == relaycommon.StreamEndReasonNone {
+		scannerOutcomeMu.Lock()
+		endReason := scannerEndReason
+		endErr := scannerEndErr
+		endSource := scannerEndSource
+		scannerOutcomeMu.Unlock()
+		if endReason != relaycommon.StreamEndReasonNone {
+			info.StreamStatus.SetEndReasonWithSource(endReason, endErr, endSource)
+		}
+	}
 
 	streamSummary := fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary())
 	switch {

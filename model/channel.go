@@ -520,6 +520,29 @@ func NormalizeChannelBaseURLHost(baseURL string) string {
 	return strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
 }
 
+func channelRetryHost(channel *Channel, advancedConfig *dto.AdvancedCustomConfig, requestPath string, model string) string {
+	if channel == nil {
+		return ""
+	}
+	baseHost := NormalizeChannelBaseURLHost(channel.GetBaseURL())
+	if channel.Type != constant.ChannelTypeAdvancedCustom || advancedConfig == nil {
+		return baseHost
+	}
+	route, ok := advancedConfig.MatchPathForModel(requestPath, model)
+	if !ok {
+		return baseHost
+	}
+	upstreamPath := strings.ReplaceAll(strings.TrimSpace(route.UpstreamPath), "{model}", model)
+	if strings.HasPrefix(upstreamPath, "/") {
+		return baseHost
+	}
+	host := NormalizeChannelBaseURLHost(upstreamPath)
+	if host == "" {
+		return baseHost
+	}
+	return host
+}
+
 func (channel *Channel) GetModelMapping() string {
 	if channel.ModelMapping == nil {
 		return ""
@@ -1009,16 +1032,24 @@ func (channel *Channel) SetSetting(setting dto.ChannelSettings) {
 }
 
 func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
-	setting := dto.ChannelOtherSettings{}
-	if channel.OtherSettings != "" {
-		err := common.UnmarshalJsonStr(channel.OtherSettings, &setting)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
-			channel.OtherSettings = "{}" // 清空设置以避免后续错误
-			_ = channel.Save()           // 保存修改
-		}
+	setting, err := channel.parseOtherSettings()
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
+		channel.OtherSettings = "{}" // 清空设置以避免后续错误
+		_ = channel.Save()           // 保存修改
 	}
 	return setting
+}
+
+func (channel *Channel) parseOtherSettings() (dto.ChannelOtherSettings, error) {
+	setting := dto.ChannelOtherSettings{}
+	if channel == nil || channel.OtherSettings == "" {
+		return setting, nil
+	}
+	if err := common.UnmarshalJsonStr(channel.OtherSettings, &setting); err != nil {
+		return dto.ChannelOtherSettings{}, err
+	}
+	return setting, nil
 }
 
 func (channel *Channel) SetOtherSettings(setting dto.ChannelOtherSettings) {

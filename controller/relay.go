@@ -256,6 +256,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// Reset per-attempt so an empty-response flag from a prior attempt cannot
 		// leak into this attempt's health outcome.
 		relayInfo.UpstreamEmptyResponse = false
+		relayInfo.AttemptUpstreamHost = ""
 		attemptStart := time.Now()
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -306,7 +307,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		if shouldAvoidRetryHost(newAPIError) {
-			host := model.NormalizeChannelBaseURLHost(relayInfo.ChannelBaseUrl)
+			host := relayRetryHost(relayInfo)
 			if host != "" {
 				if retryParam.AvoidChannelHosts == nil {
 					retryParam.AvoidChannelHosts = make(map[string]struct{})
@@ -327,6 +328,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func relayRetryHost(relayInfo *relaycommon.RelayInfo) string {
+	if relayInfo == nil {
+		return ""
+	}
+	if relayInfo.AttemptUpstreamHost != "" {
+		return model.NormalizeChannelBaseURLHost(relayInfo.AttemptUpstreamHost)
+	}
+	return model.NormalizeChannelBaseURLHost(relayInfo.ChannelBaseUrl)
 }
 
 // ReplayAsyncImageGeneration resolves accepted idempotent image requests after
@@ -607,6 +618,9 @@ func shouldCooldownSlowChannel(info *relaycommon.RelayInfo, attemptStart time.Ti
 		return 0, false
 	}
 	frt := info.FirstResponseTime.Sub(attemptStart)
+	if info.StreamStatus != nil && !info.StreamStatus.IsNormalEnd() {
+		return frt, false
+	}
 	if info.AffinityColdStart {
 		// We released this request's prompt-cache affinity, so this channel is
 		// answering from a cold cache and its first token pays a full prefill

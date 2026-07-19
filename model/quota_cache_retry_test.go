@@ -3,20 +3,23 @@ package model
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestQuotaCacheDebitRebuildsOnlyWhenCacheIsUnavailable(t *testing.T) {
+func TestQuotaMutationsRemainDurableWhenRedisIsLost(t *testing.T) {
 	truncateTables(t)
 	useImageTaskTestRedis(t)
 
-	oldSyncFrequency := common.SyncFrequency
+	oldSyncFrequency, oldBatchUpdateEnabled := common.SyncFrequency, common.BatchUpdateEnabled
 	common.SyncFrequency = 60
-	t.Cleanup(func() { common.SyncFrequency = oldSyncFrequency })
+	common.BatchUpdateEnabled = true
+	t.Cleanup(func() {
+		common.SyncFrequency = oldSyncFrequency
+		common.BatchUpdateEnabled = oldBatchUpdateEnabled
+	})
 
 	user := User{Username: "quota-cache-retry-user", Quota: 100, Status: common.UserStatusEnabled}
 	require.NoError(t, DB.Create(&user).Error)
@@ -28,38 +31,26 @@ func TestQuotaCacheDebitRebuildsOnlyWhenCacheIsUnavailable(t *testing.T) {
 		RemainQuota: 100,
 	}
 	require.NoError(t, DB.Create(&token).Error)
-
-	require.NoError(t, cacheTryDecrUserQuota(user.Id, 30))
-	userCache, err := cacheGetUserBase(user.Id)
-	require.NoError(t, err)
-	assert.Equal(t, 70, userCache.Quota)
-
-	require.NoError(t, cacheTryDecrTokenQuota(token.Id, token.Key, 30))
-	tokenCache, err := cacheGetTokenByKey(token.Key)
-	require.NoError(t, err)
-	assert.Equal(t, 70, tokenCache.RemainQuota)
-
-	userTTL, err := common.RDB.TTL(context.Background(), getUserCacheKey(user.Id)).Result()
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, userTTL, 59*time.Second)
-}
-
-func TestQuotaCacheDebitDoesNotRetryInsufficientQuota(t *testing.T) {
-	truncateTables(t)
-	useImageTaskTestRedis(t)
-
-	oldSyncFrequency := common.SyncFrequency
-	common.SyncFrequency = 60
-	t.Cleanup(func() { common.SyncFrequency = oldSyncFrequency })
-
-	user := User{Username: "quota-cache-insufficient-user", Quota: 10, Status: common.UserStatusEnabled}
-	require.NoError(t, DB.Create(&user).Error)
 	require.NoError(t, populateUserCache(user))
+	require.NoError(t, cacheSetTokenIfAbsent(token))
 
-	err := cacheTryDecrUserQuota(user.Id, 11)
-	assert.ErrorIs(t, err, common.ErrRedisQuotaInsufficient)
+	require.NoError(t, DecreaseUserQuota(user.Id, 30, false))
+	require.NoError(t, DecreaseTokenQuota(token.Id, token.Key, 30))
 
-	userCache, cacheErr := cacheGetUserBase(user.Id)
-	require.NoError(t, cacheErr)
-	assert.Equal(t, 10, userCache.Quota)
+	var storedUser User
+	require.NoError(t, DB.First(&storedUser, user.Id).Error)
+	assert.Equal(t, 70, storedUser.Quota)
+	var storedToken Token
+	require.NoError(t, DB.First(&storedToken, token.Id).Error)
+	assert.Equal(t, 70, storedToken.RemainQuota)
+
+	require.NoError(t, common.RDB.FlushDB(context.Background()).Err())
+
+	require.NoError(t, DecreaseUserQuota(user.Id, 30, false))
+	require.NoError(t, DecreaseTokenQuota(token.Id, token.Key, 30))
+
+	require.NoError(t, DB.First(&storedUser, user.Id).Error)
+	assert.Equal(t, 40, storedUser.Quota)
+	require.NoError(t, DB.First(&storedToken, token.Id).Error)
+	assert.Equal(t, 40, storedToken.RemainQuota)
 }

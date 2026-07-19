@@ -223,24 +223,38 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		if channel.GetPriority() != targetPriority {
 			continue
 		}
-		host := NormalizeChannelBaseURLHost(channel.GetBaseURL())
+		host := ""
+		if len(options.AvoidChannelHosts) > 0 {
+			host = channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+		}
 		if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
 			avoidedChannels = append(avoidedChannels, channel)
 		} else {
 			preferredChannels = append(preferredChannels, channel)
 		}
 	}
-	targetChannels := preferredChannels
-	if len(targetChannels) == 0 {
-		targetChannels = avoidedChannels
-	}
-
-	if len(targetChannels) == 0 {
+	if len(preferredChannels) == 0 && len(avoidedChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
 	}
 
+	preferredWeights := effectiveChannelSelectionWeights(preferredChannels, model, options.Path)
+	avoidedWeights := effectiveChannelSelectionWeights(avoidedChannels, model, options.Path)
+	return selectAcquirableChannelWithFallback(
+		preferredChannels,
+		preferredWeights,
+		avoidedChannels,
+		avoidedWeights,
+		model,
+		options.Path,
+	)
+}
+
+func effectiveChannelSelectionWeights(channels []*Channel, model string, path string) []int {
+	if len(channels) == 0 {
+		return nil
+	}
 	sumWeight := 0
-	for _, channel := range targetChannels {
+	for _, channel := range channels {
 		sumWeight += channel.GetWeight()
 	}
 
@@ -251,26 +265,33 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	if sumWeight == 0 {
 		// when all channels have weight 0, set sumWeight to the number of channels and set smoothing adjustment to 100
 		// each channel's effective weight = 100
-		sumWeight = len(targetChannels) * 100
+		sumWeight = len(channels) * 100
 		smoothingAdjustment = 100
-	} else if sumWeight/len(targetChannels) < 10 {
+	} else if sumWeight/len(channels) < 10 {
 		// when the average weight is less than 10, set smoothing factor to 100
 		smoothingFactor = 100
 	}
 
 	// Calculate health-adjusted weights without mutating cached channel config.
-	effectiveWeights := make([]int, len(targetChannels))
-	totalWeight := 0
-	for i, channel := range targetChannels {
+	effectiveWeights := make([]int, len(channels))
+	for i, channel := range channels {
 		baseWeight := channel.GetWeight()*smoothingFactor + smoothingAdjustment
 		if baseWeight == 0 {
 			continue
 		}
-		effectiveWeights[i] = EffectiveSelectionWeight(baseWeight, ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path})
-		totalWeight += effectiveWeights[i]
+		effectiveWeights[i] = EffectiveSelectionWeight(baseWeight, ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: path})
 	}
+	return effectiveWeights
+}
 
-	return selectAcquirableChannel(targetChannels, effectiveWeights, model, options.Path)
+func selectAcquirableChannelWithFallback(preferred []*Channel, preferredWeights []int, fallback []*Channel, fallbackWeights []int, model string, path string) (*Channel, error) {
+	if len(preferred) > 0 {
+		channel, err := selectAcquirableChannel(preferred, preferredWeights, model, path)
+		if channel != nil || len(fallback) == 0 {
+			return channel, err
+		}
+	}
+	return selectAcquirableChannel(fallback, fallbackWeights, model, path)
 }
 
 // selectAcquirableChannel picks a weighted-random starting candidate, then

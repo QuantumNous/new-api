@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,4 +34,19 @@ func TestShouldAvoidRetryHostOnlyForTransportFailure(t *testing.T) {
 		http.StatusBadGateway,
 	)
 	assert.False(t, shouldAvoidRetryHost(canceledErr))
+}
+
+func TestRelayRetryHostPrefersResolvedAttemptHost(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		AttemptUpstreamHost: "actual.example",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://configured.example/v1",
+		},
+	}
+	assert.Equal(t, "actual.example", relayRetryHost(info))
+
+	info.AttemptUpstreamHost = ""
+	assert.Equal(t, "configured.example", relayRetryHost(info))
 }

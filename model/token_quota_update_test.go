@@ -1,7 +1,10 @@
 package model
 
 import (
+	"context"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
@@ -39,28 +42,40 @@ func TestTokenSelectUpdateDoesNotRestoreStaleQuota(t *testing.T) {
 	assert.Equal(t, common.TokenStatusDisabled, reloaded.Status)
 }
 
-func TestDirectUserQuotaFlushesPendingBatchBeforeConditionalDebit(t *testing.T) {
+func TestTokenUpdatePreservesPinnedQuotaCache(t *testing.T) {
 	truncateTables(t)
-	oldRedisEnabled, oldBatchEnabled := common.RedisEnabled, common.BatchUpdateEnabled
-	common.RedisEnabled = false
+	redisServer := useImageTaskTestRedis(t)
+
+	oldSyncFrequency, oldBatchEnabled := common.SyncFrequency, common.BatchUpdateEnabled
+	common.SyncFrequency = 60
 	common.BatchUpdateEnabled = true
 	t.Cleanup(func() {
-		common.RedisEnabled = oldRedisEnabled
+		common.SyncFrequency = oldSyncFrequency
 		common.BatchUpdateEnabled = oldBatchEnabled
 	})
 
-	user := User{Username: "pending-batch-user", Quota: 100}
-	require.NoError(t, DB.Create(&user).Error)
-	addNewRecord(BatchUpdateTypeUserQuota, user.Id, -80)
+	token := Token{
+		UserId:      1,
+		Key:         "pinned-token-update",
+		Name:        "before",
+		Status:      common.TokenStatusEnabled,
+		RemainQuota: 100,
+	}
+	require.NoError(t, DB.Create(&token).Error)
+	require.NoError(t, cacheSetToken(token))
 
-	err := DecreaseUserQuotaDirect(user.Id, 30)
-	require.Error(t, err)
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	cacheKey := "token:" + tokenHMAC
+	_, err := redisServer.SAdd(imageTaskTokenQuotaPinsKey(tokenHMAC), "task-1")
+	require.NoError(t, err)
+	require.NoError(t, common.RDB.Expire(context.Background(), cacheKey, 7*24*time.Hour).Err())
 
-	var reloaded User
-	require.NoError(t, DB.First(&reloaded, user.Id).Error)
-	assert.Equal(t, 20, reloaded.Quota)
-	batchUpdateLocks[BatchUpdateTypeUserQuota].Lock()
-	_, pending := batchUpdateStores[BatchUpdateTypeUserQuota][user.Id]
-	batchUpdateLocks[BatchUpdateTypeUserQuota].Unlock()
-	assert.False(t, pending)
+	token.Name = "after"
+	require.NoError(t, token.Update())
+
+	cacheTTL, err := common.RDB.TTL(context.Background(), cacheKey).Result()
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, cacheTTL, 6*24*time.Hour)
+	assert.Equal(t, strconv.Itoa(common.TokenStatusDisabled), redisServer.HGet(cacheKey, "Status"))
+	assert.True(t, redisServer.Exists(imageTaskTokenQuotaInvalidationKey(tokenHMAC)))
 }

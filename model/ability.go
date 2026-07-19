@@ -124,7 +124,7 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	// configured routes match; drop the rest before health/priority selection.
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, options.RequestPath, model)
 
-	avoidedChannelIDs := avoidedHostChannelIDs(abilities, options.AvoidChannelHosts)
+	avoidedChannelIDs := avoidedHostChannelIDs(abilities, options.AvoidChannelHosts, options.RequestPath, model)
 	availableAbilities := make([]Ability, 0, len(abilities))
 	coolingAbilities := make([]Ability, 0, len(abilities))
 	for _, ability := range abilities {
@@ -184,23 +184,20 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 			preferredAbilities = append(preferredAbilities, ability)
 		}
 	}
-	targetAbilities := preferredAbilities
-	if len(targetAbilities) == 0 {
-		targetAbilities = avoidedAbilities
-	}
-	if len(targetAbilities) == 0 {
+	if len(preferredAbilities) == 0 && len(avoidedAbilities) == 0 {
 		return nil, nil
 	}
 
-	effectiveWeights := make([]int, len(targetAbilities))
-	totalWeight := 0
-	for i, ability := range targetAbilities {
-		baseWeight := int(ability.Weight) + 10
-		effectiveWeights[i] = EffectiveSelectionWeight(baseWeight, ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: options.Path})
-		totalWeight += effectiveWeights[i]
-	}
-
-	channelId := selectAcquirableAbilityChannelId(targetAbilities, effectiveWeights, model, options.Path)
+	preferredWeights := effectiveAbilitySelectionWeights(preferredAbilities, model, options.Path)
+	avoidedWeights := effectiveAbilitySelectionWeights(avoidedAbilities, model, options.Path)
+	channelId := selectAcquirableAbilityChannelIdWithFallback(
+		preferredAbilities,
+		preferredWeights,
+		avoidedAbilities,
+		avoidedWeights,
+		model,
+		options.Path,
+	)
 	if channelId == 0 {
 		return nil, nil
 	}
@@ -210,7 +207,25 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	return &channel, err
 }
 
-func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}) map[int]struct{} {
+func effectiveAbilitySelectionWeights(abilities []Ability, model string, path string) []int {
+	weights := make([]int, len(abilities))
+	for i, ability := range abilities {
+		baseWeight := int(ability.Weight) + 10
+		weights[i] = EffectiveSelectionWeight(baseWeight, ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: path})
+	}
+	return weights
+}
+
+func selectAcquirableAbilityChannelIdWithFallback(preferred []Ability, preferredWeights []int, fallback []Ability, fallbackWeights []int, model string, path string) int {
+	if len(preferred) > 0 {
+		if channelID := selectAcquirableAbilityChannelId(preferred, preferredWeights, model, path); channelID != 0 {
+			return channelID
+		}
+	}
+	return selectAcquirableAbilityChannelId(fallback, fallbackWeights, model, path)
+}
+
+func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, requestPath string, model string) map[int]struct{} {
 	if len(abilities) == 0 || len(avoidHosts) == 0 {
 		return nil
 	}
@@ -225,12 +240,21 @@ func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}) 
 	}
 
 	var channels []Channel
-	if err := DB.Select("id", "type", "base_url").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+	if err := DB.Select("id", "type", "base_url", "settings").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
 		return nil
 	}
 	avoided := make(map[int]struct{})
 	for i := range channels {
-		host := NormalizeChannelBaseURLHost(channels[i].GetBaseURL())
+		var config *dto.AdvancedCustomConfig
+		if channels[i].Type == constant.ChannelTypeAdvancedCustom {
+			settings, err := channels[i].parseOtherSettings()
+			if err != nil {
+				common.SysLog(fmt.Sprintf("failed to parse retry host settings: channel_id=%d, error=%v", channels[i].Id, err))
+			} else {
+				config = settings.AdvancedCustom
+			}
+		}
+		host := channelRetryHost(&channels[i], config, requestPath, model)
 		if host == "" {
 			continue
 		}
