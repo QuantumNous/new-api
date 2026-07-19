@@ -985,9 +985,13 @@ func ToggleChannelStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "action must be enable or disable"})
 		return
 	}
+	// Expand canonical name → all known aliases (e.g. gemini-3.1-flash-image-preview
+	// ↔ gemini-3.1-flash-image) so toggle works regardless of which variant the
+	// frontend tab is using.
+	modelCandidates := service.ModelNameCandidates(req.Model)
 	// Update all ability rows for this (channel_id, model) across all groups.
 	if err := model.DB.Table("abilities").
-		Where("channel_id = ? AND model = ?", req.ChannelID, req.Model).
+		Where("channel_id = ? AND model IN ?", req.ChannelID, modelCandidates).
 		Update("enabled", enabled).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
