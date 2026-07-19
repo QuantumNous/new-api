@@ -26,6 +26,7 @@ import type {
 
 export const CHANNEL_TYPE_ADVANCED_CUSTOM = 58
 export const ADVANCED_CUSTOM_MODEL_LIST_PATH = '/v1/models'
+export const ADVANCED_CUSTOM_MODEL_LIST_LABEL = 'OpenAI Models'
 
 export const ADVANCED_CUSTOM_CONVERTER_OPTIONS: Array<{
   value: AdvancedCustomConverter
@@ -88,6 +89,7 @@ export const ADVANCED_CUSTOM_AUTH_MODE_OPTIONS: Array<{
 
 export type AdvancedCustomIncomingPathOption = {
   value: string
+  /** Official API route name. Render verbatim instead of passing it to i18n. */
   label: string
 }
 
@@ -107,7 +109,7 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
     },
     {
       value: ADVANCED_CUSTOM_MODEL_LIST_PATH,
-      label: 'OpenAI Models',
+      label: ADVANCED_CUSTOM_MODEL_LIST_LABEL,
     },
     {
       value: '/v1/embeddings',
@@ -165,7 +167,7 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
 
 const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
   '/v1/chat/completions': 'OpenAI Chat',
-  [ADVANCED_CUSTOM_MODEL_LIST_PATH]: 'OpenAI Models',
+  [ADVANCED_CUSTOM_MODEL_LIST_PATH]: ADVANCED_CUSTOM_MODEL_LIST_LABEL,
 }
 
 export type AdvancedCustomValidationError = {

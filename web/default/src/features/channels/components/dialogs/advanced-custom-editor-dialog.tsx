@@ -67,6 +67,7 @@ import {
   ADVANCED_CUSTOM_AUTH_MODE_OPTIONS,
   ADVANCED_CUSTOM_CONVERTER_OPTIONS,
   ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS,
+  ADVANCED_CUSTOM_MODEL_LIST_LABEL,
   ADVANCED_CUSTOM_MODEL_LIST_PATH,
   ADVANCED_CUSTOM_TEMPLATE_OPTIONS,
   type AdvancedCustomAuthMode,
@@ -619,7 +620,7 @@ export function AdvancedCustomEditorDialog({
         <div className='flex flex-col gap-4 p-4 lg:gap-3'>
           <div className='flex justify-end border-y py-4 lg:py-2'>
             <Select
-              items={availableIncomingPathOptions.map((option) => option.value)}
+              items={availableIncomingPathOptions}
               value={null}
               onValueChange={(incomingPath) => {
                 if (typeof incomingPath === 'string') {
@@ -647,7 +648,7 @@ export function AdvancedCustomEditorDialog({
                       className={longSelectItemClass}
                     >
                       <div className='flex min-w-0 flex-col gap-1 leading-snug whitespace-normal'>
-                        <span>{t(option.label)}</span>
+                        <span>{option.label}</span>
                         <span className='text-muted-foreground font-mono text-xs break-all'>
                           {option.value}
                         </span>
@@ -802,7 +803,9 @@ function RouteGroupEditor({
               {group.routeRows.length} {t('Routes')}
             </Badge>
             {isModelListGroup ? (
-              <Badge variant='outline'>{t('OpenAI Models')}</Badge>
+              <Badge variant='outline'>
+                {ADVANCED_CUSTOM_MODEL_LIST_LABEL}
+              </Badge>
             ) : (
               <Badge variant={hasCatchAll ? 'outline' : 'secondary'}>
                 {hasCatchAll ? t('Fallback route') : t('Model-scoped only')}
@@ -812,10 +815,14 @@ function RouteGroupEditor({
               <Badge variant='destructive'>{t('Fallback must be last')}</Badge>
             ) : null}
           </div>
-          <Select value={incomingPath} onValueChange={onIncomingPathChange}>
+          <Select
+            items={ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS}
+            value={incomingPath}
+            onValueChange={onIncomingPathChange}
+          >
             <SelectTrigger className='h-9 max-w-full lg:max-w-[420px]'>
               <SelectValue className='min-w-0 truncate'>
-                {t(incomingPathLabel)}
+                {incomingPathLabel}
               </SelectValue>
             </SelectTrigger>
             <SelectContent
@@ -836,7 +843,7 @@ function RouteGroupEditor({
                     className={longSelectItemClass}
                   >
                     <div className='flex min-w-0 flex-col gap-1 leading-snug whitespace-normal'>
-                      <span>{t(option.label)}</span>
+                      <span>{option.label}</span>
                       <span className='text-muted-foreground font-mono text-xs break-all'>
                         {option.value}
                       </span>
@@ -1048,7 +1055,9 @@ function RouteEditor({
                 {t('Route')} {index + 1}
               </div>
               {isModelListRoute ? (
-                <Badge variant='outline'>{t('OpenAI Models')}</Badge>
+                <Badge variant='outline'>
+                  {ADVANCED_CUSTOM_MODEL_LIST_LABEL}
+                </Badge>
               ) : null}
               {!isModelListRoute && isFallback ? (
                 <Badge variant='outline'>{t('Fallback')}</Badge>
@@ -1120,7 +1129,9 @@ function RouteEditor({
         >
           {isModelListRoute && parsedRouteModels.length === 0 ? (
             <div className='flex h-9 items-center'>
-              <Badge variant='outline'>{t('OpenAI Models')}</Badge>
+              <Badge variant='outline'>
+                {ADVANCED_CUSTOM_MODEL_LIST_LABEL}
+              </Badge>
             </div>
           ) : (
             <>

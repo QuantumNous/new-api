@@ -869,7 +869,7 @@ export function ChannelMutateDrawer({
     advancedCustomRouteTypeLabels.length
   const advancedCustomRouteTypeTitle =
     hiddenAdvancedCustomRouteTypeCount > 0
-      ? advancedCustomStats.routeTypeLabels.map((label) => t(label)).join(', ')
+      ? advancedCustomStats.routeTypeLabels.join(', ')
       : undefined
 
   // Get all models list
@@ -2800,10 +2800,10 @@ export function ChannelMutateDrawer({
                                                 key={label}
                                                 variant='outline'
                                                 className='max-w-[12rem]'
-                                                title={t(label)}
+                                                title={label}
                                               >
                                                 <span className='truncate'>
-                                                  {t(label)}
+                                                  {label}
                                                 </span>
                                               </Badge>
                                             )
