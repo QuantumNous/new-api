@@ -2,6 +2,8 @@
 
 DO NOT send optional commentary
 
+Before making changes in this downstream fork, you MUST read and follow `.agents/downstream.md`.
+
 ## Overview
 
 This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
