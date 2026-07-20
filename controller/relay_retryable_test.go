@@ -306,8 +306,20 @@ func TestScheduleUpstreamCapacityFallbackIsBoundedAndRestartsAutoSelection(t *te
 		"capacity fallback attempts must have a hard count limit")
 	assert.False(t, scheduleUpstreamCapacityFallback(c, info, retryParam, apiErr, 300*time.Millisecond, 1, 2, startedAt, startedAt.Add(6*time.Second)),
 		"a slow fallback attempt must not expand first-token latency with another channel")
-	assert.False(t, scheduleUpstreamCapacityFallback(c, info, retryParam, apiErr, 3*time.Second, 0, 2, time.Time{}, startedAt),
-		"a capacity response that was itself slow must stay within configured retries")
+	assert.True(t, scheduleUpstreamCapacityFallback(c, info, retryParam, apiErr, 3*time.Second, 0, 2, time.Time{}, startedAt),
+		"a delayed genuine upstream 429 must still be shielded from Codex")
+
+	distributor503 := types.WithOpenAIError(
+		types.OpenAIError{
+			Message: "No available channel for model gpt-5.6-sol under group gpt plus (distributor)",
+			Type:    "new_api_error",
+			Code:    string(types.ErrorCodeModelNotFound),
+		},
+		http.StatusServiceUnavailable,
+	)
+	distributor503.UpstreamStatusCode = http.StatusServiceUnavailable
+	assert.False(t, scheduleUpstreamCapacityFallback(c, info, retryParam, distributor503, 3*time.Second, 0, 2, time.Time{}, startedAt),
+		"a slow distributor 503 must not expand first-token latency")
 }
 
 func TestChannelSelectionExhaustionIsDistinctFromSelectorFailure(t *testing.T) {
