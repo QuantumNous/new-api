@@ -345,6 +345,31 @@ export function SignUpForm({
                 </FormItem>
               )}
             />
+
+            {/* Verification Code Field */}
+            <div className='flex items-end gap-2'>
+              <div className='flex-1'>
+                <Input
+                  placeholder={t('Verification code')}
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                />
+              </div>
+              <Button
+                variant='outline'
+                type='button'
+                disabled={
+                  isLoading ||
+                  isSendingCode ||
+                  isActive ||
+                  !emailValue ||
+                  !turnstileReady
+                }
+                onClick={handleSendVerificationCode}
+              >
+                {verificationCodeAction}
+              </Button>
+            </div>
           </>
         )}
 
@@ -375,35 +400,6 @@ export function SignUpForm({
               </FormItem>
             )}
           />
-        )}
-
-        {emailVerificationRequired && (
-          <>
-            {/* Verification Code Field */}
-            <div className='flex items-end gap-2'>
-              <div className='flex-1'>
-                <Input
-                  placeholder={t('Verification code')}
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                />
-              </div>
-              <Button
-                variant='outline'
-                type='button'
-                disabled={
-                  isLoading ||
-                  isSendingCode ||
-                  isActive ||
-                  !emailValue ||
-                  !turnstileReady
-                }
-                onClick={handleSendVerificationCode}
-              >
-                {verificationCodeAction}
-              </Button>
-            </div>
-          </>
         )}
 
         {/* Turnstile */}
