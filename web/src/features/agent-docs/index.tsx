@@ -86,38 +86,23 @@ function buildOpenClawCommand(
   model: string,
   contextWindow: number
 ): string {
-  const providerConfig = {
-    models: {
-      mode: 'merge',
-      providers: {
-        kabuai: {
-          baseUrl: apiBaseUrl,
-          apiKey,
-          api: 'openai-completions',
-          models: [
-            {
-              id: model,
-              name: model,
-              reasoning: true,
-              input: ['text'],
-              contextWindow,
-              contextTokens: contextWindow,
-              maxTokens: 32_768,
-            },
-          ],
-        },
-      },
-    },
-    agents: {
-      defaults: {
-        model: {
-          primary: `kabuai/${model}`,
-        },
-      },
-    },
+  const modelConfig = {
+    id: model,
+    name: model,
+    reasoning: true,
+    input: ['text'],
+    contextWindow,
+    contextTokens: contextWindow,
+    maxTokens: 32_768,
   }
-  const configJson = JSON.stringify(providerConfig)
-  return `printf '%s' ${shellQuote(configJson)} | openclaw config patch --stdin && openclaw config validate && openclaw gateway status`
+  const providerConfig = JSON.stringify({
+    baseUrl: apiBaseUrl,
+    apiKey,
+    api: 'openai-completions',
+    models: [modelConfig],
+  })
+  const modelsConfig = JSON.stringify([modelConfig])
+  return `if openclaw config get models.providers.kabuai >/dev/null 2>&1; then openclaw config set models.providers.kabuai.baseUrl ${shellQuote(JSON.stringify(apiBaseUrl))} --strict-json && openclaw config set models.providers.kabuai.apiKey ${shellQuote(JSON.stringify(apiKey))} --strict-json && openclaw config set models.providers.kabuai.api ${shellQuote(JSON.stringify('openai-completions'))} --strict-json && openclaw config set models.providers.kabuai.models ${shellQuote(modelsConfig)} --strict-json --merge; else openclaw config set models.providers.kabuai ${shellQuote(providerConfig)} --strict-json --merge; fi && openclaw config set agents.defaults.model.primary ${shellQuote(JSON.stringify(`kabuai/${model}`))} --strict-json && openclaw config validate && openclaw gateway status`
 }
 
 function CommandBlock({ command, label }: { command: string; label: string }) {
@@ -349,8 +334,8 @@ function OpenClawConfigurator() {
       <CardHeader>
         <CardTitle>生成 OpenClaw 一键接入命令</CardTitle>
         <CardDescription>
-          选择密钥和模型；上下文不填写时默认 1M。复制后直接粘贴到已安装 OpenClaw
-          的终端即可。
+          选择密钥和模型；上下文不填写时默认 1M。命令会保留客户原有模型，追加
+          KabuAI 模型并将它设为默认模型。
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-5'>
@@ -434,6 +419,13 @@ function OpenClawConfigurator() {
 
         <CommandBlock command={previewCommand} label='命令预览（密钥已隐藏）' />
 
+        <div className='bg-muted/40 rounded-xl border p-4 text-sm'>
+          <p className='font-medium'>主动切换到当前选择的模型</p>
+          <code className='mt-2 block break-all select-all'>
+            /model kabuai/{effectiveModel}
+          </code>
+        </div>
+
         <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
           <Button
             type='button'
@@ -477,7 +469,7 @@ function OpenClawGuide() {
               OpenClaw 模型接入
             </h2>
             <p className='text-muted-foreground mt-1'>
-              不包含安装教程，只配置 KabuAI Provider、默认模型和上下文长度。
+              保留原有 Provider 和模型，追加 KabuAI 模型并设为默认模型。
             </p>
           </div>
         </div>
@@ -500,7 +492,7 @@ function OpenClawGuide() {
         <StepCard
           number={2}
           title='复制并直接粘贴一键命令'
-          description='命令只更新 models.providers.kabuai 和默认模型，不会重新安装 OpenClaw，也不会修改渠道、技能或工作区。'
+          description='命令会合并 KabuAI Provider 和新模型，不删除或覆盖客户已有 Provider、已有模型、技能、渠道或工作区，然后将新增模型设为默认模型。'
           icon={<Terminal className='size-4' />}
         />
         <StepCard
@@ -516,8 +508,8 @@ function OpenClawGuide() {
         </StepCard>
         <StepCard
           number={4}
-          title='在 Control UI 发送测试消息'
-          description='界面底部应显示所选模型与 kabuai Provider。发送一条消息确认响应即可。'
+          title='测试默认模型或主动切换'
+          description='新增模型已设为默认模型。如果当前对话没有刷新，可以在聊天窗口发送 /model kabuai/模型名 来切换。'
           icon={<Sparkles className='size-4' />}
         >
           <Screenshot
