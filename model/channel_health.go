@@ -147,12 +147,18 @@ func (e *channelHealthEntry) recentFailureCount() int {
 	return n
 }
 
-func (e *channelHealthEntry) resetPriorityRecovery(now time.Time) {
+func (e *channelHealthEntry) resetPriorityFastSamples() {
 	if !e.priorityDemoted {
 		return
 	}
-	e.priorityDemotedAt = now
 	e.priorityFastSamples = 0
+}
+
+func (e *channelHealthEntry) restartPriorityRecoveryInterval(now time.Time) {
+	e.resetPriorityFastSamples()
+	if e.priorityDemoted {
+		e.priorityDemotedAt = now
+	}
 }
 
 // openWithBackoff opens the circuit for an interval that grows with the number
@@ -190,7 +196,7 @@ func (e *channelHealthEntry) openWithBackoff(now time.Time, bySlow bool) {
 	if bySlow {
 		e.priorityDemoted = true
 	}
-	e.resetPriorityRecovery(now)
+	e.restartPriorityRecoveryInterval(now)
 	if e.consecutiveOpens <= channelHealthMaxBackoffShift {
 		e.consecutiveOpens++
 	}
@@ -276,7 +282,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 		if entry := r.entries[key]; entry != nil && entry.priorityDemoted {
 			now := r.now()
 			entry.lastSeenAt = now
-			entry.resetPriorityRecovery(now)
+			entry.resetPriorityFastSamples()
 		}
 		r.mu.Unlock()
 		return
@@ -293,7 +299,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 
 	if outcome.StatusCode >= http.StatusInternalServerError || outcome.StatusCode <= 0 || isChannelOverloadStatus(outcome.StatusCode) {
 		entry.healthyStreak = 0
-		entry.resetPriorityRecovery(now)
+		entry.restartPriorityRecoveryInterval(now)
 		entry.pushRecentOutcome(true)
 		if entry.state == ChannelHealthHalfOpen {
 			entry.openWithBackoff(now, false)
@@ -349,7 +355,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	if slow {
 		entry.slowSamples = pruneChannelHealthFailures(entry.slowSamples, now.Add(-channelHealthFailureWindow))
 		entry.slowSamples = append(entry.slowSamples, now)
-		entry.resetPriorityRecovery(now)
+		entry.restartPriorityRecoveryInterval(now)
 		if len(entry.slowSamples) >= channelHealthPriorityDemotionThreshold && entry.latencyEWMA >= float64(channelHealthSlowLatency()) {
 			entry.priorityDemoted = true
 			entry.priorityDemotedAt = now
@@ -366,7 +372,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	entry.slowSamples = nil
 	if entry.priorityDemoted {
 		if outcome.ColdCacheStart || outcome.Latency <= 0 {
-			entry.resetPriorityRecovery(now)
+			entry.resetPriorityFastSamples()
 		} else {
 			entry.priorityFastSamples++
 			if entry.priorityFastSamples >= channelHealthPriorityRecoveryThreshold {
@@ -375,12 +381,32 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 					entry.priorityDemotedAt = time.Time{}
 					entry.priorityFastSamples = 0
 				} else {
-					entry.resetPriorityRecovery(now)
+					entry.restartPriorityRecoveryInterval(now)
 				}
 			}
 		}
 	}
 	entry.registerHealthySuccess()
+}
+
+func (e *channelHealthEntry) acquire(now time.Time) bool {
+	e.lastSeenAt = now
+	if e.state == ChannelHealthClosed {
+		return true
+	}
+	if e.state == ChannelHealthOpen {
+		if now.Before(e.openUntil) {
+			return false
+		}
+		e.state = ChannelHealthHalfOpen
+		e.probeLeaseUntil = now.Add(channelHealthProbeLease)
+		return true
+	}
+	if now.Before(e.probeLeaseUntil) {
+		return false
+	}
+	e.probeLeaseUntil = now.Add(channelHealthProbeLease)
+	return true
 }
 
 func (r *channelHealthRegistry) Acquire(key ChannelHealthKey) bool {
@@ -395,23 +421,7 @@ func (r *channelHealthRegistry) Acquire(key ChannelHealthKey) bool {
 	if entry == nil {
 		return true
 	}
-	entry.lastSeenAt = now
-	if entry.state == ChannelHealthClosed {
-		return true
-	}
-	if entry.state == ChannelHealthOpen {
-		if now.Before(entry.openUntil) {
-			return false
-		}
-		entry.state = ChannelHealthHalfOpen
-		entry.probeLeaseUntil = now.Add(channelHealthProbeLease)
-		return true
-	}
-	if now.Before(entry.probeLeaseUntil) {
-		return false
-	}
-	entry.probeLeaseUntil = now.Add(channelHealthProbeLease)
-	return true
+	return entry.acquire(now)
 }
 
 // acquireForAffinity is the affinity-path counterpart to Acquire. A session that
@@ -547,8 +557,11 @@ func (r *channelHealthRegistry) acquirePriorityProbe(key ChannelHealthKey) bool 
 
 	now := r.now()
 	entry := r.entries[key]
-	if entry == nil || !entry.priorityDemoted {
+	if entry == nil {
 		return true
+	}
+	if !entry.priorityDemoted {
+		return entry.acquire(now)
 	}
 	entry.lastSeenAt = now
 	if entry.state != ChannelHealthClosed || now.Sub(entry.priorityDemotedAt) <= channelHealthFailureWindow {
