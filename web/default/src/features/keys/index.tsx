@@ -23,10 +23,10 @@ import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
 import { ApiKeysProvider } from './components/api-keys-provider'
 import { ApiKeysTable } from './components/api-keys-table'
 
-export function ApiKeys() {
+export function ApiKeys({ preferredGroup }: { preferredGroup?: string }) {
   const { t } = useTranslation()
   return (
-    <ApiKeysProvider>
+    <ApiKeysProvider preferredGroup={preferredGroup}>
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('API Keys')}</SectionPageLayout.Title>
         <SectionPageLayout.Description>

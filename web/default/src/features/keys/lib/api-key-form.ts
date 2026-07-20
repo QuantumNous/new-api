@@ -73,14 +73,15 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
 }
 
 export function getApiKeyFormDefaultValues(
-  defaultUseAutoGroup: boolean
+  defaultUseAutoGroup: boolean,
+  preferredGroup?: string
 ): ApiKeyFormValues {
   // apimaster: ignore defaultUseAutoGroup; we always default to auto-cheapest
   // (newapi's "auto" cross-group routing isn't useful when apimaster only ships
   // a single meaningful group). cross_group_retry kept for behavioural parity.
   return {
     ...API_KEY_FORM_DEFAULT_VALUES,
-    group: DEFAULT_GROUP,
+    group: preferredGroup || DEFAULT_GROUP,
     cross_group_retry: defaultUseAutoGroup,
   }
 }

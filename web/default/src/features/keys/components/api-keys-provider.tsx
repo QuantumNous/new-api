@@ -39,11 +39,18 @@ type ApiKeysContextType = {
   loadingKeys: Record<number, boolean>
   copiedKeyId: number | null
   markKeyCopied: (id: number) => void
+  preferredGroup?: string
 }
 
 const ApiKeysContext = React.createContext<ApiKeysContextType | null>(null)
 
-export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
+export function ApiKeysProvider({
+  children,
+  preferredGroup,
+}: {
+  children: React.ReactNode
+  preferredGroup?: string
+}) {
   const { t } = useTranslation()
   const [open, setOpen] = useDialogState<ApiKeysDialogType>(null)
   const [currentRow, setCurrentRow] = useState<ApiKey | null>(null)
@@ -169,6 +176,7 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
         loadingKeys,
         copiedKeyId,
         markKeyCopied,
+        preferredGroup,
       }}
     >
       {children}

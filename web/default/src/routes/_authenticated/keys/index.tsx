@@ -29,9 +29,15 @@ const apiKeySearchSchema = z.object({
     .optional()
     .catch([]),
   filter: z.string().optional().catch(''),
+  group: z.string().optional().catch(''),
 })
 
 export const Route = createFileRoute('/_authenticated/keys/')({
   validateSearch: apiKeySearchSchema,
-  component: ApiKeys,
+  component: KeysRoute,
 })
+
+function KeysRoute() {
+  const { group } = Route.useSearch()
+  return <ApiKeys preferredGroup={group || undefined} />
+}

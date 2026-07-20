@@ -103,7 +103,7 @@ export function ApiKeysMutateDrawer({
 }: ApiKeyMutateDrawerProps) {
   const { t } = useTranslation()
   const isUpdate = !!currentRow
-  const { triggerRefresh } = useApiKeys()
+  const { triggerRefresh, preferredGroup } = useApiKeys()
   const { status } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -136,7 +136,7 @@ export function ApiKeysMutateDrawer({
 
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(apiKeyFormSchema),
-    defaultValues: getApiKeyFormDefaultValues(defaultUseAutoGroup),
+    defaultValues: getApiKeyFormDefaultValues(defaultUseAutoGroup, preferredGroup),
   })
 
   // Load existing data when updating
@@ -150,9 +150,9 @@ export function ApiKeysMutateDrawer({
       })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
-      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup))
+      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup, preferredGroup))
     }
-  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup])
+  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, preferredGroup])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)

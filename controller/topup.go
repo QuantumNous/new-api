@@ -312,17 +312,49 @@ func GetFirstTopupPromo(c *gin.Context) {
 func GetSignupGift(c *gin.Context) {
 	userId := c.GetInt("id")
 	quotaForNewUser := common.QuotaForNewUser
-	enabled := quotaForNewUser > 0
-	giftUsd := 0.0
-	if enabled && common.QuotaPerUnit > 0 {
-		giftUsd = float64(quotaForNewUser) / common.QuotaPerUnit
+	if quotaForNewUser > 0 {
+		giftUsd := 0.0
+		if common.QuotaPerUnit > 0 {
+			giftUsd = float64(quotaForNewUser) / common.QuotaPerUnit
+		}
+		common.ApiSuccess(c, gin.H{
+			"enabled":            true,
+			"eligible":           userId == 0,
+			"benefit_type":       "wallet_credit",
+			"quota_for_new_user": quotaForNewUser,
+			"gift_usd":           giftUsd,
+		})
+		return
+	}
+
+	var trialPlan model.SubscriptionPlan
+	if err := model.DB.Where("title = ? AND enabled = ?", service.FreeTrialPlanTitle, true).
+		First(&trialPlan).Error; err == nil {
+		trialCreditUSD := 0.0
+		if common.QuotaPerUnit > 0 {
+			trialCreditUSD = float64(trialPlan.TotalAmount) / common.QuotaPerUnit
+		}
+		common.ApiSuccess(c, gin.H{
+			"enabled":              true,
+			"eligible":             userId == 0,
+			"benefit_type":         "trial_subscription",
+			"quota_for_new_user":   0,
+			"gift_usd":             0,
+			"trial_plan_id":        trialPlan.Id,
+			"trial_title":          trialPlan.Title,
+			"trial_credit_usd":     trialCreditUSD,
+			"trial_duration_unit":  trialPlan.DurationUnit,
+			"trial_duration_value": trialPlan.DurationValue,
+		})
+		return
 	}
 
 	common.ApiSuccess(c, gin.H{
-		"enabled":            enabled,
-		"eligible":           enabled && userId == 0,
-		"quota_for_new_user": quotaForNewUser,
-		"gift_usd":           giftUsd,
+		"enabled":            false,
+		"eligible":           false,
+		"benefit_type":       "none",
+		"quota_for_new_user": 0,
+		"gift_usd":           0,
 	})
 }
 
