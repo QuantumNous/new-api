@@ -86,23 +86,20 @@ function buildOpenClawCommand(
   model: string,
   contextWindow: number
 ): string {
-  const modelConfig = {
-    id: model,
-    name: model,
-    reasoning: true,
-    input: ['text'],
-    contextWindow,
-    contextTokens: contextWindow,
-    maxTokens: 32_768,
-  }
   const providerConfig = JSON.stringify({
     baseUrl: apiBaseUrl,
     apiKey,
     api: 'openai-completions',
-    models: [modelConfig],
+    models: [
+      {
+        id: model,
+        name: model,
+        contextWindow,
+        maxTokens: 32_768,
+      },
+    ],
   })
-  const modelsConfig = JSON.stringify([modelConfig])
-  return `if openclaw config get models.providers.kabuai >/dev/null 2>&1; then openclaw config set models.providers.kabuai.baseUrl ${shellQuote(JSON.stringify(apiBaseUrl))} --strict-json && openclaw config set models.providers.kabuai.apiKey ${shellQuote(JSON.stringify(apiKey))} --strict-json && openclaw config set models.providers.kabuai.api ${shellQuote(JSON.stringify('openai-completions'))} --strict-json && openclaw config set models.providers.kabuai.models ${shellQuote(modelsConfig)} --strict-json --merge; else openclaw config set models.providers.kabuai ${shellQuote(providerConfig)} --strict-json --merge; fi && openclaw config set agents.defaults.model.primary ${shellQuote(JSON.stringify(`kabuai/${model}`))} --strict-json && openclaw config validate && openclaw gateway status`
+  return `openclaw config set models.providers.kabuai ${shellQuote(providerConfig)} --strict-json --merge && openclaw config set agents.defaults.model.primary ${shellQuote(JSON.stringify(`kabuai/${model}`))} --strict-json`
 }
 
 function CommandBlock({ command, label }: { command: string; label: string }) {
@@ -469,7 +466,7 @@ function OpenClawGuide() {
               OpenClaw 模型接入
             </h2>
             <p className='text-muted-foreground mt-1'>
-              保留原有 Provider 和模型，追加 KabuAI 模型并设为默认模型。
+              保留原有其他 Provider 和模型，首次添加 KabuAI 模型并设为默认模型。
             </p>
           </div>
         </div>
@@ -492,13 +489,13 @@ function OpenClawGuide() {
         <StepCard
           number={2}
           title='复制并直接粘贴一键命令'
-          description='命令会合并 KabuAI Provider 和新模型，不删除或覆盖客户已有 Provider、已有模型、技能、渠道或工作区，然后将新增模型设为默认模型。'
+          description='适用于首次添加 KabuAI：不会修改客户已有的其他 Provider、模型、技能、渠道或工作区，并将新增模型设为默认模型。'
           icon={<Terminal className='size-4' />}
         />
         <StepCard
           number={3}
           title='确认配置热应用'
-          description='命令会自动执行 config validate 和 gateway status。OpenClaw 配置支持热应用，正常情况下不需要重启 Gateway。'
+          description='OpenClaw 会在写入时校验配置并支持热应用，正常情况下不需要重启 Gateway。'
           icon={<ShieldCheck className='size-4' />}
         >
           <Screenshot
