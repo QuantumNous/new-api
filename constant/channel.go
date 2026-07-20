@@ -61,6 +61,7 @@ const (
 	ChannelTypeVyroSeedance   = 61
 	ChannelType83zi           = 62
 	ChannelType7tai           = 63
+	ChannelTypeTh12345ai      = 64
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -130,6 +131,7 @@ var ChannelBaseURLs = []string{
 	"https://996k.cn/v1",                        //61 VyroSeedance (996k vyro-seedance-2)
 	"https://sd2.83zi.com",                      //62 83zi SD2 video
 	"https://api.7tai.cc/v1",                    //63 7tai (炳火) video
+	"https://sd.12345ai.net",                    //64 th12345ai (TH API) video
 }
 
 var ChannelTypeNames = map[int]string{
@@ -193,6 +195,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeVyroSeedance:  "VyroSeedance",
 	ChannelType83zi:          "83zi",
 	ChannelType7tai:          "7tai",
+	ChannelTypeTh12345ai:     "th12345ai",
 }
 
 func GetChannelTypeName(channelType int) string {

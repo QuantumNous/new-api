@@ -216,6 +216,20 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Async video: POST /v1/video/generations, poll GET /v1/video/generations/{task_id}. Reference images must be public http(s) URLs in images[].',
     },
   },
+  64: {
+    id: 64,
+    name: CHANNEL_TYPES[64],
+    icon: 'openai',
+    defaultBaseUrl: 'https://sd.12345ai.net',
+    supportedModels: ['videos_stable', 'videos_stable_fast'],
+    hints: {
+      key: 'Bearer token (th12345ai License Key, LD-...)',
+      models: 'videos_stable, videos_stable_fast (per-task)',
+      baseUrl: 'Default: https://sd.12345ai.net',
+      other:
+        'Async video: POST /api/tasks, poll GET /api/tasks/{id}. Pass reference images/videos/audios as public http(s) URLs (images[] → referenceImages).',
+    },
+  },
 }
 
 export const CHANNEL_83ZI_BASE_URL_PRESETS = [

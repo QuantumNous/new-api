@@ -107,6 +107,7 @@ export function getChannelTypeIcon(type: number): string {
     61: 'OpenAI', // VyroSeedance (vyro-seedance-2-fast)
     62: 'OpenAI', // 83zi SD2 video
     63: 'OpenAI', // 7tai video
+    64: 'OpenAI', // th12345ai video
 
     // Tools & Platforms
     37: 'Dify', // Dify

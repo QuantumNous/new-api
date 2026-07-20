@@ -167,6 +167,8 @@ function type2secretPrompt(type) {
       return '83zi_key_prompt';
     case 63:
       return '7tai_key_prompt';
+    case 64:
+      return 'th12345ai_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -730,6 +732,13 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://api.7tai.cc/v1',
+          }));
+          break;
+        case 64: // th12345ai (TH API)
+          localModels = ['videos_stable', 'videos_stable_fast'];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://sd.12345ai.net',
           }));
           break;
         default:
@@ -2723,7 +2732,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63) && (
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64) && (
                       <Banner
                         type='info'
                         closeIcon={null}
@@ -2735,7 +2744,9 @@ const EditChannelModal = (props) => {
                               ? '83zi 渠道说明'
                               : inputs.type === 63
                                 ? '7tai 渠道说明'
-                                : '异步视频渠道通用说明',
+                                : inputs.type === 64
+                                  ? 'th12345ai 渠道说明'
+                                  : '异步视频渠道通用说明',
                         )}
                       />
                     )}

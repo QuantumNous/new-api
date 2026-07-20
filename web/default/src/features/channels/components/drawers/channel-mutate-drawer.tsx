@@ -661,6 +661,17 @@ export function ChannelMutateDrawer({
         setBaseUrl83ziPreset('https://sd2.83zi.com')
       }
     }
+
+    if (currentType === 64) {
+      const currentModels = form.getValues('models')
+      if (!currentModels || currentModels.trim() === '') {
+        form.setValue('models', 'videos_stable,videos_stable_fast')
+      }
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue.trim() === '') {
+        form.setValue('base_url', 'https://sd.12345ai.net')
+      }
+    }
   }, [currentType, isEditing, form])
 
   useEffect(() => {

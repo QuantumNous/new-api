@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Seedance 模型调试</title>
+  <title>Seedance 视频工作室</title>
   <style>
     :root {
       color-scheme: dark;
@@ -18,14 +18,16 @@
       --accent: #1fd36d;
       --accent-2: #5f8cff;
       --danger: #ff6377;
+      --sidebar: 420px;
+      --header-h: 58px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       background:
-        radial-gradient(circle at 16% 0, rgba(31, 211, 109, .16), transparent 28%),
-        radial-gradient(circle at 88% 6%, rgba(95, 140, 255, .14), transparent 30%),
+        radial-gradient(circle at 16% 0, rgba(31, 211, 109, .14), transparent 28%),
+        radial-gradient(circle at 88% 6%, rgba(95, 140, 255, .12), transparent 30%),
         var(--bg);
       color: var(--text);
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -34,138 +36,159 @@
     button, input, textarea, select { font: inherit; }
     button {
       border: 0; border-radius: 8px; color: var(--text); cursor: pointer;
-      font-weight: 700; padding: 10px 12px; white-space: nowrap;
+      font-weight: 700; padding: 9px 12px; white-space: nowrap;
     }
     button:disabled { cursor: not-allowed; opacity: .55; }
     input, textarea, select {
       width: 100%; border: 1px solid var(--line); border-radius: 8px;
-      background: var(--panel-2); color: var(--text); outline: none; padding: 11px 12px;
+      background: var(--panel-2); color: var(--text); outline: none; padding: 10px 11px;
     }
     input:focus, textarea:focus, select:focus {
       border-color: var(--accent-2);
       box-shadow: 0 0 0 3px rgba(95, 140, 255, .14);
     }
+    a { color: #9fc8ff; }
     .app {
-      width: min(1540px, calc(100vw - 28px));
-      margin: 16px auto;
+      height: 100vh;
       display: grid;
-      grid-template-columns: 300px minmax(0, 1fr) 380px;
-      gap: 14px;
+      grid-template-rows: var(--header-h) minmax(0, 1fr);
     }
     .top {
-      grid-column: 1 / -1;
-      display: flex; align-items: center; justify-content: space-between; gap: 14px;
-      border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
-      background: rgba(17,20,28,.9); padding: 13px 15px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: rgba(17,20,28,.92);
+      backdrop-filter: blur(10px);
     }
-    .brand { display: flex; gap: 12px; align-items: center; min-width: 0; }
+    .brand { display: flex; gap: 11px; align-items: center; min-width: 0; }
     .logo {
-      min-width: 78px; padding: 0 10px; height: 36px; border-radius: 8px;
+      min-width: 78px; padding: 0 10px; height: 34px; border-radius: 8px;
       display: grid; place-items: center;
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #041109; font-weight: 900; font-size: 14px;
+      color: #041109; font-weight: 900; font-size: 13px;
     }
-    h1 { margin: 0; font-size: 19px; }
-    h2 { margin: 0 0 14px; font-size: 16px; }
-    h3 { margin: 0; font-size: 14px; }
-    .sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-    .panel {
-      border: 1px solid rgba(255,255,255,.09); border-radius: 8px;
-      background: rgba(17,20,28,.92); padding: 15px; min-width: 0;
+    h1 { margin: 0; font-size: 16px; }
+    h2 { margin: 0 0 10px; font-size: 14px; }
+    h3 { margin: 0 0 8px; font-size: 13px; color: var(--soft); }
+    .sub { margin: 1px 0 0; color: var(--muted); font-size: 12px; }
+    .top-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .auth-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--line); border-radius: 999px;
+      padding: 6px 11px; font-size: 12px; color: var(--soft);
+      background: rgba(23,28,39,.8);
     }
-    .field { margin-bottom: 13px; }
-    label { display: block; margin: 0 0 7px; color: var(--muted); font-size: 13px; }
-    .hint { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .auth-chip.ok { border-color: rgba(31,211,109,.35); color: #7de6aa; }
+    .auth-chip.warn { border-color: rgba(255,210,124,.35); color: #ffd27c; }
+    .workspace {
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      min-height: 0;
+    }
+    .create-panel, .history-panel {
+      min-height: 0; overflow: auto;
+      border-right: 1px solid rgba(255,255,255,.07);
+    }
+    .history-panel { border-right: 0; padding: 14px 16px 24px; }
+    .create-panel {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 12px 14px 20px;
+      background: rgba(17,20,28,.72);
+    }
+    .section {
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 10px;
+      background: rgba(23,28,39,.45);
+      padding: 12px;
+    }
+    .field { margin-bottom: 10px; }
+    .field:last-child { margin-bottom: 0; }
+    label { display: block; margin: 0 0 6px; color: var(--muted); font-size: 12px; }
+    .hint { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 7px; }
     .primary { background: var(--accent); color: #03120a; }
     .secondary { background: var(--panel-3); }
     .ghost { background: transparent; border: 1px solid var(--line); }
     .danger { background: #3b1f2c; color: #ffb3bf; }
-    a.ghost {
+    a.ghost, a.secondary {
       text-decoration: none; display: inline-flex; align-items: center;
-      border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
-      color: var(--text); font-weight: 700;
+      border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px;
+      color: var(--text); font-weight: 700; font-size: 13px;
     }
+    .settings-compact {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .settings-compact .field { margin: 0; }
+    .generate {
+      width: 100%; padding: 13px 16px; font-size: 15px; margin-top: 2px;
+    }
+    .status-box {
+      min-height: 38px; border: 1px solid #283346; border-radius: 8px;
+      background: #080c14; color: #cbd4e5; padding: 9px 11px; font-size: 12px;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .status-box.ok { color: #7de6aa; }
+    .status-box.bad { color: #ff9baa; }
+    .status-box.warn { color: #ffd27c; }
     .upload {
-      display: grid; gap: 8px; place-items: center; min-height: 112px;
+      display: grid; gap: 6px; place-items: center; min-height: 84px;
       border: 1px dashed #465166; border-radius: 8px;
       background: rgba(23,28,39,.72); color: var(--muted);
-      text-align: center; padding: 14px; cursor: pointer;
+      text-align: center; padding: 12px; cursor: pointer;
     }
     .upload input { display: none; }
-    .upload strong { color: var(--soft); }
+    .upload strong { color: var(--soft); font-size: 13px; }
     .face-pass {
       position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0 0 12px;
-      color: var(--soft);
-      font-size: 13px;
-      cursor: help;
-      user-select: none;
+      display: inline-flex; align-items: center; gap: 8px;
+      margin: 0 0 10px; color: var(--soft); font-size: 13px;
+      cursor: help; user-select: none;
     }
-    .face-pass input {
-      width: auto;
-      margin: 0;
-      accent-color: var(--accent);
-      cursor: pointer;
-    }
+    .face-pass input { width: auto; margin: 0; accent-color: var(--accent); cursor: pointer; }
     .face-pass .tip {
-      position: absolute;
-      left: 0;
-      bottom: calc(100% + 8px);
-      z-index: 20;
-      width: min(260px, 72vw);
-      padding: 9px 11px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #1a2130;
-      color: var(--soft);
-      font-size: 12px;
-      line-height: 1.45;
+      position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 20;
+      width: min(260px, 72vw); padding: 9px 11px;
+      border: 1px solid var(--line); border-radius: 8px; background: #1a2130;
+      color: var(--soft); font-size: 12px; line-height: 1.45;
       box-shadow: 0 10px 28px rgba(0,0,0,.35);
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(4px);
+      opacity: 0; pointer-events: none; transform: translateY(4px);
       transition: opacity .15s ease, transform .15s ease;
     }
-    .face-pass:hover .tip,
-    .face-pass:focus-within .tip {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .asset-list { display: grid; gap: 10px; max-height: calc(100vh - 340px); overflow: auto; }
+    .face-pass:hover .tip, .face-pass:focus-within .tip { opacity: 1; transform: translateY(0); }
+    .asset-list { display: grid; gap: 8px; max-height: 220px; overflow: auto; margin-top: 8px; }
     .asset {
-      display: grid; grid-template-columns: 68px minmax(0,1fr); gap: 9px;
+      display: grid; grid-template-columns: 52px minmax(0,1fr); gap: 8px;
       border: 1px solid var(--line); border-radius: 8px;
-      background: rgba(23,28,39,.72); padding: 8px;
+      background: rgba(23,28,39,.72); padding: 7px;
     }
     .asset-preview {
-      width: 68px; height: 68px; border-radius: 8px; border: 1px solid #343c4e;
+      width: 52px; height: 52px; border-radius: 7px; border: 1px solid #343c4e;
       overflow: hidden; display: grid; place-items: center; background: #080c13;
-      color: var(--muted); font-size: 12px;
+      color: var(--muted); font-size: 11px;
     }
     .asset-preview img, .asset-preview video { width: 100%; height: 100%; object-fit: cover; }
     .asset-meta { min-width: 0; }
-    .asset-name { font-size: 13px; margin-bottom: 7px; width: 100%; }
-    .asset-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-    .asset-tools button { padding: 7px 8px; font-size: 12px; }
-    .asset-status { font-size: 11px; color: var(--muted); word-break: break-all; }
+    .asset-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-bottom: 5px; padding: 3px 8px; border-radius: 999px;
+      border: 1px solid #49617f; background: #202a3a; color: var(--soft);
+      font-size: 12px; font-weight: 700;
+    }
+    .asset-tools { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+    .asset-tools button { padding: 5px 7px; font-size: 11px; }
+    .asset-status { font-size: 10px; color: var(--muted); word-break: break-all; }
     .asset-status.ok { color: #7de6aa; }
     .asset-status.bad { color: #ff9baa; }
     .asset-status.warn { color: #ffd27c; }
-    .composer { display: grid; gap: 14px; }
-    .composer-main {
-      display: grid; grid-template-columns: minmax(0,1fr) 220px; gap: 12px;
-    }
     .prompt-wrap { position: relative; }
     .prompt-editor {
-      width: 100%; height: 280px; max-height: 280px; border: 1px solid var(--line); border-radius: 8px;
-      background: var(--panel-2); color: var(--text); outline: none; padding: 12px;
+      width: 100%; height: 140px; max-height: 180px; border: 1px solid var(--line); border-radius: 8px;
+      background: var(--panel-2); color: var(--text); outline: none; padding: 10px;
       overflow-x: hidden; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
-      overscroll-behavior: contain;
+      overscroll-behavior: contain; font-size: 13px;
     }
     .prompt-editor:focus {
       border-color: var(--accent-2);
@@ -176,85 +199,110 @@
     }
     .prompt-mention {
       display: inline-flex; align-items: center; gap: 4px;
-      max-width: min(260px, 100%); margin: 0 2px 2px 0;
+      max-width: min(220px, 100%); margin: 0 2px 2px 0;
       padding: 1px 6px 1px 3px; border: 1px solid #49617f; border-radius: 6px;
       background: #202a3a; color: #f4f6fb; font-size: .95em; vertical-align: middle;
       user-select: none; white-space: nowrap;
     }
     .prompt-mention img, .prompt-mention video {
-      width: 18px; height: 18px; border-radius: 4px; object-fit: cover; background: #080c13;
+      width: 16px; height: 16px; border-radius: 4px; object-fit: cover; background: #080c13;
     }
     .mention-menu {
-      display: none; position: absolute; left: 12px; bottom: 12px; z-index: 10;
-      width: min(460px, calc(100% - 24px)); max-height: 280px; overflow: auto;
+      display: none; position: fixed; z-index: 40;
+      width: min(320px, calc(100vw - 24px)); max-height: min(260px, 45vh); overflow: auto;
       border: 1px solid var(--line); border-radius: 8px; background: #101520;
-      box-shadow: 0 18px 60px rgba(0,0,0,.38); padding: 8px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.45); padding: 7px;
     }
-    .mention-menu.show { display: grid; gap: 6px; }
+    .mention-menu.show { display: grid; gap: 5px; }
     .mention-item {
-      display: grid; grid-template-columns: 44px minmax(0,1fr); gap: 9px;
-      padding: 7px; border-radius: 8px; cursor: pointer;
+      display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 8px;
+      padding: 6px; border-radius: 8px; cursor: pointer;
     }
     .mention-item:hover { background: var(--panel-3); }
     .mention-thumb {
-      width: 44px; height: 44px; border-radius: 8px; background: #080c13;
+      width: 40px; height: 40px; border-radius: 7px; background: #080c13;
       display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 11px;
     }
     .mention-thumb img, .mention-thumb video { width: 100%; height: 100%; object-fit: cover; }
-    .mention-title { color: var(--soft); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .mention-sub { color: var(--muted); font-size: 12px; }
-    .ref-panel {
-      border: 1px solid var(--line); border-radius: 8px;
-      background: rgba(23,28,39,.58); padding: 12px;
-    }
-    .ref-list { display: grid; gap: 8px; }
+    .mention-title { color: var(--soft); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mention-sub { color: var(--muted); font-size: 11px; }
+    .ref-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .ref-pill {
-      display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 8px;
-      border: 1px solid #394357; border-radius: 8px; background: rgba(32,38,55,.82);
-      padding: 7px; color: var(--soft); font-size: 13px;
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid #394357; border-radius: 999px; background: rgba(32,38,55,.82);
+      padding: 4px 8px 4px 4px; color: var(--soft); font-size: 12px;
     }
     .ref-thumb {
-      width: 38px; height: 38px; border-radius: 7px; border: 1px solid #465166;
+      width: 22px; height: 22px; border-radius: 50%; border: 1px solid #465166;
       display: grid; place-items: center; overflow: hidden; background: #080c13;
-      color: var(--muted); font-size: 11px;
+      color: var(--muted); font-size: 9px;
     }
     .ref-thumb img, .ref-thumb video { width: 100%; height: 100%; object-fit: cover; }
-    .ref-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ref-pill small { color: var(--muted); }
-    .compose-actions {
-      display: grid; grid-template-columns: minmax(220px,1fr) auto; align-items: center; gap: 10px;
+    .advanced details {
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 10px;
+      background: rgba(23,28,39,.35);
+      padding: 0;
     }
-    .generate { width: 100%; padding: 14px 16px; font-size: 16px; }
-    .status-box {
-      min-height: 42px; border: 1px solid #283346; border-radius: 8px;
-      background: #080c14; color: #cbd4e5; padding: 10px 12px; font-size: 13px;
-      white-space: pre-wrap; word-break: break-word;
+    .advanced summary {
+      cursor: pointer; list-style: none; padding: 11px 12px;
+      color: var(--soft); font-weight: 700; font-size: 13px;
+      user-select: none;
     }
-    .status-box.ok { color: #7de6aa; }
-    .status-box.bad { color: #ff9baa; }
-    .status-box.warn { color: #ffd27c; }
-    .task-list {
-      min-height: 96px; border: 1px solid #283346; border-radius: 8px;
-      background: #080c14; color: #cbd4e5; overflow: hidden;
+    .advanced summary::-webkit-details-marker { display: none; }
+    .advanced summary::after { content: "▾"; float: right; color: var(--muted); }
+    .advanced details[open] summary::after { content: "▴"; }
+    .advanced-body { padding: 0 12px 12px; }
+    .payload-box {
+      width: 100%; min-height: 110px; font-family: ui-monospace, Consolas, monospace;
+      font-size: 11px; resize: vertical;
     }
-    .task-empty {
-      min-height: 96px; display: grid; place-items: start; padding: 13px;
-      color: var(--muted); font-size: 13px;
+    .model-hint {
+      border: 1px solid #394357; border-radius: 8px; background: rgba(32,38,55,.55);
+      padding: 8px 10px; color: var(--muted); font-size: 11px; margin-top: 8px;
     }
-    .task-row {
+    .history-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      margin-bottom: 12px;
+    }
+    .history-head h2 { margin: 0; font-size: 16px; }
+    .history-count { color: var(--muted); font-size: 12px; }
+    .running-list { display: grid; gap: 10px; margin-bottom: 16px; }
+    .history-grid {
       display: grid;
-      grid-template-columns: minmax(98px,130px) minmax(160px,1fr) 58px minmax(150px,auto);
-      align-items: center; gap: 14px; min-height: 56px; padding: 10px 12px;
-      border-bottom: 1px solid rgba(255,255,255,.08);
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
     }
-    .task-row:last-child { border-bottom: 0; }
+    .hist-card {
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 12px;
+      background: rgba(17,20,28,.88);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .hist-card.running {
+      border-color: rgba(95,140,255,.35);
+      background: linear-gradient(180deg, rgba(95,140,255,.08), rgba(17,20,28,.92));
+    }
+    .hist-media {
+      position: relative; aspect-ratio: 16/9; background: #080c13;
+      display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 12px;
+    }
+    .hist-media video, .hist-media img { width: 100%; height: 100%; object-fit: cover; }
+    .hist-body { padding: 10px 11px 11px; display: grid; gap: 8px; }
+    .hist-prompt {
+      font-size: 12px; color: var(--soft);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; min-height: 2.8em;
+    }
+    .hist-meta { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
     .task-badge {
       width: max-content; display: inline-flex; align-items: center; gap: 5px;
-      border-radius: 999px; padding: 4px 10px; background: rgba(255,255,255,.08);
-      color: var(--muted); font-size: 13px;
+      border-radius: 999px; padding: 3px 9px; background: rgba(255,255,255,.08);
+      color: var(--muted); font-size: 11px;
     }
     .task-badge::before {
-      content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+      content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
     }
     .task-badge.ok { background: rgba(125,230,170,.12); color: #7de6aa; }
     .task-badge.bad { background: rgba(255,155,170,.12); color: #ff9baa; }
@@ -266,45 +314,36 @@
       display: block; width: var(--progress, 0%); height: 100%;
       border-radius: inherit; background: #27c65a;
     }
-    .task-percent { color: var(--soft); font-size: 13px; text-align: right; }
-    .task-actions { display: flex; justify-content: flex-end; gap: 8px; }
-    .task-actions button {
-      min-width: 64px; border: 1px solid transparent; border-radius: 8px;
-      background: var(--panel-3); font-size: 13px; padding: 8px 10px;
+    .hist-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .hist-actions button { padding: 6px 8px; font-size: 11px; }
+    .hist-empty {
+      border: 1px dashed #394357; border-radius: 12px; padding: 36px 18px;
+      text-align: center; color: var(--muted); font-size: 13px;
     }
-    .task-actions .preview-btn { background: transparent; border-color: var(--line); }
-    .result { display: none; margin-top: 12px; }
-    .result-head {
+    .modal {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: rgba(4,6,10,.78); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal.show { display: flex; }
+    .modal-card {
+      width: min(960px, 100%);
+      border: 1px solid var(--line); border-radius: 12px;
+      background: #11141c; padding: 14px; box-shadow: 0 24px 80px rgba(0,0,0,.45);
+    }
+    .modal-head {
       display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px;
     }
-    .result-head h2 { margin: 0; }
+    .modal-head h2 { margin: 0; }
     video#video {
-      width: 100%; max-height: 420px; border: 1px solid var(--line);
+      width: 100%; max-height: min(70vh, 560px); border: 1px solid var(--line);
       border-radius: 8px; background: #000;
     }
-    .result a { color: #9fc8ff; overflow-wrap: anywhere; }
-    .payload-box {
-      width: 100%; min-height: 120px; font-family: ui-monospace, Consolas, monospace;
-      font-size: 12px; resize: vertical;
-    }
-    .model-hint {
-      border: 1px solid #394357; border-radius: 8px; background: rgba(32,38,55,.55);
-      padding: 10px 12px; color: var(--muted); font-size: 12px; margin-bottom: 13px;
-    }
     .hidden { display: none !important; }
-    @media (max-width: 1180px) {
-      .app { grid-template-columns: 280px minmax(0,1fr); }
-      .side { grid-column: 1 / -1; }
-    }
-    @media (max-width: 820px) {
-      .app { grid-template-columns: 1fr; width: min(100vw - 18px, 760px); }
-      .top { flex-direction: column; align-items: flex-start; }
-      .composer-main { grid-template-columns: 1fr; }
-      .asset-list { max-height: none; }
-    }
-    @media (max-width: 560px) {
-      .task-row { grid-template-columns: 1fr; gap: 8px; }
-      .compose-actions { grid-template-columns: 1fr; }
+    @media (max-width: 980px) {
+      .workspace { grid-template-columns: 1fr; }
+      .create-panel { border-right: 0; border-bottom: 1px solid rgba(255,255,255,.07); max-height: none; }
+      .app { height: auto; min-height: 100vh; }
     }
   </style>
 </head>
@@ -314,181 +353,203 @@
       <div class="brand">
         <div class="logo">Seedance</div>
         <div>
-          <h1>Seedance 视频调试</h1>
-          <p class="sub">选择模型自动构建参数。本地图片经图床转公网 URL；Key 仅保存在本机浏览器。</p>
+          <h1>Seedance 视频工作室</h1>
+          <p class="sub">左栏创作 · 右栏历史 · Key 仅本机/会话内存</p>
         </div>
       </div>
-      <div class="actions">
+      <div class="top-right">
+        <span class="auth-chip warn" id="authChip">检测登录中…</span>
+        <a class="ghost" id="loginLink" href="/login">去登录</a>
         <a class="ghost" href="/docs/seedance-4models.md">API 文档</a>
-        <button class="ghost" id="clearAllBtn" type="button">清空创作</button>
       </div>
     </header>
 
-    <section class="panel">
-      <h2>素材库</h2>
-      <label class="face-pass" for="facePass">
-        <input id="facePass" type="checkbox">
-        <span>过人脸审核</span>
-        <span class="tip">针对某些不能过人脸的模型，我们的人脸处理技术帮你处理，满血版本不要勾选。</span>
-      </label>
-      <label class="upload">
-        <input id="assetFiles" type="file" accept="image/*,audio/*,video/*" multiple>
-        <strong>上传参考素材</strong>
-        <span>图片走图床；音视频请优先用公网 URL（可粘贴到下方）。</span>
-      </label>
-      <div class="field" style="margin-top:12px">
-        <label for="manualUrl">或粘贴公网素材 URL</label>
-        <div class="actions">
-          <input id="manualUrl" type="url" placeholder="https://...">
-          <button class="secondary" id="addUrlBtn" type="button">添加</button>
-        </div>
-      </div>
-      <p class="hint">提示词输入 @ 引用素材。mingiz / VyroSeedance 可选 multipart 直传本地文件。</p>
-      <div class="asset-list" id="assetList"></div>
-    </section>
+    <div class="workspace">
+      <aside class="create-panel">
+        <section class="section" id="accountSection">
+          <h2>账号</h2>
+          <div id="sessionAuth" class="hidden">
+            <div class="field">
+              <label for="tokenSelect">选择令牌</label>
+              <select id="tokenSelect"></select>
+              <p class="hint" id="tokenSelectHint">将从账号拉取完整 Key（仅内存，不落盘）。</p>
+            </div>
+          </div>
+          <div id="guestAuth">
+            <div class="field">
+              <label for="token">API Key</label>
+              <input id="token" type="password" placeholder="sk-..." autocomplete="off">
+            </div>
+            <div class="actions">
+              <button class="secondary" id="saveKeyBtn" type="button">保存 Key</button>
+              <button class="secondary" id="toggleKeyBtn" type="button">显示</button>
+              <button class="danger" id="clearKeyBtn" type="button">清除</button>
+            </div>
+          </div>
+        </section>
 
-    <section class="panel composer">
-      <div>
-        <h2>提示词</h2>
-        <div class="composer-main">
+        <section class="section">
+          <h2>模型</h2>
+          <div class="field">
+            <label for="model">选择模型（来自模型广场）</label>
+            <select id="model"></select>
+          </div>
+          <div class="field hidden" id="customModelField">
+            <label for="customModel">自定义模型 ID</label>
+            <input id="customModel" type="text" placeholder="例如 wstar-seedance-2-fast / seedance2.0" autocomplete="off">
+            <p class="hint">仅兼容旧配置，已不再使用。</p>
+          </div>
+          <div class="model-hint" id="modelHint"></div>
+        </section>
+
+        <section class="section">
+          <h2>提示词</h2>
           <div class="prompt-wrap">
-            <div class="prompt-editor" id="prompt" contenteditable="true" data-placeholder="描述画面、人物、动作、镜头。输入 @ 引用素材。">一只橘猫在窗边打哈欠，电影感光线，高清画质。</div>
+            <div class="prompt-editor" id="prompt" contenteditable="true" data-placeholder="描述画面、人物、动作、镜头。输入 @ 插入图片1 / 视频1。">一只橘猫在窗边打哈欠，电影感光线，高清画质。</div>
             <div class="mention-menu" id="mentionMenu"></div>
           </div>
-          <aside class="ref-panel">
-            <h3>已引用素材</h3>
-            <p class="hint">提示词里的 @素材。</p>
-            <div class="ref-list" id="refList"></div>
-          </aside>
-        </div>
-      </div>
+          <div class="ref-list" id="refList"></div>
+        </section>
 
-      <div class="compose-actions">
+        <section class="section">
+          <h2>参考素材</h2>
+          <label class="upload">
+            <input id="assetFiles" type="file" accept="image/*,audio/*,video/*" multiple>
+            <strong>上传参考素材</strong>
+            <span>上传后全部作为参考传入模型；提示词里输入 @ 插入「图片1 / 视频1」。</span>
+          </label>
+          <div class="field" style="margin-top:10px">
+            <label for="manualUrl">或粘贴公网素材 URL</label>
+            <div class="actions">
+              <input id="manualUrl" type="url" placeholder="https://...">
+              <button class="secondary" id="addUrlBtn" type="button">添加</button>
+            </div>
+          </div>
+          <div class="asset-list" id="assetList"></div>
+        </section>
+
+        <section class="section">
+          <h2>常用参数</h2>
+          <div class="settings-compact">
+            <div class="field">
+              <label for="duration">时长</label>
+              <select id="duration"></select>
+            </div>
+            <div class="field">
+              <label for="aspectRatio">比例</label>
+              <select id="aspectRatio">
+                <option value="16:9" selected>16:9</option>
+                <option value="9:16">9:16</option>
+                <option value="1:1">1:1</option>
+              </select>
+            </div>
+            <div class="field" id="resolutionField">
+              <label for="resolution">分辨率</label>
+              <select id="resolution">
+                <option value="480p">480p</option>
+                <option value="720p" selected>720p</option>
+                <option value="1080p">1080p</option>
+              </select>
+            </div>
+            <div class="field" id="audioField">
+              <label for="generateAudio">配音</label>
+              <select id="generateAudio">
+                <option value="1" selected>开启</option>
+                <option value="0">关闭</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
         <button class="primary generate" id="submitBtn" type="button">立即生成</button>
+        <div class="status-box" id="statusBox">正在初始化…</div>
         <div class="actions">
-          <button class="secondary" id="pollBtn" type="button" disabled>轮询</button>
-          <button class="secondary" id="stopBtn" type="button" disabled>停止</button>
-          <button class="secondary" id="copyCurlBtn" type="button">复制 curl</button>
+          <button class="ghost" id="clearAllBtn" type="button">清空创作</button>
         </div>
-      </div>
 
-      <div class="field">
-        <label for="payloadPreview">请求体预览（可编辑后提交）</label>
-        <textarea class="payload-box" id="payloadPreview" spellcheck="false"></textarea>
-        <p class="hint">切换模型/参数会自动重建。multipart 模式下此处为字段说明。</p>
-      </div>
-
-      <div class="status-box" id="statusBox">填写 API Key 后即可开始。</div>
-      <div class="task-list" id="taskList"></div>
-      <div class="result" id="result">
-        <div class="result-head">
-          <h2>生成结果</h2>
-          <button class="ghost" id="closePreviewBtn" type="button">关闭预览</button>
+        <div class="advanced">
+          <details>
+            <summary>高级设置</summary>
+            <div class="advanced-body">
+              <div class="field">
+                <label for="apiBase">API Base URL</label>
+                <input id="apiBase" type="url" placeholder="默认同源">
+                <p class="hint" id="apiBaseHint">默认同源，可改成测试机地址。</p>
+              </div>
+              <div class="field">
+                <label for="imageHost">图床上传地址</label>
+                <input id="imageHost" type="url">
+              </div>
+              <div class="field">
+                <label for="imageToken">图床 Token</label>
+                <input id="imageToken" type="password" autocomplete="off">
+              </div>
+              <div class="actions field">
+                <button class="secondary" id="saveImageBtn" type="button">保存图床</button>
+                <button class="secondary" id="toggleImageTokenBtn" type="button">显示</button>
+              </div>
+              <label class="face-pass" for="facePass">
+                <input id="facePass" type="checkbox">
+                <span>过人脸审核</span>
+                <span class="tip">针对某些不能过人脸的模型，我们的人脸处理技术帮你处理，满血版本不要勾选。</span>
+              </label>
+              <div class="field" id="modeField">
+                <label for="mode">生成模式</label>
+                <select id="mode">
+                  <option value="text_to_video">文本生成</option>
+                  <option value="image_to_video">首帧 / 图生</option>
+                  <option value="reference_to_video" selected>全能参考</option>
+                </select>
+              </div>
+              <div class="field" id="mingizSendField">
+                <label for="mingizSend">素材发送方式</label>
+                <select id="mingizSend">
+                  <option value="multipart" selected>multipart 直传本地文件</option>
+                  <option value="json">JSON + 图床 URL</option>
+                </select>
+              </div>
+              <div class="field" id="watermarkField">
+                <label for="watermark">水印</label>
+                <select id="watermark">
+                  <option value="0" selected>关闭</option>
+                  <option value="1">开启</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="payloadPreview">请求体预览（可编辑后提交）</label>
+                <textarea class="payload-box" id="payloadPreview" spellcheck="false"></textarea>
+                <p class="hint">切换模型/参数会自动重建。multipart 模式下此处为字段说明。</p>
+              </div>
+              <div class="actions">
+                <button class="secondary" id="copyCurlBtn" type="button">复制 curl</button>
+              </div>
+            </div>
+          </details>
         </div>
-        <video id="video" controls playsinline></video>
-        <p><a id="download" href="#" download="video.mp4">下载视频</a></p>
-      </div>
-    </section>
+      </aside>
 
-    <aside class="panel side">
-      <h2>账号与站点</h2>
-      <div class="field">
-        <label for="apiBase">API Base URL</label>
-        <input id="apiBase" type="url" placeholder="默认同源">
-        <p class="hint" id="apiBaseHint">默认同源，可改成测试机地址。</p>
-      </div>
-      <div class="field">
-        <label for="token">API Key</label>
-        <input id="token" type="password" placeholder="sk-..." autocomplete="off">
-      </div>
-      <div class="actions field">
-        <button class="secondary" id="saveKeyBtn" type="button">保存 Key</button>
-        <button class="secondary" id="toggleKeyBtn" type="button">显示</button>
-        <button class="danger" id="clearKeyBtn" type="button">清除</button>
-      </div>
-
-      <h2>图床</h2>
-      <div class="field">
-        <label for="imageHost">上传地址</label>
-        <input id="imageHost" type="url">
-      </div>
-      <div class="field">
-        <label for="imageToken">图床 Token</label>
-        <input id="imageToken" type="password" autocomplete="off">
-      </div>
-      <div class="actions field">
-        <button class="secondary" id="saveImageBtn" type="button">保存图床</button>
-        <button class="secondary" id="toggleImageTokenBtn" type="button">显示</button>
-      </div>
-
-      <h2>模型</h2>
-      <div class="field">
-        <label for="model">选择模型 / 协议</label>
-        <select id="model"></select>
-      </div>
-      <div class="field hidden" id="customModelField">
-        <label for="customModel">自定义模型 ID</label>
-        <input id="customModel" type="text" placeholder="例如 wstar-seedance-2-fast / seedance2.0" autocomplete="off">
-        <p class="hint">走 OpenAI Videos（同 seedance2.0）：POST /v1/videos + 图床 URL。</p>
-      </div>
-      <div class="model-hint" id="modelHint"></div>
-
-      <h2>生成参数</h2>
-      <div class="field" id="modeField">
-        <label for="mode">生成模式</label>
-        <select id="mode">
-          <option value="text_to_video">文本生成</option>
-          <option value="image_to_video">首帧 / 图生</option>
-          <option value="reference_to_video" selected>全能参考</option>
-        </select>
-      </div>
-      <div class="field" id="mingizSendField">
-        <label for="mingizSend">素材发送方式</label>
-        <select id="mingizSend">
-          <option value="multipart" selected>multipart 直传本地文件</option>
-          <option value="json">JSON + 图床 URL</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="duration">时长（秒）</label>
-        <select id="duration"></select>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="aspectRatio">比例</label>
-          <select id="aspectRatio">
-            <option value="16:9" selected>16:9</option>
-            <option value="9:16">9:16</option>
-            <option value="1:1">1:1</option>
-          </select>
+      <section class="history-panel">
+        <div class="history-head">
+          <h2>生成历史</h2>
+          <span class="history-count" id="historyCount">0 条</span>
         </div>
-        <div class="field" id="resolutionField">
-          <label for="resolution">分辨率</label>
-          <select id="resolution">
-            <option value="480p">480p</option>
-            <option value="720p" selected>720p</option>
-            <option value="1080p">1080p</option>
-          </select>
-        </div>
-      </div>
-      <div class="row" id="audioWatermarkRow">
-        <div class="field">
-          <label for="generateAudio">配音</label>
-          <select id="generateAudio">
-            <option value="1" selected>开启</option>
-            <option value="0">关闭</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="watermark">水印</label>
-          <select id="watermark">
-            <option value="0" selected>关闭</option>
-            <option value="1">开启</option>
-          </select>
-        </div>
-      </div>
-    </aside>
+        <div id="runningList" class="running-list"></div>
+        <div id="historyGrid" class="history-grid"></div>
+        <div class="hist-empty" id="historyEmpty">暂无任务。提交后会显示在这里。</div>
+      </section>
+    </div>
   </main>
+
+  <div class="modal" id="previewModal" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>视频预览</h2>
+        <button class="ghost" id="closePreviewBtn" type="button">关闭</button>
+      </div>
+      <video id="video" controls playsinline></video>
+      <p style="margin:10px 0 0"><a id="download" href="#" download="video.mp4">下载视频</a></p>
+    </div>
+  </div>
 
   <script>
     const DEFAULT_IMAGE_HOST = "https://imageproxy.zhongzhuan.chat/api/upload";
@@ -496,6 +557,7 @@
     const FACE_DETECT_API = "https://face.83zi.com/api/detect";
     const STORAGE = {
       key: "sd4_api_key",
+      tokenId: "sd4_token_id",
       apiBase: "sd4_api_base",
       model: "sd4_model",
       customModel: "sd4_custom_model",
@@ -505,6 +567,9 @@
     };
     const CUSTOM_MODEL_VALUE = "__custom__";
     const DEFAULT_CUSTOM_MODEL = "seedance2.0";
+    const MAX_TASKS = 40;
+    let plazaModels = []; // [{ id, label, profileKey }]
+    let plazaLoaded = false;
 
     const MODEL_PROFILES = {
       "doubao-seedance-2-0-260128": {
@@ -614,6 +679,12 @@
     };
 
     const els = {
+      authChip: document.getElementById("authChip"),
+      loginLink: document.getElementById("loginLink"),
+      sessionAuth: document.getElementById("sessionAuth"),
+      guestAuth: document.getElementById("guestAuth"),
+      tokenSelect: document.getElementById("tokenSelect"),
+      tokenSelectHint: document.getElementById("tokenSelectHint"),
       apiBase: document.getElementById("apiBase"),
       apiBaseHint: document.getElementById("apiBaseHint"),
       token: document.getElementById("token"),
@@ -632,8 +703,9 @@
       resolution: document.getElementById("resolution"),
       resolutionField: document.getElementById("resolutionField"),
       generateAudio: document.getElementById("generateAudio"),
+      audioField: document.getElementById("audioField"),
       watermark: document.getElementById("watermark"),
-      audioWatermarkRow: document.getElementById("audioWatermarkRow"),
+      watermarkField: document.getElementById("watermarkField"),
       prompt: document.getElementById("prompt"),
       mentionMenu: document.getElementById("mentionMenu"),
       refList: document.getElementById("refList"),
@@ -643,8 +715,6 @@
       manualUrl: document.getElementById("manualUrl"),
       addUrlBtn: document.getElementById("addUrlBtn"),
       submitBtn: document.getElementById("submitBtn"),
-      pollBtn: document.getElementById("pollBtn"),
-      stopBtn: document.getElementById("stopBtn"),
       copyCurlBtn: document.getElementById("copyCurlBtn"),
       clearAllBtn: document.getElementById("clearAllBtn"),
       saveKeyBtn: document.getElementById("saveKeyBtn"),
@@ -653,9 +723,12 @@
       saveImageBtn: document.getElementById("saveImageBtn"),
       toggleImageTokenBtn: document.getElementById("toggleImageTokenBtn"),
       statusBox: document.getElementById("statusBox"),
-      taskList: document.getElementById("taskList"),
       payloadPreview: document.getElementById("payloadPreview"),
-      result: document.getElementById("result"),
+      runningList: document.getElementById("runningList"),
+      historyGrid: document.getElementById("historyGrid"),
+      historyEmpty: document.getElementById("historyEmpty"),
+      historyCount: document.getElementById("historyCount"),
+      previewModal: document.getElementById("previewModal"),
       video: document.getElementById("video"),
       download: document.getElementById("download"),
       closePreviewBtn: document.getElementById("closePreviewBtn"),
@@ -669,6 +742,11 @@
     let mentionTriggerRange = null;
     let previewObjectUrl = "";
     let rebuildTimer = 0;
+    let authMode = "guest";
+    let authUser = null;
+    let sessionKey = "";
+    let tokenList = [];
+    let pollInFlight = false;
 
     function saveLocal(k, v) { localStorage.setItem(k, v); }
     function readLocal(k) { return localStorage.getItem(k) || ""; }
@@ -679,8 +757,14 @@
       value = value.replace(/^Bearer\s+/i, "").trim();
       return value.replace(/^['"]+|['"]+$/g, "").trim();
     }
+    function withSkPrefix(raw) {
+      const key = normalizeApiKey(raw);
+      if (!key) return "";
+      return /^sk-/i.test(key) ? key : `sk-${key}`;
+    }
     function token() {
-      return normalizeApiKey(els.token.value) || normalizeApiKey(readLocal(STORAGE.key));
+      if (authMode === "session") return withSkPrefix(sessionKey);
+      return withSkPrefix(els.token.value) || withSkPrefix(readLocal(STORAGE.key));
     }
     function imageHost() {
       return (els.imageHost.value || DEFAULT_IMAGE_HOST).trim().replace(/\/$/, "");
@@ -693,19 +777,36 @@
       return v || window.location.origin;
     }
     function isCustomModel() {
-      return els.model.value === CUSTOM_MODEL_VALUE;
+      return false;
+    }
+    function resolveProfileKey(modelName) {
+      const name = String(modelName || "");
+      if (MODEL_PROFILES[name]) return name;
+      const n = name.toLowerCase();
+      if (n.includes("doubao") && n.includes("seedance")) return "doubao-seedance-2-0-260128";
+      if (n.includes("wstar") || n.includes("vyro")) return "wstar-seedance-2-fast";
+      if (n.includes("mingiz") || /(^|[^a-z])sd2([^a-z]|$)/i.test(n) || n.includes("sd2-fast") || n.includes("sd2fast")) {
+        return n.includes("fast") ? "sd2-fast" : "mingiz-sd2";
+      }
+      if (n.includes("lec-seedance")) return "lec-seedance-videos-stable";
+      if (n.includes("seedance")) return "seedance2.0";
+      return "seedance2.0";
     }
     function profile() {
-      if (isCustomModel()) {
-        return MODEL_PROFILES["seedance2.0"];
-      }
-      return MODEL_PROFILES[els.model.value] || MODEL_PROFILES["seedance2.0"];
+      const key = resolveProfileKey(els.model.value || activeModelName());
+      return MODEL_PROFILES[key] || MODEL_PROFILES["seedance2.0"];
     }
     function activeModelName() {
-      if (isCustomModel()) {
-        return (els.customModel.value || "").trim() || DEFAULT_CUSTOM_MODEL;
-      }
-      return els.model.value;
+      return (els.model.value || "").trim() || (plazaModels[0] && plazaModels[0].id) || "";
+    }
+    function isSeedancePlazaItem(item) {
+      const name = String(item.model_name || "");
+      if (!name) return false;
+      if (MODEL_PROFILES[name]) return true;
+      const eps = item.supported_endpoint_types || [];
+      if (eps.includes("openai-video")) return true;
+      const blob = `${name} ${item.tags || ""} ${item.description || ""}`;
+      return /seedance|mingiz|wstar|vyro|(^|[^a-z0-9])sd2([^a-z0-9]|$)/i.test(blob);
     }
     function authHeaders(extra = {}) {
       return { Authorization: `Bearer ${token()}`, ...extra };
@@ -716,23 +817,173 @@
     }
     function ensureTokenReady() {
       const key = token();
-      if (!key) return "请先填写 API Key（sk- 开头）。";
+      if (!key) {
+        return authMode === "session" ? "请先选择可用的令牌。" : "请先填写 API Key（sk- 开头）。";
+      }
       if (!/^sk-/i.test(key)) return "API Key 应以 sk- 开头。";
-      if (!normalizeApiKey(els.token.value) && key) els.token.value = key;
+      if (authMode === "guest" && !normalizeApiKey(els.token.value) && key) els.token.value = key;
       return "";
+    }
+
+    function siteApi(path, options = {}) {
+      return fetch(path, { ...options, credentials: "include" });
+    }
+
+    function updateAuthUI() {
+      const loggedIn = authMode === "session" && authUser;
+      els.sessionAuth.classList.toggle("hidden", !loggedIn);
+      els.guestAuth.classList.toggle("hidden", !!loggedIn);
+      els.loginLink.classList.toggle("hidden", !!loggedIn);
+      if (loggedIn) {
+        const name = authUser.display_name || authUser.username || "已登录";
+        els.authChip.textContent = `已登录 · ${name}`;
+        els.authChip.className = "auth-chip ok";
+      } else {
+        els.authChip.textContent = "未登录 · 使用 API Key";
+        els.authChip.className = "auth-chip warn";
+      }
+    }
+
+    async function fetchSessionKey(tokenId) {
+      const res = await siteApi(`/api/token/${encodeURIComponent(tokenId)}/key`, { method: "POST" });
+      const data = await readJson(res);
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || `获取令牌失败 HTTP ${res.status}`);
+      }
+      const raw = data.data?.key || data.key || "";
+      sessionKey = withSkPrefix(raw);
+      if (!sessionKey) throw new Error("令牌 Key 为空");
+      saveLocal(STORAGE.tokenId, String(tokenId));
+      return sessionKey;
+    }
+
+    async function loadUserTokens() {
+      const res = await siteApi("/api/token/?p=1&size=100");
+      const data = await readJson(res);
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || `拉取令牌列表失败 HTTP ${res.status}`);
+      }
+      const payload = data.data || data;
+      const items = Array.isArray(payload) ? payload : (payload.items || []);
+      tokenList = items.filter((t) => Number(t.status) === 1);
+      els.tokenSelect.innerHTML = tokenList.length
+        ? tokenList.map((t) => `<option value="${t.id}">${escapeHtml(t.name || ("令牌 #" + t.id))}</option>`).join("")
+        : `<option value="">暂无可用令牌</option>`;
+      if (!tokenList.length) {
+        sessionKey = "";
+        els.tokenSelectHint.textContent = "没有启用中的令牌，请先在控制台创建。";
+        return;
+      }
+      const savedId = readLocal(STORAGE.tokenId);
+      const preferred = tokenList.find((t) => String(t.id) === String(savedId)) || tokenList[0];
+      els.tokenSelect.value = String(preferred.id);
+      await fetchSessionKey(preferred.id);
+      els.tokenSelectHint.textContent = `已选令牌 · Key 仅内存持有 · 共 ${tokenList.length} 个可用`;
+    }
+
+    async function initAuth() {
+      try {
+        const res = await siteApi("/api/user/self");
+        const data = await readJson(res);
+        const user = data.data || ((data.username || data.id) ? data : null);
+        if (res.ok && data.success !== false && user && (user.username || user.id)) {
+          authUser = user;
+          authMode = "session";
+          updateAuthUI();
+          try {
+            await loadUserTokens();
+            setStatus(sessionKey ? "已登录并载入令牌，可以开始。" : "已登录，但未拿到可用令牌。", sessionKey ? "ok" : "warn");
+          } catch (err) {
+            sessionKey = "";
+            setStatus(`已登录，但令牌载入失败：${err.message}`, "bad");
+          }
+          return;
+        }
+      } catch {
+        /* guest */
+      }
+      authMode = "guest";
+      authUser = null;
+      sessionKey = "";
+      updateAuthUI();
+      const saved = readLocal(STORAGE.key);
+      if (saved) {
+        els.token.value = saved;
+        setStatus("未登录，已载入本地 API Key。", "ok");
+      } else {
+        setStatus("未登录：填写 API Key，或点击「去登录」使用账号令牌。", "warn");
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s || "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[c]));
     }
 
     function readTasks() {
       try { return JSON.parse(readLocal(STORAGE.tasks) || "[]"); } catch { return []; }
     }
     function saveTasks(tasks) {
-      saveLocal(STORAGE.tasks, JSON.stringify(tasks.slice(0, 30)));
+      saveLocal(STORAGE.tasks, JSON.stringify(tasks.slice(0, MAX_TASKS)));
     }
     function upsertTask(task) {
-      const tasks = readTasks().filter((t) => t.id !== task.id);
-      tasks.unshift(task);
+      const tasks = readTasks();
+      const idx = tasks.findIndex((t) => t.id === task.id);
+      let merged = task;
+      if (idx >= 0) {
+        merged = { ...tasks[idx], ...task };
+        tasks.splice(idx, 1);
+      }
+      tasks.unshift(merged);
       saveTasks(tasks);
       renderTasks(tasks);
+    }
+    function deleteTask(taskId) {
+      const tasks = readTasks().filter((t) => t.id !== taskId);
+      saveTasks(tasks);
+      if (currentTaskId === taskId) currentTaskId = "";
+      renderTasks(tasks);
+      ensurePolling();
+    }
+    function snapshotParams() {
+      return {
+        modelSelect: els.model.value,
+        customModel: (els.customModel.value || "").trim(),
+        model: activeModelName(),
+        mode: els.mode.value,
+        mingizSend: els.mingizSend.value,
+        duration: els.duration.value,
+        aspectRatio: els.aspectRatio.value,
+        resolution: els.resolution.value,
+        generateAudio: els.generateAudio.value,
+        watermark: els.watermark.value,
+        prompt: promptText(),
+      };
+    }
+    function remakeFromTask(task) {
+      const params = task.params || {};
+      const modelSelect = params.model || params.modelSelect || task.model || "";
+      if (modelSelect && plazaModels.some((m) => m.id === modelSelect)) {
+        els.model.value = modelSelect;
+        saveLocal(STORAGE.model, modelSelect);
+      } else if (modelSelect) {
+        setStatus(`历史模型「${modelSelect}」不在当前模型广场，请重新选择。`, "warn");
+      }
+      applyModelUI();
+      if (params.mode) els.mode.value = params.mode;
+      if (params.mingizSend) els.mingizSend.value = params.mingizSend;
+      if (params.duration) els.duration.value = String(params.duration);
+      if (params.aspectRatio) els.aspectRatio.value = params.aspectRatio;
+      if (params.resolution) els.resolution.value = params.resolution;
+      if (params.generateAudio != null) els.generateAudio.value = String(params.generateAudio);
+      if (params.watermark != null) els.watermark.value = String(params.watermark);
+      const text = params.prompt || task.prompt || "";
+      els.prompt.textContent = text;
+      updateRefs();
+      scheduleRebuild();
+      setStatus(`已回填「再做一条」参数（素材需重新上传）。`, "ok");
+      els.prompt.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     function clampProgress(value) {
       const n = Number(String(value).replace("%", ""));
@@ -751,7 +1002,7 @@
       const s = String(status || "").toUpperCase();
       if (["SUCCESS", "SUCCEEDED", "COMPLETED"].includes(s)) return "ok";
       if (["FAILURE", "FAILED", "ERROR"].includes(s)) return "bad";
-      if (["IN_PROGRESS", "RUNNING", "PROCESSING", "QUEUED", "PENDING"].includes(s)) return "warn";
+      if (["IN_PROGRESS", "RUNNING", "PROCESSING", "QUEUED", "PENDING", "SUBMITTED", "NOT_START"].includes(s)) return "warn";
       return "";
     }
     function isSuccess(status) {
@@ -759,6 +1010,12 @@
     }
     function isFailed(status) {
       return ["FAILURE", "FAILED", "ERROR"].includes(String(status || "").toUpperCase());
+    }
+    function isProcessing(status) {
+      return !isSuccess(status) && !isFailed(status);
+    }
+    function profileByFamily(family) {
+      return Object.values(MODEL_PROFILES).find((x) => x.family === family) || profile();
     }
 
     function assetKind(fileOrUrl, mime = "") {
@@ -775,18 +1032,43 @@
     function kindLabel(kind) {
       return { image: "图片", video: "视频", audio: "音频" }[kind] || kind;
     }
-    function safeMentionName(name) {
-      return String(name || "素材").replace(/[^\w\u4e00-\u9fff.-]+/g, "_").slice(0, 40) || "素材";
+    function renumberAssetTags() {
+      let imageCount = 0;
+      let videoCount = 0;
+      let audioCount = 0;
+      assets.forEach((item) => {
+        if (item.kind === "video") {
+          videoCount += 1;
+          item.tag = `视频${videoCount}`;
+        } else if (item.kind === "audio") {
+          audioCount += 1;
+          item.tag = `音频${audioCount}`;
+        } else {
+          imageCount += 1;
+          item.tag = `图片${imageCount}`;
+        }
+      });
+      syncMentionLabels();
     }
-    function fileBaseName(file) {
-      return safeMentionName((file.name || "素材").replace(/\.[^.]+$/, ""));
+    function syncMentionLabels() {
+      els.prompt.querySelectorAll(".prompt-mention").forEach((node) => {
+        const asset = assets.find((item) => item.id === node.dataset.id);
+        if (!asset) {
+          node.remove();
+          return;
+        }
+        node.dataset.name = asset.tag;
+        const label = node.querySelector("span:last-child") || node.querySelector("span");
+        if (label && !label.matches("img, video")) label.textContent = "@" + asset.tag;
+        else {
+          const spans = [...node.querySelectorAll("span")];
+          const textSpan = spans.find((s) => !s.querySelector("img, video"));
+          if (textSpan) textSpan.textContent = "@" + asset.tag;
+        }
+      });
     }
-    function uniqueAssetName(base, usedNames) {
-      let name = base;
-      let i = 2;
-      while (usedNames.has(name)) name = `${base}_${i++}`;
-      usedNames.add(name);
-      return name;
+    function findAssetByTag(tag) {
+      return assets.find((item) => item.tag === tag || item.name === tag);
     }
 
     function promptText() {
@@ -808,23 +1090,15 @@
       return [...names];
     }
     function referencedAssets() {
-      return mentionedNames().map((name) => ({ name, asset: assets.find((item) => item.name === name) }));
+      return mentionedNames().map((name) => ({ name, asset: findAssetByTag(name) }));
     }
     function getSubmitAssets() {
-      const mentioned = referencedAssets().filter((ref) => ref.asset).map((ref) => ref.asset);
-      const mode = els.mode.value;
-      if (mode === "text_to_video") return [];
-      if (mode === "image_to_video") {
-        const images = mentioned.filter((a) => a.kind === "image");
-        if (images.length) return [images[0]];
-        const first = assets.find((a) => a.kind === "image");
-        return first ? [first] : [];
-      }
-      if (mentioned.length) return mentioned;
+      // 已上传素材一律作为参考传入大模型；@ 仅影响提示词文案，不筛选素材列表
       return assets.slice();
     }
 
     function renderAssets() {
+      renumberAssetTags();
       els.assetList.innerHTML = "";
       if (!assets.length) {
         const empty = document.createElement("p");
@@ -844,7 +1118,7 @@
         if (asset.kind === "image" && asset.previewUrl) {
           const img = document.createElement("img");
           img.src = asset.previewUrl;
-          img.alt = asset.name;
+          img.alt = asset.tag;
           preview.appendChild(img);
         } else if (asset.kind === "video" && asset.previewUrl) {
           const video = document.createElement("video");
@@ -856,22 +1130,16 @@
         }
         const meta = document.createElement("div");
         meta.className = "asset-meta";
-        const nameInput = document.createElement("input");
-        nameInput.className = "asset-name";
-        nameInput.value = asset.name;
-        nameInput.addEventListener("change", () => {
-          asset.name = safeMentionName(nameInput.value);
-          nameInput.value = asset.name;
-          renderMentionMenu();
-          updateRefs();
-          scheduleRebuild();
-        });
+        const tagEl = document.createElement("div");
+        tagEl.className = "asset-tag";
+        tagEl.textContent = "@" + asset.tag;
         const tools = document.createElement("div");
         tools.className = "asset-tools";
         const mentionBtn = document.createElement("button");
         mentionBtn.className = "secondary";
         mentionBtn.type = "button";
         mentionBtn.textContent = "@";
+        mentionBtn.title = "插入到提示词";
         mentionBtn.onclick = () => insertMention(asset);
         const removeBtn = document.createElement("button");
         removeBtn.className = "danger";
@@ -882,14 +1150,14 @@
         const st = String(asset.uploadStatus || "");
         status.className = "asset-status " + (st === "ready" ? "ok" : st === "failed" ? "bad" : "warn");
         status.textContent = st === "uploading" ? (asset.viaFacePass ? "人脸处理中…" : "上传中…")
-          : st === "ready" ? (asset.viaFacePass ? "已过人脸" : (asset.publicUrl || "已就绪"))
+          : st === "ready" ? (asset.viaFacePass ? "已过人脸" : "已就绪")
           : st === "failed" ? ("失败: " + (asset.uploadError || ""))
           : st === "local" ? "本地文件（可 multipart）"
           : "待处理";
         tools.appendChild(mentionBtn);
         tools.appendChild(removeBtn);
         tools.appendChild(status);
-        meta.appendChild(nameInput);
+        meta.appendChild(tagEl);
         meta.appendChild(tools);
         row.appendChild(preview);
         row.appendChild(meta);
@@ -930,17 +1198,17 @@
         const info = document.createElement("div");
         const title = document.createElement("div");
         title.className = "mention-title";
-        title.textContent = "@" + asset.name;
+        title.textContent = "@" + asset.tag;
         const sub = document.createElement("div");
         sub.className = "mention-sub";
-        sub.textContent = kindLabel(asset.kind);
+        sub.textContent = "将作为参考传入模型";
         info.appendChild(title);
         info.appendChild(sub);
         item.appendChild(thumb);
         item.appendChild(info);
         item.onclick = () => {
           insertMention(asset);
-          els.mentionMenu.classList.remove("show");
+          hideMentionMenu();
         };
         els.mentionMenu.appendChild(item);
       });
@@ -957,12 +1225,12 @@
       const node = document.createElement("span");
       node.className = "prompt-mention";
       node.contentEditable = "false";
-      node.dataset.name = asset.name;
+      node.dataset.name = asset.tag;
       node.dataset.id = asset.id;
       if (asset.kind === "image" && asset.previewUrl) {
         const img = document.createElement("img");
         img.src = asset.previewUrl;
-        img.alt = asset.name;
+        img.alt = asset.tag;
         node.appendChild(img);
       } else if (asset.kind === "video" && asset.previewUrl) {
         const video = document.createElement("video");
@@ -971,7 +1239,7 @@
         node.appendChild(video);
       }
       const label = document.createElement("span");
-      label.textContent = "@" + asset.name;
+      label.textContent = "@" + asset.tag;
       node.appendChild(label);
       return node;
     }
@@ -1000,6 +1268,65 @@
       range.collapse(true);
       return range;
     }
+    function getCaretClientRect() {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) return null;
+      const range = selection.getRangeAt(0);
+      if (!rangeInsidePrompt(range)) return null;
+      let rect = range.getBoundingClientRect();
+      if ((!rect || (rect.width === 0 && rect.height === 0)) && mentionTriggerRange) {
+        rect = mentionTriggerRange.getBoundingClientRect();
+      }
+      if (!rect || (rect.width === 0 && rect.height === 0)) {
+        try {
+          const probe = document.createRange();
+          probe.setStart(range.startContainer, Math.max(0, range.startOffset - 1));
+          probe.setEnd(range.startContainer, range.startOffset);
+          rect = probe.getBoundingClientRect();
+        } catch {
+          return null;
+        }
+      }
+      if (!rect || (rect.top === 0 && rect.bottom === 0 && rect.left === 0)) return null;
+      return rect;
+    }
+    function positionMentionMenu() {
+      if (!els.mentionMenu.classList.contains("show")) return;
+      const caret = getCaretClientRect();
+      const menu = els.mentionMenu;
+      const gap = 6;
+      const pad = 8;
+      const menuWidth = Math.min(menu.offsetWidth || 280, window.innerWidth - pad * 2);
+      const menuHeight = Math.min(menu.offsetHeight || 180, window.innerHeight - pad * 2);
+      let left = pad;
+      let top = pad;
+      if (caret) {
+        left = caret.left;
+        top = caret.bottom + gap;
+        if (top + menuHeight > window.innerHeight - pad) {
+          top = caret.top - menuHeight - gap;
+        }
+      } else {
+        const box = els.prompt.getBoundingClientRect();
+        left = box.left + 8;
+        top = box.bottom - menuHeight - 8;
+        if (top < pad) top = box.top + 8;
+      }
+      if (left + menuWidth > window.innerWidth - pad) left = window.innerWidth - pad - menuWidth;
+      left = Math.max(pad, left);
+      top = Math.max(pad, Math.min(top, window.innerHeight - menuHeight - pad));
+      menu.style.left = Math.round(left) + "px";
+      menu.style.top = Math.round(top) + "px";
+    }
+    function showMentionMenu() {
+      renderMentionMenu();
+      els.mentionMenu.classList.add("show");
+      requestAnimationFrame(positionMentionMenu);
+    }
+    function hideMentionMenu() {
+      els.mentionMenu.classList.remove("show");
+      mentionTriggerRange = null;
+    }
     function insertMention(asset) {
       els.prompt.focus();
       const node = createMentionNode(asset);
@@ -1013,6 +1340,7 @@
         els.prompt.appendChild(node);
         els.prompt.appendChild(spacer);
         moveCaretAfter(spacer);
+        hideMentionMenu();
         updateRefs();
         scheduleRebuild();
         return;
@@ -1021,44 +1349,34 @@
       range.insertNode(spacer);
       range.insertNode(node);
       moveCaretAfter(spacer);
+      hideMentionMenu();
       updateRefs();
       scheduleRebuild();
     }
     function updateRefs() {
       els.refList.innerHTML = "";
-      const refs = referencedAssets();
-      if (!refs.length) {
-        const empty = document.createElement("p");
-        empty.className = "hint";
-        empty.textContent = "暂无引用。";
-        els.refList.appendChild(empty);
-        return;
-      }
-      refs.forEach(({ name, asset }) => {
+      if (!assets.length) return;
+      assets.forEach((asset) => {
         const pill = document.createElement("div");
         pill.className = "ref-pill";
         const thumb = document.createElement("div");
         thumb.className = "ref-thumb";
-        if (asset?.kind === "image" && asset.previewUrl) {
+        if (asset.kind === "image" && asset.previewUrl) {
           const img = document.createElement("img");
           img.src = asset.previewUrl;
           thumb.appendChild(img);
-        } else if (asset?.kind === "video" && asset.previewUrl) {
+        } else if (asset.kind === "video" && asset.previewUrl) {
           const video = document.createElement("video");
           video.src = asset.previewUrl;
           video.muted = true;
           thumb.appendChild(video);
         } else {
-          thumb.textContent = asset ? kindLabel(asset.kind) : "?";
+          thumb.textContent = kindLabel(asset.kind).slice(0, 1);
         }
         const label = document.createElement("span");
-        label.className = "ref-name";
-        label.textContent = "@" + name;
-        const type = document.createElement("small");
-        type.textContent = asset ? kindLabel(asset.kind) : "未找到";
+        label.textContent = "@" + asset.tag;
         pill.appendChild(thumb);
         pill.appendChild(label);
-        pill.appendChild(type);
         els.refList.appendChild(pill);
       });
     }
@@ -1103,20 +1421,14 @@
       renderAssets();
       const form = new FormData();
       form.append("image", asset.file, asset.file.name);
-      const response = await fetch(FACE_DETECT_API, {
-        method: "POST",
-        body: form,
-      });
+      const response = await fetch(FACE_DETECT_API, { method: "POST", body: form });
       const data = await readJson(response);
-      if (!response.ok || data.ok === false) {
-        throw new Error(formatError(data, response.status));
-      }
+      if (!response.ok || data.ok === false) throw new Error(formatError(data, response.status));
       const url = extractUploadUrl(data);
       if (!url) throw new Error("人脸服务未返回 url");
       asset.publicUrl = url;
       asset.viaFacePass = true;
       asset.uploadStatus = "ready";
-      // previewUrl 保持本地原图 blob，不展示处理后图
       renderAssets();
       return asset;
     }
@@ -1167,7 +1479,6 @@
           asset.uploadStatus = "ready";
           continue;
         }
-        // 已过人脸的素材必须用处理后 URL，不能再 multipart 直传原文件
         if (preferMultipart && asset.file && !asset.viaFacePass) {
           asset.uploadStatus = asset.uploadStatus === "ready" ? "ready" : "local";
           continue;
@@ -1175,7 +1486,7 @@
         if (asset.file && asset.kind === "image") {
           await uploadImageAsset(asset, facePassEnabled() || !!asset.viaFacePass);
         } else if (!asset.publicUrl) {
-          throw new Error(`素材 @${asset.name} 需要公网 URL（可上传图床或粘贴链接）`);
+          throw new Error(`素材 @${asset.tag || asset.name} 需要公网 URL（可上传图床或粘贴链接）`);
         }
       }
     }
@@ -1196,7 +1507,6 @@
     }
 
     function buildDoubaoBody(submitAssets) {
-      const mode = els.mode.value;
       const body = {
         model: activeModelName(),
         generate_audio: els.generateAudio.value === "1",
@@ -1205,7 +1515,7 @@
         duration: Number(els.duration.value),
         watermark: els.watermark.value === "1",
       };
-      if (mode === "text_to_video" || !submitAssets.length) {
+      if (!submitAssets.length) {
         body.prompt = promptText();
         body.metadata = {
           ratio: body.ratio,
@@ -1239,7 +1549,6 @@
         aspect_ratio: els.aspectRatio.value,
         resolution: els.resolution.value,
       };
-      // OpenAI Videos uses `seconds`; Seedance-compatible APIs often use `duration`.
       if (profile().family === "openai") {
         body.seconds = String(body.duration);
       }
@@ -1293,32 +1602,13 @@
       }
     }
 
-    function applyModelUI() {
-      const p = profile();
-      currentFamily = p.family;
-      els.customModelField.classList.toggle("hidden", !isCustomModel());
-      if (isCustomModel()) {
-        els.modelHint.textContent = "自定义模型 · OpenAI Videos 协议（同 seedance2.0）。";
-      } else {
-        els.modelHint.textContent = p.hint;
-      }
-      els.modeField.classList.toggle("hidden", !p.showMode);
-      els.resolutionField.classList.toggle("hidden", !p.showResolution);
-      els.audioWatermarkRow.classList.toggle("hidden", !p.showAudioWatermark);
-      els.mingizSendField.classList.toggle("hidden", !p.showMingizSend);
-      const cur = Number(els.duration.value) || p.defaultDuration;
-      els.duration.innerHTML = p.durations.map((d) =>
-        `<option value="${d}" ${d === (p.durations.includes(cur) ? cur : p.defaultDuration) ? "selected" : ""}>${d} 秒</option>`
-      ).join("");
-      els.apiBaseHint.textContent = `当前请求：${apiBase()}${p.createPath} · model=${activeModelName()}`;
-      scheduleRebuild();
-    }
-
     function validate() {
       const tokenError = ensureTokenReady();
       if (tokenError) return tokenError;
       if (!promptText()) return "请填写提示词。";
-      if (isCustomModel() && !(els.customModel.value || "").trim()) return "请填写自定义模型 ID。";
+      if (!els.model.value || !plazaModels.some((m) => m.id === els.model.value)) {
+        return "请选择模型广场中的可用模型。";
+      }
       const missing = referencedAssets().filter((ref) => !ref.asset).map((ref) => ref.name);
       if (missing.length) return `提示词引用了不存在的素材：${missing.map((n) => "@" + n).join("、")}`;
       const p = profile();
@@ -1335,12 +1625,10 @@
 
     function lock(isBusy) {
       els.submitBtn.disabled = isBusy;
-      els.pollBtn.disabled = isBusy || !currentTaskId;
-      els.stopBtn.disabled = !polling;
     }
 
     function hideTaskResult() {
-      els.result.style.display = "none";
+      els.previewModal.classList.remove("show");
       els.video.removeAttribute("src");
       els.video.load();
       if (previewObjectUrl) {
@@ -1359,17 +1647,19 @@
         || "";
     }
 
-    async function showTaskResult(taskId, directUrl = "") {
+    async function showTaskResult(taskId, directUrl = "", family = "") {
       if (directUrl) {
         els.video.src = directUrl;
         els.download.href = directUrl;
         els.download.download = `${taskId}.mp4`;
-        els.result.style.display = "block";
+        els.previewModal.classList.add("show");
         setStatus("成片已就绪，可预览或下载。", "ok");
         return;
       }
       setStatus("正在拉取成片预览…");
-      const p = profile();
+      const tokenError = ensureTokenReady();
+      if (tokenError) throw new Error(tokenError);
+      const p = profileByFamily(family || currentFamily);
       const response = await fetch(`${apiBase()}${p.contentPath(taskId)}`, { headers: authHeaders() });
       if (!response.ok) {
         const data = await readJson(response);
@@ -1381,59 +1671,126 @@
       els.video.src = previewObjectUrl;
       els.download.href = previewObjectUrl;
       els.download.download = `${taskId}.mp4`;
-      els.result.style.display = "block";
+      els.previewModal.classList.add("show");
       setStatus("成片已就绪，可预览或下载。", "ok");
     }
 
-    function renderTasks(tasks = readTasks()) {
-      els.taskList.innerHTML = "";
-      if (!tasks.length) {
-        const empty = document.createElement("div");
-        empty.className = "task-empty";
-        empty.textContent = "暂无任务。提交后会显示在这里。";
-        els.taskList.appendChild(empty);
+    async function downloadTask(task) {
+      if (task.resultUrl) {
+        const a = document.createElement("a");
+        a.href = task.resultUrl;
+        a.download = `${task.id}.mp4`;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.click();
         return;
       }
-      tasks.forEach((task) => {
-        const row = document.createElement("div");
-        row.className = "task-row";
-        const badge = document.createElement("div");
-        badge.className = "task-badge " + statusKind(task.status);
-        badge.textContent = statusLabel(task.status);
-        const mid = document.createElement("div");
-        mid.innerHTML = `<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis">${task.id}</div>
-          <div class="task-progress" style="margin-top:6px"><span style="--progress:${clampProgress(task.progress)}%"></span></div>`;
-        const percent = document.createElement("div");
-        percent.className = "task-percent";
-        percent.textContent = clampProgress(task.progress) + "%";
-        const actions = document.createElement("div");
-        actions.className = "task-actions";
-        const poll = document.createElement("button");
-        poll.type = "button";
-        poll.textContent = "刷新";
-        poll.onclick = () => pollOnce(task.id).catch((err) => setStatus(`轮询失败：${err.message}`, "bad"));
-        actions.appendChild(poll);
-        if (isSuccess(task.status)) {
-          const preview = document.createElement("button");
-          preview.type = "button";
-          preview.className = "preview-btn";
-          preview.textContent = "预览";
-          preview.onclick = () => showTaskResult(task.id, task.resultUrl || "").catch((err) => setStatus(err.message, "bad"));
-          actions.appendChild(preview);
+      await showTaskResult(task.id, "", task.family || "");
+    }
+
+    function buildHistCard(task, running) {
+      const card = document.createElement("div");
+      card.className = "hist-card" + (running ? " running" : "");
+      const media = document.createElement("div");
+      media.className = "hist-media";
+      if (isSuccess(task.status) && task.resultUrl) {
+        const video = document.createElement("video");
+        video.src = task.resultUrl;
+        video.muted = true;
+        video.preload = "metadata";
+        media.appendChild(video);
+      } else if (isFailed(task.status)) {
+        media.textContent = "失败";
+      } else {
+        media.textContent = statusLabel(task.status) + " · " + clampProgress(task.progress) + "%";
+      }
+      const body = document.createElement("div");
+      body.className = "hist-body";
+      const prompt = document.createElement("div");
+      prompt.className = "hist-prompt";
+      prompt.textContent = task.prompt || task.params?.prompt || task.model || task.id;
+      const meta = document.createElement("div");
+      meta.className = "hist-meta";
+      const badge = document.createElement("div");
+      badge.className = "task-badge " + statusKind(task.status);
+      badge.textContent = statusLabel(task.status);
+      const model = document.createElement("span");
+      model.style.cssText = "font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+      model.textContent = task.model || "";
+      meta.appendChild(badge);
+      meta.appendChild(model);
+      if (running || isProcessing(task.status)) {
+        const bar = document.createElement("div");
+        bar.className = "task-progress";
+        bar.innerHTML = `<span style="--progress:${clampProgress(task.progress)}%"></span>`;
+        body.appendChild(prompt);
+        body.appendChild(meta);
+        body.appendChild(bar);
+      } else {
+        body.appendChild(prompt);
+        body.appendChild(meta);
+        if (isFailed(task.status) && task.fail_reason) {
+          const err = document.createElement("div");
+          err.style.cssText = "font-size:11px;color:#ff9baa";
+          err.textContent = task.fail_reason;
+          body.appendChild(err);
         }
-        row.appendChild(badge);
-        row.appendChild(mid);
-        row.appendChild(percent);
-        row.appendChild(actions);
-        els.taskList.appendChild(row);
-      });
+      }
+      const actions = document.createElement("div");
+      actions.className = "hist-actions";
+      if (isSuccess(task.status)) {
+        const preview = document.createElement("button");
+        preview.type = "button";
+        preview.className = "secondary";
+        preview.textContent = "预览";
+        preview.onclick = () => showTaskResult(task.id, task.resultUrl || "", task.family || "").catch((err) => setStatus(err.message, "bad"));
+        actions.appendChild(preview);
+        const dl = document.createElement("button");
+        dl.type = "button";
+        dl.className = "secondary";
+        dl.textContent = "下载";
+        dl.onclick = () => downloadTask(task).catch((err) => setStatus(err.message, "bad"));
+        actions.appendChild(dl);
+      } else if (isProcessing(task.status)) {
+        const refresh = document.createElement("button");
+        refresh.type = "button";
+        refresh.className = "secondary";
+        refresh.textContent = "刷新";
+        refresh.onclick = () => pollOnce(task.id).catch((err) => setStatus(`轮询失败：${err.message}`, "bad"));
+        actions.appendChild(refresh);
+      }
+      const remake = document.createElement("button");
+      remake.type = "button";
+      remake.className = "secondary";
+      remake.textContent = "再做一条";
+      remake.onclick = () => remakeFromTask(task);
+      actions.appendChild(remake);
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "danger";
+      del.textContent = "删除";
+      del.onclick = () => deleteTask(task.id);
+      actions.appendChild(del);
+      body.appendChild(actions);
+      card.appendChild(media);
+      card.appendChild(body);
+      return card;
+    }
+
+    function renderTasks(tasks = readTasks()) {
+      els.runningList.innerHTML = "";
+      els.historyGrid.innerHTML = "";
+      const running = tasks.filter((t) => isProcessing(t.status));
+      const done = tasks.filter((t) => !isProcessing(t.status));
+      running.forEach((task) => els.runningList.appendChild(buildHistCard(task, true)));
+      done.forEach((task) => els.historyGrid.appendChild(buildHistCard(task, false)));
+      els.historyEmpty.classList.toggle("hidden", tasks.length > 0);
+      els.historyCount.textContent = `${tasks.length} 条 · 进行中 ${running.length}`;
     }
 
     async function submitTask() {
       const error = validate();
       if (error) { setStatus(error, "bad"); return; }
-      stopPolling();
-      hideTaskResult();
       currentTaskId = "";
       lock(true);
       try {
@@ -1452,7 +1809,6 @@
         setStatus(plan.preferMultipart ? "准备 multipart 提交…" : "确认素材 / 上传图床…");
         await ensureAssetsReady(plan.assets, plan.preferMultipart);
         if (!plan.preferMultipart) {
-          // 图床上传后重建一次，确保 URL 写入 body（若用户未手改）
           const fresh = buildRequestPlan();
           if (!els.payloadPreview.dataset.dirty) {
             plan = fresh;
@@ -1472,7 +1828,6 @@
           form.append("aspect_ratio", els.aspectRatio.value);
           form.append("resolution", els.resolution.value);
           for (const asset of plan.assets) {
-            // 过人脸后只把处理后公网 URL 给模型，不直传本地原图
             if (asset.viaFacePass && asset.publicUrl) form.append("images", asset.publicUrl);
             else if (asset.file) form.append("reference_images", asset.file, asset.file.name);
             else if (asset.publicUrl) form.append("images", asset.publicUrl);
@@ -1494,16 +1849,22 @@
         currentTaskId = data.task_id || data.id || data.data?.task_id || data.data?.id;
         if (!currentTaskId) throw new Error("提交成功但未返回 task_id");
         currentFamily = profile().family;
+        const params = snapshotParams();
         upsertTask({
           id: currentTaskId,
           status: data.status || data.data?.status || "queued",
           progress: data.progress ?? data.data?.progress ?? 0,
           family: currentFamily,
+          model: activeModelName(),
+          prompt: params.prompt,
+          params,
           createdAt: Date.now(),
+          resultUrl: "",
+          fail_reason: "",
         });
         setStatus(`任务已创建：${currentTaskId}`, "ok");
         els.payloadPreview.dataset.dirty = "";
-        startPolling();
+        ensurePolling();
       } catch (err) {
         setStatus(`提交失败：${err.message}`, "bad");
       } finally {
@@ -1518,7 +1879,7 @@
       currentTaskId = taskId;
       const taskMeta = readTasks().find((t) => t.id === taskId);
       const family = taskMeta?.family || profile().family;
-      const p = Object.values(MODEL_PROFILES).find((x) => x.family === family) || profile();
+      const p = profileByFamily(family);
       const response = await fetch(`${apiBase()}${p.queryPath(taskId)}`, { headers: authHeaders() });
       const data = await readJson(response);
       if (!response.ok) throw new Error(formatError(data, response.status));
@@ -1527,66 +1888,87 @@
       const progress = payload.progress ?? 0;
       const resultUrl = extractVideoUrl(payload) || extractVideoUrl(data);
       const failReason = payload.fail_reason || payload.error?.message || payload.message || "";
-      upsertTask({
+      const patch = {
         id: taskId,
         status,
         progress,
-        resultUrl,
+        resultUrl: resultUrl || taskMeta?.resultUrl || "",
         fail_reason: failReason,
         family,
         updatedAt: Date.now(),
-      });
-      setStatus(`任务 ${taskId}\n状态：${statusLabel(status)}（${progress}）` + (failReason && isFailed(status) ? `\n原因：${failReason}` : ""));
+      };
+      upsertTask(patch);
       if (isSuccess(status)) {
-        stopPolling();
-        await showTaskResult(taskId, resultUrl);
+        setStatus(`任务 ${taskId} 已完成。`, "ok");
       } else if (isFailed(status)) {
-        stopPolling();
         setStatus(`任务失败：${failReason || status}`, "bad");
+      } else {
+        setStatus(`任务 ${taskId}\n状态：${statusLabel(status)}（${clampProgress(progress)}%）`);
       }
+      ensurePolling();
     }
 
-    function startPolling() {
-      if (!currentTaskId || polling) return;
+    async function pollAllPending() {
+      if (pollInFlight) return;
+      const pending = readTasks().filter((t) => isProcessing(t.status));
+      if (!pending.length) {
+        stopPolling();
+        return;
+      }
+      pollInFlight = true;
+      try {
+        for (const task of pending) {
+          try {
+            await pollOnce(task.id);
+          } catch (err) {
+            setStatus(`轮询失败（${task.id}）：${err.message}`, "bad");
+          }
+        }
+      } finally {
+        pollInFlight = false;
+      }
+      if (!readTasks().some((t) => isProcessing(t.status))) stopPolling();
+    }
+
+    function ensurePolling() {
+      const pending = readTasks().filter((t) => isProcessing(t.status));
+      if (!pending.length) {
+        stopPolling();
+        return;
+      }
+      if (!currentTaskId) currentTaskId = pending[0].id;
+      if (polling) return;
       polling = true;
-      lock(false);
-      pollOnce().catch((err) => setStatus(`轮询失败：${err.message}`, "bad"));
+      pollAllPending();
       pollTimer = window.setInterval(() => {
-        pollOnce().catch((err) => {
-          stopPolling();
-          setStatus(`轮询失败：${err.message}`, "bad");
-        });
+        pollAllPending();
       }, 12000);
     }
     function stopPolling() {
       polling = false;
       window.clearInterval(pollTimer);
       pollTimer = 0;
-      lock(false);
     }
 
     function clearAll() {
-      stopPolling();
-      currentTaskId = "";
       assets.forEach((a) => a.previewUrl && a.previewUrl.startsWith("blob:") && URL.revokeObjectURL(a.previewUrl));
       assets = [];
       els.assetFiles.value = "";
       hideTaskResult();
       renderAssets();
-      renderTasks();
       lock(false);
-      setStatus("已清空创作区。");
+      setStatus("已清空创作区（历史保留）。");
     }
 
     async function handleFilesSelected() {
-      const usedNames = new Set(assets.map((a) => a.name));
       const incoming = Array.from(els.assetFiles.files || []).map((file) => {
         const kind = assetKind(file);
         return {
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           file,
           kind,
-          name: uniqueAssetName(fileBaseName(file), usedNames),
+          name: file.name || kindLabel(kind),
+          tag: "",
           previewUrl: URL.createObjectURL(file),
           uploadStatus: "pending",
           publicUrl: "",
@@ -1618,7 +2000,7 @@
           asset.uploadStatus = "failed";
           asset.uploadError = err.message;
           renderAssets();
-          setStatus(`素材 @${asset.name} 上传失败：${err.message}`, "bad");
+          setStatus(`素材 @${asset.tag || asset.name} 上传失败：${err.message}`, "bad");
         }
       }
       const ok = incoming.filter((a) => a.publicUrl || a.uploadStatus === "local").length;
@@ -1632,13 +2014,13 @@
         setStatus("请输入有效的 http(s) URL。", "bad");
         return;
       }
-      const usedNames = new Set(assets.map((a) => a.name));
       const kind = assetKind(url);
       const asset = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         file: null,
         kind,
-        name: uniqueAssetName(kindLabel(kind), usedNames),
+        name: kindLabel(kind),
+        tag: "",
         previewUrl: kind === "image" || kind === "video" ? url : "",
         uploadStatus: "ready",
         publicUrl: url,
@@ -1648,7 +2030,7 @@
       assets.push(asset);
       els.manualUrl.value = "";
       renderAssets();
-      setStatus(`已添加素材 URL：@${asset.name}`, "ok");
+      setStatus(`已添加素材：@${asset.tag}`, "ok");
     }
 
     async function copyCurl() {
@@ -1666,50 +2048,110 @@
       setStatus("curl 已复制到剪贴板。", "ok");
     }
 
-    function initModels() {
-      els.model.innerHTML = Object.entries(MODEL_PROFILES).map(([id, p]) =>
-        `<option value="${id}">${p.label}</option>`
-      ).join("") + `<option value="${CUSTOM_MODEL_VALUE}">自定义模型（OpenAI Videos）</option>`;
-      const saved = readLocal(STORAGE.model);
-      const savedCustom = readLocal(STORAGE.customModel) || DEFAULT_CUSTOM_MODEL;
-      els.customModel.value = savedCustom;
-      if (saved === CUSTOM_MODEL_VALUE || (saved && !MODEL_PROFILES[saved])) {
-        els.model.value = CUSTOM_MODEL_VALUE;
-        if (saved && saved !== CUSTOM_MODEL_VALUE) els.customModel.value = saved;
+    function applyModelUI() {
+      const p = profile();
+      currentFamily = p.family;
+      if (els.customModelField) els.customModelField.classList.add("hidden");
+      const meta = plazaModels.find((m) => m.id === els.model.value);
+      if (meta && meta.description) {
+        els.modelHint.textContent = `${meta.description} · ${p.hint}`;
       } else {
-        els.model.value = MODEL_PROFILES[saved] ? saved : "doubao-seedance-2-0-260128";
+        els.modelHint.textContent = plazaLoaded
+          ? (els.model.value ? p.hint : "模型广场暂无可用的 Seedance / 视频模型。")
+          : "正在从模型广场加载…";
       }
+      els.modeField.classList.toggle("hidden", !p.showMode);
+      els.resolutionField.classList.toggle("hidden", !p.showResolution);
+      els.audioField.classList.toggle("hidden", !p.showAudioWatermark);
+      els.watermarkField.classList.toggle("hidden", !p.showAudioWatermark);
+      els.mingizSendField.classList.toggle("hidden", !p.showMingizSend);
+      const cur = Number(els.duration.value) || p.defaultDuration;
+      els.duration.innerHTML = p.durations.map((d) =>
+        `<option value="${d}" ${d === (p.durations.includes(cur) ? cur : p.defaultDuration) ? "selected" : ""}>${d} 秒</option>`
+      ).join("");
+      els.apiBaseHint.textContent = els.model.value
+        ? `当前请求：${apiBase()}${p.createPath} · model=${activeModelName()}`
+        : "请选择模型广场中的模型。";
+      scheduleRebuild();
     }
 
-    function init() {
+    async function loadPlazaModels() {
+      try {
+        const res = await siteApi("/api/pricing");
+        const data = await readJson(res);
+        if (!res.ok || data.success === false) {
+          throw new Error(data.message || `HTTP ${res.status}`);
+        }
+        const items = Array.isArray(data.data) ? data.data : [];
+        plazaModels = items
+          .filter(isSeedancePlazaItem)
+          .map((item) => ({
+            id: item.model_name,
+            label: item.model_name,
+            description: item.description || "",
+            profileKey: resolveProfileKey(item.model_name),
+          }))
+          .sort((a, b) => a.id.localeCompare(b.id, "zh-CN"));
+        // 去重
+        const seen = new Set();
+        plazaModels = plazaModels.filter((m) => {
+          if (seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        });
+        plazaLoaded = true;
+      } catch (err) {
+        plazaModels = [];
+        plazaLoaded = true;
+        setStatus(`加载模型广场失败：${err.message}`, "bad");
+      }
+      renderModelSelect();
+    }
+
+    function renderModelSelect() {
+      const saved = readLocal(STORAGE.model);
+      if (!plazaModels.length) {
+        els.model.innerHTML = `<option value="">（模型广场暂无可用模型）</option>`;
+        els.model.value = "";
+        applyModelUI();
+        return;
+      }
+      els.model.innerHTML = plazaModels.map((m) =>
+        `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`
+      ).join("");
+      const preferred = plazaModels.find((m) => m.id === saved) || plazaModels[0];
+      els.model.value = preferred.id;
+      saveLocal(STORAGE.model, preferred.id);
+      applyModelUI();
+    }
+
+    function initModels() {
+      els.model.innerHTML = `<option value="">加载模型广场…</option>`;
+      els.customModelField.classList.add("hidden");
+    }
+
+    async function init() {
       initModels();
-      els.token.value = readLocal(STORAGE.key);
       els.apiBase.value = readLocal(STORAGE.apiBase);
       els.imageHost.value = readLocal(STORAGE.imageHost) || DEFAULT_IMAGE_HOST;
       els.imageToken.value = readLocal(STORAGE.imageToken) || DEFAULT_IMAGE_TOKEN;
       if (!readLocal(STORAGE.imageToken)) saveLocal(STORAGE.imageToken, DEFAULT_IMAGE_TOKEN);
       if (!readLocal(STORAGE.imageHost)) saveLocal(STORAGE.imageHost, DEFAULT_IMAGE_HOST);
-      applyModelUI();
       renderTasks();
       renderAssets();
       lock(false);
-      if (els.token.value) setStatus("已载入本地 API Key，可以开始。", "ok");
+      await initAuth();
+      await loadPlazaModels();
+      ensurePolling();
     }
 
     els.model.addEventListener("change", () => {
-      if (isCustomModel() && !(els.customModel.value || "").trim()) {
-        els.customModel.value = DEFAULT_CUSTOM_MODEL;
-      }
-      saveLocal(STORAGE.model, isCustomModel() ? CUSTOM_MODEL_VALUE : els.model.value);
-      saveLocal(STORAGE.customModel, (els.customModel.value || "").trim() || DEFAULT_CUSTOM_MODEL);
+      saveLocal(STORAGE.model, els.model.value);
       applyModelUI();
-      setStatus(`已切换模型：${activeModelName()}`, "ok");
+      setStatus(els.model.value ? `已切换模型：${activeModelName()}` : "请选择模型。", els.model.value ? "ok" : "warn");
     });
     els.customModel.addEventListener("input", () => {
-      saveLocal(STORAGE.customModel, (els.customModel.value || "").trim() || DEFAULT_CUSTOM_MODEL);
-      els.payloadPreview.dataset.dirty = "";
-      scheduleRebuild();
-      els.apiBaseHint.textContent = `当前请求：${apiBase()}${profile().createPath} · model=${activeModelName()}`;
+      // 保留字段兼容旧本地配置；模型列表已改为模型广场，不再使用自定义 ID
     });
     ["mode", "mingizSend", "duration", "aspectRatio", "resolution", "generateAudio", "watermark"].forEach((id) => {
       els[id].addEventListener("change", () => {
@@ -1731,20 +2173,34 @@
       const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
       const node = range ? range.startContainer : null;
       const before = node && node.nodeType === Node.TEXT_NODE ? node.textContent.slice(0, range.startOffset) : "";
-      if (before.endsWith("@")) {
+      if (before.endsWith("@") && assets.length) {
         mentionTriggerRange = range.cloneRange();
-        els.mentionMenu.classList.add("show");
+        showMentionMenu();
       } else {
-        mentionTriggerRange = null;
-        els.mentionMenu.classList.remove("show");
+        hideMentionMenu();
       }
       updateRefs();
       scheduleRebuild();
     });
-    els.prompt.addEventListener("blur", () => setTimeout(() => els.mentionMenu.classList.remove("show"), 180));
+    els.prompt.addEventListener("keyup", () => {
+      if (els.mentionMenu.classList.contains("show")) positionMentionMenu();
+    });
+    els.prompt.addEventListener("scroll", () => {
+      if (els.mentionMenu.classList.contains("show")) positionMentionMenu();
+    }, { passive: true });
+    window.addEventListener("resize", () => {
+      if (els.mentionMenu.classList.contains("show")) positionMentionMenu();
+    });
+    window.addEventListener("scroll", () => {
+      if (els.mentionMenu.classList.contains("show")) positionMentionMenu();
+    }, true);
+    els.prompt.addEventListener("blur", () => setTimeout(() => {
+      if (!els.mentionMenu.contains(document.activeElement)) hideMentionMenu();
+    }, 180));
     els.saveKeyBtn.addEventListener("click", () => {
-      const key = normalizeApiKey(els.token.value);
+      const key = withSkPrefix(els.token.value);
       if (!key || !/^sk-/i.test(key)) { setStatus("请填写有效的 sk- API Key。", "bad"); return; }
+      els.token.value = key;
       saveLocal(STORAGE.key, key);
       setStatus("Key 已保存。", "ok");
     });
@@ -1770,14 +2226,25 @@
       els.imageToken.type = show ? "text" : "password";
       els.toggleImageTokenBtn.textContent = show ? "隐藏" : "显示";
     });
+    els.tokenSelect.addEventListener("change", () => {
+      const id = els.tokenSelect.value;
+      if (!id) return;
+      fetchSessionKey(id)
+        .then(() => setStatus("已切换令牌。", "ok"))
+        .catch((err) => {
+          sessionKey = "";
+          setStatus(`切换令牌失败：${err.message}`, "bad");
+        });
+    });
     els.clearAllBtn.addEventListener("click", clearAll);
     els.submitBtn.addEventListener("click", submitTask);
-    els.pollBtn.addEventListener("click", () => pollOnce().catch((err) => setStatus(`轮询失败：${err.message}`, "bad")));
-    els.stopBtn.addEventListener("click", stopPolling);
     els.copyCurlBtn.addEventListener("click", () => copyCurl().catch((err) => setStatus(err.message, "bad")));
     els.closePreviewBtn.addEventListener("click", hideTaskResult);
+    els.previewModal.addEventListener("click", (e) => {
+      if (e.target === els.previewModal) hideTaskResult();
+    });
 
-    init();
+    init().catch((err) => setStatus(`初始化失败：${err.message}`, "bad"));
   </script>
 </body>
 </html>
