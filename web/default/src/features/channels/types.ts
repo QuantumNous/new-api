@@ -91,6 +91,31 @@ export interface ChannelSettings {
   system_prompt_override?: boolean
 }
 
+export interface GptImage2EndpointCapabilities {
+  enabled: boolean
+  multipart: boolean
+  uploaded_image: boolean
+  uploaded_mask: boolean
+  require_uploaded_image?: boolean
+  max_n: number
+  max_image_urls: number
+  mask_url: boolean
+  stream: boolean
+  partial_images: boolean
+  optional_fields?: string[]
+  allowed_values?: Record<string, string[]>
+  denied_values?: Record<string, string[]>
+}
+
+export interface GptImage2Capabilities {
+  version: 1
+  enabled: boolean
+  official_alias: boolean
+  generations?: GptImage2EndpointCapabilities
+  async_generations?: GptImage2EndpointCapabilities
+  edits?: GptImage2EndpointCapabilities
+}
+
 export interface ChannelOtherSettings {
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
@@ -109,6 +134,7 @@ export interface ChannelOtherSettings {
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
   gpt_image2_tier?: 'standard' | 'packy' | 'official'
+  gpt_image2_capabilities?: GptImage2Capabilities
   image_generation_submit_path?: 'auto' | 'generations' | 'generations_async'
 }
 

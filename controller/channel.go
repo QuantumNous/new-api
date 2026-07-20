@@ -444,6 +444,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
 	}
+	if err := channel.ValidateOtherSettings(); err != nil {
+		return fmt.Errorf("渠道额外设置[channel settings] 格式错误：%s", err.Error())
+	}
 
 	// 如果是添加操作，检查 channel 和 key 是否为空
 	if isAdd {
@@ -1002,6 +1005,7 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	service.InvalidateChannelRoutingCache()
 	service.ResetProxyClientCache()
 
 	// Re-fetch pricing after any channel update so key_group / base_url changes are reflected.

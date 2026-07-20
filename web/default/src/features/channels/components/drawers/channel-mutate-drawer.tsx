@@ -243,7 +243,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
-    values.upstream_model_update_ignored_models?.trim()
+    values.upstream_model_update_ignored_models?.trim() ||
+    values.gpt_image2_capabilities?.trim()
   )
 }
 
@@ -393,6 +394,36 @@ const CLIENT_EXCLUSIVE_OPTIONS = [
   { value: 'codex', label: 'Codex 专属' },
   { value: 'claude_code', label: 'Claude Code 专属' },
 ] as const
+
+const GPT_IMAGE_2_CAPABILITIES_TEMPLATE = {
+  version: 1,
+  enabled: true,
+  official_alias: false,
+  generations: {
+    enabled: true,
+    multipart: false,
+    uploaded_image: false,
+    uploaded_mask: false,
+    max_n: 1,
+    max_image_urls: 0,
+    mask_url: false,
+    stream: false,
+    partial_images: false,
+    optional_fields: ['size', 'resolution', 'quality'],
+  },
+  async_generations: {
+    enabled: true,
+    multipart: false,
+    uploaded_image: false,
+    uploaded_mask: false,
+    max_n: 1,
+    max_image_urls: 0,
+    mask_url: false,
+    stream: false,
+    partial_images: false,
+    optional_fields: ['size', 'resolution', 'quality'],
+  },
+}
 
 function ClientExclusiveField({
   control,
@@ -3435,6 +3466,55 @@ export function ChannelMutateDrawer({
                                   </FormItem>
                                 )}
                               />
+
+                              {currentModelsArray.includes('gpt-image-2') && (
+                                <FormField
+                                  control={form.control}
+                                  name='gpt_image2_capabilities'
+                                  render={({ field }) => (
+                                    <FormItem className='space-y-2 px-4 py-3'>
+                                      <div className='flex items-center justify-between gap-3'>
+                                        <div className='space-y-0.5'>
+                                          <FormLabel className='text-sm'>
+                                            {t('GPT-Image-2 capabilities')}
+                                          </FormLabel>
+                                          <FormDescription>
+                                            {t('Defines compatible image endpoints and request parameters. Configured capabilities override legacy channel-ID rules.')}
+                                          </FormDescription>
+                                        </div>
+                                        <div className='flex shrink-0 gap-2'>
+                                          <Button
+                                            type='button'
+                                            variant='outline'
+                                            size='sm'
+                                            onClick={() => field.onChange(JSON.stringify(GPT_IMAGE_2_CAPABILITIES_TEMPLATE, null, 2))}
+                                          >
+                                            {t('Generation template')}
+                                          </Button>
+                                          <Button
+                                            type='button'
+                                            variant='ghost'
+                                            size='sm'
+                                            onClick={() => field.onChange('')}
+                                          >
+                                            {t('Use legacy rules')}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <FormControl>
+                                        <Textarea
+                                          className='min-h-64 font-mono text-xs'
+                                          value={field.value || ''}
+                                          onChange={field.onChange}
+                                          disabled={isSubmitting}
+                                          placeholder={JSON.stringify(GPT_IMAGE_2_CAPABILITIES_TEMPLATE, null, 2)}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
 
                               <FormField
                                 control={form.control}

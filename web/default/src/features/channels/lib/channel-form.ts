@@ -77,6 +77,18 @@ export const channelFormSchema = z.object({
   image_generation_submit_path: z
     .enum(['auto', 'generations', 'generations_async'])
     .optional(),
+  gpt_image2_capabilities: z
+    .string()
+    .optional()
+    .refine((value) => {
+      if (!value?.trim()) return true
+      try {
+        const parsed = JSON.parse(value)
+        return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+      } catch {
+        return false
+      }
+    }, 'GPT-Image-2 capabilities must be a JSON object'),
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -152,6 +164,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_speed: false,
   claude_beta_query: false,
   image_generation_submit_path: 'auto',
+  gpt_image2_capabilities: '',
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -232,6 +245,7 @@ export function transformChannelToFormDefaults(
     | 'auto'
     | 'generations'
     | 'generations_async' = 'auto'
+  let gptImage2Capabilities = ''
 
   if (channel.settings) {
     try {
@@ -258,6 +272,12 @@ export function transformChannelToFormDefaults(
         : ''
       imageGenerationSubmitPath =
         parsed.image_generation_submit_path || 'auto'
+      if (
+        parsed.gpt_image2_capabilities &&
+        typeof parsed.gpt_image2_capabilities === 'object'
+      ) {
+        gptImage2Capabilities = JSON.stringify(parsed.gpt_image2_capabilities, null, 2)
+      }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -308,6 +328,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     image_generation_submit_path: imageGenerationSubmitPath,
+    gpt_image2_capabilities: gptImage2Capabilities,
     recharge_rate: channel.recharge_rate ?? undefined,
     apimaster_price_ratio: channel.apimaster_price_ratio ?? undefined,
     model_price_ratios: channel.model_price_ratios ?? '',
@@ -402,6 +423,11 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     } else {
       delete settingsObj.image_generation_submit_path
     }
+    if (formData.gpt_image2_capabilities?.trim()) {
+      settingsObj.gpt_image2_capabilities = JSON.parse(formData.gpt_image2_capabilities)
+    } else {
+      delete settingsObj.gpt_image2_capabilities
+    }
   } else {
     if ('disable_store' in settingsObj) delete settingsObj.disable_store
     if ('allow_safety_identifier' in settingsObj)
@@ -411,6 +437,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
       delete settingsObj.allow_inference_geo
     delete settingsObj.image_generation_submit_path
+    delete settingsObj.gpt_image2_capabilities
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed

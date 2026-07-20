@@ -191,6 +191,48 @@ func TestGptImage2PackyMultipartEditCapabilities(t *testing.T) {
 	require.False(t, gptImage2ChannelSupportsRequest(&model.Channel{Id: 73}, req))
 }
 
+func TestConfiguredGptImage2CapabilitiesOverrideLegacyChannelIDs(t *testing.T) {
+	t.Parallel()
+	endpoint := &dto.GptImage2EndpointCapabilities{
+		Enabled:        true,
+		MaxN:           1,
+		MaxImageURLs:   0,
+		OptionalFields: []string{"size", "resolution", "quality"},
+		AllowedValues: map[string][]string{
+			"resolution": {"1k", "2k", "4k"},
+			"quality":    {"medium", "high"},
+		},
+	}
+	settings := dto.ChannelOtherSettings{
+		GptImage2Capabilities: &dto.GptImage2Capabilities{
+			Version:     1,
+			Enabled:     true,
+			Generations: endpoint,
+		},
+	}
+	configured := &model.Channel{Id: 100}
+	configured.SetOtherSettings(settings)
+
+	req := gptImage2CapabilityRequestFromJSON("gpt-image-2", []byte(`{
+		"model":"gpt-image-2","prompt":"x","n":1,"size":"1:1","resolution":"4k","quality":"medium"
+	}`))
+	require.True(t, gptImage2ChannelSupportsRequest(configured, req))
+
+	req.N = 2
+	require.False(t, gptImage2ChannelSupportsRequest(configured, req))
+	req.N = 1
+	req.Resolution = "8k"
+	require.False(t, gptImage2ChannelSupportsRequest(configured, req))
+
+	// Once a capability matrix is present it is authoritative, even for a
+	// channel ID that legacy code otherwise recognizes.
+	disabledLegacy := &model.Channel{Id: 81}
+	disabledLegacy.SetOtherSettings(dto.ChannelOtherSettings{
+		GptImage2Capabilities: &dto.GptImage2Capabilities{Version: 1, Enabled: false},
+	})
+	require.False(t, gptImage2ChannelSupportsRequest(disabledLegacy, gptImage2CapabilityRequest{N: 1}))
+}
+
 func TestNormalizeGptImage2ModelName(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, "gpt-image-2", NormalizeGptImage2ModelName("gpt-image-2-official"))

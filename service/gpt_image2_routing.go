@@ -612,6 +612,8 @@ type gptImage2CapabilityRequest struct {
 	HasMaskURL        bool
 	HasStream         bool
 	HasPartialImages  bool
+	Size              string
+	Resolution        string
 	Quality           string
 	Background        string
 	OutputFormat      string
@@ -677,6 +679,8 @@ func gptImage2CapabilityRequestFromJSON(modelName string, raw []byte) gptImage2C
 	req.HasMaskURL = jsonFieldPresent(fields["mask_url"]) || jsonFieldPresent(fields["mask"])
 	req.HasStream = jsonFieldPresent(fields["stream"])
 	req.HasPartialImages = jsonFieldPresent(fields["partial_images"])
+	req.Size = jsonString(fields["size"])
+	req.Resolution = jsonString(fields["resolution"])
 	req.Quality = jsonString(fields["quality"])
 	req.Background = jsonString(fields["background"])
 	req.OutputFormat = jsonString(fields["output_format"])
@@ -696,6 +700,8 @@ func applyGptImage2FormCapabilities(req *gptImage2CapabilityRequest, values map[
 	if n, err := strconv.Atoi(firstGptImage2FormValue(values, "n")); err == nil && n > 0 {
 		req.N = n
 	}
+	req.Size = firstGptImage2FormValue(values, "size")
+	req.Resolution = firstGptImage2FormValue(values, "resolution")
 	req.Quality = firstGptImage2FormValue(values, "quality")
 	req.Background = firstGptImage2FormValue(values, "background")
 	req.OutputFormat = firstGptImage2FormValue(values, "output_format")
@@ -732,13 +738,119 @@ func jsonArrayLength(v json.RawMessage) int {
 	return 1
 }
 
-// gptImage2ChannelSupportsRequest applies the actual published contract of the
-// four enabled image routes. Auto-cheapest keeps walking its price-ordered list
-// whenever this function rejects a channel.
+func configuredGptImage2EndpointCapabilities(
+	capabilities *dto.GptImage2Capabilities,
+	req gptImage2CapabilityRequest,
+) *dto.GptImage2EndpointCapabilities {
+	if capabilities == nil {
+		return nil
+	}
+	if req.EditsPath {
+		return capabilities.Edits
+	}
+	if req.AsyncPath {
+		return capabilities.AsyncGenerations
+	}
+	return capabilities.Generations
+}
+
+func normalizedStringSet(values []string) map[string]bool {
+	set := make(map[string]bool, len(values))
+	for _, value := range values {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value != "" {
+			set[value] = true
+		}
+	}
+	return set
+}
+
+func configuredGptImage2FieldAllowed(
+	endpoint *dto.GptImage2EndpointCapabilities,
+	field string,
+	value string,
+) bool {
+	if strings.TrimSpace(value) == "" {
+		return true
+	}
+	fields := normalizedStringSet(endpoint.OptionalFields)
+	if !fields["*"] && !fields[strings.ToLower(field)] {
+		return false
+	}
+	value = strings.ToLower(strings.TrimSpace(value))
+	if denied := normalizedStringSet(endpoint.DeniedValues[field]); denied["*"] || denied[value] {
+		return false
+	}
+	if allowedValues, ok := endpoint.AllowedValues[field]; ok && len(allowedValues) > 0 {
+		allowed := normalizedStringSet(allowedValues)
+		return allowed["*"] || allowed[value]
+	}
+	return true
+}
+
+func configuredGptImage2ChannelSupportsRequest(
+	capabilities *dto.GptImage2Capabilities,
+	req gptImage2CapabilityRequest,
+) bool {
+	if capabilities == nil || !capabilities.Enabled || capabilities.Version != 1 {
+		return false
+	}
+	if req.ExplicitOfficial && !capabilities.OfficialAlias {
+		return false
+	}
+	endpoint := configuredGptImage2EndpointCapabilities(capabilities, req)
+	if endpoint == nil || !endpoint.Enabled {
+		return false
+	}
+	if req.Multipart && !endpoint.Multipart || req.HasUploadedImage && !endpoint.UploadedImage ||
+		req.HasUploadedMask && !endpoint.UploadedMask || endpoint.RequireUploadedImage && !req.HasUploadedImage ||
+		req.HasMaskURL && !endpoint.MaskURL || req.HasStream && !endpoint.Stream ||
+		req.HasPartialImages && !endpoint.PartialImages {
+		return false
+	}
+	if req.N < 1 || endpoint.MaxN <= 0 || req.N > endpoint.MaxN {
+		return false
+	}
+	if req.ImageURLCount > endpoint.MaxImageURLs {
+		return false
+	}
+	fields := map[string]string{
+		"size":            req.Size,
+		"resolution":      req.Resolution,
+		"quality":         req.Quality,
+		"background":      req.Background,
+		"output_format":   req.OutputFormat,
+		"response_format": req.ResponseFormat,
+		"moderation":      req.Moderation,
+		"input_fidelity":  req.InputFidelity,
+		"user":            req.User,
+		"style":           req.Style,
+	}
+	if req.OutputCompression {
+		fields["output_compression"] = "true"
+	}
+	for field, value := range fields {
+		if !configuredGptImage2FieldAllowed(endpoint, field, value) {
+			return false
+		}
+	}
+	return true
+}
+
+// gptImage2ChannelSupportsRequest uses the admin-configured capability matrix
+// when present. Legacy channel-ID rules remain only as a no-downtime fallback
+// for channels that have not been migrated yet.
 func gptImage2ChannelSupportsRequest(ch *model.Channel, req gptImage2CapabilityRequest) bool {
 	if ch == nil {
 		return false
 	}
+	if capabilities := ch.GetOtherSettings().GptImage2Capabilities; capabilities != nil {
+		return configuredGptImage2ChannelSupportsRequest(capabilities, req)
+	}
+	return legacyGptImage2ChannelSupportsRequest(ch, req)
+}
+
+func legacyGptImage2ChannelSupportsRequest(ch *model.Channel, req gptImage2CapabilityRequest) bool {
 	switch ch.Id {
 	case 59: // APIMart gpt-image-2-official
 		if req.EditsPath || req.Multipart || req.AsyncPath && req.HasUploadedImage {

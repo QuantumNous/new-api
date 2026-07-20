@@ -989,6 +989,17 @@ func (channel *Channel) ValidateSettings() error {
 	return nil
 }
 
+func (channel *Channel) ValidateOtherSettings() error {
+	if strings.TrimSpace(channel.OtherSettings) == "" {
+		return nil
+	}
+	settings := &dto.ChannelOtherSettings{}
+	if err := common.UnmarshalJsonStr(channel.OtherSettings, settings); err != nil {
+		return err
+	}
+	return settings.GptImage2Capabilities.Validate()
+}
+
 func (channel *Channel) GetSetting() dto.ChannelSettings {
 	setting := dto.ChannelSettings{}
 	if channel.Setting != nil && *channel.Setting != "" {
