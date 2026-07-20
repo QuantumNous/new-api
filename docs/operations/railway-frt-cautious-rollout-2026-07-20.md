@@ -286,3 +286,40 @@ HTTP 429/5xx、499、`stream disconnected before completion`、缺失 `response.
 定向 race 测试、Go vet、`git diff --check`、代码审查和静默失败专项复核。部署后需重点核对
 `retry will prefer a different upstream host` 后的实际渠道链，确认不同渠道 ID 不再连续命中同一
 共享上游；若所有不同 host 都无容量，仍应在原有有界窗口内失败，不能通过代码保证上游可用。
+
+## 跨上游选路版本上线验证
+
+- Railway deployment：`4dc97f88-366f-43c3-9834-0a458925ceca`
+- 部署工作树提交：`c710401c8`
+- 功能提交：`4bd055b0e`
+- 镜像：`sha256:3ae026392361bc95bed1aaf807507914d82dc1755b13808a240d6a137b1d05f5`
+- 上线时间：2026-07-20 20:58:46（Asia/Singapore）
+
+容器在约 2.3 秒内完成启动，PostgreSQL、Redis、迁移、内存缓存和渠道同步正常；
+`api.opwan.ai/api/status`、`test.opwan.ai/api/status` 和 `api.opwan.ai/` 均返回 HTTP 200。
+
+上线后约 10 分钟共观察到 185 个 `/v1/responses`：180 个 HTTP 200、1 个 500、1 个 502、
+3 个 503，没有 HTTP 429。最长请求约 52.3 秒并正常返回 200，确认本地两遍渠道扫描没有截断
+已建立的长 SSE。该窗口没有 `Concurrency limit exceeded` 或服务端
+`stream disconnected before completion`；仅 1 条 `client_gone`，断开前 309 ms 仍有上游数据，
+符合客户端主动取消。
+
+生产自然流量已经验证跨 host 选择生效：
+
+- `202607201303041977301318268d9d6IL1CcrvP`：#58 在 `ai.zyyun.xyz` 返回精确容量 503 后，
+  改选 #12 `xixiapi.cc`，其响应头超时后再选 #73 `api.hostcentral.cc`，最终 HTTP 200。渠道链
+  `#58 -> #12 -> #73` 不再重复同一 reseller；最终 attempt 首数据仅 2.919 秒，但前序 15 秒
+  响应头超时使请求级 FRT 达到 22.394 秒。
+- `202607201301598056195588268d9d60ejPkVr7`：配置内尝试包含 #42 `aiccxx.top` 超时和
+  #68 `ai.zyyun.xyz` 容量 503；两个额外机会依次切到 #73 `api.hostcentral.cc` 和 #72
+  `api.xtokenmirror.com`，都在既有 5 秒窗口内执行。所有异源均未及时返回，最终保留原容量
+  503；这属于真实上游同时不可用，不是重复同 host 浪费机会。
+- 其余失败链 `#73 -> #59 -> #70`、`#73 -> #59 -> #71`、`#58 -> #69 -> #38` 和
+  `#58 -> #69 -> #72` 均依次落在不同 host。另有 `#73 -> #38 -> #66`、
+  `#57 -> #72 -> #41`、`#57 -> #41` 等跨 host 重试最终恢复为 HTTP 200。
+
+当前仍保留一个谨慎边界：普通响应头超时只在当前优先级内软避让 host，不像明确 429/容量 503
+那样立即跨优先级；因此 `#66 -> #57 -> #41` 曾在 `ai.zyyun.xyz` 普通超时后同 host 再尝试一次，
+随后才切到 `aiccxx.top` 并恢复。扩大所有 transport error 的跨优先级迁移会改变运营优先级语义，
+本轮不继续放大。现阶段 20 秒以上首字主要来自单个上游 15 秒响应头超时或真实 8-10 秒首数据，
+不是本次选路扫描开销；继续依靠渠道健康、冷却和自然流量证据处理，不在本轮降低全局响应头超时。
