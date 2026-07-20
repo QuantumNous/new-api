@@ -64,8 +64,14 @@ const guideLinks = [
   ['troubleshooting', '故障排查'],
 ] as const
 
+type CommandPlatform = 'windows' | 'unix'
+
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`
+}
+
+function windowsCmdQuote(value: string): string {
+  return `"${value.replaceAll('"', '\\"')}"`
 }
 
 function resolveContextWindow(value: string): number | null {
@@ -84,7 +90,8 @@ function resolveContextWindow(value: string): number | null {
 function buildOpenClawCommand(
   apiKey: string,
   model: string,
-  contextWindow: number
+  contextWindow: number,
+  platform: CommandPlatform
 ): string {
   const providerConfig = JSON.stringify({
     baseUrl: apiBaseUrl,
@@ -99,10 +106,19 @@ function buildOpenClawCommand(
       },
     ],
   })
-  return `openclaw config set models.providers.kabuai ${shellQuote(providerConfig)} --strict-json --merge && openclaw config set agents.defaults.model.primary ${shellQuote(JSON.stringify(`kabuai/${model}`))} --strict-json`
+  const quote = platform === 'windows' ? windowsCmdQuote : shellQuote
+  return `openclaw config set models.providers.kabuai ${quote(providerConfig)} --strict-json --merge && openclaw config set agents.defaults.model.primary ${quote(JSON.stringify(`kabuai/${model}`))} --strict-json`
 }
 
-function CommandBlock({ command, label }: { command: string; label: string }) {
+function CommandBlock({
+  command,
+  label,
+  copyable = true,
+}: {
+  command: string
+  label: string
+  copyable?: boolean
+}) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
@@ -120,16 +136,18 @@ function CommandBlock({ command, label }: { command: string; label: string }) {
           <Terminal className='size-3.5' />
           <span>{label}</span>
         </div>
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          className='h-7 text-slate-300 hover:bg-slate-800 hover:text-white'
-          onClick={handleCopy}
-        >
-          {copied ? <Check /> : <Copy />}
-          {copied ? t('Copied') : t('Copy')}
-        </Button>
+        {copyable && (
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            className='h-7 text-slate-300 hover:bg-slate-800 hover:text-white'
+            onClick={handleCopy}
+          >
+            {copied ? <Check /> : <Copy />}
+            {copied ? t('Copied') : t('Copy')}
+          </Button>
+        )}
       </div>
       <pre className='overflow-x-auto p-4 text-[13px] leading-6 break-all whitespace-pre-wrap'>
         <code>{command}</code>
@@ -234,6 +252,11 @@ function OpenClawConfigurator() {
   const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null)
   const [selectedModel, setSelectedModel] = useState('')
   const [contextInput, setContextInput] = useState('')
+  const [commandPlatform, setCommandPlatform] = useState<CommandPlatform>(() =>
+    typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)
+      ? 'windows'
+      : 'unix'
+  )
   const [copied, setCopied] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -265,7 +288,8 @@ function OpenClawConfigurator() {
   const previewCommand = buildOpenClawCommand(
     'SELECTED_API_KEY',
     effectiveModel,
-    contextWindow ?? defaultContextWindow
+    contextWindow ?? defaultContextWindow,
+    commandPlatform
   )
 
   const handleCopyGeneratedCommand = async () => {
@@ -292,7 +316,8 @@ function OpenClawConfigurator() {
       const command = buildOpenClawCommand(
         apiKey,
         effectiveModel,
-        contextWindow
+        contextWindow,
+        commandPlatform
       )
       const success = await copyToClipboard(command)
       if (!success) {
@@ -336,6 +361,33 @@ function OpenClawConfigurator() {
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-5'>
+        <div className='bg-muted/40 flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between'>
+          <div>
+            <p className='text-sm font-medium'>选择命令运行环境</p>
+            <p className='text-muted-foreground text-xs'>
+              Windows 命令提示符和 Linux/macOS 使用不同的引号格式。
+            </p>
+          </div>
+          <div className='flex gap-2'>
+            <Button
+              type='button'
+              size='sm'
+              variant={commandPlatform === 'windows' ? 'default' : 'outline'}
+              onClick={() => setCommandPlatform('windows')}
+            >
+              Windows CMD
+            </Button>
+            <Button
+              type='button'
+              size='sm'
+              variant={commandPlatform === 'unix' ? 'default' : 'outline'}
+              onClick={() => setCommandPlatform('unix')}
+            >
+              Linux / macOS
+            </Button>
+          </div>
+        </div>
+
         <div className='grid gap-4 md:grid-cols-3'>
           <div className='space-y-2'>
             <Label htmlFor='openclaw-api-key'>API 密钥</Label>
@@ -414,7 +466,11 @@ function OpenClawConfigurator() {
           </div>
         </div>
 
-        <CommandBlock command={previewCommand} label='命令预览（密钥已隐藏）' />
+        <CommandBlock
+          command={previewCommand}
+          label={`${commandPlatform === 'windows' ? 'Windows CMD' : 'Linux / macOS'} 命令预览（密钥已隐藏）`}
+          copyable={false}
+        />
 
         <div className='bg-muted/40 rounded-xl border p-4 text-sm'>
           <p className='font-medium'>主动切换到当前选择的模型</p>
@@ -624,6 +680,10 @@ function TroubleshootingGuide() {
           ['401 / 认证失败', '重新选择 API 密钥，确认密钥处于启用状态。'],
           ['模型不存在', '确认所选密钥拥有对应模型权限。'],
           ['连接失败', `Base URL 必须为 ${apiBaseUrl}，不要重复添加 /v1。`],
+          [
+            'OpenClaw 版本不一致',
+            '如果提示配置由更高版本写入，请先运行 openclaw --version。Windows 再运行 where openclaw，Linux/macOS 运行 which openclaw，确保 CLI 与 Gateway 使用同一版本。',
+          ],
         ].map(([title, description]) => (
           <Card key={title} size='sm'>
             <CardHeader>
