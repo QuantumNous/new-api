@@ -114,8 +114,8 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
-		SuccessURL:        stripe.String(paymentReturnPath("/console/topup")),
-		CancelURL:         stripe.String(paymentReturnPath("/console/topup")),
+		SuccessURL:        stripe.String(paymentReturnPath("/wallet")),
+		CancelURL:         stripe.String(paymentReturnPath("/wallet")),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
 				Price:    stripe.String(priceId),
