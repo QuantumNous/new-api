@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-const agentDocsPath = '/zh/docs/apps/agent'
+const agentDocsUrl = 'https://api.kabuai.cn/docs/agent/index.html'
 
 export function resolveAgentDocsUrl(docsUrl: string): string {
   if (!docsUrl.startsWith('http')) return docsUrl
@@ -25,10 +25,7 @@ export function resolveAgentDocsUrl(docsUrl: string): string {
     const parsedDocsUrl = new URL(docsUrl)
     if (parsedDocsUrl.hostname !== 'docs.newapi.pro') return docsUrl
 
-    parsedDocsUrl.pathname = agentDocsPath
-    parsedDocsUrl.search = ''
-    parsedDocsUrl.hash = ''
-    return parsedDocsUrl.toString()
+    return agentDocsUrl
   } catch {
     return docsUrl
   }
