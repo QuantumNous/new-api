@@ -49,6 +49,7 @@ type DataTableFeatureOptions<TData> = Pick<
   | 'manualFiltering'
   | 'manualPagination'
   | 'manualSorting'
+  | 'enableSorting'
   | 'enableColumnResizing'
 >
 
@@ -292,7 +293,7 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     initialPagination = { pageIndex: 0, pageSize: 20 },
     withFilteredRowModel = !manualFiltering,
     withPaginationRowModel = !manualPagination,
-    withSortedRowModel = !manualSorting,
+    withSortedRowModel = !manualSorting && !manualPagination,
     withFacetedRowModel = !manualFiltering,
     withExpandedRowModel = false,
   } = options
@@ -370,6 +371,11 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     (totalCount !== undefined
       ? Math.ceil(totalCount / pagination.pageSize)
       : undefined)
+  const resolvedEnableSorting =
+    options.enableSorting ??
+    (!manualPagination ||
+      Boolean(options.sorting) ||
+      Boolean(options.onSortingChange))
 
   const table = useReactTable({
     data,
@@ -387,6 +393,7 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
       pagination,
     },
     enableRowSelection: options.enableRowSelection,
+    enableSorting: resolvedEnableSorting,
     getRowId: options.getRowId,
     getSubRows: options.getSubRows,
     globalFilterFn: options.globalFilterFn,
