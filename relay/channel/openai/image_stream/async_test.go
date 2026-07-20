@@ -1312,6 +1312,33 @@ func TestR2PutObjectUploadsBytesAndReturnsPublicURL(t *testing.T) {
 	assert.Equal(t, "https://cdn.example.com/images/hash.png", url)
 }
 
+func TestR2PutImageDedupedUsesShortStableObjectName(t *testing.T) {
+	raw := append([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}, []byte("short-result-name")...)
+	expectedKey := resultImageObjectKey(raw, "png")
+	assert.Regexp(t, `^images/[A-Za-z0-9_-]{22}\.png$`, expectedKey)
+	assert.Equal(t, expectedKey, resultImageObjectKey(raw, "png"))
+	assert.NotEqual(t, expectedKey, resultImageObjectKey(append(raw, 1), "png"))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/images/"+expectedKey, request.URL.Path)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	config := R2Config{
+		AccessKeyID:     "access-key",
+		SecretAccessKey: "secret-key",
+		AccountID:       "account",
+		Bucket:          "images",
+		PublicBase:      "https://cdn.example.com",
+		Endpoint:        server.URL,
+	}
+
+	publicURL, ext, err := config.PutImageDeduped(context.Background(), raw, "png")
+	require.NoError(t, err)
+	assert.Equal(t, "png", ext)
+	assert.Equal(t, "https://cdn.example.com/"+expectedKey, publicURL)
+}
+
 func TestR2PutObjectRejectsS3ErrorResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)

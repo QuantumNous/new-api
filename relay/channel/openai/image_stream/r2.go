@@ -49,6 +49,11 @@ type R2Config struct {
 	Endpoint        string
 }
 
+// A 128-bit content ID is 22 URL-safe characters after unpadded base64 and
+// keeps accidental collisions negligible while avoiding full 64-character
+// SHA-256 filenames in public URLs.
+const resultImageContentIDBytes = 16
+
 type r2PutError struct {
 	StatusCode int
 	Message    string
@@ -365,12 +370,12 @@ func (c R2Config) presignObjectGET(ctx context.Context, bucket, key string, ttl 
 	return signedURL, nil
 }
 
-// PutImageDeduped sha256-keys the bytes, uploads under images/<hash>.<ext>,
-// and returns the public URL. Using the content hash as the key means
-// re-running an identical generation reuses the same R2 object instead of
-// burning storage on duplicates.
+// PutImageDeduped uploads under a short, deterministic content ID and returns
+// the public URL. Identical generations still reuse the same R2 object.
 func (c R2Config) PutImageDeduped(ctx context.Context, raw []byte, claimedFormat string) (string, string, error) {
-	return c.putImageDedupedAtPrefix(ctx, "images/", raw, claimedFormat)
+	ext := InferImageExt(claimedFormat, raw)
+	url, err := c.PutObject(ctx, resultImageObjectKey(raw, ext), MimeForExt(ext), raw)
+	return url, ext, err
 }
 
 // PutInputImageDeduped stores each staged reference image under a unique
@@ -459,16 +464,14 @@ func (c R2Config) PresignInputObject(ctx context.Context, key string) (string, e
 	return c.presignObjectGET(ctx, c.InputBucket, key, asyncImageInputURLTTL)
 }
 
-func (c R2Config) putImageDedupedAtPrefix(ctx context.Context, prefix string, raw []byte, claimedFormat string) (string, string, error) {
-	ext := InferImageExt(claimedFormat, raw)
-	key := strings.TrimRight(prefix, "/") + "/" + sha256HexBytes(raw) + "." + ext
-	url, err := c.PutObject(ctx, key, MimeForExt(ext), raw)
-	return url, ext, err
+func resultImageObjectKey(raw []byte, ext string) string {
+	digest := sha256.Sum256(raw)
+	contentID := base64.RawURLEncoding.EncodeToString(digest[:resultImageContentIDBytes])
+	return "images/" + contentID + "." + ext
 }
 
-// sha256HexBytes returns the hex-encoded sha256 digest of `raw`. Exported
-// (lowercase but reused across files in the same package) so the envelope
-// builder can compute keys without re-importing crypto/sha256.
+// sha256HexBytes returns the full digest used for signed payloads and private
+// input object keys.
 func sha256HexBytes(raw []byte) string {
 	h := sha256.Sum256(raw)
 	return hex.EncodeToString(h[:])
