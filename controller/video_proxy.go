@@ -107,7 +107,7 @@ func VideoProxy(c *gin.Context) {
 			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to resolve Vertex video URL")
 			return
 		}
-	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora, constant.ChannelTypeMegabyai:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
 	default:
