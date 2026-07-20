@@ -22,8 +22,22 @@ var upstreamHostFailureExcludedKeywords = []string{
 	"credit balance is too low",
 }
 
+// IsUpstreamDistributorCapacityError identifies an upstream gateway whose
+// distributor has no account/channel capacity for the requested model.
+func IsUpstreamDistributorCapacityError(err *types.NewAPIError) bool {
+	if err == nil ||
+		err.UpstreamStatusCode != http.StatusServiceUnavailable ||
+		err.GetErrorCode() != types.ErrorCodeModelNotFound {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.EqualFold(err.ToOpenAIError().Type, "new_api_error") &&
+		strings.Contains(message, "no available channel") &&
+		strings.Contains(message, "(distributor)")
+}
+
 func ShouldObserveUpstreamHostFailure(err *types.NewAPIError) bool {
-	if err == nil || errors.Is(err, context.Canceled) {
+	if err == nil || errors.Is(err, context.Canceled) || IsUpstreamDistributorCapacityError(err) {
 		return false
 	}
 	message := strings.ToLower(err.Error() + " " + string(err.GetErrorCode()) + " " + string(err.GetErrorType()))

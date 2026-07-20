@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -20,6 +23,38 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+var ErrCapacityFallbackHeaderDeadline = errors.New("capacity fallback response header deadline exceeded")
+
+func clientCancellationError(c *gin.Context) error {
+	if c == nil || c.Request == nil {
+		return nil
+	}
+	contextErr := c.Request.Context().Err()
+	if errors.Is(contextErr, context.Canceled) {
+		return contextErr
+	}
+	return nil
+}
+
+type cancelOnDoneReadCloser struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+func (r *cancelOnDoneReadCloser) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	if err != nil {
+		r.once.Do(r.cancel)
+	}
+	return n, err
+}
+
+func (r *cancelOnDoneReadCloser) Close() error {
+	r.once.Do(r.cancel)
+	return r.ReadCloser.Close()
+}
 
 // applyUpstreamContentLength populates req.ContentLength when the upstream
 // body is wrapped in a BodyStorage (see relay/common/outbound_body.go).
@@ -413,13 +448,72 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		client = service.GetRelayHttpClient(info.IsStream)
 	}
 
+	const (
+		capacityDeadlinePending int32 = iota
+		capacityDeadlineComplete
+		capacityDeadlineExpired
+	)
+	var (
+		capacityDeadlineCancel context.CancelFunc
+		capacityDeadlineState  atomic.Int32
+		capacityDeadlineTimer  *time.Timer
+	)
+	if info != nil && !info.CapacityFallbackHeaderDeadline.IsZero() {
+		remaining := time.Until(info.CapacityFallbackHeaderDeadline)
+		if remaining <= 0 {
+			if clientErr := clientCancellationError(c); clientErr != nil {
+				return nil, types.NewError(clientErr, types.ErrorCodeDoRequestFailed)
+			}
+			return nil, types.NewError(ErrCapacityFallbackHeaderDeadline, types.ErrorCodeDoRequestFailed)
+		}
+
+		deadlineContext, cancel := context.WithCancel(req.Context())
+		capacityDeadlineCancel = cancel
+		req = req.WithContext(deadlineContext)
+		capacityDeadlineTimer = time.AfterFunc(remaining, func() {
+			if capacityDeadlineState.CompareAndSwap(capacityDeadlinePending, capacityDeadlineExpired) {
+				cancel()
+			}
+		})
+	}
+
 	resp, err := client.Do(req)
+	if capacityDeadlineTimer != nil {
+		if capacityDeadlineState.CompareAndSwap(capacityDeadlinePending, capacityDeadlineComplete) {
+			capacityDeadlineTimer.Stop()
+		}
+		if capacityDeadlineState.Load() == capacityDeadlineExpired {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			capacityDeadlineCancel()
+			if clientErr := clientCancellationError(c); clientErr != nil {
+				return nil, types.NewError(clientErr, types.ErrorCodeDoRequestFailed)
+			}
+			return nil, types.NewError(ErrCapacityFallbackHeaderDeadline, types.ErrorCodeDoRequestFailed)
+		}
+	}
 	if err != nil {
+		if capacityDeadlineCancel != nil {
+			capacityDeadlineCancel()
+		}
+		if clientErr := clientCancellationError(c); clientErr != nil {
+			return nil, types.NewError(clientErr, types.ErrorCodeDoRequestFailed)
+		}
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
+		if capacityDeadlineCancel != nil {
+			capacityDeadlineCancel()
+		}
 		return nil, errors.New("resp is nil")
+	}
+	if capacityDeadlineCancel != nil && resp.Body != nil {
+		resp.Body = &cancelOnDoneReadCloser{
+			ReadCloser: resp.Body,
+			cancel:     capacityDeadlineCancel,
+		}
 	}
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {

@@ -158,9 +158,12 @@ type RelayInfo struct {
 	IsChannelTest                         bool // channel test request
 	RetryIndex                            int
 	LastError                             *types.NewAPIError
-	RuntimeHeadersOverride                map[string]interface{}
-	UseRuntimeHeadersOverride             bool
-	ParamOverrideAudit                    []string
+	// CapacityFallbackHeaderDeadline bounds only the response-header wait for
+	// the dedicated Codex capacity fallback. It must not bound the response body.
+	CapacityFallbackHeaderDeadline time.Time
+	RuntimeHeadersOverride         map[string]interface{}
+	UseRuntimeHeadersOverride      bool
+	ParamOverrideAudit             []string
 
 	// UpstreamRequestBodySize is the byte size of the marshaled upstream request
 	// body. It is set when the body is wrapped in a BodyStorage (see

@@ -49,6 +49,16 @@ func TestCooldownUpstreamHostForErrorOnlyIsolatesTransportFailures(t *testing.T)
 			want: false,
 		},
 		{
+			name: "distributor channel pool unavailable stays channel scoped",
+			err:  distributorCapacityErrorForTest(),
+			want: false,
+		},
+		{
+			name: "generic upstream channel error remains host observable",
+			err:  upstreamStatusErrorForTest(http.StatusServiceUnavailable, "no available channel"),
+			want: true,
+		},
+		{
 			name: "account rate limit stays channel scoped",
 			err:  types.NewErrorWithStatusCode(errors.New("rate limited"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
 			want: false,
@@ -106,6 +116,16 @@ func TestObserveUpstreamHostFailureRequiresDistinctChannels(t *testing.T) {
 func upstreamStatusErrorForTest(status int, message string) *types.NewAPIError {
 	err := types.NewErrorWithStatusCode(errors.New(message), types.ErrorCodeBadResponseStatusCode, status)
 	err.UpstreamStatusCode = status
+	return err
+}
+
+func distributorCapacityErrorForTest() *types.NewAPIError {
+	err := types.WithOpenAIError(types.OpenAIError{
+		Message: "No available channel for model gpt-5.6-sol under group gpt plus (distributor)",
+		Type:    "new_api_error",
+		Code:    string(types.ErrorCodeModelNotFound),
+	}, http.StatusServiceUnavailable)
+	err.UpstreamStatusCode = http.StatusServiceUnavailable
 	return err
 }
 

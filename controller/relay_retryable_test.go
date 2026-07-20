@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -155,6 +156,9 @@ func TestShouldRetrySkipsClientCanceled(t *testing.T) {
 }
 
 func TestUpstreamCapacityFallbackRequiresUncommittedTransientCapacityError(t *testing.T) {
+	newResponsesInfo := func() *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{IsStream: true, RelayMode: relayconstant.RelayModeResponses}
+	}
 	upstream429 := types.NewErrorWithStatusCode(
 		errors.New("Too many pending requests, please retry later"),
 		types.ErrorCodeBadResponseStatusCode,
@@ -164,7 +168,7 @@ func TestUpstreamCapacityFallbackRequiresUncommittedTransientCapacityError(t *te
 
 	assert.True(t, isUpstreamRateLimitError(upstream429))
 	assert.True(t, isFastUpstreamCapacityError(upstream429))
-	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, upstream429))
+	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), upstream429))
 
 	mapped429 := types.NewErrorWithStatusCode(
 		errors.New("Upstream rate limit exceeded, please retry later"),
@@ -174,16 +178,41 @@ func TestUpstreamCapacityFallbackRequiresUncommittedTransientCapacityError(t *te
 	mapped429.UpstreamStatusCode = http.StatusTooManyRequests
 	assert.True(t, isUpstreamRateLimitError(mapped429), "client-facing status mappings must not hide the upstream 429")
 	assert.True(t, isFastUpstreamCapacityError(mapped429))
-	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, mapped429))
+	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), mapped429))
 
-	distributor503 := types.NewErrorWithStatusCode(
-		errors.New("No available channel for model gpt-5.6-sol under group gpt plus (distributor)"),
-		types.ErrorCodeModelNotFound,
+	distributor503 := types.WithOpenAIError(
+		types.OpenAIError{
+			Message: "No available channel for model gpt-5.6-sol under group gpt plus (distributor)",
+			Type:    "new_api_error",
+			Code:    string(types.ErrorCodeModelNotFound),
+		},
 		http.StatusServiceUnavailable,
 	)
 	distributor503.UpstreamStatusCode = http.StatusServiceUnavailable
 	assert.True(t, isFastUpstreamCapacityError(distributor503), "an upstream distributor with no account capacity should try another channel")
-	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, distributor503))
+	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), distributor503))
+
+	provider503 := types.WithOpenAIError(
+		types.OpenAIError{
+			Message: "The requested model does not exist",
+			Type:    "invalid_request_error",
+			Code:    string(types.ErrorCodeModelNotFound),
+		},
+		http.StatusServiceUnavailable,
+	)
+	provider503.UpstreamStatusCode = http.StatusServiceUnavailable
+	assert.False(t, isFastUpstreamCapacityError(provider503), "provider model errors are not transient distributor capacity failures")
+
+	distributor404 := types.WithOpenAIError(
+		types.OpenAIError{
+			Message: "No available channel for model gpt-5.6-sol under group gpt plus (distributor)",
+			Type:    "new_api_error",
+			Code:    string(types.ErrorCodeModelNotFound),
+		},
+		http.StatusNotFound,
+	)
+	distributor404.UpstreamStatusCode = http.StatusNotFound
+	assert.False(t, isFastUpstreamCapacityError(distributor404), "a 404 model capability error must stay within configured retries")
 
 	generic503 := types.NewErrorWithStatusCode(
 		errors.New("service unavailable"),
@@ -200,7 +229,7 @@ func TestUpstreamCapacityFallbackRequiresUncommittedTransientCapacityError(t *te
 	)
 	assert.False(t, isUpstreamRateLimitError(local429), "local 429s must stay outside channel retry policy")
 	assert.False(t, isFastUpstreamCapacityError(local429))
-	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, local429))
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), local429))
 
 	local503 := types.NewErrorWithStatusCode(
 		errors.New("No available channel for model gpt-5.6-sol"),
@@ -217,16 +246,23 @@ func TestUpstreamCapacityFallbackRequiresUncommittedTransientCapacityError(t *te
 	quota429.UpstreamStatusCode = http.StatusTooManyRequests
 	assert.False(t, isUpstreamRateLimitError(quota429), "quota exhaustion is structural, not a transient rate-limit retry")
 	assert.False(t, isFastUpstreamCapacityError(quota429))
-	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, quota429))
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), quota429))
+
+	imageInfo := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), imageInfo, upstream429), "side-effecting generation routes must not expand attempts")
+	nonStreamingInfo := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeResponses}
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), nonStreamingInfo, upstream429), "non-streaming responses may legitimately wait longer than the fallback header deadline")
+	compactInfo := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeResponsesCompact}
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), compactInfo, upstream429), "response compaction must not inherit the streaming response-header deadline")
 
 	pinned := newTestContext()
 	pinned.Set("specific_channel_id", 17)
-	assert.False(t, shouldUseUpstreamCapacityFallback(pinned, &relaycommon.RelayInfo{}, upstream429), "pinned channel requests must not switch channels")
+	assert.False(t, shouldUseUpstreamCapacityFallback(pinned, newResponsesInfo(), upstream429), "pinned channel requests must not switch channels")
 
 	committed := newTestContext()
 	committed.Writer.WriteHeaderNow()
-	assert.True(t, relayResponseCommitted(committed, &relaycommon.RelayInfo{}))
-	assert.False(t, shouldUseUpstreamCapacityFallback(committed, &relaycommon.RelayInfo{}, upstream429))
+	assert.True(t, relayResponseCommitted(committed, newResponsesInfo()))
+	assert.False(t, shouldUseUpstreamCapacityFallback(committed, newResponsesInfo(), upstream429))
 }
 
 func TestUpstreamCapacityFallbackStopsAfterAttemptStreamData(t *testing.T) {
@@ -238,7 +274,7 @@ func TestUpstreamCapacityFallbackStopsAfterAttemptStreamData(t *testing.T) {
 	apiErr.UpstreamStatusCode = http.StatusTooManyRequests
 	streamStatus := relaycommon.NewStreamStatus()
 	streamStatus.RecordDataReceived()
-	info := &relaycommon.RelayInfo{StreamStatus: streamStatus}
+	info := &relaycommon.RelayInfo{IsStream: true, RelayMode: relayconstant.RelayModeResponses, StreamStatus: streamStatus}
 
 	assert.True(t, relayResponseCommitted(newTestContext(), info))
 	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), info, apiErr))
@@ -259,14 +295,26 @@ func TestScheduleUpstreamCapacityFallbackIsBoundedAndRestartsAutoSelection(t *te
 	}
 	startedAt := time.Unix(100, 0)
 
-	assert.True(t, scheduleUpstreamCapacityFallback(c, &relaycommon.RelayInfo{}, retryParam, apiErr, 0, 2, time.Time{}, startedAt))
+	info := &relaycommon.RelayInfo{IsStream: true, RelayMode: relayconstant.RelayModeResponses}
+	assert.True(t, scheduleUpstreamCapacityFallback(c, info, retryParam, apiErr, 500*time.Millisecond, 0, 2, time.Time{}, startedAt))
 	retryParam.IncreaseRetry()
 	assert.Equal(t, 2, retryParam.GetRetry())
 
-	assert.True(t, scheduleUpstreamCapacityFallback(c, &relaycommon.RelayInfo{}, retryParam, apiErr, 1, 2, startedAt, startedAt.Add(2*time.Second)),
+	assert.True(t, scheduleUpstreamCapacityFallback(c, info, retryParam, apiErr, 400*time.Millisecond, 1, 2, startedAt, startedAt.Add(2*time.Second)),
 		"a second fast capacity failure may try one more untried channel")
-	assert.False(t, scheduleUpstreamCapacityFallback(c, &relaycommon.RelayInfo{}, retryParam, apiErr, 2, 2, startedAt, startedAt.Add(3*time.Second)),
+	assert.False(t, scheduleUpstreamCapacityFallback(c, info, retryParam, apiErr, 300*time.Millisecond, 2, 2, startedAt, startedAt.Add(3*time.Second)),
 		"capacity fallback attempts must have a hard count limit")
-	assert.False(t, scheduleUpstreamCapacityFallback(c, &relaycommon.RelayInfo{}, retryParam, apiErr, 1, 2, startedAt, startedAt.Add(6*time.Second)),
+	assert.False(t, scheduleUpstreamCapacityFallback(c, info, retryParam, apiErr, 300*time.Millisecond, 1, 2, startedAt, startedAt.Add(6*time.Second)),
 		"a slow fallback attempt must not expand first-token latency with another channel")
+	assert.False(t, scheduleUpstreamCapacityFallback(c, info, retryParam, apiErr, 3*time.Second, 0, 2, time.Time{}, startedAt),
+		"a capacity response that was itself slow must stay within configured retries")
+}
+
+func TestChannelSelectionExhaustionIsDistinctFromSelectorFailure(t *testing.T) {
+	exhausted := types.NewError(&channelSelectionExhaustedError{message: "no untried channel"}, types.ErrorCodeGetChannelFailed)
+	selectorFailure := types.NewError(errors.New("database unavailable"), types.ErrorCodeGetChannelFailed)
+
+	assert.True(t, isChannelSelectionExhausted(exhausted))
+	assert.Equal(t, "no untried channel", exhausted.Error())
+	assert.False(t, isChannelSelectionExhausted(selectorFailure))
 }
