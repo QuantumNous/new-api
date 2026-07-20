@@ -245,23 +245,10 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
-	// Prefer keys without a transient upstream cooldown. When every persistently
-	// enabled key is cooling, keep them as a last resort instead of making the
-	// multi-key channel unavailable.
-	selectableIdx := make([]int, 0, len(enabledIdx))
-	for _, idx := range enabledIdx {
-		if !IsChannelKeyCoolingDown(channel.Id, keys[idx]) {
-			selectableIdx = append(selectableIdx, idx)
-		}
-	}
-	if len(selectableIdx) == 0 {
-		selectableIdx = enabledIdx
-	}
-
 	switch channel.ChannelInfo.MultiKeyMode {
 	case constant.MultiKeyModeRandom:
 		// Randomly pick one enabled key
-		selectedIdx := selectableIdx[rand.Intn(len(selectableIdx))]
+		selectedIdx := enabledIdx[rand.Intn(len(enabledIdx))]
 		return keys[selectedIdx], selectedIdx, nil
 	case constant.MultiKeyModePolling:
 		// Use channel-specific lock to ensure thread-safe polling
@@ -285,23 +272,19 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		if start < 0 || start >= len(keys) {
 			start = 0
 		}
-		selectableSet := make(map[int]struct{}, len(selectableIdx))
-		for _, idx := range selectableIdx {
-			selectableSet[idx] = struct{}{}
-		}
 		for i := 0; i < len(keys); i++ {
 			idx := (start + i) % len(keys)
-			if _, ok := selectableSet[idx]; ok {
+			if getStatus(idx) == common.ChannelStatusEnabled {
 				// update polling index for next call (point to the next position)
 				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
 				return keys[idx], idx, nil
 			}
 		}
 		// Fallback – should not happen, but return first enabled key
-		return keys[selectableIdx[0]], selectableIdx[0], nil
+		return keys[enabledIdx[0]], enabledIdx[0], nil
 	default:
 		// Unknown mode, default to first enabled key (or original key string)
-		return keys[selectableIdx[0]], selectableIdx[0], nil
+		return keys[enabledIdx[0]], enabledIdx[0], nil
 	}
 }
 

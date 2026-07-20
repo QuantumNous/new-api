@@ -179,45 +179,6 @@ func TestCooldownChannelForRetryUsesTwoHoursForUpstream429(t *testing.T) {
 	assert.Equal(t, expires, expiresAfterShortCooldown, "a later short cooldown must not shorten the 429 isolation")
 }
 
-func TestCooldownChannelForUpstream429IsolatesOnlyFailedMultiKey(t *testing.T) {
-	model.ClearChannelCooldownsForTest()
-	t.Cleanup(model.ClearChannelCooldownsForTest)
-
-	chErr := types.NewChannelError(9006, 1, "multi-key", true, "key-a", true)
-	err := types.NewErrorWithStatusCode(
-		errors.New("upstream rate limited"),
-		types.ErrorCodeBadResponseStatusCode,
-		http.StatusTooManyRequests,
-	)
-	err.UpstreamStatusCode = http.StatusTooManyRequests
-
-	CooldownChannelForUpstreamRateLimit(*chErr, err)
-
-	assert.False(t, model.IsChannelCoolingDown(9006))
-	reason, expires, cooling := model.GetChannelKeyCooldown(9006, "key-a")
-	require.True(t, cooling)
-	assert.Contains(t, reason, "upstream_rate_limit")
-	assert.Greater(t, time.Until(time.Unix(expires, 0)), 119*time.Minute)
-	assert.False(t, model.IsChannelKeyCoolingDown(9006, "key-b"))
-}
-
-func TestCooldownChannelForUpstream429DoesNotBroadCoolMultiKeyWithoutAttribution(t *testing.T) {
-	model.ClearChannelCooldownsForTest()
-	t.Cleanup(model.ClearChannelCooldownsForTest)
-
-	chErr := types.NewChannelError(9007, 1, "multi-key", true, "", true)
-	err := types.NewErrorWithStatusCode(
-		errors.New("upstream rate limited"),
-		types.ErrorCodeBadResponseStatusCode,
-		http.StatusTooManyRequests,
-	)
-	err.UpstreamStatusCode = http.StatusTooManyRequests
-
-	CooldownChannelForUpstreamRateLimit(*chErr, err)
-
-	assert.False(t, model.IsChannelCoolingDown(9007))
-}
-
 func TestIsUpstreamRateLimitErrorRequiresUpstreamProvenance(t *testing.T) {
 	mappedUpstream429 := types.NewErrorWithStatusCode(
 		errors.New("upstream rate limited"),

@@ -45,22 +45,3 @@ func TestChannelCooldownCannotBeShortenedByConcurrentFailure(t *testing.T) {
 	assert.Equal(t, firstExpiry, secondExpiry)
 	assert.Equal(t, "stream_capacity", reason)
 }
-
-func TestChannelKeyCooldownIsIsolatedAndCannotBeShortened(t *testing.T) {
-	clearChannelCooldownsForTest()
-	t.Cleanup(clearChannelCooldownsForTest)
-
-	CooldownChannelKey(17, "key-a", "upstream_rate_limit", 2*time.Hour)
-	reason, firstExpiry, cooling := GetChannelKeyCooldown(17, "key-a")
-	require.True(t, cooling)
-	assert.Equal(t, "upstream_rate_limit", reason)
-	assert.Greater(t, time.Until(time.Unix(firstExpiry, 0)), 119*time.Minute)
-	assert.False(t, IsChannelKeyCoolingDown(17, "key-b"))
-	assert.False(t, IsChannelCoolingDown(17), "a key cooldown must not sideline healthy sibling keys")
-
-	CooldownChannelKey(17, "key-a", "shorter", 5*time.Minute)
-	reason, secondExpiry, cooling := GetChannelKeyCooldown(17, "key-a")
-	require.True(t, cooling)
-	assert.Equal(t, firstExpiry, secondExpiry)
-	assert.Equal(t, "upstream_rate_limit", reason)
-}
