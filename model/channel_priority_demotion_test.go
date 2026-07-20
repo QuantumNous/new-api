@@ -46,7 +46,9 @@ func TestChannelHealthPriorityDemotionNeedsRepeatedRecentSlowness(t *testing.T) 
 	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
 	require.True(t, health.shouldDemotePriority(key))
 	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 500 * time.Millisecond})
-	assert.False(t, health.shouldDemotePriority(key), "a fast response should restore configured priority")
+	assert.True(t, health.shouldDemotePriority(key), "one fast response must not flap priority back immediately")
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 500 * time.Millisecond})
+	assert.False(t, health.shouldDemotePriority(key), "repeated fast responses should restore configured priority")
 }
 
 func TestChannelHealthPriorityDemotionIgnoresColdCacheStarts(t *testing.T) {
@@ -125,6 +127,12 @@ func TestCachedSelectorRestoresConfiguredPriorityAfterSlowChannelRecovers(t *tes
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Equal(t, 29, selected.Id, "repeatedly slow peer should leave the highest effective tier")
+
+	RecordChannelOutcome(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 500 * time.Millisecond})
+	selected, err = GetRandomSatisfiedChannelWithOptions("default", "gpt-5.6-sol", 0, ChannelSelectionOptions{Path: "/v1/responses"})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 29, selected.Id, "one fast sample must not immediately restore the old tier")
 
 	RecordChannelOutcome(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 500 * time.Millisecond})
 	selected, err = GetRandomSatisfiedChannelWithOptions("default", "gpt-5.6-sol", 0, ChannelSelectionOptions{Path: "/v1/responses"})

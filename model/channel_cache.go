@@ -238,19 +238,17 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	if len(availableChannels) == 0 && options.AllowCoolingFallback {
 		availableChannels = coolingChannels
 	}
-	uniquePriorities := make(map[int]bool)
+	priorityCandidates := make([]channelPriorityCandidate, 0, len(availableChannels))
 	for _, channel := range availableChannels {
-		uniquePriorities[int(channel.GetPriority())] = true
+		priorityCandidates = append(priorityCandidates, channelPriorityCandidate{
+			channelID: channel.Id,
+			priority:  int(channel.GetPriority()),
+		})
 	}
-	if len(uniquePriorities) == 0 {
+	sortedUniquePriorities, effectivePriorityRanks := buildChannelPriorityRanks(priorityCandidates, model, options.Path)
+	if len(sortedUniquePriorities) == 0 {
 		return nil, nil
 	}
-
-	var sortedUniquePriorities []int
-	for priority := range uniquePriorities {
-		sortedUniquePriorities = append(sortedUniquePriorities, priority)
-	}
-	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 
 	if retry >= len(sortedUniquePriorities) {
 		retry = len(sortedUniquePriorities) - 1
@@ -259,13 +257,12 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	var hostFallbackPreferred []*Channel
 	var hostFallbackAvoided []*Channel
 	for priorityIndex := retry; priorityIndex < len(sortedUniquePriorities); priorityIndex++ {
-		targetPriority := int64(sortedUniquePriorities[priorityIndex])
 		var preferredChannels []*Channel
 		var avoidedChannels []*Channel
 		var blockedPreferred []*Channel
 		var blockedAvoided []*Channel
 		for _, channel := range availableChannels {
-			if channel.GetPriority() != targetPriority {
+			if effectivePriorityRanks[channel.Id] != priorityIndex {
 				continue
 			}
 			host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)

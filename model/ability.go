@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -181,20 +180,21 @@ func getChannelWithOptions(group string, model string, retry int, options Channe
 	if len(availableAbilities) == 0 {
 		return nil, nil
 	}
-	uniquePriorities := make(map[int]bool)
+	priorityCandidates := make([]channelPriorityCandidate, 0, len(availableAbilities))
 	for _, ability := range availableAbilities {
-		priority := int(0)
+		priority := 0
 		if ability.Priority != nil {
 			priority = int(*ability.Priority)
 		}
-		uniquePriorities[priority] = true
+		priorityCandidates = append(priorityCandidates, channelPriorityCandidate{
+			channelID: ability.ChannelId,
+			priority:  priority,
+		})
 	}
-
-	var sortedUniquePriorities []int
-	for priority := range uniquePriorities {
-		sortedUniquePriorities = append(sortedUniquePriorities, priority)
+	sortedUniquePriorities, effectivePriorityRanks := buildChannelPriorityRanks(priorityCandidates, model, options.Path)
+	if len(sortedUniquePriorities) == 0 {
+		return nil, nil
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 
 	if retry >= len(sortedUniquePriorities) {
 		retry = len(sortedUniquePriorities) - 1
@@ -203,17 +203,12 @@ func getChannelWithOptions(group string, model string, retry int, options Channe
 	var hostFallbackAvoided []Ability
 	channelId := 0
 	for priorityIndex := retry; priorityIndex < len(sortedUniquePriorities); priorityIndex++ {
-		targetPriority := sortedUniquePriorities[priorityIndex]
 		var preferredAbilities []Ability
 		var avoidedAbilities []Ability
 		var blockedPreferred []Ability
 		var blockedAvoided []Ability
 		for _, ability := range availableAbilities {
-			priority := int(0)
-			if ability.Priority != nil {
-				priority = int(*ability.Priority)
-			}
-			if priority != targetPriority {
+			if effectivePriorityRanks[ability.ChannelId] != priorityIndex {
 				continue
 			}
 			_, avoided := avoidedChannelIDs[ability.ChannelId]
