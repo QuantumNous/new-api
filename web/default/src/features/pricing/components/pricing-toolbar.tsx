@@ -63,6 +63,7 @@ import {
   type SortOption,
   type ViewMode,
 } from '../constants'
+import { formatGroupRatio } from '../lib/model-helpers'
 import type { PricingModel, PricingVendor, TokenUnit } from '../types'
 import { PricingSidebar } from './pricing-sidebar'
 import { SearchBar } from './search-bar'
@@ -244,7 +245,13 @@ export function PricingToolbar(props: PricingToolbarProps) {
   ]
   const groupOptions: FilterDropdownOption[] = [
     { value: 'all', label: t('All Groups') },
-    ...props.groups.map((group) => ({ value: group, label: group })),
+    ...props.groups.map((group) => {
+      const ratioLabel = formatGroupRatio(props.groupRatios?.[group])
+      return {
+        value: group,
+        label: ratioLabel ? `${group} · ${ratioLabel}` : group,
+      }
+    }),
   ]
 
   return (

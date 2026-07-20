@@ -29,10 +29,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
-import {
-  getDynamicDisplayGroupRatio,
-  getDynamicPricingSummary,
-} from '../lib/dynamic-price'
+import { getDynamicPricingSummary } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
@@ -42,7 +39,7 @@ import {
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
-import type { PricingModel, TokenUnit } from '../types'
+import type { PricingDisplayModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { PriceValueComparison } from './price-value-comparison'
 
@@ -55,19 +52,17 @@ export interface PricingColumnsOptions {
   priceRate?: number
   usdExchangeRate?: number
   showRechargePrice?: boolean
-  selectedGroup?: string
 }
 
 export function usePricingColumns(
   options: PricingColumnsOptions = {}
-): ColumnDef<PricingModel>[] {
+): ColumnDef<PricingDisplayModel>[] {
   const { t } = useTranslation()
   const {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
     usdExchangeRate = 1,
     showRechargePrice = false,
-    selectedGroup,
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
@@ -117,10 +112,7 @@ export function usePricingColumns(
       ),
       cell: ({ row }) => {
         const model = row.original
-        const displayGroupRatio = getDynamicDisplayGroupRatio(
-          model,
-          selectedGroup
-        )
+        const displayGroupRatio = model.display_group_ratio
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,
@@ -207,7 +199,7 @@ export function usePricingColumns(
               showRechargePrice,
               priceRate,
               usdExchangeRate,
-              selectedGroup
+              model.display_group
             )
           )
           const outputPrice = stripTrailingZeros(
@@ -218,7 +210,7 @@ export function usePricingColumns(
               showRechargePrice,
               priceRate,
               usdExchangeRate,
-              selectedGroup
+              model.display_group
             )
           )
           const currentValue = `${inputPrice} / ${outputPrice}`
@@ -245,7 +237,7 @@ export function usePricingColumns(
             showRechargePrice,
             priceRate,
             usdExchangeRate,
-            selectedGroup
+            model.display_group
           )
         )
         const officialRequestPrice = stripTrailingZeros(
@@ -270,10 +262,7 @@ export function usePricingColumns(
       header: t('Cached'),
       cell: ({ row }) => {
         const model = row.original
-        const displayGroupRatio = getDynamicDisplayGroupRatio(
-          model,
-          selectedGroup
-        )
+        const displayGroupRatio = model.display_group_ratio
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,
@@ -336,7 +325,7 @@ export function usePricingColumns(
             showRechargePrice,
             priceRate,
             usdExchangeRate,
-            selectedGroup
+            model.display_group
           )
         )
         const officialCachedPrice = stripTrailingZeros(
@@ -433,19 +422,17 @@ export function usePricingColumns(
 
     // Enable Groups column
     {
-      accessorKey: 'enable_groups',
+      accessorKey: 'display_group',
       header: t('Groups'),
-      cell: ({ row }) => {
-        const groups = row.original.enable_groups || []
-        return (
-          <BadgeListCell
-            items={groups.map((group) => (
-              <GroupBadge key={group} group={group} size='sm' />
-            ))}
-            tooltipClassName='max-w-[280px] p-2'
+      cell: ({ row }) => (
+        <BadgeCell>
+          <GroupBadge
+            group={row.original.display_group}
+            ratio={row.original.display_group_ratio}
+            size='sm'
           />
-        )
-      },
+        </BadgeCell>
+      ),
       size: 130,
       enableSorting: false,
     },

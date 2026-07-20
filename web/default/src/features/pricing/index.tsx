@@ -30,9 +30,15 @@ import {
   ModelCardGrid,
   ModelDetailsDrawer,
 } from './components'
-import { EXCLUDED_GROUPS, PRICING_CURRENCIES, VIEW_MODES } from './constants'
+import {
+  EXCLUDED_GROUPS,
+  FILTER_ALL,
+  PRICING_CURRENCIES,
+  VIEW_MODES,
+} from './constants'
 import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
+import { expandModelsByGroup } from './lib/model-helpers'
 
 export function Pricing() {
   const { t } = useTranslation()
@@ -99,9 +105,20 @@ export function Pricing() {
   const availableGroups = useMemo(
     () =>
       Object.keys(usableGroup || {}).filter(
-        (g) => !EXCLUDED_GROUPS.includes(g)
+        (group) => group !== FILTER_ALL && !EXCLUDED_GROUPS.includes(group)
       ),
     [usableGroup]
+  )
+
+  const displayModels = useMemo(
+    () =>
+      expandModelsByGroup(
+        filteredModels,
+        groupFilter,
+        availableGroups,
+        groupRatio || {}
+      ),
+    [availableGroups, filteredModels, groupFilter, groupRatio]
   )
 
   const handleClearAll = useCallback(() => {
@@ -110,7 +127,7 @@ export function Pricing() {
   }, [clearFilters, clearSearch])
 
   const renderPricingContent = () => {
-    if (filteredModels.length === 0) {
+    if (displayModels.length === 0) {
       return (
         <EmptyState
           searchQuery={searchInput}
@@ -123,25 +140,23 @@ export function Pricing() {
     if (viewMode === VIEW_MODES.CARD) {
       return (
         <ModelCardGrid
-          models={filteredModels}
+          models={displayModels}
           onModelClick={handleModelClick}
           priceRate={priceRate}
           usdExchangeRate={usdExchangeRate}
           tokenUnit={tokenUnit}
           showRechargePrice={showPricesInCny}
-          selectedGroup={groupFilter}
         />
       )
     }
 
     return (
       <PricingTable
-        models={filteredModels}
+        models={displayModels}
         priceRate={priceRate}
         usdExchangeRate={usdExchangeRate}
         tokenUnit={tokenUnit}
         showRechargePrice={showPricesInCny}
-        selectedGroup={groupFilter}
         onModelClick={handleModelClick}
       />
     )

@@ -67,7 +67,11 @@ export function filterByGroup(
   group: string
 ): PricingModel[] {
   if (group === FILTER_ALL) return models
-  return models.filter((m) => m.enable_groups?.includes(group))
+  return models.filter(
+    (model) =>
+      model.enable_groups?.includes(group) ||
+      model.enable_groups?.includes(FILTER_ALL)
+  )
 }
 
 /**
@@ -183,7 +187,7 @@ export function extractAllTags(models: PricingModel[]): string[] {
     }
   })
 
-  return Array.from(tagSet).sort((a, b) => a.localeCompare(b))
+  return [...tagSet].sort((a, b) => a.localeCompare(b))
 }
 
 /**

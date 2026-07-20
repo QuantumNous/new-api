@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { EXCLUDED_GROUPS, FILTER_ALL, QUOTA_TYPE_VALUES } from '../constants'
-import type { PricingModel } from '../types'
+import type { PricingDisplayModel, PricingModel } from '../types'
 
 // ----------------------------------------------------------------------------
 // Model Helper Utilities
@@ -33,10 +33,11 @@ export function getAvailableGroups(
   const modelEnableGroups = Array.isArray(model.enable_groups)
     ? model.enable_groups
     : []
+  const supportsAllGroups = modelEnableGroups.includes(FILTER_ALL)
 
   return Object.keys(usableGroup)
-    .filter((g) => !EXCLUDED_GROUPS.includes(g))
-    .filter((g) => modelEnableGroups.includes(g))
+    .filter((group) => group !== FILTER_ALL && !EXCLUDED_GROUPS.includes(group))
+    .filter((group) => supportsAllGroups || modelEnableGroups.includes(group))
 }
 
 /**
@@ -48,6 +49,48 @@ export function getConfiguredGroupRatio(
 ): number {
   const ratio = groupRatio[group]
   return typeof ratio === 'number' && Number.isFinite(ratio) ? ratio : 1
+}
+
+export function formatGroupRatio(
+  ratio: number | undefined
+): string | undefined {
+  if (ratio == null || !Number.isFinite(ratio)) return undefined
+  return `x${Object.is(ratio, -0) ? 0 : ratio}`
+}
+
+export function expandModelsByGroup(
+  models: PricingModel[],
+  selectedGroup: string,
+  availableGroups: string[],
+  groupRatio: Record<string, number>
+): PricingDisplayModel[] {
+  const selectableGroups = availableGroups.filter(
+    (group) => group !== FILTER_ALL && !EXCLUDED_GROUPS.includes(group)
+  )
+  const targetGroups =
+    selectedGroup === FILTER_ALL
+      ? selectableGroups
+      : selectableGroups.filter((group) => group === selectedGroup)
+
+  return models.flatMap((model) => {
+    const enabledGroups = Array.isArray(model.enable_groups)
+      ? model.enable_groups
+      : []
+    const supportsAllGroups = enabledGroups.includes(FILTER_ALL)
+
+    return targetGroups.flatMap((group) => {
+      if (!supportsAllGroups && !enabledGroups.includes(group)) return []
+
+      return [
+        {
+          ...model,
+          key: `${model.key || model.model_name}::${group}`,
+          display_group: group,
+          display_group_ratio: getConfiguredGroupRatio(groupRatio, group),
+        },
+      ]
+    })
+  })
 }
 
 /**

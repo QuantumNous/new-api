@@ -20,6 +20,7 @@ import { ChevronRight, Copy } from 'lucide-react'
 import { memo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { GroupBadge } from '@/components/group-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -33,10 +34,7 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
-import {
-  getDynamicDisplayGroupRatio,
-  getDynamicPricingSummary,
-} from '../lib/dynamic-price'
+import { getDynamicPricingSummary } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
@@ -45,19 +43,18 @@ import {
   formatPrice,
   formatRequestPrice,
 } from '../lib/price'
-import type { PricingModel, TokenUnit } from '../types'
+import type { PricingDisplayModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 import { PriceValueComparison } from './price-value-comparison'
 
 export interface ModelCardProps {
-  model: PricingModel
+  model: PricingDisplayModel
   onClick: () => void
   priceRate?: number
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
-  selectedGroup?: string
   perf?: ModelPerfBadgeData
 }
 
@@ -94,10 +91,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
-  const displayGroupRatio = getDynamicDisplayGroupRatio(
-    props.model,
-    props.selectedGroup
-  )
+  const displayGroupRatio = props.model.display_group_ratio
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
         tokenUnit,
@@ -117,7 +111,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       })
     : null
 
-  const primaryGroup = groups[0]
   const visibleBadges = [...endpoints.slice(0, 2), ...tags.slice(0, 1)]
   const hiddenBadgeCount =
     Math.max(endpoints.length - 2, 0) + Math.max(tags.length - 1, 0)
@@ -164,7 +157,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       showRechargePrice,
       priceRate,
       usdExchangeRate,
-      props.selectedGroup
+      props.model.display_group
     )
     const outputValue = formatPrice(
       props.model,
@@ -173,7 +166,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       showRechargePrice,
       priceRate,
       usdExchangeRate,
-      props.selectedGroup
+      props.model.display_group
     )
     const officialInputValue = formatOfficialPrice(
       props.model,
@@ -208,7 +201,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         showRechargePrice,
         priceRate,
         usdExchangeRate,
-        props.selectedGroup
+        props.model.display_group
       )
       const officialCachedValue = formatOfficialPrice(
         props.model,
@@ -228,7 +221,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       showRechargePrice,
       priceRate,
       usdExchangeRate,
-      props.selectedGroup
+      props.model.display_group
     )
     const officialRequestValue = formatOfficialRequestPrice(props.model)
     priceRows.push({
@@ -402,12 +395,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
 
       <footer className='mt-auto flex items-center justify-between gap-3 pt-4'>
         <div className='flex min-w-0 flex-wrap items-center gap-1.5'>
-          {primaryGroup && (
-            <Badge variant='secondary' className='max-w-32 truncate'>
-              {primaryGroup}
-              {groups.length > 1 ? ` +${groups.length - 1}` : ''}
-            </Badge>
-          )}
+          <GroupBadge
+            group={props.model.display_group}
+            ratio={props.model.display_group_ratio}
+            size='sm'
+          />
           <ModelBillingModeBadge model={props.model} />
           <ModelPerfBadge perf={props.perf} />
         </div>
