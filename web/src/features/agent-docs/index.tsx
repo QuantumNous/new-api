@@ -16,23 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   Check,
   CheckCircle2,
   ChevronRight,
-  ClipboardCheck,
   Copy,
-  ExternalLink,
   KeyRound,
-  MonitorCheck,
-  PackageCheck,
-  Rocket,
-  ServerCog,
   Settings2,
+  ShieldCheck,
+  Sparkles,
   Terminal,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
@@ -45,22 +42,20 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
+import { getUserModels } from '@/lib/api'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 const apiBaseUrl = 'https://api.kabuai.cn/v1'
 const defaultModel = 'gpt-5.6-sol'
-
-const openClawCommands = {
-  prerequisites: `node --version\nnpm --version`,
-  install: `npm install -g openclaw@latest\nopenclaw --version`,
-  interactiveOnboarding: `openclaw onboard --install-daemon`,
-  automatedOnboarding: `export KABUAI_API_KEY="YOUR_API_KEY"\n\nopenclaw onboard \\\n  --non-interactive \\\n  --accept-risk \\\n  --mode local \\\n  --auth-choice custom-api-key \\\n  --custom-provider-id kabuai \\\n  --custom-base-url https://api.kabuai.cn/v1 \\\n  --custom-model-id gpt-5.6-sol \\\n  --custom-api-key "$KABUAI_API_KEY" \\\n  --custom-compatibility openai \\\n  --custom-text-input \\\n  --gateway-bind loopback \\\n  --gateway-auth token \\\n  --gateway-token CHANGE_ME \\\n  --install-daemon`,
-  validate: `openclaw config validate\nopenclaw config get models.providers.kabuai\nopenclaw config get agents.defaults.model.primary`,
-  gateway: `openclaw gateway start\nopenclaw gateway status\nopenclaw gateway call health`,
-  foregroundGateway: `openclaw gateway run --port 18789 --bind loopback`,
-  dashboard: `openclaw dashboard`,
-}
+const defaultContextWindow = 1_000_000
+const minContextWindow = 4_096
+const maxContextWindow = 10_000_000
 
 const guideLinks = [
   ['openclaw', 'OpenClaw'],
@@ -68,6 +63,62 @@ const guideLinks = [
   ['other-clients', '其他客户端'],
   ['troubleshooting', '故障排查'],
 ] as const
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`
+}
+
+function resolveContextWindow(value: string): number | null {
+  if (!value.trim()) return defaultContextWindow
+  const contextWindow = Number.parseInt(value, 10)
+  if (
+    !Number.isFinite(contextWindow) ||
+    contextWindow < minContextWindow ||
+    contextWindow > maxContextWindow
+  ) {
+    return null
+  }
+  return contextWindow
+}
+
+function buildOpenClawCommand(
+  apiKey: string,
+  model: string,
+  contextWindow: number
+): string {
+  const providerConfig = {
+    models: {
+      mode: 'merge',
+      providers: {
+        kabuai: {
+          baseUrl: apiBaseUrl,
+          apiKey,
+          api: 'openai-completions',
+          models: [
+            {
+              id: model,
+              name: model,
+              reasoning: true,
+              input: ['text'],
+              contextWindow,
+              contextTokens: contextWindow,
+              maxTokens: 32_768,
+            },
+          ],
+        },
+      },
+    },
+    agents: {
+      defaults: {
+        model: {
+          primary: `kabuai/${model}`,
+        },
+      },
+    },
+  }
+  const configJson = JSON.stringify(providerConfig)
+  return `printf '%s' ${shellQuote(configJson)} | openclaw config patch --stdin && openclaw config validate && openclaw gateway status`
+}
 
 function CommandBlock({ command, label }: { command: string; label: string }) {
   const { t } = useTranslation()
@@ -94,15 +145,11 @@ function CommandBlock({ command, label }: { command: string; label: string }) {
           className='h-7 text-slate-300 hover:bg-slate-800 hover:text-white'
           onClick={handleCopy}
         >
-          {copied ? (
-            <Check className='size-3.5' />
-          ) : (
-            <Copy className='size-3.5' />
-          )}
+          {copied ? <Check /> : <Copy />}
           {copied ? t('Copied') : t('Copy')}
         </Button>
       </div>
-      <pre className='overflow-x-auto p-4 text-[13px] leading-6'>
+      <pre className='overflow-x-auto p-4 text-[13px] leading-6 break-all whitespace-pre-wrap'>
         <code>{command}</code>
       </pre>
     </div>
@@ -122,33 +169,8 @@ function StepCard({
   icon: ReactNode
   children?: ReactNode
 }) {
-  const elementRef = useRef<HTMLElement>(null)
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const element = elementRef.current
-    if (!element) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return
-        setVisible(true)
-        observer.disconnect()
-      },
-      { threshold: 0.08 }
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-
   return (
-    <article
-      ref={elementRef}
-      className={cn(
-        'border-border/80 bg-card rounded-2xl border p-4 shadow-sm transition-all duration-500 md:p-6',
-        visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
-      )}
-    >
+    <article className='border-border/80 bg-card rounded-2xl border p-4 shadow-sm md:p-6'>
       <div className='flex gap-4'>
         <div className='bg-primary text-primary-foreground flex size-11 shrink-0 items-center justify-center rounded-xl text-base font-bold'>
           {number}
@@ -185,7 +207,7 @@ function ApiParameters() {
   const { t } = useTranslation()
   const parameters = [
     ['API Base URL', apiBaseUrl],
-    ['API Key', 'YOUR_API_KEY'],
+    ['API Key', '从当前账号密钥中选择'],
     ['默认模型', defaultModel],
   ]
 
@@ -205,18 +227,238 @@ function ApiParameters() {
             </span>
             <div className='mt-2 flex items-center justify-between gap-2'>
               <code className='text-primary truncate text-sm'>{value}</code>
-              <Button
-                type='button'
-                variant='outline'
-                size='icon-sm'
-                aria-label={`${t('Copy')} ${label}`}
-                onClick={() => void copyToClipboard(value)}
-              >
-                <Copy />
-              </Button>
+              {index !== 1 && (
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='icon-sm'
+                  aria-label={`${t('Copy')} ${label}`}
+                  onClick={() => void copyToClipboard(value)}
+                >
+                  <Copy />
+                </Button>
+              )}
             </div>
           </div>
         ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function OpenClawConfigurator() {
+  const { auth } = useAuthStore()
+  const isAuthenticated = Boolean(auth.user)
+  const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null)
+  const [selectedModel, setSelectedModel] = useState('')
+  const [contextInput, setContextInput] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  const keysQuery = useQuery({
+    queryKey: ['agent-docs-api-keys'],
+    queryFn: () => getApiKeys({ p: 1, size: 100 }),
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+  })
+  const modelsQuery = useQuery({
+    queryKey: ['agent-docs-user-models'],
+    queryFn: getUserModels,
+    enabled: isAuthenticated,
+    staleTime: 5 * 60_000,
+  })
+
+  const apiKeys = useMemo(
+    () => (keysQuery.data?.data?.items ?? []).filter((key) => key.status === 1),
+    [keysQuery.data?.data?.items]
+  )
+  const availableModels = modelsQuery.data?.data ?? []
+  const effectiveKeyId = selectedKeyId ?? apiKeys[0]?.id ?? null
+  const effectiveModel =
+    selectedModel ||
+    (availableModels.includes(defaultModel)
+      ? defaultModel
+      : availableModels[0] || defaultModel)
+  const contextWindow = resolveContextWindow(contextInput)
+  const previewCommand = buildOpenClawCommand(
+    'SELECTED_API_KEY',
+    effectiveModel,
+    contextWindow ?? defaultContextWindow
+  )
+
+  const handleCopyGeneratedCommand = async () => {
+    setErrorMessage('')
+    if (!effectiveKeyId) {
+      setErrorMessage('请先选择一个已启用的 API 密钥。')
+      return
+    }
+    if (!contextWindow) {
+      setErrorMessage(
+        `上下文长度必须在 ${minContextWindow.toLocaleString()} 到 ${maxContextWindow.toLocaleString()} 之间。`
+      )
+      return
+    }
+
+    try {
+      const response = await fetchTokenKey(effectiveKeyId)
+      const rawKey = response.data?.key
+      if (!response.success || !rawKey) {
+        setErrorMessage(response.message || '无法读取所选 API 密钥。')
+        return
+      }
+      const apiKey = rawKey.startsWith('sk-') ? rawKey : `sk-${rawKey}`
+      const command = buildOpenClawCommand(
+        apiKey,
+        effectiveModel,
+        contextWindow
+      )
+      const success = await copyToClipboard(command)
+      if (!success) {
+        setErrorMessage('复制失败，请检查浏览器剪贴板权限。')
+        return
+      }
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      setErrorMessage('生成命令失败，请重新登录后再试。')
+    }
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>登录后生成一键接入命令</CardTitle>
+          <CardDescription>
+            登录后可直接选择当前账号的 API
+            密钥和可用模型，密钥不会显示在页面上。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button render={<a href='/sign-in?redirect=/docs/agent' />}>
+            登录并继续
+            <ChevronRight />
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className='overflow-visible'>
+      <CardHeader>
+        <CardTitle>生成 OpenClaw 一键接入命令</CardTitle>
+        <CardDescription>
+          选择密钥和模型；上下文不填写时默认 1M。复制后直接粘贴到已安装 OpenClaw
+          的终端即可。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-5'>
+        <div className='grid gap-4 md:grid-cols-3'>
+          <div className='space-y-2'>
+            <Label htmlFor='openclaw-api-key'>API 密钥</Label>
+            <NativeSelect
+              id='openclaw-api-key'
+              className='w-full'
+              value={effectiveKeyId ? String(effectiveKeyId) : ''}
+              disabled={keysQuery.isLoading || apiKeys.length === 0}
+              onChange={(event) =>
+                setSelectedKeyId(Number.parseInt(event.target.value, 10))
+              }
+            >
+              {apiKeys.length === 0 && (
+                <NativeSelectOption value=''>没有可用密钥</NativeSelectOption>
+              )}
+              {apiKeys.map((apiKey) => (
+                <NativeSelectOption key={apiKey.id} value={String(apiKey.id)}>
+                  {apiKey.name} · {apiKey.key}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='openclaw-model'>模型</Label>
+            <NativeSelect
+              id='openclaw-model'
+              className='w-full'
+              value={effectiveModel}
+              disabled={modelsQuery.isLoading}
+              onChange={(event) => setSelectedModel(event.target.value)}
+            >
+              {!availableModels.includes(defaultModel) && (
+                <NativeSelectOption value={defaultModel}>
+                  {defaultModel}
+                </NativeSelectOption>
+              )}
+              {availableModels.map((model) => (
+                <NativeSelectOption key={model} value={model}>
+                  {model}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='openclaw-context'>上下文长度</Label>
+            <Input
+              id='openclaw-context'
+              type='number'
+              min={minContextWindow}
+              max={maxContextWindow}
+              step={1024}
+              value={contextInput}
+              placeholder='留空默认 1000000（1M）'
+              aria-invalid={contextWindow === null}
+              onChange={(event) => setContextInput(event.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className='bg-muted/40 rounded-xl border p-4 text-sm'>
+          <div className='grid gap-2 md:grid-cols-3'>
+            <p>
+              <span className='text-muted-foreground'>接口：</span>
+              {apiBaseUrl}
+            </p>
+            <p>
+              <span className='text-muted-foreground'>模型：</span>
+              {effectiveModel}
+            </p>
+            <p>
+              <span className='text-muted-foreground'>上下文：</span>
+              {(contextWindow ?? defaultContextWindow).toLocaleString()}
+            </p>
+          </div>
+        </div>
+
+        <CommandBlock command={previewCommand} label='命令预览（密钥已隐藏）' />
+
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
+          <Button
+            type='button'
+            disabled={!effectiveKeyId || keysQuery.isLoading}
+            onClick={() => void handleCopyGeneratedCommand()}
+          >
+            {copied ? <Check /> : <Copy />}
+            {copied ? '已复制，可直接粘贴' : '复制一键接入命令'}
+          </Button>
+          {apiKeys.length === 0 && !keysQuery.isLoading && (
+            <Button variant='outline' render={<Link to='/keys' />}>
+              创建 API 密钥
+              <ChevronRight />
+            </Button>
+          )}
+          <p className='text-muted-foreground text-xs'>
+            点击复制时才读取完整密钥，页面不会展示密钥明文。
+          </p>
+        </div>
+
+        {errorMessage && (
+          <p className='text-destructive text-sm' role='alert'>
+            {errorMessage}
+          </p>
+        )}
       </CardContent>
     </Card>
   )
@@ -232,144 +474,56 @@ function OpenClawGuide() {
           </div>
           <div>
             <h2 className='text-2xl font-bold tracking-tight'>
-              OpenClaw 完整接入流程
+              OpenClaw 模型接入
             </h2>
             <p className='text-muted-foreground mt-1'>
-              以下流程已在隔离环境中真实安装、配置、启动和验证。
+              不包含安装教程，只配置 KabuAI Provider、默认模型和上下文长度。
             </p>
           </div>
         </div>
         <div className='mt-4 flex flex-wrap gap-2'>
-          <Badge variant='secondary'>OpenClaw 2026.7.1-2</Badge>
-          <Badge variant='secondary'>Node.js 24.15.0</Badge>
-          <Badge variant='secondary'>Gateway health: ok</Badge>
-          <Badge variant='secondary'>模型：{defaultModel}</Badge>
+          <Badge variant='secondary'>OpenAI Compatible</Badge>
+          <Badge variant='secondary'>默认上下文：1M</Badge>
+          <Badge variant='secondary'>无需重启：支持热应用</Badge>
         </div>
       </div>
+
+      <OpenClawConfigurator />
 
       <div className='space-y-4'>
         <StepCard
           number={1}
-          title='确认 Node.js 版本'
-          description='OpenClaw 当前版本要求 Node.js 22.22.3+、24.15+ 或 25.9+。推荐使用 Node.js 24，先确认版本再安装。'
-          icon={<PackageCheck className='size-4' />}
-        >
-          <CommandBlock
-            command={openClawCommands.prerequisites}
-            label='检查运行环境'
-          />
-        </StepCard>
-
+          title='选择密钥、模型和上下文'
+          description='密钥与模型来自当前登录账号；上下文留空时自动使用 1,000,000。'
+          icon={<KeyRound className='size-4' />}
+        />
         <StepCard
           number={2}
-          title='全局安装 OpenClaw'
-          description='执行官方 npm 安装命令，然后输出版本号确认 CLI 已可用。'
+          title='复制并直接粘贴一键命令'
+          description='命令只更新 models.providers.kabuai 和默认模型，不会重新安装 OpenClaw，也不会修改渠道、技能或工作区。'
           icon={<Terminal className='size-4' />}
-        >
-          <CommandBlock
-            command={openClawCommands.install}
-            label='安装与版本验证'
-          />
-          <Screenshot
-            src='/agent-docs/openclaw-install.png'
-            alt='真实执行 npm install -g openclaw@latest 的终端截图'
-          />
-        </StepCard>
-
+        />
         <StepCard
           number={3}
-          title='运行首次引导'
-          description='普通用户推荐使用交互式向导，它会依次配置模型供应商、API Key、Gateway、工作区、渠道和技能。'
-          icon={<Settings2 className='size-4' />}
+          title='确认配置热应用'
+          description='命令会自动执行 config validate 和 gateway status。OpenClaw 配置支持热应用，正常情况下不需要重启 Gateway。'
+          icon={<ShieldCheck className='size-4' />}
         >
-          <CommandBlock
-            command={openClawCommands.interactiveOnboarding}
-            label='推荐：交互式完整向导'
-          />
-          <p className='text-muted-foreground text-sm'>
-            在模型供应商步骤选择 Custom API Key，Base URL 填写{' '}
-            <code>{apiBaseUrl}</code>，模型填写 <code>{defaultModel}</code>
-            ，兼容协议选择 OpenAI。
-          </p>
-        </StepCard>
-
-        <StepCard
-          number={4}
-          title='自动化配置 KabuAI Provider'
-          description='服务器或批量部署可使用非交互模式。命令会建立 kabuai Provider、写入统一接口并将默认模型设置为 gpt-5.6-sol。'
-          icon={<ServerCog className='size-4' />}
-        >
-          <CommandBlock
-            command={openClawCommands.automatedOnboarding}
-            label='完整非交互 onboarding'
-          />
-          <Screenshot
-            src='/agent-docs/openclaw-onboard.png'
-            alt='OpenClaw 非交互 onboarding 真实终端输出'
-          />
-        </StepCard>
-
-        <StepCard
-          number={5}
-          title='校验 Provider 与默认模型'
-          description='配置必须通过 schema 校验，并确认 Provider 使用 OpenAI Chat Completions，默认模型为 kabuai/gpt-5.6-sol。'
-          icon={<ClipboardCheck className='size-4' />}
-        >
-          <CommandBlock command={openClawCommands.validate} label='配置校验' />
           <Screenshot
             src='/agent-docs/openclaw-config.png'
-            alt='OpenClaw 配置校验与默认模型真实终端输出'
+            alt='OpenClaw Provider 配置与默认模型校验结果'
           />
         </StepCard>
-
         <StepCard
-          number={6}
-          title='启动并检查 Gateway'
-          description='安装 daemon 后使用 gateway start。临时调试可以用 gateway run 前台运行；健康结果应显示 ok: true。'
-          icon={<Rocket className='size-4' />}
+          number={4}
+          title='在 Control UI 发送测试消息'
+          description='界面底部应显示所选模型与 kabuai Provider。发送一条消息确认响应即可。'
+          icon={<Sparkles className='size-4' />}
         >
-          <CommandBlock
-            command={openClawCommands.gateway}
-            label='Daemon 启动和健康检查'
-          />
-          <CommandBlock
-            command={openClawCommands.foregroundGateway}
-            label='可选：前台调试'
-          />
-          <Screenshot
-            src='/agent-docs/openclaw-gateway.png'
-            alt='OpenClaw Gateway 启动和健康检查真实输出'
-          />
-        </StepCard>
-
-        <StepCard
-          number={7}
-          title='打开 OpenClaw Control UI'
-          description='运行 dashboard 后浏览器会打开 Control UI。界面底部应显示 gpt-5.6-sol · kabuai。'
-          icon={<MonitorCheck className='size-4' />}
-        >
-          <CommandBlock
-            command={openClawCommands.dashboard}
-            label='打开控制面板'
-          />
           <Screenshot
             src='/agent-docs/openclaw-dashboard.png'
-            alt='真实运行的 OpenClaw Control UI，默认模型为 gpt-5.6-sol'
+            alt='OpenClaw Control UI 中的 KabuAI 模型'
           />
-        </StepCard>
-
-        <StepCard
-          number={8}
-          title='发送首条消息并排查响应'
-          description='在 Control UI 输入一条测试消息。若返回 401，重新复制 API Key；若提示模型不存在，确认令牌拥有 gpt-5.6-sol 权限。'
-          icon={<CheckCircle2 className='size-4' />}
-        >
-          <div className='bg-muted/50 rounded-xl border p-4 text-sm'>
-            <p className='font-medium'>建议测试内容</p>
-            <p className='text-muted-foreground mt-1'>
-              请回复“连接成功”，并告诉我当前使用的模型名称。
-            </p>
-          </div>
         </StepCard>
       </div>
     </section>
@@ -388,48 +542,19 @@ function CCSwitchGuide() {
             CC Switch 一键导入
           </h2>
           <p className='text-muted-foreground mt-1'>
-            无需手动复制接口和密钥，直接从 API 密钥页面调用 CC Switch Deep
-            Link。
+            从 API 密钥页面自动导入接口、密钥和模型。
           </p>
         </div>
       </div>
-
       <div className='space-y-4'>
         <StepCard
           number={1}
-          title='安装 CC Switch'
-          description='macOS 可通过 Homebrew 安装；Windows 和 Linux 请使用 CC Switch Releases 安装包。'
-          icon={<PackageCheck className='size-4' />}
-        >
-          <CommandBlock
-            command={
-              'brew tap farion1231/ccswitch\nbrew install --cask cc-switch'
-            }
-            label='macOS 安装'
-          />
-          <Button
-            variant='outline'
-            render={
-              <a
-                href='https://github.com/farion1231/cc-switch/releases'
-                target='_blank'
-                rel='noreferrer'
-              />
-            }
-          >
-            下载 Windows / Linux 版本
-            <ExternalLink />
-          </Button>
-        </StepCard>
-
-        <StepCard
-          number={2}
           title='从 API 密钥页面选择 CC Switch'
-          description='进入 API 密钥页面，打开目标密钥右侧的更多操作菜单，然后点击 CC Switch。系统会自动携带当前站点地址和该密钥。'
+          description='打开目标密钥右侧菜单，点击 CC Switch，系统会自动携带当前站点地址和所选密钥。'
           icon={<KeyRound className='size-4' />}
         >
           <Button render={<Link to='/keys' />}>
-            前往 API 密钥页面一键导入
+            前往 API 密钥页面
             <ChevronRight />
           </Button>
           <Screenshot
@@ -437,35 +562,23 @@ function CCSwitchGuide() {
             alt='KabuAI API 密钥页面中的 CC Switch 一键导入入口'
           />
         </StepCard>
-
         <StepCard
-          number={3}
-          title='选择客户端和 gpt-5.6-sol'
-          description='选择 Claude、Codex 或 Gemini，名称可自定义；主模型选择 gpt-5.6-sol，其他模型字段可按需填写。'
+          number={2}
+          title='选择客户端和模型'
+          description='选择 Claude、Codex 或 Gemini，并选择需要导入的模型。'
           icon={<Settings2 className='size-4' />}
         >
           <Screenshot
             src='/agent-docs/cc-switch-import-dialog.png'
-            alt='CC Switch 导入弹窗，选择客户端和模型'
+            alt='CC Switch 导入弹窗'
           />
         </StepCard>
-
         <StepCard
-          number={4}
-          title='确认打开 CC Switch'
-          description='点击“打开 CC Switch”后，浏览器会调用 ccswitch://v1/import Deep Link，应用确认后即可启用 Provider。'
+          number={3}
+          title='打开 CC Switch 完成导入'
+          description='确认后浏览器调用 ccswitch://v1/import，应用接受配置即可使用。'
           icon={<CheckCircle2 className='size-4' />}
-        >
-          <div className='bg-muted/50 rounded-xl border p-4 text-sm'>
-            <p className='font-medium'>自动导入内容</p>
-            <ul className='text-muted-foreground mt-2 grid gap-1.5 md:grid-cols-2'>
-              <li>• Endpoint：{apiBaseUrl}</li>
-              <li>• API Key：当前选中的密钥</li>
-              <li>• Model：{defaultModel}</li>
-              <li>• Enabled：true</li>
-            </ul>
-          </div>
-        </StepCard>
+        />
       </div>
     </section>
   )
@@ -475,7 +588,7 @@ function OtherClientsGuide() {
   const clients = [
     ['Claude CLI', '优先通过 CC Switch 一键导入 Claude Provider。'],
     ['Claude Desktop', '使用兼容 OpenAI 接口的路由工具填写统一参数。'],
-    ['HermesAgents', '新增 Custom Provider，并选择 gpt-5.6-sol。'],
+    ['HermesAgents', '新增 Custom Provider，并选择账号可用模型。'],
     ['WorkBuddy', '在模型提供商页面添加 OpenAI Compatible。'],
     ['Cherry Studio', '新增 OpenAI 提供商，填写接口、密钥和模型。'],
     ['OpenCode', '使用 @ai-sdk/openai-compatible 配置 kabuai Provider。'],
@@ -489,8 +602,7 @@ function OtherClientsGuide() {
           其他客户端统一参数
         </h2>
         <p className='text-muted-foreground mt-1'>
-          客户端支持 OpenAI Compatible 或 Custom Provider
-          时，统一使用页面顶部三项参数。
+          客户端支持 OpenAI Compatible 或 Custom Provider 时，使用页面顶部参数。
         </p>
       </div>
       <div className='grid gap-3 md:grid-cols-2'>
@@ -502,7 +614,7 @@ function OtherClientsGuide() {
             </CardHeader>
             <CardContent className='grid gap-1.5 text-xs'>
               <code>Base URL: {apiBaseUrl}</code>
-              <code>Model: {defaultModel}</code>
+              <code>Default model: {defaultModel}</code>
             </CardContent>
           </Card>
         ))}
@@ -520,18 +632,9 @@ function TroubleshootingGuide() {
       </div>
       <div className='grid gap-3 md:grid-cols-3'>
         {[
-          [
-            '401 / 认证失败',
-            '重新复制 API Key，确认没有空格，并检查密钥状态。',
-          ],
-          [
-            '模型不存在',
-            `确认密钥拥有 ${defaultModel} 权限，模型名称不要添加空格。`,
-          ],
-          [
-            '连接失败',
-            `Base URL 必须完整填写为 ${apiBaseUrl}，不要重复添加 /v1。`,
-          ],
+          ['401 / 认证失败', '重新选择 API 密钥，确认密钥处于启用状态。'],
+          ['模型不存在', '确认所选密钥拥有对应模型权限。'],
+          ['连接失败', `Base URL 必须为 ${apiBaseUrl}，不要重复添加 /v1。`],
         ].map(([title, description]) => (
           <Card key={title} size='sm'>
             <CardHeader>
@@ -574,12 +677,11 @@ export function AgentDocs() {
                 <div>
                   <Badge variant='outline'>api.kabuai.cn</Badge>
                   <h1 className='mt-4 text-3xl font-bold tracking-tight md:text-5xl'>
-                    Agent 接入教程
+                    Agent 模型接入教程
                   </h1>
                   <p className='text-muted-foreground mt-3 max-w-3xl text-base leading-7 md:text-lg'>
-                    在 KabuAI 系统内完成 OpenClaw、CC Switch 和常用 AI
-                    客户端接入。OpenClaw 流程来自真实安装、配置、Gateway 启动与
-                    Control UI 验证。
+                    直接选择当前账号的 API
+                    密钥、模型和上下文长度，生成可粘贴的一键配置命令。
                   </p>
                 </div>
                 <ApiParameters />
