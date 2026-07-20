@@ -112,6 +112,9 @@ const (
 	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
 )
 
+// AdvancedCustomModelListPath identifies the optional OpenAI Models discovery route.
+const AdvancedCustomModelListPath = "/v1/models"
+
 // MatchPath returns the first route whose IncomingPath matches requestPath.
 // Matching mirrors the relay adaptor: exact match, {model} placeholder, and
 // :generateContent <-> :streamGenerateContent equivalence.
@@ -137,6 +140,20 @@ func (c *AdvancedCustomConfig) MatchPathForModel(requestPath string, model strin
 	for _, route := range c.Routes {
 		if matchAdvancedCustomIncomingPath(strings.TrimSpace(route.IncomingPath), requestPath) &&
 			matchAdvancedCustomRouteModel(route.Models, model) {
+			return route, true
+		}
+	}
+	return AdvancedCustomRoute{}, false
+}
+
+// ModelListRoute returns the explicitly configured OpenAI Models discovery route.
+// Template routes that merely happen to match /v1/models are not discovery routes.
+func (c *AdvancedCustomConfig) ModelListRoute() (AdvancedCustomRoute, bool) {
+	if c == nil {
+		return AdvancedCustomRoute{}, false
+	}
+	for _, route := range c.Routes {
+		if strings.TrimSpace(route.IncomingPath) == AdvancedCustomModelListPath {
 			return route, true
 		}
 	}
@@ -307,6 +324,7 @@ func (c *AdvancedCustomConfig) Validate() error {
 	}
 
 	paths := make(map[string]*advancedCustomPathModelState, len(c.Routes))
+	modelListRouteIndex := -1
 	for i := range c.Routes {
 		route := c.Routes[i]
 		route.IncomingPath = strings.TrimSpace(route.IncomingPath)
@@ -324,6 +342,21 @@ func (c *AdvancedCustomConfig) Validate() error {
 		}
 		if strings.Contains(route.IncomingPath, "?") {
 			return fmt.Errorf("advanced_custom.advanced_routes[%d].incoming_path must not include query", i)
+		}
+		if route.IncomingPath == AdvancedCustomModelListPath {
+			if modelListRouteIndex >= 0 {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d] duplicates the /v1/models route at advanced_routes[%d]", i, modelListRouteIndex)
+			}
+			modelListRouteIndex = i
+			if len(normalizeAdvancedCustomRouteModels(route.Models)) > 0 {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].models must be empty for /v1/models", i)
+			}
+			if route.Converter != advancedCustomConverterNone {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter must be none for /v1/models", i)
+			}
+			if strings.Contains(upstreamPath, advancedCustomModelPlaceholder) {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for /v1/models", i, advancedCustomModelPlaceholder)
+			}
 		}
 		if err := validateAdvancedCustomRouteModels(i, route.IncomingPath, route.Models, paths); err != nil {
 			return err
