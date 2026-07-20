@@ -91,11 +91,19 @@ export function SignUpForm({
       email: '',
       password: '',
       confirmPassword: '',
+      affCode: '',
     },
   })
 
   const emailValue = form.watch('email')
+  const invitationValue = form.watch('affCode')?.trim() ?? ''
   const emailVerificationRequired = !!status?.email_verification
+  const invitationMode =
+    status?.registration_invite_mode ??
+    status?.data?.registration_invite_mode ??
+    'optional'
+  const invitationVisible = invitationMode !== 'hidden'
+  const invitationRequired = invitationMode === 'required'
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
@@ -129,11 +137,16 @@ export function SignUpForm({
   }, [requiresLegalConsent])
 
   useEffect(() => {
+    if (!invitationVisible) {
+      form.setValue('affCode', '')
+      return
+    }
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
     if (aff) {
       saveAffiliateCode(aff)
     }
-  }, [])
+    form.setValue('affCode', aff || getAffiliateCode())
+  }, [form, invitationVisible])
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
@@ -153,6 +166,15 @@ export function SignUpForm({
       }
     }
 
+    const manualAffCode = data.affCode?.trim() ?? ''
+    if (invitationRequired && !manualAffCode) {
+      form.setError('affCode', { message: t('Invitation code is required') })
+      return
+    }
+    if (invitationVisible && manualAffCode) {
+      saveAffiliateCode(manualAffCode)
+    }
+
     if (!validateTurnstile()) return
 
     setIsLoading(true)
@@ -162,7 +184,9 @@ export function SignUpForm({
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
-        aff_code: getAffiliateCode(),
+        aff_code: invitationVisible
+          ? manualAffCode || getAffiliateCode()
+          : undefined,
         turnstile: turnstileToken,
       })
 
@@ -208,7 +232,10 @@ export function SignUpForm({
 
     setIsWeChatSubmitting(true)
     try {
-      const res = await wechatLoginByCode(wechatCode)
+      const res = await wechatLoginByCode(
+        wechatCode,
+        invitationVisible ? invitationValue || getAffiliateCode() : undefined
+      )
       if (res?.success) {
         await handleLoginSuccess(res.data as { id?: number } | null)
         toast.success(t('Signed in via WeChat'))
@@ -301,7 +328,40 @@ export function SignUpForm({
                 </FormItem>
               )}
             />
+          </>
+        )}
 
+        {invitationVisible && (
+          <FormField
+            control={form.control}
+            name='affCode'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {invitationRequired
+                    ? t('Invitation code')
+                    : t('Invitation code (optional)')}
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t('Enter invitation code')}
+                    autoComplete='off'
+                    {...field}
+                    onChange={(event) => {
+                      field.onChange(event)
+                      const value = event.target.value.trim()
+                      if (value) saveAffiliateCode(value)
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {emailVerificationRequired && (
+          <>
             {/* Verification Code Field */}
             <div className='flex items-end gap-2'>
               <div className='flex-1'>
@@ -369,7 +429,11 @@ export function SignUpForm({
         {oauthRegisterEnabled && (
           <OAuthProviders
             status={status}
-            disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+            disabled={
+              isLoading ||
+              (requiresLegalConsent && !agreedToLegal) ||
+              (invitationRequired && !invitationValue)
+            }
             onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
             isWeChatLoading={isWeChatSubmitting}
             className='pt-2'
