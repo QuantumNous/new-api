@@ -251,6 +251,109 @@ func TestManageUser_DisableSuccess_200(t *testing.T) {
 	}
 }
 
+// ---------- CreateUser ----------
+
+func TestCreateUser_UsernameCollision_409(t *testing.T) {
+	db := openUserControllerTestDB(t)
+	seedUser(t, db, "taken", common.RoleCommonUser, "default")
+
+	body := map[string]any{"username": "taken", "password": "Password12", "role": common.RoleCommonUser}
+	ctx, rec := newRestContext(t, http.MethodPost, "/api/user/", body, nil, common.RoleRootUser)
+	CreateUser(ctx)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status got %d want 409 body=%s", rec.Code, rec.Body.String())
+	}
+	resp := decodeRestError(t, rec)
+	if resp.Code != "username_already_taken" {
+		t.Errorf("code: got %q want username_already_taken", resp.Code)
+	}
+	if resp.Success {
+		t.Errorf("success should be false")
+	}
+}
+
+func TestCreateUser_UsernameCollision_SecondRequest_409(t *testing.T) {
+	db := openUserControllerTestDB(t)
+	seedUser(t, db, "secondtaken", common.RoleCommonUser, "default")
+
+	body := map[string]any{"username": "secondtaken", "password": "Password12", "role": common.RoleCommonUser}
+	ctx, rec := newRestContext(t, http.MethodPost, "/api/user/", body, nil, common.RoleRootUser)
+	CreateUser(ctx)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status got %d want 409 body=%s", rec.Code, rec.Body.String())
+	}
+	if c := decodeRestError(t, rec).Code; c != "username_already_taken" {
+		t.Errorf("code got %q want username_already_taken", c)
+	}
+}
+
+func TestCreateUser_HappyPath_201(t *testing.T) {
+	openUserControllerTestDB(t)
+
+	// Admin (non-root) caller creating a common user avoids the root-only authz
+	// reconciliation path (casbin_rule), keeping the test scoped to the guard.
+	body := map[string]any{"username": "brandnew", "password": "Password12", "role": common.RoleCommonUser}
+	ctx, rec := newRestContext(t, http.MethodPost, "/api/user/", body, nil, common.RoleAdminUser)
+	CreateUser(ctx)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status got %d want 201 body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateUser_SoftDeletedUsernameCollision_409(t *testing.T) {
+	db := openUserControllerTestDB(t)
+	deleted := seedUser(t, db, "ghost", common.RoleCommonUser, "default")
+	if err := db.Delete(&model.User{}, deleted.Id).Error; err != nil {
+		t.Fatalf("soft-delete user: %v", err)
+	}
+
+	body := map[string]any{"username": "ghost", "password": "Password12", "role": common.RoleCommonUser}
+	ctx, rec := newRestContext(t, http.MethodPost, "/api/user/", body, nil, common.RoleRootUser)
+	CreateUser(ctx)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status got %d want 409 body=%s", rec.Code, rec.Body.String())
+	}
+	if c := decodeRestError(t, rec).Code; c != "username_already_taken" {
+		t.Errorf("code: got %q want username_already_taken", c)
+	}
+}
+
+// ---------- UpdateUser username collision ----------
+
+func TestUpdateUser_UsernameCollision_409(t *testing.T) {
+	db := openUserControllerTestDB(t)
+	seedUser(t, db, "existing", common.RoleCommonUser, "default")
+	target := seedUser(t, db, "target", common.RoleCommonUser, "default")
+
+	body := map[string]any{"id": target.Id, "username": "existing", "display_name": "x", "password": "Password12"}
+	ctx, rec := newRestContext(t, http.MethodPut, "/api/user/", body, nil, common.RoleRootUser)
+	UpdateUser(ctx)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status got %d want 409 body=%s", rec.Code, rec.Body.String())
+	}
+	if c := decodeRestError(t, rec).Code; c != "username_already_taken" {
+		t.Errorf("code: got %q want username_already_taken", c)
+	}
+}
+
+func TestUpdateUser_SameUsername_200(t *testing.T) {
+	db := openUserControllerTestDB(t)
+	target := seedUser(t, db, "keepname", common.RoleCommonUser, "default")
+
+	body := map[string]any{"id": target.Id, "username": "keepname", "display_name": "updated", "password": "Password12"}
+	ctx, rec := newRestContext(t, http.MethodPut, "/api/user/", body, nil, common.RoleRootUser)
+	UpdateUser(ctx)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status got %d want 200 body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"
