@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/andybalholm/brotli"
 	"github.com/gin-gonic/gin"
+	"github.com/klauspost/compress/zstd"
 )
 
 type readCloser struct {
@@ -61,6 +62,25 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 			c.Request.Body = wrapMaxBytes(&readCloser{
 				Reader: reader,
 				closeFn: func() error {
+					return origBody.Close()
+				},
+			})
+			c.Request.Header.Del("Content-Encoding")
+		case "zstd":
+			// OpenAI Codex CLI/Desktop default to zstd request-body compression
+			// (client feature `enable_request_compression`). Without this branch
+			// the raw zstd frame (magic 0x28 0xb5 0x2f 0xfd) is handed to the
+			// JSON parser and fails with `invalid character '('`.
+			zstdReader, err := zstd.NewReader(origBody)
+			if err != nil {
+				_ = origBody.Close()
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			c.Request.Body = wrapMaxBytes(&readCloser{
+				Reader: zstdReader,
+				closeFn: func() error {
+					zstdReader.Close()
 					return origBody.Close()
 				},
 			})
