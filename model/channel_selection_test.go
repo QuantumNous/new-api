@@ -152,7 +152,7 @@ func TestSelectAcquirableChannelFallsBackWhenInitialPickLosesAcquireRace(t *test
 	// the still-healthy channel 17 instead of "channel not found".
 	const attempts = 20
 	for i := 0; i < attempts; i++ {
-		selected, err := selectAcquirableChannel(candidates, weights, "gpt-5.5", "/v1/responses")
+		selected, err := selectAcquirableChannel(candidates, weights, "gpt-5.5", "/v1/responses", nil)
 		if err != nil {
 			t.Fatalf("attempt %d: selectAcquirableChannel returned error: %v", i, err)
 		}
@@ -185,6 +185,7 @@ func TestSelectAcquirableChannelTreatsLostProbeLeaseAsExhaustion(t *testing.T) {
 		[]int{100},
 		"gpt-5.6-sol",
 		"/v1/responses",
+		nil,
 	)
 	require.NoError(t, err)
 	assert.Nil(t, selected)
@@ -306,6 +307,7 @@ func TestSelectAcquirableChannelFallsBackToAvoidedHostAfterPreferredLeaseRace(t 
 		[]*Channel{{Id: 41}}, []int{100},
 		[]*Channel{{Id: 29}}, []int{100},
 		"gpt-5.5", "/v1/responses",
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
@@ -665,6 +667,7 @@ func TestSelectAcquirableAbilityFallsBackToAvoidedHostAfterPreferredLeaseRace(t 
 		[]Ability{{ChannelId: 41}}, []int{100},
 		[]Ability{{ChannelId: 29}}, []int{100},
 		"gpt-5.5", "/v1/responses",
+		nil,
 	)
 	assert.Equal(t, 29, selectedID)
 }
@@ -1009,7 +1012,7 @@ func TestSelectAcquirableAbilityChannelIdFallsBackWhenInitialPickLosesAcquireRac
 
 	const attempts = 20
 	for i := 0; i < attempts; i++ {
-		channelId := selectAcquirableAbilityChannelId(candidates, weights, "gpt-5.5", "/v1/responses")
+		channelId := selectAcquirableAbilityChannelId(candidates, weights, "gpt-5.5", "/v1/responses", nil)
 		if channelId != 17 {
 			t.Fatalf("attempt %d: selectAcquirableAbilityChannelId = %d, want 17", i, channelId)
 		}

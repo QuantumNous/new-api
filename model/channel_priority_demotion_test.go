@@ -42,6 +42,8 @@ func TestChannelHealthPriorityDemotionNeedsRepeatedRecentSlowness(t *testing.T) 
 	clock.Advance(channelHealthFailureWindow + time.Nanosecond)
 	assert.False(t, health.shouldDemotePriority(key), "stale slowness should allow one recovery probe")
 	assert.True(t, health.entries[key].priorityDemoted, "a probe lease must not erase the recovery evidence")
+	require.True(t, health.acquirePriorityProbe(key), "selecting the channel should reserve its recovery probe")
+	assert.False(t, health.acquirePriorityProbe(key), "only one selector may reserve the recovery probe")
 	assert.True(t, health.shouldDemotePriority(key), "other requests must remain demoted while the probe lease is active")
 
 	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
@@ -170,7 +172,7 @@ func TestSlowChannelMovesDownOnlyOneConfiguredPriorityTier(t *testing.T) {
 	recordSelectionSlowChannel(slowHigh)
 	recordSelectionSlowChannel(slowLowest)
 
-	priorities, ranks := buildChannelPriorityRanks([]channelPriorityCandidate{
+	priorities, ranks, _ := buildChannelPriorityRanks([]channelPriorityCandidate{
 		{channelID: 17, priority: 30},
 		{channelID: 29, priority: 20},
 		{channelID: 41, priority: 10},

@@ -245,7 +245,7 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 			priority:  int(channel.GetPriority()),
 		})
 	}
-	sortedUniquePriorities, effectivePriorityRanks := buildChannelPriorityRanks(priorityCandidates, model, options.Path)
+	sortedUniquePriorities, effectivePriorityRanks, priorityProbeCandidates := buildChannelPriorityRanks(priorityCandidates, model, options.Path)
 	if len(sortedUniquePriorities) == 0 {
 		return nil, nil
 	}
@@ -297,6 +297,7 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 			effectiveChannelSelectionWeights(avoidedChannels, model, options.Path),
 			model,
 			options.Path,
+			priorityProbeCandidates,
 		)
 		if err != nil {
 			return nil, err
@@ -313,6 +314,7 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 			effectiveChannelSelectionWeights(hostFallbackAvoided, model, options.Path),
 			model,
 			options.Path,
+			priorityProbeCandidates,
 		)
 	}
 	return nil, nil
@@ -353,14 +355,14 @@ func effectiveChannelSelectionWeights(channels []*Channel, model string, path st
 	return effectiveWeights
 }
 
-func selectAcquirableChannelWithFallback(preferred []*Channel, preferredWeights []int, fallback []*Channel, fallbackWeights []int, model string, path string) (*Channel, error) {
+func selectAcquirableChannelWithFallback(preferred []*Channel, preferredWeights []int, fallback []*Channel, fallbackWeights []int, model string, path string, priorityProbeCandidates map[int]bool) (*Channel, error) {
 	if len(preferred) > 0 {
-		channel, err := selectAcquirableChannel(preferred, preferredWeights, model, path)
+		channel, err := selectAcquirableChannel(preferred, preferredWeights, model, path, priorityProbeCandidates)
 		if channel != nil || len(fallback) == 0 {
 			return channel, err
 		}
 	}
-	return selectAcquirableChannel(fallback, fallbackWeights, model, path)
+	return selectAcquirableChannel(fallback, fallbackWeights, model, path, priorityProbeCandidates)
 }
 
 // selectAcquirableChannel picks a weighted-random starting candidate, then
@@ -368,7 +370,7 @@ func selectAcquirableChannelWithFallback(preferred []*Channel, preferredWeights 
 // until one successfully acquires its health lease. This ensures a lost
 // half-open probe race on the initial pick still falls back to other
 // available candidates instead of failing outright.
-func selectAcquirableChannel(candidates []*Channel, weights []int, model string, path string) (*Channel, error) {
+func selectAcquirableChannel(candidates []*Channel, weights []int, model string, path string, priorityProbeCandidates map[int]bool) (*Channel, error) {
 	totalWeight := 0
 	for _, w := range weights {
 		totalWeight += w
@@ -395,6 +397,12 @@ func selectAcquirableChannel(candidates []*Channel, weights []int, model string,
 		}
 		channel := candidates[idx]
 		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: path}
+		if priorityProbeCandidates[channel.Id] {
+			if AcquireChannelPriorityProbe(key) {
+				return channel, nil
+			}
+			continue
+		}
 		if AcquireChannelHealth(key) {
 			return channel, nil
 		}

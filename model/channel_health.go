@@ -509,30 +509,53 @@ func (r *channelHealthRegistry) Score(key ChannelHealthKey) float64 {
 	return math.Max(minimumChannelHealthScore, math.Min(1, score))
 }
 
-// shouldDemotePriority reports whether a closed channel has enough recent
-// slow, attributable responses to yield one configured priority tier. Once a
-// minute it leases one selection opportunity at the configured tier without
-// erasing the demotion; only scored fast outcomes can restore priority.
-// Open/half-open channels return false because the circuit already limits their
-// probes.
-func (r *channelHealthRegistry) shouldDemotePriority(key ChannelHealthKey) bool {
+// prioritySelectionState reports whether a closed channel is softly demoted
+// and whether its one-minute recovery interval has elapsed. Merely inspecting
+// candidates does not consume that opportunity; acquirePriorityProbe reserves
+// it only after the selector actually chooses the channel.
+func (r *channelHealthRegistry) prioritySelectionState(key ChannelHealthKey) (demoted bool, probeEligible bool) {
 	if !common.AdaptiveChannelHealthEnabled {
-		return false
+		return false, false
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	entry := r.entries[key]
-	if entry == nil || entry.state != ChannelHealthClosed {
-		return false
+	if entry == nil || entry.state != ChannelHealthClosed || !entry.priorityDemoted {
+		return false, false
 	}
 	now := r.now()
 	entry.lastSeenAt = now
-	if entry.priorityDemoted && now.Sub(entry.priorityDemotedAt) > channelHealthFailureWindow {
-		entry.priorityDemotedAt = now
+	return true, now.Sub(entry.priorityDemotedAt) > channelHealthFailureWindow
+}
+
+func (r *channelHealthRegistry) shouldDemotePriority(key ChannelHealthKey) bool {
+	demoted, probeEligible := r.prioritySelectionState(key)
+	return demoted && !probeEligible
+}
+
+// acquirePriorityProbe atomically reserves a stale soft-demotion recovery
+// opportunity. Concurrent selectors may all observe the candidate as eligible,
+// but only the first one that actually selects it can send a probe; the rest
+// fall back to another candidate.
+func (r *channelHealthRegistry) acquirePriorityProbe(key ChannelHealthKey) bool {
+	if !common.AdaptiveChannelHealthEnabled {
+		return true
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := r.now()
+	entry := r.entries[key]
+	if entry == nil || !entry.priorityDemoted {
+		return true
+	}
+	entry.lastSeenAt = now
+	if entry.state != ChannelHealthClosed || now.Sub(entry.priorityDemotedAt) <= channelHealthFailureWindow {
 		return false
 	}
-	return entry.priorityDemoted
+	entry.priorityDemotedAt = now
+	return true
 }
 
 // selectionFactors returns, in one lock, a channel's health score and whether
@@ -603,9 +626,9 @@ type channelPriorityCandidate struct {
 // selectors keeps their routing behavior identical. A repeatedly slow channel
 // moves down by at most one configured tier; if it is already in the lowest
 // tier, normal health weighting remains the only adjustment.
-func buildChannelPriorityRanks(candidates []channelPriorityCandidate, model string, path string) ([]int, map[int]int) {
+func buildChannelPriorityRanks(candidates []channelPriorityCandidate, model string, path string) ([]int, map[int]int, map[int]bool) {
 	if len(candidates) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	uniquePriorities := make(map[int]struct{}, len(candidates))
 	for _, candidate := range candidates {
@@ -622,21 +645,37 @@ func buildChannelPriorityRanks(candidates []channelPriorityCandidate, model stri
 		configuredRanks[priority] = rank
 	}
 	effectiveRanks := make(map[int]int, len(candidates))
+	priorityProbeCandidates := make(map[int]bool)
 	for _, candidate := range candidates {
 		rank := configuredRanks[candidate.priority]
 		key := ChannelHealthKey{ChannelID: candidate.channelID, Model: model, Path: path}
-		if rank+1 < len(priorities) && ShouldDemoteChannelPriority(key) {
-			rank++
+		if rank+1 < len(priorities) {
+			demoted, probeEligible := adaptiveChannelHealth.prioritySelectionState(key)
+			if demoted {
+				if probeEligible {
+					priorityProbeCandidates[candidate.channelID] = true
+				} else {
+					rank++
+				}
+			}
 		}
 		effectiveRanks[candidate.channelID] = rank
 	}
-	return priorities, effectiveRanks
+	return priorities, effectiveRanks, priorityProbeCandidates
 }
 
-// ShouldDemoteChannelPriority is the shared soft-priority signal used by both
-// channel selectors. It intentionally does not affect affinity routing.
+// ShouldDemoteChannelPriority reports the current soft-priority signal. A stale
+// demotion reports false so a selector can offer a recovery probe; callers that
+// act on that opportunity must reserve it with AcquireChannelPriorityProbe.
+// Affinity routing intentionally does not use either signal.
 func ShouldDemoteChannelPriority(key ChannelHealthKey) bool {
 	return adaptiveChannelHealth.shouldDemotePriority(key)
+}
+
+// AcquireChannelPriorityProbe reserves a soft-demotion recovery opportunity
+// only after weighted selection has chosen that channel.
+func AcquireChannelPriorityProbe(key ChannelHealthKey) bool {
+	return adaptiveChannelHealth.acquirePriorityProbe(key)
 }
 
 func RecordChannelOutcome(key ChannelHealthKey, outcome ChannelOutcome) {
