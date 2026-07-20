@@ -29,6 +29,45 @@ type taskPollingFetchAdaptor struct {
 	blockOnce    sync.Once
 }
 
+type sunoFailurePollingAdaptor struct {
+	failReason string
+}
+
+func (a *sunoFailurePollingAdaptor) Init(_ *relaycommon.RelayInfo) {}
+
+func (a *sunoFailurePollingAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
+	taskIDs, _ := body["ids"].([]string)
+	items := make([]dto.SunoDataResponse, 0, len(taskIDs))
+	for _, taskID := range taskIDs {
+		items = append(items, dto.SunoDataResponse{
+			TaskID:     taskID,
+			Status:     string(model.TaskStatusFailure),
+			FailReason: a.failReason,
+			FinishTime: time.Now().Unix(),
+		})
+	}
+
+	responseBody, err := common.Marshal(dto.TaskResponse[[]dto.SunoDataResponse]{
+		Code: dto.TaskSuccessCode,
+		Data: items,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(responseBody)),
+	}, nil
+}
+
+func (a *sunoFailurePollingAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
+	return nil, nil
+}
+
+func (a *sunoFailurePollingAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
+	return 0
+}
+
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
 func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
@@ -330,4 +369,130 @@ func TestUpdateVideoTasksMixedChannelSleepSettings(t *testing.T) {
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.ElementsMatch(t, []string{"upstream_sleepy_1", "upstream_fast_1", "upstream_fast_2"}, adaptor.fetchedTaskIDs())
+}
+
+func TestUpdateSunoTasksStalePollsRefundExactlyOnce(t *testing.T) {
+	truncate(t)
+
+	const userID, tokenID, channelID = 401, 401, 401
+	const initialUserQuota, initialTokenQuota, taskQuota = 10_000, 6_000, 2_500
+	const publicTaskID, upstreamTaskID = "suno_public_refund_once", "suno_upstream_refund_once"
+
+	seedUser(t, userID, initialUserQuota)
+	seedToken(t, tokenID, userID, "sk-suno-refund-once", initialTokenQuota)
+	baseURL := "https://suno.invalid"
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:      channelID,
+		Type:    constant.ChannelTypeSunoAPI,
+		Name:    "suno_refund_once",
+		Key:     "sk-suno-channel",
+		Status:  common.ChannelStatusEnabled,
+		BaseURL: &baseURL,
+	}).Error)
+
+	task := makeTask(userID, channelID, taskQuota, tokenID, BillingSourceWallet, 0)
+	task.TaskID = publicTaskID
+	task.Platform = constant.TaskPlatformSuno
+	task.Status = model.TaskStatusInProgress
+	task.Progress = "50%"
+	task.SubmitTime = model.TaskRefundLegacyCutoff
+	task.PrivateData.UpstreamTaskID = upstreamTaskID
+	require.NoError(t, model.DB.Create(task).Error)
+
+	var firstPollTask model.Task
+	var staleSecondPollTask model.Task
+	require.NoError(t, model.DB.First(&firstPollTask, task.ID).Error)
+	require.NoError(t, model.DB.First(&staleSecondPollTask, task.ID).Error)
+
+	adaptor := &sunoFailurePollingAdaptor{failReason: "upstream failed"}
+	previousFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+	t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+
+	require.NoError(t, updateSunoTasks(context.Background(), channelID, []string{upstreamTaskID}, map[string]*model.Task{
+		upstreamTaskID: &firstPollTask,
+	}))
+	require.NoError(t, updateSunoTasks(context.Background(), channelID, []string{upstreamTaskID}, map[string]*model.Task{
+		upstreamTaskID: &staleSecondPollTask,
+	}))
+
+	var reloaded model.Task
+	require.NoError(t, model.DB.First(&reloaded, task.ID).Error)
+	assert.EqualValues(t, model.TaskStatusFailure, reloaded.Status)
+	assert.Zero(t, reloaded.Quota)
+	assert.Equal(t, initialUserQuota+taskQuota, getUserQuota(t, userID))
+	assert.Equal(t, initialTokenQuota+taskQuota, getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, int64(1), countLogs(t))
+}
+
+func TestSweepUnrefundedFailedTasksRefundsModernTaskAndSkipsLegacy(t *testing.T) {
+	truncate(t)
+
+	const userID = 402
+	const initialQuota, modernTaskQuota, legacyTaskQuota = 10_000, 1_200, 1_800
+	seedUser(t, userID, initialQuota)
+
+	modernTask := makeTask(userID, 0, modernTaskQuota, 0, BillingSourceWallet, 0)
+	modernTask.TaskID = "modern_failed_pending_refund"
+	modernTask.Status = model.TaskStatusFailure
+	modernTask.Progress = "100%"
+	modernTask.SubmitTime = model.TaskRefundLegacyCutoff
+	modernTask.UpdatedAt = time.Now().Add(-time.Minute).Unix()
+	require.NoError(t, model.DB.Create(modernTask).Error)
+
+	legacyTask := makeTask(userID, 0, legacyTaskQuota, 0, BillingSourceWallet, 0)
+	legacyTask.TaskID = "legacy_failed_without_refund"
+	legacyTask.Status = model.TaskStatusFailure
+	legacyTask.Progress = "100%"
+	legacyTask.SubmitTime = model.TaskRefundLegacyCutoff - 1
+	legacyTask.UpdatedAt = time.Now().Add(-time.Minute).Unix()
+	require.NoError(t, model.DB.Create(legacyTask).Error)
+
+	sweepUnrefundedFailedTasks(context.Background())
+	sweepUnrefundedFailedTasks(context.Background())
+
+	var reloadedModern model.Task
+	var reloadedLegacy model.Task
+	require.NoError(t, model.DB.First(&reloadedModern, modernTask.ID).Error)
+	require.NoError(t, model.DB.First(&reloadedLegacy, legacyTask.ID).Error)
+	assert.Zero(t, reloadedModern.Quota)
+	assert.Equal(t, legacyTaskQuota, reloadedLegacy.Quota)
+	assert.Equal(t, initialQuota+modernTaskQuota, getUserQuota(t, userID))
+	assert.Equal(t, int64(1), countLogs(t))
+}
+
+func TestSweepUnrefundedFailedTasksRestoresMarkerAfterFundingFailure(t *testing.T) {
+	truncate(t)
+
+	const userID, subscriptionID, taskQuota = 404, 404, 900
+	const subscriptionUsed int64 = 5_000
+	seedUser(t, userID, 0)
+
+	task := makeTask(userID, 0, taskQuota, 0, BillingSourceSubscription, subscriptionID)
+	task.TaskID = "subscription_failed_pending_refund"
+	task.Status = model.TaskStatusFailure
+	task.Progress = "100%"
+	task.SubmitTime = model.TaskRefundLegacyCutoff
+	task.UpdatedAt = time.Now().Add(-time.Minute).Unix()
+	require.NoError(t, model.DB.Create(task).Error)
+
+	sweepUnrefundedFailedTasks(context.Background())
+
+	var afterFailedRefund model.Task
+	require.NoError(t, model.DB.First(&afterFailedRefund, task.ID).Error)
+	assert.Equal(t, taskQuota, afterFailedRefund.Quota)
+	assert.Equal(t, int64(0), countLogs(t))
+
+	seedSubscription(t, subscriptionID, userID, 10_000, subscriptionUsed)
+	require.NoError(t, model.DB.Model(&model.Task{}).
+		Where("id = ?", task.ID).
+		UpdateColumn("updated_at", time.Now().Add(-time.Minute).Unix()).Error)
+
+	sweepUnrefundedFailedTasks(context.Background())
+
+	var afterSuccessfulRetry model.Task
+	require.NoError(t, model.DB.First(&afterSuccessfulRetry, task.ID).Error)
+	assert.Zero(t, afterSuccessfulRetry.Quota)
+	assert.Equal(t, subscriptionUsed-int64(taskQuota), getSubscriptionUsed(t, subscriptionID))
+	assert.Equal(t, int64(1), countLogs(t))
 }
