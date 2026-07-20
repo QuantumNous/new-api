@@ -37,6 +37,8 @@ LimitNOFILE=65536:65536
   the client.
 - Forward `/v1/messages` without Responses conversion.
 - Forward `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, and `HEAD`.
+- A deployment is healthy only when the retry proxy owns port 3000, New API
+  owns port 3001, and no backup/direct container bypasses the proxy.
 
 ## 4. Validation & Error Matrix
 
@@ -49,6 +51,7 @@ LimitNOFILE=65536:65536
 | HTTP 400 validation error | Correct model-scoped parameters; do not retry unchanged input |
 | HTTP 401/402 | Correct credentials or balance; do not classify as transient |
 | HTTP 501 admin mutation | Verify all HTTP forwarding methods are present |
+| Proxy restart loop with `Address already in use` | Stop or rebind the stale direct container, then verify the proxy owns port 3000 |
 
 ## 5. Good / Base / Bad Cases
 
@@ -58,6 +61,8 @@ LimitNOFILE=65536:65536
   the rest of the stream is copied byte-for-byte.
 - Bad: send streaming headers immediately after upstream HTTP 200 and then try
   to replay after `response.failed`.
+- Bad: inspect only the unit arguments and assume the proxy is live without
+  checking the listening PID, Docker bindings, and journal.
 
 ## 6. Tests Required
 
@@ -76,10 +81,17 @@ Required assertions:
 - a failure after visible output does not trigger replay;
 - the prelude reader never returns more than its configured byte budget;
 - the systemd unit applies concurrency 800 and `LimitNOFILE=65536`.
+- `ss -lntp` shows the proxy on port 3000 and New API on port 3001;
+- the proxy journal has no restart loop or `Address already in use` errors.
 
 ## 7. Wrong vs Correct
 
 ```text
 Wrong: upstream 200 -> send headers -> forward response.created -> receive response.failed
 Correct: upstream 200 -> buffer pre-output SSE -> retry early failure -> commit on effective output
+```
+
+```text
+Wrong: systemd arguments look correct -> declare deployment complete
+Correct: verify unit state -> verify port owner -> verify container bindings -> run an end-to-end request
 ```

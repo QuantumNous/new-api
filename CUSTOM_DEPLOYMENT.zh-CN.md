@@ -21,7 +21,10 @@ calciumion/new-api@sha256:428018a37c0b26c163a3367c18401161707cd0e08d0f26a3dde9ff
 3. `deploy/channel-overrides/` 与 `deploy/sql/`：复现四个生产渠道的完整参数兼容规则。
 4. `deploy/env/new-api.env.example`：PostgreSQL 连接池参数模板。
 
-2026-07-20 发布本分支时，原生产服务器的 SSH 端口在认证前连接超时。因此定制文件来自 2026-07-19 的服务器导出，尚未完成发布时刻的在线哈希复核。
+2026-07-20 已重新登录生产服务器完成在线哈希复核。服务器当时安装的代理文件 SHA-256 为
+`ed52b12e3bc2cfc6994945cc32642ba75a6abf92503e790b99a3921c430e7964`，与本分支首个定制提交
+`ee21ec8` 完全一致；分支最新提交 `4ae3f83` 的代理文件 SHA-256 为
+`ea5f7fd8b06156b268ed8f5762151676f82e22f51a37a1551aff376a0cacbc9e`。这说明 GitHub 已保存最终代码，但生产服务器尚未部署后续的流式前导缓冲和严格 64 KiB 上限。
 
 ## 请求链路
 
@@ -32,6 +35,21 @@ calciumion/new-api@sha256:428018a37c0b26c163a3367c18401161707cd0e08d0f26a3dde9ff
 代理只对 `POST /v1/responses` 使用并发信号量。非流式请求遇到 HTTP `500/502/503/504` 或 SSE 内容中的 `response.failed` 会重试。流式请求会短暂缓冲 `response.created`、`response.in_progress` 和心跳；在有效输出开始前遇到 `response.failed` 会重试，一旦输出已经发给客户端则不重放。
 
 `GET/POST/PUT/PATCH/DELETE/OPTIONS/HEAD` 都会透明转发，因此后台创建分组、创建用户和修改密码不会因代理缺少 HTTP 方法而返回 501。`/v1/messages` 不进入 Responses 重试逻辑，保持原路径透明转发给 New API。
+
+历史备份中曾出现把非流式 `/v1/messages` 转换到 `/v1/chat/completions` 的临时实现。该方案改变了协议语义、无法覆盖流式 Messages，并可能丢失 Anthropic 原生字段，最终已回滚，不属于应发布的生产定制。当前正确实现是透明透传。
+
+## 2026-07-20 线上部署核对
+
+在线核对时发现：
+
+1. 主 New API 容器绑定 `127.0.0.1:3001`，应用版本为 `v1.0.0-rc.21`；
+2. 一个历史直连备份容器仍占用公网 `3000`；
+3. `gpt56-retry-proxy.service` 因 `Address already in use` 持续自动重启，客户端实际绕过代理进入旧直连容器；
+4. systemd 主文件和 drop-in 合并后的有效参数为 `attempts=5`、`upstream-concurrency=800`、`LimitNOFILE=65536`，与仓库模板一致；
+5. PostgreSQL 连接池为 `400/100/60`，与仓库模板一致；
+6. 两个 Azure 渠道参数覆盖与仓库一致；`AWS-B` 的 Fable 覆盖完整，`0718-OR` 缺少按 `model` 匹配的 `max_tokens=512` 规则，重新执行 SQL 安装脚本可统一为仓库版本。
+
+部署最新代理前必须先停止并移除或改端口运行占用 `3000` 的历史直连容器，再安装本分支代理文件并重启 systemd。不要在端口仍被占用时只执行 `systemctl restart`。
 
 ## 安装代理
 
@@ -130,9 +148,12 @@ deploy/sql/apply_channel_param_overrides.sh
 ```bash
 python3 -m py_compile deploy/retry-proxy/gpt56_retry_proxy.py
 python3 -m unittest discover -s deploy/tests -v
+systemd-analyze verify deploy/systemd/gpt56-retry-proxy.service
 curl -fsS http://127.0.0.1:3001/api/status
 curl -fsS http://127.0.0.1:3000/api/status
 ```
+
+当前分支代理和渠道测试为 15/15 通过，包含流式早期失败重试、输出后不重放和 64 KiB 硬上限回归测试。
 
 压力测试应从较低并发逐步增加，并分别统计成功率、HTTP 状态码、TTFT、总耗时、RPM 和 TPM。不要仅凭代理并发值判断稳定容量。
 
