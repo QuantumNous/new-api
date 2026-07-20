@@ -58,6 +58,94 @@ func TestAdvancedCustomValidateResponsesToChatConverterPath(t *testing.T) {
 	}
 }
 
+func TestAdvancedCustomValidateModelListRouteConstraints(t *testing.T) {
+	valid := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{
+				IncomingPath: AdvancedCustomModelListPath,
+				UpstreamPath: "https://upstream.example/custom/models",
+				Converter:    advancedCustomConverterNone,
+			},
+		},
+	}
+	require.NoError(t, valid.Validate())
+
+	tests := []struct {
+		name   string
+		routes []AdvancedCustomRoute
+		want   string
+	}{
+		{
+			name: "model matching rules",
+			routes: []AdvancedCustomRoute{
+				{
+					IncomingPath: AdvancedCustomModelListPath,
+					UpstreamPath: "/v1/models",
+					Models:       []string{"gpt-4o"},
+				},
+			},
+			want: "models must be empty",
+		},
+		{
+			name: "converter",
+			routes: []AdvancedCustomRoute{
+				{
+					IncomingPath: AdvancedCustomModelListPath,
+					UpstreamPath: "/v1/models",
+					Converter:    advancedCustomConverterOpenAIChatToOpenAIResponses,
+				},
+			},
+			want: "converter must be none",
+		},
+		{
+			name: "model placeholder",
+			routes: []AdvancedCustomRoute{
+				{
+					IncomingPath: AdvancedCustomModelListPath,
+					UpstreamPath: "/v1/models/{model}",
+				},
+			},
+			want: "upstream_path must not contain {model}",
+		},
+		{
+			name: "duplicate routes",
+			routes: []AdvancedCustomRoute{
+				{IncomingPath: AdvancedCustomModelListPath, UpstreamPath: "/v1/models"},
+				{IncomingPath: AdvancedCustomModelListPath, UpstreamPath: "/provider/models"},
+			},
+			want: "duplicates the /v1/models route",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := (&AdvancedCustomConfig{Routes: tt.routes}).Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+func TestAdvancedCustomModelListRouteRequiresExactIncomingPath(t *testing.T) {
+	config := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/{model}",
+				UpstreamPath: "/generic/{model}",
+			},
+			{
+				IncomingPath: AdvancedCustomModelListPath,
+				UpstreamPath: "/provider/models",
+			},
+		},
+	}
+	require.NoError(t, config.Validate())
+
+	route, ok := config.ModelListRoute()
+	require.True(t, ok)
+	assert.Equal(t, "/provider/models", route.UpstreamPath)
+}
+
 func TestAdvancedCustomValidateDuplicateIncomingPathWithDisjointModels(t *testing.T) {
 	config := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{
