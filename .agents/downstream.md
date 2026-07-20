@@ -43,6 +43,18 @@ conflicts are primary engineering constraints.
 - When resolving an upstream merge, preserve the upstream implementation
   first, then reapply the smallest downstream integration necessary.
 
+## Downstream Language
+
+- All downstream-only user-facing text MUST use Simplified Chinese literals,
+  including frontend UI copy and backend API messages or notifications.
+- Do not add frontend or backend i18n keys, translation calls, static
+  translation keys, locale messages, or locale entries for downstream-only
+  features.
+- Do not modify locale files for downstream-only features.
+- Preserve the official project's existing internationalization behavior when
+  editing upstream-owned features. This downstream-only exception overrides
+  the root i18n rules only for code and features owned by this fork.
+
 ## Review Before Completion
 
 - Inspect `git diff --stat` and `git diff --check` before finishing.
