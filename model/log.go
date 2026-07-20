@@ -329,6 +329,10 @@ type RecordConsumeLogParams struct {
 	ChannelId        int                    `json:"channel_id"`
 	PromptTokens     int                    `json:"prompt_tokens"`
 	CompletionTokens int                    `json:"completion_tokens"`
+	// TotalTokens 用于汇总统计（如 quota_data.token_used）。
+	// Anthropic 语义下 PromptTokens 不含缓存 token，需要把 cache_read/cache_creation 加回来后写入此处，
+	// 避免数据看板的总 TOKEN 数漏算缓存。OpenAI 语义下 PromptTokens 已含缓存，此处与 Prompt+Completion 相同。
+	TotalTokens      int                    `json:"total_tokens"`
 	ModelName        string                 `json:"model_name"`
 	TokenName        string                 `json:"token_name"`
 	Quota            int                    `json:"quota"`
@@ -388,13 +392,19 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		// Anthropic 语义下 PromptTokens 不含缓存，优先使用调用方已计算好的 TotalTokens；
+		// 未提供时回退到 PromptTokens + CompletionTokens，保持旧行为兼容。
+		tokenUsed := params.TotalTokens
+		if tokenUsed <= 0 {
+			tokenUsed = params.PromptTokens + params.CompletionTokens
+		}
 		LogQuotaData(QuotaDataLogParams{
 			UserID:    userId,
 			Username:  username,
 			ModelName: params.ModelName,
 			Quota:     params.Quota,
 			CreatedAt: createdAt,
-			TokenUsed: params.PromptTokens + params.CompletionTokens,
+			TokenUsed: tokenUsed,
 			UseGroup:  params.Group,
 			TokenID:   params.TokenId,
 			ChannelID: params.ChannelId,
