@@ -12,9 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type closeNotifyRecorder struct {
+	*httptest.ResponseRecorder
+	closed chan bool
+}
+
+func (r *closeNotifyRecorder) CloseNotify() <-chan bool {
+	return r.closed
+}
+
 func TestPalmStreamHandlerRecordsCurrentAttemptFirstResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	recorder := httptest.NewRecorder()
+	recorder := &closeNotifyRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		closed:           make(chan bool),
+	}
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	resp := &http.Response{
