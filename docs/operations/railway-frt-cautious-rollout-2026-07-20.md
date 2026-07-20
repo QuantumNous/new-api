@@ -106,7 +106,9 @@ p90 3.303 s，p95 3.995 s，最大 22.231 s；FRT >= 10 s 共 14 条，FRT >= 20
 自适应健康度和失败流 affinity 抑制已生效；由于没有同一主机的跨渠道失败证据，
 共享主机熔断保持 `observe`，不启用 `enforce`。
 
-代码侧新增 attempt 级 TTFT 归因保护：流式请求优先使用本次
-`StreamStatus.FirstDataAt - attemptStart`；如果全局 `FirstResponseTime` 属于前一次重试，
-且本次没有可归因首数据，则不再用本次完整流时长代替 TTFT。非流式请求的原有耗时
-fallback 保持不变，真实慢上游仍按本次 attempt 的首数据时间进入健康度和慢渠道判定。
+代码侧新增独立的 attempt 级 TTFT 归因：每次切换渠道时重置本次首响应时间和
+`StreamStatus`，请求级 `FirstResponseTime` 继续保留用户实际等待的总首字；健康度和慢渠道
+冷却只读取本次 attempt 的首响应时间，并以 `StreamStatus.FirstDataAt` 作为兼容回退。如果
+只有前一次重试的全局时间，本次完整流时长不再被当作 TTFT。非流式请求的原有耗时
+fallback 保持不变，真实慢上游仍会进入健康度和慢渠道判定。通用 scanner 之外的 PaLM、
+Xunfei、Zhipu、Tencent、Coze、Ollama 和 Volcengine TTS 手写流路径也已接入同一计时。
