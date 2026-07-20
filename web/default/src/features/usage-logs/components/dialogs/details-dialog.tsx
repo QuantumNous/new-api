@@ -55,6 +55,7 @@ import {
   decodeBillingExprB64,
   getTieredBillingSummary,
   hasAnyCacheTokens,
+  isFreeTrialUsageLog,
   isViolationFeeLog,
   getFirstResponseTimeColor,
   getResponseTimeColor,
@@ -145,6 +146,7 @@ function BillingBreakdown(props: {
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
+  const isFreeTrial = isFreeTrialUsageLog(log, other)
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
@@ -185,7 +187,12 @@ function BillingBreakdown(props: {
       })
     }
   } else {
-    rows.push({ label: t('Billing Mode'), value: t('Per-token') })
+    rows.push({
+      label: t('Billing Mode'),
+      value: isFreeTrial
+        ? `${t('Per-token')} (${t('Official')})`
+        : t('Per-token'),
+    })
     if (other.model_ratio != null) {
       rows.push({
         label: t('Input'),

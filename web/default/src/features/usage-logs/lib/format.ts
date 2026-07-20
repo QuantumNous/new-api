@@ -171,6 +171,22 @@ export function formatModelName(log: UsageLog): {
   }
 }
 
+const FREE_TRIAL_GROUP = 'free trial'
+const FREE_TRIAL_PLAN_TITLE = 'apimaster $50 gpt trial'
+
+export function isFreeTrialUsageLog(
+  log: UsageLog,
+  other: LogOtherData | null
+): boolean {
+  const group = (log.group || other?.group || '').trim().toLowerCase()
+  if (group === FREE_TRIAL_GROUP) {
+    return true
+  }
+
+  const planTitle = (other?.subscription_plan_title || '').trim().toLowerCase()
+  return planTitle === FREE_TRIAL_PLAN_TITLE
+}
+
 /**
  * Decode a base64-encoded billing expression. Safely returns an empty string
  * when the input is missing or malformed (e.g. legacy logs without expr_b64).

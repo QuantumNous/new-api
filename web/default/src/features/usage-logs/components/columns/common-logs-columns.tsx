@@ -44,6 +44,7 @@ import {
   getResponseTimeColor,
   getTieredBillingSummary,
   hasAnyCacheTokens,
+  isFreeTrialUsageLog,
   parseLogOther,
   isViolationFeeLog,
 } from '../../lib/format'
@@ -123,6 +124,7 @@ function buildDetailSegments(
   if (!other) return []
 
   const segments: DetailSegment[] = []
+  const isFreeTrial = isFreeTrialUsageLog(log, other)
 
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const formatPrice = (price: number) =>
@@ -193,7 +195,11 @@ function buildDetailSegments(
       segments.push({
         text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
       })
-    } else if (other.ch_input_price != null && other.ch_input_price > 0) {
+    } else if (
+      !isFreeTrial &&
+      other.ch_input_price != null &&
+      other.ch_input_price > 0
+    ) {
       // User-facing unit price (采购价 × apimaster_ratio) archived at billing time
       const baseEntries = [formatPriceCompact(other.ch_input_price)]
       if (other.ch_output_price != null && other.ch_output_price > 0) {
@@ -227,7 +233,7 @@ function buildDetailSegments(
         )
       }
       segments.push({
-        text: `${t('Standard')} · ${formatPriceList(baseEntries, true)}`,
+        text: `${isFreeTrial ? t('Official') : t('Standard')} · ${formatPriceList(baseEntries, true)}`,
       })
 
       if (hasAnyCacheTokens(other)) {
