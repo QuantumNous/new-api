@@ -176,8 +176,18 @@ export function buildApiParams(config: {
   searchParams: Record<string, unknown>
   columnFilters?: Array<{ id: string; value: unknown }>
   isAdmin: boolean
+  canReadUsers?: boolean
+  canViewChannelLogs?: boolean
 }): GetLogsParams {
-  const { page, pageSize, searchParams, columnFilters = [], isAdmin } = config
+  const {
+    page,
+    pageSize,
+    searchParams,
+    columnFilters = [],
+    isAdmin,
+    canReadUsers = isAdmin,
+    canViewChannelLogs = isAdmin,
+  } = config
 
   // Helper to process type parameter (single value from array)
   const processType = (value: unknown): number | undefined => {
@@ -203,10 +213,10 @@ export function buildApiParams(config: {
     ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
     ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),
     ...(searchParams.group ? { group: String(searchParams.group) } : {}),
-    ...(isAdmin && searchParams.channel
+    ...(isAdmin && canViewChannelLogs && searchParams.channel
       ? { channel: Number(searchParams.channel) || 0 }
       : {}),
-    ...(isAdmin && searchParams.username
+    ...(isAdmin && canReadUsers && searchParams.username
       ? { username: String(searchParams.username) }
       : {}),
     ...(searchParams.requestId
@@ -237,10 +247,10 @@ export function buildApiParams(config: {
           params.group = String(value)
           break
         case 'channel':
-          if (isAdmin) params.channel = Number(value) || 0
+          if (isAdmin && canViewChannelLogs) params.channel = Number(value) || 0
           break
         case 'username':
-          if (isAdmin) params.username = String(value)
+          if (isAdmin && canReadUsers) params.username = String(value)
           break
       }
     })
@@ -259,8 +269,16 @@ export function buildApiParams(config: {
 export async function fetchLogsByCategory(
   config: FetchLogsConfig
 ): Promise<GetLogsResponse> {
-  const { logCategory, isAdmin, page, pageSize, searchParams, columnFilters } =
-    config
+  const {
+    logCategory,
+    isAdmin,
+    canReadUsers,
+    canViewChannelLogs,
+    page,
+    pageSize,
+    searchParams,
+    columnFilters,
+  } = config
 
   if (logCategory === 'common') {
     const params = buildApiParams({
@@ -269,6 +287,8 @@ export async function fetchLogsByCategory(
       searchParams,
       columnFilters,
       isAdmin,
+      canReadUsers,
+      canViewChannelLogs,
     })
     return isAdmin ? await getAllLogs(params) : await getUserLogs(params)
   }
@@ -277,7 +297,10 @@ export async function fetchLogsByCategory(
   const baseParams = buildBaseParams({
     page,
     pageSize,
-    searchParams,
+    searchParams: {
+      ...searchParams,
+      ...(!isAdmin || !canViewChannelLogs ? { channel: undefined } : {}),
+    },
     useMilliseconds: logCategory === 'drawing',
   })
 

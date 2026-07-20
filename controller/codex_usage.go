@@ -63,6 +63,9 @@ func fetchCodexChannelWhamData(
 		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
 		return
 	}
+	if !ensureChannelVisible(c, channelId) {
+		return
+	}
 
 	ch, err := model.GetChannelById(channelId, true)
 	if err != nil {

@@ -80,6 +80,37 @@ type Log struct {
 	Other             string `json:"other"`
 }
 
+type LogVisibilityScope struct {
+	UserID                      int
+	ChannelIDs                  []int
+	AllChannels                 bool
+	IncludeOtherUsersNonChannel bool
+}
+
+func (scope LogVisibilityScope) Apply(tx *gorm.DB, prefix string) *gorm.DB {
+	conditions := make([]string, 0, 3)
+	args := make([]any, 0, 3)
+	userCol := prefix + "user_id"
+	channelCol := prefix + "channel_id"
+	if scope.UserID > 0 {
+		conditions = append(conditions, userCol+" = ?")
+		args = append(args, scope.UserID)
+	}
+	if scope.AllChannels {
+		conditions = append(conditions, channelCol+" <> 0")
+	} else if len(scope.ChannelIDs) > 0 {
+		conditions = append(conditions, channelCol+" IN ?")
+		args = append(args, scope.ChannelIDs)
+	}
+	if scope.IncludeOtherUsersNonChannel {
+		conditions = append(conditions, channelCol+" = 0")
+	}
+	if len(conditions) == 0 {
+		return tx.Where("1 = 0")
+	}
+	return tx.Where("("+strings.Join(conditions, " OR ")+")", args...)
+}
+
 // don't use iota, avoid change log type value
 const (
 	LogTypeUnknown = 0
@@ -466,11 +497,18 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 }
 
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+	return GetAllLogsScoped(logType, startTimestamp, endTimestamp, modelName, username, tokenName, startIdx, num, channel, group, requestId, upstreamRequestId, nil)
+}
+
+func GetAllLogsScoped(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, scope *LogVisibilityScope) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
 	} else {
 		tx = LOG_DB.Where("logs.type = ?", logType)
+	}
+	if scope != nil {
+		tx = scope.Apply(tx, "logs.")
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
@@ -616,11 +654,19 @@ type Stat struct {
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+	return SumUsedQuotaScoped(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, nil)
+}
+
+func SumUsedQuotaScoped(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, scope *LogVisibilityScope) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
 
+	if scope != nil {
+		tx = scope.Apply(tx, "")
+		rpmTpmQuery = scope.Apply(rpmTpmQuery, "")
+	}
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
 		return stat, err
 	}

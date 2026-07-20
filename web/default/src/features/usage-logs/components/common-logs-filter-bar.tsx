@@ -116,7 +116,11 @@ export function CommonLogsFilterBar<TData>(
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
-  const { isAdminView: isAdmin } = useLogsViewScope()
+  const {
+    isAdminView: isAdmin,
+    canReadUsers,
+    canViewChannelLogs,
+  } = useLogsViewScope()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
@@ -235,8 +239,8 @@ export function CommonLogsFilterBar<TData>(
 
   const hasExpandedFilters =
     !!filters.token ||
-    !!filters.username ||
-    !!filters.channel ||
+    (isAdmin && canReadUsers && !!filters.username) ||
+    (isAdmin && canViewChannelLogs && !!filters.channel) ||
     !!filters.requestId ||
     !!filters.upstreamRequestId
 
@@ -246,8 +250,8 @@ export function CommonLogsFilterBar<TData>(
 
   const expandedFilterCount = [
     filters.token,
-    isAdmin ? filters.username : undefined,
-    isAdmin ? filters.channel : undefined,
+    isAdmin && canReadUsers ? filters.username : undefined,
+    isAdmin && canViewChannelLogs ? filters.channel : undefined,
     filters.requestId,
     filters.upstreamRequestId,
   ].filter(Boolean).length
@@ -369,7 +373,7 @@ export function CommonLogsFilterBar<TData>(
           onKeyDown={handleKeyDown}
         />
       </LogsFilterField>
-      {isAdmin && (
+      {isAdmin && canReadUsers && (
         <LogsFilterField>
           <LogsFilterInput
             placeholder={t('Username')}
@@ -380,7 +384,7 @@ export function CommonLogsFilterBar<TData>(
           />
         </LogsFilterField>
       )}
-      {isAdmin && (
+      {isAdmin && canViewChannelLogs && (
         <LogsFilterField>
           <LogsFilterInput
             placeholder={t('Channel ID')}
