@@ -307,10 +307,9 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 		}
 	}
 
-	// A successful-but-slow response is a soft failure: a channel that keeps
-	// taking too long to first token is evicted and re-probed like a failing
-	// one, so latency weighting (which only reorders within a priority tier) is
-	// not the only defense against consistently-slow channels.
+	// A successful-but-slow response is a soft failure: repeated slowness first
+	// lowers the effective priority, then evicts and re-probes the channel like a
+	// failing one if it persists to the circuit threshold.
 	slow := outcome.Latency >= channelHealthSlowLatency() && !outcome.ColdCacheStart
 
 	if entry.state == ChannelHealthHalfOpen {
@@ -351,7 +350,8 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	entry.slowSamples = nil
 	if !outcome.ColdCacheStart && outcome.Latency > 0 && entry.priorityDemoted {
 		entry.priorityFastSamples++
-		if entry.priorityFastSamples >= channelHealthPriorityRecoveryThreshold {
+		if entry.priorityFastSamples >= channelHealthPriorityRecoveryThreshold &&
+			entry.latencyEWMA < float64(channelHealthSlowLatency()) {
 			entry.priorityDemoted = false
 			entry.priorityDemotedAt = time.Time{}
 			entry.priorityFastSamples = 0
