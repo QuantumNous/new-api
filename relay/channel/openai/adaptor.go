@@ -115,6 +115,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		}
 	}
 	switch info.ChannelType {
+	case constant.ChannelTypeAwsOpenAI:
+		return getBedrockOpenAIRequestURL(info)
 	case constant.ChannelTypeAzure:
 		apiVersion := info.ApiVersion
 		if apiVersion == "" {
@@ -182,6 +184,16 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, header)
+	if info.ChannelType == constant.ChannelTypeAwsOpenAI {
+		credentials, err := parseBedrockOpenAICredentials(info)
+		if err != nil {
+			return err
+		}
+		if credentials.keyType == dto.AwsKeyTypeApiKey {
+			header.Set("Authorization", "Bearer "+credentials.apiKey)
+		}
+		return nil
+	}
 	if info.ChannelType == constant.ChannelTypeAzure {
 		header.Set("api-key", info.ApiKey)
 		return nil
@@ -245,7 +257,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
+	if info.ChannelType != constant.ChannelTypeOpenAI &&
+		info.ChannelType != constant.ChannelTypeAzure &&
+		info.ChannelType != constant.ChannelTypeAwsOpenAI {
 		request.StreamOptions = nil
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
@@ -680,6 +694,8 @@ func (a *Adaptor) GetModelList() []string {
 		return xinference.ModelList
 	case constant.ChannelTypeOpenRouter:
 		return openrouter.ModelList
+	case constant.ChannelTypeAwsOpenAI:
+		return BedrockOpenAIModelList
 	default:
 		return ModelList
 	}
@@ -697,6 +713,8 @@ func (a *Adaptor) GetChannelName() string {
 		return xinference.ChannelName
 	case constant.ChannelTypeOpenRouter:
 		return openrouter.ChannelName
+	case constant.ChannelTypeAwsOpenAI:
+		return BedrockOpenAIChannelName
 	default:
 		return ChannelName
 	}

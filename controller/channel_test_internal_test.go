@@ -211,6 +211,28 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 	require.Equal(t, 2, userID)
 }
 
+func TestNormalizeChannelTestEndpointForBedrockOpenAI(t *testing.T) {
+	modelMapping := `{"bedrock-frontier":"openai.gpt-5.5"}`
+	channel := &model.Channel{
+		Type:         constant.ChannelTypeAwsOpenAI,
+		ModelMapping: &modelMapping,
+	}
+
+	require.Equal(t,
+		string(constant.EndpointTypeOpenAIResponse),
+		normalizeChannelTestEndpoint(channel, "openai.gpt-5.5", ""),
+	)
+	require.Empty(t, normalizeChannelTestEndpoint(channel, "openai.gpt-oss-120b", ""))
+	require.Equal(t,
+		string(constant.EndpointTypeOpenAIResponse),
+		normalizeChannelTestEndpoint(channel, "bedrock-frontier", ""),
+	)
+	require.Equal(t,
+		string(constant.EndpointTypeOpenAI),
+		normalizeChannelTestEndpoint(channel, "openai.gpt-5.5", string(constant.EndpointTypeOpenAI)),
+	)
+}
+
 func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {
 	channels := []*model.Channel{
 		{Id: 1, Status: common.ChannelStatusEnabled},

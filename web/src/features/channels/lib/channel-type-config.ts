@@ -144,6 +144,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models exposed by this channel',
     },
   },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'aws',
+    hints: {
+      baseUrl: 'Generated automatically from the credential Region',
+      key: 'AccessKey|SecretAccessKey|Region or APIKey|Region',
+      models: 'OpenAI model IDs exposed by Amazon Bedrock',
+    },
+  },
 }
 
 /**

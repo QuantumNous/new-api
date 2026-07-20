@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
@@ -78,6 +79,14 @@ func init() {
 			Object:  "model",
 			Created: 1626777600,
 			OwnedBy: minimax.ChannelName,
+		})
+	}
+	for _, modelName := range openai.BedrockOpenAIModelList {
+		openAIModels = append(openAIModels, dto.OpenAIModels{
+			Id:      modelName,
+			Object:  "model",
+			Created: 1626777600,
+			OwnedBy: openai.BedrockOpenAIChannelName,
 		})
 	}
 	for modelName, _ := range constant.MidjourneyModel2Action {

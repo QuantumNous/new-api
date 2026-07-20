@@ -2284,8 +2284,8 @@ export function ChannelMutateDrawer({
                               />
                             )}
 
-                            {/* AWS (type 33) */}
-                            {currentType === 33 && (
+                            {/* AWS (types 33 and 59) */}
+                            {[33, 59].includes(currentType) && (
                               <FormField
                                 control={form.control}
                                 name='aws_key_type'
@@ -2914,7 +2914,7 @@ export function ChannelMutateDrawer({
                                       'Leave empty to keep existing key'
                                     )
                                   } else if (
-                                    currentType === 33 &&
+                                    [33, 59].includes(currentType) &&
                                     awsKeyType === 'api_key' &&
                                     isBatchMode
                                   ) {
@@ -2922,20 +2922,20 @@ export function ChannelMutateDrawer({
                                       'Enter API Key, one per line, format: APIKey|Region'
                                     )
                                   } else if (
-                                    currentType === 33 &&
+                                    [33, 59].includes(currentType) &&
                                     awsKeyType === 'api_key'
                                   ) {
                                     keyPlaceholder = t(
                                       'Enter API Key, format: APIKey|Region'
                                     )
                                   } else if (
-                                    currentType === 33 &&
+                                    [33, 59].includes(currentType) &&
                                     isBatchMode
                                   ) {
                                     keyPlaceholder = t(
                                       'Enter key, one per line, format: AccessKey|SecretAccessKey|Region'
                                     )
-                                  } else if (currentType === 33) {
+                                  } else if ([33, 59].includes(currentType)) {
                                     keyPlaceholder = t(
                                       'Enter key, format: AccessKey|SecretAccessKey|Region'
                                     )

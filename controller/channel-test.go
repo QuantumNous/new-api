@@ -52,6 +52,22 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeAwsOpenAI {
+		upstreamModelName := modelName
+		modelMapping := normalizeChannelModelMapping(channel)
+		visited := map[string]bool{upstreamModelName: true}
+		for {
+			mappedModelName, ok := modelMapping[upstreamModelName]
+			if !ok || visited[mappedModelName] {
+				break
+			}
+			visited[mappedModelName] = true
+			upstreamModelName = mappedModelName
+		}
+		if common.IsBedrockOpenAIResponsesModel(upstreamModelName) {
+			return string(constant.EndpointTypeOpenAIResponse)
+		}
+	}
 	return normalized
 }
 

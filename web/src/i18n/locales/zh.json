@@ -243,6 +243,8 @@
     "Advanced": "高级",
     "Advanced Configuration": "高级配置",
     "Advanced Custom": "高级自定义",
+    "AWS OpenAI": "AWS OpenAI",
+    "The AWS endpoint is generated from Region. AK/SK mode uses AccessKey|SecretAccessKey|Region; API Key mode uses APIKey|Region.": "AWS 端点将根据 Region 自动生成。AK/SK 模式使用 AccessKey|SecretAccessKey|Region；API Key 模式使用 APIKey|Region。",
     "Advanced custom configuration is required": "必须配置高级自定义",
     "Advanced custom configuration requires at least one route": "高级自定义至少需要一个路由",
     "Advanced Custom Routes": "高级自定义路由",

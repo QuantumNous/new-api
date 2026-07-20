@@ -32,6 +32,11 @@ func TestChannelOwnerNameUsesAdaptorChannelName(t *testing.T) {
 			expected:    "openrouter",
 		},
 		{
+			name:        "bedrock openai",
+			channelType: constant.ChannelTypeAwsOpenAI,
+			expected:    "AWS OpenAI",
+		},
+		{
 			name:        "azure fallback",
 			channelType: constant.ChannelTypeAzure,
 			expected:    "azure",
@@ -55,6 +60,12 @@ func TestBuildOpenAIModelFallsBackToCustomForUnknownModels(t *testing.T) {
 	modelItem := buildOpenAIModel("custom-test-model", nil)
 	require.Equal(t, "custom-test-model", modelItem.Id)
 	require.Equal(t, "custom", modelItem.OwnedBy)
+}
+
+func TestBedrockOpenAIModelsAreRegistered(t *testing.T) {
+	modelItem, ok := openAIModelsMap["openai.gpt-5.6-sol"]
+	require.True(t, ok)
+	require.Equal(t, "AWS OpenAI", modelItem.OwnedBy)
 }
 
 func TestGetModelListGroupsUsesUserGroupWhenTokenGroupIsEmpty(t *testing.T) {
