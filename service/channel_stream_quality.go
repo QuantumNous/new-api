@@ -64,12 +64,17 @@ func ObserveStreamChannelQuality(relayInfo *relaycommon.RelayInfo) {
 // retried safely, but an explicit account-concurrency failure should stop this
 // request from pinning the failed channel again.
 func ObserveStreamChannelQualityForRequest(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
-	if relayInfo == nil || relayInfo.StreamStatus == nil || relayInfo.ChannelId == 0 {
+	if relayInfo == nil || relayInfo.IsChannelTest || relayInfo.StreamStatus == nil || relayInfo.ChannelId == 0 {
 		ObserveStreamChannelQuality(relayInfo)
 		return
 	}
 	snapshot := relayInfo.StreamStatus.Snapshot()
-	if snapshot.EndReason == relaycommon.StreamEndReasonUpstreamFailed && isStreamAccountConcurrencyFailure(snapshot) {
+	if streamInstabilityReason(relayInfo) != "" {
+		suppressChannelAffinityRecord(c)
+	}
+	if snapshot.EndReason == relaycommon.StreamEndReasonUpstreamFailed &&
+		isStreamAccountConcurrencyFailure(snapshot) &&
+		!relayInfo.ChannelIsMultiKey {
 		modelName := relayInfo.OriginModelName
 		if modelName == "" {
 			modelName = relayInfo.UpstreamModelName
@@ -78,7 +83,6 @@ func ObserveStreamChannelQualityForRequest(c *gin.Context, relayInfo *relaycommo
 		common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", relayInfo.ChannelId, StreamCapacityCooldownDuration, reason))
 		model.CooldownChannel(relayInfo.ChannelId, reason, StreamCapacityCooldownDuration)
 		clearStreamChannelFailures(relayInfo.ChannelId, modelName)
-		suppressChannelAffinityRecord(c)
 		return
 	}
 	ObserveStreamChannelQuality(relayInfo)

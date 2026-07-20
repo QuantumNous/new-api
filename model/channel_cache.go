@@ -256,7 +256,7 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 			continue
 		}
 
-		return selectAcquirableChannelWithFallback(
+		selected, err := selectAcquirableChannelWithFallback(
 			preferredChannels,
 			effectiveChannelSelectionWeights(preferredChannels, model, options.Path),
 			avoidedChannels,
@@ -264,6 +264,12 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 			model,
 			options.Path,
 		)
+		if err != nil {
+			return nil, err
+		}
+		if selected != nil {
+			return selected, nil
+		}
 	}
 	if options.AllowCoolingFallback && (len(hostFallbackPreferred) > 0 || len(hostFallbackAvoided) > 0) {
 		return selectAcquirableChannelWithFallback(

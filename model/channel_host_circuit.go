@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 )
 
 const (
@@ -108,8 +110,8 @@ func (r *channelHostCircuitRegistry) recordFailure(key channelHostCircuitKey, ch
 		}
 	}
 	failures = append(failures, channelHostFailure{at: now, channelID: channelID})
-	entry.failures = failures
 	if len(failures) < channelHostFailureThreshold {
+		entry.failures = failures
 		return false
 	}
 
@@ -118,6 +120,12 @@ func (r *channelHostCircuitRegistry) recordFailure(key channelHostCircuitKey, ch
 		distinctChannels[failure.channelID] = struct{}{}
 	}
 	if len(distinctChannels) < channelHostDistinctChannelThreshold {
+		// Older same-channel evidence cannot change the next decision. Keep only
+		// enough events for the first sibling failure to open the circuit.
+		if len(failures) > channelHostFailureThreshold {
+			failures = failures[len(failures)-channelHostFailureThreshold:]
+		}
+		entry.failures = failures
 		return false
 	}
 
@@ -137,6 +145,9 @@ func (r *channelHostCircuitRegistry) isOpen(key channelHostCircuitKey) bool {
 		return false
 	}
 	entry.lastSeen = now
+	if entry.openUntil.IsZero() {
+		return false
+	}
 	if now.Before(entry.openUntil) {
 		return true
 	}
@@ -167,6 +178,26 @@ func IsChannelHostCoolingDown(host, modelName, path string) bool {
 func shouldEnforceChannelHostCircuit(host, modelName, path string) bool {
 	return common.UpstreamHostCircuitMode == common.UpstreamHostCircuitModeEnforce &&
 		IsChannelHostCoolingDown(host, modelName, path)
+}
+
+// IsChannelRouteHostCoolingDown applies the enforced host circuit to an
+// affinity candidate. Random selection already checks the same route host, so
+// sticky traffic must not bypass a circuit opened by sibling channels.
+func IsChannelRouteHostCoolingDown(channel *Channel, modelName, requestPath, path string) bool {
+	if common.UpstreamHostCircuitMode != common.UpstreamHostCircuitModeEnforce || channel == nil {
+		return false
+	}
+	var config *dto.AdvancedCustomConfig
+	if channel.Type == constant.ChannelTypeAdvancedCustom {
+		if common.MemoryCacheEnabled {
+			channelSyncLock.RLock()
+			config = channel2advancedCustomConfig[channel.Id]
+			channelSyncLock.RUnlock()
+		} else {
+			config = channel.GetOtherSettings().AdvancedCustom
+		}
+	}
+	return shouldEnforceChannelHostCircuit(channelRetryHost(channel, config, requestPath, modelName), modelName, path)
 }
 
 func ClearChannelHostCooldownsForTest() {

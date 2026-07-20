@@ -216,7 +216,7 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 		if len(preferredAbilities) == 0 && len(avoidedAbilities) == 0 {
 			continue
 		}
-		channelId = selectAcquirableAbilityChannelIdWithFallback(
+		selectedChannelId := selectAcquirableAbilityChannelIdWithFallback(
 			preferredAbilities,
 			effectiveAbilitySelectionWeights(preferredAbilities, model, options.Path),
 			avoidedAbilities,
@@ -224,7 +224,10 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 			model,
 			options.Path,
 		)
-		break
+		if selectedChannelId != 0 {
+			channelId = selectedChannelId
+			break
+		}
 	}
 	if channelId == 0 && options.AllowCoolingFallback && (len(hostFallbackPreferred) > 0 || len(hostFallbackAvoided) > 0) {
 		channelId = selectAcquirableAbilityChannelIdWithFallback(
@@ -279,6 +282,7 @@ func abilityChannelHosts(abilities []Ability, requestPath string, model string) 
 
 	var channels []Channel
 	if err := DB.Select("id", "type", "base_url", "settings").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to resolve channel hosts for routing: %v", err))
 		return nil
 	}
 	hosts := make(map[int]string, len(channels))

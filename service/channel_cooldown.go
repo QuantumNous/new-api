@@ -150,6 +150,10 @@ func ShouldCooldownChannelForUpstreamError(err *types.NewAPIError) bool {
 	if err == nil || ShouldCooldownChannel(err) {
 		return false
 	}
+	statusCode := err.StatusCode
+	if err.UpstreamStatusCode != 0 {
+		statusCode = err.UpstreamStatusCode
+	}
 	message := strings.ToLower(err.Error() + " " + string(err.GetErrorCode()) + " " + string(err.GetErrorType()))
 	// Per-channel capability gaps surface as 4xx but are the channel's
 	// limitation for this request type, not the client's. Cool them so retries
@@ -158,13 +162,13 @@ func ShouldCooldownChannelForUpstreamError(err *types.NewAPIError) bool {
 	if isCapabilityError(err) {
 		return true
 	}
-	if err.StatusCode >= 400 && err.StatusCode < 500 {
+	if statusCode >= 400 && statusCode < 500 {
 		return false
 	}
 	if upstreamErrorCooldownCodes[err.GetErrorCode()] {
 		return true
 	}
-	if err.StatusCode == 502 || err.StatusCode == 503 {
+	if statusCode == 502 || statusCode == 503 {
 		return true
 	}
 	if types.IsSkipRetryError(err) {

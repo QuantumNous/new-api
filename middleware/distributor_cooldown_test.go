@@ -34,7 +34,7 @@ func TestDistributeSkipsCoolingPreferredAffinityChannel(t *testing.T) {
 	model.SetChannelCacheForTest(map[int]*model.Channel{17: preferred, 29: fallback}, map[string]map[string][]int{"default": {"gpt-5.5": {17, 29}}})
 	model.CooldownChannel(17, "Insufficient account balance", time.Minute)
 	t.Cleanup(func() {
-		model.CooldownChannel(17, "expired", -time.Second)
+		model.ClearChannelCooldownsForTest()
 	})
 
 	rule := operation_setting.ChannelAffinityRule{

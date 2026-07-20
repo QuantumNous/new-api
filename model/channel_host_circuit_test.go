@@ -14,7 +14,7 @@ func TestChannelHostCircuitBoundsSingleChannelFailureEvidence(t *testing.T) {
 	key, ok := newChannelHostCircuitKey("https://shared.example/v1", "gpt-5.6-sol", "/v1/responses")
 	require.True(t, ok)
 
-	for i := 0; i < 1_000; i++ {
+	for i := 0; i < channelHostFailureThreshold+2; i++ {
 		assert.False(t, registry.recordFailure(key, 41, "timeout"))
 	}
 

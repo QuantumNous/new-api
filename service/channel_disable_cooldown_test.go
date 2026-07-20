@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestShouldDisableChannelIgnoresCooldownBalanceError(t *testing.T) {
@@ -51,9 +52,7 @@ func TestShouldCooldownChannelForUpstreamErrorUsesUnmappedUpstreamStatus(t *test
 	err := types.NewErrorWithStatusCode(errors.New("provider overloaded"), types.ErrorCodeBadResponseStatusCode, http.StatusBadRequest)
 	err.UpstreamStatusCode = http.StatusServiceUnavailable
 
-	if !ShouldCooldownChannelForUpstreamError(err) {
-		t.Fatalf("expected an upstream 503 to cooldown after the client status is remapped")
-	}
+	assert.True(t, ShouldCooldownChannelForUpstreamError(err), "expected an upstream 503 to cooldown after the client status is remapped")
 }
 
 func TestShouldCooldownChannelForUpstreamErrorCoolsImageGenerationCapabilityGap(t *testing.T) {
