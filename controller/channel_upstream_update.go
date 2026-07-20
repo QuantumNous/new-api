@@ -97,6 +97,25 @@ func normalizeModelNames(models []string) []string {
 	}))
 }
 
+// modelIdentityKey folds model IDs for equality checks so casing-only drift
+// (DeepSeek-V3.1 vs deepseek-v3.1) is not treated as remove+add churn.
+func modelIdentityKey(model string) string {
+	return strings.ToLower(strings.TrimSpace(model))
+}
+
+func modelIdentitySet(models []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(models))
+	for _, modelName := range normalizeModelNames(models) {
+		set[modelIdentityKey(modelName)] = struct{}{}
+	}
+	return set
+}
+
+func modelIdentityInSet(model string, set map[string]struct{}) bool {
+	_, ok := set[modelIdentityKey(model)]
+	return ok
+}
+
 func mergeModelNames(base []string, appended []string) []string {
 	merged := normalizeModelNames(base)
 	seen := make(map[string]struct{}, len(merged))
@@ -175,59 +194,135 @@ func collectPendingUpstreamModelChangesFromModels(
 	ignoredModels []string,
 	modelMapping map[string]string,
 ) (pendingAddModels []string, pendingRemoveModels []string) {
-	localSet := make(map[string]struct{})
 	localModels = normalizeModelNames(localModels)
 	upstreamModels = normalizeModelNames(upstreamModels)
-	for _, modelName := range localModels {
-		localSet[modelName] = struct{}{}
-	}
-	upstreamSet := make(map[string]struct{}, len(upstreamModels))
-	for _, modelName := range upstreamModels {
-		upstreamSet[modelName] = struct{}{}
-	}
-
 	normalizedIgnoredModels := normalizeModelNames(ignoredModels)
 
-	redirectSourceSet := make(map[string]struct{}, len(modelMapping))
-	redirectTargetSet := make(map[string]struct{}, len(modelMapping))
+	// Identity sets use case-folded keys so provider casing churn is not
+	// reported as simultaneous remove + add of "the same" model.
+	localIdentitySet := modelIdentitySet(localModels)
+	upstreamIdentitySet := modelIdentitySet(upstreamModels)
+
+	redirectSourceIdentitySet := make(map[string]struct{}, len(modelMapping))
+	redirectTargetIdentitySet := make(map[string]struct{}, len(modelMapping))
 	for source, target := range modelMapping {
-		redirectSourceSet[source] = struct{}{}
-		redirectTargetSet[target] = struct{}{}
+		redirectSourceIdentitySet[modelIdentityKey(source)] = struct{}{}
+		redirectTargetIdentitySet[modelIdentityKey(target)] = struct{}{}
 	}
 
-	coveredUpstreamSet := make(map[string]struct{}, len(localSet)+len(redirectTargetSet))
-	for modelName := range localSet {
-		coveredUpstreamSet[modelName] = struct{}{}
+	// Upstream IDs already represented locally (exact local name or mapping target).
+	coveredUpstreamIdentitySet := make(map[string]struct{}, len(localIdentitySet)+len(redirectTargetIdentitySet))
+	for key := range localIdentitySet {
+		coveredUpstreamIdentitySet[key] = struct{}{}
 	}
-	for modelName := range redirectTargetSet {
-		coveredUpstreamSet[modelName] = struct{}{}
+	for key := range redirectTargetIdentitySet {
+		coveredUpstreamIdentitySet[key] = struct{}{}
 	}
 
-	pendingAdd := lo.Filter(upstreamModels, func(modelName string, _ int) bool {
-		if _, ok := coveredUpstreamSet[modelName]; ok {
-			return false
-		}
-		if lo.ContainsBy(normalizedIgnoredModels, func(ignoredModel string) bool {
+	isIgnored := func(modelName string) bool {
+		return lo.ContainsBy(normalizedIgnoredModels, func(ignoredModel string) bool {
 			if regexBody, ok := strings.CutPrefix(ignoredModel, "regex:"); ok {
 				matched, err := regexp.MatchString(strings.TrimSpace(regexBody), modelName)
 				return err == nil && matched
 			}
-			return ignoredModel == modelName
-		}) {
+			// Exact match keeps existing ignore semantics; identity match
+			// also suppresses case-only variants of an ignored name.
+			return ignoredModel == modelName || modelIdentityKey(ignoredModel) == modelIdentityKey(modelName)
+		})
+	}
+
+	pendingAdd := lo.Filter(upstreamModels, func(modelName string, _ int) bool {
+		if modelIdentityInSet(modelName, coveredUpstreamIdentitySet) {
+			return false
+		}
+		if isIgnored(modelName) {
 			return false
 		}
 		return true
 	})
 	pendingRemove := lo.Filter(localModels, func(modelName string, _ int) bool {
-		// Redirect source models are virtual aliases and should not be removed
-		// only because they are absent from upstream model list.
-		if _, ok := redirectSourceSet[modelName]; ok {
+		// Redirect source models are virtual aliases (client-facing standard
+		// names) and must not be flagged for removal solely because the
+		// upstream catalog never lists them.
+		if modelIdentityInSet(modelName, redirectSourceIdentitySet) {
 			return false
 		}
-		_, ok := upstreamSet[modelName]
-		return !ok
+		if modelIdentityInSet(modelName, upstreamIdentitySet) {
+			return false
+		}
+		return true
 	})
 	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove)
+}
+
+// ensureModelsIncludeMappingSources appends model_mapping keys that are missing
+// from the models CSV so client-facing standard names stay routable.
+func ensureModelsIncludeMappingSources(models []string, modelMapping map[string]string) []string {
+	if len(modelMapping) == 0 {
+		return normalizeModelNames(models)
+	}
+	sources := make([]string, 0, len(modelMapping))
+	for source := range modelMapping {
+		sources = append(sources, source)
+	}
+	return mergeModelNames(models, sources)
+}
+
+// rewriteMappingTargetsForCaseDrift updates mapping targets when apply removes
+// an old casing and adds the case-equivalent upstream ID in the same operation.
+func rewriteMappingTargetsForCaseDrift(
+	modelMapping map[string]string,
+	removedModels []string,
+	addedModels []string,
+) (map[string]string, bool) {
+	if len(modelMapping) == 0 || len(removedModels) == 0 {
+		return modelMapping, false
+	}
+	// Prefer the newly added spelling when identities collide.
+	addByIdentity := make(map[string]string, len(addedModels))
+	for _, added := range normalizeModelNames(addedModels) {
+		addByIdentity[modelIdentityKey(added)] = added
+	}
+	removedIdentity := modelIdentitySet(removedModels)
+
+	changed := false
+	next := make(map[string]string, len(modelMapping))
+	for source, target := range modelMapping {
+		targetKey := modelIdentityKey(target)
+		if _, removed := removedIdentity[targetKey]; removed {
+			if replacement, ok := addByIdentity[targetKey]; ok && replacement != target {
+				next[source] = replacement
+				changed = true
+				continue
+			}
+		}
+		next[source] = target
+	}
+	if !changed {
+		return modelMapping, false
+	}
+	return next, true
+}
+
+func serializeChannelModelMapping(modelMapping map[string]string) string {
+	if len(modelMapping) == 0 {
+		return ""
+	}
+	// Stable key order keeps Updates diffs deterministic in tests/logs.
+	keys := make([]string, 0, len(modelMapping))
+	for source := range modelMapping {
+		keys = append(keys, source)
+	}
+	slices.Sort(keys)
+	ordered := make(map[string]string, len(modelMapping))
+	for _, source := range keys {
+		ordered[source] = modelMapping[source]
+	}
+	raw, err := common.Marshal(ordered)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
 }
 
 func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, err error) {
@@ -342,13 +437,20 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	return normalizeModelNames(ids), nil
 }
 
-func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
+func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool, updateModelMapping bool) error {
 	channel.SetOtherSettings(settings)
 	updates := map[string]interface{}{
 		"settings": channel.OtherSettings,
 	}
 	if updateModels {
 		updates["models"] = channel.Models
+	}
+	if updateModelMapping {
+		if channel.ModelMapping == nil {
+			updates["model_mapping"] = ""
+		} else {
+			updates["model_mapping"] = *channel.ModelMapping
+		}
 	}
 	return model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
 }
@@ -371,7 +473,7 @@ func checkAndPersistChannelUpstreamModelUpdates(
 	pendingAddModels, pendingRemoveModels, fetchErr := collectPendingUpstreamModelChanges(channel, *settings)
 	settings.UpstreamModelUpdateLastCheckTime = now
 	if fetchErr != nil {
-		if err = updateChannelUpstreamModelSettings(channel, *settings, false); err != nil {
+		if err = updateChannelUpstreamModelSettings(channel, *settings, false, false); err != nil {
 			return false, 0, err
 		}
 		return false, 0, fetchErr
@@ -380,9 +482,11 @@ func checkAndPersistChannelUpstreamModelUpdates(
 	if allowAutoApply && settings.UpstreamModelUpdateAutoSyncEnabled && len(pendingAddModels) > 0 {
 		originModels := normalizeModelNames(channel.GetModels())
 		mergedModels := mergeModelNames(originModels, pendingAddModels)
-		if len(mergedModels) > len(originModels) {
+		// Keep client-facing mapping keys present after auto-add so abilities stay routable.
+		mergedModels = ensureModelsIncludeMappingSources(mergedModels, normalizeChannelModelMapping(channel))
+		if !slices.Equal(originModels, mergedModels) {
 			channel.Models = strings.Join(mergedModels, ",")
-			autoAdded = len(mergedModels) - len(originModels)
+			autoAdded = len(subtractModelNames(mergedModels, originModels))
 			modelsChanged = true
 		}
 		settings.UpstreamModelUpdateLastDetectedModels = []string{}
@@ -391,7 +495,7 @@ func checkAndPersistChannelUpstreamModelUpdates(
 	}
 	settings.UpstreamModelUpdateLastRemovedModels = pendingRemoveModels
 
-	if err = updateChannelUpstreamModelSettings(channel, *settings, modelsChanged); err != nil {
+	if err = updateChannelUpstreamModelSettings(channel, *settings, modelsChanged, false); err != nil {
 		return false, autoAdded, err
 	}
 	if modelsChanged {
@@ -820,8 +924,34 @@ func applyChannelUpstreamModelUpdates(
 	removeModels := intersectModelNames(removeModelsInput, pendingRemoveModels)
 	removeModels = subtractModelNames(removeModels, addModels)
 
+	modelMapping := normalizeChannelModelMapping(channel)
+	// Never drop client-facing standard names (mapping sources) via upstream apply.
+	// Identity match (case-insensitive) so a source like "DeepSeek-V3.1" still
+	// protects "deepseek-v3.1" if they ever land in the remove list together.
+	if len(modelMapping) > 0 {
+		sourceIdentity := make(map[string]struct{}, len(modelMapping))
+		for source := range modelMapping {
+			sourceIdentity[modelIdentityKey(source)] = struct{}{}
+		}
+		removeModels = lo.Filter(normalizeModelNames(removeModels), func(modelName string, _ int) bool {
+			return !modelIdentityInSet(modelName, sourceIdentity)
+		})
+	}
+
+	// Case-only renames: rewrite mapping targets before models change so
+	// request-time redirects keep pointing at a live upstream ID.
+	mappingChanged := false
+	if rewritten, ok := rewriteMappingTargetsForCaseDrift(modelMapping, removeModels, addModels); ok {
+		modelMapping = rewritten
+		serialized := serializeChannelModelMapping(modelMapping)
+		channel.ModelMapping = &serialized
+		mappingChanged = true
+	}
+
 	originModels := normalizeModelNames(channel.GetModels())
 	nextModels := applySelectedModelChanges(originModels, addModels, removeModels)
+	// Always keep mapping sources in models so abilities stay routable.
+	nextModels = ensureModelsIncludeMappingSources(nextModels, modelMapping)
 	modelsChanged = !slices.Equal(originModels, nextModels)
 	if modelsChanged {
 		channel.Models = strings.Join(nextModels, ",")
@@ -837,7 +967,7 @@ func applyChannelUpstreamModelUpdates(
 	settings.UpstreamModelUpdateLastRemovedModels = remainingRemoveModels
 	settings.UpstreamModelUpdateLastCheckTime = common.GetTimestamp()
 
-	if err := updateChannelUpstreamModelSettings(channel, settings, modelsChanged); err != nil {
+	if err := updateChannelUpstreamModelSettings(channel, settings, modelsChanged, mappingChanged); err != nil {
 		return nil, nil, nil, nil, false, err
 	}
 

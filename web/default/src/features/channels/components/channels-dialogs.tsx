@@ -16,6 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  extractMappingSourceModels,
+  extractRedirectModels,
+} from '../lib'
 import { useChannels } from './channels-provider'
 import { BalanceQueryDialog } from './dialogs/balance-query-dialog'
 import { ChannelTestDialog } from './dialogs/channel-test-dialog'
@@ -52,10 +56,15 @@ export function ChannelsDialogs() {
         onOpenChange={(v) => !v && setOpen(null)}
       />
 
-      {/* Fetch Models Dialog */}
+      {/* Fetch Models Dialog — pass mapping so Removed/Existing tabs
+          protect client-facing aliases the same way as the edit drawer. */}
       <FetchModelsDialog
         open={open === 'fetch-models'}
         onOpenChange={(v) => !v && setOpen(null)}
+        redirectSourceModels={extractMappingSourceModels(
+          currentRow?.model_mapping || ''
+        )}
+        redirectModels={extractRedirectModels(currentRow?.model_mapping || '')}
       />
 
       {/* Ollama Models Dialog */}

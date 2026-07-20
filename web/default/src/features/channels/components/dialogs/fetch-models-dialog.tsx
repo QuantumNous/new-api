@@ -54,6 +54,17 @@ function normalizeModelNameList(models: readonly string[]): string[] {
   )
 }
 
+/** Case-folded identity for model IDs (matches backend modelIdentityKey). */
+function modelIdentityKey(model: string): string {
+  return normalizeModelName(model).toLowerCase()
+}
+
+function modelIdentitySet(models: readonly string[]): Set<string> {
+  return new Set(
+    models.map((m) => modelIdentityKey(m)).filter(Boolean)
+  )
+}
+
 type FetchModelsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -100,28 +111,33 @@ export function FetchModelsDialog({
 
   const { classificationSet, redirectOnlySet } = modelCategories
 
-  const fetchedModelSet = useMemo(
-    () => new Set(normalizeModelNameList(fetchedModels)),
+  const fetchedIdentitySet = useMemo(
+    () => modelIdentitySet(fetchedModels),
     [fetchedModels]
   )
 
   // Source keys in model_mapping are aliases, not real upstream IDs, so we
   // must skip them when computing "removed upstream" entries to avoid false
-  // positives.
-  const redirectSourceKeysSet = useMemo(
-    () => new Set(normalizeModelNameList(redirectSourceModels)),
+  // positives. Match case-insensitively to stay aligned with backend.
+  const redirectSourceIdentitySet = useMemo(
+    () => modelIdentitySet(redirectSourceModels),
     [redirectSourceModels]
   )
 
   const removedModels = useMemo(() => {
     const kw = searchKeyword.toLowerCase().trim()
     return normalizeModelNameList(selectedModels).filter((model) => {
-      if (fetchedModelSet.has(model)) return false
-      if (redirectSourceKeysSet.has(model)) return false
+      if (fetchedIdentitySet.has(modelIdentityKey(model))) return false
+      if (redirectSourceIdentitySet.has(modelIdentityKey(model))) return false
       if (!kw) return true
       return model.toLowerCase().includes(kw)
     })
-  }, [fetchedModelSet, redirectSourceKeysSet, searchKeyword, selectedModels])
+  }, [
+    fetchedIdentitySet,
+    redirectSourceIdentitySet,
+    searchKeyword,
+    selectedModels,
+  ])
 
   useEffect(() => {
     if (open && (activeChannel || customFetcher)) {
@@ -175,7 +191,12 @@ export function FetchModelsDialog({
     if (!activeChannel) return
     setIsSaving(true)
     try {
-      const modelsString = selectedModels.join(',')
+      // Keep mapping source aliases in models so abilities stay routable after save.
+      const modelsToSave = normalizeModelNameList([
+        ...selectedModels,
+        ...redirectSourceModels,
+      ])
+      const modelsString = modelsToSave.join(',')
       const response = await updateChannel(activeChannel.id, {
         models: modelsString,
       })
@@ -249,9 +270,18 @@ export function FetchModelsDialog({
     )
   }, [fetchedModels, searchKeyword])
 
-  // Helper to check if a model is considered "existing" (in selected or redirect)
+  // Existing = already in models list or covered by mapping target, compared
+  // with case-insensitive identity so casing-only upstream drift is not "new".
+  const existingIdentitySet = useMemo(() => {
+    const set = modelIdentitySet([
+      ...Array.from(classificationSet),
+      ...redirectSourceModels,
+    ])
+    return set
+  }, [classificationSet, redirectSourceModels])
+
   const isExistingModel = (model: string) =>
-    classificationSet.has(normalizeModelName(model))
+    existingIdentitySet.has(modelIdentityKey(model))
 
   // Separate new and existing models
   const newModels = filteredModels.filter((m) => !isExistingModel(m))

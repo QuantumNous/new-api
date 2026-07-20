@@ -193,8 +193,36 @@ func filterAbilitiesByRequestPathAndModel(abilities []Ability, requestPath strin
 	return filtered
 }
 
+
+// ModelNamesForAbilities returns the model names that should create ability
+// rows: channel.Models plus every model_mapping source key. Mapping sources are
+// the client-facing standard names; without them, requests that use those names
+// cannot select this channel even though ModelMappedHelper would rewrite them.
+func (channel *Channel) ModelNamesForAbilities() []string {
+	models := make([]string, 0)
+	seen := make(map[string]struct{})
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		models = append(models, name)
+	}
+	for _, modelName := range strings.Split(channel.Models, ",") {
+		add(modelName)
+	}
+	for source := range channel.GetModelMappingMap() {
+		add(source)
+	}
+	return models
+}
+
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
-	models_ := strings.Split(channel.Models, ",")
+	models_ := channel.ModelNamesForAbilities()
 	groups_ := strings.Split(channel.Group, ",")
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
@@ -266,7 +294,7 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	}
 
 	// Then add new abilities
-	models_ := strings.Split(channel.Models, ",")
+	models_ := channel.ModelNamesForAbilities()
 	groups_ := strings.Split(channel.Group, ",")
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))

@@ -437,6 +437,10 @@ func BatchInsertChannels(channels []Channel) error {
 		}
 	}()
 
+	for i := range channels {
+		// Ensure client-facing mapping sources are stored before batch create/abilities.
+		_ = channels[i].EnsureModelsIncludeMappingSources()
+	}
 	for _, chunk := range lo.Chunk(channels, 50) {
 		if err := tx.Create(&chunk).Error; err != nil {
 			tx.Rollback()
@@ -506,6 +510,68 @@ func (channel *Channel) GetModelMapping() string {
 	return *channel.ModelMapping
 }
 
+
+// GetModelMappingMap parses model_mapping JSON into source -> target.
+// Invalid or empty mappings yield an empty map (never nil for range safety of callers that check len).
+func (channel *Channel) GetModelMappingMap() map[string]string {
+	result := make(map[string]string)
+	raw := strings.TrimSpace(channel.GetModelMapping())
+	if raw == "" || raw == "{}" {
+		return result
+	}
+	parsed := make(map[string]string)
+	if err := common.UnmarshalJsonStr(raw, &parsed); err != nil {
+		return result
+	}
+	for source, target := range parsed {
+		source = strings.TrimSpace(source)
+		target = strings.TrimSpace(target)
+		if source == "" || target == "" {
+			continue
+		}
+		result[source] = target
+	}
+	return result
+}
+
+// EnsureModelsIncludeMappingSources merges model_mapping source keys into
+// channel.Models so client-facing standard names stay present for abilities
+// and /v1/models. Returns true when Models changed.
+func (channel *Channel) EnsureModelsIncludeMappingSources() bool {
+	mapping := channel.GetModelMappingMap()
+	if len(mapping) == 0 {
+		return false
+	}
+	existing := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, modelName := range strings.Split(channel.Models, ",") {
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := seen[modelName]; ok {
+			continue
+		}
+		seen[modelName] = struct{}{}
+		existing = append(existing, modelName)
+	}
+	changed := false
+	for source := range mapping {
+		if _, ok := seen[source]; ok {
+			continue
+		}
+		seen[source] = struct{}{}
+		existing = append(existing, source)
+		changed = true
+	}
+	if !changed {
+		return false
+	}
+	channel.Models = strings.Join(existing, ",")
+	return true
+}
+
+
 func (channel *Channel) GetStatusCodeMapping() string {
 	if channel.StatusCodeMapping == nil {
 		return ""
@@ -515,6 +581,8 @@ func (channel *Channel) GetStatusCodeMapping() string {
 
 func (channel *Channel) Insert() error {
 	var err error
+	// Ensure client-facing mapping sources are stored in models before abilities are built.
+	_ = channel.EnsureModelsIncludeMappingSources()
 	err = DB.Create(channel).Error
 	if err != nil {
 		return err
@@ -563,6 +631,8 @@ func (channel *Channel) Update() error {
 		}
 	}
 	var err error
+	// Ensure client-facing mapping sources are stored in models before abilities are rebuilt.
+	_ = channel.EnsureModelsIncludeMappingSources()
 	err = DB.Model(channel).Updates(channel).Error
 	if err != nil {
 		return err
@@ -806,7 +876,9 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 		updatedTag = *newTag
 	}
 	if modelMapping != nil {
+		// Mapping source keys become ability rows; rebuild abilities when mapping changes.
 		updateData.ModelMapping = modelMapping
+		shouldReCreateAbilities = true
 	}
 	if models != nil && *models != "" {
 		shouldReCreateAbilities = true
@@ -837,6 +909,11 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 		channels, err := GetChannelsByTag(updatedTag, false, false)
 		if err == nil {
 			for _, channel := range channels {
+				if channel.EnsureModelsIncludeMappingSources() {
+					if saveErr := DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("models", channel.Models).Error; saveErr != nil {
+						common.SysLog(fmt.Sprintf("failed to persist mapping sources into models: channel_id=%d, tag=%s, error=%v", channel.Id, channel.GetTag(), saveErr))
+					}
+				}
 				err = channel.UpdateAbilities(nil)
 				if err != nil {
 					common.SysLog(fmt.Sprintf("failed to update abilities: channel_id=%d, tag=%s, error=%v", channel.Id, channel.GetTag(), err))

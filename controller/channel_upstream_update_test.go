@@ -198,3 +198,83 @@ func TestDetectAllChannelUpstreamModelUpdatesRejectsExistingActiveTask(t *testin
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
 	require.Contains(t, recorder.Body.String(), "已有模型更新任务正在运行或等待中")
 }
+
+func TestCollectPendingUpstreamModelChangesFromModels_CaseInsensitiveIdentity(t *testing.T) {
+	// Local uses mixed-case provider IDs; upstream returns lowercased same IDs.
+	// Must not report remove+add churn for the same logical models.
+	pendingAdd, pendingRemove := collectPendingUpstreamModelChangesFromModels(
+		[]string{"DeepSeek-V3.1", "Meta-Llama-3.3-70B-Instruct", "gemma-4-31B-it"},
+		[]string{"deepseek-v3.1", "meta-llama-3.3-70b-instruct", "gemma-4-31b-it"},
+		nil,
+		map[string]string{
+			"deepseek-v3.1": "DeepSeek-V3.1",
+			"llama-3.3-70b":  "Meta-Llama-3.3-70B-Instruct",
+			"gemma-4-31b":    "gemma-4-31B-it",
+		},
+	)
+
+	require.Empty(t, pendingAdd)
+	require.Empty(t, pendingRemove)
+}
+
+func TestCollectPendingUpstreamModelChangesFromModels_MappingSourceNotRemoved(t *testing.T) {
+	// Standard client names live only via mapping; upstream never lists them.
+	pendingAdd, pendingRemove := collectPendingUpstreamModelChangesFromModels(
+		[]string{"deepseek-v3.1", "DeepSeek-V3.1", "stale-gone"},
+		[]string{"DeepSeek-V3.1", "new-upstream"},
+		nil,
+		map[string]string{
+			"deepseek-v3.1": "DeepSeek-V3.1",
+		},
+	)
+
+	require.Equal(t, []string{"new-upstream"}, pendingAdd)
+	require.Equal(t, []string{"stale-gone"}, pendingRemove)
+}
+
+func TestCollectPendingUpstreamModelChangesFromModels_MappingTargetCoversUpstream(t *testing.T) {
+	// models list only has standard names; mapping targets cover upstream IDs.
+	pendingAdd, pendingRemove := collectPendingUpstreamModelChangesFromModels(
+		[]string{"llama-3.3-70b", "gemma-4-31b"},
+		[]string{"Meta-Llama-3.3-70B-Instruct", "gemma-4-31B-it"},
+		nil,
+		map[string]string{
+			"llama-3.3-70b": "Meta-Llama-3.3-70B-Instruct",
+			"gemma-4-31b":   "gemma-4-31B-it",
+		},
+	)
+
+	require.Empty(t, pendingAdd)
+	require.Empty(t, pendingRemove)
+}
+
+func TestEnsureModelsIncludeMappingSources(t *testing.T) {
+	result := ensureModelsIncludeMappingSources(
+		[]string{"DeepSeek-V3.1"},
+		map[string]string{
+			"deepseek-v3.1": "DeepSeek-V3.1",
+			"llama-3.3-70b":  "Meta-Llama-3.3-70B-Instruct",
+		},
+	)
+	require.ElementsMatch(t, []string{"DeepSeek-V3.1", "deepseek-v3.1", "llama-3.3-70b"}, result)
+}
+
+func TestRewriteMappingTargetsForCaseDrift(t *testing.T) {
+	mapping := map[string]string{
+		"deepseek-v3.1": "DeepSeek-V3.1",
+		"gemma-4-31b":   "gemma-4-31B-it",
+	}
+	next, changed := rewriteMappingTargetsForCaseDrift(
+		mapping,
+		[]string{"DeepSeek-V3.1", "gemma-4-31B-it"},
+		[]string{"deepseek-v3.1", "gemma-4-31b-it"},
+	)
+	require.True(t, changed)
+	require.Equal(t, "deepseek-v3.1", next["deepseek-v3.1"])
+	require.Equal(t, "gemma-4-31b-it", next["gemma-4-31b"])
+}
+
+func TestModelIdentityKey(t *testing.T) {
+	require.Equal(t, "deepseek-v3.1", modelIdentityKey(" DeepSeek-V3.1 "))
+	require.Equal(t, modelIdentityKey("GPT-OSS-120B"), modelIdentityKey("gpt-oss-120b"))
+}
