@@ -157,6 +157,18 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	if len(availableAbilities) == 0 {
 		return nil, nil
 	}
+	if options.PreferDifferentHost && len(avoidedChannelIDs) > 0 {
+		differentHostAbilities := make([]Ability, 0, len(availableAbilities))
+		for _, ability := range availableAbilities {
+			if _, avoided := avoidedChannelIDs[ability.ChannelId]; avoided {
+				continue
+			}
+			differentHostAbilities = append(differentHostAbilities, ability)
+		}
+		if len(differentHostAbilities) > 0 {
+			availableAbilities = differentHostAbilities
+		}
+	}
 
 	uniquePriorities := make(map[int]bool)
 	for _, ability := range availableAbilities {

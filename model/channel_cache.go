@@ -116,7 +116,11 @@ type ChannelSelectionOptions struct {
 	// AvoidChannelHosts is a soft exclusion used after a transport failure.
 	// The selected priority tier prefers a different host, while same-host
 	// channels remain a fallback so operator priority and availability stay intact.
-	AvoidChannelHosts    map[string]struct{}
+	AvoidChannelHosts map[string]struct{}
+	// PreferDifferentHost is enabled only for request-local capacity recovery.
+	// It prefers any healthy different-host candidate across priority tiers, but
+	// still falls back to the avoided host when no alternative exists.
+	PreferDifferentHost  bool
 	AllowCoolingFallback bool
 	// RequestPath is the RAW request path, used to match Advanced Custom
 	// (type 58) channels against their configured routes.
@@ -199,6 +203,19 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	}
 	if len(availableChannels) == 0 && options.AllowCoolingFallback {
 		availableChannels = coolingChannels
+	}
+	if options.PreferDifferentHost && len(options.AvoidChannelHosts) > 0 {
+		differentHostChannels := make([]*Channel, 0, len(availableChannels))
+		for _, channel := range availableChannels {
+			host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+			if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
+				continue
+			}
+			differentHostChannels = append(differentHostChannels, channel)
+		}
+		if len(differentHostChannels) > 0 {
+			availableChannels = differentHostChannels
+		}
 	}
 
 	uniquePriorities := make(map[int]bool)

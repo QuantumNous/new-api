@@ -368,6 +368,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
+		capacityError := isFastUpstreamCapacityError(newAPIError)
+		if shouldAvoidRetryHost(newAPIError) || capacityError {
+			host := relayRetryHost(relayInfo)
+			if host != "" {
+				if retryParam.AvoidChannelHosts == nil {
+					retryParam.AvoidChannelHosts = make(map[string]struct{})
+				}
+				retryParam.AvoidChannelHosts[host] = struct{}{}
+				if capacityError {
+					retryParam.PreferDifferentHost = true
+				}
+				logger.LogInfo(c, fmt.Sprintf("retry will prefer a different upstream host than %s", host))
+			}
+		}
+
 		// Bound total retry wall-clock so a request cannot spend minutes cycling
 		// dead/hung channels (each costing a full response-header timeout). The
 		// first attempt always runs; this only gates further retries.
@@ -396,16 +411,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
-		}
-		if shouldAvoidRetryHost(newAPIError) {
-			host := relayRetryHost(relayInfo)
-			if host != "" {
-				if retryParam.AvoidChannelHosts == nil {
-					retryParam.AvoidChannelHosts = make(map[string]struct{})
-				}
-				retryParam.AvoidChannelHosts[host] = struct{}{}
-				logger.LogInfo(c, fmt.Sprintf("transport retry will prefer a different upstream host than %s", host))
-			}
 		}
 	}
 
@@ -732,7 +737,7 @@ func shouldUseUpstreamCapacityFallback(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func scheduleUpstreamCapacityFallback(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam, apiErr *types.NewAPIError, capacityErrorElapsed time.Duration, attemptsScheduled int, configuredRetryLimit int, fallbackStartedAt time.Time, now time.Time) bool {
-	if capacityErrorElapsed <= 0 || capacityErrorElapsed > upstreamCapacityErrorMaxElapsed {
+	if capacityErrorElapsed <= 0 || (capacityErrorElapsed > upstreamCapacityErrorMaxElapsed && !isUpstreamRateLimitError(apiErr)) {
 		return false
 	}
 	if attemptsScheduled >= maxUpstreamCapacityFallbackAttempts || retryParam == nil || !shouldUseUpstreamCapacityFallback(c, info, apiErr) {
