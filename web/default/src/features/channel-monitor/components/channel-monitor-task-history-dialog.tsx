@@ -72,6 +72,7 @@ import {
   runChannelMonitorRatioUpdate,
   runChannelMonitorSmartSchedule,
 } from '../api'
+import { handleChannelMonitorMutationError } from '../lib/error'
 import type {
   ChannelMonitorSmartScheduleStrategy,
   ChannelMonitorTask,
@@ -328,6 +329,7 @@ export function ChannelMonitorTaskHistoryDialog(
   >(null)
   const ratioUpdateMutation = useMutation({
     mutationFn: runChannelMonitorRatioUpdate,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response) => {
       toast.success(
         response.data.created
@@ -348,6 +350,7 @@ export function ChannelMonitorTaskHistoryDialog(
   })
   const smartScheduleMutation = useMutation({
     mutationFn: runChannelMonitorSmartSchedule,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response) => {
       toast.success(
         response.data.created

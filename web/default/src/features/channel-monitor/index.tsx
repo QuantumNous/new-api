@@ -93,6 +93,7 @@ import { EditChannelRatioDialog } from './components/edit-channel-ratio-dialog'
 import { EditGroupRatioDialog } from './components/edit-group-ratio-dialog'
 import { SyncGroupRatioDialog } from './components/sync-group-ratio-dialog'
 import { UpstreamConfigDialog } from './components/upstream-config-dialog'
+import { handleChannelMonitorMutationError } from './lib/error'
 import { formatMonitorRatio, getRatioChange } from './lib/format'
 import { sortChannelMonitorItems } from './lib/sort'
 import type {
@@ -215,6 +216,7 @@ export function ChannelMonitor() {
   })
   const ratioFetchMutation = useMutation({
     mutationFn: fetchChannelMonitorUpstreamRatio,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response, channelId) => {
       toast.success(
         `已获取上游倍率 ${formatMonitorRatio(response.data.result.ratio)}，成本倍率 ${formatMonitorRatio(response.data.result.cost_ratio)}`
@@ -229,6 +231,7 @@ export function ChannelMonitor() {
   })
   const balanceFetchMutation = useMutation({
     mutationFn: fetchChannelMonitorUpstreamBalance,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response) => {
       const balance = response.data.amount
       toast.success(
@@ -246,6 +249,7 @@ export function ChannelMonitor() {
   })
   const statusMutation = useMutation({
     mutationFn: updateMonitoredChannelStatus,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (_response, request) => {
       toast.success(
         request.status === CHANNEL_STATUS.ENABLED ? '渠道已启用' : '渠道已禁用'
@@ -258,6 +262,7 @@ export function ChannelMonitor() {
   })
   const smartScheduleConfigMutation = useMutation({
     mutationFn: updateChannelMonitorSmartScheduleConfig,
+    onError: handleChannelMonitorMutationError,
     onSuccess: () => {
       toast.success('渠道调度设置已保存')
     },

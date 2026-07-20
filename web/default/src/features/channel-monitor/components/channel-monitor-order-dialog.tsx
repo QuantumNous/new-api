@@ -39,6 +39,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
 import { updateChannelMonitorChannelOrder } from '../api'
+import { handleChannelMonitorMutationError } from '../lib/error'
 import { orderChannelsByCustomOrder } from '../lib/sort'
 import type { ChannelMonitorItem } from '../types'
 
@@ -87,6 +88,7 @@ export function ChannelMonitorOrderDialog(
   const [dropPosition, setDropPosition] = useState<DropPosition>('before')
   const mutation = useMutation({
     mutationFn: updateChannelMonitorChannelOrder,
+    onError: handleChannelMonitorMutationError,
     onSuccess: () => {
       toast.success('渠道自定义顺序已保存')
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })

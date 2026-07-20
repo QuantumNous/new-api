@@ -48,6 +48,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { CHANNEL_STATUS } from '@/features/channels/constants'
 
 import { syncChannelMonitorGroupRatio } from '../api'
+import { handleChannelMonitorMutationError } from '../lib/error'
 import { formatMonitorRatio } from '../lib/format'
 import {
   createGroupRatioSyncSchema,
@@ -85,6 +86,7 @@ export function SyncGroupRatioDialog(props: SyncGroupRatioDialogProps) {
   })
   const mutation = useMutation({
     mutationFn: syncChannelMonitorGroupRatio,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response) => {
       toast.success(
         `分组倍率已更新为 ${formatMonitorRatio(response.data.ratio)}`

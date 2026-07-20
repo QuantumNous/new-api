@@ -42,6 +42,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 
 import { updateChannelMonitorGroupRatio } from '../api'
+import { handleChannelMonitorMutationError } from '../lib/error'
 import {
   createGroupRatioSchema,
   type GroupRatioFormValues,
@@ -64,6 +65,7 @@ export function EditGroupRatioDialog(props: EditGroupRatioDialogProps) {
 
   const mutation = useMutation({
     mutationFn: updateChannelMonitorGroupRatio,
+    onError: handleChannelMonitorMutationError,
     onSuccess: () => {
       toast.success('分组倍率已保存')
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })

@@ -50,6 +50,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { updateChannelMonitorSettings } from '../api'
+import { handleChannelMonitorMutationError } from '../lib/error'
 import {
   createChannelMonitorSettingsSchema,
   MAX_AUTO_UPDATE_INTERVAL_MINUTES,
@@ -102,6 +103,7 @@ export function ChannelMonitorSettingsDialog(
   })
   const mutation = useMutation({
     mutationFn: updateChannelMonitorSettings,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response) => {
       if (response.data.smart_schedule_force_reset_task_error) {
         toast.error(

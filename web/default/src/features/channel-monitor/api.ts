@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 
 import type {
   ChannelMonitorApplyGroupResult,
@@ -40,6 +40,14 @@ import type {
   NewAPIGroupRatioResult,
 } from './types'
 
+const channelMonitorRequestConfig = (
+  config: ApiRequestConfig = {}
+): ApiRequestConfig => ({
+  ...config,
+  skipBusinessError: true,
+  skipErrorHandler: true,
+})
+
 function ensureChannelMonitorSuccess<T>(
   response: ChannelMonitorApiResponse<T>
 ) {
@@ -52,7 +60,7 @@ function ensureChannelMonitorSuccess<T>(
 export async function getChannelMonitorOverview() {
   const response = await api.get<
     ChannelMonitorApiResponse<ChannelMonitorOverview>
-  >('/api/channel_monitor/')
+  >('/api/channel_monitor/', channelMonitorRequestConfig())
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -61,16 +69,23 @@ export async function getChannelMonitorPerformance(
 ) {
   const response = await api.get<
     ChannelMonitorApiResponse<ChannelMonitorPerformanceResult>
-  >('/api/channel_monitor/performance', { params: { minutes } })
+  >(
+    '/api/channel_monitor/performance',
+    channelMonitorRequestConfig({ params: { minutes } })
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
 export async function updateChannelMonitorChannelOrder(channelIds: number[]) {
   const response = await api.put<
     ChannelMonitorApiResponse<{ channel_order: number[] }>
-  >('/api/channel_monitor/order', {
-    channel_ids: channelIds,
-  })
+  >(
+    '/api/channel_monitor/order',
+    {
+      channel_ids: channelIds,
+    },
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -81,23 +96,30 @@ export async function getChannelMonitorTasks(
 ) {
   const response = await api.get<
     ChannelMonitorApiResponse<ChannelMonitorTaskPage>
-  >('/api/channel_monitor/tasks', {
-    params: { p: page, page_size: pageSize, kind },
-  })
+  >(
+    '/api/channel_monitor/tasks',
+    channelMonitorRequestConfig({
+      params: { p: page, page_size: pageSize, kind },
+    })
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
 export async function runChannelMonitorSmartSchedule() {
   const response = await api.post<
     ChannelMonitorApiResponse<ChannelMonitorTaskRunResult>
-  >('/api/channel_monitor/schedule/run')
+  >(
+    '/api/channel_monitor/schedule/run',
+    undefined,
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
 export async function runChannelMonitorRatioUpdate() {
   const response = await api.post<
     ChannelMonitorApiResponse<ChannelMonitorTaskRunResult>
-  >('/api/channel_monitor/ratio/run')
+  >('/api/channel_monitor/ratio/run', undefined, channelMonitorRequestConfig())
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -107,9 +129,13 @@ export async function updateChannelMonitorSmartScheduleConfig(request: {
 }) {
   const response = await api.put<
     ChannelMonitorApiResponse<ChannelMonitorSmartScheduleConfig>
-  >(`/api/channel_monitor/channel/${request.channelId}/schedule`, {
-    excluded: request.excluded,
-  })
+  >(
+    `/api/channel_monitor/channel/${request.channelId}/schedule`,
+    {
+      excluded: request.excluded,
+    },
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -123,7 +149,8 @@ export async function updateChannelMonitorRatio(request: {
     {
       ratio: request.ratio,
       remark: request.remark,
-    }
+    },
+    channelMonitorRequestConfig()
   )
   return ensureChannelMonitorSuccess(response.data)
 }
@@ -131,9 +158,10 @@ export async function updateChannelMonitorRatio(request: {
 export async function getChannelMonitorHistory(channelId: number) {
   const response = await api.get<
     ChannelMonitorApiResponse<ChannelRatioHistoryPage>
-  >(`/api/channel_monitor/channel/${channelId}/history`, {
-    params: { p: 1, page_size: 100 },
-  })
+  >(
+    `/api/channel_monitor/channel/${channelId}/history`,
+    channelMonitorRequestConfig({ params: { p: 1, page_size: 100 } })
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -141,7 +169,11 @@ export async function updateChannelMonitorGroupRatio(request: {
   group: string
   ratio: number
 }) {
-  const response = await api.put('/api/channel_monitor/group', request)
+  const response = await api.put(
+    '/api/channel_monitor/group',
+    request,
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -151,7 +183,7 @@ export async function syncChannelMonitorGroupRatio(request: {
 }) {
   const response = await api.put<
     ChannelMonitorApiResponse<ChannelMonitorGroupRatioSyncResult>
-  >('/api/channel_monitor/group/sync', request)
+  >('/api/channel_monitor/group/sync', request, channelMonitorRequestConfig())
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -162,13 +194,15 @@ export async function updateChannelMonitorSettings(
 ) {
   const response = await api.put<
     ChannelMonitorApiResponse<ChannelMonitorSettings>
-  >('/api/channel_monitor/settings', settings)
+  >('/api/channel_monitor/settings', settings, channelMonitorRequestConfig())
   return ensureChannelMonitorSuccess(response.data)
 }
 
 export async function getChannelMonitorAvailableGroups() {
-  const response =
-    await api.get<ChannelMonitorApiResponse<string[]>>('/api/group/')
+  const response = await api.get<ChannelMonitorApiResponse<string[]>>(
+    '/api/group/',
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -178,7 +212,8 @@ export async function updateMonitoredChannelStatus(request: {
 }) {
   const response = await api.post<ChannelMonitorApiResponse<boolean>>(
     `/api/channel/${request.channelId}/status`,
-    { status: request.status }
+    { status: request.status },
+    channelMonitorRequestConfig()
   )
   return ensureChannelMonitorSuccess(response.data)
 }
@@ -189,7 +224,8 @@ export async function updateMonitoredChannelGroups(request: {
 }) {
   const response = await api.put<ChannelMonitorApiResponse<unknown>>(
     '/api/channel/',
-    { id: request.channelId, group: request.groups.join(',') }
+    { id: request.channelId, group: request.groups.join(',') },
+    channelMonitorRequestConfig()
   )
   return ensureChannelMonitorSuccess(response.data)
 }
@@ -202,7 +238,8 @@ export async function saveChannelMonitorUpstreamConfig(request: {
     ChannelMonitorApiResponse<ChannelMonitorUpstreamConfig>
   >(
     `/api/channel_monitor/channel/${request.channelId}/upstream`,
-    request.config
+    request.config,
+    channelMonitorRequestConfig()
   )
   return ensureChannelMonitorSuccess(response.data)
 }
@@ -213,9 +250,13 @@ export async function fetchChannelMonitorSub2APIUpstreamVersion(request: {
 }) {
   const response = await api.post<
     ChannelMonitorApiResponse<ChannelMonitorUpstreamVersionResult>
-  >(`/api/channel_monitor/channel/${request.channelId}/upstream/version`, {
-    base_url: request.baseUrl,
-  })
+  >(
+    `/api/channel_monitor/channel/${request.channelId}/upstream/version`,
+    {
+      base_url: request.baseUrl,
+    },
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
@@ -227,7 +268,8 @@ export async function testChannelMonitorUpstreamConfig(request: {
     ChannelMonitorApiResponse<NewAPIGroupRatioResult>
   >(
     `/api/channel_monitor/channel/${request.channelId}/upstream/test`,
-    request.config
+    request.config,
+    channelMonitorRequestConfig()
   )
   return ensureChannelMonitorSuccess(response.data)
 }
@@ -240,7 +282,8 @@ export async function listChannelMonitorUpstreamGroups(request: {
     ChannelMonitorApiResponse<ChannelMonitorUpstreamGroupsResult>
   >(
     `/api/channel_monitor/channel/${request.channelId}/upstream/groups`,
-    request.config
+    request.config,
+    channelMonitorRequestConfig()
   )
   return ensureChannelMonitorSuccess(response.data)
 }
@@ -248,20 +291,32 @@ export async function listChannelMonitorUpstreamGroups(request: {
 export async function fetchChannelMonitorUpstreamRatio(channelId: number) {
   const response = await api.post<
     ChannelMonitorApiResponse<ChannelMonitorFetchResult>
-  >(`/api/channel_monitor/channel/${channelId}/upstream/fetch`)
+  >(
+    `/api/channel_monitor/channel/${channelId}/upstream/fetch`,
+    undefined,
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
 export async function fetchChannelMonitorUpstreamBalance(channelId: number) {
   const response = await api.post<
     ChannelMonitorApiResponse<ChannelMonitorUpstreamBalanceResult>
-  >(`/api/channel_monitor/channel/${channelId}/upstream/balance/fetch`)
+  >(
+    `/api/channel_monitor/channel/${channelId}/upstream/balance/fetch`,
+    undefined,
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 
 export async function applyChannelMonitorUpstreamGroup(channelId: number) {
   const response = await api.post<
     ChannelMonitorApiResponse<ChannelMonitorApplyGroupResult>
-  >(`/api/channel_monitor/channel/${channelId}/upstream/group/apply`)
+  >(
+    `/api/channel_monitor/channel/${channelId}/upstream/group/apply`,
+    undefined,
+    channelMonitorRequestConfig()
+  )
   return ensureChannelMonitorSuccess(response.data)
 }

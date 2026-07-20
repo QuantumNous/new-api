@@ -84,6 +84,7 @@ import {
   createChannelMonitorCustomFormConfig,
   createChannelMonitorCustomRequestConfig,
 } from '../lib/custom-upstream'
+import { handleChannelMonitorMutationError } from '../lib/error'
 import { formatMonitorRatio } from '../lib/format'
 import {
   createUpstreamConfigSchema,
@@ -308,6 +309,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
 
   const saveMutation = useMutation({
     mutationFn: saveChannelMonitorUpstreamConfig,
+    onError: handleChannelMonitorMutationError,
     onSuccess: () => {
       toast.success('上游配置已保存')
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
@@ -316,6 +318,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   })
   const testMutation = useMutation({
     mutationFn: testChannelMonitorUpstreamConfig,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response) => {
       setTestResult(response.data)
       if (response.data.balance.error) {
@@ -327,6 +330,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   })
   const versionMutation = useMutation({
     mutationFn: fetchChannelMonitorSub2APIUpstreamVersion,
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response) => {
       setUpstreamVersion(response.data.version)
       toast.success(`上游版本：${response.data.version}`)
@@ -340,6 +344,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
         config,
       })
     },
+    onError: handleChannelMonitorMutationError,
     onSuccess: (response) => {
       setUpstreamGroups(response.data.groups)
       const appliedGroup = response.data.applied_group?.trim()
@@ -375,6 +380,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
         return { success: false as const, applyError }
       }
     },
+    onError: handleChannelMonitorMutationError,
     onSuccess: (result, values) => {
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
       if (!result.success) {

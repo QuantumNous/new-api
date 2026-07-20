@@ -49,6 +49,7 @@ import {
   getChannelMonitorAvailableGroups,
   updateMonitoredChannelGroups,
 } from '../api'
+import { handleChannelMonitorMutationError } from '../lib/error'
 import {
   createChannelGroupsSchema,
   type ChannelGroupsFormValues,
@@ -84,6 +85,7 @@ export function EditChannelGroupsDialog(props: EditChannelGroupsDialogProps) {
   }, [groupsQuery.data?.data, props.channel.groups])
   const mutation = useMutation({
     mutationFn: updateMonitoredChannelGroups,
+    onError: handleChannelMonitorMutationError,
     onSuccess: () => {
       toast.success('渠道关联分组已更新')
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })

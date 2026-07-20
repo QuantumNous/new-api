@@ -43,6 +43,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 
 import { updateChannelMonitorRatio } from '../api'
+import { handleChannelMonitorMutationError } from '../lib/error'
 import { formatMonitorRatio } from '../lib/format'
 import {
   createChannelRatioSchema,
@@ -69,6 +70,7 @@ export function EditChannelRatioDialog(props: EditChannelRatioDialogProps) {
 
   const mutation = useMutation({
     mutationFn: updateChannelMonitorRatio,
+    onError: handleChannelMonitorMutationError,
     onSuccess: () => {
       toast.success('上游原始倍率已保存')
       queryClient.invalidateQueries({ queryKey: ['channel-monitor'] })
