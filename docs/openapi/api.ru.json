@@ -35145,12 +35145,25 @@
           "409": {
             "content": {
               "application/json": {
+                "examples": {
+                  "username_already_taken": {
+                    "summary": "username_already_taken",
+                    "value": {
+                      "code": "username_already_taken",
+                      "message": "\u003clocalized message\u003e",
+                      "success": false
+                    }
+                  }
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Конфликт — ресурс уже существует или состояние не допускает операцию"
+            "description": "Конфликт — ресурс уже существует или состояние не допускает операцию",
+            "x-error-codes": [
+              "username_already_taken"
+            ]
           },
           "422": {
             "content": {
@@ -35316,12 +35329,25 @@
           "409": {
             "content": {
               "application/json": {
+                "examples": {
+                  "username_already_taken": {
+                    "summary": "username_already_taken",
+                    "value": {
+                      "code": "username_already_taken",
+                      "message": "\u003clocalized message\u003e",
+                      "success": false
+                    }
+                  }
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Конфликт — ресурс уже существует или состояние не допускает операцию"
+            "description": "Конфликт — ресурс уже существует или состояние не допускает операцию",
+            "x-error-codes": [
+              "username_already_taken"
+            ]
           },
           "422": {
             "content": {

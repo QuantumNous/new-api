@@ -695,6 +695,9 @@ func UpdateUser(c *gin.Context) {
 	updatePassword := updatedUser.Password != ""
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.EnsureUsernameAvailableWithTx(tx, updatedUser.Username, updatedUser.Id); err != nil {
+			return err
+		}
 		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
 			return err
 		}
@@ -702,6 +705,10 @@ func UpdateUser(c *gin.Context) {
 		authzTouched = touched
 		return err
 	}); err != nil {
+		if errors.Is(err, model.ErrUsernameAlreadyTaken) {
+			common.ApiErrorI18nStatusCode(c, http.StatusConflict, "username_already_taken", i18n.MsgUserExists)
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
@@ -988,6 +995,9 @@ func CreateUser(c *gin.Context) {
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.EnsureUsernameAvailableWithTx(tx, cleanUser.Username, 0); err != nil {
+			return err
+		}
 		if err := cleanUser.InsertWithTx(tx, 0); err != nil {
 			return err
 		}
@@ -995,6 +1005,10 @@ func CreateUser(c *gin.Context) {
 		authzTouched = touched
 		return err
 	}); err != nil {
+		if errors.Is(err, model.ErrUsernameAlreadyTaken) {
+			common.ApiErrorI18nStatusCode(c, http.StatusConflict, "username_already_taken", i18n.MsgUserExists)
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}

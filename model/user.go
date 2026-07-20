@@ -530,6 +530,28 @@ func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) er
 	return nil
 }
 
+// EnsureUsernameAvailableWithTx checks that username is not taken by any user
+// other than excludeUserID (pass 0 for insert). Uses Unscoped so soft-deleted
+// users still block reuse — the unique index covers them, matching the email
+// helper's behavior. Works on SQLite/MySQL/PostgreSQL.
+func EnsureUsernameAvailableWithTx(tx *gorm.DB, username string, excludeUserID int) error {
+	if tx == nil {
+		tx = DB
+	}
+	query := tx.Unscoped().Model(&User{}).Where("username = ?", username)
+	if excludeUserID > 0 {
+		query = query.Where("id <> ?", excludeUserID)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrUsernameAlreadyTaken
+	}
+	return nil
+}
+
 func (user *User) Insert(inviterId int) error {
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
