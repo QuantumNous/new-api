@@ -45,11 +45,18 @@ Concurrency limit exceeded for account。
 
 ## 上线后验收
 
-待部署后填写：
+- Railway deployment：5bb15188-ffa1-41b7-9a81-4b2a2f391ba2
+- 部署源码提交：01f19aed6
+- 上线时间：2026-07-20 11:45（Asia/Singapore）
+- UPSTREAM_HOST_CIRCUIT_MODE：observe
+- 容器、PostgreSQL、Redis、数据迁移和渠道缓存启动正常
+- /api/status 与首页均返回 HTTP 200
+- 初始 84 个 FRT 样本：平均 2.086 s、p50 1.886 s、p90 2.755 s、
+  p95 3.798 s、最大 6.595 s，>= 10 s 和 >= 20 s 均为 0
+- 渠道分布：#58 共 64 条，平均 2.130 s；#56 共 14 条，平均 1.996 s；
+  #60 共 7 条，平均 1.796 s
+- 初始流结束：done=59、Claude Messages 正常 eof=3、client_gone=1
+- 未出现 HTTP 5xx、渠道错误、stream_capacity 或共享主机熔断观察日志
 
-- Railway deployment ID 与 Git commit
-- 启动、健康检查和基础 API 状态
-- 30 分钟及 3 小时 FRT 分位数
-- stream_capacity 与上游主机短时熔断观察日志
-- upstream_failed、client_gone、response-header timeout 和 5xx 数量
-- 是否需要继续保持 observe 或回滚
+初始窗口样本仍较少，不能把分位数改善直接归因给本次代码。继续保持 observe，
+不启用 enforce；后续用 30 分钟和 3 小时窗口复核。
