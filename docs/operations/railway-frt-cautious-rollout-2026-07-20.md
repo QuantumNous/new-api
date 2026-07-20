@@ -421,3 +421,53 @@ provenance 时设置 `AffinityColdStart`；本地 429、固定渠道、预算耗
 
 该补丁的 2 小时冷却触发链路仍未在自然流量中出现真实 429，因此只能确认无回归和边界测试通过，
 不能把生产日志中的 2 小时冷却宣称为已实测。
+
+## 首字慢渠道跨优先级软降级
+
+生产基线确认：现有 EWMA 和快渠道权重只会在同一优先级内调整，无法处理“高优先级但首字持续慢”
+的渠道。此前窗口中，#42 `aiccxx.top`（plus，优先级 11）和 #79 `strategyhub.cc`
+（pro，优先级 12）均有稳定的 8-16 秒首字样本，却始终压在更快的低一层渠道之前。
+
+本轮采用单层、可恢复的软降级：
+
+- 同一 `(channel, model, normalized path)` 最近两个可归因、非冷启动的成功首字达到慢阈值（默认
+  9 秒）后，只把有效优先级下移一层；不写入渠道冷却，不改变 affinity 粘滞路由，也不把冷缓存
+  prefill 当成渠道慢。
+- 继续出现第三个慢样本时，沿用现有慢熔断和 half-open 探测；慢熔断恢复不会清掉软降级标记，
+  必须有两个连续可计分的快响应且 EWMA 低于慢阈值才恢复原层级。
+- 失败、慢响应会重新计时；冷启动、零首字、客户端/语义/本地错误只清掉连续快样本，不会把探测
+  窗口无限推迟。恢复探测机会只在实际加权选中渠道后原子预留，缓存和数据库选路共用同一规则；
+  过期候选快照仍经过普通健康/熔断 Acquire，不能绕过已打开的 circuit。
+- 最低配置优先级不再额外下移；没有可用的高层候选时，仍保留原有 fallback 和探测机会。
+
+失败回归测试和实现提交依次为 `b1fee2aef`、`108914671`、`585dcc0e5`、`5b67bacab`、
+`9a48397b1`、`5bb9d5376`、`8aa5557e6`、`1e2a41234` 和 `a723f280e`。已通过全量
+`go test ./... -count=1`、`go test -race -count=1 ./model ./service ./controller`、
+`go vet ./controller ./service ./model ./relay/channel/aws`、定向选择器重复测试、
+`git diff --check` 和两轮独立代码审查。
+
+## 首字慢降级版本上线验收
+
+- Railway deployment：`821c843c-d5a7-47f9-8ccf-5a80b3fbe0f3`
+- 上线时间：2026-07-21 00:45:35（Asia/Singapore，创建时间 2026-07-20 16:45:35 UTC）
+- 镜像：`sha256:51a37bfbe909bad31a622987fb0573916c98c25932880d344d4f7a4fdd9523d7`
+- 部署状态：`SUCCESS`
+- `https://api.opwan.ai/api/status`、`https://test.opwan.ai/api/status` 和两个首页均返回 HTTP 200。
+- 启动日志显示数据库迁移、渠道同步和 batch update 正常；仍有既有的
+  `SESSION_COOKIE_SECURE` 生产配置警告，本轮未混入配置修改。
+
+部署后最初约 4 分钟的自然窗口（51 条含 FRT 的 `/v1/responses` 消费日志）为：平均 2.887 秒、
+p50 1.402 秒、p90 5.076 秒、p95 6.860 秒、最大 35.657 秒，FRT >= 9 秒 2 条、>= 15 秒 1 条。
+全部样本带有 `channel_affinity`，因此这段窗口只能证明没有把 affinity 流量错误迁移，不能证明新
+选路已经改变随机流量的 FRT 分布；后续应在出现非 affinity 请求时单独统计。
+
+该窗口没有最终 HTTP 429、`Concurrency limit exceeded` 或 `client_gone`。#57 和 #42 各出现一次
+响应头超时并按既有规则冷却 5 分钟，随后请求继续完成。另有 1 个唯一的上游流中断事件：请求链
+`#57 -> #42 -> #38`，最终 #38 已在 HTTP 200 建流后约 96.9 秒返回
+`stream disconnected before completion: stream closed before response.completed`，网关记录为
+`upstream_failed`；这不是 `client_gone`，也不是本次优先级排序代码生成的新重试。该事件仍需继续
+观察是否重复，不能因为一次自然上游断流就宣称选路优化有效或无效。
+
+本次发布保持现有重试次数、5 秒容量恢复窗口、affinity 和已提交 SSE 不重放约束不变。下一轮验收
+重点是：非 affinity 流量中 #42/#79 是否在两个慢样本后让出一层、恢复探测是否能回到原层级，以及
+`upstream_failed` 是否仍是孤立上游事件；若出现 429，继续按两小时渠道冷却记录核对实际切换链。
