@@ -215,6 +215,16 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "RegistrationInviteMode":
+		if option.Value != common.RegistrationInviteModeOptional &&
+			option.Value != common.RegistrationInviteModeRequired &&
+			option.Value != common.RegistrationInviteModeHidden {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无效的邀请码模式，可选值：optional（可选）、required（必填）、hidden（隐藏）",
+			})
+			return
+		}
 	case "theme.frontend":
 		if option.Value != "default" && option.Value != "classic" {
 			c.JSON(http.StatusOK, gin.H{

@@ -25,7 +25,9 @@ func GenerateOAuthCode(c *gin.Context) {
 	session := sessions.Default(c)
 	state := common.GetRandomString(12)
 	affCode := c.Query("aff")
-	if affCode != "" {
+	if common.RegistrationInviteMode == common.RegistrationInviteModeHidden || affCode == "" {
+		session.Delete("aff")
+	} else {
 		session.Set("aff", affCode)
 	}
 	session.Set("oauth_state", state)
@@ -276,10 +278,13 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Status = common.UserStatusEnabled
 
 	// Handle affiliate code
-	affCode := session.Get("aff")
-	inviterId := 0
-	if affCode != nil {
-		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+	affCode := ""
+	if sessionAffCode := session.Get("aff"); sessionAffCode != nil {
+		affCode, _ = sessionAffCode.(string)
+	}
+	inviterId, err := resolveConfiguredRegistrationInviter(affCode)
+	if err != nil {
+		return nil, err
 	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
@@ -377,6 +382,15 @@ func handleOAuthError(c *gin.Context, err error) {
 		common.ApiErrorI18n(c, i18n.MsgOAuthTrustLevelLow)
 	case *oauth.AccountAgeError:
 		common.ApiErrorI18n(c, i18n.MsgOAuthAccountAgeLow)
+	case error:
+		switch {
+		case errors.Is(e, errRegistrationInviteCodeRequired):
+			common.ApiErrorI18n(c, i18n.MsgUserInviteCodeRequired)
+		case errors.Is(e, errRegistrationInviteCodeInvalid):
+			common.ApiErrorI18n(c, i18n.MsgUserInviteCodeInvalid)
+		default:
+			common.ApiError(c, err)
+		}
 	default:
 		common.ApiError(c, err)
 	}
