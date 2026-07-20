@@ -178,11 +178,12 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		totalMaxCount := setting.ModelRequestRateLimitCount
 		successMaxCount := setting.ModelRequestRateLimitSuccessCount
 
-		// 获取分组
-		group := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-		if group == "" {
-			group = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-		}
+		// Rate limits are bound to the authenticated user group, not the
+		// token's routing group. Token group is a channel-selection
+		// preference; allowing it to pick the limit table lets a user in a
+		// restricted group (e.g. "paid") create a key with group "default"
+		// and fall through to the more lenient global limits.
+		group := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 
 		//获取分组的限流配置
 		groupTotalCount, groupSuccessCount, found := setting.GetGroupRateLimit(group)
