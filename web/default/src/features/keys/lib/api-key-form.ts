@@ -25,17 +25,34 @@ import { type ApiKeyFormData, type ApiKey } from '../types'
 // Form Schema
 // ============================================================================
 
-export const apiKeyFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  remain_quota_dollars: z.number().min(0).optional(),
-  expired_time: z.date().optional(),
-  unlimited_quota: z.boolean(),
-  model_limits: z.array(z.string()),
-  allow_ips: z.string().optional(),
-  group: z.string().optional(),
-  cross_group_retry: z.boolean().optional(),
-  tokenCount: z.number().min(1).optional(),
-})
+export const apiKeyFormSchema = z
+  .object({
+    name: z.string().min(1, 'Name is required'),
+    remain_quota_dollars: z.number().optional(),
+    expired_time: z.date().optional(),
+    unlimited_quota: z.boolean(),
+    model_limits: z.array(z.string()),
+    allow_ips: z.string().optional(),
+    group: z.string().optional(),
+    cross_group_retry: z.boolean().optional(),
+    tokenCount: z.number().min(1).optional(),
+  })
+  .superRefine((data, ctx) => {
+    // remain_quota_dollars is only relevant (and shown) when quota isn't
+    // unlimited. A key can carry a stale negative balance (e.g. overspend)
+    // while unlimited_quota is on; don't block saving on that hidden value.
+    if (
+      !data.unlimited_quota &&
+      data.remain_quota_dollars !== undefined &&
+      data.remain_quota_dollars < 0
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Too small: expected number to be >=0',
+        path: ['remain_quota_dollars'],
+      })
+    }
+  })
 
 export type ApiKeyFormValues = z.infer<typeof apiKeyFormSchema>
 
