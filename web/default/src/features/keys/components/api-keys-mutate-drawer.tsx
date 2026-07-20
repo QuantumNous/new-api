@@ -243,6 +243,7 @@ export function ApiKeysMutateDrawer({
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
   const unlimitedQuota = form.watch('unlimited_quota')
+  const submitForm = form.handleSubmit(onSubmit, handleInvalidSubmit)
 
   return (
     <Sheet
@@ -271,7 +272,7 @@ export function ApiKeysMutateDrawer({
         </SheetHeader>
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit, handleInvalidSubmit)}
+            onSubmit={submitForm}
             className='flex min-h-0 flex-1 flex-col'
           >
             <div className='min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 sm:space-y-4 sm:px-4 sm:py-4'>
@@ -594,7 +595,12 @@ export function ApiKeysMutateDrawer({
               >
                 {t('Close')}
               </SheetClose>
-              <Button disabled={isSubmitting} className='w-full sm:w-auto'>
+              <Button
+                type='button'
+                onClick={submitForm}
+                disabled={isSubmitting}
+                className='w-full sm:w-auto'
+              >
                 {isSubmitting ? t('Saving...') : t('Save changes')}
               </Button>
             </SheetFooter>
