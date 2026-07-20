@@ -147,6 +147,61 @@ func TestChannelHealthPriorityRecoveryRequiresConsecutiveScoredFastResponses(t *
 	}
 }
 
+func TestUnscoredOutcomesDoNotStarvePriorityProbeEligibility(t *testing.T) {
+	useDefaultSlowLatencyThreshold(t)
+	health, clock := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	slow := channelHealthSlowLatency() + time.Second
+
+	for i := 0; i < channelHealthPriorityDemotionThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	}
+	for i := 0; i < 3; i++ {
+		clock.Advance(30 * time.Second)
+		health.Record(key, ChannelOutcome{
+			StatusCode:     http.StatusOK,
+			Latency:        30 * time.Second,
+			ColdCacheStart: true,
+		})
+	}
+
+	demoted, probeEligible := health.prioritySelectionState(key)
+	assert.True(t, demoted)
+	assert.True(t, probeEligible, "unscored affinity traffic must not postpone the recovery probe forever")
+	assert.Zero(t, health.entries[key].priorityFastSamples)
+}
+
+func TestStalePriorityProbeSnapshotStillHonorsOpenCircuit(t *testing.T) {
+	useDefaultSlowLatencyThreshold(t)
+	health, clock := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	slow := channelHealthSlowLatency() + time.Second
+	fast := 500 * time.Millisecond
+
+	for i := 0; i < channelHealthPriorityDemotionThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	}
+	clock.Advance(channelHealthFailureWindow + time.Nanosecond)
+	demoted, probeEligible := health.prioritySelectionState(key)
+	require.True(t, demoted)
+	require.True(t, probeEligible, "setup requires a stale priority-probe snapshot")
+
+	for i := 0; i < channelHealthPriorityRecoveryThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+	}
+	require.False(t, health.entries[key].priorityDemoted, "setup requires the stale snapshot's demotion to be cleared")
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+	require.Equal(t, ChannelHealthOpen, health.State(key))
+	assert.False(t, health.acquirePriorityProbe(key), "a stale priority snapshot must not bypass a newly opened circuit")
+
+	clock.Advance(channelHealthOpenDuration)
+	assert.True(t, health.acquirePriorityProbe(key), "after backoff the stale snapshot may use the normal half-open probe")
+	assert.Equal(t, ChannelHealthHalfOpen, health.State(key))
+	assert.False(t, health.acquirePriorityProbe(key), "the normal half-open lease must remain exclusive")
+}
+
 func TestChannelHealthPriorityDemotionIgnoresColdCacheStarts(t *testing.T) {
 	useDefaultSlowLatencyThreshold(t)
 	health, _ := newTestChannelHealth(t)
