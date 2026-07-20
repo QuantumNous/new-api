@@ -79,6 +79,7 @@ const RegisterForm = () => {
     password2: '',
     email: '',
     verification_code: '',
+    aff_code: '',
     wechat_verification_code: '',
   });
   const { username, password, password2 } = inputs;
@@ -114,11 +115,6 @@ const RegisterForm = () => {
   const logo = getLogo();
   const systemName = getSystemName();
 
-  let affCode = new URLSearchParams(window.location.search).get('aff');
-  if (affCode) {
-    localStorage.setItem('aff', affCode);
-  }
-
   const status = useMemo(() => {
     if (statusState?.status) return statusState.status;
     const savedStatus = localStorage.getItem('status');
@@ -129,6 +125,9 @@ const RegisterForm = () => {
       return {};
     }
   }, [statusState?.status]);
+  const invitationMode = status.registration_invite_mode || 'optional';
+  const invitationVisible = invitationMode !== 'hidden';
+  const invitationRequired = invitationMode === 'required';
   const hasCustomOAuthProviders =
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthRegisterOptions = Boolean(
@@ -142,6 +141,20 @@ const RegisterForm = () => {
   );
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
+
+  useEffect(() => {
+    if (!invitationVisible) {
+      handleChange('aff_code', '');
+      return;
+    }
+    const linkedAffCode = new URLSearchParams(window.location.search)
+      .get('aff')
+      ?.trim();
+    if (linkedAffCode) {
+      localStorage.setItem('aff', linkedAffCode);
+    }
+    handleChange('aff_code', linkedAffCode || localStorage.getItem('aff') || '');
+  }, [invitationVisible]);
 
   useEffect(() => {
     setShowEmailVerification(!!status?.email_verification);
@@ -177,6 +190,10 @@ const RegisterForm = () => {
   }, []);
 
   const onWeChatLoginClicked = () => {
+    if (invitationRequired && !inputs.aff_code?.trim()) {
+      showInfo('请输入邀请码');
+      return;
+    }
     setWechatLoading(true);
     setShowWeChatLoginModal(true);
     setWechatLoading(false);
@@ -189,9 +206,14 @@ const RegisterForm = () => {
     }
     setWechatCodeSubmitLoading(true);
     try {
-      const res = await API.get(
-        `/api/oauth/wechat?code=${inputs.wechat_verification_code}`,
-      );
+      const res = await API.get('/api/oauth/wechat', {
+        params: {
+          code: inputs.wechat_verification_code,
+          aff: invitationVisible
+            ? inputs.aff_code?.trim() || localStorage.getItem('aff') || ''
+            : '',
+        },
+      });
       const { success, message, data } = res.data;
       if (success) {
         userDispatch({ type: 'login', payload: data });
@@ -215,7 +237,7 @@ const RegisterForm = () => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit() {
     if (password.length < 8) {
       showInfo('密码长度不得小于 8 位！');
       return;
@@ -224,6 +246,14 @@ const RegisterForm = () => {
       showInfo('两次输入的密码不一致');
       return;
     }
+    const manualAffCode = inputs.aff_code?.trim() || '';
+    if (invitationRequired && !manualAffCode) {
+      showInfo('请输入邀请码');
+      return;
+    }
+    if (invitationVisible && manualAffCode) {
+      localStorage.setItem('aff', manualAffCode);
+    }
     if (username && password) {
       if (turnstileEnabled && turnstileToken === '') {
         showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
@@ -231,13 +261,15 @@ const RegisterForm = () => {
       }
       setRegisterLoading(true);
       try {
-        if (!affCode) {
-          affCode = localStorage.getItem('aff');
-        }
-        inputs.aff_code = affCode;
+        const payload = {
+          ...inputs,
+          aff_code: invitationVisible
+            ? manualAffCode || localStorage.getItem('aff') || ''
+            : '',
+        };
         const res = await API.post(
           `/api/user/register?turnstile=${turnstileToken}`,
-          inputs,
+          payload,
         );
         const { success, message } = res.data;
         if (success) {
@@ -280,6 +312,10 @@ const RegisterForm = () => {
   };
 
   const handleGitHubClick = () => {
+    if (invitationRequired && !inputs.aff_code?.trim()) {
+      showInfo('请输入邀请码');
+      return;
+    }
     if (githubButtonDisabled) {
       return;
     }
@@ -301,7 +337,16 @@ const RegisterForm = () => {
     }
   };
 
+  const validateInvitationForOAuth = () => {
+    if (invitationRequired && !inputs.aff_code?.trim()) {
+      showInfo('请输入邀请码');
+      return false;
+    }
+    return true;
+  };
+
   const handleDiscordClick = () => {
+    if (!validateInvitationForOAuth()) return;
     setDiscordLoading(true);
     try {
       onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
@@ -311,6 +356,7 @@ const RegisterForm = () => {
   };
 
   const handleOIDCClick = () => {
+    if (!validateInvitationForOAuth()) return;
     setOidcLoading(true);
     try {
       onOIDCClicked(
@@ -325,6 +371,7 @@ const RegisterForm = () => {
   };
 
   const handleLinuxDOClick = () => {
+    if (!validateInvitationForOAuth()) return;
     setLinuxdoLoading(true);
     try {
       onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
@@ -334,6 +381,7 @@ const RegisterForm = () => {
   };
 
   const handleCustomOAuthClick = (provider) => {
+    if (!validateInvitationForOAuth()) return;
     setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
     try {
       onCustomOAuthClicked(provider, { shouldLogout: true });
@@ -357,6 +405,10 @@ const RegisterForm = () => {
   };
 
   const onTelegramLoginClicked = async (response) => {
+    if (invitationRequired && !inputs.aff_code?.trim()) {
+      showInfo('请输入邀请码');
+      return;
+    }
     const fields = [
       'id',
       'first_name',
@@ -603,38 +655,57 @@ const RegisterForm = () => {
                 />
 
                 {showEmailVerification && (
-                  <>
-                    <Form.Input
-                      field='email'
-                      label={t('邮箱')}
-                      placeholder={t('输入邮箱地址')}
-                      name='email'
-                      type='email'
-                      onChange={(value) => handleChange('email', value)}
-                      prefix={<IconMail />}
-                      suffix={
-                        <Button
-                          onClick={sendVerificationCode}
-                          loading={verificationCodeLoading}
-                          disabled={disableButton || verificationCodeLoading}
-                        >
-                          {disableButton
-                            ? `${t('重新发送')} (${countdown})`
-                            : t('获取验证码')}
-                        </Button>
-                      }
-                    />
-                    <Form.Input
-                      field='verification_code'
-                      label={t('验证码')}
-                      placeholder={t('输入验证码')}
-                      name='verification_code'
-                      onChange={(value) =>
-                        handleChange('verification_code', value)
-                      }
-                      prefix={<IconKey />}
-                    />
-                  </>
+                  <Form.Input
+                    field='email'
+                    label={t('邮箱')}
+                    placeholder={t('输入邮箱地址')}
+                    name='email'
+                    type='email'
+                    onChange={(value) => handleChange('email', value)}
+                    prefix={<IconMail />}
+                    suffix={
+                      <Button
+                        onClick={sendVerificationCode}
+                        loading={verificationCodeLoading}
+                        disabled={disableButton || verificationCodeLoading}
+                      >
+                        {disableButton
+                          ? `${t('重新发送')} (${countdown})`
+                          : t('获取验证码')}
+                      </Button>
+                    }
+                  />
+                )}
+
+                {invitationVisible && (
+                  <Form.Input
+                    field='aff_code'
+                    label={
+                      invitationRequired ? t('邀请码') : t('邀请码（选填）')
+                    }
+                    placeholder={t('请输入邀请码')}
+                    name='aff_code'
+                    value={inputs.aff_code}
+                    onChange={(value) => {
+                      handleChange('aff_code', value);
+                      if (value?.trim()) localStorage.setItem('aff', value.trim());
+                    }}
+                    prefix={<IconKey />}
+                    required={invitationRequired}
+                  />
+                )}
+
+                {showEmailVerification && (
+                  <Form.Input
+                    field='verification_code'
+                    label={t('验证码')}
+                    placeholder={t('输入验证码')}
+                    name='verification_code'
+                    onChange={(value) =>
+                      handleChange('verification_code', value)
+                    }
+                    prefix={<IconKey />}
+                  />
                 )}
 
                 {(hasUserAgreement || hasPrivacyPolicy) && (

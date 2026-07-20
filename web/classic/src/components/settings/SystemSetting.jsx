@@ -30,7 +30,6 @@ import {
   Spin,
   Card,
   Radio,
-  Select,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
@@ -82,6 +81,7 @@ const SystemSetting = () => {
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
     RegisterEnabled: '',
+    RegistrationInviteMode: 'optional',
     'passkey.enabled': '',
     'passkey.rp_display_name': '',
     'passkey.rp_id': '',
@@ -719,6 +719,14 @@ const SystemSetting = () => {
     }
   };
 
+  const handleInviteModeChange = async (value) => {
+    setInputs((current) => ({
+      ...current,
+      RegistrationInviteMode: value,
+    }));
+    await updateOptions([{ key: 'RegistrationInviteMode', value }]);
+  };
+
   const handleSMTPSecurityModeChange = async (event) => {
     const mode = event && event.target ? event.target.value : event;
     const nextSMTPSSLEnabled = mode === 'ssl_tls';
@@ -1071,6 +1079,20 @@ const SystemSetting = () => {
                       >
                         {t('允许新用户注册')}
                       </Form.Checkbox>
+                      <Form.Select
+                        field='RegistrationInviteMode'
+                        label={t('注册邀请码')}
+                        value={inputs.RegistrationInviteMode || 'optional'}
+                        onChange={handleInviteModeChange}
+                        optionList={[
+                          { label: t('可选'), value: 'optional' },
+                          { label: t('必填'), value: 'required' },
+                          { label: t('隐藏（完全禁用邀请）'), value: 'hidden' },
+                        ]}
+                        extraText={t(
+                          '设置注册时邀请码为可选、必填或完全隐藏并禁用',
+                        )}
+                      />
                       <Form.Checkbox
                         field='TurnstileCheckEnabled'
                         noLabel
