@@ -225,3 +225,26 @@ SSE body。随后自然流量中的容量波动触发了新路径，并暴露出
 该调整已通过全量 Go 测试、定向 race 测试、Go vet、`git diff --check` 和静默失败复核。
 上线后重点观察 `upstream capacity fallback response-header slice reached`、
 `capacity fallback succeeded` 以及相同请求的渠道链路和总耗时。
+
+## 第二备用渠道版本上线验证
+
+- Railway deployment：`7be0f877-6774-418e-b8ae-e70241a8c213`
+- 功能提交：`e7710cee8`
+- 部署工作树提交：`d6f443718`
+- 镜像：`sha256:cb0b3c11f25b02779d22ddb23bec0f9738ca095c6313476c93029ce5966cc778`
+- 上线时间：2026-07-20 19:44:37（Asia/Singapore）
+
+部署状态为 SUCCESS，容器在约 2 秒内完成启动；PostgreSQL、Redis、迁移、内存缓存和渠道
+同步均正常。`api.opwan.ai/api/status`、`test.opwan.ai/api/status` 和 `api.opwan.ai/` 均返回
+HTTP 200。启动日志仅保留既有的 `SESSION_COOKIE_SECURE` 警告，与本次中断修复无关。
+
+上线后约 8 分钟的首批 21 个自然 `/v1/responses` 请求全部返回 HTTP 200，请求总时长最高
+约 29.9 秒，另有多条 10-17 秒长流正常结束。这再次确认 2 秒切片只作用于已经进入容量恢复
+阶段的首个额外渠道响应头，不会截断普通请求或已收到响应头的长 SSE body。该窗口没有出现
+HTTP 429/5xx、499、`stream disconnected before completion`、缺失 `response.completed`、
+`Concurrency limit exceeded` 或内部 deadline sentinel。
+
+该自然窗口尚未再次出现真实容量风暴，因此生产侧当前只能确认无回归，不能声称已经观察到
+`first slice -> second channel -> success`。该链路已由定向测试和 race 测试覆盖；后续一旦出现
+`response-header slice reached`，必须按同一 request ID 核对第二渠道是否在总 5 秒窗口内执行，
+并继续关注最终 429/503 是否下降。
