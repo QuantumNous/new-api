@@ -41,7 +41,7 @@ function requireData<T>(response: ApiResponse<T>): T {
 
 export async function getChannelMonitors(): Promise<ChannelMonitor[]> {
   const response = await api.get<ApiResponse<{ items: ChannelMonitor[] }>>(
-    '/api/channel-monitor/'
+    '/api/monitor/channel/'
   )
   return requireData(response.data).items
 }
@@ -50,7 +50,7 @@ export async function createChannelMonitor(
   payload: ChannelMonitorPayload
 ): Promise<ChannelMonitor> {
   const response = await api.post<ApiResponse<ChannelMonitor>>(
-    '/api/channel-monitor/',
+    '/api/monitor/channel/',
     payload
   )
   return requireData(response.data)
@@ -61,7 +61,7 @@ export async function updateChannelMonitor(
   payload: ChannelMonitorPayload
 ): Promise<ChannelMonitor> {
   const response = await api.put<ApiResponse<ChannelMonitor>>(
-    `/api/channel-monitor/${id}`,
+    `/api/monitor/channel/${id}`,
     payload
   )
   return requireData(response.data)
@@ -69,7 +69,7 @@ export async function updateChannelMonitor(
 
 export async function deleteChannelMonitor(id: number): Promise<void> {
   const response = await api.delete<ApiResponse<null>>(
-    `/api/channel-monitor/${id}`
+    `/api/monitor/channel/${id}`
   )
   if (!response.data.success) {
     throw new Error(response.data.message || 'Request failed')
@@ -80,7 +80,7 @@ export async function runChannelMonitor(
   id: number
 ): Promise<ChannelMonitorRunResponse> {
   const response = await api.post<ApiResponse<ChannelMonitorRunResponse>>(
-    `/api/channel-monitor/${id}/run`
+    `/api/monitor/channel/${id}/run`
   )
   return requireData(response.data)
 }
