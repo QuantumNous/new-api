@@ -1293,7 +1293,7 @@
       "get": {
         "summary": "完成 Telegram 绑定",
         "deprecated": false,
-        "description": "Telegram widget 回调；通过一次性 flow_token 关联并重新校验创建该流程的登录会话。Default 主题始终以 302 回到 /oauth/telegram：成功携带 telegram_bind=success，失败携带 telegram_bind=error、flow_token 和稳定 error_code（TELEGRAM_BIND_DISABLED、TELEGRAM_BIND_INVALID_REQUEST、TELEGRAM_BIND_FLOW_INVALID、TELEGRAM_BIND_SESSION_INVALID、TELEGRAM_BIND_ALREADY_BOUND、TELEGRAM_BIND_USER_DELETED、TELEGRAM_BIND_USER_DISABLED 或 TELEGRAM_BIND_INTERNAL_ERROR），不会透传底层错误文案。Classic 主题保留既有 JSON 错误响应和成功跳转。",
+        "description": "Telegram widget 回调；通过一次性 flow_token 关联并重新校验创建该流程的登录会话。始终以 302 回到 /oauth/telegram：成功携带 telegram_bind=success，失败携带 telegram_bind=error、flow_token 和稳定 error_code（TELEGRAM_BIND_DISABLED、TELEGRAM_BIND_INVALID_REQUEST、TELEGRAM_BIND_FLOW_INVALID、TELEGRAM_BIND_SESSION_INVALID、TELEGRAM_BIND_ALREADY_BOUND、TELEGRAM_BIND_USER_DELETED、TELEGRAM_BIND_USER_DISABLED 或 TELEGRAM_BIND_INTERNAL_ERROR），不会透传底层错误文案。",
         "tags": [
           "OAuth"
         ],
@@ -1309,19 +1309,7 @@
         ],
         "responses": {
           "302": {
-            "description": "Default 主题重定向到绑定结果回调；Classic 主题绑定成功后重定向到个人设置",
-            "headers": {}
-          },
-          "200": {
-            "description": "Classic 主题的既有业务错误 JSON 响应",
-            "headers": {}
-          },
-          "403": {
-            "description": "Classic 主题的既有无效流程、会话或授权 JSON 响应",
-            "headers": {}
-          },
-          "500": {
-            "description": "Classic 主题的既有内部错误 JSON 响应",
+            "description": "重定向到 /oauth/telegram 的绑定结果回调",
             "headers": {}
           }
         },
@@ -4193,18 +4181,30 @@
             "Combination1243": []
           }
         ]
-      },
-      "delete": {
-        "summary": "删除历史日志",
+      }
+    },
+    "/api/system-task/log-cleanup": {
+      "post": {
+        "summary": "创建日志清理任务",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👑 需要超级管理员权限（Root）。使用 target_timestamp 指定需清理的历史日志边界，并返回异步系统任务。",
         "tags": [
           "日志"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "target_timestamp",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "成功创建任务或返回参数错误",
             "headers": {}
           }
         },
@@ -5111,7 +5111,7 @@
       "get": {
         "summary": "获取系统选项",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。已退役的 theme.frontend 不在列表中返回。",
         "tags": [
           "系统设置"
         ],
@@ -5134,7 +5134,7 @@
       "put": {
         "summary": "更新系统选项",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。兼容期内 theme.frontend=default 可幂等写入，其他主题值会被拒绝。",
         "tags": [
           "系统设置"
         ],
@@ -5158,31 +5158,6 @@
     "/api/option/rest_model_ratio": {
       "post": {
         "summary": "重置模型倍率",
-        "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
-        "tags": [
-          "系统设置"
-        ],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
-          }
-        ]
-      }
-    },
-    "/api/option/migrate_console_setting": {
-      "post": {
-        "summary": "迁移控制台设置",
         "deprecated": false,
         "description": "👑 需要超级管理员权限（Root）",
         "tags": [

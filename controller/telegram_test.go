@@ -128,49 +128,30 @@ func assertTelegramBindRedirect(t *testing.T, response *httptest.ResponseRecorde
 }
 
 func TestTelegramBindFailureResponseContract(t *testing.T) {
-	previousTheme := common.GetTheme()
-	t.Cleanup(func() { common.SetTheme(previousTheme) })
-
 	failures := []struct {
 		name      string
-		status    int
-		message   string
 		errorCode string
 	}{
-		{name: "disabled", status: http.StatusOK, message: "disabled message", errorCode: telegramBindErrorDisabled},
-		{name: "invalid request", status: http.StatusForbidden, message: "invalid message", errorCode: telegramBindErrorInvalidRequest},
-		{name: "invalid flow", status: http.StatusForbidden, message: "flow message", errorCode: telegramBindErrorFlowInvalid},
-		{name: "invalid session", status: http.StatusForbidden, message: "session message", errorCode: telegramBindErrorSessionInvalid},
-		{name: "already bound", status: http.StatusOK, message: "bound message", errorCode: telegramBindErrorAlreadyBound},
-		{name: "deleted user", status: http.StatusOK, message: "deleted message", errorCode: telegramBindErrorUserDeleted},
-		{name: "disabled user", status: http.StatusForbidden, message: "user disabled message", errorCode: telegramBindErrorUserDisabled},
-		{name: "internal error", status: http.StatusInternalServerError, message: "database detail", errorCode: telegramBindErrorInternal},
+		{name: "disabled", errorCode: telegramBindErrorDisabled},
+		{name: "invalid request", errorCode: telegramBindErrorInvalidRequest},
+		{name: "invalid flow", errorCode: telegramBindErrorFlowInvalid},
+		{name: "invalid session", errorCode: telegramBindErrorSessionInvalid},
+		{name: "already bound", errorCode: telegramBindErrorAlreadyBound},
+		{name: "deleted user", errorCode: telegramBindErrorUserDeleted},
+		{name: "disabled user", errorCode: telegramBindErrorUserDisabled},
+		{name: "internal error", errorCode: telegramBindErrorInternal},
 	}
 
 	for _, failure := range failures {
-		t.Run(failure.name+" default", func(t *testing.T) {
-			common.SetTheme("default")
+		t.Run(failure.name, func(t *testing.T) {
 			response := httptest.NewRecorder()
 			context, _ := gin.CreateTestContext(response)
 			context.Params = gin.Params{{Key: "flow_token", Value: "flow token"}}
 			context.Request = httptest.NewRequest(http.MethodGet, "/api/oauth/telegram/bind/flow-token", nil)
 
-			telegramBindFailure(context, failure.status, failure.message, failure.errorCode)
+			telegramBindFailure(context, failure.errorCode)
 
 			assertTelegramBindRedirect(t, response, "flow token", failure.errorCode)
-			assert.NotContains(t, response.Header().Get("Location"), failure.message)
-			assert.NotContains(t, response.Body.String(), failure.message)
-		})
-
-		t.Run(failure.name+" classic", func(t *testing.T) {
-			common.SetTheme("classic")
-			response := httptest.NewRecorder()
-			context, _ := gin.CreateTestContext(response)
-
-			telegramBindFailure(context, failure.status, failure.message, failure.errorCode)
-
-			assert.Equal(t, failure.status, response.Code)
-			assert.JSONEq(t, `{"message":`+strconv.Quote(failure.message)+`,"success":false}`, response.Body.String())
 		})
 	}
 }
@@ -182,7 +163,6 @@ func TestTelegramBindCommitsFlowAssertionAndBindingAtomically(t *testing.T) {
 	previousEnabled := common.TelegramOAuthEnabled
 	previousToken := common.TelegramBotToken
 	previousSecret := common.SessionSecret
-	previousTheme := common.GetTheme()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
@@ -197,7 +177,6 @@ func TestTelegramBindCommitsFlowAssertionAndBindingAtomically(t *testing.T) {
 	common.TelegramOAuthEnabled = true
 	common.TelegramBotToken = "telegram-bind-test-token"
 	common.SessionSecret = "telegram-bind-session-secret"
-	common.SetTheme("default")
 	t.Cleanup(func() {
 		model.DB = previousDB
 		common.SetMainDatabaseType(previousType)
@@ -205,7 +184,6 @@ func TestTelegramBindCommitsFlowAssertionAndBindingAtomically(t *testing.T) {
 		common.TelegramOAuthEnabled = previousEnabled
 		common.TelegramBotToken = previousToken
 		common.SessionSecret = previousSecret
-		common.SetTheme(previousTheme)
 	})
 
 	user := &model.User{
@@ -428,58 +406,4 @@ func TestTelegramBindCommitsFlowAssertionAndBindingAtomically(t *testing.T) {
 		internalAssertionExpiry,
 	))
 
-	classicUser := &model.User{
-		Username: "telegram-bind-classic-user", Password: "password-placeholder", Role: common.RoleCommonUser,
-		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "telegram-bind-classic-user",
-	}
-	require.NoError(t, db.Create(classicUser).Error)
-	classicSession := &model.UserSession{
-		SID: "telegram-bind-classic-session", UserID: classicUser.Id, Version: 1,
-		UserAuthVersion: classicUser.AuthVersion, Status: model.UserSessionStatusActive,
-		RefreshHash: "classic-refresh-hash", LoginMethod: "password",
-		CreatedAt: now.Unix(), LastActiveAt: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix(),
-	}
-	require.NoError(t, model.CreateUserSession(classicSession))
-	classicFlowToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
-		Purpose: model.AuthFlowPurposeTelegramBind, UserId: classicUser.Id, SessionId: classicSession.SID,
-		ExpiresAt: now.Add(time.Minute),
-	})
-	require.NoError(t, err)
-	classicParams := signedTelegramAuthorization(common.TelegramBotToken, now)
-	classicParams.Set("id", "987654")
-	signTelegramAuthorization(common.TelegramBotToken, classicParams)
-	common.SetTheme("classic")
-	request = httptest.NewRequest(
-		http.MethodGet,
-		"/api/oauth/telegram/bind/"+classicFlowToken+"?"+classicParams.Encode(),
-		nil,
-	)
-	response = httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusFound, response.Code)
-	assert.Equal(t, "/console/personal", response.Header().Get("Location"))
-
-	classicReplayFlowToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
-		Purpose: model.AuthFlowPurposeTelegramBind, UserId: classicUser.Id, SessionId: classicSession.SID,
-		ExpiresAt: now.Add(time.Minute),
-	})
-	require.NoError(t, err)
-	request = httptest.NewRequest(
-		http.MethodGet,
-		"/api/oauth/telegram/bind/"+classicReplayFlowToken+"?"+classicParams.Encode(),
-		nil,
-	)
-	response = httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusForbidden, response.Code)
-	assert.JSONEq(t, `{"message":"绑定流程已过期或已使用","success":false}`, response.Body.String())
-	classicReplayFlow, err := model.GetAuthFlow(classicReplayFlowToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeTelegramBind})
-	require.NoError(t, err)
-	assert.Nil(t, classicReplayFlow.ConsumedAt)
-
-	request = httptest.NewRequest(http.MethodGet, "/api/oauth/telegram/bind/classic-invalid", nil)
-	response = httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusOK, response.Code)
-	assert.JSONEq(t, `{"message":"无效的请求","success":false}`, response.Body.String())
 }

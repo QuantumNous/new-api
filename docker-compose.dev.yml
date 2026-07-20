@@ -2,8 +2,8 @@
 #
 # Usage:
 #   1. docker compose -f docker-compose.dev.yml up -d
-#   2. cd web && bun install && bun run dev
-#   3. Open http://localhost:3001 (Rsbuild dev server, API auto-proxied to :3000)
+#   2. make dev-web
+#   3. Open http://localhost:5173 (Rsbuild dev server, API auto-proxied to :3000)
 #
 # Rebuild backend after Go code changes:
 #   docker compose -f docker-compose.dev.yml up -d --build new-api
@@ -31,7 +31,7 @@ services:
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - BATCH_UPDATE_ENABLED=true
-      # Local HTTP dev mode: keep Secure=false and leave TRUSTED_URL unset. This disables the refresh/logout OriginGuard so the :3001 -> :3000 dev proxy works.
+      # Local HTTP dev mode: keep Secure=false and leave TRUSTED_URL unset. This disables the refresh/logout OriginGuard so the :5173 -> :3000 dev proxy works.
       - SESSION_COOKIE_SECURE=false
       # For HTTPS only: set Secure=true and list every exact trusted HTTPS browser Origin. This does not configure relay CORS.
       # - SESSION_COOKIE_SECURE=true

@@ -34,7 +34,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -47,7 +47,7 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           cd web
-          bun install
+          bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
           cd ..
 

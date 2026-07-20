@@ -83,47 +83,37 @@ func TelegramBindStart(c *gin.Context) {
 
 func TelegramBind(c *gin.Context) {
 	if !common.TelegramOAuthEnabled {
-		telegramBindFailure(
-			c,
-			http.StatusOK,
-			"管理员未开启通过 Telegram 登录以及注册",
-			telegramBindErrorDisabled,
-		)
+		telegramBindFailure(c, telegramBindErrorDisabled)
 		return
 	}
 	params := c.Request.URL.Query()
 	telegramId, err := verifyTelegramAuthorization(params, common.TelegramBotToken, time.Now())
 	if err != nil {
 		common.SysLog("TelegramBind authorization failed: " + err.Error())
-		telegramBindFailure(c, http.StatusOK, "无效的请求", telegramBindErrorInvalidRequest)
+		telegramBindFailure(c, telegramBindErrorInvalidRequest)
 		return
 	}
 	pendingFlow, err := model.GetAuthFlow(c.Param("flow_token"), model.AuthFlowMatch{
 		Purpose: model.AuthFlowPurposeTelegramBind,
 	})
 	if err != nil {
-		if common.GetTheme() == "default" &&
-			!errors.Is(err, model.ErrAuthFlowInvalid) &&
+		if !errors.Is(err, model.ErrAuthFlowInvalid) &&
 			!errors.Is(err, model.ErrAuthFlowExpired) &&
 			!errors.Is(err, model.ErrAuthFlowConsumed) {
 			common.SysError("TelegramBind flow lookup failed: " + err.Error())
-			telegramBindFailure(c, http.StatusOK, "", telegramBindErrorInternal)
+			telegramBindFailure(c, telegramBindErrorInternal)
 			return
 		}
-		telegramBindFailure(c, http.StatusForbidden, "绑定流程已过期或已使用", telegramBindErrorFlowInvalid)
+		telegramBindFailure(c, telegramBindErrorFlowInvalid)
 		return
 	}
 	if _, err := service.ValidateSessionReference(pendingFlow.UserId, pendingFlow.SessionId); err != nil {
-		if common.GetTheme() != "default" {
-			telegramBindFailure(c, http.StatusForbidden, "创建绑定的登录会话已失效", telegramBindErrorSessionInvalid)
-			return
-		}
 		if !errors.Is(err, service.ErrLoginSessionInvalid) &&
 			!errors.Is(err, service.ErrLoginSessionRevoked) &&
 			!errors.Is(err, model.ErrUserSessionInactive) &&
 			!errors.Is(err, gorm.ErrRecordNotFound) {
 			common.SysError("TelegramBind session validation failed: " + err.Error())
-			telegramBindFailure(c, http.StatusOK, "", telegramBindErrorInternal)
+			telegramBindFailure(c, telegramBindErrorInternal)
 			return
 		}
 
@@ -131,21 +121,21 @@ func TelegramBind(c *gin.Context) {
 		userErr := model.DB.First(&user, pendingFlow.UserId).Error
 		switch {
 		case errors.Is(userErr, gorm.ErrRecordNotFound):
-			telegramBindFailure(c, http.StatusOK, "用户已注销", telegramBindErrorUserDeleted)
+			telegramBindFailure(c, telegramBindErrorUserDeleted)
 		case userErr != nil:
 			common.SysError("TelegramBind user status lookup failed: " + userErr.Error())
-			telegramBindFailure(c, http.StatusOK, "", telegramBindErrorInternal)
+			telegramBindFailure(c, telegramBindErrorInternal)
 		case user.Status != common.UserStatusEnabled:
-			telegramBindFailure(c, http.StatusForbidden, "用户已被禁用", telegramBindErrorUserDisabled)
+			telegramBindFailure(c, telegramBindErrorUserDisabled)
 		default:
-			telegramBindFailure(c, http.StatusForbidden, "创建绑定的登录会话已失效", telegramBindErrorSessionInvalid)
+			telegramBindFailure(c, telegramBindErrorSessionInvalid)
 		}
 		return
 	}
 	assertion, assertionExpiresAt, err := telegramAuthorizationClaim(params, time.Now())
 	if err != nil {
 		common.SysLog("TelegramBind authorization claim failed: " + err.Error())
-		telegramBindFailure(c, http.StatusForbidden, "无效的请求", telegramBindErrorInvalidRequest)
+		telegramBindFailure(c, telegramBindErrorInvalidRequest)
 		return
 	}
 	_, err = model.ConsumeAuthFlowWithAction(c.Param("flow_token"), model.AuthFlowMatch{
@@ -212,42 +202,29 @@ func TelegramBind(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, errTelegramBindAssertionInvalid):
-			telegramBindFailure(c, http.StatusForbidden, "绑定流程已过期或已使用", telegramBindErrorInvalidRequest)
+			telegramBindFailure(c, telegramBindErrorInvalidRequest)
 		case errors.Is(err, errTelegramAccountAlreadyBound):
-			telegramBindFailure(c, http.StatusOK, "该 Telegram 账户已被绑定", telegramBindErrorAlreadyBound)
+			telegramBindFailure(c, telegramBindErrorAlreadyBound)
 		case errors.Is(err, errTelegramBindUserDeleted):
-			telegramBindFailure(c, http.StatusOK, "用户已注销", telegramBindErrorUserDeleted)
+			telegramBindFailure(c, telegramBindErrorUserDeleted)
 		case errors.Is(err, errTelegramBindUserDisabled):
-			telegramBindFailure(c, http.StatusForbidden, "用户已被禁用", telegramBindErrorUserDisabled)
+			telegramBindFailure(c, telegramBindErrorUserDisabled)
 		case errors.Is(err, service.ErrLoginSessionRevoked):
-			telegramBindFailure(c, http.StatusForbidden, "创建绑定的登录会话已失效", telegramBindErrorSessionInvalid)
+			telegramBindFailure(c, telegramBindErrorSessionInvalid)
 		case errors.Is(err, model.ErrAuthFlowInvalid), errors.Is(err, model.ErrAuthFlowExpired), errors.Is(err, model.ErrAuthFlowConsumed):
-			telegramBindFailure(c, http.StatusForbidden, "绑定流程已过期或已使用", telegramBindErrorFlowInvalid)
+			telegramBindFailure(c, telegramBindErrorFlowInvalid)
 		default:
-			if common.GetTheme() == "default" {
-				common.SysError("TelegramBind failed: " + err.Error())
-				telegramBindFailure(c, http.StatusOK, "", telegramBindErrorInternal)
-			} else {
-				common.ApiError(c, err)
-			}
+			common.SysError("TelegramBind failed: " + err.Error())
+			telegramBindFailure(c, telegramBindErrorInternal)
 		}
 		return
 	}
 
-	if common.GetTheme() == "default" {
-		callback := "/oauth/telegram?telegram_bind=success&flow_token=" + url.QueryEscape(c.Param("flow_token"))
-		c.Redirect(http.StatusFound, callback)
-		return
-	}
-	c.Redirect(http.StatusFound, "/console/personal")
+	callback := "/oauth/telegram?telegram_bind=success&flow_token=" + url.QueryEscape(c.Param("flow_token"))
+	c.Redirect(http.StatusFound, callback)
 }
 
-func telegramBindFailure(c *gin.Context, status int, message string, errorCode string) {
-	if common.GetTheme() != "default" {
-		c.JSON(status, gin.H{"message": message, "success": false})
-		return
-	}
-
+func telegramBindFailure(c *gin.Context, errorCode string) {
 	query := url.Values{
 		"telegram_bind": {"error"},
 		"flow_token":    {c.Param("flow_token")},

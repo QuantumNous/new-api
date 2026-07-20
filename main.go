@@ -38,17 +38,11 @@ import (
 	_ "net/http/pprof"
 )
 
-//go:embed web/default/dist
+//go:embed web/dist
 var buildFS embed.FS
 
-//go:embed web/default/dist/index.html
+//go:embed web/dist/index.html
 var indexPage []byte
-
-//go:embed web/classic/dist
-var classicBuildFS embed.FS
-
-//go:embed web/classic/dist/index.html
-var classicIndexPage []byte
 
 func main() {
 	startTime := time.Now()
@@ -194,11 +188,9 @@ func main() {
 	InjectGoogleAnalytics()
 
 	// 设置路由
-	router.SetRouter(server, router.ThemeAssets{
-		DefaultBuildFS:   buildFS,
-		DefaultIndexPage: indexPage,
-		ClassicBuildFS:   classicBuildFS,
-		ClassicIndexPage: classicIndexPage,
+	router.SetRouter(server, router.WebAssets{
+		BuildFS:   buildFS,
+		IndexPage: indexPage,
 	})
 	var port = os.Getenv("PORT")
 	if port == "" {
@@ -257,7 +249,6 @@ func InjectUmamiAnalytics() {
 	analyticsInject := []byte(analyticsInjectBuilder.String())
 	placeholder := []byte("<!--umami-->\n")
 	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
-	classicIndexPage = bytes.ReplaceAll(classicIndexPage, placeholder, analyticsInject)
 }
 
 func InjectGoogleAnalytics() {
@@ -281,7 +272,6 @@ func InjectGoogleAnalytics() {
 	analyticsInject := []byte(analyticsInjectBuilder.String())
 	placeholder := []byte("<!--Google Analytics-->\n")
 	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
-	classicIndexPage = bytes.ReplaceAll(classicIndexPage, placeholder, analyticsInject)
 }
 
 func InitResources() error {
@@ -320,6 +310,11 @@ func InitResources() error {
 	model.CheckSetup()
 
 	// Initialize options, should after model.InitDB()
+	if common.IsMasterNode {
+		if err := model.MigrateRetiredFrontendOptions(); err != nil {
+			common.SysError("failed to migrate retired frontend options: " + err.Error())
+		}
+	}
 	model.InitOptionMap()
 
 	// 清理旧的磁盘缓存文件
