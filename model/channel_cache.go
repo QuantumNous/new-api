@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -378,7 +377,7 @@ func selectAcquirableChannel(candidates []*Channel, weights []int, model string,
 		totalWeight += w
 	}
 	if totalWeight <= 0 {
-		return nil, errors.New("channel not found")
+		return nil, nil
 	}
 
 	startIdx := 0
@@ -403,7 +402,7 @@ func selectAcquirableChannel(candidates []*Channel, weights []int, model string,
 			return channel, nil
 		}
 	}
-	return nil, errors.New("channel not found")
+	return nil, nil
 }
 
 func SetChannelCacheForTest(channels map[int]*Channel, groupModelChannels map[string]map[string][]int) {
