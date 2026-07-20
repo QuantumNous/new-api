@@ -109,6 +109,100 @@ func TestRecordChannelHealthOutcomeHealthySuccessStaysAvailable(t *testing.T) {
 	}
 }
 
+// A RelayInfo is reused across channel retries. If an earlier attempt emitted
+// data before failing, FirstResponseTime belongs to that earlier attempt. The
+// current stream's FirstDataAt is the only attempt-local TTFT signal; falling
+// back to time.Since(attemptStart) would score the whole successful stream as
+// TTFT and can evict a healthy fallback channel.
+func TestRecordChannelHealthOutcomeUsesCurrentAttemptFirstDataAfterRetry(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001433
+	const modelName = "test-retry-attempt-first-data"
+	const requestPath = "/v1/responses"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-20 * time.Second)
+		status := &relaycommon.StreamStatus{
+			StartedAt:   attemptStart.Add(500 * time.Millisecond),
+			FirstDataAt: attemptStart.Add(time.Second),
+			LastDataAt:  attemptStart.Add(19 * time.Second),
+			EndedAt:     attemptStart.Add(19 * time.Second),
+			EndReason:   relaycommon.StreamEndReasonDone,
+		}
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			StreamStatus:      status,
+		}
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.True(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a fallback channel with 1s current-attempt TTFT must not be scored with its 20s total stream duration")
+}
+
+func TestRecordChannelHealthOutcomeDoesNotUseStreamDurationWhenCurrentAttemptHasNoData(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001434
+	const modelName = "test-retry-attempt-no-current-data"
+	const requestPath = "/v1/responses"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-20 * time.Second)
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			StreamStatus: &relaycommon.StreamStatus{
+				StartedAt: attemptStart.Add(500 * time.Millisecond),
+				EndedAt:   attemptStart.Add(19 * time.Second),
+				EndReason: relaycommon.StreamEndReasonDone,
+			},
+		}
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.True(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a current stream without attributable first data must not use total stream duration as TTFT")
+}
+
+func TestRecordChannelHealthOutcomeCountsGenuinelySlowCurrentAttemptAfterRetry(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001435
+	const modelName = "test-retry-attempt-slow-current-data"
+	const requestPath = "/v1/responses"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-12 * time.Second)
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			StreamStatus: &relaycommon.StreamStatus{
+				StartedAt:   attemptStart.Add(500 * time.Millisecond),
+				FirstDataAt: attemptStart.Add(10 * time.Second),
+				LastDataAt:  attemptStart.Add(11 * time.Second),
+				EndedAt:     attemptStart.Add(11 * time.Second),
+				EndReason:   relaycommon.StreamEndReasonDone,
+			},
+		}
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.False(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a fallback channel with genuinely slow current-attempt TTFT must still open the circuit")
+}
+
 // TestClientCanceledIsNotAttributedToChannel guards the mis-attribution bug seen
 // in prod: a client aborting mid-request makes the in-flight upstream call fail
 // with context.Canceled, surfaced as ErrorCodeDoRequestFailed. Since the retry
