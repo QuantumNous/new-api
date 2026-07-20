@@ -235,6 +235,51 @@ func TestCachedSelectorRestoresConfiguredPriorityAfterSlowChannelRecovers(t *tes
 	assert.Equal(t, 17, selected.Id, "recovered channel should regain configured priority")
 }
 
+func TestCachedSelectorConsumesRecoveryLeaseOnlyAfterSelectingSlowChannel(t *testing.T) {
+	useDefaultSlowLatencyThreshold(t)
+	withGlobalChannelHealth(t)
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	t.Cleanup(func() {
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	highPriority := int64(20)
+	lowPriority := int64(10)
+	zeroWeight := uint(0)
+	fullWeight := uint(100)
+	channels := map[int]*Channel{
+		17: {Id: 17, Status: common.ChannelStatusEnabled, Weight: &zeroWeight, Priority: &highPriority},
+		29: {Id: 29, Status: common.ChannelStatusEnabled, Weight: &fullWeight, Priority: &highPriority},
+		41: {Id: 41, Status: common.ChannelStatusEnabled, Weight: &fullWeight, Priority: &lowPriority},
+	}
+	SetChannelCacheForTest(channels, map[string]map[string][]int{
+		"default": {"gpt-5.6-sol": {17, 29, 41}},
+	})
+
+	key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	recordSelectionSlowChannel(key)
+	adaptiveChannelHealth.mu.Lock()
+	adaptiveChannelHealth.entries[key].priorityDemotedAt = time.Now().Add(-channelHealthFailureWindow - time.Second)
+	adaptiveChannelHealth.mu.Unlock()
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.6-sol", 0, ChannelSelectionOptions{Path: "/v1/responses"})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	require.Equal(t, 29, selected.Id, "the first recovery opportunity should remain unconsumed when another channel wins")
+
+	channels[17].Weight = &fullWeight
+	channels[29].Weight = &zeroWeight
+	selected, err = GetRandomSatisfiedChannelWithOptions("default", "gpt-5.6-sol", 0, ChannelSelectionOptions{Path: "/v1/responses"})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 17, selected.Id, "the next request should still be able to acquire the unconsumed recovery probe")
+}
+
 func TestDatabaseSelectorDemotesRepeatedlySlowPreferredChannel(t *testing.T) {
 	useDefaultSlowLatencyThreshold(t)
 	setupChannelSelectionTestDB(t)
