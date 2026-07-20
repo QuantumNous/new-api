@@ -100,7 +100,7 @@ export function TrialSubscriptionSection() {
         notClaimedValue: '领取后会显示在这里',
         gptOnly: '仅限 GPT 模型',
         freeTrialGroup: 'Subscription',
-        createKey: '创建 Trial Key',
+        createKey: '创建Key（选择Subscription分组）',
         startRequest: '创建后即可开始试用请求',
         daysLeft: (days: number, date: string) => `剩余 ${days} 天 (${date})`,
       }
@@ -120,7 +120,7 @@ export function TrialSubscriptionSection() {
         notClaimedValue: 'Your trial will appear here after claim',
         gptOnly: 'GPT models only',
         freeTrialGroup: 'Subscription',
-        createKey: 'Create Trial Key',
+        createKey: 'Create Key (Subscription group)',
         startRequest: 'Create a key to start using the trial',
         daysLeft: (days: number, date: string) => `${days} days left (${date})`,
       }

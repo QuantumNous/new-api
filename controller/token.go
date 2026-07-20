@@ -26,6 +26,12 @@ func normalizeTokenGroup(g string) string {
 	return "default"
 }
 
+func isTrialSubscriptionGroup(group string) bool {
+	normalized := strings.TrimSpace(group)
+	return strings.EqualFold(normalized, "Subscription") ||
+		strings.EqualFold(normalized, "Free Trial")
+}
+
 func buildMaskedTokenResponse(token *model.Token) *model.Token {
 	if token == nil {
 		return nil
@@ -238,6 +244,11 @@ func AddToken(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if isTrialSubscriptionGroup(cleanToken.Group) {
+		if err := model.RecordTrialPromoEvent(cleanToken.UserId, model.TrialPromoEventKeyCreated); err != nil {
+			common.SysError("failed to record trial key creation: " + err.Error())
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
