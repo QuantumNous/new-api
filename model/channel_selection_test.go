@@ -646,6 +646,86 @@ func TestGetRandomSatisfiedChannelLeavesLegacyUnconfiguredChannelEligible(t *tes
 	assert.Equal(t, 31, selected.Id)
 }
 
+func TestGetRandomSatisfiedChannelRejectsUnverifiedConfiguredChannel(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(100)
+	channel := &Channel{Id: 87, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority}
+	routing := verifiedImageRoutingProfile("gpt-image-2", []string{"4K"}, []string{"2880x2880"})
+	routing.Profiles[0].VerificationStatus = dto.ImageRoutingVerificationDocsClaimed
+	channel.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: routing})
+	SetChannelCacheForTest(map[int]*Channel{87: channel}, map[string]map[string][]int{
+		"default": {"gpt-image-2": {87}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement: &dto.ImageSelectionRequirement{
+			Operation:  dto.ImageOperationGeneration,
+			Resolution: "4K",
+		},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, selected)
+}
+
+func TestImageSelectionRejectsInvalidRequirementEvenForLegacyChannel(t *testing.T) {
+	channel := &Channel{Id: 31}
+	require.False(t, ChannelSupportsImageSelection(channel, "gpt-image-2", &dto.ImageSelectionRequirement{
+		Operation:  dto.ImageOperationGeneration,
+		Resolution: "ultra",
+	}))
+
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+	priority := int64(10)
+	weight := uint(100)
+	channel.Status = common.ChannelStatusEnabled
+	channel.Priority = &priority
+	channel.Weight = &weight
+	SetChannelCacheForTest(map[int]*Channel{31: channel}, map[string]map[string][]int{
+		"default": {"gpt-image-2": {31}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement: &dto.ImageSelectionRequirement{
+			Operation:  dto.ImageOperationGeneration,
+			Resolution: "ultra",
+		},
+	})
+	require.Error(t, err)
+	assert.Nil(t, selected)
+}
+
+func TestChannelValidateSettingsValidatesImageRouting(t *testing.T) {
+	channel := &Channel{}
+	invalid := verifiedImageRoutingProfile("gpt-image-2", []string{"4K"}, []string{"2880x2880"})
+	invalid.Version = 99
+	channel.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: invalid})
+
+	err := channel.ValidateSettings()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "image_routing.version")
+
+	channel.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile(
+		"gpt-image-2",
+		[]string{"4K"},
+		[]string{"2880x2880"},
+	)})
+	require.NoError(t, channel.ValidateSettings())
+}
+
 func TestChannelSupportsImageSelectionUsesVerifiedProfileAndAllowedCombination(t *testing.T) {
 	channel := &Channel{Id: 108}
 	channel.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile(

@@ -21,7 +21,13 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 // channel2advancedCustomConfig caches parsed Advanced Custom (type 58) configs so
 // path-aware selection avoids re-parsing JSON per request. Refreshed on full sync.
 var channel2advancedCustomConfig map[int]*dto.AdvancedCustomConfig
+var channel2ImageRoutingConfig map[int]cachedImageRoutingConfig
 var channelSyncLock sync.RWMutex
+
+type cachedImageRoutingConfig struct {
+	configured bool
+	config     *dto.ImageRoutingConfig
+}
 
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
@@ -30,14 +36,29 @@ func InitChannelCache() {
 	}
 	newChannelId2channel := make(map[int]*Channel)
 	newChannel2advancedCustomConfig := make(map[int]*dto.AdvancedCustomConfig)
+	newChannel2ImageRoutingConfig := make(map[int]cachedImageRoutingConfig)
 	var channels []*Channel
 	DB.Find(&channels)
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
+		settings, err := channel.parseOtherSettings()
+		if err != nil {
+			logger.LogError(nil, fmt.Sprintf("failed to parse channel settings for cache: channel_id=%d, error=%v", channel.Id, err))
+			newChannel2ImageRoutingConfig[channel.Id] = cachedImageRoutingConfig{configured: true}
+			continue
+		}
 		if channel.Type == constant.ChannelTypeAdvancedCustom {
-			if config := channel.GetOtherSettings().AdvancedCustom; config != nil {
+			if config := settings.AdvancedCustom; config != nil {
 				newChannel2advancedCustomConfig[channel.Id] = config
 			}
+		}
+		if settings.ImageRouting != nil {
+			state := cachedImageRoutingConfig{configured: true, config: settings.ImageRouting}
+			if err := settings.ImageRouting.Validate(); err != nil {
+				logger.LogError(nil, fmt.Sprintf("invalid image routing settings: channel_id=%d, error=%v", channel.Id, err))
+				state.config = nil
+			}
+			newChannel2ImageRoutingConfig[channel.Id] = state
 		}
 	}
 	var abilities []*Ability
@@ -94,6 +115,7 @@ func InitChannelCache() {
 	}
 	channelsIDM = newChannelId2channel
 	channel2advancedCustomConfig = newChannel2advancedCustomConfig
+	channel2ImageRoutingConfig = newChannel2ImageRoutingConfig
 	channelSyncLock.Unlock()
 	// Lock ordering: InvalidatePricingCache acquires updatePricingLock, and
 	// GetPricing (holding updatePricingLock) nests channelSyncLock.RLock via
@@ -113,6 +135,7 @@ func SyncChannelCache(frequency int) {
 
 type ChannelSelectionOptions struct {
 	ExcludedChannelIDs map[int]struct{}
+	ImageRequirement   *dto.ImageSelectionRequirement
 	// AvoidChannelHosts is a soft exclusion used after a transport failure.
 	// The selected priority tier prefers a different host, while same-host
 	// channels remain a fallback so operator priority and availability stay intact.
@@ -133,6 +156,11 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 }
 
 func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
+	normalizedRequirement, err := normalizeImageSelectionRequirement(options.ImageRequirement)
+	if err != nil {
+		return nil, err
+	}
+	options.ImageRequirement = normalizedRequirement
 	requestPath := options.RequestPath
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
@@ -144,11 +172,13 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 
 	// First, try to find channels with the exact model name.
 	channels := filterChannelsByRequestPathAndModel(group2model2channels[group][model], requestPath, model)
+	channels = filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
 
 	// If no channels found, try to find channels with the normalized model name.
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
 		channels = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, model)
+		channels = filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
 	}
 
 	if len(channels) == 0 {
@@ -338,6 +368,12 @@ func SetChannelCacheForTest(channels map[int]*Channel, groupModelChannels map[st
 	defer channelSyncLock.Unlock()
 	channelsIDM = channels
 	group2model2channels = groupModelChannels
+	channel2ImageRoutingConfig = make(map[int]cachedImageRoutingConfig)
+	for id, channel := range channels {
+		if state := imageRoutingConfigFromChannel(channel); state.configured {
+			channel2ImageRoutingConfig[id] = state
+		}
+	}
 }
 
 func ClearChannelCacheForTest() {
@@ -346,6 +382,88 @@ func ClearChannelCacheForTest() {
 	channelsIDM = nil
 	group2model2channels = nil
 	channel2advancedCustomConfig = nil
+	channel2ImageRoutingConfig = nil
+}
+
+// ChannelSupportsImageSelection is shared by automatic routing and callers
+// that pin a specific channel. A channel without image_routing remains eligible
+// for backwards compatibility; once configured, only verified matching profiles
+// satisfy an image requirement.
+func ChannelSupportsImageSelection(channel *Channel, model string, requirement *dto.ImageSelectionRequirement) bool {
+	if requirement == nil {
+		return true
+	}
+	normalized, err := normalizeImageSelectionRequirement(requirement)
+	if err != nil {
+		return false
+	}
+	state := imageRoutingConfigFromChannel(channel)
+	return imageRoutingConfigSupports(state, model, normalized)
+}
+
+// ChannelImageRoutingProfile resolves the explicit protocol profile for relay
+// conversion. configured distinguishes legacy channels from invalid or
+// unmatched explicit configurations.
+func ChannelImageRoutingProfile(channel *Channel, model string) (*dto.ImageRoutingProfile, bool) {
+	state := imageRoutingConfigFromChannel(channel)
+	if !state.configured || state.config == nil {
+		return nil, state.configured
+	}
+	profile, ok := state.config.ProfileForModel(model)
+	if !ok {
+		return nil, true
+	}
+	return profile, true
+}
+
+// Caller must hold channelSyncLock when using this helper.
+func filterChannelsByImageRequirement(channels []int, model string, requirement *dto.ImageSelectionRequirement) []int {
+	if requirement == nil || len(channels) == 0 {
+		return channels
+	}
+	filtered := make([]int, 0, len(channels))
+	for _, channelID := range channels {
+		state, configured := channel2ImageRoutingConfig[channelID]
+		if !configured || imageRoutingConfigSupports(state, model, requirement) {
+			filtered = append(filtered, channelID)
+		}
+	}
+	return filtered
+}
+
+func imageRoutingConfigFromChannel(channel *Channel) cachedImageRoutingConfig {
+	if channel == nil || strings.TrimSpace(channel.OtherSettings) == "" {
+		return cachedImageRoutingConfig{}
+	}
+	settings, err := channel.parseOtherSettings()
+	if err != nil {
+		return cachedImageRoutingConfig{configured: true}
+	}
+	if settings.ImageRouting == nil {
+		return cachedImageRoutingConfig{}
+	}
+	if err := settings.ImageRouting.Validate(); err != nil {
+		return cachedImageRoutingConfig{configured: true}
+	}
+	return cachedImageRoutingConfig{configured: true, config: settings.ImageRouting}
+}
+
+func imageRoutingConfigSupports(state cachedImageRoutingConfig, model string, requirement *dto.ImageSelectionRequirement) bool {
+	if requirement == nil || !state.configured {
+		return true
+	}
+	return state.config != nil && state.config.Supports(model, *requirement)
+}
+
+func normalizeImageSelectionRequirement(requirement *dto.ImageSelectionRequirement) (*dto.ImageSelectionRequirement, error) {
+	if requirement == nil {
+		return nil, nil
+	}
+	normalized, err := requirement.Normalize()
+	if err != nil {
+		return nil, fmt.Errorf("invalid image selection requirement: %w", err)
+	}
+	return &normalized, nil
 }
 
 // filterChannelsByRequestPathAndModel restricts candidates by request path and
@@ -458,6 +576,13 @@ func CacheUpdateChannel(channel *Channel) {
 		if config := channel.GetOtherSettings().AdvancedCustom; config != nil {
 			channel2advancedCustomConfig[channel.Id] = config
 		}
+	}
+	if channel2ImageRoutingConfig == nil {
+		channel2ImageRoutingConfig = make(map[int]cachedImageRoutingConfig)
+	}
+	delete(channel2ImageRoutingConfig, channel.Id)
+	if state := imageRoutingConfigFromChannel(channel); state.configured {
+		channel2ImageRoutingConfig[channel.Id] = state
 	}
 	logger.LogDebug(nil, "CacheUpdateChannel after: id=%d, name=%s, status=%d, polling_index=%d", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
 	// Lock ordering: do NOT hold channelSyncLock while calling

@@ -1006,6 +1006,11 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
+	if channelOtherSettings.ImageRouting != nil {
+		if err := channelOtherSettings.ImageRouting.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

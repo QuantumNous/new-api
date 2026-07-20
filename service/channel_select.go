@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
@@ -18,6 +19,7 @@ type RetryParam struct {
 	RequestPath        string
 	Retry              *int
 	ExcludedChannelIDs map[int]struct{}
+	ImageRequirement   *dto.ImageSelectionRequirement
 	// AvoidChannelHosts is a same-request preference inside the selected auto
 	// group and priority tier; it never overrides operator group/priority order.
 	AvoidChannelHosts map[string]struct{}
@@ -122,6 +124,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			channel, _ = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
 				ExcludedChannelIDs: param.ExcludedChannelIDs,
+				ImageRequirement:   param.ImageRequirement,
 				AvoidChannelHosts:  param.AvoidChannelHosts,
 				// Raw path matches Advanced Custom routes; normalized path keys the
 				// bounded channel-health registry.
@@ -172,6 +175,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	} else {
 		channel, err = model.GetRandomSatisfiedChannelWithOptions(param.TokenGroup, param.ModelName, param.GetRetry(), model.ChannelSelectionOptions{
 			ExcludedChannelIDs: param.ExcludedChannelIDs,
+			ImageRequirement:   param.ImageRequirement,
 			AvoidChannelHosts:  param.AvoidChannelHosts,
 			// Raw path matches Advanced Custom routes; normalized path keys the
 			// bounded channel-health registry.

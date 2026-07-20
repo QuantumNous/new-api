@@ -113,8 +113,13 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 
 func GetChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
 	var abilities []Ability
+	normalizedRequirement, err := normalizeImageSelectionRequirement(options.ImageRequirement)
+	if err != nil {
+		return nil, err
+	}
+	options.ImageRequirement = normalizedRequirement
 
-	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+	err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
 		Order("priority DESC").
 		Order("weight DESC").
 		Find(&abilities).Error
@@ -124,6 +129,10 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	// Advanced Custom (type 58) channels only serve the request paths their
 	// configured routes match; drop the rest before health/priority selection.
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, options.RequestPath, model)
+	abilities, err = filterAbilitiesByImageRequirement(abilities, model, options.ImageRequirement)
+	if err != nil {
+		return nil, err
+	}
 
 	avoidedChannelIDs := avoidedHostChannelIDs(abilities, options.AvoidChannelHosts, options.RequestPath, model)
 	availableAbilities := make([]Ability, 0, len(abilities))
@@ -206,6 +215,38 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	channel := Channel{}
 	err = DB.First(&channel, "id = ?", channelId).Error
 	return &channel, err
+}
+
+func filterAbilitiesByImageRequirement(abilities []Ability, model string, requirement *dto.ImageSelectionRequirement) ([]Ability, error) {
+	if requirement == nil || len(abilities) == 0 {
+		return abilities, nil
+	}
+	channelIDs := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, exists := seen[ability.ChannelId]; exists {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+
+	var channels []Channel
+	if err := DB.Select("id", "settings").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	channelByID := make(map[int]*Channel, len(channels))
+	for i := range channels {
+		channelByID[channels[i].Id] = &channels[i]
+	}
+	filtered := make([]Ability, 0, len(abilities))
+	for _, ability := range abilities {
+		channel, exists := channelByID[ability.ChannelId]
+		if !exists || ChannelSupportsImageSelection(channel, model, requirement) {
+			filtered = append(filtered, ability)
+		}
+	}
+	return filtered, nil
 }
 
 func effectiveAbilitySelectionWeights(abilities []Ability, model string, path string) []int {
