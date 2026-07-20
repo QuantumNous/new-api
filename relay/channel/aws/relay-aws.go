@@ -40,6 +40,16 @@ func getAwsErrorStatusCode(err error) int {
 	return http.StatusInternalServerError
 }
 
+func newAwsInvokeError(err error, operation string) *types.NewAPIError {
+	statusCode := getAwsErrorStatusCode(err)
+	apiErr := types.NewOpenAIError(errors.Wrap(err, operation), types.ErrorCodeAwsInvokeError, statusCode)
+	var httpErr interface{ HTTPStatusCode() int }
+	if errors.As(err, &httpErr) {
+		apiErr.UpstreamStatusCode = httpErr.HTTPStatusCode()
+	}
+	return apiErr
+}
+
 func newAwsInvokeContext() (context.Context, context.CancelFunc) {
 	if common.RelayTimeout <= 0 {
 		return context.Background(), func() {}
@@ -228,8 +238,7 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types
 
 	awsResp, err := a.AwsClient.InvokeModel(ctx, a.AwsReq.(*bedrockruntime.InvokeModelInput))
 	if err != nil {
-		statusCode := getAwsErrorStatusCode(err)
-		return types.NewOpenAIError(errors.Wrap(err, "InvokeModel"), types.ErrorCodeAwsInvokeError, statusCode), nil
+		return newAwsInvokeError(err, "InvokeModel"), nil
 	}
 
 	claudeInfo := &claude.ClaudeResponseInfo{
@@ -258,8 +267,7 @@ func awsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (
 
 	awsResp, err := a.AwsClient.InvokeModelWithResponseStream(ctx, a.AwsReq.(*bedrockruntime.InvokeModelWithResponseStreamInput))
 	if err != nil {
-		statusCode := getAwsErrorStatusCode(err)
-		return types.NewOpenAIError(errors.Wrap(err, "InvokeModelWithResponseStream"), types.ErrorCodeAwsInvokeError, statusCode), nil
+		return newAwsInvokeError(err, "InvokeModelWithResponseStream"), nil
 	}
 	stream := awsResp.GetStream()
 	defer stream.Close()
@@ -301,8 +309,7 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 
 	awsResp, err := a.AwsClient.InvokeModel(ctx, a.AwsReq.(*bedrockruntime.InvokeModelInput))
 	if err != nil {
-		statusCode := getAwsErrorStatusCode(err)
-		return types.NewOpenAIError(errors.Wrap(err, "InvokeModel"), types.ErrorCodeAwsInvokeError, statusCode), nil
+		return newAwsInvokeError(err, "InvokeModel"), nil
 	}
 
 	// 解析Nova响应

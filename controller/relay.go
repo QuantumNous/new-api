@@ -709,7 +709,7 @@ func canContinueCapacityFallbackAfterHeaderDeadline(attemptsScheduled int, fallb
 
 func isFastUpstreamCapacityError(apiErr *types.NewAPIError) bool {
 	if isUpstreamRateLimitError(apiErr) {
-		return true
+		return !service.ShouldCooldownChannel(apiErr)
 	}
 	if apiErr == nil ||
 		apiErr.UpstreamStatusCode != http.StatusServiceUnavailable {
@@ -770,6 +770,15 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if isClientCanceledError(openaiErr) {
 		return false
 	}
+	if service.IsUpstreamRateLimitError(openaiErr) {
+		if retryTimes <= 0 {
+			return false
+		}
+		if _, ok := c.Get("specific_channel_id"); ok {
+			return false
+		}
+		return true
+	}
 	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
 		return false
 	}
@@ -784,9 +793,6 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
-	}
-	if service.IsUpstreamRateLimitError(openaiErr) {
-		return true
 	}
 	code := openaiErr.StatusCode
 	if code >= 200 && code < 300 {
@@ -860,6 +866,12 @@ func isRetryableChannelError(c *gin.Context, openaiErr *types.NewAPIError) bool 
 	if openaiErr == nil {
 		return false
 	}
+	if service.IsUpstreamRateLimitError(openaiErr) {
+		if _, ok := c.Get("specific_channel_id"); ok {
+			return false
+		}
+		return true
+	}
 	if types.IsSkipRetryError(openaiErr) || isSemanticClientError(openaiErr) {
 		return false
 	}
@@ -871,9 +883,6 @@ func isRetryableChannelError(c *gin.Context, openaiErr *types.NewAPIError) bool 
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
-	}
-	if service.IsUpstreamRateLimitError(openaiErr) {
-		return true
 	}
 	code := openaiErr.StatusCode
 	if code >= 200 && code < 300 {
@@ -1057,6 +1066,19 @@ func RelayTaskFetch(c *gin.Context) {
 	}
 }
 
+func taskRelayAPIError(taskErr *dto.TaskError) *types.NewAPIError {
+	if taskErr == nil || taskErr.LocalError {
+		return nil
+	}
+	err := taskErr.Error
+	if err == nil {
+		err = errors.New(taskErr.Message)
+	}
+	apiErr := types.NewOpenAIError(err, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
+	apiErr.UpstreamStatusCode = taskErr.StatusCode
+	return apiErr
+}
+
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
@@ -1128,11 +1150,7 @@ func RelayTask(c *gin.Context) {
 
 		attemptStart := relayInfo.BeginChannelAttempt()
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
-		var taskAPIError *types.NewAPIError
-		if taskErr != nil && !taskErr.LocalError {
-			taskAPIError = types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
-			taskAPIError.UpstreamStatusCode = taskErr.StatusCode
-		}
+		taskAPIError := taskRelayAPIError(taskErr)
 		service.RecordChannelHealthOutcome(channel.Id, relayInfo.OriginModelName, c.Request.URL.Path, relayInfo, attemptStart, taskAPIError, false)
 		if taskErr == nil {
 			break
