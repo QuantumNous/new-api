@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/relayconvert"
@@ -140,6 +141,20 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			if err := processTokenData(info.RelayMode, data, &responseTextBuilder, &toolCount); err != nil {
 				logger.LogError(c, "error processing stream token data: "+err.Error())
 				sr.Error(err)
+			}
+
+			// 部分提供商（如 opencode zen/go）在含 usage 的 SSE 帧之后会追加
+			// 无 usage 的 cost 元数据帧。原实现只在最后一帧提取 usage，会丢失
+			// 真正的用量数据。这里一旦发现有效 usage 就提前保存，后续无 usage
+			// 的帧不会覆盖；最后一帧若仍带 usage，handleLastResponse 会照常更新。
+			if info.RelayMode == relayconstant.RelayModeChatCompletions && !containStreamUsage && strings.Contains(data, "\"usage\"") {
+				var probe struct {
+					Usage *dto.Usage `json:"usage"`
+				}
+				if err := common.UnmarshalJsonStr(data, &probe); err == nil && service.ValidUsage(probe.Usage) {
+					usage = probe.Usage
+					containStreamUsage = true
+				}
 			}
 		}
 	})
