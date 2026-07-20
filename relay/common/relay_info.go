@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -538,6 +539,24 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 		return nil
 	}
 	return headers
+}
+
+func IsClaudeCountTokensRequestPath(path string) bool {
+	parsedPath := path
+	if parsedURL, err := url.Parse(path); err == nil && parsedURL.Path != "" {
+		parsedPath = parsedURL.Path
+	}
+	return parsedPath == "/v1/messages/count_tokens"
+}
+
+func IsClaudeCountTokensRequest(info *RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+		return true
+	}
+	return IsClaudeCountTokensRequestPath(info.RequestURLPath)
 }
 
 func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Request, ws *websocket.Conn) (*RelayInfo, error) {
