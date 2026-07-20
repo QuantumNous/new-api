@@ -121,6 +121,11 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('My Subscription'),
+            url: '/my-subscription',
+            icon: CreditCard,
+          },
+          {
             title: t('Affiliate'),
             url: '/affiliate',
             icon: Gift,

@@ -44,6 +44,7 @@ import { Route as AuthenticatedRegistrationChannelsIndexRouteImport } from './ro
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
+import { Route as AuthenticatedMySubscriptionIndexRouteImport } from './routes/_authenticated/my-subscription/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedModelDataIndexRouteImport } from './routes/_authenticated/model-data/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
@@ -255,6 +256,12 @@ const AuthenticatedPlaygroundIndexRoute =
     path: '/playground/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedMySubscriptionIndexRoute =
+  AuthenticatedMySubscriptionIndexRouteImport.update({
+    id: '/my-subscription/',
+    path: '/my-subscription/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedModelsIndexRoute =
   AuthenticatedModelsIndexRouteImport.update({
     id: '/models/',
@@ -459,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/keys/': typeof AuthenticatedKeysIndexRoute
   '/model-data/': typeof AuthenticatedModelDataIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
+  '/my-subscription/': typeof AuthenticatedMySubscriptionIndexRoute
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
@@ -521,6 +529,7 @@ export interface FileRoutesByTo {
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/model-data': typeof AuthenticatedModelDataIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
+  '/my-subscription': typeof AuthenticatedMySubscriptionIndexRoute
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
@@ -587,6 +596,7 @@ export interface FileRoutesById {
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/model-data/': typeof AuthenticatedModelDataIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
+  '/_authenticated/my-subscription/': typeof AuthenticatedMySubscriptionIndexRoute
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
@@ -652,6 +662,7 @@ export interface FileRouteTypes {
     | '/keys/'
     | '/model-data/'
     | '/models/'
+    | '/my-subscription/'
     | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
@@ -714,6 +725,7 @@ export interface FileRouteTypes {
     | '/keys'
     | '/model-data'
     | '/models'
+    | '/my-subscription'
     | '/playground'
     | '/profile'
     | '/redemption-codes'
@@ -779,6 +791,7 @@ export interface FileRouteTypes {
     | '/_authenticated/keys/'
     | '/_authenticated/model-data/'
     | '/_authenticated/models/'
+    | '/_authenticated/my-subscription/'
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
@@ -1071,6 +1084,13 @@ declare module '@tanstack/react-router' {
       path: '/playground'
       fullPath: '/playground/'
       preLoaderRoute: typeof AuthenticatedPlaygroundIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/my-subscription/': {
+      id: '/_authenticated/my-subscription/'
+      path: '/my-subscription'
+      fullPath: '/my-subscription/'
+      preLoaderRoute: typeof AuthenticatedMySubscriptionIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/models/': {
@@ -1369,6 +1389,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
   AuthenticatedModelDataIndexRoute: typeof AuthenticatedModelDataIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
+  AuthenticatedMySubscriptionIndexRoute: typeof AuthenticatedMySubscriptionIndexRoute
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
@@ -1396,6 +1417,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
   AuthenticatedModelDataIndexRoute: AuthenticatedModelDataIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
+  AuthenticatedMySubscriptionIndexRoute: AuthenticatedMySubscriptionIndexRoute,
   AuthenticatedPlaygroundIndexRoute: AuthenticatedPlaygroundIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:

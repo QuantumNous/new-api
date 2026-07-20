@@ -4429,6 +4429,7 @@
     "Wallet First": "Wallet First",
     "Wallet Management": "Wallet Management",
     "Wallet management and personal preferences.": "Wallet management and personal preferences.",
+    "My Subscription": "My Subscription",
     "Wallet Only": "Wallet Only",
     "Warning": "Warning",
     "Warning: Base URL should not end with /v1. New API will handle it automatically. This may cause request failures.": "Warning: Base URL should not end with /v1. New API will handle it automatically. This may cause request failures.",

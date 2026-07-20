@@ -4443,6 +4443,7 @@
     "Wallet First": "优先钱包",
     "Wallet Management": "钱包管理",
     "Wallet management and personal preferences.": "钱包管理和个人偏好设置。",
+    "My Subscription": "我的订阅",
     "Wallet Only": "仅用钱包",
     "Warning": "警告",
     "Warning: Base URL should not end with /v1. New API will handle it automatically. This may cause request failures.": "警告：基础 URL 不应以 /v1 结尾。New API 将自动处理它。这可能会导致请求失败。",
