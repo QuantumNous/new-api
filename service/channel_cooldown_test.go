@@ -179,6 +179,24 @@ func TestCooldownChannelForRetryUsesTwoHoursForUpstream429(t *testing.T) {
 	assert.Equal(t, expires, expiresAfterShortCooldown, "a later short cooldown must not shorten the 429 isolation")
 }
 
+func TestIsUpstreamRateLimitErrorRequiresUpstreamProvenance(t *testing.T) {
+	mappedUpstream429 := types.NewErrorWithStatusCode(
+		errors.New("upstream rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadRequest,
+	)
+	mappedUpstream429.UpstreamStatusCode = http.StatusTooManyRequests
+
+	local429 := types.NewErrorWithStatusCode(
+		errors.New("local rate limit exceeded"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+
+	assert.True(t, IsUpstreamRateLimitError(mappedUpstream429))
+	assert.False(t, IsUpstreamRateLimitError(local429))
+}
+
 func TestCooldownChannelForRetryUsesFullDurationForCapabilityGap(t *testing.T) {
 	model.ClearChannelCooldownsForTest()
 	chErr := types.NewChannelError(9003, 1, "test", false, "", true)

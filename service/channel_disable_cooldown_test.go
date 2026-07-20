@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,6 +23,22 @@ func TestShouldDisableChannelIgnoresCooldownBalanceError(t *testing.T) {
 	if ShouldDisableChannel(err) {
 		t.Fatalf("expected balance error to cooldown without permanent auto-disable")
 	}
+}
+
+func TestShouldDisableChannelIgnoresUpstream429(t *testing.T) {
+	oldAutomaticDisableChannelEnabled := common.AutomaticDisableChannelEnabled
+	oldDisableRanges := operation_setting.AutomaticDisableStatusCodeRanges
+	common.AutomaticDisableChannelEnabled = true
+	operation_setting.AutomaticDisableStatusCodeRanges = []operation_setting.StatusCodeRange{{Start: http.StatusTooManyRequests, End: http.StatusTooManyRequests}}
+	t.Cleanup(func() {
+		common.AutomaticDisableChannelEnabled = oldAutomaticDisableChannelEnabled
+		operation_setting.AutomaticDisableStatusCodeRanges = oldDisableRanges
+	})
+
+	err := types.NewErrorWithStatusCode(errors.New("upstream rate limited"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests)
+	err.UpstreamStatusCode = http.StatusTooManyRequests
+
+	assert.False(t, ShouldDisableChannel(err), "upstream 429 should use a temporary cooldown instead of permanently disabling the channel")
 }
 
 func TestShouldCooldownChannelForUpstreamErrorCoolsMalformedResponses(t *testing.T) {
