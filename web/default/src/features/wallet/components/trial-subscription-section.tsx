@@ -99,7 +99,7 @@ export function TrialSubscriptionSection() {
   const isZh = i18n.language.startsWith('zh')
   const copy = isZh
     ? {
-        sectionTitle: '我的试用',
+        sectionTitle: '我的订阅',
         sectionSubtitle: '查看试用订阅状态和剩余用量',
         statusActive: '有效',
         statusNotClaimed: '未领取',
@@ -112,13 +112,13 @@ export function TrialSubscriptionSection() {
         group: '使用分组',
         notClaimedValue: '领取后会显示在这里',
         gptOnly: '仅限 GPT 模型',
-        freeTrialGroup: 'Free Trial',
+        freeTrialGroup: 'Subscription',
         createKey: '创建 Trial Key',
         startRequest: '创建后即可开始试用请求',
         daysLeft: (days: number, date: string) => `剩余 ${days} 天 (${date})`,
       }
     : {
-        sectionTitle: 'My Trial',
+        sectionTitle: 'My Subscription',
         sectionSubtitle: 'View your trial subscription status and remaining credits',
         statusActive: 'Active',
         statusNotClaimed: 'Not claimed',
@@ -131,7 +131,7 @@ export function TrialSubscriptionSection() {
         group: 'Group',
         notClaimedValue: 'Your trial will appear here after claim',
         gptOnly: 'GPT models only',
-        freeTrialGroup: 'Free Trial',
+        freeTrialGroup: 'Subscription',
         createKey: 'Create Trial Key',
         startRequest: 'Create a key to start using the trial',
         daysLeft: (days: number, date: string) => `${days} days left (${date})`,

@@ -69,7 +69,7 @@ func Distribute() func(c *gin.Context) {
 		if service.IsFreeTrialGroup(common.GetContextKeyString(c, constant.ContextKeyTokenGroup)) &&
 			modelRequest.Model != "" &&
 			!service.IsFreeTrialEligibleModel(modelRequest.Model) {
-			abortWithOpenAiMessage(c, http.StatusForbidden, "Free Trial keys only support GPT LLM models")
+			abortWithOpenAiMessage(c, http.StatusForbidden, "Subscription keys only support GPT LLM models")
 			return
 		}
 		if ok {

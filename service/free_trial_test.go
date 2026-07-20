@@ -6,6 +6,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIsFreeTrialGroup(t *testing.T) {
+	require.True(t, IsFreeTrialGroup("Subscription"))
+	// Keep historical logs and any in-flight key migration on the trial path.
+	require.True(t, IsFreeTrialGroup("Free Trial"))
+	require.False(t, IsFreeTrialGroup("default"))
+}
+
 func TestIsFreeTrialEligibleModel(t *testing.T) {
 	require.True(t, IsFreeTrialEligibleModel("gpt-5"))
 	require.True(t, IsFreeTrialEligibleModel("chatgpt-4o-latest"))

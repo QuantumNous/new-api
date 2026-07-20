@@ -7,12 +7,15 @@ import (
 )
 
 const (
-	FreeTrialGroup     = "Free Trial"
-	FreeTrialPlanTitle = "APIMaster $50 GPT Trial"
+	FreeTrialGroup       = "Subscription"
+	FreeTrialPlanTitle   = "APIMaster $50 GPT Trial"
+	legacyFreeTrialGroup = "Free Trial"
 )
 
 func IsFreeTrialGroup(group string) bool {
-	return strings.EqualFold(strings.TrimSpace(group), FreeTrialGroup)
+	normalized := strings.TrimSpace(group)
+	return strings.EqualFold(normalized, FreeTrialGroup) ||
+		strings.EqualFold(normalized, legacyFreeTrialGroup)
 }
 
 func IsFreeTrialEligibleModel(modelName string) bool {

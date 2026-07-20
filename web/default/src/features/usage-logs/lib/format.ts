@@ -171,14 +171,14 @@ export function formatModelName(log: UsageLog): {
   }
 }
 
-const FREE_TRIAL_GROUP = 'free trial'
+const SUBSCRIPTION_GROUPS = new Set(['subscription', 'free trial'])
 
 export function isFreeTrialUsageLog(
   log: UsageLog,
   other: LogOtherData | null
 ): boolean {
   const group = (log.group || other?.group || '').trim().toLowerCase()
-  return group === FREE_TRIAL_GROUP
+  return SUBSCRIPTION_GROUPS.has(group)
 }
 
 /**
