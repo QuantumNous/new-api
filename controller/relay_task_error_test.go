@@ -39,6 +39,10 @@ func TestTaskRelayAPIErrorPreservesUpstream429Provenance(t *testing.T) {
 	remaining := time.Until(time.Unix(expires, 0))
 	assert.Greater(t, remaining, 119*time.Minute)
 	assert.Less(t, remaining, 121*time.Minute)
+
+	affinity := newTestContext()
+	affinity.Set("channel_affinity_skip_retry_on_failure", true)
+	assert.True(t, shouldRetryTaskRelay(affinity, 9010, taskErr, 1), "a genuine upstream 429 must switch even when the failed task channel was affinity-bound")
 }
 
 func TestTaskRelayAPIErrorLeavesLocal429Unattributed(t *testing.T) {
@@ -56,4 +60,8 @@ func TestTaskRelayAPIErrorLeavesLocal429Unattributed(t *testing.T) {
 	pinned := newTestContext()
 	pinned.Set("specific_channel_id", 1)
 	assert.False(t, shouldRetryTaskRelay(pinned, 1, localErr, 1))
+
+	affinity := newTestContext()
+	affinity.Set("channel_affinity_skip_retry_on_failure", true)
+	assert.False(t, shouldRetryTaskRelay(affinity, 1, localErr, 1), "local 429 must preserve the existing affinity policy")
 }
