@@ -370,3 +370,27 @@ HTTP 429/5xx、499、`stream disconnected before completion`、缺失 `response.
 上线后必须看到 `upstream_rate_limit status=... upstream_status=429` 且持续 `2h0m0s` 的冷却
 日志，并按同一 request ID 确认渠道链切换；若观测窗口没有真实 429，只能确认无回归，不能声称
 生产触发链路已验证。
+
+## 两小时冷却版本上线验收
+
+- Railway deployment：`263d52db-d14c-4c1f-9ac1-488358c88b10`
+- 上线时间：2026-07-20 22:26:33（Asia/Singapore）
+- 镜像：`sha256:4a5b23e7e2eec8b68aca69d92b80d4f75f4e4aed1cc4f6a81443761f15c86401`
+- 部署状态：`SUCCESS`
+- `https://api.opwan.ai/api/status`、`https://test.opwan.ai/api/status` 和首页均返回 HTTP 200。
+- 观察窗口：上线后约 15 分钟；Railway HTTP 日志中 `/v1/responses` 共 185 条，HTTP 200 为
+  183 条、HTTP 500 为 2 条，HTTP 429/499/502/503 均为 0。
+- 两条最终 500 对应上游响应头超时重试链（`#73 -> #57 -> #42` 和
+  `#58 -> #70 -> #69`），不是本次 429 冷却逻辑产生的错误。
+- 应用流结束日志为 `done=64`、正常协议 `eof=3`，没有 `client_gone`、
+  `stream disconnected before completion` 或缺失 `response.completed`。
+- 当前窗口没有 `Too Many Requests`、`Upstream rate limit exceeded`、
+  `Concurrency limit exceeded`、`upstream_status=429`、`upstream_rate_limit` 或持续
+  `2h0m0s` 的自然样本，因此只能确认部署无回归，不能把 2 小时触发链路宣称为生产实测。
+- 65 条含 FRT 的消费日志：平均 4.571 s、p50 3.949 s、p90 8.159 s、p95 9.147 s、最大
+  34.742 s，FRT >= 10 s 为 3 条、>= 20 s 为 1 条。最高样本的最终渠道首数据约 148 ms，
+  请求级首字包含前序两个渠道响应头超时；其余长样本也主要是上游响应头/首数据等待，未观察到
+  429 冷却或选路扫描造成的额外等待。
+
+容器启动仍有既有的 `SESSION_COOKIE_SECURE` 警告；本轮没有改动生产配置，避免把安全配置变更
+与渠道切换策略混在同一次发布中。
