@@ -22,6 +22,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	}
 
 	info.IsStream = true
+	info.InitRealtimeTranscriptionState()
 	clientConn := info.ClientWs
 	targetConn := info.TargetWs
 
@@ -34,6 +35,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	usage := &dto.RealtimeUsage{}
 	localUsage := &dto.RealtimeUsage{}
 	sumUsage := &dto.RealtimeUsage{}
+	transcriptionSumUsage := &dto.RealtimeUsage{}
 
 	gopool.Go(func() {
 		defer func() {
@@ -67,6 +69,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 						if realtimeEvent.Session.Tools != nil {
 							info.RealtimeTools = realtimeEvent.Session.Tools
 						}
+						captureRealtimeTranscriptionModel(info, realtimeEvent.Session)
 					}
 				}
 
@@ -125,15 +128,8 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				if realtimeEvent.Type == dto.RealtimeEventTypeResponseDone {
 					realtimeUsage := realtimeEvent.Response.Usage
 					if realtimeUsage != nil {
-						usage.TotalTokens += realtimeUsage.TotalTokens
-						usage.InputTokens += realtimeUsage.InputTokens
-						usage.OutputTokens += realtimeUsage.OutputTokens
-						usage.InputTokenDetails.AudioTokens += realtimeUsage.InputTokenDetails.AudioTokens
-						usage.InputTokenDetails.CachedTokens += realtimeUsage.InputTokenDetails.CachedTokens
-						usage.InputTokenDetails.TextTokens += realtimeUsage.InputTokenDetails.TextTokens
-						usage.OutputTokenDetails.AudioTokens += realtimeUsage.OutputTokenDetails.AudioTokens
-						usage.OutputTokenDetails.TextTokens += realtimeUsage.OutputTokenDetails.TextTokens
-						err := preConsumeUsage(c, info, usage, sumUsage)
+						*usage = addRealtimeUsage(*usage, *realtimeUsage)
+						_, err := preConsumeUsage(c, info, info.OriginModelName, usage, sumUsage)
 						if err != nil {
 							errChan <- fmt.Errorf("error consume usage: %v", err)
 							return
@@ -154,7 +150,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 						localUsage.InputTokens += textToken + audioToken
 						localUsage.InputTokenDetails.TextTokens += textToken
 						localUsage.InputTokenDetails.AudioTokens += audioToken
-						err = preConsumeUsage(c, info, localUsage, sumUsage)
+						_, err = preConsumeUsage(c, info, info.OriginModelName, localUsage, sumUsage)
 						if err != nil {
 							errChan <- fmt.Errorf("error consume usage: %v", err)
 							return
@@ -167,35 +163,25 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 					logger.LogInfo(c, fmt.Sprintf("realtime streaming localUsage: %v", localUsage))
 					logger.LogInfo(c, fmt.Sprintf("realtime streaming localUsage: %v", localUsage))
 
-				} else if realtimeEvent.Type == dto.RealtimeEventInputAudioTranscriptionCompleted && realtimeEvent.Usage != nil && realtimeEvent.Usage.TotalTokens > 0 {
+				} else if transcriptionBilling, ok := realtimeTranscriptionBilling(info.OriginModelName, info.GetRealtimeTranscriptionModel(), realtimeEvent); ok {
 					// GA 转写会话没有 response.done,转写模型的官方 usage 附在 completed 事件上,与 response.done 同等计费;
 					// whisper 系按时长返回(token 全 0)时不走此分支,仍用本地估算兜底
-					usage.TotalTokens += realtimeEvent.Usage.TotalTokens
-					usage.InputTokens += realtimeEvent.Usage.InputTokens
-					usage.OutputTokens += realtimeEvent.Usage.OutputTokens
-					usage.InputTokenDetails.AudioTokens += realtimeEvent.Usage.InputTokenDetails.AudioTokens
-					usage.InputTokenDetails.CachedTokens += realtimeEvent.Usage.InputTokenDetails.CachedTokens
-					usage.InputTokenDetails.TextTokens += realtimeEvent.Usage.InputTokenDetails.TextTokens
-					usage.OutputTokenDetails.AudioTokens += realtimeEvent.Usage.OutputTokenDetails.AudioTokens
-					// GA 转写 usage 不带 output_token_details,而计费公式只认明细字段,明细缺失时输出全按文本补记
-					outTextTokens := realtimeEvent.Usage.OutputTokenDetails.TextTokens
-					if outTextTokens == 0 && realtimeEvent.Usage.OutputTokenDetails.AudioTokens == 0 {
-						outTextTokens = realtimeEvent.Usage.OutputTokens
-					}
-					usage.OutputTokenDetails.TextTokens += outTextTokens
-					if err := preConsumeUsage(c, info, usage, sumUsage); err != nil {
+					quotaResult, err := preConsumeUsage(c, info, transcriptionBilling.ModelName, &transcriptionBilling.Usage, transcriptionSumUsage)
+					// 已识别官方 usage 后清掉本句本地估算以防双计;这可能同时丢掉下一句已 append 的音频估算
+					localUsage = &dto.RealtimeUsage{}
+					if err != nil {
 						errChan <- fmt.Errorf("error consume usage: %v", err)
 						return
 					}
-					// 官方 usage 已入账,清掉本句攒下的本地估算,避免重复
-					usage = &dto.RealtimeUsage{}
-					localUsage = &dto.RealtimeUsage{}
+					info.AddRealtimeTranscriptionQuota(quotaResult.Quota)
+					service.RecordRealtimeTranscriptionConsumeLog(c, info, transcriptionBilling.ModelName, &transcriptionBilling.Usage, quotaResult)
 				} else if realtimeEvent.Type == dto.RealtimeEventTypeSessionUpdated || realtimeEvent.Type == dto.RealtimeEventTypeSessionCreated {
 					realtimeSession := realtimeEvent.Session
 					if realtimeSession != nil {
 						// update audio format
 						info.InputAudioFormat = common.GetStringIfEmpty(realtimeSession.InputAudioFormat, info.InputAudioFormat)
 						info.OutputAudioFormat = common.GetStringIfEmpty(realtimeSession.OutputAudioFormat, info.OutputAudioFormat)
+						captureRealtimeTranscriptionModel(info, realtimeSession)
 					}
 				} else {
 					textToken, audioToken, err := service.CountTokenRealtime(info, *realtimeEvent, info.UpstreamModelName)
@@ -234,11 +220,11 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	}
 
 	if usage.TotalTokens != 0 {
-		_ = preConsumeUsage(c, info, usage, sumUsage)
+		_, _ = preConsumeUsage(c, info, info.OriginModelName, usage, sumUsage)
 	}
 
 	if localUsage.TotalTokens != 0 {
-		_ = preConsumeUsage(c, info, localUsage, sumUsage)
+		_, _ = preConsumeUsage(c, info, info.OriginModelName, localUsage, sumUsage)
 	}
 
 	// check usage total tokens, if 0, use local usage
@@ -246,20 +232,62 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	return nil, sumUsage
 }
 
-func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage, totalUsage *dto.RealtimeUsage) error {
-	if usage == nil || totalUsage == nil {
-		return fmt.Errorf("invalid usage pointer")
+func addRealtimeUsage(total, delta dto.RealtimeUsage) dto.RealtimeUsage {
+	total.TotalTokens += delta.TotalTokens
+	total.InputTokens += delta.InputTokens
+	total.OutputTokens += delta.OutputTokens
+	total.InputTokenDetails.CachedTokens += delta.InputTokenDetails.CachedTokens
+	total.InputTokenDetails.TextTokens += delta.InputTokenDetails.TextTokens
+	total.InputTokenDetails.AudioTokens += delta.InputTokenDetails.AudioTokens
+	total.OutputTokenDetails.TextTokens += delta.OutputTokenDetails.TextTokens
+	total.OutputTokenDetails.AudioTokens += delta.OutputTokenDetails.AudioTokens
+	return total
+}
+
+func billableRealtimeTranscriptionUsage(event *dto.RealtimeEvent) (dto.RealtimeUsage, bool) {
+	if event == nil || event.Type != dto.RealtimeEventInputAudioTranscriptionCompleted || event.Usage == nil || event.Usage.TotalTokens <= 0 {
+		return dto.RealtimeUsage{}, false
 	}
 
-	totalUsage.TotalTokens += usage.TotalTokens
-	totalUsage.InputTokens += usage.InputTokens
-	totalUsage.OutputTokens += usage.OutputTokens
-	totalUsage.InputTokenDetails.CachedTokens += usage.InputTokenDetails.CachedTokens
-	totalUsage.InputTokenDetails.TextTokens += usage.InputTokenDetails.TextTokens
-	totalUsage.InputTokenDetails.AudioTokens += usage.InputTokenDetails.AudioTokens
-	totalUsage.OutputTokenDetails.TextTokens += usage.OutputTokenDetails.TextTokens
-	totalUsage.OutputTokenDetails.AudioTokens += usage.OutputTokenDetails.AudioTokens
-	// clear usage
-	err := service.PreWssConsumeQuota(ctx, info, usage)
-	return err
+	usage := addRealtimeUsage(dto.RealtimeUsage{}, *event.Usage)
+	// GA 转写 usage 不带 output_token_details,而计费公式只认明细字段,明细缺失时输出全按文本补记
+	if event.Usage.OutputTokenDetails.TextTokens == 0 && event.Usage.OutputTokenDetails.AudioTokens == 0 {
+		usage.OutputTokenDetails.TextTokens = event.Usage.OutputTokens
+	}
+	return usage, true
+}
+
+type realtimeTranscriptionBillingInfo struct {
+	ModelName string
+	Usage     dto.RealtimeUsage
+}
+
+func realtimeTranscriptionBilling(originModelName, transcriptionModelName string, event *dto.RealtimeEvent) (realtimeTranscriptionBillingInfo, bool) {
+	usage, ok := billableRealtimeTranscriptionUsage(event)
+	if !ok {
+		return realtimeTranscriptionBillingInfo{}, false
+	}
+	if transcriptionModelName == "" {
+		transcriptionModelName = originModelName
+	}
+	return realtimeTranscriptionBillingInfo{
+		ModelName: transcriptionModelName,
+		Usage:     usage,
+	}, true
+}
+
+func captureRealtimeTranscriptionModel(info *relaycommon.RelayInfo, session *dto.RealtimeSession) {
+	if info == nil || session == nil || session.InputAudioTranscription.Model == "" {
+		return
+	}
+	info.SetRealtimeTranscriptionModel(session.InputAudioTranscription.Model)
+}
+
+func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, modelName string, usage *dto.RealtimeUsage, totalUsage *dto.RealtimeUsage) (service.WssQuotaResult, error) {
+	if usage == nil || totalUsage == nil {
+		return service.WssQuotaResult{}, fmt.Errorf("invalid usage pointer")
+	}
+
+	*totalUsage = addRealtimeUsage(*totalUsage, *usage)
+	return service.PreWssConsumeQuota(ctx, info, modelName, usage)
 }
