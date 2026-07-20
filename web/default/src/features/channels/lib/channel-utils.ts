@@ -108,6 +108,7 @@ export function getChannelTypeIcon(type: number): string {
     62: 'OpenAI', // 83zi SD2 video
     63: 'OpenAI', // 7tai video
     64: 'OpenAI', // th12345ai video
+    65: 'OpenAI', // megabyai video
 
     // Tools & Platforms
     37: 'Dify', // Dify

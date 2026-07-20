@@ -221,13 +221,28 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     name: CHANNEL_TYPES[64],
     icon: 'openai',
     defaultBaseUrl: 'https://sd.12345ai.net',
-    supportedModels: ['videos_stable', 'videos_stable_fast'],
+    supportedModels: ['sd2-431', 'sd2-fast-431'],
     hints: {
       key: 'Bearer token (th12345ai License Key, LD-...)',
-      models: 'videos_stable, videos_stable_fast (per-task)',
+      models:
+        'Client: sd2-431, sd2-fast-431. Map to upstream videos_stable / videos_stable_fast (per-task).',
       baseUrl: 'Default: https://sd.12345ai.net',
       other:
-        'Async video: POST /api/tasks, poll GET /api/tasks/{id}. Pass reference images/videos/audios as public http(s) URLs (images[] → referenceImages).',
+        'Async video: POST /api/tasks, poll GET /api/tasks/{id}. Pass reference images/videos/audios as public http(s) URLs (images[] → referenceImages). Recommended model mapping: sd2-431→videos_stable, sd2-fast-431→videos_stable_fast.',
+    },
+  },
+  65: {
+    id: 65,
+    name: CHANNEL_TYPES[65],
+    icon: 'openai',
+    defaultBaseUrl: 'https://newapi.megabyai.cc',
+    supportedModels: ['videos-standard', 'videos-fast', 'videos-mini'],
+    hints: {
+      key: 'Bearer token (MegaByAI API Key)',
+      models: 'videos-standard, videos-fast, videos-mini (per-task)',
+      baseUrl: 'Default: https://newapi.megabyai.cc',
+      other:
+        'Async video: POST /v1/videos, poll GET /v1/videos/{id}, content GET .../content. Maps size→ratio/resolution, images→referenceImages. Supports referenceVideos/referenceAudios. No first_image/last_image.',
     },
   },
 }

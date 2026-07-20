@@ -665,11 +665,36 @@ export function ChannelMutateDrawer({
     if (currentType === 64) {
       const currentModels = form.getValues('models')
       if (!currentModels || currentModels.trim() === '') {
-        form.setValue('models', 'videos_stable,videos_stable_fast')
+        form.setValue('models', 'sd2-431,sd2-fast-431')
       }
       const currentBaseUrlValue = form.getValues('base_url')
       if (!currentBaseUrlValue || currentBaseUrlValue.trim() === '') {
         form.setValue('base_url', 'https://sd.12345ai.net')
+      }
+      const currentMapping = form.getValues('model_mapping')
+      if (!currentMapping || currentMapping.trim() === '') {
+        form.setValue(
+          'model_mapping',
+          JSON.stringify(
+            {
+              'sd2-431': 'videos_stable',
+              'sd2-fast-431': 'videos_stable_fast',
+            },
+            null,
+            2
+          )
+        )
+      }
+    }
+
+    if (currentType === 65) {
+      const currentModels = form.getValues('models')
+      if (!currentModels || currentModels.trim() === '') {
+        form.setValue('models', 'videos-standard,videos-fast,videos-mini')
+      }
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue.trim() === '') {
+        form.setValue('base_url', 'https://newapi.megabyai.cc')
       }
     }
   }, [currentType, isEditing, form])
@@ -1915,6 +1940,9 @@ export function ChannelMutateDrawer({
                           },
                         ]}
                         onValueChange={(value) => {
+                          if (value == null) {
+                            return
+                          }
                           setBaseUrl83ziPreset(value)
                           if (value !== CHANNEL_83ZI_CUSTOM_BASE_URL) {
                             form.setValue('base_url', value)
