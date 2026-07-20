@@ -50,6 +50,25 @@ func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
 }
 
+// PrepareAvailabilityFallback gives the selector one final pass over untried
+// channels without expanding the configured priority depth. Auto-group state
+// is rewound because its normal cross-group walk may already be past the final
+// group when the relay discovers that every configured retry returned 429.
+func (p *RetryParam) PrepareAvailabilityFallback(retry int) {
+	if p == nil {
+		return
+	}
+	if retry < 0 {
+		retry = 0
+	}
+	p.SetRetry(retry)
+	if p.TokenGroup == "auto" && p.Ctx != nil {
+		common.SetContextKey(p.Ctx, constant.ContextKeyAutoGroupIndex, 0)
+		common.SetContextKey(p.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+	}
+	p.ResetRetryNextTry()
+}
+
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
 // 尝试获取一个满足要求的随机渠道。
 //

@@ -118,7 +118,7 @@ func TestDoRequestDoesNotExposeSSEHeadersForRejectedStream(t *testing.T) {
 	assert.False(t, c.Writer.Written())
 }
 
-func TestDoRequestKeepsSSEHeadersForAcceptedStream(t *testing.T) {
+func TestDoRequestDefersSSEHeadersUntilAcceptedBodyHandler(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
@@ -140,7 +140,8 @@ func TestDoRequestKeepsSSEHeadersForAcceptedStream(t *testing.T) {
 	require.NotNil(t, resp)
 	t.Cleanup(func() { _ = resp.Body.Close() })
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	assert.Empty(t, recorder.Header().Get("Content-Type"))
+	assert.Empty(t, recorder.Header().Get("Transfer-Encoding"))
 	assert.False(t, c.Writer.Written())
 }
 

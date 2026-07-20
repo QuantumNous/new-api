@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -179,8 +181,21 @@ func TestUpstreamRateLimitExtraRetryRequiresUncommittedUpstream429(t *testing.T)
 	assert.False(t, isUpstreamRateLimitError(local429), "local 429s must stay outside channel retry policy")
 	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, local429))
 
+	quota429 := types.NewOpenAIError(
+		errors.New("You exceeded your current quota"),
+		types.ErrorCode("insufficient_quota"),
+		http.StatusTooManyRequests,
+	)
+	quota429.UpstreamStatusCode = http.StatusTooManyRequests
+	assert.False(t, isUpstreamRateLimitError(quota429), "quota exhaustion is structural, not a transient rate-limit retry")
+	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, quota429))
+
+	pinned := newTestContext()
+	pinned.Set("specific_channel_id", 17)
+	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(pinned, &relaycommon.RelayInfo{}, upstream429), "pinned channel requests must not switch channels")
+
 	committed := newTestContext()
-	committed.Writer.WriteHeader(http.StatusOK)
+	committed.Writer.WriteHeaderNow()
 	assert.True(t, relayResponseCommitted(committed, &relaycommon.RelayInfo{}))
 	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(committed, &relaycommon.RelayInfo{}, upstream429))
 }
@@ -198,4 +213,24 @@ func TestUpstreamRateLimitExtraRetryStopsAfterAttemptStreamData(t *testing.T) {
 
 	assert.True(t, relayResponseCommitted(newTestContext(), info))
 	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), info, apiErr))
+}
+
+func TestScheduleUpstreamRateLimitExtraRetryRestartsAutoSelection(t *testing.T) {
+	c := newTestContext()
+	apiErr := types.NewErrorWithStatusCode(
+		errors.New("Too many pending requests, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+	apiErr.UpstreamStatusCode = http.StatusTooManyRequests
+	retryParam := &service.RetryParam{
+		Ctx:        c,
+		TokenGroup: "auto",
+		Retry:      common.GetPointer(0),
+	}
+
+	assert.True(t, scheduleUpstreamRateLimitExtraRetry(c, &relaycommon.RelayInfo{}, retryParam, apiErr, false, 2))
+	retryParam.IncreaseRetry()
+	assert.Equal(t, 2, retryParam.GetRetry())
+	assert.False(t, scheduleUpstreamRateLimitExtraRetry(c, &relaycommon.RelayInfo{}, retryParam, apiErr, true, 2), "the dedicated fallback is single-use")
 }

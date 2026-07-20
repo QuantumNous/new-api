@@ -226,13 +226,29 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	rateLimitExtraRetryUsed := false
+	rateLimitExtraRetryPending := false
+	var rateLimitFallbackError *types.NewAPIError
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+		usingRateLimitExtraRetry := rateLimitExtraRetryPending
+		rateLimitExtraRetryPending = false
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
-			newAPIError = channelErr
+			if usingRateLimitExtraRetry && rateLimitFallbackError != nil && channelErr.GetErrorCode() == types.ErrorCodeGetChannelFailed {
+				newAPIError = rateLimitFallbackError
+				logger.LogInfo(c, "upstream 429 fallback had no untried channel; preserving the original rate-limit response")
+			} else if scheduleUpstreamRateLimitExtraRetry(c, relayInfo, retryParam, relayInfo.LastError, rateLimitExtraRetryUsed, common.RetryTimes) {
+				rateLimitExtraRetryUsed = true
+				rateLimitExtraRetryPending = true
+				rateLimitFallbackError = relayInfo.LastError
+				logger.LogWarn(c, "upstream 429 exhausted configured auto-group retries; trying one additional uncommitted channel")
+				continue
+			} else {
+				newAPIError = channelErr
+			}
 			break
 		}
 
@@ -276,6 +292,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			if usingRateLimitExtraRetry {
+				logger.LogInfo(c, "upstream 429 fallback succeeded on the additional channel attempt")
+			}
 			if !asyncImageSubmitted {
 				cooldownSlowChannelIfNeeded(c, relayInfo, channel, attemptStart)
 			}
@@ -312,6 +331,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		if usingRateLimitExtraRetry {
+			break
+		}
+
+		if retryParam.GetRetry() >= common.RetryTimes && scheduleUpstreamRateLimitExtraRetry(c, relayInfo, retryParam, newAPIError, rateLimitExtraRetryUsed, common.RetryTimes) {
+			rateLimitExtraRetryUsed = true
+			rateLimitExtraRetryPending = true
+			rateLimitFallbackError = newAPIError
+			logger.LogWarn(c, "upstream 429 exhausted configured retries; trying one additional uncommitted channel")
+			continue
+		}
+
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
@@ -331,6 +362,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if len(useChannel) > 1 {
 		retryLogStr := fmt.Sprintf("重试：%s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), "->"), "[]"))
 		logger.LogInfo(c, retryLogStr)
+	}
+	if rateLimitExtraRetryUsed && isUpstreamRateLimitError(newAPIError) {
+		logger.LogWarn(c, "upstream 429 additional channel attempt was exhausted")
 	}
 	if newAPIError != nil {
 		gopool.Go(func() {
@@ -554,6 +588,46 @@ func isClientCanceledError(apiErr *types.NewAPIError) bool {
 
 func shouldAvoidRetryHost(apiErr *types.NewAPIError) bool {
 	return service.ShouldObserveUpstreamHostFailure(apiErr)
+}
+
+func isUpstreamRateLimitError(apiErr *types.NewAPIError) bool {
+	return apiErr != nil &&
+		apiErr.UpstreamStatusCode == http.StatusTooManyRequests &&
+		!service.ShouldCooldownChannel(apiErr)
+}
+
+func relayResponseCommitted(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if c != nil && c.Writer != nil && c.Writer.Written() {
+		return true
+	}
+	if info == nil || info.StreamStatus == nil {
+		return false
+	}
+	return !info.StreamStatus.Snapshot().FirstDataAt.IsZero()
+}
+
+func shouldUseUpstreamRateLimitExtraRetry(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) bool {
+	if c == nil || !isUpstreamRateLimitError(apiErr) || relayResponseCommitted(c, info) {
+		return false
+	}
+	if types.IsSkipRetryError(apiErr) || isSemanticClientError(apiErr) {
+		return false
+	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+		return false
+	}
+	return operation_setting.ShouldRetryByStatusCode(http.StatusTooManyRequests)
+}
+
+func scheduleUpstreamRateLimitExtraRetry(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam, apiErr *types.NewAPIError, alreadyUsed bool, configuredRetryLimit int) bool {
+	if alreadyUsed || retryParam == nil || !shouldUseUpstreamRateLimitExtraRetry(c, info, apiErr) {
+		return false
+	}
+	retryParam.PrepareAvailabilityFallback(configuredRetryLimit)
+	return true
 }
 
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
