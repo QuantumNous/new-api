@@ -5,7 +5,49 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
+
+func TestShouldNormalizeGptImage2SizeUsesCapabilities(t *testing.T) {
+	tests := []struct {
+		name       string
+		baseURL    string
+		sizeFormat dto.GptImage2SizeFormat
+		want       bool
+	}{
+		{
+			name:       "configured pixel dimensions",
+			baseURL:    "https://example.com",
+			sizeFormat: dto.GptImage2SizeFormatPixelDimensions,
+			want:       true,
+		},
+		{
+			name:       "configured aspect ratio overrides legacy base",
+			baseURL:    "https://api.packyapi.com",
+			sizeFormat: dto.GptImage2SizeFormatAspectRatioWithResolution,
+			want:       false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl: tt.baseURL,
+					ChannelOtherSettings: dto.ChannelOtherSettings{
+						GptImage2Capabilities: &dto.GptImage2Capabilities{
+							Version:    1,
+							Enabled:    true,
+							SizeFormat: tt.sizeFormat,
+						},
+					},
+				},
+			}
+			if got := shouldNormalizeGptImage2Size(info); got != tt.want {
+				t.Fatalf("shouldNormalizeGptImage2Size() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestNormalizeSyncGptImage2ImageRequestMapsResolutionToSize(t *testing.T) {
 	req := dto.ImageRequest{

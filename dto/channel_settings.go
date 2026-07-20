@@ -46,6 +46,17 @@ type GptImage2EndpointCapabilities struct {
 	DeniedValues         map[string][]string `json:"denied_values,omitempty"`
 }
 
+type GptImage2SizeFormat string
+
+const (
+	// GptImage2SizeFormatAspectRatioWithResolution means the upstream accepts
+	// requests such as size="1:1" plus resolution="1k" directly.
+	GptImage2SizeFormatAspectRatioWithResolution GptImage2SizeFormat = "aspect_ratio_with_resolution"
+	// GptImage2SizeFormatPixelDimensions means the upstream expects size as
+	// WIDTHxHEIGHT. The relay maps aspect ratio + resolution before forwarding.
+	GptImage2SizeFormatPixelDimensions GptImage2SizeFormat = "pixel_dimensions"
+)
+
 // GptImage2Capabilities is stored in channels.settings. Once present it is the
 // authoritative compatibility contract for the channel, replacing legacy
 // channel-ID checks. Keeping endpoint configs as pointers preserves the
@@ -54,6 +65,7 @@ type GptImage2Capabilities struct {
 	Version          int                            `json:"version"`
 	Enabled          bool                           `json:"enabled"`
 	OfficialAlias    bool                           `json:"official_alias"`
+	SizeFormat       GptImage2SizeFormat            `json:"size_format,omitempty"`
 	Generations      *GptImage2EndpointCapabilities `json:"generations,omitempty"`
 	AsyncGenerations *GptImage2EndpointCapabilities `json:"async_generations,omitempty"`
 	Edits            *GptImage2EndpointCapabilities `json:"edits,omitempty"`
@@ -65,6 +77,13 @@ func (c *GptImage2Capabilities) Validate() error {
 	}
 	if c.Version != 1 {
 		return fmt.Errorf("gpt_image2_capabilities.version must be 1")
+	}
+	if c.SizeFormat != "" &&
+		c.SizeFormat != GptImage2SizeFormatAspectRatioWithResolution &&
+		c.SizeFormat != GptImage2SizeFormatPixelDimensions {
+		return fmt.Errorf("gpt_image2_capabilities.size_format must be %q or %q",
+			GptImage2SizeFormatAspectRatioWithResolution,
+			GptImage2SizeFormatPixelDimensions)
 	}
 	for name, endpoint := range map[string]*GptImage2EndpointCapabilities{
 		"generations": c.Generations, "async_generations": c.AsyncGenerations, "edits": c.Edits,

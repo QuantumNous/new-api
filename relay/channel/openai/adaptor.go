@@ -582,11 +582,28 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			strings.TrimSpace(request.Webhook) == "" {
 			request.Webhook = service.MediaTaskWebhookBase()
 		}
-		if isResolutionSizeOnlyGptImage2Base(info.ChannelBaseUrl) {
+		if shouldNormalizeGptImage2Size(info) {
 			normalizeSyncGptImage2ImageRequest(&request)
 		}
 		return request, nil
 	}
+}
+
+func shouldNormalizeGptImage2Size(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	if capabilities := info.ChannelOtherSettings.GptImage2Capabilities; capabilities != nil {
+		switch capabilities.SizeFormat {
+		case dto.GptImage2SizeFormatPixelDimensions:
+			return true
+		case dto.GptImage2SizeFormatAspectRatioWithResolution:
+			return false
+		}
+	}
+	// Preserve the old behavior until every existing channel has an explicit
+	// size_format in its capability configuration.
+	return isResolutionSizeOnlyGptImage2Base(info.ChannelBaseUrl)
 }
 
 func isSyncGptImage2ImageBase(baseURL string) bool {

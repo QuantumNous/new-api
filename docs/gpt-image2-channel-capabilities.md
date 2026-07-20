@@ -12,6 +12,7 @@ channel-ID rules remain active for backward compatibility.
   "version": 1,
   "enabled": true,
   "official_alias": false,
+  "size_format": "aspect_ratio_with_resolution",
   "generations": {
     "enabled": true,
     "multipart": false,
@@ -35,6 +36,19 @@ Endpoint keys are `generations`, `async_generations`, and `edits`. Omit an
 endpoint or set `enabled: false` to disable it. `optional_fields` controls which
 optional request fields the channel accepts; `"*"` accepts all currently known
 fields. `allowed_values` and `denied_values` are case-insensitive.
+
+`size_format` declares the request format expected by this channel's upstream:
+
+- `aspect_ratio_with_resolution`: forward `size: "1:1"` and
+  `resolution: "1k"` unchanged.
+- `pixel_dimensions`: after this channel is selected, map the same canonical
+  request to `size: "1024x1024"` and remove `resolution` before forwarding.
+
+Compatibility filtering always evaluates the original canonical request. This
+means channels using either upstream format can participate in the same routing
+decision, while the selected channel alone controls the final transformation.
+When `size_format` is omitted, legacy base-URL behavior remains active for
+backward compatibility.
 
 After compatibility filtering, normal auto-cheapest routing selects the lowest
 effective user price among the remaining channels.

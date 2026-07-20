@@ -111,6 +111,7 @@ export interface GptImage2Capabilities {
   version: 1
   enabled: boolean
   official_alias: boolean
+  size_format?: 'aspect_ratio_with_resolution' | 'pixel_dimensions'
   generations?: GptImage2EndpointCapabilities
   async_generations?: GptImage2EndpointCapabilities
   edits?: GptImage2EndpointCapabilities
