@@ -11,6 +11,7 @@ var (
 var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrUserEmptyCredentials = errors.New("empty credentials")
+	ErrUsernameAlreadyTaken = errors.New("username already taken")
 	ErrEmailAlreadyTaken    = errors.New("email already taken")
 	ErrEmailNotFound        = errors.New("email not found")
 	ErrEmailAmbiguous       = errors.New("email matches multiple users")
