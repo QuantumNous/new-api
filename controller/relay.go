@@ -403,6 +403,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+		markAffinityColdStartForRetry(c, relayInfo, newAPIError)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -805,6 +806,14 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	return operation_setting.ShouldRetryByStatusCode(code)
+}
+
+func markAffinityColdStartForRetry(c *gin.Context, info *relaycommon.RelayInfo, err *types.NewAPIError) {
+	if info == nil || !service.IsUpstreamRateLimitError(err) || !service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+		return
+	}
+	info.AffinityColdStart = true
+	common.SetContextKey(c, constant.ContextKeyAffinityColdStart, true)
 }
 
 // cooldownSlowChannelIfNeeded cools a channel after a successful request whose
