@@ -591,8 +591,8 @@ func TestGetRandomSatisfiedChannelFiltersImageCapabilityBeforePriority(t *testin
 	weight := uint(100)
 	oneK := &Channel{Id: 65, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &highPriority}
 	fourK := &Channel{Id: 108, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &lowPriority}
-	oneK.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K"}, []string{"1024x1024"})})
-	fourK.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K", "4K"}, []string{"1024x1024", "2880x2880"})})
+	oneK.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K"}, []string{"1024x1024"})})
+	fourK.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K", "4K"}, []string{"1024x1024", "2880x2880"})})
 	SetChannelCacheForTest(map[int]*Channel{65: oneK, 108: fourK}, map[string]map[string][]int{
 		"default": {"gpt-image-2": {65, 108}},
 	})
@@ -648,7 +648,7 @@ func TestGetRandomSatisfiedChannelLeavesLegacyUnconfiguredChannelEligible(t *tes
 
 func TestChannelSupportsImageSelectionUsesVerifiedProfileAndAllowedCombination(t *testing.T) {
 	channel := &Channel{Id: 108}
-	channel.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile(
+	channel.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile(
 		"gpt-image-2",
 		[]string{"1K", "4K"},
 		[]string{"1024x1024", "2880x2880"},
@@ -684,8 +684,8 @@ func TestGetChannelWithOptionsFiltersImageCapabilityWithoutMemoryCache(t *testin
 	weight := uint(100)
 	oneK := Channel{Id: 65, Type: 1, Key: "key-65", Status: common.ChannelStatusEnabled, Name: "1k", Weight: &weight, Priority: &highPriority, Models: "gpt-image-2", Group: "default"}
 	fourK := Channel{Id: 108, Type: 1, Key: "key-108", Status: common.ChannelStatusEnabled, Name: "4k", Weight: &weight, Priority: &lowPriority, Models: "gpt-image-2", Group: "default"}
-	oneK.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K"}, []string{"1024x1024"})})
-	fourK.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"4K"}, []string{"2880x2880"})})
+	oneK.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K"}, []string{"1024x1024"})})
+	fourK.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"4K"}, []string{"2880x2880"})})
 	require.NoError(t, DB.Create(&[]Channel{oneK, fourK}).Error)
 	require.NoError(t, DB.Create(&[]Ability{
 		{Group: "default", Model: "gpt-image-2", ChannelId: 65, Enabled: true, Priority: &highPriority, Weight: weight},

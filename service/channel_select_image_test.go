@@ -24,8 +24,8 @@ func TestRetryParamPreservesImageRequirementAcrossSelections(t *testing.T) {
 	weight := uint(100)
 	oneK := &model.Channel{Id: 65, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority}
 	fourK := &model.Channel{Id: 108, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority}
-	oneK.SetSetting(dto.ChannelSettings{ImageRouting: imageRoutingForServiceTest([]string{"1K"}, []string{"1024x1024"})})
-	fourK.SetSetting(dto.ChannelSettings{ImageRouting: imageRoutingForServiceTest([]string{"4K"}, []string{"2880x2880"})})
+	oneK.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: imageRoutingForServiceTest([]string{"1K"}, []string{"1024x1024"})})
+	fourK.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: imageRoutingForServiceTest([]string{"4K"}, []string{"2880x2880"})})
 	model.SetChannelCacheForTest(map[int]*model.Channel{65: oneK, 108: fourK}, map[string]map[string][]int{
 		"default": {"gpt-image-2": {65, 108}},
 	})
