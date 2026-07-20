@@ -36,12 +36,15 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
+  formatOfficialPrice,
+  formatOfficialRequestPrice,
   formatPrice,
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
+import { PriceValueComparison } from './price-value-comparison'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
@@ -114,15 +117,16 @@ export function usePricingColumns(
       ),
       cell: ({ row }) => {
         const model = row.original
+        const displayGroupRatio = getDynamicDisplayGroupRatio(
+          model,
+          selectedGroup
+        )
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(
-            model,
-            selectedGroup
-          ),
+          groupRatioMultiplier: displayGroupRatio,
         })
 
         if (dynamicSummary) {
@@ -151,26 +155,44 @@ export function usePricingColumns(
             )
           }
 
+          const currentValue = primaryEntries
+            .map((entry) => stripTrailingZeros(entry.formatted))
+            .join(' / ')
+          const officialDynamicSummary = getDynamicPricingSummary(model, {
+            tokenUnit,
+            showRechargePrice: false,
+            priceRate,
+            usdExchangeRate,
+            groupRatioMultiplier: 1,
+          })
+          const officialEntries = new Map(
+            (officialDynamicSummary?.primaryEntries ?? []).map((entry) => [
+              entry.key,
+              stripTrailingZeros(entry.formatted),
+            ])
+          )
+          const officialValues = primaryEntries
+            .map((entry) => officialEntries.get(entry.key))
+            .filter((value): value is string => Boolean(value))
+          const officialValue =
+            officialValues.length === primaryEntries.length
+              ? officialValues.join(' / ')
+              : undefined
+
           return (
-            <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
-                {primaryEntries.map((entry, index) => (
-                  <span key={entry.key}>
-                    {index > 0 && (
-                      <span className='text-muted-foreground/40 mx-1'>/</span>
-                    )}
-                    {stripTrailingZeros(entry.formatted)}
-                  </span>
-                ))}
-              </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel} tokens
-                {dynamicSummary.tierCount > 1 &&
-                  ` · ${t('{{count}} tiers', {
-                    count: dynamicSummary.tierCount,
-                  })}`}
-              </div>
-            </div>
+            <PriceValueComparison
+              current={currentValue}
+              official={officialValue}
+              unit={
+                <>
+                  / {tokenUnitLabel} tokens
+                  {dynamicSummary.tierCount > 1 &&
+                    ` · ${t('{{count}} tiers', {
+                      count: dynamicSummary.tierCount,
+                    })}`}
+                </>
+              }
+            />
           )
         }
 
@@ -199,18 +221,21 @@ export function usePricingColumns(
               selectedGroup
             )
           )
+          const currentValue = `${inputPrice} / ${outputPrice}`
+          const officialInputPrice = stripTrailingZeros(
+            formatOfficialPrice(model, 'input', tokenUnit)
+          )
+          const officialOutputPrice = stripTrailingZeros(
+            formatOfficialPrice(model, 'output', tokenUnit)
+          )
+          const officialValue = `${officialInputPrice} / ${officialOutputPrice}`
 
           return (
-            <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
-                {inputPrice}
-                <span className='text-muted-foreground/40 mx-1'>/</span>
-                {outputPrice}
-              </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel} tokens
-              </div>
-            </div>
+            <PriceValueComparison
+              current={currentValue}
+              official={officialValue}
+              unit={`/ ${tokenUnitLabel} tokens`}
+            />
           )
         }
 
@@ -223,14 +248,16 @@ export function usePricingColumns(
             selectedGroup
           )
         )
+        const officialRequestPrice = stripTrailingZeros(
+          formatOfficialRequestPrice(model)
+        )
 
         return (
-          <div className='max-w-full min-w-0'>
-            <span className='font-mono text-sm tabular-nums'>{price}</span>
-            <div className='text-muted-foreground/50 text-[10px]'>
-              / {t('request')}
-            </div>
-          </div>
+          <PriceValueComparison
+            current={price}
+            official={officialRequestPrice}
+            unit={`/ ${t('request')}`}
+          />
         )
       },
       size: 180,
@@ -243,15 +270,16 @@ export function usePricingColumns(
       header: t('Cached'),
       cell: ({ row }) => {
         const model = row.original
+        const displayGroupRatio = getDynamicDisplayGroupRatio(
+          model,
+          selectedGroup
+        )
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(
-            model,
-            selectedGroup
-          ),
+          groupRatioMultiplier: displayGroupRatio,
         })
 
         if (dynamicSummary) {
@@ -270,15 +298,27 @@ export function usePricingColumns(
             return <span className='text-muted-foreground/30 text-xs'>—</span>
           }
 
+          const cachedPrice = stripTrailingZeros(cacheEntry.formatted)
+          const officialDynamicSummary = getDynamicPricingSummary(model, {
+            tokenUnit,
+            showRechargePrice: false,
+            priceRate,
+            usdExchangeRate,
+            groupRatioMultiplier: 1,
+          })
+          const officialCacheEntry = officialDynamicSummary?.entries.find(
+            (entry) => entry.field === 'cacheReadPrice'
+          )
+          const officialCachedPrice = officialCacheEntry
+            ? stripTrailingZeros(officialCacheEntry.formatted)
+            : undefined
+
           return (
-            <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
-                {stripTrailingZeros(cacheEntry.formatted)}
-              </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel}
-              </div>
-            </div>
+            <PriceValueComparison
+              current={cachedPrice}
+              official={officialCachedPrice}
+              unit={`/ ${tokenUnitLabel}`}
+            />
           )
         }
 
@@ -299,16 +339,16 @@ export function usePricingColumns(
             selectedGroup
           )
         )
+        const officialCachedPrice = stripTrailingZeros(
+          formatOfficialPrice(model, 'cache', tokenUnit)
+        )
 
         return (
-          <div className='max-w-full min-w-0'>
-            <span className='font-mono text-sm tabular-nums'>
-              {cachedPrice}
-            </span>
-            <div className='text-muted-foreground/50 text-[10px]'>
-              / {tokenUnitLabel}
-            </div>
-          </div>
+          <PriceValueComparison
+            current={cachedPrice}
+            official={officialCachedPrice}
+            unit={`/ ${tokenUnitLabel}`}
+          />
         )
       },
       size: 110,

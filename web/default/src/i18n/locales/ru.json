@@ -3177,6 +3177,7 @@
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Будут перезаписаны только выбранные поля. Вы можете повторно запустить мастер синхронизации, если появятся новые конфликты.",
     "Only successful requests": "Только успешные запросы",
     "Only successful requests count toward this limit.": "Только успешные запросы учитываются в этом лимите.",
+    "Official list price": "Официальная цена",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "Будут сохранены только последние {{value}} файлов журналов; остальные будут удалены.",
     "Oops! Page Not Found!": "Ой! Страница не найдена!",
     "Oops! Something went wrong": "Ой! Что-то пошло не так",

@@ -3177,6 +3177,7 @@
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Seuls les champs sélectionnés seront écrasés. Vous pouvez relancer l'assistant de synchronisation si de nouveaux conflits apparaissent.",
     "Only successful requests": "Uniquement les requêtes réussies",
     "Only successful requests count toward this limit.": "Seules les requêtes réussies comptent pour cette limite.",
+    "Official list price": "Prix officiel",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "Seuls les {{value}} derniers fichiers journaux seront conservés ; le reste sera supprimé.",
     "Oops! Page Not Found!": "Oups ! Page introuvable !",
     "Oops! Something went wrong": "Oups ! Quelque chose s'est mal passé",

@@ -3177,6 +3177,7 @@
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Chỉ các trường được chọn sẽ bị ghi đè. Bạn có thể chạy lại trình hướng dẫn đồng bộ hóa nếu có xung đột mới xuất hiện.",
     "Only successful requests": "Chỉ các yêu cầu thành công",
     "Only successful requests count toward this limit.": "Chỉ những yêu cầu thành công mới được tính vào giới hạn này.",
+    "Official list price": "Giá chính thức",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "Chỉ giữ lại {{value}} tệp nhật ký gần nhất; phần còn lại sẽ bị xóa.",
     "Oops! Page Not Found!": "Ối! Không tìm thấy trang!",
     "Oops! Something went wrong": "Oops! An error occurred.",

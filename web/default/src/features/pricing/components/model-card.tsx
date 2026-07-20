@@ -39,10 +39,16 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  formatOfficialPrice,
+  formatOfficialRequestPrice,
+  formatPrice,
+  formatRequestPrice,
+} from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
+import { PriceValueComparison } from './price-value-comparison'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -88,16 +94,26 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
+  const displayGroupRatio = getDynamicDisplayGroupRatio(
+    props.model,
+    props.selectedGroup
+  )
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
         tokenUnit,
         showRechargePrice,
         priceRate,
         usdExchangeRate,
-        groupRatioMultiplier: getDynamicDisplayGroupRatio(
-          props.model,
-          props.selectedGroup
-        ),
+        groupRatioMultiplier: displayGroupRatio,
+      })
+    : null
+  const officialDynamicSummary = isDynamicPricing
+    ? getDynamicPricingSummary(props.model, {
+        tokenUnit,
+        showRechargePrice: false,
+        priceRate,
+        usdExchangeRate,
+        groupRatioMultiplier: 1,
       })
     : null
 
@@ -111,75 +127,115 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     copyToClipboard(props.model.model_name || '')
   }
 
-  const priceRows: { key: string; label: string; value: string }[] = []
+  const priceRows: {
+    key: string
+    label: string
+    value: string
+    officialValue?: string
+  }[] = []
   let specialPricingExpression = ''
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
       specialPricingExpression = dynamicSummary.rawExpression
     } else if (dynamicSummary.primaryEntries.length > 0) {
+      const officialEntries = new Map(
+        (officialDynamicSummary?.primaryEntries ?? []).map((entry) => [
+          entry.key,
+          entry.formatted,
+        ])
+      )
       priceRows.push(
-        ...dynamicSummary.primaryEntries.map((entry) => ({
-          key: entry.key,
-          label: t(entry.shortLabel),
-          value: entry.formatted,
-        }))
+        ...dynamicSummary.primaryEntries.map((entry) => {
+          const officialValue = officialEntries.get(entry.key)
+          return {
+            key: entry.key,
+            label: t(entry.shortLabel),
+            value: entry.formatted,
+            officialValue,
+          }
+        })
       )
     }
   } else if (isTokenBased) {
+    const inputValue = formatPrice(
+      props.model,
+      'input',
+      tokenUnit,
+      showRechargePrice,
+      priceRate,
+      usdExchangeRate,
+      props.selectedGroup
+    )
+    const outputValue = formatPrice(
+      props.model,
+      'output',
+      tokenUnit,
+      showRechargePrice,
+      priceRate,
+      usdExchangeRate,
+      props.selectedGroup
+    )
+    const officialInputValue = formatOfficialPrice(
+      props.model,
+      'input',
+      tokenUnit
+    )
+    const officialOutputValue = formatOfficialPrice(
+      props.model,
+      'output',
+      tokenUnit
+    )
+
     priceRows.push(
       {
         key: 'input',
         label: t('Input'),
-        value: formatPrice(
-          props.model,
-          'input',
-          tokenUnit,
-          showRechargePrice,
-          priceRate,
-          usdExchangeRate,
-          props.selectedGroup
-        ),
+        value: inputValue,
+        officialValue: officialInputValue,
       },
       {
         key: 'output',
         label: t('Output'),
-        value: formatPrice(
-          props.model,
-          'output',
-          tokenUnit,
-          showRechargePrice,
-          priceRate,
-          usdExchangeRate,
-          props.selectedGroup
-        ),
+        value: outputValue,
+        officialValue: officialOutputValue,
       }
     )
     if (hasCachedPrice) {
-      priceRows.push({
-        key: 'cache',
-        label: t('Cached'),
-        value: formatPrice(
-          props.model,
-          'cache',
-          tokenUnit,
-          showRechargePrice,
-          priceRate,
-          usdExchangeRate,
-          props.selectedGroup
-        ),
-      })
-    }
-  } else {
-    priceRows.push({
-      key: 'request',
-      label: t('Price'),
-      value: formatRequestPrice(
+      const cachedValue = formatPrice(
         props.model,
+        'cache',
+        tokenUnit,
         showRechargePrice,
         priceRate,
         usdExchangeRate,
         props.selectedGroup
-      ),
+      )
+      const officialCachedValue = formatOfficialPrice(
+        props.model,
+        'cache',
+        tokenUnit
+      )
+      priceRows.push({
+        key: 'cache',
+        label: t('Cached'),
+        value: cachedValue,
+        officialValue: officialCachedValue,
+      })
+    }
+  } else {
+    const requestValue = formatRequestPrice(
+      props.model,
+      showRechargePrice,
+      priceRate,
+      usdExchangeRate,
+      props.selectedGroup
+    )
+    const officialRequestValue = formatOfficialRequestPrice(props.model)
+    priceRows.push({
+      key: 'request',
+      label: t('Price'),
+      value: requestValue,
+      officialValue: officialRequestValue,
     })
   }
 
@@ -245,13 +301,18 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     pricingContent = priceRows.map((row) => (
       <div
         key={row.key}
-        className='grid grid-cols-[auto_1fr_auto] items-baseline gap-2 text-sm'
+        className='grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 text-sm'
       >
-        <span className='text-muted-foreground'>{row.label}</span>
-        <span className='text-right font-mono font-semibold tabular-nums'>
-          {row.value}
+        <span className='text-muted-foreground pt-0.5'>{row.label}</span>
+        <PriceValueComparison
+          current={row.value}
+          official={row.officialValue}
+          className='text-right'
+          currentClassName='font-semibold'
+        />
+        <span className='text-muted-foreground self-start pt-0.5 text-xs'>
+          / {priceUnit}
         </span>
-        <span className='text-muted-foreground text-xs'>/ {priceUnit}</span>
       </div>
     ))
   } else {
@@ -337,7 +398,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
 
       <Separator className='my-4' />
 
-      <div className='flex min-h-[72px] flex-col gap-1.5'>{pricingContent}</div>
+      <div className='flex min-h-24 flex-col gap-1.5'>{pricingContent}</div>
 
       <footer className='mt-auto flex items-center justify-between gap-3 pt-4'>
         <div className='flex min-w-0 flex-wrap items-center gap-1.5'>

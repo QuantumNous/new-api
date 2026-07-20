@@ -138,6 +138,26 @@ export function formatPrice(
 }
 
 /**
+ * Format the catalog base price before any group multiplier is applied.
+ *
+ * The model square uses this as the official-price comparison value while
+ * the active price continues to reflect the viewer's selected group.
+ */
+export function formatOfficialPrice(
+  model: PricingModel,
+  type: PriceType,
+  tokenUnit: TokenUnit
+): string {
+  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
+    return '-'
+  }
+
+  const priceInUSD = calculateTokenPrice(model, type, 1)
+  const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
+  return formatPricingCurrency(price, false)
+}
+
+/**
  * Format price for a specific group (token-based)
  */
 export function formatGroupPrice(
@@ -198,4 +218,13 @@ export function formatRequestPrice(
 
   const priceInUSD = (model.model_price || 0) * displayGroupRatio
   return formatPricingCurrency(priceInUSD, showInCny, 4, 4)
+}
+
+/** Format the catalog base price for pay-per-request models. */
+export function formatOfficialRequestPrice(model: PricingModel): string {
+  if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
+    return '-'
+  }
+
+  return formatPricingCurrency(model.model_price || 0, false, 4, 4)
 }

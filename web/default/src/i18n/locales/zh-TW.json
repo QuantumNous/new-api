@@ -3177,6 +3177,7 @@
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "僅選定的欄位將會被覆蓋。如果出現新的衝突，您可以重新執行同步精靈。",
     "Only successful requests": "僅成功的請求",
     "Only successful requests count toward this limit.": "僅成功的請求計入此限制。",
+    "Official list price": "官網原價",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "將只保留最近 {{value}} 個日誌檔案，其餘將被刪除。",
     "Oops! Page Not Found!": "糟糕！頁面未找到！",
     "Oops! Something went wrong": "糟糕！出錯了",

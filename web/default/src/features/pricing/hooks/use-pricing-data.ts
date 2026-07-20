@@ -28,7 +28,7 @@ export function usePricingData() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['pricing'],
-    queryFn: getPricing,
+    queryFn: () => getPricing(),
     staleTime: 5 * 60 * 1000,
   })
 

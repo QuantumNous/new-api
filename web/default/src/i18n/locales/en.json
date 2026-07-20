@@ -3177,6 +3177,7 @@
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.",
     "Only successful requests": "Only successful requests",
     "Only successful requests count toward this limit.": "Only successful requests count toward this limit.",
+    "Official list price": "Official list price",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "Only the last {{value}} log files will be retained; the rest will be deleted.",
     "Oops! Page Not Found!": "Oops! Page Not Found!",
     "Oops! Something went wrong": "Oops! Something went wrong",

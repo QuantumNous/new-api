@@ -3177,6 +3177,7 @@
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "選択されたフィールドのみが上書きされます。新しい競合が発生した場合は、同期ウィザードを再実行できます。",
     "Only successful requests": "成功したリクエストのみ",
     "Only successful requests count toward this limit.": "成功したリクエストのみがこの制限にカウントされます。",
+    "Official list price": "公式価格",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "最新の{{value}}個のログファイルのみ保持され、残りは削除されます。",
     "Oops! Page Not Found!": "おっと！ページが見つかりません！",
     "Oops! Something went wrong": "おっと！何か問題が発生しました",
