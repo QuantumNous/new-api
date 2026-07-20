@@ -54,7 +54,7 @@ func TestRunChannelSmartScheduleUsesConvertedCostRatioAcrossGroups(t *testing.T)
 	assert.InDelta(t, 1, *secondMonitor.LastScheduleScore, 1e-9)
 }
 
-func TestRunChannelSmartScheduleForceResetHappensBeforePlanning(t *testing.T) {
+func TestRunChannelSmartScheduleForceResetSetsBaselineBeforePlanning(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	useChannelMonitorOptionMap(t, map[string]string{
 		channelMonitorSmartScheduleEnabledOption:   "true",
@@ -91,7 +91,8 @@ func TestRunChannelSmartScheduleForceResetHappensBeforePlanning(t *testing.T) {
 
 	result, err := runChannelSmartScheduleOnce(context.Background(), nil, true)
 	require.NoError(t, err)
-	assert.Equal(t, 2, result.Updated)
+	assert.Equal(t, 1, result.Updated)
+	assert.Equal(t, 1, result.Unchanged)
 	assert.Equal(t, 2, result.Skipped)
 
 	expected := map[int]struct {
@@ -100,7 +101,7 @@ func TestRunChannelSmartScheduleForceResetHappensBeforePlanning(t *testing.T) {
 	}{
 		11: {priority: 0, weight: 100},
 		12: {priority: 0, weight: 10},
-		13: {priority: 0, weight: 0},
+		13: {priority: 0, weight: 10},
 		14: {priority: 100, weight: 90},
 	}
 	for channelId, target := range expected {
@@ -120,7 +121,47 @@ func TestRunChannelSmartScheduleForceResetHappensBeforePlanning(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.ChannelSmartScheduleStatusSkipped, monitor.LastScheduleStatus)
 	assert.Equal(t, int64(0), monitor.LastSchedulePriority)
-	assert.Equal(t, uint(0), monitor.LastScheduleWeight)
+	assert.Equal(t, uint(10), monitor.LastScheduleWeight)
+}
+
+func TestRunChannelSmartScheduleForceResetKeepsBaselineWhenCohortIsTooSmall(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		channelMonitorSmartScheduleEnabledOption:   "true",
+		channelMonitorSmartScheduleStrategyOption:  channelMonitorSmartScheduleStrategyRatio,
+		channelMonitorSmartScheduleApplyModeOption: channelMonitorSmartScheduleApplyWeight,
+	})
+	firstPriority := int64(100)
+	firstWeight := uint(80)
+	secondPriority := int64(90)
+	secondWeight := uint(70)
+	channels := []model.Channel{
+		{Id: 21, Name: "only candidate", Group: "vip", Status: common.ChannelStatusEnabled, Priority: &firstPriority, Weight: &firstWeight},
+		{Id: 22, Name: "missing ratio", Group: "vip", Status: common.ChannelStatusEnabled, Priority: &secondPriority, Weight: &secondWeight},
+	}
+	require.NoError(t, db.Create(&channels).Error)
+	require.NoError(t, db.Create(&[]model.ChannelRatioMonitor{
+		{ChannelId: 21, Ratio: 1, UpdatedTime: 1},
+		{ChannelId: 22},
+	}).Error)
+
+	result, err := runChannelSmartScheduleOnce(context.Background(), nil, true)
+	require.NoError(t, err)
+	assert.Zero(t, result.Updated)
+	assert.Equal(t, 2, result.Skipped)
+
+	for channelId, expected := range map[int]struct {
+		priority int64
+		weight   int
+	}{
+		21: {priority: 0, weight: 10},
+		22: {priority: 0, weight: 10},
+	} {
+		var channel model.Channel
+		require.NoError(t, db.First(&channel, "id = ?", channelId).Error)
+		assert.Equal(t, expected.priority, channel.GetPriority())
+		assert.Equal(t, expected.weight, channel.GetWeight())
+	}
 }
 
 func TestPlanChannelSmartScheduleWeightOnlyKeepsPriorityCohorts(t *testing.T) {

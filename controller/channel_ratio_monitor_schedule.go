@@ -224,7 +224,7 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 			}
 			channelIds = append(channelIds, channel.Id)
 		}
-		if err := model.ResetChannelSmartSchedulePriorityWeight(channelIds); err != nil {
+		if err := model.ResetChannelSmartSchedulePriorityWeight(channelIds, channelMonitorSmartScheduleMinWeight); err != nil {
 			return result, err
 		}
 		channelCacheDirty = len(channelIds) > 0
@@ -315,7 +315,7 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 		currentWeight := uint(channel.GetWeight())
 		if forceReset && channel.Status == common.ChannelStatusEnabled && !monitor.SmartScheduleExcluded {
 			currentPriority = 0
-			currentWeight = 0
+			currentWeight = channelMonitorSmartScheduleMinWeight
 		}
 		if channel.Status != common.ChannelStatusEnabled {
 			statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(

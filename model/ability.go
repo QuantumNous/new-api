@@ -60,14 +60,14 @@ func GetAllEnableAbilities() []Ability {
 	return abilities
 }
 
-func getPriority(group string, model string, retry int) (int, error) {
+func getPriority(group string, model string, retry int, options ChannelSelectionOptions) (int, error) {
 
 	var priorities []int
-	err := DB.Model(&Ability{}).
+	priorityQuery := DB.Model(&Ability{}).
 		Select("DISTINCT(priority)").
-		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
-		Order("priority DESC").              // 按优先级降序排序
-		Pluck("priority", &priorities).Error // Pluck用于将查询的结果直接扫描到一个切片中
+		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
+	priorityQuery = applyChannelSelectionOptions(priorityQuery, options)
+	err := priorityQuery.Order("priority DESC").Pluck("priority", &priorities).Error
 
 	if err != nil {
 		// 处理错误
@@ -90,26 +90,39 @@ func getPriority(group string, model string, retry int) (int, error) {
 	return priorityToUse, nil
 }
 
-func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
-	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
-	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
+func getChannelQuery(group string, model string, retry int, options ChannelSelectionOptions) (*gorm.DB, error) {
+	maxPrioritySubQuery := applyChannelSelectionOptions(
+		DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true),
+		options,
+	)
+	channelQuery := applyChannelSelectionOptions(
+		DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery),
+		options,
+	)
 	if retry != 0 {
-		priority, err := getPriority(group, model, retry)
+		priority, err := getPriority(group, model, retry, options)
 		if err != nil {
 			return nil, err
 		} else {
-			channelQuery = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priority)
+			channelQuery = applyChannelSelectionOptions(
+				DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priority),
+				options,
+			)
 		}
 	}
 
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+func GetChannel(group string, model string, retry int, requestPath string, options ...ChannelSelectionOptions) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	selectionOptions := channelSelectionOptions(options)
+	if selectionOptions.HasExcludedChannels() {
+		retry = 0
+	}
+	channelQuery, err := getChannelQuery(group, model, retry, selectionOptions)
 	if err != nil {
 		return nil, err
 	}

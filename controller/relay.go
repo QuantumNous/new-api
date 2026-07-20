@@ -200,11 +200,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 	retryBudget := newRelayRetryBudget()
+	retryRouting := newRelayRetryRouting()
 	finalRetryLogPending := false
 
 	for retryParam.GetRetry() <= common.RetryTimes {
 		relayInfo.RetryIndex = retryParam.GetRetry()
-		channel, channelErr := getChannel(c, relayInfo, retryParam)
+		channel, channelErr := getChannel(c, relayInfo, retryParam, retryRouting)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
@@ -244,6 +245,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.LastError = newAPIError
 
 		shouldRetry := prepareNextRelayAttempt(c, relayInfo.RelayMode, newAPIError, retryParam, &retryBudget)
+		if shouldRetry {
+			selectedGroup := retryParam.TokenGroup
+			if selectedGroup == "auto" {
+				selectedGroup = common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+			}
+			retryRouting.recordFailure(channel.Id, selectedGroup)
+		}
 		processChannelError(c,
 			*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 				common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
@@ -315,7 +323,7 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	return meta
 }
 
-func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
+func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam, retryRoutings ...*relayRetryRouting) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
@@ -329,7 +337,14 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
-	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
+	var retryRouting *relayRetryRouting
+	if len(retryRoutings) > 0 {
+		retryRouting = retryRoutings[len(retryRoutings)-1]
+	}
+	channel, selectGroup, err := retryRouting.selectChannel(c, retryParam)
+	if retryParam.TokenGroup == "auto" && channel != nil && selectGroup != "" {
+		common.SetContextKey(c, constant.ContextKeyAutoGroup, selectGroup)
+	}
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
 

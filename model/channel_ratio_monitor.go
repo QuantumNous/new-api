@@ -287,7 +287,7 @@ func UpdateChannelSmartSchedulePriorityWeight(channelId int, priority *int64, we
 	})
 }
 
-func ResetChannelSmartSchedulePriorityWeight(channelIds []int) error {
+func ResetChannelSmartSchedulePriorityWeight(channelIds []int, weight uint) error {
 	if len(channelIds) == 0 {
 		return nil
 	}
@@ -295,7 +295,7 @@ func ResetChannelSmartSchedulePriorityWeight(channelIds []int) error {
 	const batchSize = 500
 	updates := map[string]any{
 		"priority": int64(0),
-		"weight":   uint(0),
+		"weight":   weight,
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		for start := 0; start < len(channelIds); start += batchSize {

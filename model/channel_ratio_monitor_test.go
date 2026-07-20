@@ -449,12 +449,12 @@ func TestChannelSmartSchedulePriorityWeightUpdatesKeepAbilitiesInSync(t *testing
 	assert.Equal(t, targetPriority, *ability.Priority)
 	assert.Equal(t, targetWeight, ability.Weight)
 
-	require.NoError(t, ResetChannelSmartSchedulePriorityWeight([]int{channel.Id}))
+	require.NoError(t, ResetChannelSmartSchedulePriorityWeight([]int{channel.Id}, 10))
 	require.NoError(t, DB.Where("id = ?", channel.Id).First(&storedChannel).Error)
 	assert.Equal(t, int64(0), storedChannel.GetPriority())
-	assert.Equal(t, 0, storedChannel.GetWeight())
+	assert.Equal(t, 10, storedChannel.GetWeight())
 	require.NoError(t, DB.Where("channel_id = ?", channel.Id).First(&ability).Error)
 	require.NotNil(t, ability.Priority)
 	assert.Equal(t, int64(0), *ability.Priority)
-	assert.Equal(t, uint(0), ability.Weight)
+	assert.Equal(t, uint(10), ability.Weight)
 }
