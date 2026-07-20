@@ -40,7 +40,9 @@ func TestChannelHealthPriorityDemotionNeedsRepeatedRecentSlowness(t *testing.T) 
 	assert.True(t, health.shouldDemotePriority(key), "repeated recent slowness should lower selection priority")
 
 	clock.Advance(channelHealthFailureWindow + time.Nanosecond)
-	assert.False(t, health.shouldDemotePriority(key), "stale slowness must expire without waiting for another request")
+	assert.False(t, health.shouldDemotePriority(key), "stale slowness should allow one recovery probe")
+	assert.True(t, health.entries[key].priorityDemoted, "a probe lease must not erase the recovery evidence")
+	assert.True(t, health.shouldDemotePriority(key), "other requests must remain demoted while the probe lease is active")
 
 	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
 	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
@@ -49,6 +51,98 @@ func TestChannelHealthPriorityDemotionNeedsRepeatedRecentSlowness(t *testing.T) 
 	assert.True(t, health.shouldDemotePriority(key), "one fast response must not flap priority back immediately")
 	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: 500 * time.Millisecond})
 	assert.False(t, health.shouldDemotePriority(key), "repeated fast responses should restore configured priority")
+}
+
+func TestChannelHealthPriorityDemotionSurvivesSlowCircuitRecoveryUntilHealthy(t *testing.T) {
+	useDefaultSlowLatencyThreshold(t)
+	health, clock := newTestChannelHealth(t)
+	key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	slow := channelHealthSlowLatency() + time.Second
+	fast := 500 * time.Millisecond
+
+	for i := 0; i < channelHealthSlowThreshold; i++ {
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: slow})
+	}
+	require.Equal(t, ChannelHealthOpen, health.State(key))
+	require.True(t, health.entries[key].priorityDemoted, "slow circuit recovery must retain the soft demotion")
+
+	clock.Advance(channelHealthOpenDuration)
+	require.True(t, health.Acquire(key), "expected a half-open recovery probe")
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+	assert.Equal(t, ChannelHealthClosed, health.State(key))
+	assert.True(t, health.shouldDemotePriority(key), "one fast probe must not restore the original priority tier")
+
+	health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+	assert.False(t, health.shouldDemotePriority(key), "healthy consecutive probes should restore the original priority tier")
+}
+
+func TestChannelHealthPriorityRecoveryRequiresConsecutiveScoredFastResponses(t *testing.T) {
+	useDefaultSlowLatencyThreshold(t)
+	fast := 500 * time.Millisecond
+
+	t.Run("upstream failure breaks the streak", func(t *testing.T) {
+		health, _ := newTestChannelHealth(t)
+		key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+		for i := 0; i < channelHealthPriorityDemotionThreshold; i++ {
+			health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: channelHealthSlowLatency() + time.Second})
+		}
+		require.True(t, health.shouldDemotePriority(key))
+
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+		assert.True(t, health.shouldDemotePriority(key), "a failure must reset, not preserve, the fast recovery streak")
+
+		health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+		assert.False(t, health.shouldDemotePriority(key))
+	})
+
+	for _, tc := range []struct {
+		name    string
+		outcome ChannelOutcome
+	}{
+		{
+			name: "cold-cache success breaks the streak",
+			outcome: ChannelOutcome{
+				StatusCode:     http.StatusOK,
+				Latency:        30 * time.Second,
+				ColdCacheStart: true,
+			},
+		},
+		{
+			name:    "missing latency breaks the streak",
+			outcome: ChannelOutcome{StatusCode: http.StatusOK},
+		},
+		{
+			name:    "local error breaks the streak",
+			outcome: ChannelOutcome{StatusCode: http.StatusInternalServerError, LocalError: true},
+		},
+		{
+			name:    "semantic error breaks the streak",
+			outcome: ChannelOutcome{StatusCode: http.StatusInternalServerError, SemanticError: true},
+		},
+		{
+			name:    "client error breaks the streak",
+			outcome: ChannelOutcome{StatusCode: http.StatusBadRequest},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			health, _ := newTestChannelHealth(t)
+			key := ChannelHealthKey{ChannelID: 17, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+			for i := 0; i < channelHealthPriorityDemotionThreshold; i++ {
+				health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: channelHealthSlowLatency() + time.Second})
+			}
+			require.True(t, health.shouldDemotePriority(key))
+
+			health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+			health.Record(key, tc.outcome)
+			health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+			assert.True(t, health.shouldDemotePriority(key), "an unscored result must reset, not preserve, the fast recovery streak")
+
+			health.Record(key, ChannelOutcome{StatusCode: http.StatusOK, Latency: fast})
+			assert.False(t, health.shouldDemotePriority(key))
+		})
+	}
 }
 
 func TestChannelHealthPriorityDemotionIgnoresColdCacheStarts(t *testing.T) {
