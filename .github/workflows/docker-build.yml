@@ -1,10 +1,12 @@
 name: Publish Docker image (Multi-arch)
 
+# Fork note (ChinaToyHunter/new-api):
+# Self-update on production uses GitHub Release *binaries* (Release workflow),
+# not Docker Hub pushes to calciumion/new-api. Upstream's DOCKERHUB_* secrets
+# are not available on this fork, so automatic tag-triggered Docker publishes
+# always fail with "Username and password required". Keep this workflow manual
+# only; set repository secrets if you intentionally want to publish images.
 on:
-  push:
-    tags:
-      - '*'
-      - '!nightly*'
   workflow_dispatch:
     inputs:
       tag:
@@ -13,8 +15,23 @@ on:
         type: string
 
 jobs:
+  guard:
+    name: Check Docker Hub secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require DOCKERHUB credentials
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "::error::DOCKERHUB_USERNAME / DOCKERHUB_TOKEN are not configured. This fork publishes via GitHub Release binaries (self-update), not Docker Hub. Skip this workflow or add the secrets."
+            exit 1
+          fi
+
   build_single_arch:
     name: Build & push (${{ matrix.arch }})
+    needs: [guard]
     strategy:
       fail-fast: false
       matrix:
