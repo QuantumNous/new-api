@@ -293,6 +293,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogInfo(c, "client canceled the request; skipping retry and channel attribution")
 			break
 		}
+		if common.UpstreamHostCircuitMode != common.UpstreamHostCircuitModeOff {
+			service.ObserveUpstreamHostFailure(
+				relayRetryHost(relayInfo),
+				relayInfo.OriginModelName,
+				c.Request.URL.Path,
+				channel.Id,
+				newAPIError,
+			)
+		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
 		// Bound total retry wall-clock so a request cannot spend minutes cycling
@@ -544,9 +553,7 @@ func isClientCanceledError(apiErr *types.NewAPIError) bool {
 }
 
 func shouldAvoidRetryHost(apiErr *types.NewAPIError) bool {
-	return apiErr != nil &&
-		apiErr.GetErrorCode() == types.ErrorCodeDoRequestFailed &&
-		!isClientCanceledError(apiErr)
+	return service.ShouldObserveUpstreamHostFailure(apiErr)
 }
 
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {

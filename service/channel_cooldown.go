@@ -1,7 +1,10 @@
 package service
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -9,6 +12,51 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
 )
+
+var upstreamHostFailureExcludedKeywords = []string{
+	"no available account",
+	"concurrency limit exceeded",
+	"insufficient account balance",
+	"insufficient balance",
+	"insufficient_quota",
+	"credit balance is too low",
+}
+
+func ShouldObserveUpstreamHostFailure(err *types.NewAPIError) bool {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	message := strings.ToLower(err.Error() + " " + string(err.GetErrorCode()) + " " + string(err.GetErrorType()))
+	for _, keyword := range upstreamHostFailureExcludedKeywords {
+		if strings.Contains(message, keyword) {
+			return false
+		}
+	}
+	if err.GetErrorCode() == types.ErrorCodeDoRequestFailed {
+		return true
+	}
+	return err.UpstreamStatusCode == http.StatusBadGateway || err.UpstreamStatusCode == http.StatusServiceUnavailable
+}
+
+// ObserveUpstreamHostFailure records only strongly attributable transport or
+// upstream 502/503 failures. The model registry requires multiple failures from
+// distinct channel IDs before opening, so one account cannot sideline siblings.
+func ObserveUpstreamHostFailure(host, modelName, requestPath string, channelID int, err *types.NewAPIError) bool {
+	if !ShouldObserveUpstreamHostFailure(err) {
+		return false
+	}
+	host = model.NormalizeChannelBaseURLHost(host)
+	path := ChannelHealthPath(requestPath)
+	if host == "" || modelName == "" || path == "" {
+		return false
+	}
+	reason := fmt.Sprintf("upstream_host_unstable status=%d upstream_status=%d code=%s error=%s", err.StatusCode, err.UpstreamStatusCode, err.GetErrorCode(), err.Error())
+	opened := model.RecordChannelHostFailure(host, modelName, path, channelID, reason)
+	if opened {
+		common.SysLog(fmt.Sprintf("上游主机短时熔断：host=%s model=%s path=%s，持续 %s，原因：%s", host, modelName, path, 2*time.Minute, reason))
+	}
+	return opened
+}
 
 const (
 	ChannelCooldownDuration       = 30 * time.Minute

@@ -125,7 +125,16 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	// configured routes match; drop the rest before health/priority selection.
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, options.RequestPath, model)
 
-	avoidedChannelIDs := avoidedHostChannelIDs(abilities, options.AvoidChannelHosts, options.RequestPath, model)
+	channelHosts := make(map[int]string)
+	if len(options.AvoidChannelHosts) > 0 || common.UpstreamHostCircuitMode == common.UpstreamHostCircuitModeEnforce {
+		channelHosts = abilityChannelHosts(abilities, options.RequestPath, model)
+	}
+	avoidedChannelIDs := make(map[int]struct{})
+	for channelID, host := range channelHosts {
+		if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
+			avoidedChannelIDs[channelID] = struct{}{}
+		}
+	}
 	availableAbilities := make([]Ability, 0, len(abilities))
 	coolingAbilities := make([]Ability, 0, len(abilities))
 	for _, ability := range abilities {
@@ -167,38 +176,66 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	if retry >= len(sortedUniquePriorities) {
 		retry = len(sortedUniquePriorities) - 1
 	}
-	targetPriority := sortedUniquePriorities[retry]
-
-	var preferredAbilities []Ability
-	var avoidedAbilities []Ability
-	for _, ability := range availableAbilities {
-		priority := int(0)
-		if ability.Priority != nil {
-			priority = int(*ability.Priority)
+	var hostFallbackPreferred []Ability
+	var hostFallbackAvoided []Ability
+	channelId := 0
+	for priorityIndex := retry; priorityIndex < len(sortedUniquePriorities); priorityIndex++ {
+		targetPriority := sortedUniquePriorities[priorityIndex]
+		var preferredAbilities []Ability
+		var avoidedAbilities []Ability
+		var blockedPreferred []Ability
+		var blockedAvoided []Ability
+		for _, ability := range availableAbilities {
+			priority := int(0)
+			if ability.Priority != nil {
+				priority = int(*ability.Priority)
+			}
+			if priority != targetPriority {
+				continue
+			}
+			_, avoided := avoidedChannelIDs[ability.ChannelId]
+			if shouldEnforceChannelHostCircuit(channelHosts[ability.ChannelId], model, options.Path) {
+				if avoided {
+					blockedAvoided = append(blockedAvoided, ability)
+				} else {
+					blockedPreferred = append(blockedPreferred, ability)
+				}
+				continue
+			}
+			if avoided {
+				avoidedAbilities = append(avoidedAbilities, ability)
+			} else {
+				preferredAbilities = append(preferredAbilities, ability)
+			}
 		}
-		if priority != targetPriority {
+		if len(hostFallbackPreferred) == 0 && len(hostFallbackAvoided) == 0 &&
+			(len(blockedPreferred) > 0 || len(blockedAvoided) > 0) {
+			hostFallbackPreferred = blockedPreferred
+			hostFallbackAvoided = blockedAvoided
+		}
+		if len(preferredAbilities) == 0 && len(avoidedAbilities) == 0 {
 			continue
 		}
-		if _, avoided := avoidedChannelIDs[ability.ChannelId]; avoided {
-			avoidedAbilities = append(avoidedAbilities, ability)
-		} else {
-			preferredAbilities = append(preferredAbilities, ability)
-		}
+		channelId = selectAcquirableAbilityChannelIdWithFallback(
+			preferredAbilities,
+			effectiveAbilitySelectionWeights(preferredAbilities, model, options.Path),
+			avoidedAbilities,
+			effectiveAbilitySelectionWeights(avoidedAbilities, model, options.Path),
+			model,
+			options.Path,
+		)
+		break
 	}
-	if len(preferredAbilities) == 0 && len(avoidedAbilities) == 0 {
-		return nil, nil
+	if channelId == 0 && options.AllowCoolingFallback && (len(hostFallbackPreferred) > 0 || len(hostFallbackAvoided) > 0) {
+		channelId = selectAcquirableAbilityChannelIdWithFallback(
+			hostFallbackPreferred,
+			effectiveAbilitySelectionWeights(hostFallbackPreferred, model, options.Path),
+			hostFallbackAvoided,
+			effectiveAbilitySelectionWeights(hostFallbackAvoided, model, options.Path),
+			model,
+			options.Path,
+		)
 	}
-
-	preferredWeights := effectiveAbilitySelectionWeights(preferredAbilities, model, options.Path)
-	avoidedWeights := effectiveAbilitySelectionWeights(avoidedAbilities, model, options.Path)
-	channelId := selectAcquirableAbilityChannelIdWithFallback(
-		preferredAbilities,
-		preferredWeights,
-		avoidedAbilities,
-		avoidedWeights,
-		model,
-		options.Path,
-	)
 	if channelId == 0 {
 		return nil, nil
 	}
@@ -226,8 +263,8 @@ func selectAcquirableAbilityChannelIdWithFallback(preferred []Ability, preferred
 	return selectAcquirableAbilityChannelId(fallback, fallbackWeights, model, path)
 }
 
-func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, requestPath string, model string) map[int]struct{} {
-	if len(abilities) == 0 || len(avoidHosts) == 0 {
+func abilityChannelHosts(abilities []Ability, requestPath string, model string) map[int]string {
+	if len(abilities) == 0 {
 		return nil
 	}
 	channelIDs := make([]int, 0, len(abilities))
@@ -244,7 +281,7 @@ func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, 
 	if err := DB.Select("id", "type", "base_url", "settings").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
 		return nil
 	}
-	avoided := make(map[int]struct{})
+	hosts := make(map[int]string, len(channels))
 	for i := range channels {
 		var config *dto.AdvancedCustomConfig
 		if channels[i].Type == constant.ChannelTypeAdvancedCustom {
@@ -256,11 +293,21 @@ func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, 
 			}
 		}
 		host := channelRetryHost(&channels[i], config, requestPath, model)
-		if host == "" {
-			continue
+		if host != "" {
+			hosts[channels[i].Id] = host
 		}
-		if _, ok := avoidHosts[host]; ok {
-			avoided[channels[i].Id] = struct{}{}
+	}
+	return hosts
+}
+
+func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, requestPath string, model string) map[int]struct{} {
+	if len(avoidHosts) == 0 {
+		return nil
+	}
+	avoided := make(map[int]struct{})
+	for channelID, host := range abilityChannelHosts(abilities, requestPath, model) {
+		if _, ok := avoidHosts[host]; ok && host != "" {
+			avoided[channelID] = struct{}{}
 		}
 	}
 	return avoided

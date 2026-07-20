@@ -166,6 +166,10 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		if IsChannelCoolingDown(channel.Id) && !options.AllowCoolingFallback {
 			return nil, nil
 		}
+		host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+		if shouldEnforceChannelHostCircuit(host, model, options.Path) && !options.AllowCoolingFallback {
+			return nil, nil
+		}
 		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path}
 		if !AcquireChannelHealth(key) {
 			return nil, nil
@@ -211,42 +215,67 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 
-	if retry >= len(uniquePriorities) {
-		retry = len(uniquePriorities) - 1
+	if retry >= len(sortedUniquePriorities) {
+		retry = len(sortedUniquePriorities) - 1
 	}
-	targetPriority := int64(sortedUniquePriorities[retry])
 
-	// get the priority for the given retry number
-	var preferredChannels []*Channel
-	var avoidedChannels []*Channel
-	for _, channel := range availableChannels {
-		if channel.GetPriority() != targetPriority {
+	var hostFallbackPreferred []*Channel
+	var hostFallbackAvoided []*Channel
+	for priorityIndex := retry; priorityIndex < len(sortedUniquePriorities); priorityIndex++ {
+		targetPriority := int64(sortedUniquePriorities[priorityIndex])
+		var preferredChannels []*Channel
+		var avoidedChannels []*Channel
+		var blockedPreferred []*Channel
+		var blockedAvoided []*Channel
+		for _, channel := range availableChannels {
+			if channel.GetPriority() != targetPriority {
+				continue
+			}
+			host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+			_, avoided := options.AvoidChannelHosts[host]
+			if shouldEnforceChannelHostCircuit(host, model, options.Path) {
+				if avoided && host != "" {
+					blockedAvoided = append(blockedAvoided, channel)
+				} else {
+					blockedPreferred = append(blockedPreferred, channel)
+				}
+				continue
+			}
+			if avoided && host != "" {
+				avoidedChannels = append(avoidedChannels, channel)
+			} else {
+				preferredChannels = append(preferredChannels, channel)
+			}
+		}
+		if len(hostFallbackPreferred) == 0 && len(hostFallbackAvoided) == 0 &&
+			(len(blockedPreferred) > 0 || len(blockedAvoided) > 0) {
+			hostFallbackPreferred = blockedPreferred
+			hostFallbackAvoided = blockedAvoided
+		}
+		if len(preferredChannels) == 0 && len(avoidedChannels) == 0 {
 			continue
 		}
-		host := ""
-		if len(options.AvoidChannelHosts) > 0 {
-			host = channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
-		}
-		if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
-			avoidedChannels = append(avoidedChannels, channel)
-		} else {
-			preferredChannels = append(preferredChannels, channel)
-		}
-	}
-	if len(preferredChannels) == 0 && len(avoidedChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
-	}
 
-	preferredWeights := effectiveChannelSelectionWeights(preferredChannels, model, options.Path)
-	avoidedWeights := effectiveChannelSelectionWeights(avoidedChannels, model, options.Path)
-	return selectAcquirableChannelWithFallback(
-		preferredChannels,
-		preferredWeights,
-		avoidedChannels,
-		avoidedWeights,
-		model,
-		options.Path,
-	)
+		return selectAcquirableChannelWithFallback(
+			preferredChannels,
+			effectiveChannelSelectionWeights(preferredChannels, model, options.Path),
+			avoidedChannels,
+			effectiveChannelSelectionWeights(avoidedChannels, model, options.Path),
+			model,
+			options.Path,
+		)
+	}
+	if options.AllowCoolingFallback && (len(hostFallbackPreferred) > 0 || len(hostFallbackAvoided) > 0) {
+		return selectAcquirableChannelWithFallback(
+			hostFallbackPreferred,
+			effectiveChannelSelectionWeights(hostFallbackPreferred, model, options.Path),
+			hostFallbackAvoided,
+			effectiveChannelSelectionWeights(hostFallbackAvoided, model, options.Path),
+			model,
+			options.Path,
+		)
+	}
+	return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s", group, model))
 }
 
 func effectiveChannelSelectionWeights(channels []*Channel, model string, path string) []int {

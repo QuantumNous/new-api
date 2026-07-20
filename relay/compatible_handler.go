@@ -83,7 +83,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
 		applySystemPromptIfNeeded(c, info, request)
 		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, request)
-		service.ObserveStreamChannelQuality(info)
+		service.ObserveStreamChannelQualityForRequest(c, info)
 		if newApiErr != nil {
 			return newApiErr
 		}
@@ -217,7 +217,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 
 	usage, newApiErr := adaptor.DoResponse(c, httpResp, info)
-	service.ObserveStreamChannelQuality(info)
+	service.ObserveStreamChannelQualityForRequest(c, info)
 	if newApiErr != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)

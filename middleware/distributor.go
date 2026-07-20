@@ -163,6 +163,12 @@ func Distribute() func(c *gin.Context) {
 							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
 					}
+					if !affinityUsable {
+						// The next selected channel cannot share this affinity's prompt
+						// cache. Mark the migration so its one-time cold prefill does not
+						// poison channel latency scoring or trigger another migration.
+						common.SetContextKey(c, constant.ContextKeyAffinityColdStart, true)
+					}
 					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
 						service.ClearCurrentChannelAffinityCache(c)
 					}

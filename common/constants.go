@@ -115,6 +115,16 @@ var DebugEnabled bool
 var MemoryCacheEnabled bool
 var AdaptiveChannelHealthEnabled bool
 
+const (
+	UpstreamHostCircuitModeOff     = "off"
+	UpstreamHostCircuitModeObserve = "observe"
+	UpstreamHostCircuitModeEnforce = "enforce"
+)
+
+// UpstreamHostCircuitMode controls the cross-channel transient host circuit.
+// It defaults to off so operators can observe transitions before enforcing it.
+var UpstreamHostCircuitMode string
+
 var LogConsumeEnabled = true
 
 var TLSInsecureSkipVerify bool
