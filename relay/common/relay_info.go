@@ -707,6 +707,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	aux := &struct {
 		Metadata      json.RawMessage `json:"metadata,omitempty"`
 		Duration      json.RawMessage `json:"duration,omitempty"`
+		Seconds       json.RawMessage `json:"seconds,omitempty"`
 		Image         json.RawMessage `json:"image,omitempty"`
 		ImageURL      json.RawMessage `json:"image_url,omitempty"`
 		ImageURLs     json.RawMessage `json:"image_urls,omitempty"`
@@ -734,6 +735,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	}
 
 	unmarshalTaskSubmitDuration(aux.Duration, t)
+	unmarshalTaskSubmitSeconds(aux.Seconds, t)
 	unmarshalTaskSubmitMetadata(aux.Metadata, t)
 
 	// Flexible bools from form-data (often arrive as "1"/"0"/"true" strings)

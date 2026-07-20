@@ -35,6 +35,16 @@ func normalizeCreateBody(body map[string]interface{}) {
 	if res, ok := body["resolution"].(string); ok {
 		body["resolution"] = normalizeResolution(res)
 	}
+
+	// MegaByAI rejects OpenAI-only / aliased fields ("Extra inputs are not permitted").
+	delete(body, "seconds")
+	delete(body, "size")
+	delete(body, "aspect_ratio")
+	delete(body, "images")
+	delete(body, "image")
+	delete(body, "input_reference")
+	delete(body, "videos")
+	delete(body, "audios")
 }
 
 func rejectUnsupportedFrames(body map[string]interface{}) error {
@@ -58,7 +68,8 @@ func rejectUnsupportedFrames(body map[string]interface{}) error {
 	return nil
 }
 
-// syncDurationSeconds keeps OpenAI `seconds` and MegaByAI `duration` in sync.
+// syncDurationSeconds maps OpenAI `seconds` into MegaByAI `duration`.
+// Upstream only accepts `duration`; callers must strip `seconds` after sync.
 func syncDurationSeconds(body map[string]interface{}) {
 	if body == nil {
 		return
@@ -67,10 +78,6 @@ func syncDurationSeconds(body map[string]interface{}) {
 	sec := positiveInt(body["seconds"])
 	if dur <= 0 && sec > 0 {
 		body["duration"] = sec
-		return
-	}
-	if sec <= 0 && dur > 0 {
-		body["seconds"] = strconv.Itoa(dur)
 	}
 }
 

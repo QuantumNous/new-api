@@ -64,3 +64,14 @@ func TestTaskSubmitReqUnmarshalImagesStringArray(t *testing.T) {
 		t.Fatalf("images = %#v", req.Images)
 	}
 }
+
+func TestTaskSubmitReqUnmarshalSecondsNumber(t *testing.T) {
+	raw := []byte(`{"model":"videos-fast","prompt":"x","seconds":5}`)
+	var req TaskSubmitReq
+	if err := common.Unmarshal(raw, &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if req.Seconds != "5" {
+		t.Fatalf("seconds = %q", req.Seconds)
+	}
+}

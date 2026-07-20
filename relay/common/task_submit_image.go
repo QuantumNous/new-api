@@ -97,6 +97,26 @@ func unmarshalTaskSubmitDuration(raw json.RawMessage, t *TaskSubmitReq) {
 	}
 }
 
+func unmarshalTaskSubmitSeconds(raw json.RawMessage, t *TaskSubmitReq) {
+	if len(raw) == 0 {
+		return
+	}
+	var asInt int
+	if err := common.Unmarshal(raw, &asInt); err == nil && asInt > 0 {
+		t.Seconds = strconv.Itoa(asInt)
+		return
+	}
+	var asFloat float64
+	if err := common.Unmarshal(raw, &asFloat); err == nil && asFloat > 0 {
+		t.Seconds = strconv.Itoa(int(asFloat))
+		return
+	}
+	var asStr string
+	if err := common.Unmarshal(raw, &asStr); err == nil {
+		t.Seconds = strings.TrimSpace(asStr)
+	}
+}
+
 func unmarshalTaskSubmitMetadata(raw json.RawMessage, t *TaskSubmitReq) {
 	if len(raw) == 0 {
 		return

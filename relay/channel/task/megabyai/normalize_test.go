@@ -34,11 +34,19 @@ func TestNormalizeCreateBody_ImagesToReferenceImages(t *testing.T) {
 func TestNormalizeCreateBody_SecondsDurationSync(t *testing.T) {
 	body := map[string]interface{}{"seconds": "8"}
 	normalizeCreateBody(body)
-	if body["duration"] != 8 && body["duration"] != float64(8) {
-		// accept int after normalize
-		if v, ok := body["duration"].(int); !ok || v != 8 {
-			t.Fatalf("duration=%v", body["duration"])
-		}
+	if v, ok := body["duration"].(int); !ok || v != 8 {
+		t.Fatalf("duration=%v", body["duration"])
+	}
+	if _, ok := body["seconds"]; ok {
+		t.Fatal("seconds must be stripped before upstream (MegaByAI rejects it)")
+	}
+}
+
+func TestNormalizeCreateBody_DurationOnlyDoesNotInjectSeconds(t *testing.T) {
+	body := map[string]interface{}{"duration": float64(5), "prompt": "x"}
+	normalizeCreateBody(body)
+	if _, ok := body["seconds"]; ok {
+		t.Fatal("must not inject seconds for MegaByAI upstream")
 	}
 }
 
