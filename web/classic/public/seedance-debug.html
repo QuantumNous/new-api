@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Seedance 三模型调试</title>
+  <title>Seedance 模型调试</title>
   <style>
     :root {
       color-scheme: dark;
@@ -312,7 +312,7 @@
   <main class="app">
     <header class="top">
       <div class="brand">
-        <div class="logo">五模型</div>
+        <div class="logo">Seedance</div>
         <div>
           <h1>Seedance 视频调试</h1>
           <p class="sub">选择模型自动构建参数。本地图片经图床转公网 URL；Key 仅保存在本机浏览器。</p>
@@ -343,7 +343,7 @@
           <button class="secondary" id="addUrlBtn" type="button">添加</button>
         </div>
       </div>
-      <p class="hint">提示词输入 @ 引用素材。mingiz 可选 multipart 直传本地文件。</p>
+      <p class="hint">提示词输入 @ 引用素材。mingiz / VyroSeedance 可选 multipart 直传本地文件。</p>
       <div class="asset-list" id="assetList"></div>
     </section>
 
@@ -428,7 +428,7 @@
       </div>
       <div class="field hidden" id="customModelField">
         <label for="customModel">自定义模型 ID</label>
-        <input id="customModel" type="text" placeholder="例如 seedance2.0 / lec-seedance-videos-stable" autocomplete="off">
+        <input id="customModel" type="text" placeholder="例如 wstar-seedance-2-fast / seedance2.0" autocomplete="off">
         <p class="hint">走 OpenAI Videos（同 seedance2.0）：POST /v1/videos + 图床 URL。</p>
       </div>
       <div class="model-hint" id="modelHint"></div>
@@ -443,7 +443,7 @@
         </select>
       </div>
       <div class="field" id="mingizSendField">
-        <label for="mingizSend">mingiz 素材发送</label>
+        <label for="mingizSend">素材发送方式</label>
         <select id="mingizSend">
           <option value="multipart" selected>multipart 直传本地文件</option>
           <option value="json">JSON + 图床 URL</option>
@@ -544,6 +544,34 @@
         contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
         durations: [5, 8, 10, 12, 15],
         defaultDuration: 10,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: true,
+      },
+      "wstar-seedance-2-fast": {
+        label: "wstar-seedance-2-fast（VyroSeedance）",
+        family: "vyro",
+        hint: "VyroSeedance · POST /v1/videos · 可 multipart 直传 reference_images，或 JSON + 图床 URL（images）。渠道类型选 VyroSeedance。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 8, 10, 12, 15],
+        defaultDuration: 15,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: true,
+      },
+      "vyro-seedance-2-fast": {
+        label: "vyro-seedance-2-fast（VyroSeedance 遗留）",
+        family: "vyro",
+        hint: "VyroSeedance 遗留模型名 · POST /v1/videos · 协议同 wstar-seedance-2-fast；对外推荐用 wstar-seedance-2-fast。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 8, 10, 12, 15],
+        defaultDuration: 15,
         showMode: true,
         showResolution: true,
         showAudioWatermark: false,
@@ -1223,7 +1251,7 @@
     function buildRequestPlan() {
       const p = profile();
       const submitAssets = getSubmitAssets();
-      const preferMultipart = p.family === "mingiz" && els.mingizSend.value === "multipart";
+      const preferMultipart = (p.family === "mingiz" || p.family === "vyro") && els.mingizSend.value === "multipart";
       if (p.family === "aistar") {
         return { kind: "json", path: p.createPath, body: buildAistarBody(submitAssets), assets: submitAssets, preferMultipart: false };
       }
@@ -1570,7 +1598,7 @@
       assets = assets.concat(incoming);
       renderAssets();
       const p = profile();
-      const preferMultipart = p.family === "mingiz" && els.mingizSend.value === "multipart";
+      const preferMultipart = (p.family === "mingiz" || p.family === "vyro") && els.mingizSend.value === "multipart";
       const useFacePass = facePassEnabled();
       for (const asset of incoming) {
         try {
