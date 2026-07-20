@@ -1220,13 +1220,16 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 	if taskErr == nil {
 		return false
 	}
-	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) && taskErr.StatusCode/100 != 5 {
-		return false
-	}
 	if retryTimes <= 0 {
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	if !taskErr.LocalError && taskErr.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) && taskErr.StatusCode/100 != 5 {
 		return false
 	}
 	if taskErr.StatusCode == http.StatusTooManyRequests {
