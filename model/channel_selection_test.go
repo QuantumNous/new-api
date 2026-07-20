@@ -162,6 +162,34 @@ func TestSelectAcquirableChannelFallsBackWhenInitialPickLosesAcquireRace(t *test
 	}
 }
 
+func TestSelectAcquirableChannelTreatsLostProbeLeaseAsExhaustion(t *testing.T) {
+	oldHealthEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	clearChannelHealthForTest()
+	t.Cleanup(func() {
+		clearChannelHealthForTest()
+		common.AdaptiveChannelHealthEnabled = oldHealthEnabled
+	})
+
+	key := ChannelHealthKey{ChannelID: 41, Model: "gpt-5.6-sol", Path: "/v1/responses"}
+	for i := 0; i < channelHealthFailureThreshold; i++ {
+		RecordChannelOutcome(key, ChannelOutcome{StatusCode: http.StatusServiceUnavailable})
+	}
+	adaptiveChannelHealth.mu.Lock()
+	adaptiveChannelHealth.entries[key].openUntil = time.Now().Add(-time.Second)
+	adaptiveChannelHealth.mu.Unlock()
+	require.True(t, AcquireChannelHealth(key))
+
+	selected, err := selectAcquirableChannel(
+		[]*Channel{{Id: 41}},
+		[]int{100},
+		"gpt-5.6-sol",
+		"/v1/responses",
+	)
+	require.NoError(t, err)
+	assert.Nil(t, selected)
+}
+
 func TestGetRandomSatisfiedChannelExcludesAttemptedChannelOnRetry(t *testing.T) {
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = true
