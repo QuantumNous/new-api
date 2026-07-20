@@ -2798,6 +2798,7 @@
     "MySQL is production ready. Ensure automated backups and a dedicated user with the minimal required privileges are configured.": "MySQLは本番環境に対応しています。自動バックアップと、最小限必要な権限を持つ専用ユーザーが設定されていることを確認してください。",
     "N/A": "該当なし",
     "Name": "名称",
+    "Latest": "最新",
     "Name *": "名前 *",
     "Name for this redemption code (1-20 characters)": "この引き換えコードの名前（1～20文字）",
     "Name is available": "名前が利用可能です",

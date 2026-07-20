@@ -2798,6 +2798,7 @@
     "MySQL is production ready. Ensure automated backups and a dedicated user with the minimal required privileges are configured.": "MySQL đã sẵn sàng để triển khai sản xuất. Đảm bảo sao lưu tự động và một người dùng chuyên dụng với các đặc quyền tối thiểu cần thiết được cấu hình.",
     "N/A": "N/A",
     "Name": "Tên",
+    "Latest": "Mới nhất",
     "Name *": "Tên *",
     "Name for this redemption code (1-20 characters)": "Tên cho mã đổi quà này (1-20 ký tự)",
     "Name is available": "Tên có sẵn",
