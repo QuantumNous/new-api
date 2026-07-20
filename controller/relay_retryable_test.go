@@ -8,8 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 func newTestContext() *gin.Context {
@@ -147,4 +149,53 @@ func TestShouldRetrySkipsClientCanceled(t *testing.T) {
 	if !shouldRetry(c, timeout, 3) {
 		t.Fatal("an upstream timeout must still retry onto another channel")
 	}
+}
+
+func TestUpstreamRateLimitExtraRetryRequiresUncommittedUpstream429(t *testing.T) {
+	upstream429 := types.NewErrorWithStatusCode(
+		errors.New("Too many pending requests, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+	upstream429.UpstreamStatusCode = http.StatusTooManyRequests
+
+	assert.True(t, isUpstreamRateLimitError(upstream429))
+	assert.True(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, upstream429))
+
+	mapped429 := types.NewErrorWithStatusCode(
+		errors.New("Upstream rate limit exceeded, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusServiceUnavailable,
+	)
+	mapped429.UpstreamStatusCode = http.StatusTooManyRequests
+	assert.True(t, isUpstreamRateLimitError(mapped429), "client-facing status mappings must not hide the upstream 429")
+	assert.True(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, mapped429))
+
+	local429 := types.NewErrorWithStatusCode(
+		errors.New("local rate limit"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+	assert.False(t, isUpstreamRateLimitError(local429), "local 429s must stay outside channel retry policy")
+	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, local429))
+
+	committed := newTestContext()
+	committed.Writer.WriteHeader(http.StatusOK)
+	assert.True(t, relayResponseCommitted(committed, &relaycommon.RelayInfo{}))
+	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(committed, &relaycommon.RelayInfo{}, upstream429))
+}
+
+func TestUpstreamRateLimitExtraRetryStopsAfterAttemptStreamData(t *testing.T) {
+	apiErr := types.NewErrorWithStatusCode(
+		errors.New("rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+	apiErr.UpstreamStatusCode = http.StatusTooManyRequests
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.RecordDataReceived()
+	info := &relaycommon.RelayInfo{StreamStatus: streamStatus}
+
+	assert.True(t, relayResponseCommitted(newTestContext(), info))
+	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), info, apiErr))
 }

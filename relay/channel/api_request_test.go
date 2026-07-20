@@ -10,6 +10,7 @@ import (
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,6 +89,59 @@ func TestDoWssRequestRecordsResolvedHostBeforeDialFailure(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, conn)
 	require.Equal(t, serverURL.Hostname(), info.AttemptUpstreamHost)
+}
+
+func TestDoRequestDoesNotExposeSSEHeadersForRejectedStream(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"message":"rate limited"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	resp, err := DoRequest(c, req, &relaycommon.RelayInfo{
+		IsStream:    true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	assert.Empty(t, recorder.Header().Get("Content-Type"))
+	assert.Empty(t, recorder.Header().Get("Transfer-Encoding"))
+	assert.False(t, c.Writer.Written())
+}
+
+func TestDoRequestKeepsSSEHeadersForAcceptedStream(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	resp, err := DoRequest(c, req, &relaycommon.RelayInfo{
+		IsStream:    true,
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	assert.False(t, c.Writer.Written())
 }
 
 func TestProcessHeaderOverride_ChannelTestSkipsClientHeaderPlaceholder(t *testing.T) {
