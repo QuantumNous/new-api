@@ -2798,6 +2798,7 @@
     "MySQL is production ready. Ensure automated backups and a dedicated user with the minimal required privileges are configured.": "MySQL est prêt pour la production. Assurez-vous que des sauvegardes automatisées et un utilisateur dédié avec les privilèges minimaux requis sont configurés.",
     "N/A": "N/A",
     "Name": "Nom",
+    "Latest": "Les plus récents",
     "Name *": "Nom *",
     "Name for this redemption code (1-20 characters)": "Nom pour ce code d'échange (1-20 caractères)",
     "Name is available": "Nom disponible",
