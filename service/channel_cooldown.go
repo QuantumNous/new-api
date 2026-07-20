@@ -226,6 +226,15 @@ func CooldownChannelForUpstreamRateLimit(channelError types.ChannelError, err *t
 		return
 	}
 	reason := fmt.Sprintf("upstream_rate_limit status=%d upstream_status=%d code=%s type=%s error=%s", err.StatusCode, err.UpstreamStatusCode, err.GetErrorCode(), err.GetErrorType(), err.Error())
+	if channelError.IsMultiKey {
+		if channelError.UsingKey == "" {
+			common.SysLog(fmt.Sprintf("通道 Key 冷却跳过：#%d，无法归因具体 Key，原因：%s", channelError.ChannelId, reason))
+			return
+		}
+		common.SysLog(fmt.Sprintf("通道 Key 冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, UpstreamRateLimitCooldownDuration, reason))
+		model.CooldownChannelKey(channelError.ChannelId, channelError.UsingKey, reason, UpstreamRateLimitCooldownDuration)
+		return
+	}
 	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, UpstreamRateLimitCooldownDuration, reason))
 	model.CooldownChannel(channelError.ChannelId, reason, UpstreamRateLimitCooldownDuration)
 }

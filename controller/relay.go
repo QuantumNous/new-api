@@ -1113,9 +1113,11 @@ func RelayTask(c *gin.Context) {
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		var channel *model.Channel
+		channelLocked := false
 
 		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
 			channel = lockedCh
+			channelLocked = true
 			if retryParam.GetRetry() > 0 {
 				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
 					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)
@@ -1163,7 +1165,7 @@ func RelayTask(c *gin.Context) {
 				taskAPIError)
 		}
 
-		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetryTaskRelay(c, channelLocked, taskErr, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
 	}
@@ -1216,7 +1218,7 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	c.JSON(taskErr.StatusCode, taskErr)
 }
 
-func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError, retryTimes int) bool {
+func shouldRetryTaskRelay(c *gin.Context, channelLocked bool, taskErr *dto.TaskError, retryTimes int) bool {
 	if taskErr == nil {
 		return false
 	}
@@ -1224,6 +1226,9 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	if channelLocked && !taskErr.LocalError && taskErr.StatusCode == http.StatusTooManyRequests {
 		return false
 	}
 	if !taskErr.LocalError && taskErr.StatusCode == http.StatusTooManyRequests {

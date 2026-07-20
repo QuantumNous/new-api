@@ -16,6 +16,7 @@ func TestGetNextEnabledKeyPrefersNonCoolingSibling(t *testing.T) {
 
 	channel := &Channel{
 		Id:   17,
+		Key:  "key-a\nkey-b",
 		Keys: []string{"key-a", "key-b"},
 		ChannelInfo: ChannelInfo{
 			IsMultiKey:   true,
@@ -39,6 +40,7 @@ func TestGetNextEnabledKeyFallsBackWhenEveryEnabledKeyIsCooling(t *testing.T) {
 
 	channel := &Channel{
 		Id:   18,
+		Key:  "key-a\nkey-b",
 		Keys: []string{"key-a", "key-b"},
 		ChannelInfo: ChannelInfo{
 			IsMultiKey:         true,
