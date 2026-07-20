@@ -341,6 +341,111 @@ func TestSubmitAsyncImageEncryptsPromptAndBillingRequestSnapshotAtRest(t *testin
 	assert.Equal(t, "billing-trace-secret", restoredBillingInput.Headers["X-Trace-Id"])
 }
 
+func TestSubmitAsyncImagePersistsStandardGenerationLogSnapshot(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	user, token := seedAsyncImageSubmitIdentity(t)
+	info := newAsyncImageSubmitRelayInfo(user, token, 120)
+	request := info.Request.(*dto.ImageRequest)
+	request.Size = "1024x1024"
+	request.Quality = "high"
+	request.OutputFormat = json.RawMessage(`"png"`)
+	request.Extra = map[string]json.RawMessage{
+		"aspect_ratio": json.RawMessage(`"16:9"`),
+		"resolution":   json.RawMessage(`"2K"`),
+		"batch_size":   json.RawMessage(`3`),
+	}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	apiErr := SubmitAsyncImage(
+		c,
+		info,
+		request,
+		nil,
+		&PreparedAsyncImageRequest{ConfigurationStored: true, RelayMode: relayconstant.RelayModeImagesGenerations},
+	)
+	require.Nil(t, apiErr)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	require.NotNil(t, task.PrivateData.BillingContext)
+	stored, err := task.PrivateData.BillingContext.ResolveBillingRequestInput()
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(stored.Body, &fields))
+	assert.JSONEq(t, `"a lighthouse in rain"`, string(fields["prompt"]))
+	assert.JSONEq(t, `3`, string(fields["n"]))
+	assert.JSONEq(t, `"1024x1024"`, string(fields["size"]))
+	assert.JSONEq(t, `"high"`, string(fields["quality"]))
+	assert.JSONEq(t, `"png"`, string(fields["output_format"]))
+	assert.JSONEq(t, `"16:9"`, string(fields["aspect_ratio"]))
+	assert.JSONEq(t, `"2K"`, string(fields["resolution"]))
+}
+
+func TestMarshalAsyncImageBillingSnapshotRequestCanonicalizesNestedCount(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:  "provider-image-model",
+		Prompt: "draw",
+		Extra: map[string]json.RawMessage{
+			"input": json.RawMessage(`{"num_outputs":4,"prompt":"provider prompt"}`),
+		},
+	}
+
+	body, err := marshalAsyncImageBillingSnapshotRequest(request)
+	require.NoError(t, err)
+	body, err = sanitizeAsyncBillingRequestBody(body, request)
+	require.NoError(t, err)
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(body, &fields))
+	assert.JSONEq(t, `4`, string(fields["n"]))
+	assert.JSONEq(t, `{"num_outputs":4,"prompt":"provider prompt"}`, string(fields["input"]))
+}
+
+func TestSubmitAsyncImagePersistsStandardEditLogSnapshot(t *testing.T) {
+	setupAsyncImageSubmitTestDB(t)
+	user, token := seedAsyncImageSubmitIdentity(t)
+	info := newAsyncImageSubmitRelayInfo(user, token, 120)
+	info.RelayMode = relayconstant.RelayModeImagesEdits
+	request := info.Request.(*dto.ImageRequest)
+	request.Prompt = "restyle the private source"
+	request.Images = json.RawMessage(`[
+		"data:image/png;base64,cHJpdmF0ZS1pbWFnZS0x",
+		"data:image/png;base64,cHJpdmF0ZS1pbWFnZS0y"
+	]`)
+	request.Mask = json.RawMessage(`"data:image/png;base64,cHJpdmF0ZS1tYXNr"`)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+
+	apiErr := SubmitAsyncImage(
+		c,
+		info,
+		request,
+		&PreparedAsyncImageInputs{
+			ObjectKeys:    []string{"inputs/source-1.png", "inputs/source-2.png"},
+			MaskObjectKey: "inputs/mask.png",
+		},
+		&PreparedAsyncImageRequest{ConfigurationStored: true, RelayMode: relayconstant.RelayModeImagesEdits},
+	)
+	require.Nil(t, apiErr)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	require.NotNil(t, task.PrivateData.BillingContext)
+	stored, err := task.PrivateData.BillingContext.ResolveBillingRequestInput()
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	assert.NotContains(t, string(stored.Body), "cHJpdmF0ZS1pbWFnZS0x")
+	assert.NotContains(t, string(stored.Body), "cHJpdmF0ZS1pbWFnZS0y")
+	assert.NotContains(t, string(stored.Body), "cHJpdmF0ZS1tYXNr")
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(stored.Body, &fields))
+	assert.JSONEq(t, `["r2-input","r2-input"]`, string(fields["images"]))
+	assert.JSONEq(t, `"r2-input"`, string(fields["mask"]))
+}
+
 func TestSubmitAsyncImageDoesNotPersistStagedMaskSourceInBillingSnapshot(t *testing.T) {
 	setupAsyncImageSubmitTestDB(t)
 	user, token := seedAsyncImageSubmitIdentity(t)

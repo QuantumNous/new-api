@@ -6,10 +6,44 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+type imageTaskBillingLogOtherSnapshot struct {
+	TaskInfo struct {
+		Version int        `json:"version"`
+		Kind    string     `json:"kind"`
+		Status  TaskStatus `json:"status"`
+		Request struct {
+			Operation         string `json:"operation"`
+			Prompt            string `json:"prompt"`
+			Size              string `json:"size"`
+			Quality           string `json:"quality"`
+			N                 int    `json:"n"`
+			OutputFormat      string `json:"output_format"`
+			InputImageCount   int    `json:"input_image_count"`
+			HasMask           bool   `json:"has_mask"`
+			WebhookConfigured bool   `json:"webhook_configured"`
+		} `json:"request"`
+		Result struct {
+			PublicBase string `json:"public_base"`
+			Images     []struct {
+				URL           string `json:"url"`
+				RevisedPrompt string `json:"revised_prompt"`
+			} `json:"images"`
+			Count int `json:"count"`
+		} `json:"result"`
+		Timing struct {
+			SubmittedAt int64 `json:"submitted_at"`
+			CompletedAt int64 `json:"completed_at"`
+			TotalMS     int64 `json:"total_ms"`
+		} `json:"timing"`
+	} `json:"task_info"`
+}
 
 func TestImageTaskBillingLogRequestIDDoesNotTruncateLongTaskIdentity(t *testing.T) {
 	prefix := strings.Repeat("provider-task-prefix-", 8)
@@ -50,6 +84,270 @@ func TestFinalizeImageTaskEnqueuesAndDeliversBillingLogIdempotently(t *testing.T
 	require.NoError(t, DeliverImageTaskBillingLogOutbox(task.TaskID))
 	require.NoError(t, DB.Where("request_id = ?", outbox.RequestID).Find(&logs).Error)
 	assert.Len(t, logs, 1)
+}
+
+func TestFinalizeImageTaskBillingLogSnapshotsTaskInfo(t *testing.T) {
+	truncateTables(t)
+	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "false")
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example")
+	_, _, _, task := seedImageTaskBillingState(t, "billing-log-task-info", 100)
+	task.SubmitTime = common.GetTimestamp() - 9
+	task.Properties.OriginModelName = "gpt-image-2"
+	task.PrivateData.ResultURL = "https://cdn.example/images/first.png"
+	task.PrivateData.BillingContext = &TaskBillingContext{
+		OriginModelName: "gpt-image-2",
+		BillingRequestInput: &billingexpr.RequestInput{Body: []byte(`{
+			"model": "gpt-image-2",
+			"prompt": "A serene koi pond at sunset",
+			"size": "1024x1024",
+			"quality": "high",
+			"n": 2,
+			"output_format": "png"
+		}`)},
+	}
+	task.Data = []byte(`{
+		"created": 123,
+		"data": [
+			{"url": "https://cdn.example/images/first.png", "revised_prompt": "revised first prompt"},
+			{"url": "https://cdn.example/images/second.webp"}
+		],
+		"model": "gpt-image-2",
+		"output_format": "png",
+		"quality": "high",
+		"size": "1024x1024",
+		"usage": {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19}
+	}`)
+	require.NoError(t, DB.Model(task).
+		Select("submit_time", "properties", "private_data", "data").
+		Updates(task).Error)
+	require.NoError(t, DB.Create(&TaskWebhook{
+		TaskID: task.TaskID,
+		URL:    "https://private.example/webhooks/images",
+		Secret: "webhook-secret-must-not-leak",
+	}).Error)
+
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 100)
+	require.NoError(t, err)
+	require.True(t, won)
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+
+	var outbox ImageTaskBillingLogOutbox
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&outbox).Error)
+	var other imageTaskBillingLogOtherSnapshot
+	require.NoError(t, common.Unmarshal([]byte(outbox.Other), &other))
+	assert.Equal(t, 1, other.TaskInfo.Version)
+	assert.Equal(t, "image_generation", other.TaskInfo.Kind)
+	assert.Equal(t, TaskStatus(TaskStatusSuccess), other.TaskInfo.Status)
+	assert.Equal(t, "generation", other.TaskInfo.Request.Operation)
+	assert.Equal(t, "A serene koi pond at sunset", other.TaskInfo.Request.Prompt)
+	assert.Equal(t, "1024x1024", other.TaskInfo.Request.Size)
+	assert.Equal(t, "high", other.TaskInfo.Request.Quality)
+	assert.Equal(t, 2, other.TaskInfo.Request.N)
+	assert.Equal(t, "png", other.TaskInfo.Request.OutputFormat)
+	assert.Zero(t, other.TaskInfo.Request.InputImageCount)
+	assert.False(t, other.TaskInfo.Request.HasMask)
+	assert.True(t, other.TaskInfo.Request.WebhookConfigured)
+	assert.Equal(t, task.SubmitTime, other.TaskInfo.Timing.SubmittedAt)
+	assert.Equal(t, finalized.Task.FinishTime, other.TaskInfo.Timing.CompletedAt)
+	assert.Equal(t, (finalized.Task.FinishTime-task.SubmitTime)*1000, other.TaskInfo.Timing.TotalMS)
+	assert.Equal(t, 2, other.TaskInfo.Result.Count)
+	assert.Equal(t, "https://cdn.example", other.TaskInfo.Result.PublicBase)
+	require.Len(t, other.TaskInfo.Result.Images, 2)
+	assert.Equal(t, "https://cdn.example/images/first.png", other.TaskInfo.Result.Images[0].URL)
+	assert.Equal(t, "revised first prompt", other.TaskInfo.Result.Images[0].RevisedPrompt)
+	assert.Equal(t, "https://cdn.example/images/second.webp", other.TaskInfo.Result.Images[1].URL)
+
+	require.NoError(t, DeliverImageTaskBillingLogOutbox(task.TaskID))
+	var deliveredOutbox ImageTaskBillingLogOutbox
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&deliveredOutbox).Error)
+	assert.Empty(t, deliveredOutbox.Other)
+	assert.Empty(t, deliveredOutbox.Content)
+	var deliveredLog Log
+	require.NoError(t, LOG_DB.Where("request_id = ?", deliveredOutbox.RequestID).First(&deliveredLog).Error)
+	assert.Contains(t, deliveredLog.Other, "A serene koi pond at sunset")
+	assert.Contains(t, deliveredLog.Other, "https://cdn.example/images/first.png")
+}
+
+func TestImageTaskBillingLogOutboxSnapshotsEndToEndUseTime(t *testing.T) {
+	truncateTables(t)
+	_, _, _, task := seedImageTaskBillingState(t, "billing-log-outbox-use-time", 100)
+	task.SubmitTime = common.GetTimestamp() - 8
+	require.NoError(t, DB.Model(task).Update("submit_time", task.SubmitTime).Error)
+
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 100)
+	require.NoError(t, err)
+	require.True(t, won)
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+
+	var outbox struct {
+		UseTime int `gorm:"column:use_time"`
+	}
+	require.NoError(t, DB.Model(&ImageTaskBillingLogOutbox{}).
+		Select("use_time").
+		Where("task_id = ?", task.TaskID).
+		Scan(&outbox).Error)
+	assert.Equal(t, int(finalized.Task.FinishTime-task.SubmitTime), outbox.UseTime)
+}
+
+func TestImageTaskBillingLogDeliveryWritesEndToEndUseTime(t *testing.T) {
+	truncateTables(t)
+	_, _, _, task := seedImageTaskBillingState(t, "billing-log-delivery-use-time", 100)
+	task.SubmitTime = common.GetTimestamp() - 7
+	require.NoError(t, DB.Model(task).Update("submit_time", task.SubmitTime).Error)
+
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 100)
+	require.NoError(t, err)
+	require.True(t, won)
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+	require.NoError(t, DeliverImageTaskBillingLogOutbox(task.TaskID))
+
+	var log Log
+	require.NoError(t, LOG_DB.Where("request_id = ?", imageTaskBillingLogRequestID(task.TaskID)).First(&log).Error)
+	assert.Equal(t, int(finalized.Task.FinishTime-task.SubmitTime), log.UseTime)
+}
+
+func TestFinalizeZeroQuotaFailedImageTaskEnqueuesErrorLog(t *testing.T) {
+	truncateTables(t)
+	_, _, _, task := seedImageTaskBillingState(t, "billing-log-zero-quota-failure", 0)
+	task.SubmitTime = common.GetTimestamp() - 5
+	task.FailReason = "provider returned no generated image"
+	require.NoError(t, DB.Model(task).
+		Select("submit_time", "fail_reason").
+		Updates(task).Error)
+
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusFailure, 0)
+	require.NoError(t, err)
+	require.True(t, won)
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+
+	var outbox ImageTaskBillingLogOutbox
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&outbox).Error)
+	assert.Equal(t, LogTypeError, outbox.LogType)
+	assert.Zero(t, outbox.Quota)
+	var other imageTaskBillingLogOtherSnapshot
+	require.NoError(t, common.Unmarshal([]byte(outbox.Other), &other))
+	assert.Equal(t, TaskStatus(TaskStatusFailure), other.TaskInfo.Status)
+
+	require.NoError(t, DeliverImageTaskBillingLogOutbox(task.TaskID))
+	var log Log
+	require.NoError(t, LOG_DB.Where("request_id = ?", outbox.RequestID).First(&log).Error)
+	assert.Equal(t, LogTypeError, log.Type)
+}
+
+func TestImageTaskBillingLogDoesNotLeakPrivateTaskData(t *testing.T) {
+	truncateTables(t)
+	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "false")
+	_, _, _, task := seedImageTaskBillingState(t, "billing-log-private-data", 100)
+	task.Data = []byte(`{"data":[{"url":"https://cdn.example/images/safe.png"}]}`)
+	task.CheckpointData = []byte(`{
+		"webhook_url": "https://private.example/webhooks/images",
+		"webhook_secret": "webhook-secret-must-not-leak",
+		"provider_payload": "private-provider-payload-must-not-leak"
+	}`)
+	task.PrivateData.Key = "private-channel-key-must-not-leak"
+	task.PrivateData.ResultURL = "https://cdn.example/images/safe.png"
+	task.PrivateData.BillingContext = &TaskBillingContext{
+		OriginModelName: "gpt-image-2",
+		BillingRequestInput: &billingexpr.RequestInput{
+			Headers: map[string]string{"Authorization": "Bearer billing-header-secret-must-not-leak"},
+			Body: []byte(`{
+				"prompt": "ordinary prompt may be logged",
+				"size": "1024x1024",
+				"quality": "standard",
+				"n": 1,
+				"output_format": "png",
+				"images": [
+					"https://private.example/input-image.png",
+					"data:image/png;base64,raw-input-image-base64-must-not-leak"
+				],
+				"mask": "data:image/png;base64,raw-mask-base64-must-not-leak"
+			}`),
+		},
+	}
+	require.NoError(t, DB.Model(task).
+		Select("data", "checkpoint_data", "private_data").
+		Updates(task).Error)
+	require.NoError(t, DB.Create(&TaskWebhook{
+		TaskID: task.TaskID,
+		URL:    "https://private.example/webhooks/images",
+		Secret: "webhook-secret-must-not-leak",
+	}).Error)
+
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 100)
+	require.NoError(t, err)
+	require.True(t, won)
+	_, err = FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+
+	var outbox ImageTaskBillingLogOutbox
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&outbox).Error)
+	var other imageTaskBillingLogOtherSnapshot
+	require.NoError(t, common.Unmarshal([]byte(outbox.Other), &other))
+	assert.Equal(t, "edit", other.TaskInfo.Request.Operation)
+	assert.Equal(t, "ordinary prompt may be logged", other.TaskInfo.Request.Prompt)
+	assert.Equal(t, 2, other.TaskInfo.Request.InputImageCount)
+	assert.True(t, other.TaskInfo.Request.HasMask)
+	assert.True(t, other.TaskInfo.Request.WebhookConfigured)
+	assert.NotContains(t, outbox.Other, "webhook_url")
+	assert.NotContains(t, outbox.Other, "https://private.example/webhooks/images")
+	assert.NotContains(t, outbox.Other, "webhook-secret-must-not-leak")
+	assert.NotContains(t, outbox.Other, "private-provider-payload-must-not-leak")
+	assert.NotContains(t, outbox.Other, "private-channel-key-must-not-leak")
+	assert.NotContains(t, outbox.Other, "billing-header-secret-must-not-leak")
+	assert.NotContains(t, outbox.Other, "https://private.example/input-image.png")
+	assert.NotContains(t, outbox.Other, "raw-input-image-base64-must-not-leak")
+	assert.NotContains(t, outbox.Other, "raw-mask-base64-must-not-leak")
+}
+
+func TestImageTaskLogResultSnapshotPreservesDuplicateOutputCount(t *testing.T) {
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example")
+	task := &Task{Status: TaskStatusSuccess}
+	result := imageTaskLogResultSnapshot(task, []dto.ImageData{
+		{Url: "https://cdn.example/images/same.png"},
+		{Url: "https://cdn.example/images/same.png"},
+	})
+
+	require.NotNil(t, result)
+	assert.Equal(t, 2, result.Count)
+	assert.Len(t, result.Images, 1)
+}
+
+func TestImageTaskLogResultSnapshotRestrictsConfiguredPublicBase(t *testing.T) {
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example/generated")
+	task := &Task{Status: TaskStatusSuccess}
+	result := imageTaskLogResultSnapshot(task, []dto.ImageData{
+		{Url: "https://cdn.example/generated/ok.png"},
+		{Url: "https://cdn.example/other.png"},
+		{Url: "https://cdn.example/generated/tracked.png?token=secret"},
+		{Url: "https://127.0.0.1.nip.io/generated/ssrf.png"},
+	})
+
+	require.NotNil(t, result)
+	assert.Equal(t, "https://cdn.example/generated", result.PublicBase)
+	assert.Equal(t, 4, result.Count)
+	require.Len(t, result.Images, 1)
+	assert.Equal(t, "https://cdn.example/generated/ok.png", result.Images[0].URL)
+}
+
+func TestImageTaskLogResultSnapshotFailsClosedWithoutPublicBase(t *testing.T) {
+	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "")
+	task := &Task{Status: TaskStatusSuccess}
+	result := imageTaskLogResultSnapshot(task, []dto.ImageData{{
+		Url: "https://provider.example/generated.png",
+	}})
+
+	require.NotNil(t, result)
+	assert.Empty(t, result.PublicBase)
+	assert.Equal(t, 1, result.Count)
+	assert.Empty(t, result.Images)
 }
 
 func TestImageTaskBillingLogOutboxStaleLeaseCannotOverwriteReclaimedLease(t *testing.T) {

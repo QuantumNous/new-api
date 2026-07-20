@@ -20,7 +20,11 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
 import type { ModelApiProfile } from '../types'
-import { buildAsyncImageSample } from './image-api-docs'
+import {
+  buildAsyncImageSample,
+  IMAGE_SAMPLE_LANGUAGES,
+  STANDARD_SAMPLE_LANGUAGES,
+} from './image-api-docs'
 
 const profile: ModelApiProfile = {
   kind: 'image',
@@ -71,8 +75,43 @@ const editProfile: ModelApiProfile = {
 }
 
 describe('async image API samples', () => {
-  test('cURL documents the accepted task and polling contract', () => {
+  test('image samples add Bash without exposing it to standard endpoints', () => {
+    assert.deepEqual(IMAGE_SAMPLE_LANGUAGES, [
+      'curl',
+      'bash',
+      'python',
+      'typescript',
+      'javascript',
+    ])
+    assert.deepEqual(STANDARD_SAMPLE_LANGUAGES, [
+      'curl',
+      'python',
+      'typescript',
+      'javascript',
+    ])
+  })
+
+  test('cURL stays copy-friendly and shows submit plus poll requests', () => {
     const sample = buildAsyncImageSample('curl', context)
+
+    assert.match(
+      sample,
+      /curl https:\/\/api\.example\.com\/v1\/images\/generations/
+    )
+    assert.match(sample, /Idempotency-Key: image-request-<UNIQUE_ID>/)
+    assert.match(
+      sample,
+      /curl "https:\/\/api\.example\.com\/v1\/images\/generations\/<TASK_ID>"/
+    )
+    assert.match(sample, /HTTP\/1\.1 202 Accepted/)
+    assert.doesNotMatch(sample, /set -euo pipefail/)
+    assert.doesNotMatch(sample, /python3/)
+    assert.doesNotMatch(sample, /read_retry_after/)
+    assert.doesNotMatch(sample, /while \[/)
+  })
+
+  test('Bash documents the runnable accepted task and polling contract', () => {
+    const sample = buildAsyncImageSample('bash', context)
 
     assert.match(sample, /Requires Bash, curl, and Python 3/)
     assert.match(

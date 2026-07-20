@@ -509,7 +509,8 @@ export const STATIC_I18N_KEYS = [
   'Copied: {{model}}',
 
   // Image API runtime hints (selected dynamically by language tab)
-  'cURL runtime: Bash, curl, and Python 3.',
+  'cURL example: replace the placeholders before running.',
+  'Bash runtime: Bash, curl, and Python 3.',
   'Python runtime: Python 3.9+ with requests 2.x.',
   'TypeScript runtime: Bun 1.0+, or Node.js 18+ in ESM mode with a TypeScript runner.',
   'JavaScript runtime: Bun 1.0+ or Node.js 18+ in ESM mode.',

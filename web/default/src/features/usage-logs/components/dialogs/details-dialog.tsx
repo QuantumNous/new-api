@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { TFunction } from 'i18next'
 import {
   Copy,
   Check,
@@ -30,8 +31,9 @@ import {
   UserCog,
   Info,
   LogIn,
+  ExternalLink,
+  ImageIcon,
 } from 'lucide-react'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -42,7 +44,12 @@ import { Label } from '@/components/ui/label'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
+import {
+  formatLogQuota,
+  formatTimestampToDate,
+  formatTokens,
+  formatUseTime,
+} from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import type { UsageLog } from '../../data/schema'
@@ -58,6 +65,12 @@ import {
   getResponseTimeColor,
   renderAuditContent,
 } from '../../lib/format'
+import {
+  formatImageTaskDuration,
+  getImageTaskMedia,
+  parseImageTaskInfo,
+} from '../../lib/image-task-info'
+import { taskStatusMapper } from '../../lib/mappers'
 import {
   getLogTypeConfig,
   isPerCallBilling,
@@ -179,7 +192,9 @@ function getUsageBillingPathLabel(
   }
 }
 
-function isUsageBillingPathLocal(adminInfo: LogOtherData['admin_info']): boolean {
+function isUsageBillingPathLocal(
+  adminInfo: LogOtherData['admin_info']
+): boolean {
   if (adminInfo?.usage_billing_path) {
     return adminInfo.usage_billing_path === USAGE_BILLING_PATH.LOCAL
   }
@@ -461,6 +476,42 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const details = props.log.content ?? ''
   const other = parseLogOther(props.log.other)
+  const imageTaskInfo = parseImageTaskInfo(props.log.other)
+  const imageTaskMedia = imageTaskInfo ? getImageTaskMedia(imageTaskInfo) : null
+  const imageDurationLabel = imageTaskInfo
+    ? formatImageTaskDuration(imageTaskInfo, props.log.use_time)
+    : null
+  const imageStatusLabel = imageTaskInfo
+    ? t(
+        taskStatusMapper.getLabel(
+          imageTaskInfo.status,
+          imageTaskInfo.status || 'Unknown'
+        )
+      )
+    : undefined
+  let imageOperationLabel: string | undefined
+  if (imageTaskInfo?.request?.operation === 'generation') {
+    imageOperationLabel = t('Image Generation')
+  } else if (imageTaskInfo?.request?.operation === 'edit') {
+    imageOperationLabel = t('Edit')
+  } else {
+    imageOperationLabel = imageTaskInfo?.request?.operation
+  }
+  let imageDurationSeconds: number | null = null
+  const imageTotalMs = imageTaskInfo?.timing?.total_ms
+  if (
+    imageTotalMs != null &&
+    Number.isFinite(imageTotalMs) &&
+    imageTotalMs > 0
+  ) {
+    imageDurationSeconds = imageTotalMs / 1000
+  } else if (
+    imageTaskInfo &&
+    Number.isFinite(props.log.use_time) &&
+    props.log.use_time > 0
+  ) {
+    imageDurationSeconds = props.log.use_time
+  }
   const typeConfig = getLogTypeConfig(props.log.type)
 
   const isViolation = isViolationFeeLog(other)
@@ -475,9 +526,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
     other?.billing_mode === 'tiered_expr' &&
     !!other?.expr_b64
   const hasAudioTokens = other?.ws || other?.audio
-  const showTiming = isTimingLogType(props.log.type)
+  const showTiming = imageTaskInfo != null || isTimingLogType(props.log.type)
   const showAdminIp =
-    !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
+    !!props.log.ip &&
+    ((props.isAdmin && (showTiming || isTopup)) ||
+      (!imageTaskInfo && showTiming && !isRefund))
   const adminInfo = other?.admin_info
   const topupAuditFields =
     isTopup && props.isAdmin && adminInfo
@@ -590,6 +643,72 @@ export function DetailsDialog(props: DetailsDialogProps) {
   } else if (other?.reasoning_effort === 'medium') {
     reasoningEffortVariant = 'yellow'
   }
+  let timingDetail: React.ReactNode = null
+  let timingLabel = t('Response Time')
+  let imageTimingTone = 'text-muted-foreground'
+  if (imageDurationSeconds != null && imageTaskInfo?.status === 'SUCCESS') {
+    imageTimingTone = 'text-success'
+  } else if (
+    imageDurationSeconds != null &&
+    imageTaskInfo?.status === 'FAILURE'
+  ) {
+    imageTimingTone = 'text-destructive'
+  }
+  if (imageTaskInfo && imageDurationLabel) {
+    timingLabel = t('Duration')
+    timingDetail = (
+      <span className={cn('font-medium', imageTimingTone)}>
+        {imageDurationLabel === 'N/A' ? t('N/A') : imageDurationLabel}
+      </span>
+    )
+  } else if (props.log.use_time > 0) {
+    timingDetail = (
+      <span
+        className={cn(
+          'font-medium',
+          timingTextColorClass(
+            getResponseTimeColor(
+              props.log.use_time,
+              props.log.completion_tokens
+            )
+          )
+        )}
+      >
+        {formatUseTime(props.log.use_time)}
+        {props.log.is_stream && other?.frt != null && other.frt > 0 && (
+          <span
+            className={cn(
+              'font-normal',
+              timingTextColorClass(getFirstResponseTimeColor(other.frt / 1000))
+            )}
+          >
+            {' '}
+            (FRT: {formatUseTime(other.frt / 1000)})
+          </span>
+        )}
+      </span>
+    )
+  }
+
+  let dialogWidth = 'sm:max-w-lg'
+  if (imageTaskInfo) dialogWidth = 'sm:max-w-3xl'
+  if (isTieredBilling) dialogWidth = 'sm:max-w-4xl lg:max-w-5xl'
+  const imageParameterDetails: string[] = []
+  if (imageTaskInfo?.request?.style) {
+    imageParameterDetails.push(`style=${imageTaskInfo.request.style}`)
+  }
+  if (imageTaskInfo?.request?.has_mask != null) {
+    imageParameterDetails.push(
+      `mask=${imageTaskInfo.request.has_mask ? t('Yes') : t('No')}`
+    )
+  }
+  if (imageTaskInfo?.request?.webhook_configured != null) {
+    imageParameterDetails.push(
+      `webhook=${
+        imageTaskInfo.request.webhook_configured ? t('Enabled') : t('Disabled')
+      }`
+    )
+  }
 
   return (
     <Dialog
@@ -610,7 +729,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
       contentClassName={cn(
         'min-w-0 overflow-hidden',
         'max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:w-[calc(100vw-1.5rem)] max-sm:max-w-[calc(100vw-1.5rem)] max-sm:p-4',
-        isTieredBilling ? 'sm:max-w-4xl lg:max-w-5xl' : 'sm:max-w-lg'
+        dialogWidth
       )}
       headerClassName='max-sm:gap-1'
       titleClassName='flex items-center gap-2 text-base'
@@ -683,42 +802,146 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
 
-          {showTiming && props.log.use_time > 0 && (
-            <DetailRow
-              label={t('Response Time')}
-              value={
-                <span
-                  className={cn(
-                    'font-medium',
-                    timingTextColorClass(
-                      getResponseTimeColor(
-                        props.log.use_time,
-                        props.log.completion_tokens
-                      )
-                    )
-                  )}
-                >
-                  {formatUseTime(props.log.use_time)}
-                  {props.log.is_stream &&
-                    other?.frt != null &&
-                    other.frt > 0 && (
-                      <span
-                        className={cn(
-                          'font-normal',
-                          timingTextColorClass(
-                            getFirstResponseTimeColor(other.frt / 1000)
-                          )
-                        )}
-                      >
-                        {' '}
-                        (FRT: {formatUseTime(other.frt / 1000)})
-                      </span>
-                    )}
-                </span>
-              }
-            />
+          {showTiming && timingDetail && (
+            <DetailRow label={timingLabel} value={timingDetail} />
           )}
         </div>
+
+        {imageTaskInfo && (
+          <DetailSection
+            label={t('Image Generation')}
+            icon={<ImageIcon className='size-3' aria-hidden='true' />}
+            iconTone='info'
+          >
+            <DetailRow
+              label={t('Status')}
+              value={
+                <StatusBadge
+                  label={imageStatusLabel ?? imageTaskInfo.status}
+                  variant={taskStatusMapper.getVariant(imageTaskInfo.status)}
+                  size='sm'
+                  copyable={false}
+                />
+              }
+            />
+            {other?.task_id && (
+              <DetailRow label={t('Task ID')} value={other.task_id} mono />
+            )}
+            {imageTaskInfo.timing?.submitted_at != null && (
+              <DetailRow
+                label={t('Submitted')}
+                value={formatTimestampToDate(imageTaskInfo.timing.submitted_at)}
+                mono
+              />
+            )}
+            {imageTaskInfo.timing?.completed_at != null && (
+              <DetailRow
+                label={t('Completed')}
+                value={formatTimestampToDate(imageTaskInfo.timing.completed_at)}
+                mono
+              />
+            )}
+            <DetailRow
+              label={t('Image')}
+              value={String(imageTaskInfo.result.count)}
+              mono
+            />
+            {imageTaskInfo.request?.n != null && (
+              <DetailRow
+                label={t('Number of images requested from the provider')}
+                value={String(imageTaskInfo.request.n)}
+                mono
+              />
+            )}
+            {imageTaskInfo.request?.input_image_count != null &&
+              imageTaskInfo.request.input_image_count > 0 && (
+                <DetailRow
+                  label={t('Input')}
+                  value={`${imageTaskInfo.request.input_image_count} ${t('Image')}`}
+                  mono
+                />
+              )}
+            {imageParameterDetails.length > 0 && (
+              <DetailRow
+                label={t('Parameters')}
+                value={imageParameterDetails.join(' · ')}
+              />
+            )}
+            {imageTaskInfo.request?.operation && (
+              <DetailRow
+                label={t('Operation')}
+                value={imageOperationLabel ?? imageTaskInfo.request.operation}
+              />
+            )}
+            {imageTaskInfo.request?.prompt && (
+              <DetailRow
+                label={t('Prompt')}
+                value={imageTaskInfo.request.prompt}
+              />
+            )}
+            {imageTaskInfo.request?.size && (
+              <DetailRow
+                label={t('Output image size')}
+                value={imageTaskInfo.request.size}
+                mono
+              />
+            )}
+            {imageTaskInfo.request?.quality && (
+              <DetailRow
+                label={t('Generation quality preset')}
+                value={imageTaskInfo.request.quality}
+                mono
+              />
+            )}
+            {imageTaskInfo.request?.aspect_ratio && (
+              <DetailRow
+                label={t('Output aspect ratio')}
+                value={imageTaskInfo.request.aspect_ratio}
+                mono
+              />
+            )}
+            {imageTaskInfo.request?.resolution && (
+              <DetailRow
+                label={t('Output image size')}
+                value={imageTaskInfo.request.resolution}
+                mono
+              />
+            )}
+            {imageTaskInfo.request?.output_format && (
+              <DetailRow
+                label={t('Generated image file format')}
+                value={imageTaskInfo.request.output_format}
+                mono
+              />
+            )}
+            {imageTaskMedia && imageTaskMedia.gallery.length > 0 && (
+              <div className='grid grid-cols-2 gap-2 pt-1'>
+                {imageTaskMedia.gallery.map((image, index) => (
+                  <a
+                    key={image.url}
+                    href={image.url}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='group border-border/70 focus-visible:ring-ring bg-muted relative aspect-square overflow-hidden rounded-md border focus-visible:ring-2 focus-visible:outline-none'
+                    aria-label={`${t('Open')} ${t('Image')} ${index + 1} / ${imageTaskMedia.gallery.length}`}
+                  >
+                    <img
+                      src={image.url}
+                      alt={image.revised_prompt || t('Generated image')}
+                      className='h-full w-full object-cover transition-transform group-hover:scale-[1.02]'
+                      loading='lazy'
+                      decoding='async'
+                      referrerPolicy='no-referrer'
+                    />
+                    <span className='absolute right-1.5 bottom-1.5 inline-flex size-6 items-center justify-center rounded-full bg-black/65 text-white'>
+                      <ExternalLink className='size-3' aria-hidden='true' />
+                    </span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </DetailSection>
+        )}
 
         {/* Request conversion (admin only, not for refund) */}
         {showConversion && (
@@ -1102,7 +1325,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
                        Painting it red made every disconnect look like an outage.
                        Only a genuine error stays red. */
                     variant={
-                      other.stream_status.status === 'canceled' ? 'amber' : 'red'
+                      other.stream_status.status === 'canceled'
+                        ? 'amber'
+                        : 'red'
                     }
                     size='sm'
                     copyable={false}

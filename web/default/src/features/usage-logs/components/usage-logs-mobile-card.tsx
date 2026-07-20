@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { flexRender, type Cell, type Table } from '@tanstack/react-table'
-import { Database } from 'lucide-react'
+import { Database, ImageIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -41,6 +41,11 @@ import { cn } from '@/lib/utils'
 import { LOG_TYPE_ENUM } from '../constants'
 import type { UsageLog } from '../data/schema'
 import { parseLogOther } from '../lib/format'
+import {
+  formatImageTaskDuration,
+  getImageTaskStreamSummary,
+  parseImageTaskInfo,
+} from '../lib/image-task-info'
 import {
   getLogTypeConfig,
   isDisplayableLogType,
@@ -279,10 +284,35 @@ function MobileUserField({ log }: { log: UsageLog }) {
 
 /** Merge stream badge + TPS with first-token / duration on one row. */
 function MobileStreamTimingField({ log }: { log: UsageLog }) {
+  const { t } = useTranslation()
+  const useTime = log.use_time || 0
+  const imageTaskInfo = parseImageTaskInfo(log.other)
+  if (imageTaskInfo) {
+    const summary = getImageTaskStreamSummary(imageTaskInfo)
+    const durationLabel = formatImageTaskDuration(imageTaskInfo, useTime)
+    return (
+      <div className='bg-muted/20 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-1.5'>
+        <div className='flex min-w-0 flex-col gap-0.5 text-xs leading-tight'>
+          <span className='text-muted-foreground'>{t('Duration')}</span>
+          <span className='font-medium tabular-nums'>
+            {durationLabel === 'N/A' ? t('N/A') : durationLabel}
+          </span>
+        </div>
+        <div className='flex shrink-0 flex-col items-end gap-0.5 text-xs leading-tight'>
+          <span className='text-info inline-flex items-center gap-1 font-medium'>
+            <ImageIcon className='size-3' aria-hidden='true' />
+            {t('Async task')}
+          </span>
+          <span className='text-muted-foreground/60 tabular-nums'>
+            {summary.imageCount} × {t('Image')}
+          </span>
+        </div>
+      </div>
+    )
+  }
   if (!isTimingLogType(log.type)) return null
 
   const other = parseLogOther(log.other)
-  const useTime = log.use_time || 0
   const tokensPerSecond =
     useTime > 0 && log.completion_tokens > 0
       ? log.completion_tokens / useTime

@@ -20,9 +20,25 @@ import type { ModelApiProfile } from '../types'
 
 export type ImageSampleLanguage =
   | 'curl'
+  | 'bash'
   | 'python'
   | 'typescript'
   | 'javascript'
+
+export const STANDARD_SAMPLE_LANGUAGES: readonly ImageSampleLanguage[] = [
+  'curl',
+  'python',
+  'typescript',
+  'javascript',
+]
+
+export const IMAGE_SAMPLE_LANGUAGES: readonly ImageSampleLanguage[] = [
+  'curl',
+  'bash',
+  'python',
+  'typescript',
+  'javascript',
+]
 
 export type ImageSampleContext = {
   baseUrl: string
@@ -88,6 +104,26 @@ export function buildAsyncImageSample(
   const bodyJson = JSON.stringify(imageRequestBody(ctx), null, 2)
 
   if (language === 'curl') {
+    const statusUrl = `${ctx.baseUrl}${pollPath(ctx, '<TASK_ID>')}`
+
+    return [
+      `# Set ${ctx.apiKeyEnv} before running and replace <UNIQUE_ID>.`,
+      '# Submit the image task',
+      `curl ${submitUrl} \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -H "Idempotency-Key: image-request-<UNIQUE_ID>" \\`,
+      `  -d '${bodyJson.replaceAll('\n', '\n       ')}'`,
+      '',
+      '# HTTP/1.1 202 Accepted',
+      '# Copy task_id from the response, then replace <TASK_ID>.',
+      '# Poll the image task',
+      `curl "${statusUrl}" \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}"`,
+    ].join('\n')
+  }
+
+  if (language === 'bash') {
     const statusUrl = `${ctx.baseUrl}${pollPath(ctx, '${TASK_ID}')}`
 
     return [

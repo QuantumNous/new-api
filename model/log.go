@@ -131,13 +131,69 @@ func formatUserLogs(logs []*Log, startIdx int) {
 	assignDisplayLogIds(logs, startIdx)
 }
 
+func formatTokenLogs(logs []*Log) {
+	formatUserLogs(logs, 0)
+	for i := range logs {
+		otherMap, err := common.StrToMap(logs[i].Other)
+		if err != nil || otherMap == nil {
+			continue
+		}
+		rawTaskInfo, exists := otherMap["task_info"]
+		if !exists {
+			continue
+		}
+		taskInfo, ok := rawTaskInfo.(map[string]interface{})
+		if !ok || taskInfo["kind"] != "image_generation" {
+			delete(otherMap, "task_info")
+			logs[i].Other = common.MapToJsonStr(otherMap)
+			continue
+		}
+
+		redacted := map[string]interface{}{
+			"version": taskInfo["version"],
+			"kind":    "image_generation",
+			"status":  taskInfo["status"],
+		}
+		if request, ok := taskInfo["request"].(map[string]interface{}); ok {
+			safeRequest := make(map[string]interface{})
+			for _, field := range []string{
+				"operation", "size", "quality", "n", "output_format", "aspect_ratio",
+				"resolution", "input_image_count", "has_mask", "webhook_configured",
+			} {
+				if value, exists := request[field]; exists {
+					safeRequest[field] = value
+				}
+			}
+			if len(safeRequest) > 0 {
+				redacted["request"] = safeRequest
+			}
+		}
+		if result, ok := taskInfo["result"].(map[string]interface{}); ok {
+			redacted["result"] = map[string]interface{}{"count": result["count"]}
+		}
+		if timing, ok := taskInfo["timing"].(map[string]interface{}); ok {
+			safeTiming := make(map[string]interface{})
+			for _, field := range []string{"submitted_at", "completed_at", "total_ms"} {
+				if value, exists := timing[field]; exists {
+					safeTiming[field] = value
+				}
+			}
+			if len(safeTiming) > 0 {
+				redacted["timing"] = safeTiming
+			}
+		}
+		otherMap["task_info"] = redacted
+		logs[i].Other = common.MapToJsonStr(otherMap)
+	}
+}
+
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	order := "id desc"
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		order = clickHouseLogOrder("")
 	}
 	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order(order).Limit(common.MaxRecentItems).Find(&logs).Error
-	formatUserLogs(logs, 0)
+	formatTokenLogs(logs)
 	return logs, err
 }
 
