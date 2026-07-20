@@ -41,7 +41,7 @@ func normalizeDistributorUsingGroup(c *gin.Context) string {
 	if usingGroup == "" {
 		usingGroup = service.AutoCheapestGroup
 	}
-	if usingGroup == service.AutoCheapestGroup || usingGroup == "auto" {
+	if usingGroup == service.AutoCheapestGroup || usingGroup == "auto" || service.IsFreeTrialGroup(usingGroup) {
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 		return usingGroup
 	}
@@ -64,6 +64,12 @@ func Distribute() func(c *gin.Context) {
 		modelRequest.Model = service.PrepareGptImage2ModelRequest(c, modelRequest.Model)
 		if modelRequest.Model != "" && common.IsImageGenerationModel(modelRequest.Model) && isTextCompletionPath(c.Request.URL.Path) {
 			abortImageModelOnTextEndpoint(c, modelRequest.Model)
+			return
+		}
+		if service.IsFreeTrialGroup(common.GetContextKeyString(c, constant.ContextKeyTokenGroup)) &&
+			modelRequest.Model != "" &&
+			!service.IsFreeTrialEligibleModel(modelRequest.Model) {
+			abortWithOpenAiMessage(c, http.StatusForbidden, "Free Trial keys only support GPT LLM models")
 			return
 		}
 		if ok {
@@ -139,7 +145,7 @@ func Distribute() func(c *gin.Context) {
 
 				// auto-cheapest routing always picks the lowest-priced channel; channel
 				// affinity (sticky last-used) would defeat that, so skip it for this group.
-				if usingGroup != service.AutoCheapestGroup {
+				if usingGroup != service.AutoCheapestGroup && !service.IsFreeTrialGroup(usingGroup) {
 					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 						preferred, err := model.CacheGetChannel(preferredChannelID)
 						if err == nil && preferred != nil {

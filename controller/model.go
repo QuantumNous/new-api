@@ -176,6 +176,8 @@ func ListModels(c *gin.Context, modelType int) {
 					}
 				}
 			}
+		} else if service.IsFreeTrialGroup(tokenGroup) {
+			models = service.FilterFreeTrialModels(model.GetGroupEnabledModels(service.AutoCheapestGroup))
 		} else {
 			models = model.GetGroupEnabledModels(group)
 		}

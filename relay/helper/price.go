@@ -68,8 +68,15 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	isFreeTrial := service.IsFreeTrialGroup(info.TokenGroup) || service.IsFreeTrialGroup(info.UsingGroup)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
+	if isFreeTrial {
+		groupRatioInfo = types.GroupRatioInfo{
+			GroupRatio:        1.0,
+			GroupSpecialRatio: -1,
+		}
+	}
 
 	// Image generation/edits are per-call user-priced like video/MJ tasks:
 	// bill at channel user price (input × recharge × apimaster) × group_ratio × N,
@@ -79,10 +86,12 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	// configured fixed price / channel-ratio fallback below is unchanged.
 	if info.RelayMode == relayconstant.RelayModeImagesGenerations ||
 		info.RelayMode == relayconstant.RelayModeImagesEdits {
-		if channelID := c.GetInt("channel_id"); channelID > 0 {
-			if resolved, err := service.ChannelActualPricesResolved(channelID, info.OriginModelName); err == nil && resolved != nil && resolved.InputPrice > 0 {
-				modelPrice = resolved.InputPrice
-				usePrice = true
+		if !isFreeTrial {
+			if channelID := c.GetInt("channel_id"); channelID > 0 {
+				if resolved, err := service.ChannelActualPricesResolved(channelID, info.OriginModelName); err == nil && resolved != nil && resolved.InputPrice > 0 {
+					modelPrice = resolved.InputPrice
+					usePrice = true
+				}
 			}
 		}
 	}
@@ -113,14 +122,16 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		// channel_model_pricings takes priority: actual procurement price × group_ratio (5% markup)
 		// is the billing model. Fall back to global model_ratio only when no channel row exists.
 		ratioFromChannel := false
-		if channelID := c.GetInt("channel_id"); channelID > 0 {
-			if channelPrice, ok := service.ChannelModelPriceData(channelID, info.OriginModelName); ok {
-				modelRatio = channelPrice.ModelRatio
-				completionRatio = channelPrice.CompletionRatio
-				cacheRatio = channelPrice.CacheRatio
-				cacheCreationRatio = channelPrice.CacheCreationRatio
-				success = true
-				ratioFromChannel = true
+		if !isFreeTrial {
+			if channelID := c.GetInt("channel_id"); channelID > 0 {
+				if channelPrice, ok := service.ChannelModelPriceData(channelID, info.OriginModelName); ok {
+					modelRatio = channelPrice.ModelRatio
+					completionRatio = channelPrice.CompletionRatio
+					cacheRatio = channelPrice.CacheRatio
+					cacheCreationRatio = channelPrice.CacheCreationRatio
+					success = true
+					ratioFromChannel = true
+				}
 			}
 		}
 		if !success {

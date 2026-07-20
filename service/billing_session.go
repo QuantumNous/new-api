@@ -465,6 +465,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	}
 
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
+	isFreeTrial := IsFreeTrialGroup(relayInfo.TokenGroup) || IsFreeTrialGroup(relayInfo.UsingGroup)
 
 	// 钱包路径需要先检查用户额度
 	tryWallet := func() (*BillingSession, *types.NewAPIError) {
@@ -496,7 +497,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 
-	trySubscription := func() (*BillingSession, *types.NewAPIError) {
+	trySubscription := func(requiredPlanTitle string) (*BillingSession, *types.NewAPIError) {
 		subConsume := int64(preConsumedQuota)
 		if subConsume <= 0 {
 			subConsume = 1
@@ -504,10 +505,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		session := &BillingSession{
 			relayInfo: relayInfo,
 			funding: &SubscriptionFunding{
-				requestId: relayInfo.RequestId,
-				userId:    relayInfo.UserId,
-				modelName: relayInfo.OriginModelName,
-				amount:    subConsume,
+				requestId:         relayInfo.RequestId,
+				userId:            relayInfo.UserId,
+				modelName:         relayInfo.OriginModelName,
+				amount:            subConsume,
+				RequiredPlanTitle: requiredPlanTitle,
 			},
 		}
 		// 必须传 subConsume 而非 preConsumedQuota，保证 SubscriptionFunding.amount、
@@ -518,16 +520,20 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 
+	if isFreeTrial {
+		return trySubscription(FreeTrialPlanTitle)
+	}
+
 	switch pref {
 	case "subscription_only":
-		return trySubscription()
+		return trySubscription("")
 	case "wallet_only":
 		return tryWallet()
 	case "wallet_first":
 		session, err := tryWallet()
 		if err != nil {
 			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
-				return trySubscription()
+				return trySubscription("")
 			}
 			return nil, err
 		}
@@ -542,7 +548,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if !hasSub {
 			return tryWallet()
 		}
-		session, apiErr := trySubscription()
+		session, apiErr := trySubscription("")
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
 				return tryWallet()

@@ -10,7 +10,8 @@ import (
 // step4 / apimaster: only "default" is surfaced to end-users. Matches
 // AutoCheapestGroup constant and the DB GroupRatio / UserUsableGroups keys.
 var userUsableGroups = map[string]string{
-	"default": "i18n:User group description.default",
+	"default":    "i18n:User group description.default",
+	"Free Trial": "APIMaster $50 GPT Trial",
 }
 var userUsableGroupsMutex sync.RWMutex
 

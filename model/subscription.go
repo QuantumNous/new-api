@@ -972,6 +972,29 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, nil)
+}
+
+// PreConsumeUserSubscriptionByPlanTitle pre-consumes only from active subscriptions
+// whose plan title matches the required plan.
+func PreConsumeUserSubscriptionByPlanTitle(requestId string, userId int, modelName string, quotaType int, amount int64, planTitle string) (*SubscriptionPreConsumeResult, error) {
+	requiredPlanTitle := strings.TrimSpace(planTitle)
+	if requiredPlanTitle == "" {
+		return nil, errors.New("planTitle is empty")
+	}
+	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, func(plan *SubscriptionPlan) bool {
+		return plan != nil && strings.EqualFold(strings.TrimSpace(plan.Title), requiredPlanTitle)
+	})
+}
+
+func preConsumeUserSubscription(
+	requestId string,
+	userId int,
+	modelName string,
+	quotaType int,
+	amount int64,
+	planMatcher func(*SubscriptionPlan) bool,
+) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1017,12 +1040,17 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		matchedPlan := false
 		for _, candidate := range subs {
 			sub := candidate
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
 			}
+			if planMatcher != nil && !planMatcher(plan) {
+				continue
+			}
+			matchedPlan = true
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
 			}
@@ -1065,6 +1093,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
+		}
+		if planMatcher != nil && !matchedPlan {
+			return errors.New("no active subscription for required plan")
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})

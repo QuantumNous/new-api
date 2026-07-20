@@ -56,6 +56,7 @@ import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,
+  GPT_TRIAL_50U_PRESET,
   planToFormValues,
   formValuesToPlanPayload,
   type PlanFormValues,
@@ -155,6 +156,18 @@ export function SubscriptionsMutateDrawer({
                   'Fill in the following info to create a new subscription plan'
                 )}
           </SheetDescription>
+          {!isEdit && (
+            <div className='pt-3'>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => form.reset(GPT_TRIAL_50U_PRESET)}
+              >
+                APIMaster $50 GPT Trial Preset
+              </Button>
+            </div>
+          )}
         </SheetHeader>
         <Form {...form}>
           <form

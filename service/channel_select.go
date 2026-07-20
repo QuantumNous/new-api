@@ -104,6 +104,20 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		return ch, AutoCheapestGroup, nil
 	}
 
+	if IsFreeTrialGroup(param.TokenGroup) {
+		SetGptImage2RoutingRetry(param.Ctx, param.GetRetry())
+		ch, selectErr := SelectCheapestEnabledChannel(param.Ctx, param.ModelName)
+		if selectErr != nil {
+			if errors.Is(selectErr, ErrNoCheapestChannel) {
+				if policyErr := ClientPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil && RequiresClientExclusivePolicy(param.ModelName) {
+					return nil, FreeTrialGroup, policyErr
+				}
+			}
+			return nil, FreeTrialGroup, selectErr
+		}
+		return ch, FreeTrialGroup, nil
+	}
+
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
 			return nil, selectGroup, errors.New("auto groups is not enabled")
