@@ -159,6 +159,7 @@ func TestRecordChannelHealthOutcomeDoesNotUseStreamDurationWhenCurrentAttemptHas
 		info := &relaycommon.RelayInfo{
 			StartTime:         attemptStart.Add(-30 * time.Second),
 			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			IsStream:          true,
 			StreamStatus: &relaycommon.StreamStatus{
 				StartedAt: attemptStart.Add(500 * time.Millisecond),
 				EndedAt:   attemptStart.Add(19 * time.Second),
