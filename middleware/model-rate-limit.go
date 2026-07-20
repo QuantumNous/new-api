@@ -47,7 +47,7 @@ func checkRedisRateLimit(ctx context.Context, rdb *redis.Client, key string, max
 		return false, err
 	}
 
-	nowTimeStr := time.Now().Format(modelRateLimitTimeFormat)
+	nowTimeStr := time.Now().UTC().Format(modelRateLimitTimeFormat)
 	nowTime, err := time.Parse(modelRateLimitTimeFormat, nowTimeStr)
 	if err != nil {
 		return false, err
@@ -69,7 +69,7 @@ func recordRedisRequest(ctx context.Context, rdb *redis.Client, key string, maxC
 		return
 	}
 
-	now := time.Now().Format(modelRateLimitTimeFormat)
+	now := time.Now().UTC().Format(modelRateLimitTimeFormat)
 	rdb.LPush(ctx, key, now)
 	rdb.LTrim(ctx, key, 0, int64(maxCount-1))
 	rdb.Expire(ctx, key, time.Duration(setting.ModelRequestRateLimitDurationMinutes)*time.Minute)

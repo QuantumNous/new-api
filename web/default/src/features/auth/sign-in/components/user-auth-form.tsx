@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
+import axios from 'axios'
 import { Loader2, LogIn, KeyRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -181,8 +182,9 @@ export function UserAuthForm({
         await handleLoginSuccess(res.data, redirectTo)
         toast.success(t('Welcome back!'))
       }
-    } catch {
-      // Errors are handled by global interceptor
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) return
+      toast.error(error instanceof Error ? error.message : loginFailedMessage)
     } finally {
       setIsLoading(false)
     }

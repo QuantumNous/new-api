@@ -19,10 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'node:test'
 
+import { QueryClient } from '@tanstack/react-query'
+
 import { useAuthStore, type AuthBundle } from '../stores/auth-store'
 import {
   applyAuthRotation,
   bootstrapAuthentication,
+  clearAuthenticatedClientState,
   createRefreshRunner,
   isAuthBundle,
   type AuthRefreshRuntime,
@@ -262,5 +265,40 @@ describe('authentication session coordination', () => {
       /session mismatch/
     )
     assert.equal(useAuthStore.getState().auth.accessToken, 'rotated-token')
+  })
+
+  test('sign-out clears user-scoped query, mutation, and authentication state', () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(['account', bundle.user.id], {
+      username: bundle.user.username,
+    })
+    queryClient.getMutationCache().build(queryClient, {
+      mutationKey: ['account', bundle.user.id, 'update'],
+      mutationFn: async () => undefined,
+    })
+    useAuthStore.getState().auth.setBundle(bundle)
+    useAuthStore.getState().auth.setPending2FAFlowToken('pending-flow')
+
+    clearAuthenticatedClientState(queryClient, false)
+
+    assert.equal(queryClient.getQueryCache().getAll().length, 0)
+    assert.equal(queryClient.getMutationCache().getAll().length, 0)
+    assert.equal(useAuthStore.getState().auth.user, null)
+    assert.equal(useAuthStore.getState().auth.accessToken, null)
+    assert.equal(useAuthStore.getState().auth.session, null)
+    assert.equal(useAuthStore.getState().auth.pending2FAFlowToken, null)
+    assert.equal(useAuthStore.getState().auth.bootstrapState, 'complete')
+
+    const nextBundle: AuthBundle = {
+      ...bundle,
+      access_token: 'next-user-token',
+      user: { id: 84, username: 'next-user', role: 1 },
+      session: { ...bundle.session, sid: 'session-b' },
+    }
+    useAuthStore.getState().auth.setBundle(nextBundle)
+    assert.equal(
+      queryClient.getQueryData(['account', bundle.user.id]),
+      undefined
+    )
   })
 })

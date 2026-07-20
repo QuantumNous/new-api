@@ -31,9 +31,13 @@ import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-s
 import {
   OAUTH_BIND_CALLBACK_MESSAGE,
   OAUTH_BIND_RESULT_MESSAGE,
-  TELEGRAM_BIND_RESULT_MESSAGE,
 } from '@/features/auth/constants'
-import { startOAuthBindResponseDeadline } from '@/features/auth/lib/oauth-bind-window'
+import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
+import {
+  parseTelegramBindCallback,
+  postTelegramBindResult,
+  startOAuthBindResponseDeadline,
+} from '@/features/auth/lib/oauth-bind-window'
 import { api, applyAuthBundle, isAuthBundle } from '@/lib/api'
 import { getServerErrorMessageKey } from '@/lib/server-error-message'
 
@@ -62,6 +66,7 @@ function OAuthCallback() {
     redirect?: string
     telegram_bind?: string
     flow_token?: string
+    error_code?: string
   }
   const mode: 'login' | 'bind' =
     typeof window !== 'undefined' && window.opener ? 'bind' : 'login'
@@ -71,27 +76,35 @@ function OAuthCallback() {
 
     const code = search.code ?? ''
     const state = search.state ?? ''
+    const telegramCallback =
+      provider === 'telegram'
+        ? parseTelegramBindCallback({
+            telegram_bind: search.telegram_bind,
+            flow_token: search.flow_token,
+            error_code: search.error_code,
+          })
+        : null
+    if (telegramCallback) {
+      const opener = window.opener
+      if (
+        !postTelegramBindResult(
+          telegramCallback,
+          opener,
+          window.location.origin
+        )
+      ) {
+        toast.error(i18next.t('Telegram binding failed. Please try again.'))
+        const closeTimeout = window.setTimeout(() => window.close(), 1500)
+        return () => window.clearTimeout(closeTimeout)
+      }
+      window.close()
+      return
+    }
+
     if (mode === 'bind') {
       const opener = window.opener
       if (!opener || opener.closed) {
         toast.error(i18next.t('OAuth binding window is no longer available'))
-        return
-      }
-
-      if (
-        provider === 'telegram' &&
-        search.telegram_bind === 'success' &&
-        search.flow_token
-      ) {
-        opener.postMessage(
-          {
-            type: TELEGRAM_BIND_RESULT_MESSAGE,
-            flow_token: search.flow_token,
-            success: true,
-          },
-          window.location.origin
-        )
-        window.close()
         return
       }
 
@@ -146,23 +159,15 @@ function OAuthCallback() {
       }
     }
 
-    const safeNavigate = (target: string) => {
-      navigate({ to: target as never, replace: true })
-      setTimeout(() => {
-        const normalizedTarget = target.startsWith('/') ? target : `/${target}`
-        const currentPath = window.location.pathname + window.location.search
-        if (
-          currentPath !== normalizedTarget &&
-          currentPath !== `${normalizedTarget}/`
-        ) {
-          window.location.replace(target)
-        }
-      }, 100)
+    const safeNavigate = (target: unknown, fallback = '/dashboard') => {
+      const href =
+        sanitizeAuthRedirect(target, window.location.origin) ?? fallback
+      void navigate({ href, replace: true })
     }
 
     if (!code && !search.error) {
       toast.error(i18next.t('Missing code'))
-      safeNavigate('/sign-in')
+      safeNavigate('/sign-in', '/sign-in')
       return
     }
 
@@ -180,7 +185,7 @@ function OAuthCallback() {
         const response = await api.get(`/api/oauth/${provider}`, config)
         if (response.data?.success && isAuthBundle(response.data?.data)) {
           applyAuthBundle(response.data.data)
-          safeNavigate(search.redirect || '/dashboard')
+          safeNavigate(search.redirect)
           toast.success(i18next.t('Signed in successfully!'))
           return
         }
@@ -204,7 +209,7 @@ function OAuthCallback() {
           )
         }
       }
-      safeNavigate('/sign-in')
+      safeNavigate('/sign-in', '/sign-in')
     })()
   }, [
     mode,
@@ -212,6 +217,7 @@ function OAuthCallback() {
     provider,
     search.code,
     search.error,
+    search.error_code,
     search.error_description,
     search.flow_token,
     search.redirect,

@@ -149,7 +149,7 @@ export function useSecureVerification(
 
       try {
         if (!state.scope) {
-          throw new Error('Verification scope is missing')
+          throw new Error(i18next.t('Verification scope is missing'))
         }
         const proof = await verify(
           actualMethod,

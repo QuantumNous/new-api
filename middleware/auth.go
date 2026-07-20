@@ -23,6 +23,14 @@ import (
 
 const authIdentityContextKey = "auth_identity"
 
+type dashboardCredentialKind int
+
+const (
+	dashboardCredentialUnmatched dashboardCredentialKind = iota
+	dashboardCredentialInternal
+	dashboardCredentialPAT
+)
+
 func validUserInfo(username string, role int) bool {
 	// check username is empty
 	if strings.TrimSpace(username) == "" {
@@ -69,14 +77,13 @@ func authHelper(c *gin.Context, minRole int) {
 
 func TryUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		_, ok := authorizationToken(c.GetHeader("Authorization"))
-		if ok {
-			user, identity, useAccessToken, err := authenticateDashboardRequest(c)
-			if err != nil {
-				writeDashboardAuthError(c, err)
-				return
-			}
-			setDashboardAuthContext(c, user, identity, useAccessToken)
+		user, identity, credentialKind, err := classifyDashboardCredential(c)
+		if err != nil {
+			writeDashboardAuthError(c, err)
+			return
+		}
+		if credentialKind != dashboardCredentialUnmatched {
+			setDashboardAuthContext(c, user, identity, credentialKind == dashboardCredentialPAT)
 		}
 		c.Next()
 	}
@@ -130,33 +137,44 @@ func GetSessionAuthIdentity(c *gin.Context) (service.AuthIdentity, bool) {
 }
 
 func authenticateDashboardRequest(c *gin.Context) (*model.UserBase, service.AuthIdentity, bool, error) {
+	user, identity, credentialKind, err := classifyDashboardCredential(c)
+	if err != nil {
+		return nil, service.AuthIdentity{}, credentialKind == dashboardCredentialPAT, err
+	}
+	if credentialKind == dashboardCredentialUnmatched {
+		return nil, service.AuthIdentity{}, false, service.ErrAuthTokenInvalid
+	}
+	return user, identity, credentialKind == dashboardCredentialPAT, nil
+}
+
+func classifyDashboardCredential(c *gin.Context) (*model.UserBase, service.AuthIdentity, dashboardCredentialKind, error) {
 	raw, ok := authorizationToken(c.GetHeader("Authorization"))
 	if !ok {
-		return nil, service.AuthIdentity{}, false, service.ErrAuthTokenInvalid
+		return nil, service.AuthIdentity{}, dashboardCredentialUnmatched, nil
 	}
 	identity, internal, err := service.ParseDashboardAccessToken(raw)
 	if internal {
 		if err != nil {
-			return nil, service.AuthIdentity{}, false, err
+			return nil, service.AuthIdentity{}, dashboardCredentialInternal, err
 		}
 		_, user, err := service.ValidateLoginSession(identity)
 		if err != nil {
-			return nil, service.AuthIdentity{}, false, err
+			return nil, service.AuthIdentity{}, dashboardCredentialInternal, err
 		}
-		return user, identity, false, nil
+		return user, identity, dashboardCredentialInternal, nil
 	}
 	patUser, err := model.ValidateAccessToken(raw)
 	if err != nil {
-		return nil, service.AuthIdentity{}, true, err
+		return nil, service.AuthIdentity{}, dashboardCredentialPAT, err
 	}
 	if patUser == nil || patUser.Id <= 0 {
-		return nil, service.AuthIdentity{}, true, service.ErrAuthTokenInvalid
+		return nil, service.AuthIdentity{}, dashboardCredentialUnmatched, nil
 	}
 	user, err := model.GetUserCache(patUser.Id)
 	if err != nil {
-		return nil, service.AuthIdentity{}, true, err
+		return nil, service.AuthIdentity{}, dashboardCredentialPAT, err
 	}
-	return user, service.AuthIdentity{UserID: user.Id, UserAuthVersion: user.AuthVersion}, true, nil
+	return user, service.AuthIdentity{UserID: user.Id, UserAuthVersion: user.AuthVersion}, dashboardCredentialPAT, nil
 }
 
 func authorizationToken(header string) (string, bool) {

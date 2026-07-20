@@ -22,6 +22,7 @@ import {
   createRootRouteWithContext,
   Outlet,
   redirect,
+  useNavigate,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { useEffect } from 'react'
@@ -36,12 +37,14 @@ import { getSetupStatus } from '@/features/setup/api'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import {
   bootstrapAuthentication,
+  clearAuthenticatedClientState,
   clearAuthentication,
 } from '@/lib/auth-session'
 import { subscribeAuthSessionEvents } from '@/lib/auth-session-sync'
 import { useAuthStore } from '@/stores/auth-store'
 
 function RootComponent() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   // Load system configuration (logo, system name, etc.) from backend
@@ -81,11 +84,11 @@ function RootComponent() {
         }
 
         if (currentSID && event.sid === currentSID) {
-          clearAuthentication(false)
-          window.location.replace('/sign-in')
+          clearAuthenticatedClientState(queryClient, false)
+          void navigate({ to: '/sign-in', replace: true })
         }
       }),
-    []
+    [navigate, queryClient]
   )
 
   return (

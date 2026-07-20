@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Logout01Icon, SmartPhone01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -41,7 +42,7 @@ import {
 } from '@/components/ui/empty'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { clearAuthentication } from '@/lib/api'
+import { clearAuthenticatedClientState } from '@/lib/api'
 import type { LoginSession } from '@/stores/auth-store'
 
 import {
@@ -56,6 +57,7 @@ const sessionQueryKey = ['profile', 'login-sessions'] as const
 
 export function LoginSessionsCard() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [revokeTarget, setRevokeTarget] = useState<LoginSession | null>(null)
   const [confirmOthers, setConfirmOthers] = useState(false)
@@ -85,8 +87,8 @@ export function LoginSessionsCard() {
       )
       setRevokeTarget(null)
       if (revokedCurrent) {
-        clearAuthentication()
-        window.location.replace('/sign-in')
+        clearAuthenticatedClientState(queryClient)
+        void navigate({ to: '/sign-in', replace: true })
         return
       }
       toast.success(t('Session signed out'))

@@ -1293,7 +1293,7 @@
       "get": {
         "summary": "完成 Telegram 绑定",
         "deprecated": false,
-        "description": "Telegram widget 回调；通过一次性 flow_token 关联并重新校验创建该流程的登录会话",
+        "description": "Telegram widget 回调；通过一次性 flow_token 关联并重新校验创建该流程的登录会话。Default 主题始终以 302 回到 /oauth/telegram：成功携带 telegram_bind=success，失败携带 telegram_bind=error、flow_token 和稳定 error_code（TELEGRAM_BIND_DISABLED、TELEGRAM_BIND_INVALID_REQUEST、TELEGRAM_BIND_FLOW_INVALID、TELEGRAM_BIND_SESSION_INVALID、TELEGRAM_BIND_ALREADY_BOUND、TELEGRAM_BIND_USER_DELETED、TELEGRAM_BIND_USER_DISABLED 或 TELEGRAM_BIND_INTERNAL_ERROR），不会透传底层错误文案。Classic 主题保留既有 JSON 错误响应和成功跳转。",
         "tags": [
           "OAuth"
         ],
@@ -1309,7 +1309,19 @@
         ],
         "responses": {
           "302": {
-            "description": "绑定成功后重定向到个人设置",
+            "description": "Default 主题重定向到绑定结果回调；Classic 主题绑定成功后重定向到个人设置",
+            "headers": {}
+          },
+          "200": {
+            "description": "Classic 主题的既有业务错误 JSON 响应",
+            "headers": {}
+          },
+          "403": {
+            "description": "Classic 主题的既有无效流程、会话或授权 JSON 响应",
+            "headers": {}
+          },
+          "500": {
+            "description": "Classic 主题的既有内部错误 JSON 响应",
             "headers": {}
           }
         },

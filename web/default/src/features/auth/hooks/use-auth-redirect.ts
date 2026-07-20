@@ -19,25 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
 
+import {
+  getSavedLanguage,
+  sanitizeAuthRedirect,
+} from '@/features/auth/lib/auth-redirect'
 import { applyAuthBundle } from '@/lib/api'
-import type { AuthBundle, AuthUser } from '@/stores/auth-store'
-
-function getSavedLanguage(user: AuthUser): string | undefined {
-  if (typeof user.language === 'string') {
-    return user.language
-  }
-
-  if (typeof user.setting !== 'string') {
-    return undefined
-  }
-
-  try {
-    const setting = JSON.parse(user.setting) as { language?: unknown }
-    return typeof setting.language === 'string' ? setting.language : undefined
-  } catch {
-    return undefined
-  }
-}
+import type { AuthBundle } from '@/stores/auth-store'
 
 /**
  * Hook for handling authentication redirects and user data management
@@ -60,9 +47,9 @@ export function useAuthRedirect() {
       await i18n.changeLanguage(savedLang)
     }
 
-    // Navigate to target page
-    const targetPath = redirectTo || '/dashboard'
-    navigate({ to: targetPath, replace: true })
+    const targetPath =
+      sanitizeAuthRedirect(redirectTo, window.location.origin) ?? '/dashboard'
+    navigate({ href: targetPath, replace: true })
   }
 
   /**

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -269,6 +270,71 @@ func TestRotateUserSessionRefreshRaceAndReuse(t *testing.T) {
 	require.NoError(t, getErr)
 	assert.Equal(t, UserSessionStatusRevoked, stored.Status)
 	assert.Equal(t, "refresh_reuse", stored.RevokedReason)
+}
+
+func TestUserSessionPreviousRefreshHashNormalizesLegacyPadding(t *testing.T) {
+	setupUserSessionTest(t)
+	now := time.Now().Unix()
+	createUserSessionTestUser(t, 1010, 1)
+	digest := strings.Repeat("a", 64)
+
+	blank := newTestUserSession("legacy-blank-previous-hash", 1010, now)
+	blank.PreviousRefreshHash = strings.Repeat(" ", 64)
+	blank.PreviousValidUntil = now + 60
+	require.NoError(t, DB.Create(blank).Error)
+	loadedBlank, err := GetUserSessionBySID(blank.SID)
+	require.NoError(t, err)
+	assert.Empty(t, loadedBlank.PreviousRefreshHash)
+
+	valid := newTestUserSession("legacy-valid-previous-hash", 1010, now)
+	valid.RefreshHash = strings.Repeat("b", 64)
+	valid.PreviousRefreshHash = digest
+	valid.PreviousValidUntil = now + 60
+	require.NoError(t, DB.Create(valid).Error)
+	loadedValid, err := GetUserSessionBySID(valid.SID)
+	require.NoError(t, err)
+	assert.Equal(t, digest, loadedValid.PreviousRefreshHash)
+
+	require.NoError(t, DB.Model(&UserSession{}).Where("sid = ?", valid.SID).
+		Updates(map[string]any{
+			"previous_refresh_hash": digest + "   ",
+			"previous_valid_until":  now + 60,
+		}).Error)
+	_, err = RotateUserSessionRefresh(valid.UserID, valid.SID, digest, strings.Repeat("c", 64), now+1, 30*time.Second)
+	assert.ErrorIs(t, err, ErrUserSessionRefreshRace)
+
+	revoked, err := RevokeUserSessionByRefreshHash(valid.SID, digest, "legacy-padded-refresh-logout")
+	require.NoError(t, err)
+	assert.True(t, revoked, "refresh-cookie logout must accept a legacy CHAR-padded previous digest inside its grace window")
+}
+
+func TestUserSessionCacheExcludesRefreshDigests(t *testing.T) {
+	setupUserSessionTest(t)
+	useUserCacheMiniRedis(t)
+	now := time.Now().Unix()
+	session := newTestUserSession("cache-without-refresh-digests", 1011, now)
+	session.PreviousRefreshHash = strings.Repeat("a", 64)
+	session.PreviousValidUntil = now + 30
+	require.NoError(t, writeUserSessionCache(session.cacheEntry(), userSessionCacheDeadline()))
+
+	cacheKey := userSessionCacheKey(session.SID)
+	fields, err := common.RDB.HGetAll(context.Background(), cacheKey).Result()
+	require.NoError(t, err)
+	assert.NotContains(t, fields, "RefreshHash")
+	assert.NotContains(t, fields, "PreviousRefreshHash")
+	assert.NotContains(t, fields, "PreviousValidUntil")
+
+	require.NoError(t, common.RDB.HSet(context.Background(), cacheKey,
+		"RefreshHash", strings.Repeat("b", 64),
+		"PreviousRefreshHash", strings.Repeat("c", 64)+"   ",
+		"PreviousValidUntil", now+30,
+	).Err())
+	entry, err := getUserSessionCache(session.SID)
+	require.NoError(t, err)
+	cachedSession := entry.session()
+	assert.Empty(t, cachedSession.RefreshHash)
+	assert.Empty(t, cachedSession.PreviousRefreshHash)
+	assert.Zero(t, cachedSession.PreviousValidUntil)
 }
 
 func TestRevokeOtherUserSessionsKeepsCurrent(t *testing.T) {

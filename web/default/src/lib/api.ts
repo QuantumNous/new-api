@@ -22,6 +22,7 @@ export {
   applyAuthBundle,
   applyAuthRotation,
   bootstrapAuthentication,
+  clearAuthenticatedClientState,
   clearAuthentication,
   getCommonHeaders,
   getFreshAuthHeaders,

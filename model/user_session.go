@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -45,7 +46,7 @@ type UserSession struct {
 	UserAuthVersion     int64  `json:"user_auth_version" gorm:"type:bigint;not null"`
 	Status              string `json:"status" gorm:"type:varchar(16);not null;index:idx_user_sessions_user_status_expiry,priority:2;index:idx_user_sessions_status_revoked,priority:1"`
 	RefreshHash         string `json:"-" gorm:"type:char(64);not null"`
-	PreviousRefreshHash string `json:"-" gorm:"type:char(64)"`
+	PreviousRefreshHash string `json:"-" gorm:"type:varchar(64)"`
 	PreviousValidUntil  int64  `json:"-" gorm:"type:bigint;not null;default:0"`
 	LoginMethod         string `json:"login_method" gorm:"type:varchar(32);not null"`
 	IP                  string `json:"ip" gorm:"type:varchar(64)"`
@@ -59,6 +60,11 @@ type UserSession struct {
 
 func (UserSession) TableName() string {
 	return "user_sessions"
+}
+
+func (session *UserSession) AfterFind(_ *gorm.DB) error {
+	session.PreviousRefreshHash = strings.TrimSpace(session.PreviousRefreshHash)
+	return nil
 }
 
 type userSessionCacheEntry struct {

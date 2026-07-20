@@ -26,6 +26,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TELEGRAM_BIND_RESULT_MESSAGE } from '@/features/auth/constants'
+import { getServerErrorMessageKey } from '@/lib/server-error-message'
 
 import { startTelegramBind } from '../../api'
 
@@ -97,7 +98,7 @@ export function TelegramBindDialog({
         type?: string
         flow_token?: string
         success?: boolean
-        message?: string
+        code?: string
       } | null
       if (
         !result ||
@@ -107,7 +108,8 @@ export function TelegramBindDialog({
         return
       }
       if (!result.success) {
-        setError(result.message || t('Failed to start Telegram binding'))
+        const messageKey = getServerErrorMessageKey({ code: result.code })
+        setError(t(messageKey || 'Telegram binding failed. Please try again.'))
         return
       }
       toast.success(t('Binding successful!'))

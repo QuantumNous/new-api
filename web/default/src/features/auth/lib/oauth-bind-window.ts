@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { TELEGRAM_BIND_RESULT_MESSAGE } from '@/features/auth/constants'
+
 interface TimerRuntime {
   schedule: (callback: () => void, delay: number) => unknown
   cancel: (handle: unknown) => void
@@ -33,6 +35,64 @@ const intervalRuntime: TimerRuntime = {
     globalThis.clearInterval(
       handle as ReturnType<typeof globalThis.setInterval>
     ),
+}
+
+interface TelegramBindCallbackSearch {
+  telegram_bind?: string
+  flow_token?: string
+  error_code?: string
+}
+
+export type TelegramBindCallback =
+  | {
+      kind: 'result'
+      flowToken: string
+      success: boolean
+      code?: string
+    }
+  | { kind: 'invalid' }
+  | null
+
+export function parseTelegramBindCallback(
+  search: TelegramBindCallbackSearch
+): TelegramBindCallback {
+  if (search.telegram_bind !== 'success' && search.telegram_bind !== 'error') {
+    return null
+  }
+  if (!search.flow_token) return { kind: 'invalid' }
+
+  if (search.telegram_bind === 'success') {
+    return {
+      kind: 'result',
+      flowToken: search.flow_token,
+      success: true,
+    }
+  }
+  return {
+    kind: 'result',
+    flowToken: search.flow_token,
+    success: false,
+    code: search.error_code,
+  }
+}
+
+export function postTelegramBindResult(
+  callback: TelegramBindCallback,
+  opener: Pick<Window, 'closed' | 'postMessage'> | null,
+  targetOrigin: string
+): boolean {
+  if (callback?.kind !== 'result' || !opener || opener.closed) return false
+
+  opener.postMessage(
+    {
+      type: TELEGRAM_BIND_RESULT_MESSAGE,
+      flow_token: callback.flowToken,
+      success: callback.success,
+      code: callback.code,
+    },
+    targetOrigin
+  )
+  return true
 }
 
 export function startOAuthBindResponseDeadline(

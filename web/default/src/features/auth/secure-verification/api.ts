@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
 
+import type { ApiResponse } from '@/features/auth/types'
 import { api, get2FAStatus } from '@/lib/api'
 import {
   buildAssertionResult,
@@ -105,7 +106,7 @@ async function verifyTwoFA(
     )
   }
 
-  const res = await api.post('/api/verify', {
+  const res = await api.post<ApiResponse<SecurityProof>>('/api/verify', {
     method: '2fa',
     code: trimmed,
     scope,
@@ -117,7 +118,7 @@ async function verifyTwoFA(
   if (!res.data.data?.proof_token) {
     throw new Error(i18next.t('Verification proof was not returned'))
   }
-  return res.data.data as SecurityProof
+  return res.data.data
 }
 
 /**

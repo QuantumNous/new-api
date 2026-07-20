@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -164,4 +165,25 @@ func TestHeaderNavModulePublicOrUserAuthRequiresLoginForLegacyDisabledModule(t *
 	recorder := performHeaderNavRequest(t, HeaderNavModulePublicOrUserAuth("pricing"), false)
 
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestHeaderNavPublicRouteRejectsExpiredInternalAccessToken(t *testing.T) {
+	setupDashboardAuthMiddlewareTest(t)
+	withHeaderNavModules(t, "")
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.GET("/api/test", HeaderNavModuleAuth("pricing"), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"success": true})
+	})
+	request := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	request.Header.Set("Authorization", "Bearer "+issueExpiredDashboardAccessToken(t, service.AuthIdentity{
+		UserID: 1, SessionID: "expired-header-nav-session", UserAuthVersion: 1, SessionVersion: 1,
+	}))
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	require.Equal(t, http.StatusUnauthorized, response.Code)
+	require.Contains(t, response.Body.String(), "AUTH_TOKEN_EXPIRED")
 }
