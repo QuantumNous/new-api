@@ -268,13 +268,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		relayInfo.CapacityFallbackHeaderDeadline = time.Time{}
 		if usingCapacityFallback {
-			fallbackDeadline := capacityFallbackStartedAt.Add(upstreamCapacityFallbackWindow)
-			if capacityFallbackStartedAt.IsZero() || !time.Now().Before(fallbackDeadline) {
+			fallbackNow := time.Now()
+			if capacityFallbackStartedAt.IsZero() || !fallbackNow.Before(capacityFallbackStartedAt.Add(upstreamCapacityFallbackWindow)) {
 				newAPIError = capacityFallbackError
 				logger.LogInfo(c, "upstream capacity fallback window expired before another channel attempt")
 				break
 			}
-			relayInfo.CapacityFallbackHeaderDeadline = fallbackDeadline
+			relayInfo.CapacityFallbackHeaderDeadline = capacityFallbackHeaderDeadline(capacityFallbackStartedAt, fallbackNow, capacityFallbackScheduled)
 		}
 
 		addUsedChannel(c, channel.Id)
@@ -316,6 +316,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		lastAttemptElapsed = attemptElapsed
 
 		if usingCapacityFallback && errors.Is(newAPIError, relaychannel.ErrCapacityFallbackHeaderDeadline) && capacityFallbackError != nil {
+			fallbackNow := time.Now()
+			if canContinueCapacityFallbackAfterHeaderDeadline(capacityFallbackScheduled, capacityFallbackStartedAt, fallbackNow) {
+				retryParam.PrepareAvailabilityFallback(common.RetryTimes)
+				capacityFallbackScheduled++
+				capacityFallbackPending = true
+				logger.LogWarn(c, fmt.Sprintf("upstream capacity fallback response-header slice reached; trying uncommitted channel fallback %d/%d", capacityFallbackScheduled, maxUpstreamCapacityFallbackAttempts))
+				continue
+			}
 			newAPIError = capacityFallbackError
 			relayInfo.LastError = newAPIError
 			logger.LogInfo(c, "upstream capacity fallback response-header deadline reached; preserving the last upstream capacity response")
@@ -659,10 +667,29 @@ func isUpstreamRateLimitError(apiErr *types.NewAPIError) bool {
 }
 
 const (
-	maxUpstreamCapacityFallbackAttempts = 2
-	upstreamCapacityFallbackWindow      = 5 * time.Second
-	upstreamCapacityErrorMaxElapsed     = 2 * time.Second
+	maxUpstreamCapacityFallbackAttempts        = 2
+	upstreamCapacityFallbackWindow             = 5 * time.Second
+	upstreamCapacityFallbackFirstAttemptWindow = 2 * time.Second
+	upstreamCapacityErrorMaxElapsed            = 2 * time.Second
 )
+
+func capacityFallbackHeaderDeadline(fallbackStartedAt, now time.Time, attemptsScheduled int) time.Time {
+	overallDeadline := fallbackStartedAt.Add(upstreamCapacityFallbackWindow)
+	if attemptsScheduled >= maxUpstreamCapacityFallbackAttempts {
+		return overallDeadline
+	}
+	firstAttemptDeadline := now.Add(upstreamCapacityFallbackFirstAttemptWindow)
+	if firstAttemptDeadline.Before(overallDeadline) {
+		return firstAttemptDeadline
+	}
+	return overallDeadline
+}
+
+func canContinueCapacityFallbackAfterHeaderDeadline(attemptsScheduled int, fallbackStartedAt, now time.Time) bool {
+	return attemptsScheduled < maxUpstreamCapacityFallbackAttempts &&
+		!fallbackStartedAt.IsZero() &&
+		now.Before(fallbackStartedAt.Add(upstreamCapacityFallbackWindow))
+}
 
 func isFastUpstreamCapacityError(apiErr *types.NewAPIError) bool {
 	if isUpstreamRateLimitError(apiErr) {

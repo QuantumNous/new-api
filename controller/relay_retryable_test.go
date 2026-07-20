@@ -318,3 +318,19 @@ func TestChannelSelectionExhaustionIsDistinctFromSelectorFailure(t *testing.T) {
 	assert.Equal(t, "no untried channel", exhausted.Error())
 	assert.False(t, isChannelSelectionExhausted(selectorFailure))
 }
+
+func TestCapacityFallbackHeaderDeadlinePreservesSecondAttempt(t *testing.T) {
+	startedAt := time.Unix(100, 0)
+
+	firstDeadline := capacityFallbackHeaderDeadline(startedAt, startedAt.Add(500*time.Millisecond), 1)
+	assert.Equal(t, startedAt.Add(2500*time.Millisecond), firstDeadline)
+	assert.True(t, canContinueCapacityFallbackAfterHeaderDeadline(1, startedAt, firstDeadline))
+
+	secondDeadline := capacityFallbackHeaderDeadline(startedAt, firstDeadline, 2)
+	assert.Equal(t, startedAt.Add(upstreamCapacityFallbackWindow), secondDeadline)
+	assert.False(t, canContinueCapacityFallbackAfterHeaderDeadline(2, startedAt, firstDeadline))
+
+	nearOverallDeadline := capacityFallbackHeaderDeadline(startedAt, startedAt.Add(4*time.Second), 1)
+	assert.Equal(t, startedAt.Add(upstreamCapacityFallbackWindow), nearOverallDeadline)
+	assert.False(t, canContinueCapacityFallbackAfterHeaderDeadline(1, startedAt, startedAt.Add(upstreamCapacityFallbackWindow)))
+}
