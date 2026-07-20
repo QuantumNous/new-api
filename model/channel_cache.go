@@ -120,8 +120,11 @@ type ChannelSelectionOptions struct {
 	// PreferDifferentHost is enabled only for request-local capacity recovery.
 	// It prefers any healthy different-host candidate across priority tiers, but
 	// still falls back to the avoided host when no alternative exists.
-	PreferDifferentHost  bool
-	AllowCoolingFallback bool
+	PreferDifferentHost bool
+	// DeferAvoidedHostFallback lets auto-group selection scan later groups for a
+	// different upstream before falling back to an avoided host.
+	DeferAvoidedHostFallback bool
+	AllowCoolingFallback     bool
 	// RequestPath is the RAW request path, used to match Advanced Custom
 	// (type 58) channels against their configured routes.
 	RequestPath string
@@ -130,6 +133,8 @@ type ChannelSelectionOptions struct {
 	// It must stay normalized: the health registry is bounded, so raw paths
 	// would explode its key cardinality.
 	Path string
+
+	requireDifferentHost bool
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
@@ -137,11 +142,30 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 }
 
 func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
-	requestPath := options.RequestPath
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
 		return GetChannelWithOptions(group, model, retry, options)
 	}
+	if options.PreferDifferentHost && len(options.AvoidChannelHosts) > 0 {
+		differentHostOptions := options
+		differentHostOptions.PreferDifferentHost = false
+		differentHostOptions.DeferAvoidedHostFallback = false
+		differentHostOptions.AllowCoolingFallback = false
+		differentHostOptions.requireDifferentHost = true
+		channel, err := getRandomSatisfiedChannelWithOptions(group, model, 0, differentHostOptions)
+		if err != nil || channel != nil || options.DeferAvoidedHostFallback {
+			return channel, err
+		}
+	}
+	fallbackOptions := options
+	fallbackOptions.PreferDifferentHost = false
+	fallbackOptions.DeferAvoidedHostFallback = false
+	fallbackOptions.requireDifferentHost = false
+	return getRandomSatisfiedChannelWithOptions(group, model, retry, fallbackOptions)
+}
+
+func getRandomSatisfiedChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
+	requestPath := options.RequestPath
 
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
@@ -167,10 +191,15 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		if _, excluded := options.ExcludedChannelIDs[channel.Id]; excluded {
 			return nil, nil
 		}
+		host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+		if options.requireDifferentHost {
+			if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
+				return nil, nil
+			}
+		}
 		if IsChannelCoolingDown(channel.Id) && !options.AllowCoolingFallback {
 			return nil, nil
 		}
-		host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
 		if shouldEnforceChannelHostCircuit(host, model, options.Path) && !options.AllowCoolingFallback {
 			return nil, nil
 		}
@@ -191,6 +220,12 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		if _, excluded := options.ExcludedChannelIDs[channel.Id]; excluded {
 			continue
 		}
+		if options.requireDifferentHost {
+			host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+			if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
+				continue
+			}
+		}
 		if IsChannelCoolingDown(channel.Id) {
 			coolingChannels = append(coolingChannels, channel)
 			continue
@@ -204,20 +239,6 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	if len(availableChannels) == 0 && options.AllowCoolingFallback {
 		availableChannels = coolingChannels
 	}
-	if options.PreferDifferentHost && len(options.AvoidChannelHosts) > 0 {
-		differentHostChannels := make([]*Channel, 0, len(availableChannels))
-		for _, channel := range availableChannels {
-			host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
-			if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
-				continue
-			}
-			differentHostChannels = append(differentHostChannels, channel)
-		}
-		if len(differentHostChannels) > 0 {
-			availableChannels = differentHostChannels
-		}
-	}
-
 	uniquePriorities := make(map[int]bool)
 	for _, channel := range availableChannels {
 		uniquePriorities[int(channel.GetPriority())] = true
@@ -298,7 +319,7 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 			options.Path,
 		)
 	}
-	return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s", group, model))
+	return nil, nil
 }
 
 func effectiveChannelSelectionWeights(channels []*Channel, model string, path string) []int {

@@ -318,6 +318,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if usingCapacityFallback && errors.Is(newAPIError, relaychannel.ErrCapacityFallbackHeaderDeadline) && capacityFallbackError != nil {
 			fallbackNow := time.Now()
 			if canContinueCapacityFallbackAfterHeaderDeadline(capacityFallbackScheduled, capacityFallbackStartedAt, fallbackNow) {
+				preferDifferentRetryHost(c, retryParam, relayInfo, true)
 				retryParam.PrepareAvailabilityFallback(common.RetryTimes)
 				capacityFallbackScheduled++
 				capacityFallbackPending = true
@@ -368,19 +369,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		capacityError := isFastUpstreamCapacityError(newAPIError)
-		if shouldAvoidRetryHost(newAPIError) || capacityError {
-			host := relayRetryHost(relayInfo)
-			if host != "" {
-				if retryParam.AvoidChannelHosts == nil {
-					retryParam.AvoidChannelHosts = make(map[string]struct{})
-				}
-				retryParam.AvoidChannelHosts[host] = struct{}{}
-				if capacityError {
-					retryParam.PreferDifferentHost = true
-				}
-				logger.LogInfo(c, fmt.Sprintf("retry will prefer a different upstream host than %s", host))
-			}
+		preferCapacityHost := shouldPreferDifferentCapacityHost(c, relayInfo, newAPIError)
+		if shouldAvoidRetryHost(newAPIError) || preferCapacityHost {
+			preferDifferentRetryHost(c, retryParam, relayInfo, preferCapacityHost)
 		}
 
 		// Bound total retry wall-clock so a request cannot spend minutes cycling
@@ -441,6 +432,24 @@ func relayRetryHost(relayInfo *relaycommon.RelayInfo) string {
 		return model.NormalizeChannelBaseURLHost(relayInfo.AttemptUpstreamHost)
 	}
 	return model.NormalizeChannelBaseURLHost(relayInfo.ChannelBaseUrl)
+}
+
+func preferDifferentRetryHost(c *gin.Context, retryParam *service.RetryParam, relayInfo *relaycommon.RelayInfo, acrossPriorities bool) {
+	if retryParam == nil {
+		return
+	}
+	host := relayRetryHost(relayInfo)
+	if host == "" {
+		return
+	}
+	if retryParam.AvoidChannelHosts == nil {
+		retryParam.AvoidChannelHosts = make(map[string]struct{})
+	}
+	retryParam.AvoidChannelHosts[host] = struct{}{}
+	if acrossPriorities {
+		retryParam.PreferDifferentHost = true
+	}
+	logger.LogInfo(c, fmt.Sprintf("retry will prefer a different upstream host than %s", host))
 }
 
 // ReplayAsyncImageGeneration resolves accepted idempotent image requests after
@@ -663,6 +672,10 @@ func isClientCanceledError(apiErr *types.NewAPIError) bool {
 
 func shouldAvoidRetryHost(apiErr *types.NewAPIError) bool {
 	return service.ShouldObserveUpstreamHostFailure(apiErr)
+}
+
+func shouldPreferDifferentCapacityHost(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) bool {
+	return shouldUseUpstreamCapacityFallback(c, info, apiErr)
 }
 
 func isUpstreamRateLimitError(apiErr *types.NewAPIError) bool {

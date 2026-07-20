@@ -112,6 +112,25 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 }
 
 func GetChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
+	if options.PreferDifferentHost && len(options.AvoidChannelHosts) > 0 {
+		differentHostOptions := options
+		differentHostOptions.PreferDifferentHost = false
+		differentHostOptions.DeferAvoidedHostFallback = false
+		differentHostOptions.AllowCoolingFallback = false
+		differentHostOptions.requireDifferentHost = true
+		channel, err := getChannelWithOptions(group, model, 0, differentHostOptions)
+		if err != nil || channel != nil || options.DeferAvoidedHostFallback {
+			return channel, err
+		}
+	}
+	fallbackOptions := options
+	fallbackOptions.PreferDifferentHost = false
+	fallbackOptions.DeferAvoidedHostFallback = false
+	fallbackOptions.requireDifferentHost = false
+	return getChannelWithOptions(group, model, retry, fallbackOptions)
+}
+
+func getChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
 	var abilities []Ability
 
 	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
@@ -141,6 +160,11 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 		if _, excluded := options.ExcludedChannelIDs[ability.ChannelId]; excluded {
 			continue
 		}
+		if options.requireDifferentHost {
+			if _, avoided := avoidedChannelIDs[ability.ChannelId]; avoided {
+				continue
+			}
+		}
 		if IsChannelCoolingDown(ability.ChannelId) {
 			coolingAbilities = append(coolingAbilities, ability)
 			continue
@@ -157,19 +181,6 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	if len(availableAbilities) == 0 {
 		return nil, nil
 	}
-	if options.PreferDifferentHost && len(avoidedChannelIDs) > 0 {
-		differentHostAbilities := make([]Ability, 0, len(availableAbilities))
-		for _, ability := range availableAbilities {
-			if _, avoided := avoidedChannelIDs[ability.ChannelId]; avoided {
-				continue
-			}
-			differentHostAbilities = append(differentHostAbilities, ability)
-		}
-		if len(differentHostAbilities) > 0 {
-			availableAbilities = differentHostAbilities
-		}
-	}
-
 	uniquePriorities := make(map[int]bool)
 	for _, ability := range availableAbilities {
 		priority := int(0)
