@@ -7,8 +7,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRetryParamPrepareAvailabilityFallbackRestartsAutoGroupSearch(t *testing.T) {
@@ -35,4 +38,50 @@ func TestRetryParamPrepareAvailabilityFallbackRestartsAutoGroupSearch(t *testing
 	// selection gets one attempt at the configured terminal priority.
 	retryParam.IncreaseRetry()
 	assert.Equal(t, 2, retryParam.GetRetry())
+}
+
+func TestCapacityRetryScansAutoGroupsForDifferentHostBeforeSameHostFallback(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	oldAutoGroups := setting.AutoGroups2JsonString()
+	oldUsableGroups := setting.UserUsableGroups2JSONString()
+	common.MemoryCacheEnabled = true
+	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["group-a","group-b"]`))
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"group-a":"A","group-b":"B"}`))
+	model.ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		model.ClearChannelCacheForTest()
+		require.NoError(t, setting.UpdateAutoGroupsByJsonString(oldAutoGroups))
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(oldUsableGroups))
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	highPriority := int64(20)
+	lowPriority := int64(10)
+	weight := uint(100)
+	failedHostURL := "https://failed.example/v1"
+	otherHostURL := "https://other.example/v1"
+	model.SetChannelCacheForTest(map[int]*model.Channel{
+		17: {Id: 17, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &highPriority, BaseURL: &failedHostURL},
+		29: {Id: 29, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &lowPriority, BaseURL: &otherHostURL},
+	}, map[string]map[string][]int{
+		"group-a": {"gpt-5.6-sol": {17}},
+		"group-b": {"gpt-5.6-sol": {29}},
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	selected, group, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:                 c,
+		TokenGroup:          "auto",
+		ModelName:           "gpt-5.6-sol",
+		RequestPath:         "/v1/responses",
+		Retry:               common.GetPointer(0),
+		AvoidChannelHosts:   map[string]struct{}{"failed.example": {}},
+		PreferDifferentHost: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 29, selected.Id)
+	assert.Equal(t, "group-b", group)
 }
