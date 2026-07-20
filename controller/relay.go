@@ -679,9 +679,7 @@ func shouldPreferDifferentCapacityHost(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func isUpstreamRateLimitError(apiErr *types.NewAPIError) bool {
-	return apiErr != nil &&
-		apiErr.UpstreamStatusCode == http.StatusTooManyRequests &&
-		!service.ShouldCooldownChannel(apiErr)
+	return service.IsUpstreamRateLimitError(apiErr)
 }
 
 const (
@@ -787,6 +785,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
+	if service.IsUpstreamRateLimitError(openaiErr) {
+		return true
+	}
 	code := openaiErr.StatusCode
 	if code >= 200 && code < 300 {
 		return false
@@ -871,6 +872,9 @@ func isRetryableChannelError(c *gin.Context, openaiErr *types.NewAPIError) bool 
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
+	if service.IsUpstreamRateLimitError(openaiErr) {
+		return true
+	}
 	code := openaiErr.StatusCode
 	if code >= 200 && code < 300 {
 		return false
@@ -905,7 +909,9 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
-	if isModelCapabilityError(err) {
+	if service.IsUpstreamRateLimitError(err) {
+		service.CooldownChannelForUpstreamRateLimit(channelError, err)
+	} else if isModelCapabilityError(err) {
 		// The upstream reported it cannot serve THIS model (model_not_found),
 		// which is a fact about (channel, model), not about the channel. The
 		// adaptive health circuit already recorded it at that granularity
@@ -1125,6 +1131,7 @@ func RelayTask(c *gin.Context) {
 		var taskAPIError *types.NewAPIError
 		if taskErr != nil && !taskErr.LocalError {
 			taskAPIError = types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
+			taskAPIError.UpstreamStatusCode = taskErr.StatusCode
 		}
 		service.RecordChannelHealthOutcome(channel.Id, relayInfo.OriginModelName, c.Request.URL.Path, relayInfo, attemptStart, taskAPIError, false)
 		if taskErr == nil {

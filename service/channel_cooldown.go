@@ -73,8 +73,9 @@ func ObserveUpstreamHostFailure(host, modelName, requestPath string, channelID i
 }
 
 const (
-	ChannelCooldownDuration       = 30 * time.Minute
-	UpstreamErrorCooldownDuration = 15 * time.Minute
+	ChannelCooldownDuration           = 30 * time.Minute
+	UpstreamErrorCooldownDuration     = 15 * time.Minute
+	UpstreamRateLimitCooldownDuration = 2 * time.Hour
 	// ShortChannelCooldownDuration is used for transient retryable failures
 	// (mostly upstream 5xx). Kept short so a channel that only blipped returns
 	// to rotation quickly instead of being sidelined for the full duration.
@@ -93,6 +94,13 @@ var channelCooldownKeywords = []string{
 	"insufficient_quota",
 	"your credit balance is too low",
 	"余额不足",
+}
+
+// IsUpstreamRateLimitError only matches a 429 returned by the selected
+// upstream. Gateway-local rate limits have no UpstreamStatusCode provenance
+// and must not penalize a channel.
+func IsUpstreamRateLimitError(err *types.NewAPIError) bool {
+	return err != nil && err.UpstreamStatusCode == http.StatusTooManyRequests
 }
 
 var upstreamErrorCooldownCodes = map[types.ErrorCode]bool{
@@ -213,12 +221,22 @@ func CooldownChannelForUpstreamError(channelError types.ChannelError, err *types
 	model.CooldownChannel(channelError.ChannelId, reason, UpstreamErrorCooldownDuration)
 }
 
-// CooldownChannelForRetry cools a channel for the full ChannelCooldownDuration
-// whenever it failed in a way that triggered a retry to another channel. The
-// caller (relay loop) decides retryability; this just records the cooldown so a
-// misbehaving channel is taken out of selection quickly instead of being
-// re-picked on subsequent requests.
+func CooldownChannelForUpstreamRateLimit(channelError types.ChannelError, err *types.NewAPIError) {
+	if !IsUpstreamRateLimitError(err) {
+		return
+	}
+	reason := fmt.Sprintf("upstream_rate_limit status=%d upstream_status=%d code=%s type=%s error=%s", err.StatusCode, err.UpstreamStatusCode, err.GetErrorCode(), err.GetErrorType(), err.Error())
+	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, UpstreamRateLimitCooldownDuration, reason))
+	model.CooldownChannel(channelError.ChannelId, reason, UpstreamRateLimitCooldownDuration)
+}
+
+// CooldownChannelForRetry records a retry-triggering channel failure so later
+// requests prefer healthy alternatives.
 func CooldownChannelForRetry(channelError types.ChannelError, err *types.NewAPIError) {
+	if IsUpstreamRateLimitError(err) {
+		CooldownChannelForUpstreamRateLimit(channelError, err)
+		return
+	}
 	// Transient retryable failures (mostly upstream 5xx) cool briefly so a
 	// recovered channel rejoins rotation fast; structural capability gaps cool
 	// for the full duration since a quick retry won't fix them.
