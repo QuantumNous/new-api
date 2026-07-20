@@ -257,7 +257,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// leak into this attempt's health outcome.
 		relayInfo.UpstreamEmptyResponse = false
 		relayInfo.AttemptUpstreamHost = ""
-		attemptStart := time.Now()
+		attemptStart := relayInfo.BeginChannelAttempt()
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
@@ -624,16 +624,7 @@ func shouldCooldownSlowChannel(info *relaycommon.RelayInfo, attemptStart time.Ti
 	if info == nil {
 		return 0, false
 	}
-	firstResponseAt := time.Time{}
-	if info.StreamStatus != nil {
-		firstDataAt := info.StreamStatus.Snapshot().FirstDataAt
-		if firstDataAt.After(attemptStart) {
-			firstResponseAt = firstDataAt
-		}
-	}
-	if firstResponseAt.IsZero() && info.HasSendResponse() && info.FirstResponseTime.After(attemptStart) {
-		firstResponseAt = info.FirstResponseTime
-	}
+	firstResponseAt := info.FirstResponseTimeForAttempt(attemptStart)
 	if firstResponseAt.IsZero() {
 		return 0, false
 	}
@@ -922,7 +913,7 @@ func RelayTask(c *gin.Context) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
-		attemptStart := time.Now()
+		attemptStart := relayInfo.BeginChannelAttempt()
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		var taskAPIError *types.NewAPIError
 		if taskErr != nil && !taskErr.LocalError {

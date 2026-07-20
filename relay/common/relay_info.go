@@ -86,16 +86,17 @@ type TokenCountMeta struct {
 }
 
 type RelayInfo struct {
-	TokenId           int
-	TokenKey          string
-	TokenGroup        string
-	UserId            int
-	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
-	UserGroup         string // 用户所在分组
-	TokenUnlimited    bool
-	StartTime         time.Time
-	FirstResponseTime time.Time
-	isFirstResponse   bool
+	TokenId                  int
+	TokenKey                 string
+	TokenGroup               string
+	UserId                   int
+	UsingGroup               string // 使用的分组，当auto跨分组重试时，会变动
+	UserGroup                string // 用户所在分组
+	TokenUnlimited           bool
+	StartTime                time.Time
+	FirstResponseTime        time.Time
+	isFirstResponse          bool
+	attemptFirstResponseTime time.Time
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
@@ -683,11 +684,51 @@ func (info *RelayInfo) GetEstimatePromptTokens() int {
 	return info.estimatePromptTokens
 }
 
+// BeginChannelAttempt resets response state that belongs to one selected
+// channel while preserving request-level timing across retries.
+func (info *RelayInfo) BeginChannelAttempt() time.Time {
+	startedAt := time.Now()
+	if info == nil {
+		return startedAt
+	}
+	info.attemptFirstResponseTime = time.Time{}
+	info.StreamStatus = nil
+	return startedAt
+}
+
 func (info *RelayInfo) SetFirstResponseTime() {
+	if info == nil || (!info.attemptFirstResponseTime.IsZero() && !info.isFirstResponse) {
+		return
+	}
+	now := time.Now()
+	if info.attemptFirstResponseTime.IsZero() {
+		info.attemptFirstResponseTime = now
+	}
 	if info.isFirstResponse {
-		info.FirstResponseTime = time.Now()
+		info.FirstResponseTime = now
 		info.isFirstResponse = false
 	}
+}
+
+// FirstResponseTimeForAttempt returns a first-response timestamp only when it
+// can be attributed to the channel attempt that started at attemptStart.
+func (info *RelayInfo) FirstResponseTimeForAttempt(attemptStart time.Time) time.Time {
+	if info == nil || attemptStart.IsZero() {
+		return time.Time{}
+	}
+	if info.attemptFirstResponseTime.After(attemptStart) {
+		return info.attemptFirstResponseTime
+	}
+	if info.StreamStatus != nil {
+		firstDataAt := info.StreamStatus.Snapshot().FirstDataAt
+		if firstDataAt.After(attemptStart) {
+			return firstDataAt
+		}
+	}
+	if info.HasSendResponse() && info.FirstResponseTime.After(attemptStart) {
+		return info.FirstResponseTime
+	}
+	return time.Time{}
 }
 
 func (info *RelayInfo) HasSendResponse() bool {

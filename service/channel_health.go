@@ -151,15 +151,14 @@ func RecordChannelHealthOutcome(channelID int, modelName, requestPath string, re
 	// generation completes. That duration is expected to exceed the text TTFT
 	// slow threshold, so image routes use health failures but not latency scoring.
 	if healthKey.Path != "/v1/images/generations" && healthKey.Path != "/v1/images/edits" {
-		if relayInfo != nil && relayInfo.StreamStatus != nil {
-			firstDataAt := relayInfo.StreamStatus.Snapshot().FirstDataAt
-			if firstDataAt.After(attemptStart) {
-				outcome.Latency = firstDataAt.Sub(attemptStart)
+		if relayInfo != nil {
+			firstResponseAt := relayInfo.FirstResponseTimeForAttempt(attemptStart)
+			if !firstResponseAt.IsZero() {
+				outcome.Latency = firstResponseAt.Sub(attemptStart)
+			} else if !relayInfo.IsStream && !attemptStart.IsZero() {
+				outcome.Latency = time.Since(attemptStart)
 			}
-		}
-		if outcome.Latency == 0 && relayInfo != nil && relayInfo.HasSendResponse() && relayInfo.FirstResponseTime.After(attemptStart) {
-			outcome.Latency = relayInfo.FirstResponseTime.Sub(attemptStart)
-		} else if outcome.Latency == 0 && (relayInfo == nil || relayInfo.StreamStatus == nil) && !attemptStart.IsZero() {
+		} else if !attemptStart.IsZero() {
 			outcome.Latency = time.Since(attemptStart)
 		}
 	}
