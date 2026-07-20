@@ -2,6 +2,7 @@ package aws
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,28 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type awsHTTPStatusError struct {
+	status int
+}
+
+func (e awsHTTPStatusError) Error() string {
+	return http.StatusText(e.status)
+}
+
+func (e awsHTTPStatusError) HTTPStatusCode() int {
+	return e.status
+}
+
+func TestNewAwsInvokeErrorPreservesHTTPStatusProvenance(t *testing.T) {
+	apiErr := newAwsInvokeError(awsHTTPStatusError{status: http.StatusTooManyRequests}, "InvokeModel")
+	require.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+	require.Equal(t, http.StatusTooManyRequests, apiErr.UpstreamStatusCode)
+
+	localErr := newAwsInvokeError(errors.New("local aws client failure"), "InvokeModel")
+	require.Equal(t, http.StatusInternalServerError, localErr.StatusCode)
+	require.Zero(t, localErr.UpstreamStatusCode, "errors without an AWS HTTP response must not gain upstream provenance")
+}
 
 func TestDoAwsClientRequest_AppliesRuntimeHeaderOverrideToAnthropicBeta(t *testing.T) {
 	t.Parallel()

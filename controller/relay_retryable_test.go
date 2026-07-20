@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestContext() *gin.Context {
@@ -106,6 +107,20 @@ func TestShouldRetryUsesUpstream429ProvenanceAfterStatusMapping(t *testing.T) {
 	pinned.Set("specific_channel_id", 17)
 	assert.False(t, isRetryableChannelError(pinned, err))
 	assert.False(t, shouldRetry(pinned, err, 1), "a pinned request cannot switch channels")
+
+	affinity := newTestContext()
+	affinity.Set("channel_affinity_skip_retry_on_failure", true)
+	assert.True(t, isRetryableChannelError(affinity, err), "upstream provenance must override a mapped 400 affinity decision")
+	assert.True(t, shouldRetry(affinity, err, 1))
+
+	mapped503 := types.NewErrorWithStatusCode(
+		errors.New("Upstream rate limit exceeded, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusServiceUnavailable,
+	)
+	mapped503.UpstreamStatusCode = http.StatusTooManyRequests
+	assert.True(t, isRetryableChannelError(affinity, mapped503))
+	assert.True(t, shouldRetry(affinity, mapped503, 1), "429 retry behavior must not depend on the client-facing mapping")
 }
 
 func TestProcessChannelErrorCoolsMappedUpstream429ForTwoHours(t *testing.T) {
@@ -127,7 +142,7 @@ func TestProcessChannelErrorCoolsMappedUpstream429ForTwoHours(t *testing.T) {
 	)
 
 	reason, expires, cooling := model.GetChannelCooldown(channelID)
-	assert.True(t, cooling)
+	require.True(t, cooling)
 	assert.Contains(t, reason, "upstream_rate_limit")
 	remaining := time.Until(time.Unix(expires, 0))
 	assert.Greater(t, remaining, 119*time.Minute)
@@ -291,8 +306,8 @@ func TestUpstreamCapacityFallbackRequiresUncommittedTransientCapacityError(t *te
 	)
 	quota429.UpstreamStatusCode = http.StatusTooManyRequests
 	assert.True(t, isUpstreamRateLimitError(quota429), "every genuine upstream 429 must switch away from the affected channel")
-	assert.True(t, isFastUpstreamCapacityError(quota429))
-	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), quota429))
+	assert.False(t, isFastUpstreamCapacityError(quota429), "structural quota errors must stay inside the configured retry budget")
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), quota429))
 
 	imageInfo := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
 	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), imageInfo, upstream429), "side-effecting generation routes must not expand attempts")
