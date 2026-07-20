@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -31,7 +32,6 @@ import {
   Info,
   LogIn,
 } from 'lucide-react'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -74,6 +74,22 @@ const CHANNEL_FIELD_LABELS: Record<string, string> = {
   type: 'Type',
   base_url: 'Base URL',
   key: 'Key',
+}
+
+const STREAM_END_DESCRIPTION_KEYS: Record<string, string> = {
+  done: 'The upstream stream completed normally.',
+  eof: 'The upstream connection ended without an explicit completion marker. This can be normal for some providers.',
+  timeout: 'The stream exceeded the server-side timeout before completion.',
+  client_gone:
+    'The client connection closed before the stream completed. Common causes include caller cancellation, client or proxy timeouts, and network interruption; this does not necessarily mean the upstream model failed.',
+  scanner_error:
+    'Reading the upstream stream failed before completion. Check the end error and server logs using the request ID.',
+  handler_stop:
+    'Stream handling stopped before completion, usually after a response processing or downstream write error.',
+  panic:
+    'Stream processing stopped because an internal panic was recovered. Check server logs using the request ID.',
+  ping_fail:
+    'Sending the stream keepalive ping failed, usually because the downstream connection was no longer writable.',
 }
 
 function timingTextColorClass(
@@ -179,7 +195,9 @@ function getUsageBillingPathLabel(
   }
 }
 
-function isUsageBillingPathLocal(adminInfo: LogOtherData['admin_info']): boolean {
+function isUsageBillingPathLocal(
+  adminInfo: LogOtherData['admin_info']
+): boolean {
   if (adminInfo?.usage_billing_path) {
     return adminInfo.usage_billing_path === USAGE_BILLING_PATH.LOCAL
   }
@@ -590,6 +608,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
   } else if (other?.reasoning_effort === 'medium') {
     reasoningEffortVariant = 'yellow'
   }
+  const streamEndReason = other?.stream_status?.end_reason
+  const streamEndDescription = streamEndReason
+    ? t(
+        STREAM_END_DESCRIPTION_KEYS[streamEndReason] ??
+          'No additional explanation is available for this stream end reason.'
+      )
+    : ''
 
   return (
     <Dialog
@@ -1107,6 +1132,20 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 <DetailRow
                   label={t('End Reason')}
                   value={other.stream_status.end_reason}
+                  mono
+                />
+              )}
+              {streamEndDescription && (
+                <DetailRow
+                  label={t('Description')}
+                  value={streamEndDescription}
+                />
+              )}
+              {other.stream_status.received_response_count != null && (
+                <DetailRow
+                  label={t('Received responses')}
+                  value={String(other.stream_status.received_response_count)}
+                  mono
                 />
               )}
               {(other.stream_status.error_count ?? 0) > 0 && (
@@ -1119,6 +1158,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 <DetailRow
                   label={t('End Error')}
                   value={other.stream_status.end_error}
+                  mono
                 />
               )}
               {Array.isArray(other.stream_status.errors) &&

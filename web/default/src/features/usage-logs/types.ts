@@ -212,6 +212,7 @@ export interface LogOtherData {
     error_count?: number
     end_error?: string
     errors?: string[]
+    received_response_count?: number
   }
   // Violation fee fields
   violation_fee?: boolean

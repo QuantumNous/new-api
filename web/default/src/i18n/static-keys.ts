@@ -483,6 +483,18 @@ export const STATIC_I18N_KEYS = [
   'Drawing task records',
   'Task Logs',
   'System task records',
+
+  // Usage log stream diagnostics
+  'The upstream stream completed normally.',
+  'The upstream connection ended without an explicit completion marker. This can be normal for some providers.',
+  'The stream exceeded the server-side timeout before completion.',
+  'The client connection closed before the stream completed. Common causes include caller cancellation, client or proxy timeouts, and network interruption; this does not necessarily mean the upstream model failed.',
+  'Reading the upstream stream failed before completion. Check the end error and server logs using the request ID.',
+  'Stream handling stopped before completion, usually after a response processing or downstream write error.',
+  'Stream processing stopped because an internal panic was recovered. Check server logs using the request ID.',
+  'Sending the stream keepalive ping failed, usually because the downstream connection was no longer writable.',
+  'No additional explanation is available for this stream end reason.',
+
   'Personal Center Area',
   'User personal functions',
   'Wallet Management',
