@@ -171,6 +171,13 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 	settings := getChannelMonitorSettings()
 	emailChanges := make([]channelRatioMonitorEmailChange, 0)
 	balanceWarnings := make([]channelRatioMonitorBalanceWarning, 0)
+	balanceChannelStatusChanged := false
+	defer func() {
+		if balanceChannelStatusChanged {
+			model.InitChannelCache()
+			service.ResetProxyClientCache()
+		}
+	}()
 	defer func() {
 		shouldNotify := len(emailChanges) > 0 || len(balanceWarnings) > 0 || summary.Failed > 0 || summary.GroupUpdateFailed || taskErr != nil
 		if !shouldNotify || !settings.EmailNotificationEnabled || settings.NotificationEmail == "" {
@@ -307,6 +314,18 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 		if recordedBalance != nil {
 			balance := *recordedBalance
 			summary.BalanceUpdated++
+			balanceAutoDisabled, disableErr := autoDisableChannelMonitorForLowBalance(monitor, channel, balance)
+			if disableErr != nil {
+				if err == nil {
+					err = disableErr
+				} else {
+					err = fmt.Errorf("%w（余额自动禁用失败：%v）", err, disableErr)
+				}
+			}
+			if balanceAutoDisabled {
+				summary.ChannelsDisabled++
+				balanceChannelStatusChanged = true
+			}
 			if monitor.BalanceWarningThreshold != nil &&
 				balance < *monitor.BalanceWarningThreshold &&
 				!monitor.BalanceAlertNotified {
@@ -367,7 +386,10 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 		getChannelMonitorGroupCoefficients(),
 	)
 	summary.GroupsSkipped = plan.SkippedGroupCount
-	summary.GroupsUpdated, summary.ChannelsDisabled, summary.GroupUpdateFailed, err = applyChannelMonitorPolicyPlan(ctx, plan)
+	groupsUpdated, channelsDisabled, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(ctx, plan)
+	summary.GroupsUpdated = groupsUpdated
+	summary.ChannelsDisabled += channelsDisabled
+	summary.GroupUpdateFailed = groupUpdateFailed
 	if err != nil {
 		return summary, err
 	}

@@ -126,6 +126,7 @@ func TestChannelRatioMonitorBalanceAlertResetsAfterRecoveryOrThresholdChange(t *
 	resetChannelRatioMonitorTables(t)
 
 	threshold := 10.0
+	autoDisableThreshold := 5.0
 	_, err := SaveChannelRatioUpstreamConfig(
 		10,
 		"new_api",
@@ -135,11 +136,12 @@ func TestChannelRatioMonitorBalanceAlertResetsAfterRecoveryOrThresholdChange(t *
 		7,
 		"dashboard-token",
 		ChannelRatioUpstreamOptions{
-			SingleChannelAction:     "none",
-			MultipleChannelsAction:  "none",
-			BalanceWarningThreshold: &threshold,
-			RatioSyncEnabled:        true,
-			BalanceSyncEnabled:      true,
+			SingleChannelAction:         "none",
+			MultipleChannelsAction:      "none",
+			BalanceWarningThreshold:     &threshold,
+			BalanceAutoDisableThreshold: &autoDisableThreshold,
+			RatioSyncEnabled:            true,
+			BalanceSyncEnabled:          true,
 		},
 	)
 	require.NoError(t, err)
@@ -151,6 +153,8 @@ func TestChannelRatioMonitorBalanceAlertResetsAfterRecoveryOrThresholdChange(t *
 	monitor, err := GetChannelRatioMonitor(10)
 	require.NoError(t, err)
 	assert.True(t, monitor.BalanceAlertNotified)
+	require.NotNil(t, monitor.BalanceAutoDisableThreshold)
+	assert.Equal(t, autoDisableThreshold, *monitor.BalanceAutoDisableThreshold)
 
 	stillLowBalance := 9.99
 	require.NoError(t, RecordChannelRatioMonitorBalance(10, &stillLowBalance, ""))
@@ -175,11 +179,12 @@ func TestChannelRatioMonitorBalanceAlertResetsAfterRecoveryOrThresholdChange(t *
 		7,
 		"dashboard-token",
 		ChannelRatioUpstreamOptions{
-			SingleChannelAction:     "none",
-			MultipleChannelsAction:  "none",
-			BalanceWarningThreshold: &newThreshold,
-			RatioSyncEnabled:        true,
-			BalanceSyncEnabled:      true,
+			SingleChannelAction:         "none",
+			MultipleChannelsAction:      "none",
+			BalanceWarningThreshold:     &newThreshold,
+			BalanceAutoDisableThreshold: &autoDisableThreshold,
+			RatioSyncEnabled:            true,
+			BalanceSyncEnabled:          true,
 		},
 	)
 	require.NoError(t, err)

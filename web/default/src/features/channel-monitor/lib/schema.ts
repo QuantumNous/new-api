@@ -28,7 +28,7 @@ import type {
 import { CHANNEL_MONITOR_SUBSCRIPTION_DAYS } from './cost-conversion'
 
 export const MAX_MONITOR_RATIO = 1_000_000
-export const MAX_BALANCE_WARNING_THRESHOLD = 1_000_000_000_000
+export const MAX_BALANCE_THRESHOLD = 1_000_000_000_000
 export const MAX_COST_CONVERSION_AMOUNT = 1_000_000_000_000
 export const MAX_CUSTOM_UPSTREAM_BALANCE = 1_000_000_000_000_000
 export const MAX_CUSTOM_UPSTREAM_ENTRIES = 32
@@ -424,7 +424,13 @@ export function createUpstreamConfigSchema(
         .number()
         .finite('余额预警值必须是有效数字')
         .min(0, '余额预警值不能小于 0')
-        .max(MAX_BALANCE_WARNING_THRESHOLD, '余额预警值不能超过 1000000000000')
+        .max(MAX_BALANCE_THRESHOLD, '余额预警值不能超过 1000000000000')
+        .nullable(),
+      balanceAutoDisableThreshold: z
+        .number()
+        .finite('余额自动禁用阈值必须是有效数字')
+        .min(0, '余额自动禁用阈值不能小于 0')
+        .max(MAX_BALANCE_THRESHOLD, '余额自动禁用阈值不能超过 1000000000000')
         .nullable(),
       costConversionMode: z.enum(['none', 'recharge', 'subscription']),
       rechargePaidCny: z.coerce

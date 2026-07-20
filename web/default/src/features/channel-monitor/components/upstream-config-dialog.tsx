@@ -87,7 +87,7 @@ import {
 import { formatMonitorRatio } from '../lib/format'
 import {
   createUpstreamConfigSchema,
-  MAX_BALANCE_WARNING_THRESHOLD,
+  MAX_BALANCE_THRESHOLD,
   type UpstreamConfigFormValues,
 } from '../lib/schema'
 import type {
@@ -157,6 +157,7 @@ function createUpstreamRequest(
     single_channel_action: values.singleChannelAction,
     multiple_channels_action: values.multipleChannelsAction,
     balance_warning_threshold: values.balanceWarningThreshold,
+    balance_auto_disable_threshold: values.balanceAutoDisableThreshold,
     ratio_sync_enabled: values.ratioSyncEnabled,
     balance_sync_enabled: values.balanceSyncEnabled,
     cost_conversion: costConversion,
@@ -209,6 +210,8 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
       ratioSyncEnabled: savedUpstream?.ratio_sync_enabled ?? true,
       balanceSyncEnabled: savedUpstream?.balance_sync_enabled ?? true,
       balanceWarningThreshold: savedUpstream?.balance_warning_threshold ?? null,
+      balanceAutoDisableThreshold:
+        savedUpstream?.balance_auto_disable_threshold ?? null,
       costConversionMode: savedCostConversion.mode,
       rechargePaidCny:
         savedCostConversion.mode === 'recharge'
@@ -747,39 +750,74 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name='balanceWarningThreshold'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>余额预警值</FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        min={0}
-                        max={MAX_BALANCE_WARNING_THRESHOLD}
-                        step='any'
-                        placeholder='留空关闭余额预警'
-                        disabled={!balanceSyncEnabled}
-                        value={field.value ?? ''}
-                        onBlur={field.onBlur}
-                        onChange={(event) => {
-                          const value = event.target.value
-                          field.onChange(value === '' ? null : Number(value))
-                        }}
-                        name={field.name}
-                        ref={field.ref}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {balanceSyncEnabled
-                        ? '定时更新余额低于此值时标红；开启邮件通知后首次进入低余额状态会发送预警，余额恢复后可再次预警'
-                        : '余额同步已关闭，不会请求上游余额或触发余额预警'}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className='grid min-w-0 gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='balanceWarningThreshold'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>余额预警值</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          min={0}
+                          max={MAX_BALANCE_THRESHOLD}
+                          step='any'
+                          placeholder='留空关闭余额预警'
+                          disabled={!balanceSyncEnabled}
+                          value={field.value ?? ''}
+                          onBlur={field.onBlur}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            field.onChange(value === '' ? null : Number(value))
+                          }}
+                          name={field.name}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {balanceSyncEnabled
+                          ? '定时更新余额低于此值时标红；开启邮件通知后首次进入低余额状态会发送预警，余额恢复后可再次预警'
+                          : '余额同步已关闭，不会请求上游余额或触发余额预警'}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='balanceAutoDisableThreshold'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>余额自动禁用阈值</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          min={0}
+                          max={MAX_BALANCE_THRESHOLD}
+                          step='any'
+                          placeholder='留空关闭余额自动禁用'
+                          disabled={!balanceSyncEnabled}
+                          value={field.value ?? ''}
+                          onBlur={field.onBlur}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            field.onChange(value === '' ? null : Number(value))
+                          }}
+                          name={field.name}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {balanceSyncEnabled
+                          ? '余额更新成功后，启用中的渠道余额低于此值会被自动禁用；余额恢复后不会自动启用'
+                          : '余额同步已关闭，不会触发余额自动禁用'}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className='grid min-w-0 gap-4 sm:grid-cols-2'>
                 <FormField

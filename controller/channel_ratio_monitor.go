@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	maxChannelMonitorRatio                   = 1_000_000
-	maxChannelMonitorBalanceWarningThreshold = 1_000_000_000_000
+	maxChannelMonitorRatio            = 1_000_000
+	maxChannelMonitorBalanceThreshold = 1_000_000_000_000
 )
 
 type channelRatioUpdateRequest struct {
@@ -45,35 +45,37 @@ type channelSmartScheduleConfigUpdateRequest struct {
 }
 
 type channelMonitorUpstreamRequest struct {
-	Type                    string                                      `json:"type"`
-	BaseURL                 string                                      `json:"base_url"`
-	Group                   string                                      `json:"group"`
-	AuthType                string                                      `json:"auth_type"`
-	UserId                  int                                         `json:"user_id"`
-	AccessToken             string                                      `json:"access_token"`
-	SingleChannelAction     string                                      `json:"single_channel_action"`
-	MultipleChannelsAction  string                                      `json:"multiple_channels_action"`
-	BalanceWarningThreshold json.RawMessage                             `json:"balance_warning_threshold"`
-	RatioSyncEnabled        *bool                                       `json:"ratio_sync_enabled"`
-	BalanceSyncEnabled      *bool                                       `json:"balance_sync_enabled"`
-	CostConversion          *service.ChannelMonitorCostConversion       `json:"cost_conversion"`
-	CustomConfig            *service.ChannelMonitorCustomUpstreamConfig `json:"custom_config"`
+	Type                        string                                      `json:"type"`
+	BaseURL                     string                                      `json:"base_url"`
+	Group                       string                                      `json:"group"`
+	AuthType                    string                                      `json:"auth_type"`
+	UserId                      int                                         `json:"user_id"`
+	AccessToken                 string                                      `json:"access_token"`
+	SingleChannelAction         string                                      `json:"single_channel_action"`
+	MultipleChannelsAction      string                                      `json:"multiple_channels_action"`
+	BalanceWarningThreshold     json.RawMessage                             `json:"balance_warning_threshold"`
+	BalanceAutoDisableThreshold json.RawMessage                             `json:"balance_auto_disable_threshold"`
+	RatioSyncEnabled            *bool                                       `json:"ratio_sync_enabled"`
+	BalanceSyncEnabled          *bool                                       `json:"balance_sync_enabled"`
+	CostConversion              *service.ChannelMonitorCostConversion       `json:"cost_conversion"`
+	CustomConfig                *service.ChannelMonitorCustomUpstreamConfig `json:"custom_config"`
 }
 
 type channelMonitorUpstreamConfig struct {
-	Type                    string                                      `json:"type"`
-	BaseURL                 string                                      `json:"base_url"`
-	Group                   string                                      `json:"group"`
-	AuthType                string                                      `json:"auth_type"`
-	UserId                  int                                         `json:"user_id"`
-	HasAccessToken          bool                                        `json:"has_access_token"`
-	SingleChannelAction     string                                      `json:"single_channel_action"`
-	MultipleChannelsAction  string                                      `json:"multiple_channels_action"`
-	BalanceWarningThreshold *float64                                    `json:"balance_warning_threshold"`
-	RatioSyncEnabled        bool                                        `json:"ratio_sync_enabled"`
-	BalanceSyncEnabled      bool                                        `json:"balance_sync_enabled"`
-	CostConversion          service.ChannelMonitorCostConversion        `json:"cost_conversion"`
-	CustomConfig            *service.ChannelMonitorCustomUpstreamConfig `json:"custom_config,omitempty"`
+	Type                        string                                      `json:"type"`
+	BaseURL                     string                                      `json:"base_url"`
+	Group                       string                                      `json:"group"`
+	AuthType                    string                                      `json:"auth_type"`
+	UserId                      int                                         `json:"user_id"`
+	HasAccessToken              bool                                        `json:"has_access_token"`
+	SingleChannelAction         string                                      `json:"single_channel_action"`
+	MultipleChannelsAction      string                                      `json:"multiple_channels_action"`
+	BalanceWarningThreshold     *float64                                    `json:"balance_warning_threshold"`
+	BalanceAutoDisableThreshold *float64                                    `json:"balance_auto_disable_threshold"`
+	RatioSyncEnabled            bool                                        `json:"ratio_sync_enabled"`
+	BalanceSyncEnabled          bool                                        `json:"balance_sync_enabled"`
+	CostConversion              service.ChannelMonitorCostConversion        `json:"cost_conversion"`
+	CustomConfig                *service.ChannelMonitorCustomUpstreamConfig `json:"custom_config,omitempty"`
 }
 
 type channelMonitorItem struct {
@@ -135,19 +137,20 @@ func channelMonitorUpstreamFromModel(monitor model.ChannelRatioMonitor) *channel
 		}
 	}
 	return &channelMonitorUpstreamConfig{
-		Type:                    monitor.UpstreamType,
-		BaseURL:                 monitor.UpstreamBaseURL,
-		Group:                   monitor.UpstreamGroup,
-		AuthType:                monitor.UpstreamAuthType,
-		UserId:                  monitor.UpstreamUserId,
-		HasAccessToken:          monitor.UpstreamAccessToken != "",
-		SingleChannelAction:     normalizeChannelMonitorPolicyAction(monitor.SingleChannelAction),
-		MultipleChannelsAction:  normalizeChannelMonitorPolicyAction(monitor.MultipleChannelsAction),
-		BalanceWarningThreshold: monitor.BalanceWarningThreshold,
-		RatioSyncEnabled:        !monitor.UpstreamRatioSyncDisabled,
-		BalanceSyncEnabled:      !monitor.UpstreamBalanceSyncDisabled,
-		CostConversion:          costConversion,
-		CustomConfig:            customConfig,
+		Type:                        monitor.UpstreamType,
+		BaseURL:                     monitor.UpstreamBaseURL,
+		Group:                       monitor.UpstreamGroup,
+		AuthType:                    monitor.UpstreamAuthType,
+		UserId:                      monitor.UpstreamUserId,
+		HasAccessToken:              monitor.UpstreamAccessToken != "",
+		SingleChannelAction:         normalizeChannelMonitorPolicyAction(monitor.SingleChannelAction),
+		MultipleChannelsAction:      normalizeChannelMonitorPolicyAction(monitor.MultipleChannelsAction),
+		BalanceWarningThreshold:     monitor.BalanceWarningThreshold,
+		BalanceAutoDisableThreshold: monitor.BalanceAutoDisableThreshold,
+		RatioSyncEnabled:            !monitor.UpstreamRatioSyncDisabled,
+		BalanceSyncEnabled:          !monitor.UpstreamBalanceSyncDisabled,
+		CostConversion:              costConversion,
+		CustomConfig:                customConfig,
 	}
 }
 
@@ -183,7 +186,7 @@ func channelMonitorUpstreamTypeLabel(upstreamType string) string {
 	}
 }
 
-func resolveChannelMonitorBalanceWarningThreshold(raw json.RawMessage, existing *float64) (*float64, error) {
+func resolveChannelMonitorBalanceThreshold(raw json.RawMessage, existing *float64, invalidMessage string) (*float64, error) {
 	if len(raw) == 0 {
 		if existing == nil {
 			return nil, nil
@@ -198,8 +201,8 @@ func resolveChannelMonitorBalanceWarningThreshold(raw json.RawMessage, existing 
 	var threshold float64
 	if err := common.Unmarshal(raw, &threshold); err != nil ||
 		math.IsNaN(threshold) || math.IsInf(threshold, 0) ||
-		threshold < 0 || threshold > maxChannelMonitorBalanceWarningThreshold {
-		return nil, errors.New("余额预警值无效")
+		threshold < 0 || threshold > maxChannelMonitorBalanceThreshold {
+		return nil, errors.New(invalidMessage)
 	}
 	return &threshold, nil
 }
@@ -721,9 +724,23 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 	if hasExistingMonitor {
 		existingBalanceWarningThreshold = existingMonitor.BalanceWarningThreshold
 	}
-	balanceWarningThreshold, err := resolveChannelMonitorBalanceWarningThreshold(
+	balanceWarningThreshold, err := resolveChannelMonitorBalanceThreshold(
 		request.BalanceWarningThreshold,
 		existingBalanceWarningThreshold,
+		"余额预警值无效",
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	var existingBalanceAutoDisableThreshold *float64
+	if hasExistingMonitor {
+		existingBalanceAutoDisableThreshold = existingMonitor.BalanceAutoDisableThreshold
+	}
+	balanceAutoDisableThreshold, err := resolveChannelMonitorBalanceThreshold(
+		request.BalanceAutoDisableThreshold,
+		existingBalanceAutoDisableThreshold,
+		"余额自动禁用阈值无效",
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
@@ -769,19 +786,21 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 		config.UserID,
 		config.AccessToken,
 		model.ChannelRatioUpstreamOptions{
-			SingleChannelAction:     singleChannelAction,
-			MultipleChannelsAction:  multipleChannelAction,
-			BalanceWarningThreshold: balanceWarningThreshold,
-			RatioSyncEnabled:        ratioSyncEnabled,
-			BalanceSyncEnabled:      balanceSyncEnabled,
-			CostConversion:          costConversion,
-			CustomUpstreamConfig:    customConfig,
+			SingleChannelAction:         singleChannelAction,
+			MultipleChannelsAction:      multipleChannelAction,
+			BalanceWarningThreshold:     balanceWarningThreshold,
+			BalanceAutoDisableThreshold: balanceAutoDisableThreshold,
+			RatioSyncEnabled:            ratioSyncEnabled,
+			BalanceSyncEnabled:          balanceSyncEnabled,
+			CostConversion:              costConversion,
+			CustomUpstreamConfig:        customConfig,
 		},
 	)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	balanceAutoDisabled := false
 	if config.Type == service.CustomUpstreamType {
 		operatorId, operatorUsername := getChannelMonitorOperator(c)
 		if config.CustomConfig.Ratio.Source == service.ChannelMonitorCustomSourceFixed {
@@ -807,13 +826,24 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 				common.ApiError(c, err)
 				return
 			}
+			balanceAutoDisabled, err = autoDisableChannelMonitorForLowBalance(monitor, channel, *config.CustomConfig.Balance.FixedValue)
+			if err != nil {
+				common.ApiError(c, fmt.Errorf("自定义上游配置已保存，但余额自动禁用失败: %w", err))
+				return
+			}
+			if balanceAutoDisabled {
+				model.InitChannelCache()
+				service.ResetProxyClientCache()
+			}
 		}
 	}
 	auditDetails := map[string]interface{}{
 		"id": channelId, "upstream_type": config.Type, "upstream_type_label": channelMonitorUpstreamTypeLabel(config.Type), "group": config.Group, "auth_type": config.AuthType,
 		"single_channel_action": singleChannelAction, "multiple_channels_action": multipleChannelAction,
-		"balance_warning_threshold": balanceWarningThreshold,
-		"ratio_sync_enabled":        ratioSyncEnabled, "balance_sync_enabled": balanceSyncEnabled,
+		"balance_warning_threshold":      balanceWarningThreshold,
+		"balance_auto_disable_threshold": balanceAutoDisableThreshold,
+		"balance_auto_disabled":          balanceAutoDisabled,
+		"ratio_sync_enabled":             ratioSyncEnabled, "balance_sync_enabled": balanceSyncEnabled,
 		"cost_conversion":   channelMonitorCostConversionLabel(config.CostConversion),
 		"conversion_factor": conversionFactor,
 	}
@@ -1051,6 +1081,32 @@ func fetchAndRecordChannelMonitorUpstreamBalance(ctx context.Context, monitor mo
 	return result, nil
 }
 
+func autoDisableChannelMonitorForLowBalance(monitor model.ChannelRatioMonitor, channel *model.Channel, balance float64) (bool, error) {
+	if monitor.BalanceAutoDisableThreshold == nil || channel == nil ||
+		channel.Id != monitor.ChannelId || channel.Status != common.ChannelStatusEnabled ||
+		balance >= *monitor.BalanceAutoDisableThreshold {
+		return false, nil
+	}
+	reason := fmt.Sprintf(
+		"渠道监控：上游余额 %s 低于自动禁用阈值 %s",
+		strconv.FormatFloat(balance, 'f', -1, 64),
+		strconv.FormatFloat(*monitor.BalanceAutoDisableThreshold, 'f', -1, 64),
+	)
+	if model.UpdateChannelStatus(channel.Id, "", common.ChannelStatusAutoDisabled, reason) {
+		channel.Status = common.ChannelStatusAutoDisabled
+		return true, nil
+	}
+	storedChannel, err := model.GetChannelById(channel.Id, true)
+	if err != nil {
+		return false, fmt.Errorf("余额低于自动禁用阈值，但读取渠道状态失败: %w", err)
+	}
+	if storedChannel.Status == common.ChannelStatusEnabled {
+		return false, errors.New("余额低于自动禁用阈值，但渠道禁用失败")
+	}
+	channel.Status = storedChannel.Status
+	return false, nil
+}
+
 func FetchChannelMonitorUpstreamRatio(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil || channelId <= 0 {
@@ -1081,19 +1137,33 @@ func FetchChannelMonitorUpstreamRatio(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	balanceAutoDisabled := false
+	if outcome.BalanceRecorded && outcome.Result.Balance.Amount != nil {
+		balanceAutoDisabled, err = autoDisableChannelMonitorForLowBalance(monitor, channel, *outcome.Result.Balance.Amount)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if balanceAutoDisabled {
+			model.InitChannelCache()
+			service.ResetProxyClientCache()
+		}
+	}
 	recordManageAudit(c, "channel.monitor_upstream_ratio_fetch", map[string]interface{}{
 		"id": channelId, "upstream_type": monitor.UpstreamType, "group": monitor.UpstreamGroup,
 		"ratio": outcome.Result.Ratio, "cost_ratio": outcome.Result.CostRatio,
 		"conversion_factor": outcome.Result.ConversionFactor, "changed": outcome.Changed,
+		"balance_auto_disabled": balanceAutoDisabled,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"result":  outcome.Result,
-			"monitor": outcome.Monitor,
-			"created": outcome.Created,
-			"changed": outcome.Changed,
+			"result":                outcome.Result,
+			"monitor":               outcome.Monitor,
+			"created":               outcome.Created,
+			"changed":               outcome.Changed,
+			"balance_auto_disabled": balanceAutoDisabled,
 		},
 	})
 }
@@ -1128,8 +1198,18 @@ func FetchChannelMonitorUpstreamBalance(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	balanceAutoDisabled, err := autoDisableChannelMonitorForLowBalance(monitor, channel, *result.Amount)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if balanceAutoDisabled {
+		model.InitChannelCache()
+		service.ResetProxyClientCache()
+	}
 	recordManageAudit(c, "channel.monitor_upstream_balance_fetch", map[string]interface{}{
 		"id": channelId, "upstream_type": monitor.UpstreamType, "balance": *result.Amount,
+		"balance_auto_disabled": balanceAutoDisabled,
 	})
 	common.ApiSuccess(c, result)
 }

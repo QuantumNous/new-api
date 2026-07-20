@@ -683,7 +683,7 @@ func TestSaveChannelMonitorUpstreamConfigPersistsChannelPolicies(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
-func TestSaveChannelMonitorUpstreamConfigManagesBalanceWarningThreshold(t *testing.T) {
+func TestSaveChannelMonitorUpstreamConfigManagesBalanceThresholds(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	baseURL := "https://upstream.example"
 	require.NoError(t, db.Create(&model.Channel{
@@ -696,11 +696,12 @@ func TestSaveChannelMonitorUpstreamConfigManagesBalanceWarningThreshold(t *testi
 	}).Error)
 
 	request := map[string]any{
-		"type":                      service.NewAPIUpstreamType,
-		"base_url":                  baseURL,
-		"group":                     "vip",
-		"auth_type":                 service.NewAPIUpstreamAuthPublic,
-		"balance_warning_threshold": 20.5,
+		"type":                           service.NewAPIUpstreamType,
+		"base_url":                       baseURL,
+		"group":                          "vip",
+		"auth_type":                      service.NewAPIUpstreamAuthPublic,
+		"balance_warning_threshold":      20.5,
+		"balance_auto_disable_threshold": 10.25,
 	}
 	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
 	ctx.Params = gin.Params{{Key: "id", Value: "11"}}
@@ -710,8 +711,11 @@ func TestSaveChannelMonitorUpstreamConfigManagesBalanceWarningThreshold(t *testi
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	require.NotNil(t, response.Data.BalanceWarningThreshold)
 	assert.Equal(t, 20.5, *response.Data.BalanceWarningThreshold)
+	require.NotNil(t, response.Data.BalanceAutoDisableThreshold)
+	assert.Equal(t, 10.25, *response.Data.BalanceAutoDisableThreshold)
 
 	delete(request, "balance_warning_threshold")
+	delete(request, "balance_auto_disable_threshold")
 	request["group"] = "standard"
 	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
 	ctx.Params = gin.Params{{Key: "id", Value: "11"}}
@@ -721,8 +725,11 @@ func TestSaveChannelMonitorUpstreamConfigManagesBalanceWarningThreshold(t *testi
 	require.NoError(t, err)
 	require.NotNil(t, monitor.BalanceWarningThreshold)
 	assert.Equal(t, 20.5, *monitor.BalanceWarningThreshold)
+	require.NotNil(t, monitor.BalanceAutoDisableThreshold)
+	assert.Equal(t, 10.25, *monitor.BalanceAutoDisableThreshold)
 
 	request["balance_warning_threshold"] = nil
+	request["balance_auto_disable_threshold"] = nil
 	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
 	ctx.Params = gin.Params{{Key: "id", Value: "11"}}
 	SaveChannelMonitorUpstreamConfig(ctx)
@@ -730,13 +737,17 @@ func TestSaveChannelMonitorUpstreamConfigManagesBalanceWarningThreshold(t *testi
 	monitor, err = model.GetChannelRatioMonitor(11)
 	require.NoError(t, err)
 	assert.Nil(t, monitor.BalanceWarningThreshold)
+	assert.Nil(t, monitor.BalanceAutoDisableThreshold)
 
-	for _, invalidThreshold := range []any{-0.01, maxChannelMonitorBalanceWarningThreshold + 1, "not-a-number"} {
-		request["balance_warning_threshold"] = invalidThreshold
-		ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
-		ctx.Params = gin.Params{{Key: "id", Value: "11"}}
-		SaveChannelMonitorUpstreamConfig(ctx)
-		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	for _, field := range []string{"balance_warning_threshold", "balance_auto_disable_threshold"} {
+		for _, invalidThreshold := range []any{-0.01, maxChannelMonitorBalanceThreshold + 1, "not-a-number"} {
+			request[field] = invalidThreshold
+			ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/11/upstream", request)
+			ctx.Params = gin.Params{{Key: "id", Value: "11"}}
+			SaveChannelMonitorUpstreamConfig(ctx)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+		}
+		request[field] = nil
 	}
 }
 
@@ -1063,6 +1074,63 @@ func TestChannelMonitorCustomUpstreamTestReusesSavedSecret(t *testing.T) {
 	assert.Equal(t, 0.8, testResponse.Data.Ratio)
 }
 
+func TestSaveChannelMonitorCustomFixedBalanceUsesAutoDisableThreshold(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+
+	tests := []struct {
+		name       string
+		channelId  int
+		balance    float64
+		threshold  float64
+		wantStatus int
+	}{
+		{name: "below threshold", channelId: 31, balance: 2, threshold: 3, wantStatus: common.ChannelStatusAutoDisabled},
+		{name: "equal to threshold", channelId: 32, balance: 3, threshold: 3, wantStatus: common.ChannelStatusEnabled},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.NoError(t, db.Create(&model.Channel{
+				Id: test.channelId, Name: test.name, Group: "vip", Models: "model-a", Status: common.ChannelStatusEnabled,
+			}).Error)
+			require.NoError(t, db.Create(&model.Ability{
+				Group: "vip", Model: "model-a", ChannelId: test.channelId, Enabled: true,
+			}).Error)
+			ratio := 1.0
+			request := map[string]any{
+				"type":                           service.CustomUpstreamType,
+				"base_url":                       "https://custom.example",
+				"auth_type":                      service.CustomUpstreamAuthType,
+				"balance_auto_disable_threshold": test.threshold,
+				"custom_config": service.ChannelMonitorCustomUpstreamConfig{
+					Version: 1,
+					Ratio: service.ChannelMonitorCustomMetricConfig{
+						Source: service.ChannelMonitorCustomSourceFixed, FixedValue: &ratio,
+					},
+					Balance: service.ChannelMonitorCustomMetricConfig{
+						Source: service.ChannelMonitorCustomSourceFixed, FixedValue: &test.balance,
+					},
+				},
+			}
+			ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, fmt.Sprintf("/api/channel_monitor/channel/%d/upstream", test.channelId), request)
+			ctx.Params = gin.Params{{Key: "id", Value: fmt.Sprint(test.channelId)}}
+			SaveChannelMonitorUpstreamConfig(ctx)
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+			monitor, err := model.GetChannelRatioMonitor(test.channelId)
+			require.NoError(t, err)
+			require.NotNil(t, monitor.UpstreamBalance)
+			assert.Equal(t, test.balance, *monitor.UpstreamBalance)
+			channel, err := model.GetChannelById(test.channelId, true)
+			require.NoError(t, err)
+			assert.Equal(t, test.wantStatus, channel.Status)
+			var ability model.Ability
+			require.NoError(t, db.First(&ability, "channel_id = ?", test.channelId).Error)
+			assert.Equal(t, test.wantStatus == common.ChannelStatusEnabled, ability.Enabled)
+		})
+	}
+}
+
 func TestSaveChannelMonitorUpstreamConfigManagesSyncCapabilities(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	baseURL := "https://upstream.example"
@@ -1374,7 +1442,7 @@ func TestApplyChannelMonitorUpstreamGroupUpdatesRemoteTokenAndRecordsRatio(t *te
 	assert.Contains(t, monitor.Remark, "切换到分组 vip")
 }
 
-func TestFetchChannelMonitorUpstreamBalanceRecordsSnapshot(t *testing.T) {
+func TestFetchChannelMonitorUpstreamBalanceRecordsSnapshotAndAutoDisables(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	useChannelMonitorOptionMap(t, map[string]string{})
 	disableChannelMonitorSSRFProtection(t)
@@ -1395,15 +1463,20 @@ func TestFetchChannelMonitorUpstreamBalanceRecordsSnapshot(t *testing.T) {
 	defer server.Close()
 
 	require.NoError(t, db.Create(&model.Channel{
-		Id: 23, Name: "balance", Key: "secret", Status: common.ChannelStatusEnabled,
+		Id: 23, Name: "balance", Key: "secret", Group: "vip", Models: "model-a", Status: common.ChannelStatusEnabled,
 	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "vip", Model: "model-a", ChannelId: 23, Enabled: true,
+	}).Error)
+	autoDisableThreshold := 4.0
 	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
-		ChannelId:           23,
-		UpstreamType:        service.NewAPIUpstreamType,
-		UpstreamBaseURL:     server.URL,
-		UpstreamAuthType:    service.NewAPIUpstreamAuthUser,
-		UpstreamUserId:      42,
-		UpstreamAccessToken: "dashboard-token",
+		ChannelId:                   23,
+		UpstreamType:                service.NewAPIUpstreamType,
+		UpstreamBaseURL:             server.URL,
+		UpstreamAuthType:            service.NewAPIUpstreamAuthUser,
+		UpstreamUserId:              42,
+		UpstreamAccessToken:         "dashboard-token",
+		BalanceAutoDisableThreshold: &autoDisableThreshold,
 	}).Error)
 
 	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/23/upstream/balance/fetch", nil)
@@ -1423,6 +1496,71 @@ func TestFetchChannelMonitorUpstreamBalanceRecordsSnapshot(t *testing.T) {
 	assert.InDelta(t, 3.5, *monitor.UpstreamBalance, 1e-9)
 	assert.NotZero(t, monitor.LastBalanceTime)
 	assert.Empty(t, monitor.LastBalanceError)
+	channel, err := model.GetChannelById(23, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusAutoDisabled, channel.Status)
+	assert.Contains(t, channel.GetOtherInfo()["status_reason"], "上游余额 3.5 低于自动禁用阈值 4")
+	var ability model.Ability
+	require.NoError(t, db.First(&ability, "channel_id = ?", 23).Error)
+	assert.False(t, ability.Enabled)
+}
+
+func TestFetchChannelMonitorUpstreamRatioAutoDisablesFromRecordedBalance(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{})
+	disableChannelMonitorSSRFProtection(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/user/self/groups":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"vip":{"ratio":1.25}}}`))
+		case "/api/user/self":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota":350}}`))
+		case "/api/status":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"quota_per_unit":100}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 25, Name: "ratio and balance", Key: "secret", Group: "vip", Models: "model-a", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "vip", Model: "model-a", ChannelId: 25, Enabled: true,
+	}).Error)
+	autoDisableThreshold := 4.0
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId:                   25,
+		Ratio:                       1,
+		UpstreamType:                service.NewAPIUpstreamType,
+		UpstreamBaseURL:             server.URL,
+		UpstreamGroup:               "vip",
+		UpstreamAuthType:            service.NewAPIUpstreamAuthUser,
+		UpstreamUserId:              42,
+		UpstreamAccessToken:         "dashboard-token",
+		BalanceAutoDisableThreshold: &autoDisableThreshold,
+	}).Error)
+
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPost, "/api/channel_monitor/channel/25/upstream/fetch", nil)
+	ctx.Params = gin.Params{{Key: "id", Value: "25"}}
+	FetchChannelMonitorUpstreamRatio(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"balance_auto_disabled":true`)
+
+	monitor, err := model.GetChannelRatioMonitor(25)
+	require.NoError(t, err)
+	assert.Equal(t, 1.25, monitor.Ratio)
+	require.NotNil(t, monitor.UpstreamBalance)
+	assert.Equal(t, 3.5, *monitor.UpstreamBalance)
+	channel, err := model.GetChannelById(25, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusAutoDisabled, channel.Status)
+	var ability model.Ability
+	require.NoError(t, db.First(&ability, "channel_id = ?", 25).Error)
+	assert.False(t, ability.Enabled)
 }
 
 func TestManualUpstreamRefreshSkipsDisabledCapabilities(t *testing.T) {
@@ -1795,6 +1933,7 @@ func TestRunChannelRatioMonitorTaskUpdatesCustomFixedSources(t *testing.T) {
 	}).Error)
 	ratio := 0.8
 	balance := 12.5
+	autoDisableThreshold := 13.0
 	customConfig, err := service.MarshalChannelMonitorCustomUpstreamConfig(service.ChannelMonitorCustomUpstreamConfig{
 		Ratio: service.ChannelMonitorCustomMetricConfig{
 			Source: service.ChannelMonitorCustomSourceFixed, FixedValue: &ratio,
@@ -1808,6 +1947,7 @@ func TestRunChannelRatioMonitorTaskUpdatesCustomFixedSources(t *testing.T) {
 		ChannelId: 1, Ratio: 0.5, UpdatedTime: 1,
 		UpstreamType: service.CustomUpstreamType, UpstreamBaseURL: "https://custom.example",
 		UpstreamAuthType: service.CustomUpstreamAuthType, CustomUpstreamConfig: customConfig,
+		BalanceAutoDisableThreshold: &autoDisableThreshold,
 	}).Error)
 
 	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, nil)
@@ -1816,6 +1956,7 @@ func TestRunChannelRatioMonitorTaskUpdatesCustomFixedSources(t *testing.T) {
 	assert.Equal(t, 1, summary.Updated)
 	assert.Equal(t, 1, summary.Changed)
 	assert.Equal(t, 1, summary.BalanceUpdated)
+	assert.Equal(t, 1, summary.ChannelsDisabled)
 	assert.Zero(t, summary.Failed)
 
 	monitor, err := model.GetChannelRatioMonitor(1)
@@ -1823,6 +1964,9 @@ func TestRunChannelRatioMonitorTaskUpdatesCustomFixedSources(t *testing.T) {
 	assert.Equal(t, ratio, monitor.Ratio)
 	require.NotNil(t, monitor.UpstreamBalance)
 	assert.Equal(t, balance, *monitor.UpstreamBalance)
+	channel, err := model.GetChannelById(1, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusAutoDisabled, channel.Status)
 }
 
 func TestRunChannelRatioMonitorTaskUsesCostRatioForGroupPolicy(t *testing.T) {

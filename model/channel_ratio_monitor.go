@@ -35,6 +35,7 @@ type ChannelRatioMonitor struct {
 	LastBalanceTime             int64    `json:"last_balance_time" gorm:"bigint"`
 	LastBalanceError            string   `json:"last_balance_error" gorm:"type:varchar(255)"`
 	BalanceWarningThreshold     *float64 `json:"balance_warning_threshold"`
+	BalanceAutoDisableThreshold *float64 `json:"balance_auto_disable_threshold"`
 	BalanceAlertNotified        bool     `json:"balance_alert_notified"`
 	UpstreamType                string   `json:"upstream_type" gorm:"type:varchar(32)"`
 	UpstreamBaseURL             string   `json:"upstream_base_url" gorm:"type:text"`
@@ -58,13 +59,14 @@ type ChannelRatioMonitor struct {
 }
 
 type ChannelRatioUpstreamOptions struct {
-	SingleChannelAction     string
-	MultipleChannelsAction  string
-	BalanceWarningThreshold *float64
-	RatioSyncEnabled        bool
-	BalanceSyncEnabled      bool
-	CostConversion          string
-	CustomUpstreamConfig    string
+	SingleChannelAction         string
+	MultipleChannelsAction      string
+	BalanceWarningThreshold     *float64
+	BalanceAutoDisableThreshold *float64
+	RatioSyncEnabled            bool
+	BalanceSyncEnabled          bool
+	CostConversion              string
+	CustomUpstreamConfig        string
 }
 
 type ChannelSmartScheduleResultUpdate struct {
@@ -145,6 +147,12 @@ func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL 
 		} else {
 			value := *options.BalanceWarningThreshold
 			monitor.BalanceWarningThreshold = &value
+		}
+		if options.BalanceAutoDisableThreshold == nil {
+			monitor.BalanceAutoDisableThreshold = nil
+		} else {
+			value := *options.BalanceAutoDisableThreshold
+			monitor.BalanceAutoDisableThreshold = &value
 		}
 		if upstreamAccountChanged {
 			monitor.UpstreamBalance = nil

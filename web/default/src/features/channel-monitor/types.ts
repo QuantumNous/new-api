@@ -130,6 +130,7 @@ export type ChannelMonitorUpstreamConfig = {
   single_channel_action: ChannelMonitorPolicyAction
   multiple_channels_action: ChannelMonitorPolicyAction
   balance_warning_threshold: number | null
+  balance_auto_disable_threshold: number | null
   ratio_sync_enabled: boolean
   balance_sync_enabled: boolean
   cost_conversion: ChannelMonitorCostConversion
@@ -146,6 +147,7 @@ export type ChannelMonitorUpstreamRequest = {
   single_channel_action: ChannelMonitorPolicyAction
   multiple_channels_action: ChannelMonitorPolicyAction
   balance_warning_threshold: number | null
+  balance_auto_disable_threshold: number | null
   ratio_sync_enabled: boolean
   balance_sync_enabled: boolean
   cost_conversion: ChannelMonitorCostConversion
