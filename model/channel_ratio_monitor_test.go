@@ -350,7 +350,7 @@ func TestGetChannelRatioMonitorTasksFiltersOrdersAndPaginatesRuns(t *testing.T) 
 func TestChannelSmartScheduleConfigAndResultPersistWithoutRatioBaseline(t *testing.T) {
 	resetChannelRatioMonitorTables(t)
 
-	monitor, err := SaveChannelSmartScheduleConfig(31, false)
+	monitor, err := SaveChannelSmartScheduleConfig(31, ChannelSmartScheduleConfigOptions{Excluded: false})
 	require.NoError(t, err)
 	assert.Zero(t, monitor.UpdatedTime)
 	assert.False(t, monitor.SmartScheduleExcluded)

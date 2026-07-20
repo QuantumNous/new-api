@@ -69,6 +69,12 @@ type ChannelRatioUpstreamOptions struct {
 	CustomUpstreamConfig        string
 }
 
+type ChannelSmartScheduleConfigOptions struct {
+	Excluded bool
+	Priority *int64
+	Weight   *uint
+}
+
 type ChannelSmartScheduleResultUpdate struct {
 	ChannelId int
 	Status    string
@@ -167,7 +173,7 @@ func SaveChannelRatioUpstreamConfig(channelId int, upstreamType string, baseURL 
 	return monitor, err
 }
 
-func SaveChannelSmartScheduleConfig(channelId int, excluded bool) (monitor ChannelRatioMonitor, err error) {
+func SaveChannelSmartScheduleConfig(channelId int, options ChannelSmartScheduleConfigOptions) (monitor ChannelRatioMonitor, err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		findErr := lockForUpdate(tx).Where("channel_id = ?", channelId).First(&monitor).Error
 		if errors.Is(findErr, gorm.ErrRecordNotFound) {
@@ -176,8 +182,11 @@ func SaveChannelSmartScheduleConfig(channelId int, excluded bool) (monitor Chann
 			return findErr
 		}
 
-		monitor.SmartScheduleExcluded = excluded
-		return tx.Save(&monitor).Error
+		monitor.SmartScheduleExcluded = options.Excluded
+		if err := tx.Save(&monitor).Error; err != nil {
+			return err
+		}
+		return updateChannelSmartSchedulePriorityWeightTx(tx, channelId, options.Priority, options.Weight)
 	})
 	return monitor, err
 }
@@ -255,6 +264,12 @@ func SaveChannelSmartScheduleResults(results []ChannelSmartScheduleResultUpdate)
 }
 
 func UpdateChannelSmartSchedulePriorityWeight(channelId int, priority *int64, weight *uint) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return updateChannelSmartSchedulePriorityWeightTx(tx, channelId, priority, weight)
+	})
+}
+
+func updateChannelSmartSchedulePriorityWeightTx(tx *gorm.DB, channelId int, priority *int64, weight *uint) error {
 	channelUpdates := make(map[string]any, 2)
 	abilityUpdates := make(map[string]any, 2)
 	if priority != nil {
@@ -269,22 +284,20 @@ func UpdateChannelSmartSchedulePriorityWeight(channelId int, priority *int64, we
 		return nil
 	}
 
-	return DB.Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&Channel{}).Where("id = ?", channelId).Updates(channelUpdates)
-		if result.Error != nil {
-			return result.Error
+	result := tx.Model(&Channel{}).Where("id = ?", channelId).Updates(channelUpdates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		var count int64
+		if err := tx.Model(&Channel{}).Where("id = ?", channelId).Count(&count).Error; err != nil {
+			return err
 		}
-		if result.RowsAffected == 0 {
-			var count int64
-			if err := tx.Model(&Channel{}).Where("id = ?", channelId).Count(&count).Error; err != nil {
-				return err
-			}
-			if count == 0 {
-				return gorm.ErrRecordNotFound
-			}
+		if count == 0 {
+			return gorm.ErrRecordNotFound
 		}
-		return tx.Model(&Ability{}).Where("channel_id = ?", channelId).Updates(abilityUpdates).Error
-	})
+	}
+	return tx.Model(&Ability{}).Where("channel_id = ?", channelId).Updates(abilityUpdates).Error
 }
 
 func ResetChannelSmartSchedulePriorityWeight(channelIds []int, weight uint) error {

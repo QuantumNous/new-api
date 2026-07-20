@@ -42,6 +42,7 @@ type groupRatioSyncRequest struct {
 
 type channelSmartScheduleConfigUpdateRequest struct {
 	Excluded *bool `json:"excluded"`
+	Reset    bool  `json:"reset"`
 }
 
 type channelMonitorUpstreamRequest struct {
@@ -471,13 +472,24 @@ func UpdateChannelMonitorSmartScheduleConfig(c *gin.Context) {
 		return
 	}
 
-	monitor, err := model.SaveChannelSmartScheduleConfig(channelId, *request.Excluded)
+	options := model.ChannelSmartScheduleConfigOptions{Excluded: *request.Excluded}
+	reset := !options.Excluded && request.Reset
+	if reset {
+		priority := int64(0)
+		weight := uint(channelMonitorSmartScheduleMinWeight)
+		options.Priority = &priority
+		options.Weight = &weight
+	}
+	monitor, err := model.SaveChannelSmartScheduleConfig(channelId, options)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	if reset {
+		model.InitChannelCache()
+	}
 	recordManageAudit(c, "channel.monitor_smart_schedule_config_update", map[string]interface{}{
-		"id": channelId, "excluded": *request.Excluded,
+		"id": channelId, "excluded": options.Excluded, "reset": reset,
 	})
 	common.ApiSuccess(c, gin.H{
 		"excluded": monitor.SmartScheduleExcluded,

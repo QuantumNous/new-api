@@ -739,6 +739,7 @@ export function ChannelMonitor() {
                 smartScheduleConfigMutation.mutate({
                   channelId: channel.id,
                   excluded,
+                  reset: !excluded,
                 })
               }
               smartScheduleEnabled={settings.smart_schedule_enabled}

@@ -16,6 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
@@ -32,6 +44,7 @@ type ChannelMonitorSmartScheduleCellProps = {
 export function ChannelMonitorSmartScheduleCell(
   props: ChannelMonitorSmartScheduleCellProps
 ) {
+  const [resetConfirmationOpen, setResetConfirmationOpen] = useState(false)
   const participating = !props.channel.smart_schedule_excluded
 
   let statusContent = (
@@ -94,7 +107,13 @@ export function ChannelMonitorSmartScheduleCell(
           <Switch
             checked={participating}
             disabled={props.pending}
-            onCheckedChange={(checked) => props.onUpdate(!checked)}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                setResetConfirmationOpen(true)
+              } else {
+                props.onUpdate(true)
+              }
+            }}
             aria-label={`${participating ? '停止' : '启用'} ${props.channel.name} 的智能调度`}
           />
           <span className='text-xs'>参与调度</span>
@@ -102,6 +121,32 @@ export function ChannelMonitorSmartScheduleCell(
       </div>
 
       {statusContent}
+
+      <AlertDialog
+        open={resetConfirmationOpen}
+        onOpenChange={setResetConfirmationOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认参与调度？</AlertDialogTitle>
+            <AlertDialogDescription>
+              启用“{props.channel.name}”参与智能调度将把优先级重置为
+              0、权重重置为 10。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                props.onUpdate(false)
+                setResetConfirmationOpen(false)
+              }}
+            >
+              确认
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -478,11 +478,15 @@ func TestForceResetSmartScheduleQueuesOneTimeTaskAndKeepsParticipation(t *testin
 
 func TestUpdateChannelSmartScheduleConfigNeedsOnlyParticipationFlag(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
+	priority := int64(90)
+	weight := uint(75)
 	require.NoError(t, db.Create(&model.Channel{
-		Id:     43,
-		Name:   "multi-group channel",
-		Status: common.ChannelStatusEnabled,
-		Group:  "default,vip",
+		Id:       43,
+		Name:     "multi-group channel",
+		Status:   common.ChannelStatusEnabled,
+		Group:    "default,vip",
+		Priority: &priority,
+		Weight:   &weight,
 	}).Error)
 
 	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/43/schedule", map[string]any{
@@ -504,6 +508,82 @@ func TestUpdateChannelSmartScheduleConfigNeedsOnlyParticipationFlag(t *testing.T
 	monitor, err := model.GetChannelRatioMonitor(43)
 	require.NoError(t, err)
 	assert.False(t, monitor.SmartScheduleExcluded)
+	var channel model.Channel
+	require.NoError(t, db.First(&channel, "id = ?", 43).Error)
+	assert.Equal(t, priority, channel.GetPriority())
+	assert.Equal(t, int(weight), channel.GetWeight())
+}
+
+func TestUpdateChannelSmartScheduleConfigResetAlwaysUpdatesPriorityAndWeight(t *testing.T) {
+	tests := []struct {
+		name      string
+		applyMode string
+	}{
+		{
+			name:      "weight only",
+			applyMode: channelMonitorSmartScheduleApplyWeight,
+		},
+		{
+			name:      "priority and weight",
+			applyMode: channelMonitorSmartScheduleApplyPriorityWeight,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupChannelMonitorControllerTestDB(t)
+			useChannelMonitorOptionMap(t, map[string]string{
+				channelMonitorSmartScheduleApplyModeOption: test.applyMode,
+			})
+			priority := int64(100)
+			weight := uint(80)
+			channel := model.Channel{
+				Id:       44,
+				Name:     "scheduled channel",
+				Status:   common.ChannelStatusEnabled,
+				Group:    "vip",
+				Models:   "model-a",
+				Priority: &priority,
+				Weight:   &weight,
+			}
+			require.NoError(t, db.Create(&channel).Error)
+			require.NoError(t, db.Create(&model.Ability{
+				Group:     "vip",
+				Model:     "model-a",
+				ChannelId: channel.Id,
+				Enabled:   true,
+				Priority:  &priority,
+				Weight:    weight,
+			}).Error)
+			require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+				ChannelId:             channel.Id,
+				SmartScheduleExcluded: true,
+			}).Error)
+
+			ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/44/schedule", map[string]any{
+				"excluded": false,
+				"reset":    true,
+			})
+			ctx.Params = gin.Params{{Key: "id", Value: "44"}}
+			UpdateChannelMonitorSmartScheduleConfig(ctx)
+			require.Equal(t, http.StatusOK, recorder.Code)
+
+			var storedChannel model.Channel
+			require.NoError(t, db.First(&storedChannel, "id = ?", channel.Id).Error)
+			assert.Equal(t, int64(0), storedChannel.GetPriority())
+			assert.Equal(t, channelMonitorSmartScheduleMinWeight, storedChannel.GetWeight())
+
+			var ability model.Ability
+			require.NoError(t, db.First(&ability, "channel_id = ?", channel.Id).Error)
+			require.NotNil(t, ability.Priority)
+			assert.Equal(t, int64(0), *ability.Priority)
+			assert.Equal(t, uint(channelMonitorSmartScheduleMinWeight), ability.Weight)
+
+			monitor, err := model.GetChannelRatioMonitor(channel.Id)
+			require.NoError(t, err)
+			assert.False(t, monitor.SmartScheduleExcluded)
+		})
+	}
 }
 
 func TestRunChannelMonitorRatioUpdateReusesActiveTask(t *testing.T) {
