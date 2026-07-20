@@ -147,6 +147,14 @@ func (e *channelHealthEntry) recentFailureCount() int {
 	return n
 }
 
+func (e *channelHealthEntry) resetPriorityRecovery(now time.Time) {
+	if !e.priorityDemoted {
+		return
+	}
+	e.priorityDemotedAt = now
+	e.priorityFastSamples = 0
+}
+
 // openWithBackoff opens the circuit for an interval that grows with the number
 // of consecutive opens, so a persistently-flapping channel is sidelined longer
 // each time instead of being retried every base interval. It clears the
@@ -175,11 +183,14 @@ func (e *channelHealthEntry) openWithBackoff(now time.Time, bySlow bool) {
 	e.slowSamples = nil
 	e.recentOutcomes = nil
 	e.healthyStreak = 0
-	// A circuit-open channel is handled by the existing recovery probe. Clear
-	// the soft demotion so the first probe is not hidden behind a lower tier.
-	e.priorityDemoted = false
-	e.priorityDemotedAt = time.Time{}
-	e.priorityFastSamples = 0
+	// The circuit supplies the recovery probe, but a slow channel must retain
+	// its soft demotion after that probe closes the circuit. Otherwise one fast
+	// half-open response would immediately restore the original priority tier
+	// even while the latency EWMA is still unhealthy.
+	if bySlow {
+		e.priorityDemoted = true
+	}
+	e.resetPriorityRecovery(now)
 	if e.consecutiveOpens <= channelHealthMaxBackoffShift {
 		e.consecutiveOpens++
 	}
@@ -248,14 +259,26 @@ func isChannelOverloadStatus(statusCode int) bool {
 }
 
 func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutcome) {
-	if !common.AdaptiveChannelHealthEnabled || outcome.LocalError || outcome.SemanticError {
+	if !common.AdaptiveChannelHealthEnabled {
 		return
 	}
 	// Ignore genuine client 4xx (bad request, auth, not found, unprocessable);
 	// they are not the channel's availability problem. 408/429 are the
 	// exception: they signal an overloaded channel and must count.
-	if outcome.StatusCode >= http.StatusBadRequest && outcome.StatusCode < http.StatusInternalServerError &&
-		!isChannelOverloadStatus(outcome.StatusCode) {
+	ignoredOutcome := outcome.LocalError || outcome.SemanticError ||
+		(outcome.StatusCode >= http.StatusBadRequest && outcome.StatusCode < http.StatusInternalServerError &&
+			!isChannelOverloadStatus(outcome.StatusCode))
+	if ignoredOutcome {
+		// Ignored outcomes still break a consecutive fast-recovery streak. They
+		// provide no evidence that the upstream channel is fast enough to regain
+		// its configured priority, but they must not otherwise affect health.
+		r.mu.Lock()
+		if entry := r.entries[key]; entry != nil && entry.priorityDemoted {
+			now := r.now()
+			entry.lastSeenAt = now
+			entry.resetPriorityRecovery(now)
+		}
+		r.mu.Unlock()
 		return
 	}
 
@@ -267,14 +290,10 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	if entry == nil {
 		return
 	}
-	if entry.priorityDemoted && now.Sub(entry.priorityDemotedAt) > channelHealthFailureWindow {
-		entry.priorityDemoted = false
-		entry.priorityDemotedAt = time.Time{}
-		entry.priorityFastSamples = 0
-	}
 
 	if outcome.StatusCode >= http.StatusInternalServerError || outcome.StatusCode <= 0 || isChannelOverloadStatus(outcome.StatusCode) {
 		entry.healthyStreak = 0
+		entry.resetPriorityRecovery(now)
 		entry.pushRecentOutcome(true)
 		if entry.state == ChannelHealthHalfOpen {
 			entry.openWithBackoff(now, false)
@@ -323,9 +342,6 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 		entry.recentOutcomes = nil
 		entry.openUntil = time.Time{}
 		entry.probeLeaseUntil = time.Time{}
-		entry.pushRecentOutcome(false)
-		entry.registerHealthySuccess()
-		return
 	}
 
 	entry.pushRecentOutcome(false)
@@ -333,7 +349,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	if slow {
 		entry.slowSamples = pruneChannelHealthFailures(entry.slowSamples, now.Add(-channelHealthFailureWindow))
 		entry.slowSamples = append(entry.slowSamples, now)
-		entry.priorityFastSamples = 0
+		entry.resetPriorityRecovery(now)
 		if len(entry.slowSamples) >= channelHealthPriorityDemotionThreshold && entry.latencyEWMA >= float64(channelHealthSlowLatency()) {
 			entry.priorityDemoted = true
 			entry.priorityDemotedAt = now
@@ -348,13 +364,20 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	// demotion has its own two-sample recovery hysteresis so a single upstream
 	// blip does not bounce a channel between tiers.
 	entry.slowSamples = nil
-	if !outcome.ColdCacheStart && outcome.Latency > 0 && entry.priorityDemoted {
-		entry.priorityFastSamples++
-		if entry.priorityFastSamples >= channelHealthPriorityRecoveryThreshold &&
-			entry.latencyEWMA < float64(channelHealthSlowLatency()) {
-			entry.priorityDemoted = false
-			entry.priorityDemotedAt = time.Time{}
-			entry.priorityFastSamples = 0
+	if entry.priorityDemoted {
+		if outcome.ColdCacheStart || outcome.Latency <= 0 {
+			entry.resetPriorityRecovery(now)
+		} else {
+			entry.priorityFastSamples++
+			if entry.priorityFastSamples >= channelHealthPriorityRecoveryThreshold {
+				if entry.latencyEWMA < float64(channelHealthSlowLatency()) {
+					entry.priorityDemoted = false
+					entry.priorityDemotedAt = time.Time{}
+					entry.priorityFastSamples = 0
+				} else {
+					entry.resetPriorityRecovery(now)
+				}
+			}
 		}
 	}
 	entry.registerHealthySuccess()
@@ -487,10 +510,11 @@ func (r *channelHealthRegistry) Score(key ChannelHealthKey) float64 {
 }
 
 // shouldDemotePriority reports whether a closed channel has enough recent
-// slow, attributable responses to yield one configured priority tier. It is a
-// soft selection hint: the channel remains selectable and keeps its probe
-// share. Open/half-open channels deliberately return false so the existing
-// circuit recovery probe is not starved by the demotion.
+// slow, attributable responses to yield one configured priority tier. Once a
+// minute it leases one selection opportunity at the configured tier without
+// erasing the demotion; only scored fast outcomes can restore priority.
+// Open/half-open channels return false because the circuit already limits their
+// probes.
 func (r *channelHealthRegistry) shouldDemotePriority(key ChannelHealthKey) bool {
 	if !common.AdaptiveChannelHealthEnabled {
 		return false
@@ -505,9 +529,8 @@ func (r *channelHealthRegistry) shouldDemotePriority(key ChannelHealthKey) bool 
 	now := r.now()
 	entry.lastSeenAt = now
 	if entry.priorityDemoted && now.Sub(entry.priorityDemotedAt) > channelHealthFailureWindow {
-		entry.priorityDemoted = false
-		entry.priorityDemotedAt = time.Time{}
-		entry.priorityFastSamples = 0
+		entry.priorityDemotedAt = now
+		return false
 	}
 	return entry.priorityDemoted
 }
