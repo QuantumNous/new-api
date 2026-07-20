@@ -20,6 +20,7 @@ import (
 const (
 	channelMonitorAutoUpdateIntervalOption             = "ChannelMonitorAutoUpdateIntervalMinutes"
 	channelMonitorAutoUpdateRetryCountOption           = "ChannelMonitorAutoUpdateRetryCount"
+	channelMonitorAutoDisableOnUpdateFailureOption     = "ChannelMonitorAutoDisableOnUpdateFailure"
 	channelMonitorEmailNotificationOption              = "ChannelMonitorEmailNotificationEnabled"
 	channelMonitorNotificationEmailOption              = "ChannelMonitorNotificationEmail"
 	channelMonitorGroupCoefficientsOption              = "ChannelMonitorGroupCoefficients"
@@ -58,6 +59,7 @@ const (
 type channelMonitorSettings struct {
 	AutoUpdateIntervalMinutes          int    `json:"auto_update_interval_minutes"`
 	AutoUpdateRetryCount               int    `json:"auto_update_retry_count"`
+	AutoDisableOnUpdateFailure         bool   `json:"auto_disable_on_update_failure"`
 	EmailNotificationEnabled           bool   `json:"email_notification_enabled"`
 	NotificationEmail                  string `json:"notification_email"`
 	SmartScheduleEnabled               bool   `json:"smart_schedule_enabled"`
@@ -76,6 +78,7 @@ type channelMonitorSettings struct {
 type channelMonitorSettingsUpdateRequest struct {
 	AutoUpdateIntervalMinutes       *int    `json:"auto_update_interval_minutes"`
 	AutoUpdateRetryCount            *int    `json:"auto_update_retry_count"`
+	AutoDisableOnUpdateFailure      *bool   `json:"auto_disable_on_update_failure"`
 	EmailNotificationEnabled        *bool   `json:"email_notification_enabled"`
 	NotificationEmail               *string `json:"notification_email"`
 	SmartScheduleEnabled            *bool   `json:"smart_schedule_enabled"`
@@ -97,6 +100,7 @@ func getChannelMonitorSettings() channelMonitorSettings {
 	common.OptionMapRWMutex.RLock()
 	rawInterval := common.OptionMap[channelMonitorAutoUpdateIntervalOption]
 	rawRetryCount := common.OptionMap[channelMonitorAutoUpdateRetryCountOption]
+	rawAutoDisableOnUpdateFailure := common.OptionMap[channelMonitorAutoDisableOnUpdateFailureOption]
 	rawEmailNotificationEnabled := common.OptionMap[channelMonitorEmailNotificationOption]
 	rawNotificationEmail := common.OptionMap[channelMonitorNotificationEmailOption]
 	rawSmartScheduleEnabled := common.OptionMap[channelMonitorSmartScheduleEnabledOption]
@@ -116,6 +120,10 @@ func getChannelMonitorSettings() channelMonitorSettings {
 	retryCount, err := strconv.Atoi(rawRetryCount)
 	if err != nil || retryCount < 0 || retryCount > maxChannelMonitorAutoUpdateRetryCount {
 		retryCount = defaultChannelMonitorAutoUpdateRetryCount
+	}
+	autoDisableOnUpdateFailure, err := strconv.ParseBool(rawAutoDisableOnUpdateFailure)
+	if err != nil {
+		autoDisableOnUpdateFailure = false
 	}
 	notificationEmail, err := normalizeChannelMonitorNotificationEmail(rawNotificationEmail)
 	if err != nil {
@@ -152,6 +160,7 @@ func getChannelMonitorSettings() channelMonitorSettings {
 	return channelMonitorSettings{
 		AutoUpdateIntervalMinutes:       interval,
 		AutoUpdateRetryCount:            retryCount,
+		AutoDisableOnUpdateFailure:      autoDisableOnUpdateFailure,
 		EmailNotificationEnabled:        emailNotificationEnabled,
 		NotificationEmail:               notificationEmail,
 		SmartScheduleEnabled:            smartScheduleEnabled,
@@ -350,6 +359,7 @@ func UpdateChannelMonitorSettings(c *gin.Context) {
 	}
 	if request.AutoUpdateIntervalMinutes == nil &&
 		request.AutoUpdateRetryCount == nil &&
+		request.AutoDisableOnUpdateFailure == nil &&
 		request.EmailNotificationEnabled == nil &&
 		request.NotificationEmail == nil &&
 		request.SmartScheduleEnabled == nil &&
@@ -366,7 +376,7 @@ func UpdateChannelMonitorSettings(c *gin.Context) {
 	}
 	settings := getChannelMonitorSettings()
 	smartScheduleWasEnabled := settings.SmartScheduleEnabled
-	values := make(map[string]string, 12)
+	values := make(map[string]string, 13)
 	if request.AutoUpdateIntervalMinutes != nil && (*request.AutoUpdateIntervalMinutes < 0 ||
 		*request.AutoUpdateIntervalMinutes > maxChannelMonitorAutoUpdateIntervalMinutes) {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -390,6 +400,10 @@ func UpdateChannelMonitorSettings(c *gin.Context) {
 	if request.AutoUpdateRetryCount != nil {
 		settings.AutoUpdateRetryCount = *request.AutoUpdateRetryCount
 		values[channelMonitorAutoUpdateRetryCountOption] = strconv.Itoa(settings.AutoUpdateRetryCount)
+	}
+	if request.AutoDisableOnUpdateFailure != nil {
+		settings.AutoDisableOnUpdateFailure = *request.AutoDisableOnUpdateFailure
+		values[channelMonitorAutoDisableOnUpdateFailureOption] = strconv.FormatBool(settings.AutoDisableOnUpdateFailure)
 	}
 	if request.EmailNotificationEnabled != nil {
 		settings.EmailNotificationEnabled = *request.EmailNotificationEnabled
@@ -510,6 +524,7 @@ func UpdateChannelMonitorSettings(c *gin.Context) {
 	recordManageAudit(c, "channel.monitor_settings_update", map[string]interface{}{
 		"auto_update_interval_minutes":       settings.AutoUpdateIntervalMinutes,
 		"auto_update_retry_count":            settings.AutoUpdateRetryCount,
+		"auto_disable_on_update_failure":     settings.AutoDisableOnUpdateFailure,
 		"email_notification_enabled":         settings.EmailNotificationEnabled,
 		"notification_email_configured":      settings.NotificationEmail != "",
 		"smart_schedule_enabled":             settings.SmartScheduleEnabled,

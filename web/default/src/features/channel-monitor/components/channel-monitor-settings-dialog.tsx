@@ -81,6 +81,8 @@ export function ChannelMonitorSettingsDialog(
     defaultValues: {
       autoUpdateIntervalMinutes: props.settings.auto_update_interval_minutes,
       autoUpdateRetryCount: props.settings.auto_update_retry_count,
+      autoDisableOnUpdateFailure:
+        props.settings.auto_disable_on_update_failure ?? false,
       emailNotificationEnabled: props.settings.email_notification_enabled,
       notificationEmail: props.settings.notification_email,
       smartScheduleEnabled: props.settings.smart_schedule_enabled,
@@ -130,6 +132,7 @@ export function ChannelMonitorSettingsDialog(
     mutation.mutate({
       auto_update_interval_minutes: values.autoUpdateIntervalMinutes,
       auto_update_retry_count: values.autoUpdateRetryCount,
+      auto_disable_on_update_failure: values.autoDisableOnUpdateFailure,
       email_notification_enabled: values.emailNotificationEnabled,
       notification_email: values.notificationEmail,
       smart_schedule_enabled: values.smartScheduleEnabled,
@@ -238,13 +241,35 @@ export function ChannelMonitorSettingsDialog(
 
                 <FormField
                   control={form.control}
+                  name='autoDisableOnUpdateFailure'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between gap-4'>
+                      <div className='space-y-1'>
+                        <FormLabel>更新失败自动禁用渠道</FormLabel>
+                        <FormDescription>
+                          开启后，倍率或余额更新在重试后仍失败时自动禁用对应渠道
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          aria-label='更新失败自动禁用渠道'
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name='emailNotificationEnabled'
                   render={({ field }) => (
                     <FormItem className='flex items-center justify-between gap-4'>
                       <div className='space-y-1'>
                         <FormLabel>邮件通知</FormLabel>
                         <FormDescription>
-                          开启后，定时更新检测到渠道倍率变化、余额低于渠道预警值或更新失败时发送邮件
+                          开启后，定时更新检测到倍率变化、余额预警、更新失败或倍率策略自动禁用时发送邮件
                         </FormDescription>
                       </div>
                       <FormControl>

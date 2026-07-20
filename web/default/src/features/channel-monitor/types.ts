@@ -266,6 +266,7 @@ export type ChannelMonitorPolicyAction =
 export type ChannelMonitorSettings = {
   auto_update_interval_minutes: number
   auto_update_retry_count: number
+  auto_disable_on_update_failure: boolean
   email_notification_enabled: boolean
   notification_email: string
   smart_schedule_enabled: boolean

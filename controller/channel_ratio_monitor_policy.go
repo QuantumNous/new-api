@@ -186,7 +186,7 @@ func planChannelMonitorPolicyActions(
 	return plan
 }
 
-func applyChannelMonitorPolicyPlan(ctx context.Context, plan channelMonitorPolicyPlan) (groupsUpdated int, channelsDisabled int, groupUpdateFailed bool, err error) {
+func applyChannelMonitorPolicyPlan(ctx context.Context, plan channelMonitorPolicyPlan) (groupsUpdated int, disabledChannelIds []int, groupUpdateFailed bool, err error) {
 	if len(plan.GroupRatioUpdates) > 0 {
 		groupRatios := ratio_setting.GetGroupRatioCopy()
 		for group, targetRatio := range plan.GroupRatioUpdates {
@@ -203,25 +203,26 @@ func applyChannelMonitorPolicyPlan(ctx context.Context, plan channelMonitorPolic
 		if groupsUpdated > 0 {
 			groupRatioBytes, marshalErr := common.Marshal(groupRatios)
 			if marshalErr != nil {
-				return 0, 0, true, marshalErr
+				return 0, nil, true, marshalErr
 			}
 			if updateErr := model.UpdateOptionsBulk(map[string]string{"GroupRatio": string(groupRatioBytes)}); updateErr != nil {
-				return 0, 0, true, updateErr
+				return 0, nil, true, updateErr
 			}
 		}
 	}
 
+	disabledChannelIds = make([]int, 0, len(plan.DisableChannelIds))
 	for _, channelId := range plan.DisableChannelIds {
 		if ctx != nil && ctx.Err() != nil {
-			return groupsUpdated, channelsDisabled, false, ctx.Err()
+			return groupsUpdated, disabledChannelIds, false, ctx.Err()
 		}
 		if model.UpdateChannelStatus(channelId, "", common.ChannelStatusAutoDisabled, "渠道监控：成本倍率高于分组倍率") {
-			channelsDisabled++
+			disabledChannelIds = append(disabledChannelIds, channelId)
 		}
 	}
-	if channelsDisabled > 0 {
+	if len(disabledChannelIds) > 0 {
 		model.InitChannelCache()
 		service.ResetProxyClientCache()
 	}
-	return groupsUpdated, channelsDisabled, false, nil
+	return groupsUpdated, disabledChannelIds, false, nil
 }

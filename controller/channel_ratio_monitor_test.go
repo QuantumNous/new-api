@@ -181,6 +181,7 @@ func TestChannelMonitorSettingsDefaultAndTaskInterval(t *testing.T) {
 		values           map[string]string
 		wantInterval     int
 		wantRetryCount   int
+		wantAutoDisable  bool
 		wantEmailEnabled bool
 		wantEnabled      bool
 		wantTaskInterval time.Duration
@@ -194,13 +195,15 @@ func TestChannelMonitorSettingsDefaultAndTaskInterval(t *testing.T) {
 		{
 			name: "valid values",
 			values: map[string]string{
-				channelMonitorAutoUpdateIntervalOption:   "30",
-				channelMonitorAutoUpdateRetryCountOption: "4",
-				channelMonitorEmailNotificationOption:    "true",
-				channelMonitorNotificationEmailOption:    "alerts@example.com",
+				channelMonitorAutoUpdateIntervalOption:         "30",
+				channelMonitorAutoUpdateRetryCountOption:       "4",
+				channelMonitorAutoDisableOnUpdateFailureOption: "true",
+				channelMonitorEmailNotificationOption:          "true",
+				channelMonitorNotificationEmailOption:          "alerts@example.com",
 			},
 			wantInterval:     30,
 			wantRetryCount:   4,
+			wantAutoDisable:  true,
 			wantEmailEnabled: true,
 			wantEnabled:      true,
 			wantTaskInterval: 30 * time.Minute,
@@ -208,10 +211,11 @@ func TestChannelMonitorSettingsDefaultAndTaskInterval(t *testing.T) {
 		{
 			name: "invalid values use safe defaults",
 			values: map[string]string{
-				channelMonitorAutoUpdateIntervalOption:   "525601",
-				channelMonitorAutoUpdateRetryCountOption: "11",
-				channelMonitorEmailNotificationOption:    "invalid",
-				channelMonitorNotificationEmailOption:    "invalid",
+				channelMonitorAutoUpdateIntervalOption:         "525601",
+				channelMonitorAutoUpdateRetryCountOption:       "11",
+				channelMonitorAutoDisableOnUpdateFailureOption: "invalid",
+				channelMonitorEmailNotificationOption:          "invalid",
+				channelMonitorNotificationEmailOption:          "invalid",
 			},
 			wantRetryCount:   defaultChannelMonitorAutoUpdateRetryCount,
 			wantTaskInterval: time.Minute,
@@ -224,6 +228,7 @@ func TestChannelMonitorSettingsDefaultAndTaskInterval(t *testing.T) {
 			settings := getChannelMonitorSettings()
 			assert.Equal(t, test.wantInterval, settings.AutoUpdateIntervalMinutes)
 			assert.Equal(t, test.wantRetryCount, settings.AutoUpdateRetryCount)
+			assert.Equal(t, test.wantAutoDisable, settings.AutoDisableOnUpdateFailure)
 			assert.Equal(t, test.wantEmailEnabled, settings.EmailNotificationEnabled)
 			if test.name == "valid values" {
 				assert.Equal(t, "alerts@example.com", settings.NotificationEmail)
@@ -303,6 +308,7 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 	request := map[string]any{
 		"auto_update_interval_minutes":       15,
 		"auto_update_retry_count":            3,
+		"auto_disable_on_update_failure":     true,
 		"email_notification_enabled":         true,
 		"notification_email":                 "alerts@example.com",
 		"smart_schedule_enabled":             true,
@@ -323,6 +329,7 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 	require.True(t, response.Success)
 	assert.Equal(t, 15, response.Data.AutoUpdateIntervalMinutes)
 	assert.Equal(t, 3, response.Data.AutoUpdateRetryCount)
+	assert.True(t, response.Data.AutoDisableOnUpdateFailure)
 	assert.True(t, response.Data.EmailNotificationEnabled)
 	assert.Equal(t, "alerts@example.com", response.Data.NotificationEmail)
 	assert.True(t, response.Data.SmartScheduleEnabled)
@@ -340,6 +347,9 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 	option = model.Option{}
 	require.NoError(t, db.Where("key = ?", channelMonitorAutoUpdateRetryCountOption).First(&option).Error)
 	assert.Equal(t, "3", option.Value)
+	option = model.Option{}
+	require.NoError(t, db.Where("key = ?", channelMonitorAutoDisableOnUpdateFailureOption).First(&option).Error)
+	assert.Equal(t, "true", option.Value)
 	option = model.Option{}
 	require.NoError(t, db.Where("key = ?", channelMonitorEmailNotificationOption).First(&option).Error)
 	assert.Equal(t, "true", option.Value)
@@ -364,6 +374,7 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	assert.Equal(t, 15, response.Data.AutoUpdateIntervalMinutes)
 	assert.Equal(t, 3, response.Data.AutoUpdateRetryCount)
+	assert.True(t, response.Data.AutoDisableOnUpdateFailure)
 	assert.False(t, response.Data.EmailNotificationEnabled)
 	assert.Empty(t, response.Data.NotificationEmail)
 	assert.True(t, response.Data.SmartScheduleStabilityEnabled)
@@ -1860,14 +1871,14 @@ func TestApplyChannelMonitorPolicyPlanMarksGroupUpdateFailure(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	require.NoError(t, db.Migrator().DropTable(&model.Option{}))
 
-	groupsUpdated, channelsDisabled, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(
+	groupsUpdated, disabledChannelIds, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(
 		context.Background(),
 		channelMonitorPolicyPlan{GroupRatioUpdates: map[string]float64{"monitor-test": 2}},
 	)
 
 	require.Error(t, err)
 	assert.Zero(t, groupsUpdated)
-	assert.Zero(t, channelsDisabled)
+	assert.Empty(t, disabledChannelIds)
 	assert.True(t, groupUpdateFailed)
 }
 
@@ -2203,7 +2214,8 @@ func TestRunChannelRatioMonitorTaskDoesNotRetrySub2APIAuthenticationFailure(t *t
 func TestRunChannelRatioMonitorTaskRecoversAfterRetry(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	useChannelMonitorOptionMap(t, map[string]string{
-		channelMonitorAutoUpdateRetryCountOption: "2",
+		channelMonitorAutoUpdateRetryCountOption:       "2",
+		channelMonitorAutoDisableOnUpdateFailureOption: "true",
 	})
 	disableChannelMonitorSSRFProtection(t)
 
@@ -2239,6 +2251,9 @@ func TestRunChannelRatioMonitorTaskRecoversAfterRetry(t *testing.T) {
 	assert.InDelta(t, 1.25, monitor.Ratio, 1e-9)
 	assert.Equal(t, model.ChannelRatioFetchStatusSucceeded, monitor.LastFetchStatus)
 	assert.Zero(t, monitor.ConsecutiveFailures)
+	channel, err := model.GetChannelById(1, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusEnabled, channel.Status)
 }
 
 func TestRunChannelRatioMonitorTaskEmailsRatioChanges(t *testing.T) {
@@ -2324,6 +2339,66 @@ func TestRunChannelRatioMonitorTaskEmailsRatioChanges(t *testing.T) {
 			assert.InDelta(t, 1.25, monitor.Ratio, 1e-9)
 		})
 	}
+}
+
+func TestRunChannelRatioMonitorTaskEmailsRatioPolicyAutoDisable(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		"GroupRatio":                             `{"vip":1}`,
+		channelMonitorAutoUpdateRetryCountOption: "0",
+		channelMonitorEmailNotificationOption:    "true",
+		channelMonitorNotificationEmailOption:    "alerts@example.com",
+	})
+	disableChannelMonitorSSRFProtection(t)
+	originalGroupRatios := ratio_setting.GroupRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"vip":1}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatios))
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"group_ratio":{"vip":1.25}}`))
+	}))
+	defer server.Close()
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 1, Name: "<Disabled & API>", Key: "secret", Group: "vip", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId: 1, Ratio: 1, UpdatedTime: 1,
+		UpstreamType: service.NewAPIUpstreamType, UpstreamBaseURL: server.URL,
+		UpstreamGroup: "vip", UpstreamAuthType: service.NewAPIUpstreamAuthPublic,
+		UpstreamBalanceSyncDisabled: true,
+		SingleChannelAction:         channelMonitorPolicyActionDisableChannel,
+	}).Error)
+
+	var subject string
+	var receiver string
+	var content string
+	emailCalls := 0
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, func(gotSubject string, gotReceiver string, gotContent string) error {
+		emailCalls++
+		subject = gotSubject
+		receiver = gotReceiver
+		content = gotContent
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.Changed)
+	assert.Equal(t, 1, summary.ChannelsDisabled)
+	assert.Equal(t, "sent", summary.EmailStatus)
+	assert.Equal(t, 1, emailCalls)
+	assert.Contains(t, subject, "1 个渠道自动禁用")
+	assert.Equal(t, "alerts@example.com", receiver)
+	assert.Contains(t, content, "渠道自动禁用")
+	assert.Contains(t, content, "&lt;Disabled &amp; API&gt;（ID: 1）")
+	assert.Contains(t, content, "成本倍率高于分组倍率")
+
+	channel, err := model.GetChannelById(1, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusAutoDisabled, channel.Status)
 }
 
 func TestRunChannelRatioMonitorTaskRefreshesBalanceAndDeduplicatesLowBalanceEmail(t *testing.T) {
@@ -2489,6 +2564,58 @@ func TestRunChannelRatioMonitorTaskEmailsUpdateFailures(t *testing.T) {
 	assert.Contains(t, content, "上游同步失败")
 	assert.Contains(t, content, "&lt;Failing &amp; API&gt;")
 	assert.Contains(t, content, "502 Bad Gateway")
+	channel, err := model.GetChannelById(1, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusEnabled, channel.Status)
+}
+
+func TestRunChannelRatioMonitorTaskAutoDisablesChannelAfterUpdateFailure(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		channelMonitorAutoUpdateRetryCountOption:       "0",
+		channelMonitorAutoDisableOnUpdateFailureOption: "true",
+		channelMonitorEmailNotificationOption:          "true",
+		channelMonitorNotificationEmailOption:          "alerts@example.com",
+	})
+	disableChannelMonitorSSRFProtection(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 1, Name: "<Auto Disabled & API>", Key: "test-key", Group: "vip", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId: 1, UpstreamType: service.NewAPIUpstreamType, UpstreamBaseURL: server.URL,
+		UpstreamGroup: "vip", UpstreamAuthType: service.NewAPIUpstreamAuthPublic,
+	}).Error)
+
+	var subject string
+	var content string
+	emailCalls := 0
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, func(gotSubject string, _ string, gotContent string) error {
+		emailCalls++
+		subject = gotSubject
+		content = gotContent
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.Failed)
+	assert.Equal(t, 1, summary.ChannelsDisabled)
+	assert.Equal(t, "sent", summary.EmailStatus)
+	assert.Equal(t, 1, emailCalls)
+	assert.Contains(t, subject, "1 个渠道自动禁用")
+	assert.Contains(t, subject, "1 项更新失败")
+	assert.Contains(t, content, "渠道自动禁用")
+	assert.Contains(t, content, "&lt;Auto Disabled &amp; API&gt;（ID: 1）")
+	assert.Contains(t, content, "上游倍率或余额更新失败")
+
+	channel, err := model.GetChannelById(1, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusAutoDisabled, channel.Status)
 }
 
 func TestRunChannelRatioMonitorTaskEmailsGroupUpdateFailure(t *testing.T) {

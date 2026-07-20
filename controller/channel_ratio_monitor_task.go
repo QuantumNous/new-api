@@ -95,6 +95,12 @@ type channelRatioMonitorBalanceWarning struct {
 	Threshold    float64
 }
 
+type channelRatioMonitorDisabledChannel struct {
+	ChannelId   int
+	ChannelName string
+	Reason      string
+}
+
 func ListChannelMonitorTasks(c *gin.Context) {
 	taskType := model.SystemTaskTypeChannelRatioMonitor
 	switch c.DefaultQuery("kind", "ratio") {
@@ -171,19 +177,20 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 	settings := getChannelMonitorSettings()
 	emailChanges := make([]channelRatioMonitorEmailChange, 0)
 	balanceWarnings := make([]channelRatioMonitorBalanceWarning, 0)
-	balanceChannelStatusChanged := false
+	disabledChannels := make([]channelRatioMonitorDisabledChannel, 0)
+	channelStatusChanged := false
 	defer func() {
-		if balanceChannelStatusChanged {
+		if channelStatusChanged {
 			model.InitChannelCache()
 			service.ResetProxyClientCache()
 		}
 	}()
 	defer func() {
-		shouldNotify := len(emailChanges) > 0 || len(balanceWarnings) > 0 || summary.Failed > 0 || summary.GroupUpdateFailed || taskErr != nil
+		shouldNotify := len(emailChanges) > 0 || len(balanceWarnings) > 0 || len(disabledChannels) > 0 || summary.Failed > 0 || summary.GroupUpdateFailed || taskErr != nil
 		if !shouldNotify || !settings.EmailNotificationEnabled || settings.NotificationEmail == "" {
 			return
 		}
-		if err := sendChannelRatioMonitorNotificationEmail(settings.NotificationEmail, emailChanges, balanceWarnings, summary, taskErr, sendEmail); err != nil {
+		if err := sendChannelRatioMonitorNotificationEmail(settings.NotificationEmail, emailChanges, balanceWarnings, disabledChannels, summary, taskErr, sendEmail); err != nil {
 			summary.EmailStatus = "failed"
 			errorMessage := err.Error()
 			errorRunes := []rune(errorMessage)
@@ -324,7 +331,7 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 			}
 			if balanceAutoDisabled {
 				summary.ChannelsDisabled++
-				balanceChannelStatusChanged = true
+				channelStatusChanged = true
 			}
 			if monitor.BalanceWarningThreshold != nil &&
 				balance < *monitor.BalanceWarningThreshold &&
@@ -345,6 +352,16 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 				failureErr = fmt.Errorf("重试 %d 次后仍失败: %w", retriesUsed, err)
 			}
 			summary.recordFailure(monitor.ChannelId, channel.Name, failureErr)
+			if settings.AutoDisableOnUpdateFailure && channel.Status == common.ChannelStatusEnabled &&
+				model.UpdateChannelStatus(channel.Id, "", common.ChannelStatusAutoDisabled, "渠道监控：上游倍率或余额更新失败") {
+				summary.ChannelsDisabled++
+				channelStatusChanged = true
+				disabledChannels = append(disabledChannels, channelRatioMonitorDisabledChannel{
+					ChannelId:   channel.Id,
+					ChannelName: channel.Name,
+					Reason:      "上游倍率或余额更新失败",
+				})
+			}
 			logger.LogWarn(ctx, fmt.Sprintf("channel ratio monitor: channel_id=%d update failed: %v", monitor.ChannelId, failureErr))
 		} else {
 			summary.Updated++
@@ -386,17 +403,30 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 		getChannelMonitorGroupCoefficients(),
 	)
 	summary.GroupsSkipped = plan.SkippedGroupCount
-	groupsUpdated, channelsDisabled, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(ctx, plan)
+	groupsUpdated, disabledChannelIds, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(ctx, plan)
 	summary.GroupsUpdated = groupsUpdated
-	summary.ChannelsDisabled += channelsDisabled
+	summary.ChannelsDisabled += len(disabledChannelIds)
 	summary.GroupUpdateFailed = groupUpdateFailed
 	if err != nil {
 		return summary, err
 	}
+	if len(disabledChannelIds) > 0 {
+		channelNames := make(map[int]string, len(channels))
+		for _, channel := range channels {
+			channelNames[channel.Id] = channel.Name
+		}
+		for _, channelId := range disabledChannelIds {
+			disabledChannels = append(disabledChannels, channelRatioMonitorDisabledChannel{
+				ChannelId:   channelId,
+				ChannelName: channelNames[channelId],
+				Reason:      "成本倍率高于分组倍率",
+			})
+		}
+	}
 	return summary, nil
 }
 
-func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channelRatioMonitorEmailChange, balanceWarnings []channelRatioMonitorBalanceWarning, summary channelRatioMonitorTaskResult, taskErr error, sendEmail func(subject string, receiver string, content string) error) error {
+func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channelRatioMonitorEmailChange, balanceWarnings []channelRatioMonitorBalanceWarning, disabledChannels []channelRatioMonitorDisabledChannel, summary channelRatioMonitorTaskResult, taskErr error, sendEmail func(subject string, receiver string, content string) error) error {
 	if sendEmail == nil {
 		return fmt.Errorf("邮件发送器未初始化")
 	}
@@ -449,6 +479,28 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		}
 		content.WriteString("</tbody></table>")
 	}
+	if len(disabledChannels) > 0 {
+		content.WriteString("<h3>渠道自动禁用</h3>")
+		content.WriteString("<p>本次更新已自动禁用以下渠道：</p>")
+		content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
+		for _, heading := range []string{"渠道", "禁用原因"} {
+			fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
+		}
+		content.WriteString("</tr></thead><tbody>")
+		for _, disabledChannel := range disabledChannels {
+			channelName := fmt.Sprintf("渠道 ID %d", disabledChannel.ChannelId)
+			if disabledChannel.ChannelName != "" {
+				channelName = fmt.Sprintf("%s（ID: %d）", disabledChannel.ChannelName, disabledChannel.ChannelId)
+			}
+			fmt.Fprintf(
+				&content,
+				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+				html.EscapeString(channelName),
+				html.EscapeString(disabledChannel.Reason),
+			)
+		}
+		content.WriteString("</tbody></table>")
+	}
 
 	if summary.Failed > 0 {
 		content.WriteString("<h3>上游同步失败</h3>")
@@ -496,12 +548,17 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		failureCount++
 	}
 	subject := fmt.Sprintf("渠道监控：%d 个渠道的上游倍率发生变化", len(changes))
-	if len(balanceWarnings) > 0 {
-		parts := make([]string, 0, 3)
+	if len(balanceWarnings) > 0 || len(disabledChannels) > 0 {
+		parts := make([]string, 0, 4)
 		if len(changes) > 0 {
 			parts = append(parts, fmt.Sprintf("%d 个倍率变更", len(changes)))
 		}
-		parts = append(parts, fmt.Sprintf("%d 个余额预警", len(balanceWarnings)))
+		if len(balanceWarnings) > 0 {
+			parts = append(parts, fmt.Sprintf("%d 个余额预警", len(balanceWarnings)))
+		}
+		if len(disabledChannels) > 0 {
+			parts = append(parts, fmt.Sprintf("%d 个渠道自动禁用", len(disabledChannels)))
+		}
 		if failureCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d 项更新失败", failureCount))
 		}

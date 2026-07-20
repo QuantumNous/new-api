@@ -92,6 +92,7 @@ export function createChannelMonitorSettingsSchema() {
         .int('失败重试次数必须是整数')
         .min(0, '失败重试次数不能小于 0')
         .max(MAX_AUTO_UPDATE_RETRY_COUNT, '失败重试次数不能超过 10 次'),
+      autoDisableOnUpdateFailure: z.boolean(),
       emailNotificationEnabled: z.boolean(),
       notificationEmail: z
         .string()

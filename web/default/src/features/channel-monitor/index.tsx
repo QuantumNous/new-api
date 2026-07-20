@@ -128,6 +128,7 @@ const EMPTY_PERFORMANCE_METRICS: ChannelMonitorPerformanceMetric[] = []
 const DEFAULT_CHANNEL_MONITOR_SETTINGS: ChannelMonitorSettings = {
   auto_update_interval_minutes: 0,
   auto_update_retry_count: 2,
+  auto_disable_on_update_failure: false,
   email_notification_enabled: false,
   notification_email: '',
   smart_schedule_enabled: false,
@@ -926,7 +927,7 @@ export function ChannelMonitor() {
       )}
       {settingsOpen && (
         <ChannelMonitorSettingsDialog
-          key={`${settingsSection}:${settings.auto_update_interval_minutes}:${settings.auto_update_retry_count}:${settings.email_notification_enabled}:${settings.notification_email}:${settings.smart_schedule_enabled}:${settings.smart_schedule_interval_minutes}:${settings.smart_schedule_strategy}:${settings.smart_schedule_stability_enabled}:${settings.smart_schedule_apply_mode}:${settings.smart_schedule_performance_minutes}:${settings.smart_schedule_model}:${settings.smart_schedule_min_samples}`}
+          key={`${settingsSection}:${settings.auto_update_interval_minutes}:${settings.auto_update_retry_count}:${settings.auto_disable_on_update_failure}:${settings.email_notification_enabled}:${settings.notification_email}:${settings.smart_schedule_enabled}:${settings.smart_schedule_interval_minutes}:${settings.smart_schedule_strategy}:${settings.smart_schedule_stability_enabled}:${settings.smart_schedule_apply_mode}:${settings.smart_schedule_performance_minutes}:${settings.smart_schedule_model}:${settings.smart_schedule_min_samples}`}
           settings={settings}
           modelOptions={smartScheduleModelOptions}
           initialSection={settingsSection}
