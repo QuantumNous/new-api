@@ -394,3 +394,30 @@ HTTP 429/5xx、499、`stream disconnected before completion`、缺失 `response.
 
 容器启动仍有既有的 `SESSION_COOKIE_SECURE` 警告；本轮没有改动生产配置，避免把安全配置变更
 与渠道切换策略混在同一次发布中。
+
+## Affinity 429 冷启动保护补丁
+
+首个版本上线后，代码审查发现一个只会在 `SkipRetryOnFailure` affinity 规则下出现的边界：真实
+上游 429 会正确切换渠道，但新渠道的冷 prompt prefill 没有同步标记到当前 `RelayInfo`，可能被
+健康度和 30 秒慢首字冷却误判。补丁只在 `shouldRetry` 已确认继续、且错误具有真实上游 429
+provenance 时设置 `AffinityColdStart`；本地 429、固定渠道、预算耗尽和非 affinity 请求不变。
+
+- 回归测试提交：`15f740f4b`
+- 修复提交：`d9094bdd0`
+- Railway deployment：`6ee5e1ca-65f5-44db-8a49-b78761ac99b2`
+- 上线时间：2026-07-20 22:58:06（Asia/Singapore）
+- 镜像：`sha256:7a32d7e31bfe6317757e3628c7670856156981ff79d3281686393b36dc22d5b2`
+- 部署状态：`SUCCESS`；三个生产入口均返回 HTTP 200。
+- 上线后约 10 分钟的应用日志：最终 `/v1/responses` 为 HTTP 200=187、500=4、403=1，
+  429/499/502/503=0；`upstream_rate_limit`、`upstream_status=429`、`Too Many Requests`
+  和 `Concurrency limit exceeded` 均无匹配。
+- 流结束记录包含 `client_gone=3`、`done=195`、`eof=7` 和 `upstream_failed=1`。3 个
+  `client_gone` 在断开前均已持续收到上游数据；`upstream_failed`（request
+  `202607201459435026261348268d9d6dvu3aBAg`，渠道 #88）是在 HTTP 200 已提交后上游流内失败，
+  不能安全透明重放，后续同渠道自然请求仍正常完成。
+- 182 条含 FRT 的消费日志：平均 4.279 s、p50 3.136 s、p90 7.750 s、p95 11.136 s、最大
+  35.062 s，FRT >= 10 s 为 12 条、>= 20 s 为 2 条。长样本仍由上游响应头/首数据等待或
+  前序渠道超时主导，没有证据表明冷启动标记补丁增加了首字延迟。
+
+该补丁的 2 小时冷却触发链路仍未在自然流量中出现真实 429，因此只能确认无回归和边界测试通过，
+不能把生产日志中的 2 小时冷却宣称为已实测。
