@@ -419,6 +419,8 @@ export function getChannelIcon(channelType) {
       return <OpenAI size={iconSize} />;
     case 64: // th12345ai (TH API) video
       return <OpenAI size={iconSize} />;
+    case 65: // megabyai (MegaByAI) video
+      return <OpenAI size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

@@ -169,6 +169,8 @@ function type2secretPrompt(type) {
       return '7tai_key_prompt';
     case 64:
       return 'th12345ai_key_prompt';
+    case 65:
+      return 'megabyai_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -735,10 +737,18 @@ const EditChannelModal = (props) => {
           }));
           break;
         case 64: // th12345ai (TH API)
-          localModels = ['videos_stable', 'videos_stable_fast'];
+          localModels = ['sd2-431', 'sd2-fast-431'];
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://sd.12345ai.net',
+            model_mapping: JSON.stringify(
+              {
+                'sd2-431': 'videos_stable',
+                'sd2-fast-431': 'videos_stable_fast',
+              },
+              null,
+              2,
+            ),
           }));
           break;
         default:
@@ -2732,7 +2742,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64) && (
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65) && (
                       <Banner
                         type='info'
                         closeIcon={null}
@@ -2746,7 +2756,9 @@ const EditChannelModal = (props) => {
                                 ? '7tai 渠道说明'
                                 : inputs.type === 64
                                   ? 'th12345ai 渠道说明'
-                                  : '异步视频渠道通用说明',
+                                  : inputs.type === 65
+                                    ? 'megabyai 渠道说明'
+                                    : '异步视频渠道通用说明',
                         )}
                       />
                     )}
