@@ -31,6 +31,13 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -49,6 +56,7 @@ const basicAuthSchema = z.object({
   PasswordRegisterEnabled: z.boolean(),
   EmailVerificationEnabled: z.boolean(),
   RegisterEnabled: z.boolean(),
+  RegistrationInviteMode: z.enum(['optional', 'required', 'hidden']),
   EmailDomainRestrictionEnabled: z.boolean(),
   EmailAliasRestrictionEnabled: z.boolean(),
   EmailDomainWhitelist: z.string(),
@@ -174,6 +182,34 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                   />
                 </FormControl>
               </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='RegistrationInviteMode'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Registration invitation code')}</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('Select invitation mode')} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectItem value='optional'>{t('Optional')}</SelectItem>
+                    <SelectItem value='required'>{t('Required')}</SelectItem>
+                    <SelectItem value='hidden'>{t('Hidden')}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  {t(
+                    'Choose whether users may enter, must enter, or cannot use an invitation code when registering'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
             )}
           />
 
