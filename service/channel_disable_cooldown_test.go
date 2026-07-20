@@ -47,6 +47,15 @@ func TestShouldCooldownChannelForUpstreamErrorCoolsBadGateway(t *testing.T) {
 	}
 }
 
+func TestShouldCooldownChannelForUpstreamErrorUsesUnmappedUpstreamStatus(t *testing.T) {
+	err := types.NewErrorWithStatusCode(errors.New("provider overloaded"), types.ErrorCodeBadResponseStatusCode, http.StatusBadRequest)
+	err.UpstreamStatusCode = http.StatusServiceUnavailable
+
+	if !ShouldCooldownChannelForUpstreamError(err) {
+		t.Fatalf("expected an upstream 503 to cooldown after the client status is remapped")
+	}
+}
+
 func TestShouldCooldownChannelForUpstreamErrorCoolsImageGenerationCapabilityGap(t *testing.T) {
 	err := types.NewErrorWithStatusCode(errors.New("Image generation is not enabled for this group"), types.ErrorCodeBadResponseStatusCode, http.StatusForbidden)
 

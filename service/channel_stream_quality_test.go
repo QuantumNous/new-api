@@ -85,6 +85,83 @@ func TestObserveStreamChannelQualityKeepsGenericFailureThreshold(t *testing.T) {
 	assert.False(t, model.IsChannelCoolingDown(18), "generic failures still require repeated evidence")
 }
 
+func TestObserveStreamChannelQualityDoesNotCooldownChannelTests(t *testing.T) {
+	model.ClearChannelCooldownsForTest()
+	clearStreamChannelQualityForTest()
+	t.Cleanup(func() {
+		model.ClearChannelCooldownsForTest()
+		clearStreamChannelQualityForTest()
+	})
+
+	info := newStreamQualityRelayInfoWithEndError(
+		17,
+		"gpt-5.6-sol",
+		relaycommon.StreamEndReasonUpstreamFailed,
+		1,
+		"upstream responses stream failed: Concurrency limit exceeded for account",
+		nil,
+	)
+	info.IsChannelTest = true
+
+	ObserveStreamChannelQualityForRequest(nil, info)
+
+	assert.False(t, model.IsChannelCoolingDown(17), "channel tests must not change production cooldown state")
+}
+
+func TestObserveStreamChannelQualityDoesNotImmediatelyCooldownMultiKeyChannel(t *testing.T) {
+	model.ClearChannelCooldownsForTest()
+	clearStreamChannelQualityForTest()
+	t.Cleanup(func() {
+		model.ClearChannelCooldownsForTest()
+		clearStreamChannelQualityForTest()
+	})
+
+	info := newStreamQualityRelayInfoWithEndError(
+		17,
+		"gpt-5.6-sol",
+		relaycommon.StreamEndReasonUpstreamFailed,
+		1,
+		"upstream responses stream failed: Concurrency limit exceeded for account",
+		nil,
+	)
+	info.ChannelIsMultiKey = true
+
+	ObserveStreamChannelQualityForRequest(nil, info)
+
+	assert.False(t, model.IsChannelCoolingDown(17), "one busy account must not sideline the other keys")
+}
+
+func TestObserveStreamChannelQualityDoesNotPinGenericUpstreamFailure(t *testing.T) {
+	cacheKeySuffix := fmt.Sprintf("codex cli trace:default:upstream-failure-%d", time.Now().UnixNano())
+	cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 29, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeyFull,
+		TTLSeconds: 60,
+		RuleName:   "codex cli trace",
+	})
+	info := newStreamQualityRelayInfoWithEndError(
+		17,
+		"gpt-5.6-sol",
+		relaycommon.StreamEndReasonUpstreamFailed,
+		1,
+		"upstream responses stream failed: temporary provider error",
+		nil,
+	)
+
+	ObserveStreamChannelQualityForRequest(ctx, info)
+	RecordChannelAffinity(ctx, 17)
+
+	boundChannel, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 29, boundChannel, "a failed stream must not become the affinity success")
+}
+
 func TestObserveStreamChannelQualityCoolsAfterRepeatedTimeouts(t *testing.T) {
 	model.ClearChannelCooldownsForTest()
 	clearStreamChannelQualityForTest()
