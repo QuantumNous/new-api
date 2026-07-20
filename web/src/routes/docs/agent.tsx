@@ -16,17 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-const agentDocsPath = '/docs/agent'
+import { createFileRoute } from '@tanstack/react-router'
 
-export function resolveAgentDocsUrl(docsUrl: string): string {
-  if (!docsUrl.startsWith('http')) return docsUrl
+import { AgentDocs } from '@/features/agent-docs'
 
-  try {
-    const parsedDocsUrl = new URL(docsUrl)
-    if (parsedDocsUrl.hostname !== 'docs.newapi.pro') return docsUrl
-
-    return agentDocsPath
-  } catch {
-    return docsUrl
-  }
-}
+export const Route = createFileRoute('/docs/agent')({
+  component: AgentDocs,
+})
