@@ -173,6 +173,30 @@ func TestRecordChannelHealthOutcomeDoesNotUseStreamDurationWhenCurrentAttemptHas
 		"a current stream without attributable first data must not use total stream duration as TTFT")
 }
 
+func TestRecordChannelHealthOutcomeDoesNotUseStreamDurationWhenStreamStatusIsUnavailable(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001436
+	const modelName = "test-retry-stream-without-status"
+	const requestPath = "/v1/chat/completions"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-20 * time.Second)
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			IsStream:          true,
+		}
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.True(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a streaming adapter without StreamStatus must not use total stream duration as TTFT")
+}
+
 func TestRecordChannelHealthOutcomeCountsGenuinelySlowCurrentAttemptAfterRetry(t *testing.T) {
 	oldEnabled := common.AdaptiveChannelHealthEnabled
 	common.AdaptiveChannelHealthEnabled = true
@@ -201,6 +225,37 @@ func TestRecordChannelHealthOutcomeCountsGenuinelySlowCurrentAttemptAfterRetry(t
 
 	assert.False(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
 		"a fallback channel with genuinely slow current-attempt TTFT must still open the circuit")
+}
+
+func TestRecordChannelHealthOutcomeCountsSlowCurrentAttemptWithoutStreamStatus(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001437
+	const modelName = "test-retry-slow-stream-without-status"
+	const requestPath = "/v1/chat/completions"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-10 * time.Second)
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			IsStream:          true,
+			StreamStatus: &relaycommon.StreamStatus{
+				StartedAt:   attemptStart.Add(-20 * time.Second),
+				FirstDataAt: attemptStart.Add(-19 * time.Second),
+				EndReason:   relaycommon.StreamEndReasonUpstreamFailed,
+			},
+		}
+		info.BeginChannelAttempt()
+		info.SetFirstResponseTime()
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.False(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a genuinely slow current attempt must be scored even when its adapter has no StreamStatus")
 }
 
 // TestClientCanceledIsNotAttributedToChannel guards the mis-attribution bug seen

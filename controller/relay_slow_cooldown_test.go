@@ -58,6 +58,27 @@ func TestShouldCooldownSlowChannelUsesCurrentAttemptFirstDataAfterRetry(t *testi
 	}
 }
 
+func TestShouldCooldownSlowChannelUsesAttemptResponseWithoutStreamStatus(t *testing.T) {
+	attemptStart := time.Now().Add(-35 * time.Second)
+	info := &relaycommon.RelayInfo{
+		StartTime:         attemptStart.Add(-30 * time.Second),
+		FirstResponseTime: attemptStart.Add(-10 * time.Second),
+		IsStream:          true,
+		StreamStatus: &relaycommon.StreamStatus{
+			StartedAt:   attemptStart.Add(-20 * time.Second),
+			FirstDataAt: attemptStart.Add(-19 * time.Second),
+			EndReason:   relaycommon.StreamEndReasonUpstreamFailed,
+		},
+	}
+	info.BeginChannelAttempt()
+	info.SetFirstResponseTime()
+
+	frt, slow := shouldCooldownSlowChannel(info, attemptStart)
+	if !slow {
+		t.Fatalf("a current attempt with 35s first-response latency must be cooled (frt=%v)", frt)
+	}
+}
+
 // TestShouldCooldownSlowChannelIgnoresAffinityColdStart guards the second, and
 // far more damaging, way this cooldown can blame a channel for latency that is
 // not its fault. When we release a request's prompt-cache affinity because its
