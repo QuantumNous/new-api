@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -86,6 +87,51 @@ func TestShouldRetryAllowsTransientAffinityFailure(t *testing.T) {
 	if !shouldRetry(c, err, 1) {
 		t.Fatal("expected transient 5xx from a sticky channel to fall back")
 	}
+}
+
+func TestShouldRetryUsesUpstream429ProvenanceAfterStatusMapping(t *testing.T) {
+	err := types.NewErrorWithStatusCode(
+		errors.New("Upstream rate limit exceeded, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadRequest,
+	)
+	err.UpstreamStatusCode = http.StatusTooManyRequests
+
+	c := newTestContext()
+	assert.True(t, isRetryableChannelError(c, err))
+	assert.True(t, shouldRetry(c, err, 1))
+	assert.False(t, shouldRetry(c, err, 0), "upstream 429 must still respect the configured retry budget")
+
+	pinned := newTestContext()
+	pinned.Set("specific_channel_id", 17)
+	assert.False(t, isRetryableChannelError(pinned, err))
+	assert.False(t, shouldRetry(pinned, err, 1), "a pinned request cannot switch channels")
+}
+
+func TestProcessChannelErrorCoolsMappedUpstream429ForTwoHours(t *testing.T) {
+	model.ClearChannelCooldownsForTest()
+	t.Cleanup(model.ClearChannelCooldownsForTest)
+
+	const channelID = 9005
+	err := types.NewErrorWithStatusCode(
+		errors.New("Upstream rate limit exceeded, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadRequest,
+	)
+	err.UpstreamStatusCode = http.StatusTooManyRequests
+
+	processChannelError(
+		newTestContext(),
+		*types.NewChannelError(channelID, 1, "rate-limited", false, "key", false),
+		err,
+	)
+
+	reason, expires, cooling := model.GetChannelCooldown(channelID)
+	assert.True(t, cooling)
+	assert.Contains(t, reason, "upstream_rate_limit")
+	remaining := time.Until(time.Unix(expires, 0))
+	assert.Greater(t, remaining, 119*time.Minute)
+	assert.Less(t, remaining, 121*time.Minute)
 }
 
 func TestShouldRetryStopsOnSemanticContextLimitError(t *testing.T) {
@@ -244,9 +290,9 @@ func TestUpstreamCapacityFallbackRequiresUncommittedTransientCapacityError(t *te
 		http.StatusTooManyRequests,
 	)
 	quota429.UpstreamStatusCode = http.StatusTooManyRequests
-	assert.False(t, isUpstreamRateLimitError(quota429), "quota exhaustion is structural, not a transient rate-limit retry")
-	assert.False(t, isFastUpstreamCapacityError(quota429))
-	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), quota429))
+	assert.True(t, isUpstreamRateLimitError(quota429), "every genuine upstream 429 must switch away from the affected channel")
+	assert.True(t, isFastUpstreamCapacityError(quota429))
+	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), newResponsesInfo(), quota429))
 
 	imageInfo := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
 	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), imageInfo, upstream429), "side-effecting generation routes must not expand attempts")

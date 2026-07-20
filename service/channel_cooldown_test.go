@@ -148,6 +148,37 @@ func TestCooldownChannelForRetryUsesShortDurationFor5xx(t *testing.T) {
 	}
 }
 
+func TestCooldownChannelForRetryUsesTwoHoursForUpstream429(t *testing.T) {
+	model.ClearChannelCooldownsForTest()
+	t.Cleanup(model.ClearChannelCooldownsForTest)
+
+	chErr := types.NewChannelError(9004, 1, "rate-limited", false, "", true)
+	err := types.NewErrorWithStatusCode(
+		errors.New("Upstream rate limit exceeded, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusServiceUnavailable,
+	)
+	err.UpstreamStatusCode = http.StatusTooManyRequests
+
+	CooldownChannelForRetry(*chErr, err)
+
+	reason, expires, cooling := model.GetChannelCooldown(9004)
+	require.True(t, cooling)
+	assert.Contains(t, reason, "upstream_rate_limit")
+	remaining := time.Until(time.Unix(expires, 0))
+	assert.Greater(t, remaining, 119*time.Minute)
+	assert.Less(t, remaining, 121*time.Minute)
+
+	CooldownChannelForRetry(*chErr, types.NewErrorWithStatusCode(
+		errors.New("temporary bad gateway"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadGateway,
+	))
+	_, expiresAfterShortCooldown, cooling := model.GetChannelCooldown(9004)
+	require.True(t, cooling)
+	assert.Equal(t, expires, expiresAfterShortCooldown, "a later short cooldown must not shorten the 429 isolation")
+}
+
 func TestCooldownChannelForRetryUsesFullDurationForCapabilityGap(t *testing.T) {
 	model.ClearChannelCooldownsForTest()
 	chErr := types.NewChannelError(9003, 1, "test", false, "", true)
