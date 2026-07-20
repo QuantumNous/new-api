@@ -279,6 +279,31 @@ func UpdateChannelSmartSchedulePriorityWeight(channelId int, priority *int64, we
 	})
 }
 
+func ResetChannelSmartSchedulePriorityWeight(channelIds []int) error {
+	if len(channelIds) == 0 {
+		return nil
+	}
+
+	const batchSize = 500
+	updates := map[string]any{
+		"priority": int64(0),
+		"weight":   uint(0),
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		for start := 0; start < len(channelIds); start += batchSize {
+			end := min(start+batchSize, len(channelIds))
+			batch := channelIds[start:end]
+			if err := tx.Model(&Channel{}).Where("id IN ?", batch).Updates(updates).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&Ability{}).Where("channel_id IN ?", batch).Updates(updates).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func UpdateChannelRatioMonitor(channelId int, ratio float64, remark string, operatorId int, operatorUsername string) (monitor ChannelRatioMonitor, created bool, changed bool, err error) {
 	return updateChannelRatioMonitor(channelId, ratio, remark, operatorId, operatorUsername, false)
 }

@@ -206,6 +206,29 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 	if err != nil {
 		return result, err
 	}
+	monitorByChannel := make(map[int]model.ChannelRatioMonitor, len(monitors))
+	for _, monitor := range monitors {
+		monitorByChannel[monitor.ChannelId] = monitor
+	}
+	channelCacheDirty := false
+	defer func() {
+		if channelCacheDirty {
+			model.InitChannelCache()
+		}
+	}()
+	if forceReset {
+		channelIds := make([]int, 0, len(channels))
+		for _, channel := range channels {
+			if channel.Status != common.ChannelStatusEnabled || monitorByChannel[channel.Id].SmartScheduleExcluded {
+				continue
+			}
+			channelIds = append(channelIds, channel.Id)
+		}
+		if err := model.ResetChannelSmartSchedulePriorityWeight(channelIds); err != nil {
+			return result, err
+		}
+		channelCacheDirty = len(channelIds) > 0
+	}
 	needsPerformance := settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategyFirstToken ||
 		settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategyTPS ||
 		settings.SmartScheduleStrategy == channelMonitorSmartScheduleStrategySmart
@@ -234,10 +257,6 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 		}
 	}
 
-	monitorByChannel := make(map[int]model.ChannelRatioMonitor, len(monitors))
-	for _, monitor := range monitors {
-		monitorByChannel[monitor.ChannelId] = monitor
-	}
 	performanceByChannel := make(map[int]*channelSmartSchedulePerformance)
 	for _, metric := range metrics {
 		if settings.SmartScheduleModel != "" && metric.ModelName != settings.SmartScheduleModel {
@@ -291,8 +310,13 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 	channelById := make(map[int]*model.Channel, len(channels))
 	for _, channel := range channels {
 		channelById[channel.Id] = channel
+		monitor := monitorByChannel[channel.Id]
 		currentPriority := channel.GetPriority()
 		currentWeight := uint(channel.GetWeight())
+		if forceReset && channel.Status == common.ChannelStatusEnabled && !monitor.SmartScheduleExcluded {
+			currentPriority = 0
+			currentWeight = 0
+		}
 		if channel.Status != common.ChannelStatusEnabled {
 			statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(
 				channel.Id,
@@ -307,7 +331,6 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 			continue
 		}
 
-		monitor := monitorByChannel[channel.Id]
 		if monitor.SmartScheduleExcluded {
 			statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(
 				channel.Id,
@@ -439,6 +462,7 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 			))
 		} else {
 			result.Updated++
+			channelCacheDirty = true
 			score := item.Score
 			statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(
 				item.ChannelId,
@@ -456,9 +480,6 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 
 	if err := model.SaveChannelSmartScheduleResults(statusUpdates); err != nil {
 		return result, err
-	}
-	if result.Updated > 0 {
-		model.InitChannelCache()
 	}
 	reportProgress(result.Total, result.Total)
 	return result, nil
