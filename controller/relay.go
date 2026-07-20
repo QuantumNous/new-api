@@ -618,13 +618,26 @@ func cooldownSlowChannelIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, ch
 // request that failed over across dead channels, info.StartTime includes the
 // time wasted on those earlier attempts, which would inflate the measured first
 // token latency and wrongly cool the fast channel that actually served. If no
-// response was sent, or the first response predates this attempt (so it is not
-// attributable to it), the channel is not cooled.
+// response was sent, or no first response can be attributed to this attempt,
+// the channel is not cooled.
 func shouldCooldownSlowChannel(info *relaycommon.RelayInfo, attemptStart time.Time) (time.Duration, bool) {
-	if info == nil || !info.HasSendResponse() || !info.FirstResponseTime.After(attemptStart) {
+	if info == nil {
 		return 0, false
 	}
-	frt := info.FirstResponseTime.Sub(attemptStart)
+	firstResponseAt := time.Time{}
+	if info.StreamStatus != nil {
+		firstDataAt := info.StreamStatus.Snapshot().FirstDataAt
+		if firstDataAt.After(attemptStart) {
+			firstResponseAt = firstDataAt
+		}
+	}
+	if firstResponseAt.IsZero() && info.HasSendResponse() && info.FirstResponseTime.After(attemptStart) {
+		firstResponseAt = info.FirstResponseTime
+	}
+	if firstResponseAt.IsZero() {
+		return 0, false
+	}
+	frt := firstResponseAt.Sub(attemptStart)
 	if info.StreamStatus != nil && !info.StreamStatus.IsNormalEnd() {
 		return frt, false
 	}
