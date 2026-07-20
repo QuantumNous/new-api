@@ -42,7 +42,8 @@ func TestTaskRelayAPIErrorPreservesUpstream429Provenance(t *testing.T) {
 
 	affinity := newTestContext()
 	affinity.Set("channel_affinity_skip_retry_on_failure", true)
-	assert.True(t, shouldRetryTaskRelay(affinity, 9010, taskErr, 1), "a genuine upstream 429 must switch even when the failed task channel was affinity-bound")
+	assert.True(t, shouldRetryTaskRelay(affinity, false, taskErr, 1), "a genuine upstream 429 must switch even when the failed task channel was affinity-bound")
+	assert.False(t, shouldRetryTaskRelay(newTestContext(), true, taskErr, 1), "an origin-locked task cannot safely switch providers or repeat the same rate-limited channel")
 }
 
 func TestTaskRelayAPIErrorLeavesLocal429Unattributed(t *testing.T) {
@@ -54,14 +55,14 @@ func TestTaskRelayAPIErrorLeavesLocal429Unattributed(t *testing.T) {
 
 	assert.Nil(t, taskRelayAPIError(nil))
 	assert.Nil(t, taskRelayAPIError(localErr))
-	assert.True(t, shouldRetryTaskRelay(newTestContext(), 1, localErr, 1), "preserve the existing task retry behavior for local 429")
-	assert.False(t, shouldRetryTaskRelay(newTestContext(), 1, localErr, 0))
+	assert.True(t, shouldRetryTaskRelay(newTestContext(), false, localErr, 1), "preserve the existing task retry behavior for local 429")
+	assert.False(t, shouldRetryTaskRelay(newTestContext(), false, localErr, 0))
 
 	pinned := newTestContext()
 	pinned.Set("specific_channel_id", 1)
-	assert.False(t, shouldRetryTaskRelay(pinned, 1, localErr, 1))
+	assert.False(t, shouldRetryTaskRelay(pinned, false, localErr, 1))
 
 	affinity := newTestContext()
 	affinity.Set("channel_affinity_skip_retry_on_failure", true)
-	assert.False(t, shouldRetryTaskRelay(affinity, 1, localErr, 1), "local 429 must preserve the existing affinity policy")
+	assert.False(t, shouldRetryTaskRelay(affinity, false, localErr, 1), "local 429 must preserve the existing affinity policy")
 }
