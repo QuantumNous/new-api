@@ -414,3 +414,153 @@ func TestAdvancedCustomSupportedEndpointTypesForModel(t *testing.T) {
 		constant.EndpointTypeAnthropic,
 	}, config.SupportedEndpointTypesForModel("other-model"))
 }
+
+func TestImageRoutingConfigValidatesAndMatchesVerifiedModelProfile(t *testing.T) {
+	config := &ImageRoutingConfig{
+		Version: ImageRoutingVersion1,
+		Profiles: []ImageRoutingProfile{
+			{
+				Model:              "gpt-image-2",
+				Protocol:           ImageRoutingProtocolImagesGenerations,
+				UpstreamPath:       "/v1/images/generations",
+				Operations:         []ImageOperation{ImageOperationGeneration, ImageOperationEdit},
+				Resolutions:        []string{"1K", "4K"},
+				AspectRatios:       []string{"1:1", "16:9"},
+				Sizes:              []string{"1024x1024", "2880x2880", "3840x2160"},
+				Qualities:          []string{"low", "high"},
+				VerificationStatus: ImageRoutingVerificationProductionVerified,
+				AllowedCombinations: []ImageRoutingCombination{
+					{Resolution: "1K", AspectRatio: "1:1", Size: "1024x1024"},
+					{Resolution: "4K", AspectRatio: "1:1", Size: "2880x2880"},
+					{Resolution: "4K", AspectRatio: "16:9", Size: "3840x2160"},
+				},
+			},
+		},
+	}
+
+	require.NoError(t, config.Validate())
+
+	profile, ok := config.ProfileForModel("gpt-image-2")
+	require.True(t, ok)
+	assert.Equal(t, ImageRoutingProtocolImagesGenerations, profile.Protocol)
+	assert.True(t, config.Supports("gpt-image-2", ImageSelectionRequirement{
+		Operation:   ImageOperationGeneration,
+		Resolution:  "4k",
+		AspectRatio: "16:9",
+		Size:        "3840X2160",
+		Quality:     "LOW",
+	}))
+	assert.False(t, config.Supports("gpt-image-2", ImageSelectionRequirement{
+		Operation:   ImageOperationGeneration,
+		Resolution:  "1K",
+		AspectRatio: "16:9",
+		Size:        "1024x1024",
+		Quality:     "low",
+	}))
+	assert.False(t, config.Supports("other-model", ImageSelectionRequirement{
+		Operation:  ImageOperationGeneration,
+		Resolution: "4K",
+	}))
+}
+
+func TestImageRoutingConfigWildcardProfileAndVerificationGate(t *testing.T) {
+	config := &ImageRoutingConfig{
+		Version: ImageRoutingVersion1,
+		Profiles: []ImageRoutingProfile{
+			{
+				Model:              "*",
+				Protocol:           ImageRoutingProtocolAdapter,
+				UpstreamPath:       "/v1/custom/images",
+				Operations:         []ImageOperation{ImageOperationGeneration},
+				VerificationStatus: ImageRoutingVerificationDocsClaimed,
+			},
+		},
+	}
+
+	require.NoError(t, config.Validate())
+	profile, ok := config.ProfileForModel("vendor-image-model")
+	require.True(t, ok)
+	assert.Equal(t, "*", profile.Model)
+	assert.False(t, config.Supports("vendor-image-model", ImageSelectionRequirement{
+		Operation: ImageOperationGeneration,
+	}))
+
+	config.Profiles[0].VerificationStatus = ImageRoutingVerificationProductionVerified
+	require.NoError(t, config.Validate())
+	assert.True(t, config.Supports("vendor-image-model", ImageSelectionRequirement{
+		Operation: ImageOperationGeneration,
+	}))
+}
+
+func TestImageSelectionRequirementNormalizeAndValidate(t *testing.T) {
+	normalized, err := (ImageSelectionRequirement{
+		Operation:   " EDIT ",
+		Resolution:  "4k",
+		AspectRatio: " 1:1 ",
+		Size:        "2880X2880",
+		Quality:     " HIGH ",
+	}).Normalize()
+	require.NoError(t, err)
+	assert.Equal(t, ImageSelectionRequirement{
+		Operation:   ImageOperationEdit,
+		Resolution:  "4K",
+		AspectRatio: "1:1",
+		Size:        "2880x2880",
+		Quality:     "high",
+	}, normalized)
+
+	_, err = (ImageSelectionRequirement{Operation: ImageOperationGeneration, Size: "2880-by-2880"}).Normalize()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "size")
+}
+
+func TestImageRoutingConfigRejectsInvalidProfiles(t *testing.T) {
+	validProfile := ImageRoutingProfile{
+		Model:              "gpt-image-2",
+		Protocol:           ImageRoutingProtocolImagesGenerations,
+		UpstreamPath:       "/v1/images/generations",
+		Operations:         []ImageOperation{ImageOperationGeneration},
+		Resolutions:        []string{"1K", "4K"},
+		AspectRatios:       []string{"1:1"},
+		Sizes:              []string{"1024x1024", "2880x2880"},
+		VerificationStatus: ImageRoutingVerificationProductionVerified,
+		AllowedCombinations: []ImageRoutingCombination{
+			{Resolution: "1K", AspectRatio: "1:1", Size: "1024x1024"},
+			{Resolution: "4K", AspectRatio: "1:1", Size: "2880x2880"},
+		},
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*ImageRoutingConfig)
+		want   string
+	}{
+		{name: "unsupported version", mutate: func(c *ImageRoutingConfig) { c.Version = 2 }, want: "version"},
+		{name: "profiles required", mutate: func(c *ImageRoutingConfig) { c.Profiles = nil }, want: "at least one profile"},
+		{name: "duplicate model", mutate: func(c *ImageRoutingConfig) { c.Profiles = append(c.Profiles, validProfile) }, want: "duplicate model"},
+		{name: "invalid protocol", mutate: func(c *ImageRoutingConfig) { c.Profiles[0].Protocol = "magic" }, want: "protocol"},
+		{name: "protocol path mismatch", mutate: func(c *ImageRoutingConfig) { c.Profiles[0].UpstreamPath = "/v1/responses" }, want: "upstream_path"},
+		{name: "operations required", mutate: func(c *ImageRoutingConfig) { c.Profiles[0].Operations = nil }, want: "operations"},
+		{name: "invalid verification status", mutate: func(c *ImageRoutingConfig) { c.Profiles[0].VerificationStatus = "maybe" }, want: "verification_status"},
+		{name: "non canonical resolution", mutate: func(c *ImageRoutingConfig) { c.Profiles[0].Resolutions = []string{"4k"} }, want: "canonical"},
+		{name: "combination outside declared values", mutate: func(c *ImageRoutingConfig) {
+			c.Profiles[0].AllowedCombinations[1].AspectRatio = "16:9"
+		}, want: "aspect_ratio"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &ImageRoutingConfig{Version: ImageRoutingVersion1, Profiles: []ImageRoutingProfile{validProfile}}
+			config.Profiles[0].Operations = append([]ImageOperation(nil), validProfile.Operations...)
+			config.Profiles[0].Resolutions = append([]string(nil), validProfile.Resolutions...)
+			config.Profiles[0].AspectRatios = append([]string(nil), validProfile.AspectRatios...)
+			config.Profiles[0].Sizes = append([]string(nil), validProfile.Sizes...)
+			config.Profiles[0].AllowedCombinations = append([]ImageRoutingCombination(nil), validProfile.AllowedCombinations...)
+			tt.mutate(config)
+
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}

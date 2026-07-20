@@ -577,6 +577,163 @@ func TestGetRandomSatisfiedChannelUsesCoolingFallbackOnRetryWhenHealthyExhausted
 	}
 }
 
+func TestGetRandomSatisfiedChannelFiltersImageCapabilityBeforePriority(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	highPriority := int64(20)
+	lowPriority := int64(10)
+	weight := uint(100)
+	oneK := &Channel{Id: 65, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &highPriority}
+	fourK := &Channel{Id: 108, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &lowPriority}
+	oneK.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K"}, []string{"1024x1024"})})
+	fourK.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K", "4K"}, []string{"1024x1024", "2880x2880"})})
+	SetChannelCacheForTest(map[int]*Channel{65: oneK, 108: fourK}, map[string]map[string][]int{
+		"default": {"gpt-image-2": {65, 108}},
+	})
+
+	requirement := &dto.ImageSelectionRequirement{
+		Operation:   dto.ImageOperationGeneration,
+		Resolution:  "4K",
+		AspectRatio: "1:1",
+		Size:        "2880x2880",
+		Quality:     "low",
+	}
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement: requirement,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 108, selected.Id)
+
+	selected, err = GetRandomSatisfiedChannelWithOptions("default", "gpt-image-2", 1, ChannelSelectionOptions{
+		ExcludedChannelIDs: map[int]struct{}{108: {}},
+		ImageRequirement:   requirement,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, selected, "retry must not fall back to an incompatible channel")
+}
+
+func TestGetRandomSatisfiedChannelLeavesLegacyUnconfiguredChannelEligible(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	t.Cleanup(func() {
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(100)
+	legacy := &Channel{Id: 31, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority}
+	SetChannelCacheForTest(map[int]*Channel{31: legacy}, map[string]map[string][]int{
+		"default": {"gpt-image-2": {31}},
+	})
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement: &dto.ImageSelectionRequirement{
+			Operation:  dto.ImageOperationGeneration,
+			Resolution: "4K",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 31, selected.Id)
+}
+
+func TestChannelSupportsImageSelectionUsesVerifiedProfileAndAllowedCombination(t *testing.T) {
+	channel := &Channel{Id: 108}
+	channel.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile(
+		"gpt-image-2",
+		[]string{"1K", "4K"},
+		[]string{"1024x1024", "2880x2880"},
+	)})
+
+	assert.True(t, ChannelSupportsImageSelection(channel, "gpt-image-2", &dto.ImageSelectionRequirement{
+		Operation:   dto.ImageOperationGeneration,
+		Resolution:  "4K",
+		AspectRatio: "1:1",
+		Size:        "2880x2880",
+		Quality:     "low",
+	}))
+	assert.False(t, ChannelSupportsImageSelection(channel, "gpt-image-2", &dto.ImageSelectionRequirement{
+		Operation:   dto.ImageOperationGeneration,
+		Resolution:  "4K",
+		AspectRatio: "1:1",
+		Size:        "1024x1024",
+		Quality:     "low",
+	}))
+
+	profile, configured := ChannelImageRoutingProfile(channel, "gpt-image-2")
+	require.True(t, configured)
+	require.NotNil(t, profile)
+	assert.Equal(t, dto.ImageRoutingProtocolImagesGenerations, profile.Protocol)
+	assert.Equal(t, "/v1/images/generations", profile.UpstreamPath)
+}
+
+func TestGetChannelWithOptionsFiltersImageCapabilityWithoutMemoryCache(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+
+	highPriority := int64(20)
+	lowPriority := int64(10)
+	weight := uint(100)
+	oneK := Channel{Id: 65, Type: 1, Key: "key-65", Status: common.ChannelStatusEnabled, Name: "1k", Weight: &weight, Priority: &highPriority, Models: "gpt-image-2", Group: "default"}
+	fourK := Channel{Id: 108, Type: 1, Key: "key-108", Status: common.ChannelStatusEnabled, Name: "4k", Weight: &weight, Priority: &lowPriority, Models: "gpt-image-2", Group: "default"}
+	oneK.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"1K"}, []string{"1024x1024"})})
+	fourK.SetSetting(dto.ChannelSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"4K"}, []string{"2880x2880"})})
+	require.NoError(t, DB.Create(&[]Channel{oneK, fourK}).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "default", Model: "gpt-image-2", ChannelId: 65, Enabled: true, Priority: &highPriority, Weight: weight},
+		{Group: "default", Model: "gpt-image-2", ChannelId: 108, Enabled: true, Priority: &lowPriority, Weight: weight},
+	}).Error)
+
+	selected, err := GetChannelWithOptions("default", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement: &dto.ImageSelectionRequirement{
+			Operation:   dto.ImageOperationGeneration,
+			Resolution:  "4K",
+			AspectRatio: "1:1",
+			Size:        "2880x2880",
+			Quality:     "low",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 108, selected.Id)
+}
+
+func verifiedImageRoutingProfile(model string, resolutions []string, sizes []string) *dto.ImageRoutingConfig {
+	combinations := make([]dto.ImageRoutingCombination, 0, len(resolutions))
+	for i, resolution := range resolutions {
+		combination := dto.ImageRoutingCombination{Resolution: resolution, AspectRatio: "1:1"}
+		if i < len(sizes) {
+			combination.Size = sizes[i]
+		}
+		combinations = append(combinations, combination)
+	}
+	return &dto.ImageRoutingConfig{
+		Version: dto.ImageRoutingVersion1,
+		Profiles: []dto.ImageRoutingProfile{
+			{
+				Model:               model,
+				Protocol:            dto.ImageRoutingProtocolImagesGenerations,
+				UpstreamPath:        "/v1/images/generations",
+				Operations:          []dto.ImageOperation{dto.ImageOperationGeneration, dto.ImageOperationEdit},
+				Resolutions:         append([]string(nil), resolutions...),
+				AspectRatios:        []string{"1:1"},
+				Sizes:               append([]string(nil), sizes...),
+				Qualities:           []string{"low", "high"},
+				AllowedCombinations: combinations,
+				VerificationStatus:  dto.ImageRoutingVerificationProductionVerified,
+			},
+		},
+	}
+}
+
 // TestCoolingFallbackDoesNotReuseExcludedChannelOnRetry is B1's safety property:
 // even with cooling fallback permitted, a channel already tried this request
 // (in ExcludedChannelIDs) is never re-selected — so a channel that just failed
