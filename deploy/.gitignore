@@ -1,0 +1,4 @@
+# Keep deployment artifacts local while tracking the deployment documentation.
+*
+!.gitignore
+!README.md

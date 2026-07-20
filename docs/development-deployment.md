@@ -12,9 +12,9 @@
        -> 1Panel Redis（使用独立逻辑库，默认 DB 1）
 ```
 
-开发阶段推荐混合模式：
+开发阶段推荐远程依赖模式：
 
-- PostgreSQL、Redis 使用 Docker，保证依赖版本一致。
+- PostgreSQL、Redis 使用测试服务器上的独立开发库和 Redis 逻辑库。
 - Go 后端和 React 前端在本机运行，获得更快的编译、断点调试和热更新。
 - 提交前、联调和发布前再使用完整 Docker Compose 验证。
 
@@ -33,8 +33,10 @@
 | 文件 | 是否提交 | 用途 |
 | --- | --- | --- |
 | .env.example | 是 | 配置模板，只放变量名和示例值 |
-| .env | 否 | 本机原生开发或本机 Compose 的私有配置 |
-| /etc/new-api/new-api.env | 否 | 服务器真实运行配置，建议放在仓库外 |
+| .env | 否 | 本机原生开发配置，连接远程测试 PostgreSQL/Redis |
+| deploy/.env | 否 | 宿主机原生部署配置，连接服务器本机 PostgreSQL/Redis |
+| deploy/ | 是 | 部署制品目录；`.env` 等私密文件继续由 Git 忽略 |
+| /etc/new-api/new-api.env | 否 | 可选的服务器安装位置，可由 `deploy/.env` 同步生成 |
 | docker-compose.dev.yml | 是 | 本地开发依赖和开发后端 |
 | docker-compose.yml | 是 | 独立 PostgreSQL/Redis 的本地或准生产编排 |
 | docker-compose.1panel.yml | 是 | 复用 1Panel PostgreSQL/Redis 的服务器部署编排 |
@@ -51,21 +53,22 @@
 
 Compose 运行时，.env 主要用于变量替换；docker-compose.yml（独立开发/准生产）或 docker-compose.1panel.yml（服务器）再将 POSTGRES_*、REDIS_* 拼成容器内使用的 SQL_DSN 和 REDIS_CONN_STRING。
 
-服务器复用 1Panel 时，PostgreSQL 数据库名使用已有的 `new_api_dev`，Redis 使用 DB 1。若直接在服务器宿主机原生运行 Go，连接地址可以写 `127.0.0.1`；若 Go 运行在容器中，容器内的 `localhost` 指向应用容器自身，必须使用 1Panel 容器名并加入 `1panel-network`。
+本地原生开发通过根目录 `.env` 的 `SQL_DSN` 和 `REDIS_CONN_STRING` 直接连接远程测试服务。宿主机原生部署使用 `deploy/.env`，数据库和 Redis 地址为 `127.0.0.1`。若 Go 运行在容器中，容器内的 `localhost` 指向应用容器自身，必须改用 1Panel 容器名并加入 `1panel-network`。
 
 生产环境应保存稳定的 SESSION_SECRET 和 CRYPTO_SECRET。更换 SESSION_SECRET 会使现有登录会话失效；更换 CRYPTO_SECRET 会改变 HMAC/缓存键，多个实例之间也不能使用不同值。
 
 ## 3. 本地开发
 
-### 3.1 快速原生模式
+### 3.1 远程依赖原生模式
 
-适合前端页面、普通控制器、服务逻辑和不依赖 PostgreSQL/Redis 方言的开发。
+适合日常前后端开发，并直接使用远程测试 PostgreSQL/Redis 完成联调。
 
-根目录 .env 使用 SQLite：
+根目录 `.env` 使用远程测试服务：
 
 ```dotenv
 PORT=3000
-SQLITE_PATH=./one-api.db
+SQL_DSN=postgresql://<user>:<password>@<remote-host>:5432/<database>?sslmode=disable
+REDIS_CONN_STRING=redis://:<password>@<remote-host>:6379/1
 MEMORY_CACHE_ENABLED=true
 ```
 
@@ -86,7 +89,7 @@ bun run dev -- --host 0.0.0.0 --port 5173
 
 访问 http://localhost:5173。Rsbuild 会把 /api、/mj、/pg 代理到 http://localhost:3000。
 
-原生模式没有 SQL_DSN 时使用 SQLite，没有 REDIS_CONN_STRING 时 Redis 不启用。这是可用的轻量开发模式，但不能替代 PostgreSQL/Redis 联调。
+`SQL_DSN` 和 `REDIS_CONN_STRING` 是本地原生开发的必需配置。缺少 `SQL_DSN` 时程序会回退 SQLite，这不符合本项目当前的开发环境约定。
 
 ### 3.2 完整容器开发模式
 
