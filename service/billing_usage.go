@@ -129,9 +129,15 @@ func usageFromClaudeBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
 	if cacheCreation5m == 0 {
 		cacheCreation5m = claudeUsage.ClaudeCacheCreation5mTokens
 	}
+	if cacheCreation5m == 0 && claudeUsage.CacheCreationInputTokens > 0 {
+		cacheCreation5m = claudeUsage.CacheCreationInputTokens
+	}
 	cacheCreation1h := claudeUsage.GetCacheCreation1hTokens()
 	if cacheCreation1h == 0 {
 		cacheCreation1h = claudeUsage.ClaudeCacheCreation1hTokens
+	}
+	if cacheCreation1h == 0 && claudeUsage.CacheCreationInputTokens > 0 && cacheCreation5m == 0 {
+		cacheCreation1h = claudeUsage.CacheCreationInputTokens
 	}
 
 	usage := &dto.Usage{
