@@ -11,6 +11,8 @@ func TestResolveUpstreamModel(t *testing.T) {
 		in   string
 		want string
 	}{
+		{"sd2-431", "videos_stable"},
+		{"sd2-fast-431", "videos_stable_fast"},
 		{"videos_stable", "videos_stable"},
 		{"videos_stable_fast", "videos_stable_fast"},
 		{"sd2", "videos_stable"},

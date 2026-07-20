@@ -1,6 +1,6 @@
 # Seedance 视频生成 API — 四模型统一说明
 
-面向持有本站 API Key（`sk-` 令牌）的调用方。本文档覆盖现网对外提供的 **4 个模型**。
+面向持有本站 API Key（`sk-` 令牌）的调用方。本文档覆盖现网对外提供的 Seedance 相关模型。
 
 | 项目 | 说明 |
 |------|------|
@@ -23,8 +23,12 @@ export TOKEN="sk-你的令牌"
 | `37:seedance-2.0-fast` | Seedance 2.0 快速（aistar） | 同上 | 同上 |
 | `doubao-seedance-2.0` | 豆包 Seedance 2.0（多模态） | 同上 | `content` 图/视频/音频 URL |
 | `mingiz-sd2` | 星河 2.0 | `POST /v1/videos` | multipart 上传文件，或 JSON 公网 URL |
+| `sd2-431` | th12345ai 满血（→ `videos_stable`） | `POST /v1/video/generations` | 公网图/视频/音频 URL |
+| `sd2-fast-431` | th12345ai Fast（→ `videos_stable_fast`） | 同上 | 同上 |
 
 > 本地文件可先上传到图床拿到公网 URL，再填入请求。默认图床：`POST https://imageproxy.zhongzhuan.chat/api/upload`（`Authorization: Bearer <图床token>`，表单字段 `file`）。成功返回 `{ "url": "https://...", "created": ... }`。
+
+> `sd2-431` / `sd2-fast-431` 为对外模型名；渠道侧建议配置模型重定向：`sd2-431`→`videos_stable`，`sd2-fast-431`→`videos_stable_fast`。
 
 ---
 
@@ -251,18 +255,67 @@ curl -X POST "$BASE/v1/videos" \
 
 ---
 
-## 7. 场景推荐
+## 7. `sd2-431` / `sd2-fast-431`（th12345ai）
+
+渠道类型：`th12345ai`（64）。对外模型名见下表，渠道内建议配置模型重定向。
+
+| 对外模型 | 上游模型 | 计费 | 时长 |
+|----------|----------|------|------|
+| `sd2-431` | `videos_stable` | 按次 | 4～15 秒 |
+| `sd2-fast-431` | `videos_stable_fast` | 按次 | 10 / 15 秒 |
+
+### 创建
+
+`POST /v1/video/generations`
+
+```bash
+curl -s -X POST "$BASE/v1/video/generations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sd2-431",
+    "prompt": "A cinematic 9:16 short video, soft natural light, slow camera push in",
+    "ratio": "9:16",
+    "resolution": "720p",
+    "duration": 5,
+    "images": ["https://example.com/image1.png"],
+    "videos": ["https://example.com/reference.mp4"],
+    "audios": ["https://example.com/reference.mp3"]
+  }'
+```
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `model` | 是 | `sd2-431` 或 `sd2-fast-431` |
+| `prompt` | 是 | 提示词 |
+| `duration` | 否 | 时长（秒）；fast 仅 10/15 |
+| `ratio` / `aspect_ratio` | 否 | `9:16` / `16:9` / `1:1` |
+| `resolution` | 否 | 如 `720p` |
+| `images` | 否 | 参考图公网 URL 数组（→ 上游 `referenceImages`） |
+| `videos` | 否 | 参考视频公网 URL 数组（→ 上游 `referenceVideos`） |
+| `audios` | 否 | 参考音频公网 URL 数组（→ 上游 `referenceAudios`） |
+
+### 查询
+
+`GET /v1/video/generations/{task_id}`
+
+完成后视频地址通常在 **`metadata.url`**。
+
+---
+
+## 8. 场景推荐
 
 | 场景 | 推荐模型 |
 |------|----------|
 | 快速出片、文生为主 | `37:seedance-2.0-fast` |
 | 标准质量文生 | `37:seedance-2.0` |
-| 多模态参考（图/视频/音频） | `doubao-seedance-2.0` |
+| 多模态参考（图/视频/音频） | `doubao-seedance-2.0` 或 `sd2-431` |
 | 本地文件直传 / 星河画质 | `mingiz-sd2` |
+| th12345ai 满血 / Fast | `sd2-431` / `sd2-fast-431` |
 
 ---
 
-## 8. 常见问题
+## 9. 常见问题
 
 **401**：检查 `Authorization: Bearer sk-...` 是否正确。
 
@@ -274,15 +327,16 @@ curl -X POST "$BASE/v1/videos" \
 
 ---
 
-## 9. 调试页
+## 10. 调试页
 
 浏览器打开：`{Base URL}/seedance-debug.html`
 
 - 选择模型后自动切换接口路径与参数表单  
 - 本地图片可上传到可配置图床，再 `@` 引用进提示词  
 - `mingiz-sd2` 可选「multipart 直传」或「经图床 URL」  
+- `sd2-431` / `sd2-fast-431` 走 `/v1/video/generations`，支持图/视频/音频公网 URL  
 - API Key / 图床配置保存在本机浏览器  
 
 ---
 
-*文档版本：2026-07-10 · 四模型统一版*
+*文档版本：2026-07-20 · 含 th12345ai（sd2-431 / sd2-fast-431）*
