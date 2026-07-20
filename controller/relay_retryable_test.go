@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -121,6 +122,35 @@ func TestShouldRetryUsesUpstream429ProvenanceAfterStatusMapping(t *testing.T) {
 	mapped503.UpstreamStatusCode = http.StatusTooManyRequests
 	assert.True(t, isRetryableChannelError(affinity, mapped503))
 	assert.True(t, shouldRetry(affinity, mapped503, 1), "429 retry behavior must not depend on the client-facing mapping")
+}
+
+func TestMarkAffinityColdStartForUpstream429Retry(t *testing.T) {
+	err := types.NewErrorWithStatusCode(
+		errors.New("Upstream rate limit exceeded, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadRequest,
+	)
+	err.UpstreamStatusCode = http.StatusTooManyRequests
+
+	affinity := newTestContext()
+	affinity.Set("channel_affinity_skip_retry_on_failure", true)
+	info := &relaycommon.RelayInfo{}
+	markAffinityColdStartForRetry(affinity, info, err)
+	assert.True(t, info.AffinityColdStart, "switching away from a warm affinity channel must exempt the cold fallback from latency penalties")
+	assert.True(t, common.GetContextKeyBool(affinity, constant.ContextKeyAffinityColdStart))
+
+	localRateLimit := types.NewErrorWithStatusCode(
+		errors.New("local rate limit"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+	localInfo := &relaycommon.RelayInfo{}
+	markAffinityColdStartForRetry(affinity, localInfo, localRateLimit)
+	assert.False(t, localInfo.AffinityColdStart, "a gateway-local 429 does not move the request to another upstream channel")
+
+	nonAffinityInfo := &relaycommon.RelayInfo{}
+	markAffinityColdStartForRetry(newTestContext(), nonAffinityInfo, err)
+	assert.False(t, nonAffinityInfo.AffinityColdStart)
 }
 
 func TestProcessChannelErrorCoolsMappedUpstream429ForTwoHours(t *testing.T) {
