@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,7 +10,104 @@ import (
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestCooldownUpstreamHostForErrorOnlyIsolatesTransportFailures(t *testing.T) {
+	model.ClearChannelHostCooldownsForTest()
+	t.Cleanup(model.ClearChannelHostCooldownsForTest)
+
+	tests := []struct {
+		name string
+		err  *types.NewAPIError
+		want bool
+	}{
+		{
+			name: "response header timeout",
+			err:  types.NewErrorWithStatusCode(errors.New("net/http: timeout awaiting response headers"), types.ErrorCodeDoRequestFailed, http.StatusBadGateway),
+			want: true,
+		},
+		{
+			name: "upstream bad gateway",
+			err:  upstreamStatusErrorForTest(http.StatusBadGateway, "bad response status code 502"),
+			want: true,
+		},
+		{
+			name: "upstream unavailable",
+			err:  upstreamStatusErrorForTest(http.StatusServiceUnavailable, "service unavailable"),
+			want: true,
+		},
+		{
+			name: "local synthetic bad gateway has no upstream provenance",
+			err:  types.NewErrorWithStatusCode(errors.New("local conversion failed"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway),
+			want: false,
+		},
+		{
+			name: "account pool unavailable stays channel scoped",
+			err:  upstreamStatusErrorForTest(http.StatusServiceUnavailable, "no available accounts"),
+			want: false,
+		},
+		{
+			name: "account rate limit stays channel scoped",
+			err:  types.NewErrorWithStatusCode(errors.New("rate limited"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
+			want: false,
+		},
+		{
+			name: "client request stays unscored",
+			err:  types.NewErrorWithStatusCode(errors.New("invalid prompt"), types.ErrorCodeBadResponseStatusCode, http.StatusBadRequest),
+			want: false,
+		},
+		{
+			name: "client cancellation stays unscored",
+			err:  types.NewErrorWithStatusCode(context.Canceled, types.ErrorCodeDoRequestFailed, http.StatusBadGateway),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model.ClearChannelHostCooldownsForTest()
+			assert.False(t, ObserveUpstreamHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 41, tt.err))
+			assert.False(t, ObserveUpstreamHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 41, tt.err))
+			applied := ObserveUpstreamHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 42, tt.err)
+			assert.Equal(t, tt.want, applied, "host circuit requires three failures from two channel IDs")
+			assert.Equal(t, tt.want, model.IsChannelHostCoolingDown("aiccxx.cn", "gpt-5.6-sol", "/v1/responses"))
+		})
+	}
+}
+
+func TestCooldownUpstreamHostForErrorScopesByModelAndPath(t *testing.T) {
+	model.ClearChannelHostCooldownsForTest()
+	t.Cleanup(model.ClearChannelHostCooldownsForTest)
+	err := types.NewErrorWithStatusCode(errors.New("net/http: timeout awaiting response headers"), types.ErrorCodeDoRequestFailed, http.StatusBadGateway)
+
+	require.False(t, ObserveUpstreamHostFailure("https://AICCXX.cn/v1", "gpt-5.6-sol", "/v1/responses?trace=1", 41, err))
+	require.False(t, ObserveUpstreamHostFailure("https://AICCXX.cn/v1", "gpt-5.6-sol", "/v1/responses?trace=1", 41, err))
+	require.True(t, ObserveUpstreamHostFailure("https://AICCXX.cn/v1", "gpt-5.6-sol", "/v1/responses?trace=1", 42, err))
+
+	assert.True(t, model.IsChannelHostCoolingDown("aiccxx.cn", "gpt-5.6-sol", "/v1/responses"))
+	assert.False(t, model.IsChannelHostCoolingDown("aiccxx.cn", "gpt-5.6-sol", "/v1/chat/completions"))
+	assert.False(t, model.IsChannelHostCoolingDown("aiccxx.cn", "gpt-5.5", "/v1/responses"))
+}
+
+func TestObserveUpstreamHostFailureRequiresDistinctChannels(t *testing.T) {
+	model.ClearChannelHostCooldownsForTest()
+	t.Cleanup(model.ClearChannelHostCooldownsForTest)
+	err := types.NewErrorWithStatusCode(errors.New("net/http: timeout awaiting response headers"), types.ErrorCodeDoRequestFailed, http.StatusBadGateway)
+
+	for i := 0; i < 4; i++ {
+		assert.False(t, ObserveUpstreamHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 41, err))
+	}
+
+	assert.False(t, model.IsChannelHostCoolingDown("aiccxx.cn", "gpt-5.6-sol", "/v1/responses"))
+}
+
+func upstreamStatusErrorForTest(status int, message string) *types.NewAPIError {
+	err := types.NewErrorWithStatusCode(errors.New(message), types.ErrorCodeBadResponseStatusCode, status)
+	err.UpstreamStatusCode = status
+	return err
+}
 
 func TestCooldownChannelForRetryUsesShortDurationFor5xx(t *testing.T) {
 	model.ClearChannelCooldownsForTest()

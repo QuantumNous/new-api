@@ -476,6 +476,140 @@ func TestNormalizeChannelBaseURLHost(t *testing.T) {
 	assert.Empty(t, NormalizeChannelBaseURLHost(""))
 }
 
+func TestGetRandomSatisfiedChannelSkipsCooledHostAcrossChannelIDs(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	oldHostCircuitMode := common.UpstreamHostCircuitMode
+	common.MemoryCacheEnabled = true
+	common.UpstreamHostCircuitMode = "enforce"
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	ClearChannelHostCooldownsForTest()
+	t.Cleanup(func() {
+		ClearChannelHostCooldownsForTest()
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+		common.UpstreamHostCircuitMode = oldHostCircuitMode
+	})
+
+	priority11 := int64(11)
+	priority10 := int64(10)
+	weight := uint(100)
+	aiccxx := "https://aiccxx.cn/v1"
+	healthy := "https://healthy.example/v1"
+	SetChannelCacheForTest(map[int]*Channel{
+		41: {Id: 41, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority11, BaseURL: &aiccxx},
+		42: {Id: 42, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority11, BaseURL: &aiccxx},
+		57: {Id: 57, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority10, BaseURL: &healthy},
+	}, map[string]map[string][]int{
+		"default": {"gpt-5.6-sol": {41, 42, 57}},
+	})
+	RecordChannelHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 41, "response header timeout")
+	RecordChannelHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 41, "response header timeout")
+	require.True(t, RecordChannelHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 42, "response header timeout"))
+	common.UpstreamHostCircuitMode = "observe"
+
+	observedOnly, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.6-sol", 0, ChannelSelectionOptions{
+		AllowCoolingFallback: true,
+		RequestPath:          "/v1/responses",
+		Path:                 "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, observedOnly)
+	assert.Contains(t, []int{41, 42}, observedOnly.Id, "observe mode must preserve operator priority")
+
+	common.UpstreamHostCircuitMode = "enforce"
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.6-sol", 0, ChannelSelectionOptions{
+		AllowCoolingFallback: true,
+		RequestPath:          "/v1/responses",
+		Path:                 "/v1/responses",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 57, selected.Id)
+}
+
+func TestGetRandomSatisfiedChannelHostCooldownFallsBackWhenOnlyHost(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	oldHostCircuitMode := common.UpstreamHostCircuitMode
+	common.MemoryCacheEnabled = true
+	common.UpstreamHostCircuitMode = "enforce"
+	ClearChannelCacheForTest()
+	ClearChannelHostCooldownsForTest()
+	t.Cleanup(func() {
+		ClearChannelHostCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+		common.UpstreamHostCircuitMode = oldHostCircuitMode
+	})
+
+	priority := int64(10)
+	weight := uint(100)
+	baseURL := "https://only.example/v1"
+	SetChannelCacheForTest(map[int]*Channel{
+		17: {Id: 17, Status: common.ChannelStatusEnabled, Weight: &weight, Priority: &priority, BaseURL: &baseURL},
+	}, map[string]map[string][]int{
+		"default": {"gpt-5.6-sol": {17}},
+	})
+	RecordChannelHostFailure("only.example", "gpt-5.6-sol", "/v1/responses", 17, "response header timeout")
+	RecordChannelHostFailure("only.example", "gpt-5.6-sol", "/v1/responses", 17, "response header timeout")
+	require.True(t, RecordChannelHostFailure("only.example", "gpt-5.6-sol", "/v1/responses", 18, "response header timeout"))
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.6-sol", 0, ChannelSelectionOptions{
+		AllowCoolingFallback: true,
+		RequestPath:          "/v1/responses",
+		Path:                 "/v1/responses",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 17, selected.Id)
+}
+
+func TestGetChannelSkipsCooledHostWithoutMemoryCache(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+	oldHostCircuitMode := common.UpstreamHostCircuitMode
+	common.UpstreamHostCircuitMode = "enforce"
+	ClearChannelHostCooldownsForTest()
+	t.Cleanup(func() {
+		ClearChannelHostCooldownsForTest()
+		common.UpstreamHostCircuitMode = oldHostCircuitMode
+	})
+
+	priority11 := int64(11)
+	priority10 := int64(10)
+	weight := uint(100)
+	aiccxx := "https://aiccxx.cn/v1"
+	healthy := "https://healthy.example/v1"
+	channels := []Channel{
+		{Id: 41, Type: 1, Key: "key-41", Status: common.ChannelStatusEnabled, Name: "aiccxx-41", Weight: &weight, Priority: &priority11, BaseURL: &aiccxx, Models: "gpt-5.6-sol", Group: "default"},
+		{Id: 42, Type: 1, Key: "key-42", Status: common.ChannelStatusEnabled, Name: "aiccxx-42", Weight: &weight, Priority: &priority11, BaseURL: &aiccxx, Models: "gpt-5.6-sol", Group: "default"},
+		{Id: 57, Type: 1, Key: "key-57", Status: common.ChannelStatusEnabled, Name: "healthy", Weight: &weight, Priority: &priority10, BaseURL: &healthy, Models: "gpt-5.6-sol", Group: "default"},
+	}
+	require.NoError(t, DB.Create(&channels).Error)
+	abilities := []Ability{
+		{Group: "default", Model: "gpt-5.6-sol", ChannelId: 41, Enabled: true, Priority: &priority11, Weight: weight},
+		{Group: "default", Model: "gpt-5.6-sol", ChannelId: 42, Enabled: true, Priority: &priority11, Weight: weight},
+		{Group: "default", Model: "gpt-5.6-sol", ChannelId: 57, Enabled: true, Priority: &priority10, Weight: weight},
+	}
+	require.NoError(t, DB.Create(&abilities).Error)
+	RecordChannelHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 41, "response header timeout")
+	RecordChannelHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 41, "response header timeout")
+	require.True(t, RecordChannelHostFailure("aiccxx.cn", "gpt-5.6-sol", "/v1/responses", 42, "response header timeout"))
+
+	selected, err := GetChannelWithOptions("default", "gpt-5.6-sol", 0, ChannelSelectionOptions{
+		AllowCoolingFallback: true,
+		RequestPath:          "/v1/responses",
+		Path:                 "/v1/responses",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 57, selected.Id)
+}
+
 func TestGetRandomSatisfiedChannelUsesAdvancedCustomRouteHost(t *testing.T) {
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = true

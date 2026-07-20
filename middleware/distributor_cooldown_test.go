@@ -72,4 +72,5 @@ func TestDistributeSkipsCoolingPreferredAffinityChannel(t *testing.T) {
 	channelId, ok := common.GetContextKey(ctx, constant.ContextKeyChannelId)
 	require.True(t, ok)
 	require.Equal(t, 29, channelId)
+	require.True(t, common.GetContextKeyBool(ctx, constant.ContextKeyAffinityColdStart), "leaving a cooled affinity must mark the fallback as a cold cache start")
 }

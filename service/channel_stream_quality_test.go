@@ -3,10 +3,87 @@ package service
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestObserveStreamChannelQualityImmediatelyIsolatesAccountConcurrencyFailure(t *testing.T) {
+	model.ClearChannelCooldownsForTest()
+	clearStreamChannelQualityForTest()
+	t.Cleanup(func() {
+		model.ClearChannelCooldownsForTest()
+		clearStreamChannelQualityForTest()
+	})
+
+	cacheKeySuffix := fmt.Sprintf("codex cli trace:default:capacity-%d", time.Now().UnixNano())
+	cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
+	cache := getChannelAffinityCache()
+	// A concurrent successful request may have already moved this affinity to a
+	// healthy channel while the old request on #17 is finishing. The stale
+	// failure must neither delete nor overwrite that newer binding.
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 29, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeyFull,
+		TTLSeconds: 60,
+		RuleName:   "codex cli trace",
+	})
+	info := newStreamQualityRelayInfoWithEndError(
+		17,
+		"gpt-5.6-sol",
+		relaycommon.StreamEndReasonUpstreamFailed,
+		1,
+		"upstream responses stream failed: Concurrency limit exceeded for account",
+		nil,
+	)
+
+	ObserveStreamChannelQualityForRequest(ctx, info)
+
+	reason, expires, cooling := model.GetChannelCooldown(17)
+	require.True(t, cooling)
+	assert.Contains(t, reason, "stream_capacity")
+	remaining := time.Until(time.Unix(expires, 0))
+	assert.Greater(t, remaining, 14*time.Minute)
+	assert.Less(t, remaining, 16*time.Minute)
+
+	boundChannel, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 29, boundChannel, "stale failure must preserve a newer affinity binding")
+
+	RecordChannelAffinity(ctx, 17)
+	boundChannel, found, err = cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 29, boundChannel, "failed stream must not overwrite the healthy affinity")
+}
+
+func TestObserveStreamChannelQualityKeepsGenericFailureThreshold(t *testing.T) {
+	model.ClearChannelCooldownsForTest()
+	clearStreamChannelQualityForTest()
+	t.Cleanup(func() {
+		model.ClearChannelCooldownsForTest()
+		clearStreamChannelQualityForTest()
+	})
+
+	info := newStreamQualityRelayInfoWithEndError(
+		18,
+		"gpt-5.6-sol",
+		relaycommon.StreamEndReasonUpstreamFailed,
+		1,
+		"upstream responses stream failed: temporary provider error",
+		nil,
+	)
+	ObserveStreamChannelQualityForRequest(nil, info)
+
+	assert.False(t, model.IsChannelCoolingDown(18), "generic failures still require repeated evidence")
+}
 
 func TestObserveStreamChannelQualityCoolsAfterRepeatedTimeouts(t *testing.T) {
 	model.ClearChannelCooldownsForTest()
