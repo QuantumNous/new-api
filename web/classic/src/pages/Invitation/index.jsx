@@ -42,6 +42,8 @@ import { API, copy, showError, showSuccess } from '../../helpers';
 
 const { Text, Title } = Typography;
 const PAGE_SIZE = 20;
+const INVITATION_STATUS_ENABLED = 1;
+const INVITATION_STATUS_DISABLED = 2;
 
 const Invitation = () => {
   const { t } = useTranslation();
@@ -85,16 +87,20 @@ const Invitation = () => {
   }, []);
 
   const updateStatus = async (record, nextStatus) => {
-    const res = await API.put('/api/invitation/?status_only=true', {
-      id: record.id,
-      status: nextStatus,
-    });
-    if (!res.data.success) {
-      showError(res.data.message);
-      return;
+    try {
+      const res = await API.put('/api/invitation/?status_only=true', {
+        id: record.id,
+        status: nextStatus,
+      });
+      if (!res.data.success) {
+        showError(res.data.message);
+        return;
+      }
+      showSuccess(t('邀请码状态已更新'));
+      await load();
+    } catch (error) {
+      showError(error);
     }
-    showSuccess(t('邀请码状态已更新'));
-    await load();
   };
 
   const deleteOne = (record) => {
@@ -102,13 +108,17 @@ const Invitation = () => {
       title: t('删除邀请码'),
       content: t('删除后该邀请码将无法再次使用，是否继续？'),
       onOk: async () => {
-        const res = await API.delete(`/api/invitation/${record.id}`);
-        if (!res.data.success) {
-          showError(res.data.message);
-          return;
+        try {
+          const res = await API.delete(`/api/invitation/${record.id}`);
+          if (!res.data.success) {
+            showError(res.data.message);
+            return;
+          }
+          showSuccess(t('邀请码已删除'));
+          await load(rows.length === 1 && page > 1 ? page - 1 : page);
+        } catch (error) {
+          showError(error);
         }
-        showSuccess(t('邀请码已删除'));
-        await load(rows.length === 1 && page > 1 ? page - 1 : page);
       },
     });
   };
@@ -118,15 +128,19 @@ const Invitation = () => {
       title: t('清理已使用邀请码'),
       content: t('已使用邀请码将从列表中移除，使用记录仍会保留。'),
       onOk: async () => {
-        const res = await API.delete('/api/invitation/used');
-        if (!res.data.success) {
-          showError(res.data.message);
-          return;
+        try {
+          const res = await API.delete('/api/invitation/used');
+          if (!res.data.success) {
+            showError(res.data.message);
+            return;
+          }
+          showSuccess(
+            t('已清理 {{count}} 个邀请码', { count: res.data.data || 0 }),
+          );
+          await load(1);
+        } catch (error) {
+          showError(error);
         }
-        showSuccess(
-          t('已清理 {{count}} 个邀请码', { count: res.data.data || 0 }),
-        );
-        await load(1);
       },
     });
   };
@@ -140,19 +154,23 @@ const Invitation = () => {
     const expiredTime = values.expired_time
       ? Math.floor(values.expired_time.getTime() / 1000)
       : 0;
-    const res = await API.post('/api/invitation/', {
-      name: values.name.trim(),
-      count: values.count || 1,
-      expired_time: expiredTime,
-    });
-    if (!res.data.success) {
-      showError(res.data.message);
-      return;
+    try {
+      const res = await API.post('/api/invitation/', {
+        name: values.name.trim(),
+        count: values.count || 1,
+        expired_time: expiredTime,
+      });
+      if (!res.data.success) {
+        showError(res.data.message);
+        return;
+      }
+      setCreateVisible(false);
+      setGeneratedCodes(res.data.data || []);
+      createFormApi.current?.reset();
+      await load(1);
+    } catch (error) {
+      showError(error);
     }
-    setCreateVisible(false);
-    setGeneratedCodes(res.data.data || []);
-    createFormApi.current?.reset();
-    await load(1);
   };
 
   const copyGenerated = async () => {
@@ -213,12 +231,18 @@ const Invitation = () => {
         render: (_, record) => (
           <Space>
             {record.state === 'enabled' && (
-              <Button size='small' onClick={() => updateStatus(record, 2)}>
+              <Button
+                size='small'
+                onClick={() => updateStatus(record, INVITATION_STATUS_DISABLED)}
+              >
                 {t('停用')}
               </Button>
             )}
             {record.state === 'disabled' && (
-              <Button size='small' onClick={() => updateStatus(record, 1)}>
+              <Button
+                size='small'
+                onClick={() => updateStatus(record, INVITATION_STATUS_ENABLED)}
+              >
                 {t('启用')}
               </Button>
             )}

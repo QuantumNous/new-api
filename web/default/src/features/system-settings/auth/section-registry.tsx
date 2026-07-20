@@ -21,9 +21,9 @@ import { createSectionRegistry } from '../utils/section-registry'
 import { BasicAuthSection } from './basic-auth-section'
 import { BotProtectionSection } from './bot-protection-section'
 import { CustomOAuthSection } from './custom-oauth/custom-oauth-section'
+import { InvitationCodeSection } from './invitation-code-section'
 import { OAuthSection } from './oauth-section'
 import { PasskeySection } from './passkey-section'
-import { InvitationCodeSection } from './invitation-code-section'
 
 const AUTH_SECTIONS = [
   {

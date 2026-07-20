@@ -139,6 +139,7 @@ export function useSidebarData(): SidebarData {
             title: t('Invitation codes'),
             url: '/invitation-codes',
             icon: TicketCheck,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('Redemption Codes'),

@@ -26,15 +26,15 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { getOAuthState } from '../api'
 import {
+  isInvitationCodeRequired,
+  type InvitationRegistrationMethod,
+} from '../lib/invitation'
+import {
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
 } from '../lib/oauth'
-import {
-  isInvitationCodeRequired,
-  type InvitationRegistrationMethod,
-} from '../lib/invitation'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 
 type LogoutRequestConfig = AxiosRequestConfig & {

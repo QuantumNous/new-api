@@ -128,7 +128,7 @@ func UpdateOption(c *gin.Context) {
 		return
 	}
 	if model.IsInvitationCodeOptionKey(option.Key) {
-		common.ApiError(c, model.ErrInvitationCodeOptionRequiresAtomicUpdate)
+		common.ApiErrorI18n(c, i18n.MsgInvitationSettingsAtomicUpdateRequired)
 		return
 	}
 	switch option.Value.(type) {

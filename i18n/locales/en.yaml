@@ -73,6 +73,7 @@ invitation.disabled: "This invitation code has been disabled"
 invitation.expire_time_invalid: "Expiration time must be later than the current time"
 invitation.status_invalid: "Invalid invitation code status"
 invitation.used_cannot_update: "A used invitation code cannot be enabled or disabled"
+invitation.settings_atomic_update_required: "Invitation code settings must be updated together through the dedicated invitation-code endpoint."
 
 # User messages
 user.password_login_disabled: "Password login has been disabled by administrator"

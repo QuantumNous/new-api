@@ -72,7 +72,7 @@ func GetInvitationCode(c *gin.Context) {
 
 func AddInvitationCodes(c *gin.Context) {
 	request := invitationCodeCreateRequest{}
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
@@ -113,7 +113,7 @@ func AddInvitationCodes(c *gin.Context) {
 
 func UpdateInvitationCode(c *gin.Context) {
 	request := invitationCodeUpdateRequest{}
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}

@@ -149,6 +149,14 @@ const RegisterForm = () => {
 
   const isInvitationRequired = (method) =>
     isInvitationCodeRequired(status, method);
+  const oauthInvitationRequired = Boolean(
+    (status.wechat_login && isInvitationRequired('wechat')) ||
+    (status.github_oauth && isInvitationRequired('github')) ||
+    (status.discord_oauth && isInvitationRequired('discord')) ||
+    (status.oidc_enabled && isInvitationRequired('oidc')) ||
+    (status.linuxdo_oauth && isInvitationRequired('linuxdo')) ||
+    (hasCustomOAuthProviders && isInvitationRequired('custom_oauth')),
+  );
 
   const prepareInvitation = (method) => {
     const code = inputs.invitation_code?.trim() || '';
@@ -461,7 +469,7 @@ const RegisterForm = () => {
             </div>
             <div className='px-2 py-8'>
               <div className='space-y-3'>
-                {status.invitation_code_required && (
+                {oauthInvitationRequired && (
                   <div className='space-y-1'>
                     <Text>{t('邀请码')}</Text>
                     <Input

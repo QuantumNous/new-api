@@ -74,6 +74,7 @@ invitation.disabled: "該邀請碼已被停用"
 invitation.expire_time_invalid: "過期時間必須晚於目前時間"
 invitation.status_invalid: "無效的邀請碼狀態"
 invitation.used_cannot_update: "已使用的邀請碼不能啟用或停用"
+invitation.settings_atomic_update_required: "邀請碼設定必須透過專用的邀請碼設定介面一併提交。"
 
 # User messages
 user.password_login_disabled: "管理員關閉了密碼登錄"

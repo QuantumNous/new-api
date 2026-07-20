@@ -268,7 +268,7 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
 		invitationRoute := apiRouter.Group("/invitation")
-		invitationRoute.Use(middleware.AdminAuth())
+		invitationRoute.Use(middleware.RootAuth())
 		{
 			invitationRoute.GET("/", controller.GetAllInvitationCodes)
 			invitationRoute.GET("/search", controller.SearchInvitationCodes)

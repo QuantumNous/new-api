@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -19,6 +21,8 @@ const (
 	AuthIdentityProviderLinuxDO  = "linuxdo"
 	AuthIdentityProviderWeChat   = "wechat"
 	AuthIdentityProviderTelegram = "telegram"
+
+	authIdentityBackfillBatchSize = 500
 )
 
 var (
@@ -236,33 +240,75 @@ func backfillBuiltInAuthIdentities() error {
 		WeChatId   string `gorm:"column:wechat_id"`
 		TelegramId string `gorm:"column:telegram_id"`
 	}
-	users := make([]legacyIdentityUser, 0)
-	if err := DB.Unscoped().Model(&User{}).Find(&users).Error; err != nil {
-		return err
-	}
 
-	return DB.Transaction(func(tx *gorm.DB) error {
-		for _, user := range users {
-			identities := []struct {
-				provider string
-				subject  string
-			}{
-				{AuthIdentityProviderGitHub, user.GitHubId},
-				{AuthIdentityProviderDiscord, user.DiscordId},
-				{AuthIdentityProviderOIDC, user.OidcId},
-				{AuthIdentityProviderLinuxDO, user.LinuxDOId},
-				{AuthIdentityProviderWeChat, user.WeChatId},
-				{AuthIdentityProviderTelegram, user.TelegramId},
-			}
-			for _, identity := range identities {
-				if strings.TrimSpace(identity.subject) == "" {
-					continue
-				}
-				if err := CreateAuthIdentityWithTx(tx, user.Id, identity.provider, identity.subject); err != nil {
-					return fmt.Errorf("cannot backfill %s identity for user %d: %w", identity.provider, user.Id, err)
-				}
-			}
+	lastID := 0
+	batchNumber := 0
+	for {
+		users := make([]legacyIdentityUser, 0, authIdentityBackfillBatchSize)
+		if err := DB.Unscoped().Model(&User{}).
+			Select("id", "github_id", "discord_id", "oidc_id", "linux_do_id", "wechat_id", "telegram_id").
+			Where("id > ?", lastID).
+			Order("id ASC").
+			Limit(authIdentityBackfillBatchSize).
+			Find(&users).Error; err != nil {
+			return fmt.Errorf("cannot load legacy OAuth identity batch after user %d: %w", lastID, err)
 		}
-		return nil
-	})
+		if len(users) == 0 {
+			return nil
+		}
+
+		batchNumber++
+		batchFirstID := users[0].Id
+		batchLastID := users[len(users)-1].Id
+		conflictCount := 0
+		if err := DB.Transaction(func(tx *gorm.DB) error {
+			for _, user := range users {
+				identities := []struct {
+					provider string
+					subject  string
+				}{
+					{AuthIdentityProviderGitHub, user.GitHubId},
+					{AuthIdentityProviderDiscord, user.DiscordId},
+					{AuthIdentityProviderOIDC, user.OidcId},
+					{AuthIdentityProviderLinuxDO, user.LinuxDOId},
+					{AuthIdentityProviderWeChat, user.WeChatId},
+					{AuthIdentityProviderTelegram, user.TelegramId},
+				}
+				for _, identity := range identities {
+					if strings.TrimSpace(identity.subject) == "" {
+						continue
+					}
+					err := CreateAuthIdentityWithTx(tx, user.Id, identity.provider, identity.subject)
+					if err == nil {
+						continue
+					}
+					if errors.Is(err, ErrAuthIdentityAlreadyBound) || errors.Is(err, ErrAuthIdentityProviderAlreadyBound) {
+						// CreateAuthIdentityWithTx uses ON CONFLICT DO NOTHING, so these
+						// sentinel conflicts do not leave PostgreSQL transactions aborted.
+						conflictCount++
+						continue
+					}
+					return fmt.Errorf("cannot backfill %s identity for user %d in batch %d: %w", identity.provider, user.Id, batchNumber, err)
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		if conflictCount > 0 {
+			common.SysLog(fmt.Sprintf(
+				"auth identity backfill batch %d for user IDs %d-%d skipped %d known conflicts",
+				batchNumber,
+				batchFirstID,
+				batchLastID,
+				conflictCount,
+			))
+		}
+
+		lastID = batchLastID
+		if len(users) < authIdentityBackfillBatchSize {
+			return nil
+		}
+	}
 }

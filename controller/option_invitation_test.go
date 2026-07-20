@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -172,31 +173,42 @@ func TestUpdateInvitationCodeOptionRequiresBothNonNullFields(t *testing.T) {
 
 func TestGenericUpdateOptionRejectsInvitationCodeKeys(t *testing.T) {
 	db, admin := setupInvitationOptionControllerTest(t)
+	require.NoError(t, i18n.Init())
 
-	for _, key := range []string{
-		model.InvitationCodeRequiredOptionKey,
-		model.InvitationCodeMethodsOptionKey,
-		"invitationcoderequired",
-		"INVITATIONCODEMETHODS",
-		" InvitationCodeRequired ",
-		"InvitationCodeMethods   ",
-		"Invitation.Code.Required",
-		"Invitation_Code_Methods",
-		"InvítationCodeRequired",
-	} {
-		t.Run(key, func(t *testing.T) {
+	testCases := []struct {
+		key      string
+		language string
+	}{
+		{key: model.InvitationCodeRequiredOptionKey, language: i18n.LangEn},
+		{key: model.InvitationCodeMethodsOptionKey, language: i18n.LangZhCN},
+		{key: "invitationcoderequired", language: i18n.LangZhTW},
+		{key: "INVITATIONCODEMETHODS", language: i18n.LangEn},
+		{key: " InvitationCodeRequired ", language: i18n.LangZhCN},
+		{key: "InvitationCodeMethods   ", language: i18n.LangZhTW},
+		{key: "Invitation.Code.Required", language: i18n.LangEn},
+		{key: "Invitation_Code_Methods", language: i18n.LangZhCN},
+		{key: "InvítationCodeRequired", language: i18n.LangZhTW},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.language+"/"+testCase.key, func(t *testing.T) {
 			ctx, recorder := invitationControllerContext(t, http.MethodPut, "/api/option/", map[string]interface{}{
-				"key":   key,
+				"key":   testCase.key,
 				"value": true,
 			}, admin.Id)
+			ctx.Request.Header.Set("Accept-Language", testCase.language)
 
 			UpdateOption(ctx)
 
 			var response struct {
-				Success bool `json:"success"`
+				Success bool   `json:"success"`
+				Message string `json:"message"`
 			}
 			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 			assert.False(t, response.Success)
+			assert.NotEqual(t, model.ErrInvitationCodeOptionRequiresAtomicUpdate.Error(), response.Message)
+			if model.IsInvitationCodeOptionKey(testCase.key) {
+				assert.Equal(t, i18n.Translate(testCase.language, i18n.MsgInvitationSettingsAtomicUpdateRequired), response.Message)
+			}
 		})
 	}
 	var count int64

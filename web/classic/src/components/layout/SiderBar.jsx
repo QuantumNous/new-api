@@ -182,7 +182,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('注册邀请码'),
         itemKey: 'invitation',
         to: '/invitation',
-        className: isAdmin() ? '' : 'tableHiddle',
+        className: isRoot() ? '' : 'tableHiddle',
       },
       {
         text: t('用户管理'),

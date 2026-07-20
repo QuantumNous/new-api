@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { TFunction } from 'i18next'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
@@ -39,6 +39,7 @@ import {
   type InvitationRegistrationMethod,
 } from '@/features/auth/lib/invitation'
 
+import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -97,6 +98,7 @@ function getMethodLabel(
 export function InvitationCodeSection(props: InvitationCodeSectionProps) {
   const { t } = useTranslation()
   const updateInvitationCodeConfig = useUpdateInvitationCodeConfig()
+  const [saveConfirmed, setSaveConfirmed] = useState(false)
   const formDefaults = useMemo<InvitationCodeFormValues>(() => {
     const methods = INVITATION_REGISTRATION_METHODS.filter((method) =>
       props.defaultValues.InvitationCodeMethods.includes(method)
@@ -130,6 +132,11 @@ export function InvitationCodeSection(props: InvitationCodeSectionProps) {
         required: values.InvitationCodeRequired,
         methods,
       })
+      form.reset({
+        InvitationCodeRequired: values.InvitationCodeRequired,
+        InvitationCodeMethods: methods,
+      })
+      setSaveConfirmed(true)
     } catch {
       // The mutation owns error feedback and keeps the form unchanged.
     }
@@ -142,7 +149,13 @@ export function InvitationCodeSection(props: InvitationCodeSectionProps) {
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateInvitationCodeConfig.isPending}
+            saveLabel={
+              saveConfirmed && !form.formState.isDirty
+                ? 'Saved'
+                : 'Save Changes'
+            }
           />
+          <FormDirtyIndicator isDirty={form.formState.isDirty} />
           <FormField
             control={form.control}
             name='InvitationCodeRequired'

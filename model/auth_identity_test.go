@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -156,14 +158,108 @@ func TestAuthIdentityConcurrentClaimHasExactlyOneOwner(t *testing.T) {
 	assert.Equal(t, caseSecond.Id, secondOwner.Id)
 }
 
-func TestBackfillBuiltInAuthIdentitiesRejectsAmbiguousLegacyOwnership(t *testing.T) {
+func TestBackfillBuiltInAuthIdentitiesSkipsKnownConflictsAndContinuesAcrossBatches(t *testing.T) {
 	db := setupAuthIdentityTestDB(t)
-	first := createAuthIdentityTestUser(t, db, "legacy-first")
-	second := createAuthIdentityTestUser(t, db, "legacy-second")
-	require.NoError(t, db.Model(&User{}).Where("id IN ?", []int{first.Id, second.Id}).Update("github_id", "duplicate-legacy-id").Error)
+
+	users := make([]User, authIdentityBackfillBatchSize+4)
+	for index := range users {
+		legacySubject := fmt.Sprintf("legacy-conflict-%d", index)
+		switch index {
+		case authIdentityBackfillBatchSize, authIdentityBackfillBatchSize + 2:
+			legacySubject = "shared-legacy-subject"
+		case authIdentityBackfillBatchSize + 1:
+			legacySubject = "soft-deleted-subject"
+		case authIdentityBackfillBatchSize + 3:
+			legacySubject = "after-conflict-subject"
+		}
+		users[index] = User{
+			Username: fmt.Sprintf("legacy-backfill-%d", index),
+			Password: "password",
+			AffCode:  fmt.Sprintf("legacy-backfill-%d", index),
+			GitHubId: legacySubject,
+		}
+	}
+	require.NoError(t, db.Select("username", "password", "aff_code", "github_id").CreateInBatches(&users, 50).Error)
+
+	preboundIdentities := make([]AuthIdentity, authIdentityBackfillBatchSize)
+	for index := range preboundIdentities {
+		preboundIdentities[index] = AuthIdentity{
+			UserId:              users[index].Id,
+			ProviderKey:         AuthIdentityProviderGitHub,
+			ProviderSubjectHash: hashAuthIdentitySubject(fmt.Sprintf("prebound-subject-%d", index)),
+		}
+	}
+	require.NoError(t, db.CreateInBatches(&preboundIdentities, 50).Error)
+
+	softDeletedUser := users[authIdentityBackfillBatchSize+1]
+	require.NoError(t, db.Delete(&softDeletedUser).Error)
+
+	var logOutput bytes.Buffer
+	common.LogWriterMu.Lock()
+	oldDefaultWriter := gin.DefaultWriter
+	gin.DefaultWriter = &logOutput
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultWriter = oldDefaultWriter
+		common.LogWriterMu.Unlock()
+	})
+
+	require.NoError(t, backfillBuiltInAuthIdentities())
+
+	var identityCount int64
+	require.NoError(t, db.Model(&AuthIdentity{}).Count(&identityCount).Error)
+	assert.Equal(t, int64(authIdentityBackfillBatchSize+3), identityCount)
+
+	sharedSubjectWinner, err := GetUserByAuthIdentity(AuthIdentityProviderGitHub, "shared-legacy-subject")
+	require.NoError(t, err)
+	assert.Equal(t, users[authIdentityBackfillBatchSize].Id, sharedSubjectWinner.Id)
+	assert.Less(t, users[authIdentityBackfillBatchSize].Id, users[authIdentityBackfillBatchSize+2].Id)
+
+	var duplicateUserIdentityCount int64
+	require.NoError(t, db.Model(&AuthIdentity{}).
+		Where("user_id = ? AND provider_key = ?", users[authIdentityBackfillBatchSize+2].Id, AuthIdentityProviderGitHub).
+		Count(&duplicateUserIdentityCount).Error)
+	assert.Zero(t, duplicateUserIdentityCount)
+
+	softDeletedOwner, err := GetUserByAuthIdentity(AuthIdentityProviderGitHub, "soft-deleted-subject")
+	require.NoError(t, err)
+	assert.Equal(t, softDeletedUser.Id, softDeletedOwner.Id)
+	assert.True(t, softDeletedOwner.DeletedAt.Valid)
+
+	afterConflictOwner, err := GetUserByAuthIdentity(AuthIdentityProviderGitHub, "after-conflict-subject")
+	require.NoError(t, err)
+	assert.Equal(t, users[authIdentityBackfillBatchSize+3].Id, afterConflictOwner.Id)
+
+	preboundOwner, err := GetUserByAuthIdentity(AuthIdentityProviderGitHub, "prebound-subject-0")
+	require.NoError(t, err)
+	assert.Equal(t, users[0].Id, preboundOwner.Id)
+	_, err = GetUserByAuthIdentity(AuthIdentityProviderGitHub, "legacy-conflict-0")
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
+	require.NoError(t, backfillBuiltInAuthIdentities())
+	var identityCountAfterSecondRun int64
+	require.NoError(t, db.Model(&AuthIdentity{}).Count(&identityCountAfterSecondRun).Error)
+	assert.Equal(t, identityCount, identityCountAfterSecondRun)
+
+	assert.Contains(t, logOutput.String(), "skipped 500 known conflicts")
+	assert.NotContains(t, logOutput.String(), "legacy-conflict-")
+	assert.NotContains(t, logOutput.String(), "shared-legacy-subject")
+	assert.NotContains(t, logOutput.String(), "soft-deleted-subject")
+	assert.NotContains(t, logOutput.String(), "after-conflict-subject")
+}
+
+func TestBackfillBuiltInAuthIdentitiesReturnsUnexpectedDatabaseErrors(t *testing.T) {
+	db := setupAuthIdentityTestDB(t)
+	user := createAuthIdentityTestUser(t, db, "legacy-fatal-error")
+	require.NoError(t, db.Model(&User{}).Where("id = ?", user.Id).Update("github_id", "fatal-error-subject").Error)
+	require.NoError(t, db.Migrator().DropTable(&AuthIdentity{}))
 
 	err := backfillBuiltInAuthIdentities()
-	require.ErrorIs(t, err, ErrAuthIdentityAlreadyBound)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrAuthIdentityAlreadyBound)
+	assert.NotErrorIs(t, err, ErrAuthIdentityProviderAlreadyBound)
+	assert.Contains(t, err.Error(), "cannot backfill github identity")
 }
 
 func runExternalAuthIdentityConcurrencyTest(t *testing.T, databaseType common.DatabaseType, dsn string) {
