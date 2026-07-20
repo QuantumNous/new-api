@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -153,7 +154,7 @@ func TestShouldRetrySkipsClientCanceled(t *testing.T) {
 	}
 }
 
-func TestUpstreamRateLimitExtraRetryRequiresUncommittedUpstream429(t *testing.T) {
+func TestUpstreamCapacityFallbackRequiresUncommittedTransientCapacityError(t *testing.T) {
 	upstream429 := types.NewErrorWithStatusCode(
 		errors.New("Too many pending requests, please retry later"),
 		types.ErrorCodeBadResponseStatusCode,
@@ -162,7 +163,8 @@ func TestUpstreamRateLimitExtraRetryRequiresUncommittedUpstream429(t *testing.T)
 	upstream429.UpstreamStatusCode = http.StatusTooManyRequests
 
 	assert.True(t, isUpstreamRateLimitError(upstream429))
-	assert.True(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, upstream429))
+	assert.True(t, isFastUpstreamCapacityError(upstream429))
+	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, upstream429))
 
 	mapped429 := types.NewErrorWithStatusCode(
 		errors.New("Upstream rate limit exceeded, please retry later"),
@@ -171,7 +173,25 @@ func TestUpstreamRateLimitExtraRetryRequiresUncommittedUpstream429(t *testing.T)
 	)
 	mapped429.UpstreamStatusCode = http.StatusTooManyRequests
 	assert.True(t, isUpstreamRateLimitError(mapped429), "client-facing status mappings must not hide the upstream 429")
-	assert.True(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, mapped429))
+	assert.True(t, isFastUpstreamCapacityError(mapped429))
+	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, mapped429))
+
+	distributor503 := types.NewErrorWithStatusCode(
+		errors.New("No available channel for model gpt-5.6-sol under group gpt plus (distributor)"),
+		types.ErrorCodeModelNotFound,
+		http.StatusServiceUnavailable,
+	)
+	distributor503.UpstreamStatusCode = http.StatusServiceUnavailable
+	assert.True(t, isFastUpstreamCapacityError(distributor503), "an upstream distributor with no account capacity should try another channel")
+	assert.True(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, distributor503))
+
+	generic503 := types.NewErrorWithStatusCode(
+		errors.New("service unavailable"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusServiceUnavailable,
+	)
+	generic503.UpstreamStatusCode = http.StatusServiceUnavailable
+	assert.False(t, isFastUpstreamCapacityError(generic503), "generic 503s may be slow outages and must stay within configured retries")
 
 	local429 := types.NewErrorWithStatusCode(
 		errors.New("local rate limit"),
@@ -179,7 +199,15 @@ func TestUpstreamRateLimitExtraRetryRequiresUncommittedUpstream429(t *testing.T)
 		http.StatusTooManyRequests,
 	)
 	assert.False(t, isUpstreamRateLimitError(local429), "local 429s must stay outside channel retry policy")
-	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, local429))
+	assert.False(t, isFastUpstreamCapacityError(local429))
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, local429))
+
+	local503 := types.NewErrorWithStatusCode(
+		errors.New("No available channel for model gpt-5.6-sol"),
+		types.ErrorCodeModelNotFound,
+		http.StatusServiceUnavailable,
+	)
+	assert.False(t, isFastUpstreamCapacityError(local503), "gateway-local capacity errors must not expand upstream attempts")
 
 	quota429 := types.NewOpenAIError(
 		errors.New("You exceeded your current quota"),
@@ -188,19 +216,20 @@ func TestUpstreamRateLimitExtraRetryRequiresUncommittedUpstream429(t *testing.T)
 	)
 	quota429.UpstreamStatusCode = http.StatusTooManyRequests
 	assert.False(t, isUpstreamRateLimitError(quota429), "quota exhaustion is structural, not a transient rate-limit retry")
-	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), &relaycommon.RelayInfo{}, quota429))
+	assert.False(t, isFastUpstreamCapacityError(quota429))
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), &relaycommon.RelayInfo{}, quota429))
 
 	pinned := newTestContext()
 	pinned.Set("specific_channel_id", 17)
-	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(pinned, &relaycommon.RelayInfo{}, upstream429), "pinned channel requests must not switch channels")
+	assert.False(t, shouldUseUpstreamCapacityFallback(pinned, &relaycommon.RelayInfo{}, upstream429), "pinned channel requests must not switch channels")
 
 	committed := newTestContext()
 	committed.Writer.WriteHeaderNow()
 	assert.True(t, relayResponseCommitted(committed, &relaycommon.RelayInfo{}))
-	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(committed, &relaycommon.RelayInfo{}, upstream429))
+	assert.False(t, shouldUseUpstreamCapacityFallback(committed, &relaycommon.RelayInfo{}, upstream429))
 }
 
-func TestUpstreamRateLimitExtraRetryStopsAfterAttemptStreamData(t *testing.T) {
+func TestUpstreamCapacityFallbackStopsAfterAttemptStreamData(t *testing.T) {
 	apiErr := types.NewErrorWithStatusCode(
 		errors.New("rate limited"),
 		types.ErrorCodeBadResponseStatusCode,
@@ -212,10 +241,10 @@ func TestUpstreamRateLimitExtraRetryStopsAfterAttemptStreamData(t *testing.T) {
 	info := &relaycommon.RelayInfo{StreamStatus: streamStatus}
 
 	assert.True(t, relayResponseCommitted(newTestContext(), info))
-	assert.False(t, shouldUseUpstreamRateLimitExtraRetry(newTestContext(), info, apiErr))
+	assert.False(t, shouldUseUpstreamCapacityFallback(newTestContext(), info, apiErr))
 }
 
-func TestScheduleUpstreamRateLimitExtraRetryRestartsAutoSelection(t *testing.T) {
+func TestScheduleUpstreamCapacityFallbackIsBoundedAndRestartsAutoSelection(t *testing.T) {
 	c := newTestContext()
 	apiErr := types.NewErrorWithStatusCode(
 		errors.New("Too many pending requests, please retry later"),
@@ -228,9 +257,16 @@ func TestScheduleUpstreamRateLimitExtraRetryRestartsAutoSelection(t *testing.T) 
 		TokenGroup: "auto",
 		Retry:      common.GetPointer(0),
 	}
+	startedAt := time.Unix(100, 0)
 
-	assert.True(t, scheduleUpstreamRateLimitExtraRetry(c, &relaycommon.RelayInfo{}, retryParam, apiErr, false, 2))
+	assert.True(t, scheduleUpstreamCapacityFallback(c, &relaycommon.RelayInfo{}, retryParam, apiErr, 0, 2, time.Time{}, startedAt))
 	retryParam.IncreaseRetry()
 	assert.Equal(t, 2, retryParam.GetRetry())
-	assert.False(t, scheduleUpstreamRateLimitExtraRetry(c, &relaycommon.RelayInfo{}, retryParam, apiErr, true, 2), "the dedicated fallback is single-use")
+
+	assert.True(t, scheduleUpstreamCapacityFallback(c, &relaycommon.RelayInfo{}, retryParam, apiErr, 1, 2, startedAt, startedAt.Add(2*time.Second)),
+		"a second fast capacity failure may try one more untried channel")
+	assert.False(t, scheduleUpstreamCapacityFallback(c, &relaycommon.RelayInfo{}, retryParam, apiErr, 2, 2, startedAt, startedAt.Add(3*time.Second)),
+		"capacity fallback attempts must have a hard count limit")
+	assert.False(t, scheduleUpstreamCapacityFallback(c, &relaycommon.RelayInfo{}, retryParam, apiErr, 1, 2, startedAt, startedAt.Add(6*time.Second)),
+		"a slow fallback attempt must not expand first-token latency with another channel")
 }
