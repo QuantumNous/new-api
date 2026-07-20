@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 RETRY_HTTP_CODES = {500, 502, 503, 504}
+STREAM_PRELUDE_EVENT_TYPES = {"response.created", "response.in_progress"}
+STREAM_PRELUDE_LIMIT = 64 * 1024
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -46,6 +48,40 @@ def is_response_failed(body: bytes) -> bool:
         if event.get("type") == "response.failed" or event.get("error"):
             return True
     return False
+
+
+def classify_sse_block(block: bytes) -> str:
+    payload_lines = []
+    for raw_line in block.splitlines():
+        line = raw_line.strip()
+        if line.startswith(b"data:"):
+            payload_lines.append(line[5:].strip())
+    if not payload_lines:
+        return "hold"
+
+    payload = b"\n".join(payload_lines)
+    if not payload or payload == b"[DONE]":
+        return "commit"
+    try:
+        event = json.loads(payload.decode("utf-8", "replace"))
+    except json.JSONDecodeError:
+        return "commit"
+    if event.get("type") == "response.failed" or event.get("error"):
+        return "retry"
+    if event.get("type") in STREAM_PRELUDE_EVENT_TYPES:
+        return "hold"
+    return "commit"
+
+
+def read_sse_block(response) -> tuple[bytes, bool]:
+    lines = []
+    while True:
+        line = response.readline()
+        if not line:
+            return b"".join(lines), True
+        lines.append(line)
+        if line in {b"\n", b"\r\n"}:
+            return b"".join(lines), False
 
 
 def copy_headers(handler: BaseHTTPRequestHandler) -> dict:
@@ -103,7 +139,7 @@ class RetryProxyHandler(BaseHTTPRequestHandler):
             return False
 
     def forward_streaming(self, body: bytes):
-        """Forward SSE bytes as they arrive so upstream generation is visible to clients."""
+        """Retry early SSE failures, then forward bytes once output begins."""
         last_error = None
         for attempt in range(1, ProxyConfig.attempts + 1):
             try:
@@ -128,7 +164,36 @@ class RetryProxyHandler(BaseHTTPRequestHandler):
                             )
                             return
 
-                        self.send_stream_headers(resp.status, dict(resp.headers.items()))
+                        response_headers = dict(resp.headers.items())
+                        prelude = bytearray()
+                        retry_early_failure = False
+                        while len(prelude) < STREAM_PRELUDE_LIMIT:
+                            block, reached_eof = read_sse_block(resp)
+                            prelude.extend(block)
+                            classification = classify_sse_block(block)
+                            if classification == "retry":
+                                retry_early_failure = True
+                                break
+                            if classification == "commit" or reached_eof:
+                                break
+
+                        if retry_early_failure:
+                            last_error = RuntimeError(
+                                "upstream emitted response.failed before output"
+                            )
+                            self.log_message(
+                                "retryable streaming responses failure attempt=%s",
+                                attempt,
+                            )
+                            if attempt < ProxyConfig.attempts:
+                                time.sleep(ProxyConfig.backoff * attempt)
+                                continue
+                            break
+
+                        self.send_stream_headers(resp.status, response_headers)
+                        if prelude:
+                            self.wfile.write(prelude)
+                            self.wfile.flush()
                         while True:
                             read_chunk = getattr(resp, "read1", resp.read)
                             chunk = read_chunk(8192)
