@@ -6,7 +6,8 @@ echo "Building New API Electron App..."
 
 echo "Step 1: Building frontend..."
 cd ../web
-DISABLE_ESLINT_PLUGIN='true' bun run build
+bun install --frozen-lockfile
+DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags --always) bun run build
 cd ../electron
 
 echo "Step 2: Building Go backend..."
