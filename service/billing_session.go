@@ -497,7 +497,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 
-	trySubscription := func(requiredPlanTitle string, excludedPlanTitle string) (*BillingSession, *types.NewAPIError) {
+	trySubscription := func(requiredPlanMatcher model.SubscriptionPlanMatcher, excludedPlanMatcher model.SubscriptionPlanMatcher) (*BillingSession, *types.NewAPIError) {
 		subConsume := int64(preConsumedQuota)
 		if subConsume <= 0 {
 			subConsume = 1
@@ -505,12 +505,12 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		session := &BillingSession{
 			relayInfo: relayInfo,
 			funding: &SubscriptionFunding{
-				requestId:         relayInfo.RequestId,
-				userId:            relayInfo.UserId,
-				modelName:         relayInfo.OriginModelName,
-				amount:            subConsume,
-				RequiredPlanTitle: requiredPlanTitle,
-				ExcludedPlanTitle: excludedPlanTitle,
+				requestId:           relayInfo.RequestId,
+				userId:              relayInfo.UserId,
+				modelName:           relayInfo.OriginModelName,
+				amount:              subConsume,
+				RequiredPlanMatcher: requiredPlanMatcher,
+				ExcludedPlanMatcher: excludedPlanMatcher,
 			},
 		}
 		// 必须传 subConsume 而非 preConsumedQuota，保证 SubscriptionFunding.amount、
@@ -522,19 +522,19 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	}
 
 	if isFreeTrial {
-		return trySubscription(FreeTrialPlanTitle, "")
+		return trySubscription(model.IsGPTTrialSubscriptionPlan, nil)
 	}
 
 	switch pref {
 	case "subscription_only":
-		return trySubscription("", FreeTrialPlanTitle)
+		return trySubscription(nil, model.IsGPTTrialSubscriptionPlan)
 	case "wallet_only":
 		return tryWallet()
 	case "wallet_first":
 		session, err := tryWallet()
 		if err != nil {
 			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
-				return trySubscription("", FreeTrialPlanTitle)
+				return trySubscription(nil, model.IsGPTTrialSubscriptionPlan)
 			}
 			return nil, err
 		}
@@ -542,14 +542,14 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscriptionExcludingPlanTitle(relayInfo.UserId, FreeTrialPlanTitle)
+		hasSub, subCheckErr := model.HasActiveUserSubscriptionExcludingPlanMatcher(relayInfo.UserId, model.IsGPTTrialSubscriptionPlan)
 		if subCheckErr != nil {
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
 		if !hasSub {
 			return tryWallet()
 		}
-		session, apiErr := trySubscription("", FreeTrialPlanTitle)
+		session, apiErr := trySubscription(nil, model.IsGPTTrialSubscriptionPlan)
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
 				return tryWallet()

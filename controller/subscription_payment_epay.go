@@ -39,6 +39,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
 	}
+	if model.IsGPTTrialSubscriptionPlan(plan) {
+		common.ApiErrorMsg(c, "试用套餐仅可通过活动领取")
+		return
+	}
 	if plan.PriceAmount < 0.01 {
 		common.ApiErrorMsg(c, "套餐金额过低")
 		return

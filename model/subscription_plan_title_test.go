@@ -147,3 +147,62 @@ func TestHasActiveUserSubscriptionExcludingPlanTitleIgnoresTrialOnly(t *testing.
 	require.NoError(t, err)
 	require.False(t, hasSub)
 }
+
+func TestGPTTrialPlanMatcherSurvivesEditableMarketingTitle(t *testing.T) {
+	setupSubscriptionPlanTitleTestDB(t)
+
+	trialPlan := &SubscriptionPlan{
+		Id:          1501,
+		Title:       "Summer launch credit",
+		PlanType:    SubscriptionPlanTypeGPTTrial,
+		TotalAmount: 100,
+	}
+	paidPlan := &SubscriptionPlan{Id: 1502, Title: "Paid subscription", TotalAmount: 100}
+	require.NoError(t, DB.Create(trialPlan).Error)
+	require.NoError(t, DB.Create(paidPlan).Error)
+
+	require.NoError(t, DB.Create(&UserSubscription{
+		Id: 2501, UserId: 305, PlanId: trialPlan.Id, AmountTotal: 100,
+		StartTime: 1, EndTime: 4102444800, Status: "active",
+	}).Error)
+	require.NoError(t, DB.Create(&UserSubscription{
+		Id: 2502, UserId: 305, PlanId: paidPlan.Id, AmountTotal: 100,
+		StartTime: 1, EndTime: 4102444800, Status: "active",
+	}).Error)
+
+	trialResult, err := PreConsumeUserSubscriptionByPlanMatcher(
+		"req-gpt-trial", 305, "gpt-5", 0, 20, IsGPTTrialSubscriptionPlan,
+	)
+	require.NoError(t, err)
+	require.Equal(t, 2501, trialResult.UserSubscriptionId)
+
+	paidResult, err := PreConsumeUserSubscriptionExcludingPlanMatcher(
+		"req-paid-subscription", 305, "gpt-5", 0, 20, IsGPTTrialSubscriptionPlan,
+	)
+	require.NoError(t, err)
+	require.Equal(t, 2502, paidResult.UserSubscriptionId)
+
+	var trialSub, paidSub UserSubscription
+	require.NoError(t, DB.First(&trialSub, 2501).Error)
+	require.NoError(t, DB.First(&paidSub, 2502).Error)
+	require.EqualValues(t, 20, trialSub.AmountUsed)
+	require.EqualValues(t, 20, paidSub.AmountUsed)
+}
+
+func TestGetActiveGPTTrialPlanBackfillsCurrentCampaign(t *testing.T) {
+	setupSubscriptionPlanTitleTestDB(t)
+
+	legacyPlan := &SubscriptionPlan{
+		Id: 1601, Title: "APIMaster $20 GPT Trial", TotalAmount: 100,
+	}
+	require.NoError(t, DB.Create(legacyPlan).Error)
+
+	plan, err := GetActiveGPTTrialPlan()
+	require.NoError(t, err)
+	require.Equal(t, legacyPlan.Id, plan.Id)
+	require.Equal(t, SubscriptionPlanTypeGPTTrial, plan.PlanType)
+
+	var stored SubscriptionPlan
+	require.NoError(t, DB.First(&stored, legacyPlan.Id).Error)
+	require.Equal(t, SubscriptionPlanTypeGPTTrial, stored.PlanType)
+}

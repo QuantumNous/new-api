@@ -31,6 +31,11 @@ func GetSubscriptionPlans(c *gin.Context) {
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
+		// Trial plans are issued exclusively by the signup sharing flow. They
+		// must never appear as a purchasable subscription option.
+		if model.IsGPTTrialSubscriptionPlan(&p) {
+			continue
+		}
 		result = append(result, SubscriptionPlanDTO{
 			Plan: p,
 		})
@@ -54,11 +59,34 @@ func GetSubscriptionSelf(c *gin.Context) {
 	if err != nil {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
+	planByID := make(map[int]model.SubscriptionPlan)
+	for _, summary := range allSubscriptions {
+		if summary.Subscription == nil || summary.Subscription.PlanId <= 0 {
+			continue
+		}
+		plan, err := model.GetSubscriptionPlanById(summary.Subscription.PlanId)
+		if err == nil && plan != nil {
+			// Historical Trial plans can predate plan_type. Preserve their stable
+			// classification in the self response even when the campaign is disabled.
+			if model.IsGPTTrialSubscriptionPlan(plan) {
+				plan.PlanType = model.SubscriptionPlanTypeGPTTrial
+			}
+			planByID[plan.Id] = *plan
+		}
+	}
+	if trialPlan, err := model.GetActiveGPTTrialPlan(); err == nil && trialPlan != nil {
+		planByID[trialPlan.Id] = *trialPlan
+	}
+	plans := make([]SubscriptionPlanDTO, 0, len(planByID))
+	for _, plan := range planByID {
+		plans = append(plans, SubscriptionPlanDTO{Plan: plan})
+	}
 
 	common.ApiSuccess(c, gin.H{
 		"billing_preference": pref,
 		"subscriptions":      activeSubscriptions, // all active subscriptions
 		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"plans":              plans,               // owned plans plus the current trial preview
 	})
 }
 
@@ -96,6 +124,11 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
+		// Preserve the legacy campaign's identity in the admin form until its
+		// plan_type has been persisted by the campaign lookup or an edit.
+		if model.IsGPTTrialSubscriptionPlan(&p) {
+			p.PlanType = model.SubscriptionPlanTypeGPTTrial
+		}
 		result = append(result, SubscriptionPlanDTO{
 			Plan: p,
 		})
@@ -144,6 +177,11 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	if !model.IsSupportedSubscriptionPlanType(req.Plan.PlanType) {
+		common.ApiErrorMsg(c, "无效的套餐类型")
+		return
+	}
+	req.Plan.PlanType = model.NormalizeSubscriptionPlanType(req.Plan.PlanType)
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -207,6 +245,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	if !model.IsSupportedSubscriptionPlanType(req.Plan.PlanType) {
+		common.ApiErrorMsg(c, "无效的套餐类型")
+		return
+	}
+	req.Plan.PlanType = model.NormalizeSubscriptionPlanType(req.Plan.PlanType)
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -225,6 +268,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
 			"subtitle":                   req.Plan.Subtitle,
+			"plan_type":                  req.Plan.PlanType,
 			"price_amount":               req.Plan.PriceAmount,
 			"currency":                   req.Plan.Currency,
 			"duration_unit":              req.Plan.DurationUnit,

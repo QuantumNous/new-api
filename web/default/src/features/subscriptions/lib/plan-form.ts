@@ -24,6 +24,7 @@ export function getPlanFormSchema(t: TFunction) {
   return z.object({
     title: z.string().min(1, t('Please enter plan title')),
     subtitle: z.string().optional(),
+    plan_type: z.enum(['standard', 'gpt_trial']),
     price_amount: z.coerce.number().min(0, t('Please enter amount')),
     duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
     duration_value: z.coerce.number().min(1),
@@ -51,6 +52,7 @@ export type PlanFormValues = z.infer<ReturnType<typeof getPlanFormSchema>>
 export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   title: '',
   subtitle: '',
+  plan_type: 'standard',
   price_amount: 0,
   duration_unit: 'month',
   duration_value: 1,
@@ -66,9 +68,10 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   creem_product_id: '',
 }
 
-export const GPT_TRIAL_50U_PRESET: PlanFormValues = {
-  title: 'APIMaster $50 GPT Trial',
+export const GPT_TRIAL_PRESET: PlanFormValues = {
+  title: 'APIMaster $20 GPT Trial',
   subtitle: '7-day GPT trial at official pricing',
+  plan_type: 'gpt_trial',
   price_amount: 0,
   duration_unit: 'day',
   duration_value: 7,
@@ -78,7 +81,7 @@ export const GPT_TRIAL_50U_PRESET: PlanFormValues = {
   enabled: false,
   sort_order: 0,
   max_purchase_per_user: 1,
-  total_amount: 25_000_000,
+  total_amount: 10_000_000,
   upgrade_group: '',
   stripe_price_id: '',
   creem_product_id: '',
@@ -88,6 +91,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
   return {
     title: plan.title || '',
     subtitle: plan.subtitle || '',
+    plan_type: plan.plan_type === 'gpt_trial' ? 'gpt_trial' : 'standard',
     price_amount: Number(plan.price_amount || 0),
     duration_unit: plan.duration_unit || 'month',
     duration_value: Number(plan.duration_value || 1),
@@ -108,6 +112,7 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
   return {
     plan: {
       ...values,
+      plan_type: values.plan_type || 'standard',
       price_amount: Number(values.price_amount || 0),
       currency: 'USD',
       duration_value: Number(values.duration_value || 0),

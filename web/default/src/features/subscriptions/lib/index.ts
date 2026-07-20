@@ -20,7 +20,7 @@ export { formatDuration, formatResetPeriod, formatTimestamp } from './format'
 export {
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,
-  GPT_TRIAL_50U_PRESET,
+  GPT_TRIAL_PRESET,
   planToFormValues,
   formValuesToPlanPayload,
   type PlanFormValues,

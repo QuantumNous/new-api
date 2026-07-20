@@ -17,30 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Clock3, KeyRound, Sparkles } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
+import { CheckCircle2, Clock3, KeyRound, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  getPublicPlans,
-  getSelfSubscriptionFull,
-} from '@/features/subscriptions/api'
+import { getSelfSubscriptionFull } from '@/features/subscriptions/api'
 import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
 import { GLASS_CARD_CLS, QUOTA_PER_DOLLAR } from '../constants'
 
-const TRIAL_PLAN_TITLE = 'APIMaster $50 GPT Trial'
-const TRIAL_FALLBACK_TOTAL_QUOTA = 25000000
-
 type TrialStatus = 'not_claimed' | 'active' | 'expired' | 'depleted'
-
-function normalizeTitle(value: string | undefined): string {
-  return (value || '').trim().toLowerCase()
-}
 
 function formatUsdAmount(quota: number): string {
   const amount = quota / QUOTA_PER_DOLLAR
@@ -63,28 +53,25 @@ function resolveTrialSubscription(
   plan: PlanRecord | null
   subscription: UserSubscriptionRecord | null
 } {
-  const plan =
-    plans.find(
-      (item) =>
-        normalizeTitle(item.plan.title) === normalizeTitle(TRIAL_PLAN_TITLE)
-    ) || null
-
+  const trialPlans = plans.filter((item) => item.plan.plan_type === 'gpt_trial')
+  const plansById = new Map(trialPlans.map((item) => [item.plan.id, item]))
   const allCandidates = subscriptions
-    .filter((item) => {
-      const planIdMatched =
-        !!plan?.plan.id && item.subscription.plan_id === plan.plan.id
-      const quotaMatched =
-        Number(item.subscription.amount_total || 0) === TRIAL_FALLBACK_TOTAL_QUOTA
-      return planIdMatched || quotaMatched
-    })
+    .map((item) => ({
+      subscription: item,
+      plan: plansById.get(item.subscription.plan_id) || null,
+    }))
+    .filter((item) => item.plan !== null)
     .sort(
       (a, b) =>
-        Number(b.subscription.end_time || 0) - Number(a.subscription.end_time || 0)
+        Number(b.subscription.subscription.end_time || 0) -
+        Number(a.subscription.subscription.end_time || 0)
     )
 
+  const latest = allCandidates[0] || null
+
   return {
-    plan,
-    subscription: allCandidates[0] || null,
+    plan: latest?.plan || trialPlans.find((item) => item.plan.enabled) || null,
+    subscription: latest?.subscription || null,
   }
 }
 
@@ -119,7 +106,8 @@ export function TrialSubscriptionSection() {
       }
     : {
         sectionTitle: 'My Subscription',
-        sectionSubtitle: 'View your trial subscription status and remaining credits',
+        sectionSubtitle:
+          'View your trial subscription status and remaining credits',
         statusActive: 'Active',
         statusNotClaimed: 'Not claimed',
         statusExpired: 'Expired',
@@ -141,12 +129,9 @@ export function TrialSubscriptionSection() {
     let active = true
     const fetchData = async () => {
       try {
-        const [plansRes, selfRes] = await Promise.all([
-          getPublicPlans(),
-          getSelfSubscriptionFull(),
-        ])
+        const selfRes = await getSelfSubscriptionFull()
         if (!active) return
-        setPlans(plansRes.data || [])
+        setPlans(selfRes.data?.plans || [])
         setSubscriptions(selfRes.data?.all_subscriptions || [])
       } finally {
         if (active) {
@@ -168,7 +153,7 @@ export function TrialSubscriptionSection() {
 
   const subscription = trial.subscription?.subscription || null
   const totalQuota = Number(
-    subscription?.amount_total || trial.plan?.plan.total_amount || TRIAL_FALLBACK_TOTAL_QUOTA
+    subscription?.amount_total || trial.plan?.plan.total_amount || 0
   )
   const usedQuota = Math.max(0, Number(subscription?.amount_used || 0))
   const remainingQuota = Math.max(totalQuota - usedQuota, 0)
@@ -241,14 +226,14 @@ export function TrialSubscriptionSection() {
       </div>
 
       <div className={`${GLASS_CARD_CLS} overflow-hidden`}>
-        <div className='flex flex-col gap-4 border-b border-zinc-200/70 px-6 py-5 dark:border-zinc-700/70 sm:flex-row sm:items-start sm:justify-between'>
+        <div className='flex flex-col gap-4 border-b border-zinc-200/70 px-6 py-5 sm:flex-row sm:items-start sm:justify-between dark:border-zinc-700/70'>
           <div className='min-w-0 space-y-2'>
             <div className='flex flex-wrap items-center gap-2'>
               <div className='flex size-8 items-center justify-center rounded-full bg-sky-100 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300'>
                 <Sparkles className='size-4' />
               </div>
               <div className='text-xl font-semibold tracking-tight'>
-                {trial.plan?.plan.title || TRIAL_PLAN_TITLE}
+                {trial.plan?.plan.title || '-'}
               </div>
               <span className='rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300'>
                 OpenAI
@@ -282,7 +267,8 @@ export function TrialSubscriptionSection() {
                 {copy.remaining}
               </div>
               <div className='text-right text-2xl font-semibold tracking-tight sm:text-left'>
-                {formatUsdAmount(remainingQuota)} / {formatUsdAmount(totalQuota)}
+                {formatUsdAmount(remainingQuota)} /{' '}
+                {formatUsdAmount(totalQuota)}
               </div>
             </div>
           </div>
@@ -304,7 +290,10 @@ export function TrialSubscriptionSection() {
               <span>{copy.remaining}</span>
               <span>{Math.max(0, 100 - usedPercent).toFixed(0)}%</span>
             </div>
-            <Progress value={Math.max(0, 100 - usedPercent)} className='h-2.5' />
+            <Progress
+              value={Math.max(0, 100 - usedPercent)}
+              className='h-2.5'
+            />
           </div>
 
           {status === 'active' && (

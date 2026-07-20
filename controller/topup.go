@@ -327,24 +327,25 @@ func GetSignupGift(c *gin.Context) {
 		return
 	}
 
-	var trialPlan model.SubscriptionPlan
-	if err := model.DB.Where("title = ? AND enabled = ?", service.FreeTrialPlanTitle, true).
-		First(&trialPlan).Error; err == nil {
+	if trialPlan, err := model.GetActiveGPTTrialPlan(); err == nil {
 		trialCreditUSD := 0.0
 		if common.QuotaPerUnit > 0 {
 			trialCreditUSD = float64(trialPlan.TotalAmount) / common.QuotaPerUnit
 		}
 		common.ApiSuccess(c, gin.H{
-			"enabled":              true,
-			"eligible":             userId == 0,
-			"benefit_type":         "trial_subscription",
-			"quota_for_new_user":   0,
-			"gift_usd":             0,
-			"trial_plan_id":        trialPlan.Id,
-			"trial_title":          trialPlan.Title,
-			"trial_credit_usd":     trialCreditUSD,
-			"trial_duration_unit":  trialPlan.DurationUnit,
-			"trial_duration_value": trialPlan.DurationValue,
+			"enabled":                       true,
+			"eligible":                      userId == 0,
+			"benefit_type":                  "trial_subscription",
+			"quota_for_new_user":            0,
+			"gift_usd":                      0,
+			"trial_plan_id":                 trialPlan.Id,
+			"trial_plan_type":               trialPlan.PlanType,
+			"trial_title":                   trialPlan.Title,
+			"trial_credit_usd":              trialCreditUSD,
+			"trial_duration_unit":           trialPlan.DurationUnit,
+			"trial_duration_value":          trialPlan.DurationValue,
+			"trial_duration_custom_seconds": trialPlan.CustomSeconds,
+			"trial_campaign_started_at":     trialPlan.CreatedAt,
 		})
 		return
 	}

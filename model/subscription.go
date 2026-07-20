@@ -32,6 +32,12 @@ const (
 	SubscriptionResetCustom  = "custom"
 )
 
+const (
+	SubscriptionPlanTypeNone     = ""
+	SubscriptionPlanTypeStandard = "standard"
+	SubscriptionPlanTypeGPTTrial = "gpt_trial"
+)
+
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
@@ -147,6 +153,8 @@ type SubscriptionPlan struct {
 
 	Title    string `json:"title" gorm:"type:varchar(128);not null"`
 	Subtitle string `json:"subtitle" gorm:"type:varchar(255);default:''"`
+	// PlanType identifies product behavior independently from editable marketing copy.
+	PlanType string `json:"plan_type" gorm:"type:varchar(32);default:'';index"`
 
 	// Display money amount (follow existing code style: float64 for money)
 	PriceAmount float64 `json:"price_amount" gorm:"type:decimal(10,6);not null;default:0"`
@@ -189,6 +197,92 @@ func (p *SubscriptionPlan) BeforeCreate(tx *gorm.DB) error {
 func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 	p.UpdatedAt = common.GetTimestamp()
 	return nil
+}
+
+// SubscriptionPlanMatcher limits subscription selection to plans with a
+// specific product behavior. It deliberately does not use the editable title.
+type SubscriptionPlanMatcher func(*SubscriptionPlan) bool
+
+func NormalizeSubscriptionPlanType(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
+	case SubscriptionPlanTypeNone, SubscriptionPlanTypeStandard:
+		return SubscriptionPlanTypeStandard
+	case SubscriptionPlanTypeGPTTrial:
+		return normalized
+	default:
+		return SubscriptionPlanTypeNone
+	}
+}
+
+func IsSupportedSubscriptionPlanType(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized == SubscriptionPlanTypeNone ||
+		normalized == SubscriptionPlanTypeStandard ||
+		normalized == SubscriptionPlanTypeGPTTrial
+}
+
+func IsGPTTrialSubscriptionPlan(plan *SubscriptionPlan) bool {
+	if plan == nil {
+		return false
+	}
+	rawPlanType := strings.TrimSpace(plan.PlanType)
+	if NormalizeSubscriptionPlanType(rawPlanType) == SubscriptionPlanTypeGPTTrial {
+		return true
+	}
+	if rawPlanType != "" {
+		return false
+	}
+	// One-time compatibility for the existing campaign before its plan_type
+	// column is backfilled. New and edited plans must use PlanType.
+	return isLegacyGPTTrialPlanTitle(plan.Title)
+}
+
+func isLegacyGPTTrialPlanTitle(title string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(title))
+	return strings.HasPrefix(normalized, "apimaster $") &&
+		strings.HasSuffix(normalized, " gpt trial")
+}
+
+// GetActiveGPTTrialPlan returns the enabled GPT Trial campaign plan. If one
+// legacy APIMaster GPT Trial plan exists without a type, it is backfilled once
+// so later title edits no longer influence eligibility or billing behavior.
+func GetActiveGPTTrialPlan() (*SubscriptionPlan, error) {
+	var plan SubscriptionPlan
+	err := DB.Where("plan_type = ? AND enabled = ?", SubscriptionPlanTypeGPTTrial, true).
+		Order("sort_order desc, id desc").First(&plan).Error
+	if err == nil {
+		return &plan, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	var legacyPlans []SubscriptionPlan
+	if err := DB.Where("enabled = ? AND (plan_type = ? OR plan_type IS NULL)", true, SubscriptionPlanTypeNone).
+		Order("sort_order desc, id desc").Find(&legacyPlans).Error; err != nil {
+		return nil, err
+	}
+	var legacy *SubscriptionPlan
+	for i := range legacyPlans {
+		if !isLegacyGPTTrialPlanTitle(legacyPlans[i].Title) {
+			continue
+		}
+		if legacy != nil {
+			return nil, gorm.ErrRecordNotFound
+		}
+		legacy = &legacyPlans[i]
+	}
+	if legacy == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if err := DB.Model(&SubscriptionPlan{}).Where("id = ?", legacy.Id).
+		Update("plan_type", SubscriptionPlanTypeGPTTrial).Error; err != nil {
+		return nil, err
+	}
+	legacy.PlanType = SubscriptionPlanTypeGPTTrial
+	InvalidateSubscriptionPlanCache(legacy.Id)
+	return legacy, nil
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)
@@ -697,12 +791,34 @@ func HasActiveUserSubscriptionExcludingPlanTitle(userId int, excludedPlanTitle s
 	if normalizedTitle == "" {
 		return HasActiveUserSubscription(userId)
 	}
-	return hasActiveUserSubscription(userId, func(plan *SubscriptionPlan) bool {
-		return plan != nil && !strings.EqualFold(strings.TrimSpace(plan.Title), normalizedTitle)
+	return HasActiveUserSubscriptionExcludingPlanMatcher(userId, func(plan *SubscriptionPlan) bool {
+		return plan != nil && strings.EqualFold(strings.TrimSpace(plan.Title), normalizedTitle)
 	})
 }
 
-func hasActiveUserSubscription(userId int, planMatcher func(*SubscriptionPlan) bool) (bool, error) {
+// HasActiveUserSubscriptionExcludingPlanMatcher reports whether the user has
+// an active subscription that is not matched by the excluded plan matcher.
+func HasActiveUserSubscriptionExcludingPlanMatcher(userId int, excluded SubscriptionPlanMatcher) (bool, error) {
+	if excluded == nil {
+		return HasActiveUserSubscription(userId)
+	}
+	return hasActiveUserSubscription(userId, func(plan *SubscriptionPlan) bool {
+		return plan != nil && !excluded(plan)
+	})
+}
+
+// HasActiveUserSubscriptionByPlanMatcher reports whether the user has an
+// active subscription matched by the supplied product matcher.
+func HasActiveUserSubscriptionByPlanMatcher(userId int, matcher SubscriptionPlanMatcher) (bool, error) {
+	if matcher == nil {
+		return HasActiveUserSubscription(userId)
+	}
+	return hasActiveUserSubscription(userId, func(plan *SubscriptionPlan) bool {
+		return plan != nil && matcher(plan)
+	})
+}
+
+func hasActiveUserSubscription(userId int, planMatcher SubscriptionPlanMatcher) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
@@ -729,6 +845,26 @@ func hasActiveUserSubscription(userId int, planMatcher func(*SubscriptionPlan) b
 		}
 	}
 	return false, nil
+}
+
+// PreConsumeUserSubscriptionByPlanMatcher pre-consumes only from active
+// subscriptions selected by a stable product matcher.
+func PreConsumeUserSubscriptionByPlanMatcher(requestId string, userId int, modelName string, quotaType int, amount int64, matcher SubscriptionPlanMatcher) (*SubscriptionPreConsumeResult, error) {
+	if matcher == nil {
+		return nil, errors.New("plan matcher is nil")
+	}
+	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, matcher)
+}
+
+// PreConsumeUserSubscriptionExcludingPlanMatcher pre-consumes only from
+// active subscriptions not selected by the excluded product matcher.
+func PreConsumeUserSubscriptionExcludingPlanMatcher(requestId string, userId int, modelName string, quotaType int, amount int64, excluded SubscriptionPlanMatcher) (*SubscriptionPreConsumeResult, error) {
+	if excluded == nil {
+		return PreConsumeUserSubscription(requestId, userId, modelName, quotaType, amount)
+	}
+	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, func(plan *SubscriptionPlan) bool {
+		return plan != nil && !excluded(plan)
+	})
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
@@ -1013,7 +1149,7 @@ func PreConsumeUserSubscriptionByPlanTitle(requestId string, userId int, modelNa
 	if requiredPlanTitle == "" {
 		return nil, errors.New("planTitle is empty")
 	}
-	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, func(plan *SubscriptionPlan) bool {
+	return PreConsumeUserSubscriptionByPlanMatcher(requestId, userId, modelName, quotaType, amount, func(plan *SubscriptionPlan) bool {
 		return plan != nil && strings.EqualFold(strings.TrimSpace(plan.Title), requiredPlanTitle)
 	})
 }
@@ -1025,8 +1161,8 @@ func PreConsumeUserSubscriptionExcludingPlanTitle(requestId string, userId int, 
 	if normalizedTitle == "" {
 		return PreConsumeUserSubscription(requestId, userId, modelName, quotaType, amount)
 	}
-	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, func(plan *SubscriptionPlan) bool {
-		return plan != nil && !strings.EqualFold(strings.TrimSpace(plan.Title), normalizedTitle)
+	return PreConsumeUserSubscriptionExcludingPlanMatcher(requestId, userId, modelName, quotaType, amount, func(plan *SubscriptionPlan) bool {
+		return plan != nil && strings.EqualFold(strings.TrimSpace(plan.Title), normalizedTitle)
 	})
 }
 

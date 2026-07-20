@@ -8,7 +8,6 @@ import (
 
 const (
 	FreeTrialGroup       = "Subscription"
-	FreeTrialPlanTitle   = "APIMaster $50 GPT Trial"
 	legacyFreeTrialGroup = "Free Trial"
 )
 

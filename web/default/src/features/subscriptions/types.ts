@@ -26,6 +26,7 @@ export const subscriptionPlanSchema = z.object({
   id: z.number(),
   title: z.string(),
   subtitle: z.string().optional(),
+  plan_type: z.string().optional(),
   price_amount: z.number(),
   currency: z.string().default('USD'),
   duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
@@ -112,6 +113,7 @@ export interface SelfSubscriptionData {
   billing_preference: string
   subscriptions: UserSubscriptionRecord[]
   all_subscriptions: UserSubscriptionRecord[]
+  plans?: PlanRecord[]
 }
 
 // ============================================================================

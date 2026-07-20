@@ -56,7 +56,7 @@ import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,
-  GPT_TRIAL_50U_PRESET,
+  GPT_TRIAL_PRESET,
   planToFormValues,
   formValuesToPlanPayload,
   type PlanFormValues,
@@ -162,9 +162,9 @@ export function SubscriptionsMutateDrawer({
                 type='button'
                 variant='outline'
                 size='sm'
-                onClick={() => form.reset(GPT_TRIAL_50U_PRESET)}
+                onClick={() => form.reset(GPT_TRIAL_PRESET)}
               >
-                APIMaster $50 GPT Trial Preset
+                APIMaster GPT Trial Preset
               </Button>
             </div>
           )}
@@ -208,6 +208,49 @@ export function SubscriptionsMutateDrawer({
                         placeholder={t('e.g. Suitable for light usage')}
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='plan_type'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Plan Type')}</FormLabel>
+                    <Select
+                      items={[
+                        {
+                          value: 'standard',
+                          label: t('Standard Subscription'),
+                        },
+                        { value: 'gpt_trial', label: t('GPT Trial') },
+                      ]}
+                      onValueChange={field.onChange}
+                      value={field.value || 'standard'}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value='standard'>
+                            {t('Standard Subscription')}
+                          </SelectItem>
+                          <SelectItem value='gpt_trial'>
+                            {t('GPT Trial')}
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t(
+                        'GPT Trial plans are issued through the signup sharing flow and only spend through Subscription keys.'
+                      )}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
