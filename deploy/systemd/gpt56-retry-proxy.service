@@ -5,9 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /opt/gpt56-retry-proxy/gpt56_retry_proxy.py --listen 0.0.0.0:3000 --upstream http://127.0.0.1:3001 --attempts 5 --upstream-concurrency 1
+ExecStart=/usr/bin/python3 /opt/gpt56-retry-proxy/gpt56_retry_proxy.py --listen 0.0.0.0:3000 --upstream http://127.0.0.1:3001 --attempts 5 --upstream-concurrency 800
 Restart=always
 RestartSec=2
+LimitNOFILE=65536:65536
 
 [Install]
 WantedBy=multi-user.target

@@ -32,8 +32,8 @@ class FakeStreamingResponse:
     def __exit__(self, exc_type, exc_value, traceback):
         return False
 
-    def readline(self):
-        return self.buffer.readline()
+    def readline(self, size=-1):
+        return self.buffer.readline(size)
 
     def read(self, size=-1):
         return self.buffer.read(size)
@@ -166,6 +166,37 @@ class RetryProxyTests(unittest.TestCase):
         urlopen.assert_called_once()
         handler.send_stream_headers.assert_called_once()
         self.assertEqual(handler.wfile.getvalue(), response.buffer.getvalue())
+
+    def test_streaming_failure_after_output_is_not_replayed(self):
+        response = FakeStreamingResponse(
+            b'data: {"type":"response.created"}\n\n'
+            b'data: {"type":"response.output_text.delta","delta":"visible"}\n\n'
+            b'data: {"type":"response.failed"}\n\n'
+        )
+        handler = self.make_streaming_handler()
+        PROXY.ProxyConfig.attempts = 5
+        PROXY.ProxyConfig.upstream_slots = threading.BoundedSemaphore(1)
+
+        with mock.patch.object(
+            PROXY.urllib.request,
+            "urlopen",
+            return_value=response,
+        ) as urlopen:
+            PROXY.RetryProxyHandler.forward_streaming(handler, b'{"stream":true}')
+
+        urlopen.assert_called_once()
+        handler.send_stream_headers.assert_called_once()
+        self.assertEqual(handler.wfile.getvalue(), response.buffer.getvalue())
+
+    def test_sse_prelude_reader_enforces_hard_byte_limit(self):
+        response = FakeStreamingResponse(b":" + (b"x" * 100) + b"\n\n")
+
+        block, reached_eof, reached_limit = PROXY.read_sse_block(response, 64)
+
+        self.assertEqual(len(block), 64)
+        self.assertFalse(reached_eof)
+        self.assertTrue(reached_limit)
+        self.assertGreater(len(response.read()), 0)
 
     def test_responses_requests_respect_upstream_concurrency(self):
         handler = object.__new__(PROXY.RetryProxyHandler)

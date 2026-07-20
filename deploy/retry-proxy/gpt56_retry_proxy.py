@@ -27,10 +27,11 @@ HOP_BY_HOP_HEADERS = {
 
 class ProxyConfig:
     upstream = "http://127.0.0.1:3000"
-    attempts = 4
+    attempts = 5
     timeout = 240
     backoff = 0.8
-    upstream_slots = threading.BoundedSemaphore(3)
+    upstream_concurrency = 800
+    upstream_slots = threading.BoundedSemaphore(upstream_concurrency)
 
 
 def is_response_failed(body: bytes) -> bool:
@@ -73,15 +74,18 @@ def classify_sse_block(block: bytes) -> str:
     return "commit"
 
 
-def read_sse_block(response) -> tuple[bytes, bool]:
+def read_sse_block(response, max_bytes: int) -> tuple[bytes, bool, bool]:
     lines = []
-    while True:
-        line = response.readline()
+    remaining = max_bytes
+    while remaining > 0:
+        line = response.readline(remaining)
         if not line:
-            return b"".join(lines), True
+            return b"".join(lines), True, False
         lines.append(line)
+        remaining -= len(line)
         if line in {b"\n", b"\r\n"}:
-            return b"".join(lines), False
+            return b"".join(lines), False, False
+    return b"".join(lines), False, True
 
 
 def copy_headers(handler: BaseHTTPRequestHandler) -> dict:
@@ -168,13 +172,19 @@ class RetryProxyHandler(BaseHTTPRequestHandler):
                         prelude = bytearray()
                         retry_early_failure = False
                         while len(prelude) < STREAM_PRELUDE_LIMIT:
-                            block, reached_eof = read_sse_block(resp)
+                            remaining = STREAM_PRELUDE_LIMIT - len(prelude)
+                            block, reached_eof, reached_limit = read_sse_block(
+                                resp,
+                                remaining,
+                            )
                             prelude.extend(block)
-                            classification = classify_sse_block(block)
+                            classification = (
+                                "commit" if reached_limit else classify_sse_block(block)
+                            )
                             if classification == "retry":
                                 retry_early_failure = True
                                 break
-                            if classification == "commit" or reached_eof:
+                            if classification == "commit" or reached_eof or reached_limit:
                                 break
 
                         if retry_early_failure:
@@ -326,13 +336,18 @@ def main():
     parser.add_argument("--upstream", default=ProxyConfig.upstream)
     parser.add_argument("--attempts", type=int, default=ProxyConfig.attempts)
     parser.add_argument("--timeout", type=int, default=ProxyConfig.timeout)
-    parser.add_argument("--upstream-concurrency", type=int, default=3)
+    parser.add_argument(
+        "--upstream-concurrency",
+        type=int,
+        default=ProxyConfig.upstream_concurrency,
+    )
     args = parser.parse_args()
 
     host, port_text = args.listen.rsplit(":", 1)
     ProxyConfig.upstream = args.upstream.rstrip("/")
     ProxyConfig.attempts = args.attempts
     ProxyConfig.timeout = args.timeout
+    ProxyConfig.upstream_concurrency = args.upstream_concurrency
     ProxyConfig.upstream_slots = threading.BoundedSemaphore(args.upstream_concurrency)
     server = RetryProxyServer((host, int(port_text)), RetryProxyHandler)
     print(
