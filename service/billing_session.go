@@ -497,7 +497,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 
-	trySubscription := func(requiredPlanTitle string) (*BillingSession, *types.NewAPIError) {
+	trySubscription := func(requiredPlanTitle string, excludedPlanTitle string) (*BillingSession, *types.NewAPIError) {
 		subConsume := int64(preConsumedQuota)
 		if subConsume <= 0 {
 			subConsume = 1
@@ -510,6 +510,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 				modelName:         relayInfo.OriginModelName,
 				amount:            subConsume,
 				RequiredPlanTitle: requiredPlanTitle,
+				ExcludedPlanTitle: excludedPlanTitle,
 			},
 		}
 		// 必须传 subConsume 而非 preConsumedQuota，保证 SubscriptionFunding.amount、
@@ -521,19 +522,19 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	}
 
 	if isFreeTrial {
-		return trySubscription(FreeTrialPlanTitle)
+		return trySubscription(FreeTrialPlanTitle, "")
 	}
 
 	switch pref {
 	case "subscription_only":
-		return trySubscription("")
+		return trySubscription("", FreeTrialPlanTitle)
 	case "wallet_only":
 		return tryWallet()
 	case "wallet_first":
 		session, err := tryWallet()
 		if err != nil {
 			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
-				return trySubscription("")
+				return trySubscription("", FreeTrialPlanTitle)
 			}
 			return nil, err
 		}
@@ -541,14 +542,14 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId)
+		hasSub, subCheckErr := model.HasActiveUserSubscriptionExcludingPlanTitle(relayInfo.UserId, FreeTrialPlanTitle)
 		if subCheckErr != nil {
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
 		if !hasSub {
 			return tryWallet()
 		}
-		session, apiErr := trySubscription("")
+		session, apiErr := trySubscription("", FreeTrialPlanTitle)
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
 				return tryWallet()

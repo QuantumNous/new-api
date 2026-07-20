@@ -687,17 +687,48 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 // HasActiveUserSubscription returns whether the user has any active subscription.
 // This is a lightweight existence check to avoid heavy pre-consume transactions.
 func HasActiveUserSubscription(userId int) (bool, error) {
+	return hasActiveUserSubscription(userId, nil)
+}
+
+// HasActiveUserSubscriptionExcludingPlanTitle returns whether the user has any
+// active subscription except the excluded plan title.
+func HasActiveUserSubscriptionExcludingPlanTitle(userId int, excludedPlanTitle string) (bool, error) {
+	normalizedTitle := strings.TrimSpace(excludedPlanTitle)
+	if normalizedTitle == "" {
+		return HasActiveUserSubscription(userId)
+	}
+	return hasActiveUserSubscription(userId, func(plan *SubscriptionPlan) bool {
+		return plan != nil && !strings.EqualFold(strings.TrimSpace(plan.Title), normalizedTitle)
+	})
+}
+
+func hasActiveUserSubscription(userId int, planMatcher func(*SubscriptionPlan) bool) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
-	var count int64
-	if err := DB.Model(&UserSubscription{}).
+	var subs []UserSubscription
+	if err := DB.
 		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
-		Count(&count).Error; err != nil {
+		Find(&subs).Error; err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	if len(subs) == 0 {
+		return false, nil
+	}
+	if planMatcher == nil {
+		return true, nil
+	}
+	for _, sub := range subs {
+		plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId)
+		if err != nil {
+			return false, err
+		}
+		if planMatcher(plan) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
@@ -984,6 +1015,18 @@ func PreConsumeUserSubscriptionByPlanTitle(requestId string, userId int, modelNa
 	}
 	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, func(plan *SubscriptionPlan) bool {
 		return plan != nil && strings.EqualFold(strings.TrimSpace(plan.Title), requiredPlanTitle)
+	})
+}
+
+// PreConsumeUserSubscriptionExcludingPlanTitle pre-consumes only from active
+// subscriptions whose plan title does not match the excluded plan.
+func PreConsumeUserSubscriptionExcludingPlanTitle(requestId string, userId int, modelName string, quotaType int, amount int64, excludedPlanTitle string) (*SubscriptionPreConsumeResult, error) {
+	normalizedTitle := strings.TrimSpace(excludedPlanTitle)
+	if normalizedTitle == "" {
+		return PreConsumeUserSubscription(requestId, userId, modelName, quotaType, amount)
+	}
+	return preConsumeUserSubscription(requestId, userId, modelName, quotaType, amount, func(plan *SubscriptionPlan) bool {
+		return plan != nil && !strings.EqualFold(strings.TrimSpace(plan.Title), normalizedTitle)
 	})
 }
 
