@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import { X } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,9 +52,11 @@ export function DataTableBulkActions<TData>({
   entityName,
   children,
 }: DataTableBulkActionsProps<TData>): React.ReactNode | null {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedCount = selectedRows.length
+  const pluralSuffix =
+    selectedCount > 1 && i18n.resolvedLanguage?.startsWith('en') ? 's' : ''
   const toolbarRef = useRef<HTMLDivElement>(null)
   const buttonsRef = useRef<NodeListOf<HTMLButtonElement> | null>(null)
   const [announcement, setAnnouncement] = useState('')
@@ -66,7 +68,7 @@ export function DataTableBulkActions<TData>({
   // Announce selection changes to screen readers
   useEffect(() => {
     if (selectedCount > 0) {
-      const message = `${selectedCount} ${entityName}${selectedCount > 1 ? 's' : ''} selected. Bulk actions toolbar is available.`
+      const message = `${selectedCount} ${entityName}${pluralSuffix} selected. Bulk actions toolbar is available.`
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnnouncement(message)
 
@@ -74,7 +76,7 @@ export function DataTableBulkActions<TData>({
       const timer = setTimeout(() => setAnnouncement(''), 3000)
       return () => clearTimeout(timer)
     }
-  }, [selectedCount, entityName])
+  }, [selectedCount, entityName, pluralSuffix])
 
   const handleClearSelection = () => {
     table.resetRowSelection()
@@ -84,31 +86,32 @@ export function DataTableBulkActions<TData>({
     const buttons = buttonsRef.current
     if (!buttons) return
 
-    const currentIndex = Array.from(buttons).findIndex(
-      (button) => button === document.activeElement
+    const buttonList = [...buttons]
+    const currentIndex = buttonList.indexOf(
+      document.activeElement as HTMLButtonElement
     )
 
     switch (event.key) {
       case 'ArrowRight': {
         event.preventDefault()
-        const nextIndex = (currentIndex + 1) % buttons.length
-        buttons[nextIndex]?.focus()
+        const nextIndex = (currentIndex + 1) % buttonList.length
+        buttonList.at(nextIndex)?.focus()
         break
       }
       case 'ArrowLeft': {
         event.preventDefault()
         const prevIndex =
-          currentIndex === 0 ? buttons.length - 1 : currentIndex - 1
-        buttons[prevIndex]?.focus()
+          currentIndex === 0 ? buttonList.length - 1 : currentIndex - 1
+        buttonList.at(prevIndex)?.focus()
         break
       }
       case 'Home':
         event.preventDefault()
-        buttons[0]?.focus()
+        buttonList.at(0)?.focus()
         break
       case 'End':
         event.preventDefault()
-        buttons[buttons.length - 1]?.focus()
+        buttonList.at(-1)?.focus()
         break
       case 'Escape': {
         // Check if the Escape key came from a dropdown trigger or content
@@ -161,7 +164,7 @@ export function DataTableBulkActions<TData>({
       <div
         ref={toolbarRef}
         role='toolbar'
-        aria-label={`Bulk actions for ${selectedCount} selected ${entityName}${selectedCount > 1 ? 's' : ''}`}
+        aria-label={`Bulk actions for ${selectedCount} selected ${entityName}${pluralSuffix}`}
         aria-describedby='bulk-actions-description'
         tabIndex={-1}
         onKeyDown={handleKeyDown}
@@ -219,7 +222,7 @@ export function DataTableBulkActions<TData>({
             </Badge>{' '}
             <span className='hidden sm:inline'>
               {entityName}
-              {selectedCount > 1 ? 's' : ''}
+              {pluralSuffix}
             </span>{' '}
             {t('selected')}
           </div>
