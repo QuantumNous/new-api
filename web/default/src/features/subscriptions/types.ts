@@ -113,8 +113,33 @@ export interface SubscriptionPayResponse {
   url?: string
 }
 
+export type SubscriptionGrantMode = 'create' | 'renew' | 'replace'
+
 export interface CreateUserSubscriptionRequest {
   plan_id: number
+  mode?: SubscriptionGrantMode
+  // Unix seconds. 0 or omitted means the plan's default duration.
+  end_time?: number
+}
+
+export interface BatchBindSubscriptionRequest {
+  user_ids: number[]
+  plan_id: number
+  mode?: SubscriptionGrantMode
+  end_time?: number
+}
+
+export interface BatchBindSubscriptionFailure {
+  user_id: number
+  reason: string
+}
+
+export interface BatchBindSubscriptionResult {
+  plan_id: number
+  plan_title: string
+  success_count: number
+  failed_count: number
+  failed: BatchBindSubscriptionFailure[]
 }
 
 export interface ResetUserSubscriptionsRequest {

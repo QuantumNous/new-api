@@ -20,8 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
+  DatePicker,
   Empty,
   Modal,
+  Radio,
+  RadioGroup,
   Select,
   SideSheet,
   Space,
@@ -81,6 +84,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
 
   const [plans, setPlans] = useState([]);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
+  const [grantMode, setGrantMode] = useState('create');
+  const [customEndTime, setCustomEndTime] = useState(null);
 
   const [subs, setSubs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -111,6 +116,18 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       value: p?.plan?.id,
     }));
   }, [plans]);
+
+  const grantModeHint = useMemo(() => {
+    if (grantMode === 'renew') {
+      return t(
+        '不新增记录，因此不占用套餐限购名额。留空到期时间则在现有到期时间基础上顺延一个套餐周期；指定到期时间则直接设为该时间。若没有生效中的记录，则自动新增一条。',
+      );
+    }
+    if (grantMode === 'replace') {
+      return t('先作废该用户同套餐生效中的订阅，再新建一条。');
+    }
+    return t('总是新增一条订阅记录。');
+  }, [grantMode, t]);
 
   const loadPlans = async () => {
     setPlansLoading(true);
@@ -152,6 +169,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   useEffect(() => {
     if (!visible) return;
     setSelectedPlanId(null);
+    setGrantMode('create');
+    setCustomEndTime(null);
     setCurrentPage(1);
     loadPlans();
     loadUserSubscriptions();
@@ -176,12 +195,17 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         `/api/subscription/admin/users/${user.id}/subscriptions`,
         {
           plan_id: selectedPlanId,
+          mode: grantMode,
+          end_time: customEndTime
+            ? Math.floor(new Date(customEndTime).getTime() / 1000)
+            : 0,
         },
       );
       if (res.data?.success) {
         const msg = res.data?.data?.message;
         showSuccess(msg ? msg : t('新增成功'));
         setSelectedPlanId(null);
+        setCustomEndTime(null);
         await loadUserSubscriptions();
         onSuccess?.();
       } else {
@@ -372,8 +396,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     >
       <div className='p-4'>
         {/* 顶部操作栏：新增订阅 */}
-        <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4'>
-          <div className='flex gap-2 flex-1'>
+        <div className='flex flex-col gap-3 mb-4'>
+          <div className='flex flex-col md:flex-row md:items-center gap-2'>
             <Select
               placeholder={t('选择订阅套餐')}
               optionList={planOptions}
@@ -382,6 +406,14 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
               loading={plansLoading}
               filter
               style={{ minWidth: isMobile ? undefined : 300, flex: 1 }}
+            />
+            <DatePicker
+              type='dateTime'
+              placeholder={t('自定义到期时间（可选，留空按套餐周期）')}
+              value={customEndTime}
+              onChange={setCustomEndTime}
+              showClear
+              style={{ minWidth: isMobile ? undefined : 260 }}
             />
             <Button
               type='primary'
@@ -392,6 +424,20 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
             >
               {t('新增订阅')}
             </Button>
+          </div>
+          <div className='flex flex-col gap-1'>
+            <RadioGroup
+              type='button'
+              value={grantMode}
+              onChange={(e) => setGrantMode(e.target.value)}
+            >
+              <Radio value='create'>{t('新增记录')}</Radio>
+              <Radio value='renew'>{t('续期现有')}</Radio>
+              <Radio value='replace'>{t('替换现有')}</Radio>
+            </RadioGroup>
+            <Text type='tertiary' size='small'>
+              {grantModeHint}
+            </Text>
           </div>
         </div>
 
