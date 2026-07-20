@@ -61,6 +61,9 @@ func getClinkCancelURL(custom string) string {
 }
 
 func RequestClinkPay(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	if !isClinkTopUpEnabled() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Clink 充值未启用"})
 		return
@@ -134,8 +137,8 @@ func RequestClinkPay(c *gin.Context) {
 	}
 
 	session, err := service.CreateClinkCheckoutSession(c.Request.Context(), &service.ClinkCheckoutCreateRequest{
-		CustomerEmail:  user.Email,
-		OriginalAmount: chargedMoney,
+		CustomerEmail:       user.Email,
+		OriginalAmount:      chargedMoney,
 		OriginalCurrency:    currency,
 		MerchantReferenceID: tradeNo,
 		UIMode:              "hostedPage",

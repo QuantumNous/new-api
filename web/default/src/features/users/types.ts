@@ -65,6 +65,7 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   country: z.string().optional(),
   language: z.string().optional(),
+  topup_forbidden: z.boolean().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
 })
@@ -142,6 +143,8 @@ export type ManageUserAction =
   | 'demote'
   | 'enable'
   | 'disable'
+  | 'forbid_topup'
+  | 'allow_topup'
   | 'delete'
   | 'add_quota'
 

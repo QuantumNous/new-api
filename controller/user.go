@@ -1196,6 +1196,14 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 		user.Role = common.RoleCommonUser
+	case "forbid_topup":
+		currentSetting := user.GetSetting()
+		currentSetting.DisableTopup = true
+		user.SetSetting(currentSetting)
+	case "allow_topup":
+		currentSetting := user.GetSetting()
+		currentSetting.DisableTopup = false
+		user.SetSetting(currentSetting)
 	case "add_quota":
 		adminName := c.GetString("username")
 		adminId := c.GetInt("id")
@@ -1261,7 +1269,7 @@ func ManageUser(c *gin.Context) {
 	// 避免在 Redis TTL 过期前仍使用旧状态（尤其是禁用后仍可发起请求的问题）。
 	// InvalidateUserCache 会让下一次 GetUserCache 从数据库重新加载，
 	// InvalidateUserTokensCache 则确保令牌侧的缓存也同步刷新。
-	if req.Action == "disable" || req.Action == "promote" || req.Action == "demote" {
+	if req.Action == "disable" || req.Action == "promote" || req.Action == "demote" || req.Action == "forbid_topup" || req.Action == "allow_topup" {
 		if err := model.InvalidateUserCache(user.Id); err != nil {
 			common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", user.Id, err.Error()))
 		}
@@ -1270,8 +1278,9 @@ func ManageUser(c *gin.Context) {
 		}
 	}
 	clearUser := model.User{
-		Role:   user.Role,
-		Status: user.Status,
+		Role:           user.Role,
+		Status:         user.Status,
+		TopupForbidden: user.IsTopupForbidden(),
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

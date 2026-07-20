@@ -401,6 +401,9 @@ type submitCryptoRequest struct {
 }
 
 func SubmitCryptoDeposit(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	userId := c.GetInt("id")
 	if userId == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "unauthorized"})

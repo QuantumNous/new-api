@@ -27,6 +27,9 @@ type PlategaPayRequest struct {
 }
 
 func RequestPlategaAmount(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	var req PlategaPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgInvalidParams)})
@@ -53,9 +56,9 @@ func RequestPlategaAmount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
-			"rub_amount":  fmt.Sprintf("%.2f", rubAmount),
-			"usd_amount":  req.Amount,
-			"usd_to_rub":  setting.PlategaUSDRate,
+			"rub_amount": fmt.Sprintf("%.2f", rubAmount),
+			"usd_amount": req.Amount,
+			"usd_to_rub": setting.PlategaUSDRate,
 		},
 	})
 }
@@ -111,6 +114,9 @@ func getPlategaFailedURL() string {
 }
 
 func RequestPlategaPay(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	if !isPlategaTopUpEnabled() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Platega 充值未启用"})
 		return

@@ -25,6 +25,44 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const topupForbiddenMessage = "Top-up is disabled for this account"
+
+func isCurrentUserTopupForbidden(c *gin.Context) bool {
+	userID := c.GetInt("id")
+	if userID == 0 {
+		return false
+	}
+	forbidden, err := model.IsUserTopupForbidden(userID)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to load topup restriction for user %d: %s", userID, err.Error()))
+		return false
+	}
+	return forbidden
+}
+
+func abortIfTopupForbidden(c *gin.Context) bool {
+	if !isCurrentUserTopupForbidden(c) {
+		return false
+	}
+	common.ApiErrorMsg(c, topupForbiddenMessage)
+	return true
+}
+
+func applyTopupRestriction(data gin.H) {
+	data["topup_forbidden"] = true
+	data["enable_online_topup"] = false
+	data["enable_stripe_topup"] = false
+	data["enable_paypal_topup"] = false
+	data["enable_creem_topup"] = false
+	data["enable_waffo_topup"] = false
+	data["enable_waffo_pancake_topup"] = false
+	data["enable_platega_topup"] = false
+	data["enable_clink_topup"] = false
+	data["pay_methods"] = []map[string]string{}
+	data["waffo_pay_methods"] = []map[string]string{}
+	data["creem_products"] = []interface{}{}
+}
+
 func GetTopUpInfo(c *gin.Context) {
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
@@ -159,6 +197,9 @@ func GetTopUpInfo(c *gin.Context) {
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
+	}
+	if isCurrentUserTopupForbidden(c) {
+		applyTopupRestriction(data)
 	}
 	common.ApiSuccess(c, data)
 }
@@ -296,6 +337,9 @@ func getMinTopup() int64 {
 }
 
 func RequestEpay(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
@@ -528,6 +572,9 @@ func EpayNotify(c *gin.Context) {
 }
 
 func RequestAmount(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	var req AmountRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {

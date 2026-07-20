@@ -130,6 +130,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const isDisabled = user.status === USER_STATUS.DISABLED
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
+  const isTopupForbidden = user.topup_forbidden === true
 
   if (isUserDeleted(user)) {
     return null
@@ -215,6 +216,18 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             }}
           >
             {t('Manage Subscriptions')}
+            <DropdownMenuShortcut>
+              <CreditCard size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() =>
+              handleManage(isTopupForbidden ? 'allow_topup' : 'forbid_topup')
+            }
+            disabled={isRoot}
+          >
+            {t(isTopupForbidden ? 'Allow top-up' : 'Forbid top-up')}
             <DropdownMenuShortcut>
               <CreditCard size={16} />
             </DropdownMenuShortcut>

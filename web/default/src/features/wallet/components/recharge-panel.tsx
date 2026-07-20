@@ -25,8 +25,15 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CryptoDepositModal } from './crypto-deposit-modal'
-import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getUserBillingHistory, getFirstTopupPromo } from '../api'
-import type { FirstTopupPromoInfo } from '../api'
+import {
+  getTopupInfo,
+  requestPayment,
+  requestPayPalPayment,
+  isApiSuccess,
+  getUserBillingHistory,
+  getFirstTopupPromo,
+  type FirstTopupPromoInfo,
+} from '../api'
 import { paymentErrorMessage } from '../lib/payment'
 import { GLASS_CARD_CLS, CLINK_LOCAL_METHODS } from '../constants'
 import { useWaffoPancakePayment } from '../hooks/use-waffo-pancake-payment'
@@ -232,9 +239,18 @@ export function RechargePanel({ onSuccess, onPaymentAttempted, onPaymentSettled 
   const pancakeEnabled = topupInfo?.enable_waffo_pancake_topup ?? false
   const plategaEnabled = topupInfo?.enable_platega_topup ?? false
   const clinkEnabled = topupInfo?.enable_clink_topup ?? false
+  const topupForbidden = topupInfo?.topup_forbidden ?? false
   const epayMethods = topupInfo?.pay_methods ?? []
   const hasAlipay = epayEnabled && epayMethods.some((m) => m.type === 'alipay')
   const hasWechat = epayEnabled && epayMethods.some((m) => m.type === 'wxpay')
+  const hasRechargeChannels =
+    paypalEnabled ||
+    pancakeEnabled ||
+    plategaEnabled ||
+    clinkEnabled ||
+    hasAlipay ||
+    hasWechat ||
+    !topupForbidden
 
   return (
     <>
@@ -314,7 +330,8 @@ export function RechargePanel({ onSuccess, onPaymentAttempted, onPaymentSettled 
             <div className='text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wider'>
               {t('Payment Method')}
             </div>
-            <div className='grid grid-cols-2 gap-2 sm:grid-cols-3'>
+            {hasRechargeChannels ? (
+              <div className='grid grid-cols-2 gap-2 sm:grid-cols-3'>
 
               {paypalEnabled && (
                 <button
@@ -436,25 +453,27 @@ export function RechargePanel({ onSuccess, onPaymentAttempted, onPaymentSettled 
                 </TooltipProvider>
               )}
 
-              <button
-                type='button'
-                disabled={effectiveAmount <= 0}
-                onClick={() => { handleMethodSelect('crypto'); setCryptoOpen(true) }}
-                className={cn(
-                  'flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40',
-                  selectedMethod === 'crypto'
-                    ? 'border-cyan-400 bg-cyan-50'
-                    : 'border-border bg-white hover:border-cyan-400'
-                )}
-              >
-                <div className='flex size-9 shrink-0 items-center justify-center rounded-lg' style={{ background: 'linear-gradient(135deg, #22d3ee, #0891b2)' }}>
-                  <Bitcoin className='size-4 text-white' />
-                </div>
-                <div className='min-w-0'>
-                  <div className='truncate text-sm font-semibold text-gray-800'>Crypto</div>
-                  <div className='truncate text-[11px] text-gray-400'>USDT / USDC</div>
-                </div>
-              </button>
+              {!topupForbidden && (
+                <button
+                  type='button'
+                  disabled={effectiveAmount <= 0}
+                  onClick={() => { handleMethodSelect('crypto'); setCryptoOpen(true) }}
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40',
+                    selectedMethod === 'crypto'
+                      ? 'border-cyan-400 bg-cyan-50'
+                      : 'border-border bg-white hover:border-cyan-400'
+                  )}
+                >
+                  <div className='flex size-9 shrink-0 items-center justify-center rounded-lg' style={{ background: 'linear-gradient(135deg, #22d3ee, #0891b2)' }}>
+                    <Bitcoin className='size-4 text-white' />
+                  </div>
+                  <div className='min-w-0'>
+                    <div className='truncate text-sm font-semibold text-gray-800'>Crypto</div>
+                    <div className='truncate text-[11px] text-gray-400'>USDT / USDC</div>
+                  </div>
+                </button>
+              )}
 
               {hasAlipay && (
                 <button
@@ -521,8 +540,12 @@ export function RechargePanel({ onSuccess, onPaymentAttempted, onPaymentSettled 
                   <div className='truncate text-[11px] text-gray-400'>{t('Coming Soon')}</div>
                 </div>
               </button>
-
-            </div>
+              </div>
+            ) : (
+              <div className='text-muted-foreground rounded-xl border border-dashed bg-white px-4 py-6 text-center text-sm'>
+                {t('No top-up channels available')}
+              </div>
+            )}
 
             <div className='mt-3 flex items-center justify-between'>
               {effectiveAmount > 0

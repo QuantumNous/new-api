@@ -51,6 +51,9 @@ type payPalCaptureResource struct {
 }
 
 func RequestPayPalAmount(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	var req PayPalPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgInvalidParams)})
@@ -75,6 +78,9 @@ func RequestPayPalAmount(c *gin.Context) {
 }
 
 func RequestPayPalPay(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	var req PayPalPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgInvalidParams)})

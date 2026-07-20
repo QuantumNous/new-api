@@ -237,3 +237,11 @@ func GetUserLanguage(userId int) string {
 	}
 	return userCache.GetSetting().Language
 }
+
+func IsUserTopupForbidden(userId int) (bool, error) {
+	setting, err := getUserSettingCache(userId)
+	if err != nil {
+		return false, err
+	}
+	return setting.DisableTopup, nil
+}

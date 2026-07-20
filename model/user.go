@@ -57,6 +57,7 @@ type User struct {
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	Country          string         `json:"country,omitempty" gorm:"type:varchar(10);default:''"`
 	Language         string         `json:"language,omitempty" gorm:"type:varchar(10);default:''"`
+	TopupForbidden   bool           `json:"topup_forbidden" gorm:"-:all"`
 
 	RegistrationChannelCode  string `json:"registration_channel_code,omitempty" gorm:"-:all"`
 	RegistrationChannelName  string `json:"registration_channel_name,omitempty" gorm:"-:all"`
@@ -108,6 +109,20 @@ func (user *User) SetSetting(setting dto.UserSetting) {
 		return
 	}
 	user.Setting = string(settingBytes)
+}
+
+func (user *User) ApplyDerivedFlags() {
+	if user == nil {
+		return
+	}
+	user.TopupForbidden = user.GetSetting().DisableTopup
+}
+
+func (user *User) IsTopupForbidden() bool {
+	if user == nil {
+		return false
+	}
+	return user.GetSetting().DisableTopup
 }
 
 // 根据用户角色生成默认的边栏配置
@@ -236,6 +251,9 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	}
 
 	EnrichUsersRegistrationChannels(users)
+	for _, user := range users {
+		user.ApplyDerivedFlags()
+	}
 
 	return users, total, nil
 }
@@ -305,6 +323,9 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	}
 
 	EnrichUsersRegistrationChannels(users)
+	for _, user := range users {
+		user.ApplyDerivedFlags()
+	}
 
 	return users, total, nil
 }
@@ -320,6 +341,7 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	} else {
 		err = DB.Omit("password").First(&user, "id = ?", id).Error
 	}
+	user.ApplyDerivedFlags()
 	return &user, err
 }
 

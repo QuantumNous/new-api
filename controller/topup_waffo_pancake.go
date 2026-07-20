@@ -24,6 +24,9 @@ type WaffoPancakePayRequest struct {
 }
 
 func RequestWaffoPancakeAmount(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	var req WaffoPancakePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
@@ -111,6 +114,9 @@ func getWaffoPancakeReturnURL() string {
 }
 
 func RequestWaffoPancakePay(c *gin.Context) {
+	if abortIfTopupForbidden(c) {
+		return
+	}
 	if !setting.WaffoPancakeEnabled {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 支付未启用"})
 		return
