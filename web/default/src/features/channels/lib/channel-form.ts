@@ -77,6 +77,7 @@ export const channelFormSchema = z.object({
   volcengine_video_api_style: z
     .enum(['auto', 'official', 'openai'])
     .optional(), // VolcEngine/DoubaoVideo: video API path style
+  megabyai_face_pass: z.boolean().optional(), // megabyai: face-pass (default on)
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -136,6 +137,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_speed: false,
   claude_beta_query: false,
   volcengine_video_api_style: 'auto',
+  megabyai_face_pass: true,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -191,6 +193,7 @@ export function transformChannelToFormDefaults(
   let allowSpeed = false
   let claudeBetaQuery = false
   let volcengineVideoApiStyle: 'auto' | 'official' | 'openai' = 'auto'
+  let megabyaiFacePass = true
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -215,6 +218,8 @@ export function transformChannelToFormDefaults(
       ) {
         volcengineVideoApiStyle = parsed.volcengine_video_api_style
       }
+      // nil / missing => on; only explicit false turns off
+      megabyaiFacePass = parsed.megabyai_face_pass !== false
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -270,6 +275,7 @@ export function transformChannelToFormDefaults(
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
     volcengine_video_api_style: volcengineVideoApiStyle,
+    megabyai_face_pass: megabyaiFacePass,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -382,6 +388,13 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('volcengine_video_api_style' in settingsObj) {
     delete settingsObj.volcengine_video_api_style
+  }
+
+  // megabyai (type 65): face-pass (default on)
+  if (formData.type === 65) {
+    settingsObj.megabyai_face_pass = formData.megabyai_face_pass !== false
+  } else if ('megabyai_face_pass' in settingsObj) {
+    delete settingsObj.megabyai_face_pass
   }
 
   // Upstream model update settings (for model-fetchable channel types)

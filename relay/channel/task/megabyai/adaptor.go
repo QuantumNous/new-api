@@ -56,12 +56,16 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+	facePass    bool
+	proxy       string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = strings.TrimRight(strings.TrimSpace(info.ChannelBaseUrl), "/")
 	a.apiKey = info.ApiKey
+	a.facePass = megabyaiFacePassEnabled(info.ChannelOtherSettings)
+	a.proxy = strings.TrimSpace(info.ChannelSetting.Proxy)
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
@@ -102,6 +106,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err := rejectUnsupportedFrames(bodyMap); err != nil {
 			return nil, err
 		}
+		if a.facePass {
+			if err := applyFacePass(bodyMap, nil, a.proxy); err != nil {
+				return nil, errors.Wrap(err, "megabyai_face_pass_failed")
+			}
+		}
 		normalizeCreateBody(bodyMap)
 		newBody, err := common.Marshal(bodyMap)
 		if err != nil {
@@ -119,6 +128,15 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		bodyMap["model"] = info.UpstreamModelName
 		if err := rejectUnsupportedFrames(bodyMap); err != nil {
 			return nil, err
+		}
+		if a.facePass {
+			blobs, err := collectMultipartImageBlobs(formData)
+			if err != nil {
+				return nil, errors.Wrap(err, "read_multipart_images_failed")
+			}
+			if err := applyFacePass(bodyMap, blobs, a.proxy); err != nil {
+				return nil, errors.Wrap(err, "megabyai_face_pass_failed")
+			}
 		}
 		normalizeCreateBody(bodyMap)
 		newBody, err := common.Marshal(bodyMap)

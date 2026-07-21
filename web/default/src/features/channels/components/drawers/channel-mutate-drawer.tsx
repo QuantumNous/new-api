@@ -696,6 +696,9 @@ export function ChannelMutateDrawer({
       if (!currentBaseUrlValue || currentBaseUrlValue.trim() === '') {
         form.setValue('base_url', 'https://newapi.megabyai.cc')
       }
+      if (form.getValues('megabyai_face_pass') === undefined) {
+        form.setValue('megabyai_face_pass', true)
+      }
     }
   }, [currentType, isEditing, form])
 
@@ -1843,6 +1846,34 @@ export function ChannelMutateDrawer({
                           {t('Enter custom API endpoint URL')}
                         </FormDescription>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* megabyai face-pass */}
+                {currentType === 65 && (
+                  <FormField
+                    control={form.control}
+                    name='megabyai_face_pass'
+                    render={({ field }) => (
+                      <FormItem className='flex items-center justify-between gap-3 rounded-lg border px-4 py-3'>
+                        <div className='space-y-0.5'>
+                          <FormLabel className='text-sm'>
+                            {t('Face pass')}
+                          </FormLabel>
+                          <FormDescription>
+                            {t(
+                              'When enabled, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for MegaByAI.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value !== false}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />

@@ -242,7 +242,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'videos-standard, videos-fast, videos-mini (per-task)',
       baseUrl: 'Default: https://newapi.megabyai.cc',
       other:
-        'Async video: POST /v1/videos, poll GET /v1/videos/{id}, content GET .../content. Maps size→ratio/resolution, images→referenceImages. Supports referenceVideos/referenceAudios. No first_image/last_image.',
+        'Async video: POST /v1/videos, poll GET /v1/videos/{id}, content GET .../content. Maps size→ratio/resolution, images→referenceImages. Supports referenceVideos/referenceAudios. No first_image/last_image. Optional Face pass (default on): resize max edge 1600 → WebP → face.83zi.com → upstream.',
     },
   },
 }

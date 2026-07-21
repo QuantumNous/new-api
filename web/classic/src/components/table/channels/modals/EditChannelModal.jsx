@@ -227,6 +227,7 @@ const EditChannelModal = (props) => {
     allow_speed: false,
     claude_beta_query: false,
     volcengine_video_api_style: 'auto',
+    megabyai_face_pass: true,
     upstream_model_update_check_enabled: false,
     upstream_model_update_auto_sync_enabled: false,
     upstream_model_update_last_check_time: 0,
@@ -751,6 +752,14 @@ const EditChannelModal = (props) => {
             ),
           }));
           break;
+        case 65: // megabyai
+          localModels = ['videos-standard', 'videos-fast', 'videos-mini'];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://newapi.megabyai.cc',
+            megabyai_face_pass: true,
+          }));
+          break;
         default:
           localModels = getChannelModels(value);
           break;
@@ -997,6 +1006,7 @@ const EditChannelModal = (props) => {
           } else {
             data.volcengine_video_api_style = 'auto';
           }
+          data.megabyai_face_pass = parsedSettings.megabyai_face_pass !== false;
           data.upstream_model_update_check_enabled =
             parsedSettings.upstream_model_update_check_enabled === true;
           data.upstream_model_update_auto_sync_enabled =
@@ -1028,6 +1038,7 @@ const EditChannelModal = (props) => {
           data.allow_speed = false;
           data.claude_beta_query = false;
           data.volcengine_video_api_style = 'auto';
+          data.megabyai_face_pass = true;
           data.upstream_model_update_check_enabled = false;
           data.upstream_model_update_auto_sync_enabled = false;
           data.upstream_model_update_last_check_time = 0;
@@ -1047,6 +1058,7 @@ const EditChannelModal = (props) => {
         data.allow_speed = false;
         data.claude_beta_query = false;
         data.volcengine_video_api_style = 'auto';
+        data.megabyai_face_pass = true;
         data.upstream_model_update_check_enabled = false;
         data.upstream_model_update_auto_sync_enabled = false;
         data.upstream_model_update_last_check_time = 0;
@@ -1905,6 +1917,13 @@ const EditChannelModal = (props) => {
       delete settings.volcengine_video_api_style;
     }
 
+    // type === 65 (megabyai): face-pass (default on)
+    if (localInputs.type === 65) {
+      settings.megabyai_face_pass = localInputs.megabyai_face_pass !== false;
+    } else if ('megabyai_face_pass' in settings) {
+      delete settings.megabyai_face_pass;
+    }
+
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
     settings.upstream_model_update_auto_sync_enabled =
@@ -1951,6 +1970,7 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_speed;
     delete localInputs.claude_beta_query;
     delete localInputs.volcengine_video_api_style;
+    delete localInputs.megabyai_face_pass;
     delete localInputs.upstream_model_update_check_enabled;
     delete localInputs.upstream_model_update_auto_sync_enabled;
     delete localInputs.upstream_model_update_last_check_time;
@@ -2760,6 +2780,25 @@ const EditChannelModal = (props) => {
                                     ? 'megabyai 渠道说明'
                                     : '异步视频渠道通用说明',
                         )}
+                      />
+                    )}
+
+                    {inputs.type === 65 && (
+                      <Form.Switch
+                        field='megabyai_face_pass'
+                        label={t('过人脸')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange(
+                            'megabyai_face_pass',
+                            value,
+                          )
+                        }
+                        extraText={t(
+                          '开启后参考图会先压缩（最长边≤1600）并转为 WebP，再经 face.83zi.com 处理后提交上游。默认开启。',
+                        )}
+                        initValue={inputs.megabyai_face_pass !== false}
                       />
                     )}
 
