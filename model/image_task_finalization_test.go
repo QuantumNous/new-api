@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -181,6 +182,65 @@ func TestFinalizeImageTaskFailureRefund(t *testing.T) {
 	assert.Zero(t, token.UsedQuota)
 	require.NoError(t, DB.First(channel, channel.Id).Error)
 	assert.Zero(t, channel.UsedQuota)
+}
+
+func TestFinalizeImageTaskFailurePreservesLegacyUserUsedQuota(t *testing.T) {
+	if strconv.IntSize < 64 {
+		t.Skip("legacy compatibility values require a 64-bit Go int")
+	}
+	truncateTables(t)
+	user, token, channel, task := seedImageTaskBillingState(t, "failure-legacy-user-used", 100)
+	legacyUsedQuota := int(int64(common.MaxQuota) + 100)
+	require.NoError(t, DB.Model(user).Update("used_quota", legacyUsedQuota).Error)
+	task.FailReason = "upstream failed"
+
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusFailure, 0)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+	assert.Equal(t, TaskStatus(TaskStatusFailure), finalized.Task.Status)
+
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, 1000, user.Quota)
+	assert.Equal(t, legacyUsedQuota, user.UsedQuota)
+	assert.Equal(t, 1, user.RequestCount)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, 1000, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	require.NoError(t, DB.First(channel, channel.Id).Error)
+	assert.Zero(t, channel.UsedQuota)
+}
+
+func TestFinalizeImageTaskSuccessIncrementsLegacyUserUsedQuota(t *testing.T) {
+	if strconv.IntSize < 64 {
+		t.Skip("legacy compatibility values require a 64-bit Go int")
+	}
+	truncateTables(t)
+	user, token, channel, task := seedImageTaskBillingState(t, "success-legacy-user-used", 100)
+	legacyUsedQuota := int(int64(common.MaxQuota) + 100)
+	require.NoError(t, DB.Model(user).Update("used_quota", legacyUsedQuota).Error)
+
+	won, err := task.TransitionImageTaskToFinalizing(TaskStatusSuccess, 140)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	finalized, err := FinalizeImageTask(task.TaskID)
+	require.NoError(t, err)
+	require.True(t, finalized.Applied)
+	assert.Equal(t, TaskStatus(TaskStatusSuccess), finalized.Task.Status)
+
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, 860, user.Quota)
+	assert.Equal(t, legacyUsedQuota+140, user.UsedQuota)
+	assert.Equal(t, 1, user.RequestCount)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, 860, token.RemainQuota)
+	assert.Equal(t, 140, token.UsedQuota)
+	require.NoError(t, DB.First(channel, channel.Id).Error)
+	assert.EqualValues(t, 140, channel.UsedQuota)
 }
 
 func TestFinalizeImageTaskSettlesSoftDeletedTokenLedger(t *testing.T) {
