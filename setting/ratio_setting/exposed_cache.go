@@ -42,11 +42,12 @@ func GetExposedData() gin.H {
 		return cloneGinH(c.data)
 	}
 	newData := gin.H{
-		"model_ratio":        GetModelRatioCopy(),
-		"completion_ratio":   GetCompletionRatioCopy(),
-		"cache_ratio":        GetCacheRatioCopy(),
-		"create_cache_ratio": GetCreateCacheRatioCopy(),
-		"model_price":        GetModelPriceCopy(),
+		"model_ratio":            GetModelRatioCopy(),
+		"completion_ratio":       GetCompletionRatioCopy(),
+		"cache_ratio":            GetCacheRatioCopy(),
+		"create_cache_ratio":     GetCreateCacheRatioCopy(),
+		"model_price":            GetModelPriceCopy(),
+		"image_resolution_price": GetImageResolutionPriceCopy(),
 	}
 	exposedData.Store(&exposedCache{
 		data:      newData,

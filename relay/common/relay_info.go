@@ -97,32 +97,38 @@ type RelayInfo struct {
 	FirstResponseTime time.Time
 	isFirstResponse   bool
 	//SendLastReasoningResponse bool
-	IsStream               bool
-	IsGeminiBatchEmbedding bool
-	IsPlayground           bool
-	UsePrice               bool
-	RelayMode              int
-	OriginModelName        string
-	RequestURLPath         string
-	AttemptUpstreamHost    string
-	RequestHeaders         map[string]string
-	ShouldIncludeUsage     bool
-	DisablePing            bool // 是否禁止向下游发送自定义 Ping
-	ClientWs               *websocket.Conn
-	TargetWs               *websocket.Conn
-	InputAudioFormat       string
-	OutputAudioFormat      string
-	RealtimeTools          []dto.RealTimeTool
-	IsFirstRequest         bool
-	AudioUsage             bool
-	ReasoningEffort        string
-	UserSetting            dto.UserSetting
-	UserEmail              string
-	UserQuota              int
-	RelayFormat            types.RelayFormat
-	SendResponseCount      int
-	ReceivedResponseCount  int
-	FinalPreConsumedQuota  int // 最终预消耗的配额
+	IsStream                 bool
+	IsGeminiBatchEmbedding   bool
+	IsPlayground             bool
+	UsePrice                 bool
+	RelayMode                int
+	OriginModelName          string
+	RequestURLPath           string
+	ImageRoutingProtocol     dto.ImageRoutingProtocol
+	ImageRoutingUpstreamPath string
+	// ImageRoutingSnapshot marks a durable async task route. Synchronous retry
+	// attempts clear the route fields before selecting the next channel, while
+	// a worker must retain the route captured at submission time.
+	ImageRoutingSnapshot  bool
+	AttemptUpstreamHost   string
+	RequestHeaders        map[string]string
+	ShouldIncludeUsage    bool
+	DisablePing           bool // 是否禁止向下游发送自定义 Ping
+	ClientWs              *websocket.Conn
+	TargetWs              *websocket.Conn
+	InputAudioFormat      string
+	OutputAudioFormat     string
+	RealtimeTools         []dto.RealTimeTool
+	IsFirstRequest        bool
+	AudioUsage            bool
+	ReasoningEffort       string
+	UserSetting           dto.UserSetting
+	UserEmail             string
+	UserQuota             int
+	RelayFormat           types.RelayFormat
+	SendResponseCount     int
+	ReceivedResponseCount int
+	FinalPreConsumedQuota int // 最终预消耗的配额
 	// BillingReservationTaskID routes ForcePreConsume through the durable
 	// pre-activation ledger used by async image tasks.
 	BillingReservationTaskID string

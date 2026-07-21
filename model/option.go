@@ -1,6 +1,9 @@
 package model
 
 import (
+	"errors"
+	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +22,8 @@ type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
 }
+
+var ErrOptionUpdateConflict = errors.New("option update conflict")
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -141,6 +146,7 @@ func InitOptionMap() {
 	common.OptionMap["ModelRequestRateLimitGroup"] = setting.ModelRequestRateLimitGroup2JSONString()
 	common.OptionMap["ModelRatio"] = ratio_setting.ModelRatio2JSONString()
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
+	common.OptionMap["ImageResolutionPrice"] = ratio_setting.ImageResolutionPrice2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
@@ -188,8 +194,10 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	common.OptionRuntimeRWMutex.Lock()
+	defer common.OptionRuntimeRWMutex.Unlock()
 	for _, option := range options {
-		err := updateOptionMap(option.Key, option.Value)
+		err := updateOptionMapLocked(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map key " + option.Key + ": " + err.Error())
 		}
@@ -205,57 +213,158 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
-	// Save to database first
-	option := Option{
-		Key: key,
+	if key == "ImageResolutionPrice" {
+		if err := ratio_setting.ValidateImageResolutionPriceJSONString(value); err != nil {
+			return err
+		}
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+	return mutateWithAtomicOptions(map[string]string{key: value}, nil, nil)
 }
 
-// UpdateOptionsBulk persists multiple key/value pairs in a single database
-// transaction, then dispatches them through updateOptionMap in one pass. If
-// any DB write fails the whole transaction rolls back and no in-memory state
-// is touched — safe for callers that must commit a set of related options
-// atomically (e.g. payment gateway binding).
+// UpdateOptionsBulk publishes multiple key/value pairs as one runtime version
+// and persists them in a single database transaction.
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		for k, v := range values {
-			option := Option{Key: k}
-			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
-				return err
+	return mutateWithAtomicOptions(values, nil, nil)
+}
+
+func sortedOptionKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+type optionRuntimeSnapshot struct {
+	value  string
+	exists bool
+}
+
+func snapshotOptionRuntime(keys []string) map[string]optionRuntimeSnapshot {
+	snapshots := make(map[string]optionRuntimeSnapshot, len(keys))
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	for _, key := range keys {
+		value, exists := common.OptionMap[key]
+		snapshots[key] = optionRuntimeSnapshot{value: value, exists: exists}
+	}
+	return snapshots
+}
+
+func restoreOptionRuntime(keys []string, snapshots map[string]optionRuntimeSnapshot) {
+	for i := len(keys) - 1; i >= 0; i-- {
+		key := keys[i]
+		snapshot := snapshots[key]
+		if !snapshot.exists {
+			common.OptionMapRWMutex.Lock()
+			delete(common.OptionMap, key)
+			common.OptionMapRWMutex.Unlock()
+			continue
+		}
+		if err := updateOptionMapLocked(key, snapshot.value); err != nil {
+			common.SysError("failed to restore runtime option " + key + ": " + err.Error())
+		}
+	}
+}
+
+func persistOptionsTx(tx *gorm.DB, values map[string]string, expectedValues map[string]string, snapshots map[string]optionRuntimeSnapshot) error {
+	for _, key := range sortedOptionKeys(values) {
+		var option Option
+		err := lockForUpdate(tx).Where("key = ?", key).First(&option).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if expected, ok := expectedValues[key]; ok {
+			actual := ""
+			if err == nil {
+				actual = option.Value
+			} else if snapshot := snapshots[key]; snapshot.exists {
+				actual = snapshot.value
 			}
-			option.Value = v
-			if err := tx.Save(&option).Error; err != nil {
-				return err
+			if actual != expected {
+				return fmt.Errorf("%w: %s", ErrOptionUpdateConflict, key)
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	for k, v := range values {
-		if err := updateOptionMap(k, v); err != nil {
+		option.Key = key
+		option.Value = values[key]
+		if err := tx.Save(&option).Error; err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func updateOptionMap(key string, value string) (err error) {
+// mutateWithAtomicOptions applies validated runtime options as one visible
+// version and commits their rows in the same transaction as mutate. Runtime
+// state is restored if the database transaction fails.
+func mutateWithAtomicOptions(values map[string]string, expectedValues map[string]string, mutate func(*gorm.DB) error) error {
+	keys := sortedOptionKeys(values)
+	common.OptionRuntimeRWMutex.Lock()
+	defer common.OptionRuntimeRWMutex.Unlock()
+
+	snapshots := snapshotOptionRuntime(keys)
+	for key, expected := range expectedValues {
+		snapshot := snapshots[key]
+		if !snapshot.exists || snapshot.value != expected {
+			return fmt.Errorf("%w: %s", ErrOptionUpdateConflict, key)
+		}
+	}
+	appliedKeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		appliedKeys = append(appliedKeys, key)
+		if err := updateOptionMapLocked(key, values[key]); err != nil {
+			restoreOptionRuntime(appliedKeys, snapshots)
+			return err
+		}
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if mutate != nil {
+			if err := mutate(tx); err != nil {
+				return err
+			}
+		}
+		return persistOptionsTx(tx, values, expectedValues, snapshots)
+	})
+	if err != nil {
+		restoreOptionRuntime(appliedKeys, snapshots)
+		return err
+	}
+	return nil
+}
+
+// UpdateAtomicOptionsBulk is for option sets that were validated together by
+// the API layer. Unlike UpdateOptionsBulk, readers cannot observe a partial
+// runtime version and database failure restores the previous runtime values.
+func UpdateAtomicOptionsBulk(values map[string]string, expectedValues map[string]string) error {
+	if len(values) == 0 {
+		return nil
+	}
+	return mutateWithAtomicOptions(values, expectedValues, nil)
+}
+
+func updateOptionMap(key string, value string) error {
+	common.OptionRuntimeRWMutex.Lock()
+	defer common.OptionRuntimeRWMutex.Unlock()
+	return updateOptionMapLocked(key, value)
+}
+
+// updateOptionMapLocked requires OptionRuntimeRWMutex to be held by the caller.
+func updateOptionMapLocked(key string, value string) (err error) {
+	if key == "ImageResolutionPrice" {
+		if err := ratio_setting.ValidateImageResolutionPriceJSONString(value); err != nil {
+			return err
+		}
+	}
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
 	common.OptionMap[key] = value
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
@@ -536,6 +645,11 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateCompletionRatioByJSONString(value)
 	case "ModelPrice":
 		err = ratio_setting.UpdateModelPriceByJSONString(value)
+	case "ImageResolutionPrice":
+		err = ratio_setting.UpdateImageResolutionPriceByJSONString(value)
+		if err == nil {
+			InvalidatePricingCache()
+		}
 	case "CacheRatio":
 		err = ratio_setting.UpdateCacheRatioByJSONString(value)
 	case "CreateCacheRatio":

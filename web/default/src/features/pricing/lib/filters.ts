@@ -24,6 +24,8 @@ import {
   ENDPOINT_TYPES,
 } from '../constants'
 import type { PricingModel } from '../types'
+import { getImageResolutionStartingPrice } from './image-resolution-price'
+import { getDisplayGroupRatio } from './model-helpers'
 
 // ----------------------------------------------------------------------------
 // Filter Utilities
@@ -101,8 +103,16 @@ export function filterByEndpointType(
 /**
  * Get model price for sorting
  */
-function getModelPrice(model: PricingModel): number {
-  return model.quota_type === 0 ? model.model_ratio : model.model_price || 0
+function getModelPrice(model: PricingModel, selectedGroup?: string): number {
+  const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
+  const imageResolutionStartingPrice = getImageResolutionStartingPrice(model)
+  if (imageResolutionStartingPrice !== null) {
+    return imageResolutionStartingPrice * displayGroupRatio
+  }
+
+  const basePrice =
+    model.quota_type === 0 ? model.model_ratio : model.model_price || 0
+  return basePrice * displayGroupRatio
 }
 
 function compareLatestModels(a: PricingModel, b: PricingModel): number {
@@ -124,7 +134,8 @@ function compareLatestModels(a: PricingModel, b: PricingModel): number {
  */
 export function sortModels(
   models: PricingModel[],
-  sortBy: string
+  sortBy: string,
+  selectedGroup?: string
 ): PricingModel[] {
   const sorted = [...models]
 
@@ -138,10 +149,16 @@ export function sortModels(
       )
       break
     case SORT_OPTIONS.PRICE_LOW:
-      sorted.sort((a, b) => getModelPrice(a) - getModelPrice(b))
+      sorted.sort(
+        (a, b) =>
+          getModelPrice(a, selectedGroup) - getModelPrice(b, selectedGroup)
+      )
       break
     case SORT_OPTIONS.PRICE_HIGH:
-      sorted.sort((a, b) => getModelPrice(b) - getModelPrice(a))
+      sorted.sort(
+        (a, b) =>
+          getModelPrice(b, selectedGroup) - getModelPrice(a, selectedGroup)
+      )
       break
   }
 
@@ -169,7 +186,7 @@ export function filterAndSortModels(
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
   result = filterByTag(result, filters.tag)
-  result = sortModels(result, filters.sortBy)
+  result = sortModels(result, filters.sortBy, filters.group)
 
   return result
 }
@@ -200,7 +217,7 @@ export function extractAllTags(models: PricingModel[]): string[] {
     }
   })
 
-  return Array.from(tagSet).sort((a, b) => a.localeCompare(b))
+  return [...tagSet].sort((a, b) => a.localeCompare(b))
 }
 
 /**

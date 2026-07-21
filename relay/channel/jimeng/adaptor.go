@@ -164,7 +164,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	fullRequestURL, err := channel.ResolveRequestURL(a, info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}

@@ -28,6 +28,12 @@ import (
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+	if !info.ImageRoutingSnapshot {
+		// A retry may reuse RelayInfo after switching channels. Never let the
+		// previous channel's explicit image path leak into a legacy fallback.
+		info.ImageRoutingProtocol = ""
+		info.ImageRoutingUpstreamPath = ""
+	}
 
 	imageReq, ok := info.Request.(*dto.ImageRequest)
 	if !ok {
@@ -47,6 +53,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		request.Extra = make(map[string]json.RawMessage, len(imageReq.Extra))
 		for key, value := range imageReq.Extra {
 			request.Extra[key] = append(json.RawMessage(nil), value...)
+		}
+	}
+	if frozenRequirement, ok := imageReq.ImageSelectionRequirement(); ok {
+		if err := request.SetImageSelectionRequirement(frozenRequirement); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 	}
 
@@ -71,16 +82,73 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		_, hasAspectRatio := request.Extra["aspect_ratio"]
 		_, hasResolution := request.Extra["resolution"]
 		hasUnifiedGPTDimensions = hasAspectRatio || hasResolution
-		if err := image_stream.NormalizeUnifiedGPTImageDimensions(request, gptCapabilityModel); err != nil {
-			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-		}
 	}
 
 	// Every image generation and edit is submitted as a durable gateway task. gpt-image
 	// keeps its Responses/SSE executor only on a plain OpenAI-compatible channel.
 	// Routed channels must retain their adaptor-specific URL and authentication.
 	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
+		operation := helper.ResolveImageOperation(info.RelayMode, effectiveImageModel, imageReq)
+		selectionRequirement, requirementFrozen := imageReq.ImageSelectionRequirement()
+		if requirementFrozen {
+			operation = selectionRequirement.Operation
+		}
+		if operation == dto.ImageOperationEdit {
+			// The public generations endpoint also accepts reference-image edits.
+			// Provider adaptors still use the edit relay mode to select multipart
+			// conversion and their edit-specific upstream route.
+			info.RelayMode = relayconstant.RelayModeImagesEdits
+		}
 		isEdit := info.RelayMode == relayconstant.RelayModeImagesEdits
+		if !requirementFrozen {
+			if info.ChannelOtherSettings.ImageRouting != nil {
+				selectionRequirement, err = dto.ResolveImageSelectionRequirement(imageReq, effectiveImageModel, operation)
+			} else {
+				selectionRequirement, err = dto.ResolveImageSelectionRequirementWithModelDefaults(imageReq, effectiveImageModel, operation)
+			}
+			if err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+		}
+		configuredImageRoute := info.ImageRoutingSnapshot && info.ImageRoutingProtocol != ""
+		var routingProfile *dto.ImageRoutingProfile
+		if config := info.ChannelOtherSettings.ImageRouting; config != nil {
+			routingProfile, _ = config.ProfileForModel(info.OriginModelName)
+		}
+		if !configuredImageRoute {
+			if config := info.ChannelOtherSettings.ImageRouting; config != nil {
+				profile, found := config.ProfileForModel(info.OriginModelName)
+				if !found || profile == nil {
+					return types.NewError(
+						fmt.Errorf("channel image routing does not support model %s with the requested variant", info.OriginModelName),
+						types.ErrorCodeConvertRequestFailed,
+					)
+				}
+				routingProfile = profile
+				selectionRequirement, err = profile.ApplyDefaults(selectionRequirement)
+				protocol, upstreamPath, routeOK := profile.RouteForOperation(selectionRequirement.Operation)
+				if err != nil || !routeOK || !config.Supports(info.OriginModelName, selectionRequirement) {
+					return types.NewError(
+						fmt.Errorf("channel image routing does not support model %s with the requested variant", info.OriginModelName),
+						types.ErrorCodeConvertRequestFailed,
+					)
+				}
+				info.ImageRoutingProtocol = protocol
+				info.ImageRoutingUpstreamPath = upstreamPath
+				configuredImageRoute = true
+			}
+		}
+		if err := request.SetImageSelectionRequirement(selectionRequirement); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if err := materializeImageSelectionRequirement(request, selectionRequirement, routingProfile); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if gptCapabilityModel != "" && (!configuredImageRoute || info.ImageRoutingProtocol == dto.ImageRoutingProtocolResponsesSSE) {
+			if err := image_stream.NormalizeUnifiedGPTImageDimensions(request, gptCapabilityModel); err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+		}
 		hasInputSources, err := image_stream.HasAsyncImageInputSources(c, request)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -120,7 +188,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			)
 		}
 		unifiedInput := imageReq.HasUnifiedImageInput()
-		allowPassThrough := !isEdit && !unifiedInput && !hasInputSources && !hasUnifiedGPTDimensions
+		allowPassThrough := !isEdit && !unifiedInput && !hasInputSources && !hasUnifiedGPTDimensions && !configuredImageRoute
 		passThrough := (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) && allowPassThrough
 		hasMask := len(bytes.TrimSpace(request.Mask)) > 0 && common.GetJsonType(request.Mask) != "null"
 		if !hasMask && c.Request != nil && c.Request.MultipartForm != nil {
@@ -141,6 +209,29 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			info.Organization == "" &&
 			!passThrough &&
 			!hasMask
+		if configuredImageRoute {
+			switch info.ImageRoutingProtocol {
+			case dto.ImageRoutingProtocolResponsesSSE:
+				if !useGPTResponsesExecutor {
+					return types.NewError(
+						errors.New("channel image route is incompatible with the Responses image executor"),
+						types.ErrorCodeConvertRequestFailed,
+					)
+				}
+				useGPTResponsesExecutor = true
+			case dto.ImageRoutingProtocolImagesGenerations,
+				dto.ImageRoutingProtocolImagesEdits,
+				dto.ImageRoutingProtocolGeminiGenerate,
+				dto.ImageRoutingProtocolImagenPredict,
+				dto.ImageRoutingProtocolAdapter:
+				useGPTResponsesExecutor = false
+			default:
+				return types.NewError(
+					fmt.Errorf("channel image routing protocol %q is unsupported", info.ImageRoutingProtocol),
+					types.ErrorCodeConvertRequestFailed,
+				)
+			}
+		}
 		if useGPTResponsesExecutor && request.N != nil && *request.N > 1 {
 			return types.NewErrorWithStatusCode(
 				errors.New("the GPT Responses image executor supports only n=1"),
@@ -270,6 +361,112 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil
+}
+
+// materializeImageSelectionRequirement copies channel-resolved defaults into
+// the provider-facing request. The canonical requirement is private gateway
+// state, so adaptors that only inspect DTO fields would otherwise silently use
+// their own defaults (for example Gemini falling back from 4K to 1K).
+func materializeImageSelectionRequirement(request *dto.ImageRequest, requirement dto.ImageSelectionRequirement, profile *dto.ImageRoutingProfile) error {
+	if request == nil {
+		return errors.New("image request is required")
+	}
+	explicitVerifiedRoute := profile != nil && profile.VerificationStatus == dto.ImageRoutingVerificationProductionVerified
+	if explicitVerifiedRoute && requirement.Size != "" {
+		request.Size = requirement.Size
+	} else if request.Size == "" && requirement.Size != "" {
+		request.Size = requirement.Size
+	}
+	if explicitVerifiedRoute && requirement.Quality != "" {
+		request.Quality = requirement.Quality
+	} else if request.Quality == "" && requirement.Quality != "" {
+		request.Quality = requirement.Quality
+	}
+	if explicitVerifiedRoute && requirement.N > 0 {
+		request.N = common.GetPointer(requirement.N)
+	}
+	if request.Extra == nil {
+		request.Extra = make(map[string]json.RawMessage)
+	}
+	setExtraString := func(field, value string, overwrite bool) error {
+		if value == "" {
+			return nil
+		}
+		raw, exists := request.Extra[field]
+		if !overwrite && exists && common.GetJsonType(bytes.TrimSpace(raw)) != "null" && len(bytes.TrimSpace(raw)) > 0 {
+			return nil
+		}
+		encoded, err := common.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("encode image %s: %w", field, err)
+		}
+		request.Extra[field] = encoded
+		return nil
+	}
+	if err := setExtraString("resolution", requirement.Resolution, explicitVerifiedRoute); err != nil {
+		return err
+	}
+	if err := setExtraString("aspect_ratio", requirement.AspectRatio, explicitVerifiedRoute); err != nil {
+		return err
+	}
+	if explicitVerifiedRoute || len(bytes.TrimSpace(request.OutputFormat)) == 0 || common.GetJsonType(bytes.TrimSpace(request.OutputFormat)) == "null" {
+		if requirement.OutputFormat != "" {
+			encoded, err := common.Marshal(requirement.OutputFormat)
+			if err != nil {
+				return fmt.Errorf("encode image output_format: %w", err)
+			}
+			request.OutputFormat = encoded
+		}
+	}
+	if explicitVerifiedRoute {
+		for _, parameter := range profile.Parameters {
+			canonicalName := dto.CanonicalImageRoutingParameterName(parameter.Name)
+			raw, exists := requirement.OptionalValues[canonicalName]
+			if !exists {
+				continue
+			}
+			for requestName := range request.Extra {
+				if requestName != parameter.Name && dto.CanonicalImageRoutingParameterName(requestName) == canonicalName {
+					delete(request.Extra, requestName)
+				}
+			}
+			request.Extra[parameter.Name] = append(json.RawMessage(nil), bytes.TrimSpace(raw)...)
+		}
+	}
+	return nil
+}
+
+func applyImageRoutingProviderParameters(body []byte, info *relaycommon.RelayInfo, request *dto.ImageRequest) ([]byte, bool, error) {
+	if info == nil || request == nil || info.ChannelOtherSettings.ImageRouting == nil {
+		return append([]byte(nil), body...), false, nil
+	}
+	profile, ok := info.ChannelOtherSettings.ImageRouting.ProfileForModel(info.OriginModelName)
+	if !ok || profile == nil || len(profile.Parameters) == 0 {
+		return append([]byte(nil), body...), false, nil
+	}
+	providerValues := make(map[string]json.RawMessage)
+	for _, parameter := range profile.Parameters {
+		raw, exists := request.Extra[parameter.Name]
+		if !exists || len(bytes.TrimSpace(raw)) == 0 || common.GetJsonType(bytes.TrimSpace(raw)) == "null" {
+			continue
+		}
+		providerValues[parameter.Name] = append(json.RawMessage(nil), bytes.TrimSpace(raw)...)
+	}
+	if len(providerValues) == 0 {
+		return append([]byte(nil), body...), false, nil
+	}
+	fields := make(map[string]json.RawMessage)
+	if err := common.Unmarshal(body, &fields); err != nil {
+		return nil, false, fmt.Errorf("inject verified image provider parameters into JSON object: %w", err)
+	}
+	for name, raw := range providerValues {
+		fields[name] = raw
+	}
+	encoded, err := common.Marshal(fields)
+	if err != nil {
+		return nil, false, fmt.Errorf("encode verified image provider parameters: %w", err)
+	}
+	return encoded, true, nil
 }
 
 func validateAsyncImageProviderCapabilities(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ImageRequest) error {
@@ -411,7 +608,7 @@ func prepareAsyncImageAdaptorRequest(c *gin.Context, info *relaycommon.RelayInfo
 	// Raw pass-through is only protocol-compatible with OpenAI-style image
 	// channels. Provider-specific adaptors still need conversion to establish
 	// their request path and body shape (for example Replicate's predictions API).
-	passThrough := allowPassThrough && passThroughRequested && info.ApiType == constant.APITypeOpenAI
+	passThrough := allowPassThrough && passThroughRequested && info.ApiType == constant.APITypeOpenAI && info.ImageRoutingProtocol == ""
 	deferConversion, err := shouldDeferAsyncImageAdaptorConversion(info, &providerRequest)
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -425,6 +622,7 @@ func prepareAsyncImageAdaptorRequest(c *gin.Context, info *relaycommon.RelayInfo
 		// Edit file bytes are staged only after the durable quota reservation.
 		// Keep submission side-effect free: the worker will reconstruct multipart
 		// and run provider-specific conversion from the signed private inputs.
+		providerRequest = sanitizeImageRoutingAliases(providerRequest, info.ImageRoutingProtocol)
 		pricingBody, err = marshalGenericImageRequest(&providerRequest)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -484,7 +682,11 @@ func prepareAsyncImageAdaptorRequest(c *gin.Context, info *relaycommon.RelayInfo
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 		if convertedBuffer, ok := convertedRequest.(*bytes.Buffer); ok {
-			pricingBody = append([]byte(nil), convertedBuffer.Bytes()...)
+			convertedBody, _, injectErr := applyImageRoutingProviderParameters(convertedBuffer.Bytes(), info, &providerRequest)
+			if injectErr != nil {
+				return nil, types.NewError(injectErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			pricingBody = append([]byte(nil), convertedBody...)
 			basePricingBody = append([]byte(nil), pricingBody...)
 			if !deferConversion {
 				body = append([]byte(nil), pricingBody...)
@@ -494,12 +696,18 @@ func prepareAsyncImageAdaptorRequest(c *gin.Context, info *relaycommon.RelayInfo
 			var marshalErr error
 			switch converted := convertedRequest.(type) {
 			case dto.ImageRequest:
-				convertedBody, marshalErr = marshalGenericImageRequest(&converted)
+				sanitized := sanitizeImageRoutingAliases(converted, info.ImageRoutingProtocol)
+				convertedBody, marshalErr = marshalGenericImageRequest(&sanitized)
 			case *dto.ImageRequest:
-				convertedBody, marshalErr = marshalGenericImageRequest(converted)
+				sanitized := sanitizeImageRoutingAliases(*converted, info.ImageRoutingProtocol)
+				convertedBody, marshalErr = marshalGenericImageRequest(&sanitized)
 			default:
 				convertedBody, marshalErr = common.Marshal(convertedRequest)
 			}
+			if marshalErr != nil {
+				return nil, types.NewError(marshalErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			convertedBody, _, marshalErr = applyImageRoutingProviderParameters(convertedBody, info, &providerRequest)
 			if marshalErr != nil {
 				return nil, types.NewError(marshalErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
@@ -532,10 +740,12 @@ func prepareAsyncImageAdaptorRequest(c *gin.Context, info *relaycommon.RelayInfo
 	}
 	// Param overrides are applied to this ephemeral copy for count validation
 	// and pricing. The durable body above remains credential-free.
+	outputCount := uint(0)
 	if count, ok, err := image_stream.AsyncImagePassThroughCount(pricingBody); err != nil {
 		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	} else if ok {
 		info.PriceData.AddOtherRatio("n", float64(count))
+		outputCount = uint(count)
 	}
 
 	if info.PriceData.UsePrice {
@@ -572,12 +782,16 @@ func prepareAsyncImageAdaptorRequest(c *gin.Context, info *relaycommon.RelayInfo
 	contentType := "application/json"
 	if passThrough {
 		contentType = asyncImageContentType(c.Request.Header.Get("Content-Type"))
-	} else if info.RelayMode == relayconstant.RelayModeImagesEdits {
+	} else if info.RelayMode == relayconstant.RelayModeImagesEdits && imageRoutingUsesMultipartEdit(info.ImageRoutingProtocol) {
 		contentType = "multipart/form-data"
 	}
 	channelSetting := info.ChannelSetting
 	channelOtherSettings := info.ChannelOtherSettings
 	executionOverrideHash, err := image_stream.AsyncImageExecutionOverrideFingerprint(info.ParamOverride, info.HeadersOverride)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	executionDestinationHash, err := image_stream.AsyncImageExecutionDestinationFingerprint(info.ChannelBaseUrl, info.ChannelSetting.Proxy)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
@@ -587,26 +801,56 @@ func prepareAsyncImageAdaptorRequest(c *gin.Context, info *relaycommon.RelayInfo
 		requestURLPath = "/v1/images/edits"
 	}
 	return &image_stream.PreparedAsyncImageRequest{
-		Body:                    body,
-		DeferConversion:         deferConversion,
-		RelayMode:               info.RelayMode,
-		ContentType:             contentType,
-		ClientHeaders:           clientHeaders,
-		RequestURLPath:          requestURLPath,
-		ChannelBaseURL:          info.ChannelBaseUrl,
-		APIType:                 info.ApiType,
-		ChannelType:             info.ChannelType,
-		ChannelCreateTime:       info.ChannelCreateTime,
-		ConfigurationStored:     true,
-		APIVersion:              info.ApiVersion,
-		Organization:            info.Organization,
-		ExecutionOverrideHash:   executionOverrideHash,
-		ExecutionOverrideStored: true,
-		HeadersOverride:         info.HeadersOverride,
-		ChannelSetting:          &channelSetting,
-		ChannelOtherSettings:    &channelOtherSettings,
-		AdvancedRouteHash:       advancedRouteHash,
+		Body:                       body,
+		DeferConversion:            deferConversion,
+		OutputCount:                outputCount,
+		RelayMode:                  info.RelayMode,
+		ContentType:                contentType,
+		ClientHeaders:              clientHeaders,
+		RequestURLPath:             requestURLPath,
+		ChannelBaseURL:             info.ChannelBaseUrl,
+		ExecutionDestinationHash:   executionDestinationHash,
+		ExecutionDestinationStored: true,
+		APIType:                    info.ApiType,
+		ChannelType:                info.ChannelType,
+		ChannelCreateTime:          info.ChannelCreateTime,
+		ConfigurationStored:        true,
+		APIVersion:                 info.ApiVersion,
+		Organization:               info.Organization,
+		ExecutionOverrideHash:      executionOverrideHash,
+		ExecutionOverrideStored:    true,
+		HeadersOverride:            info.HeadersOverride,
+		ChannelSetting:             &channelSetting,
+		ChannelOtherSettings:       &channelOtherSettings,
+		AdvancedRouteHash:          advancedRouteHash,
+		ImageRoutingProtocol:       info.ImageRoutingProtocol,
+		ImageRoutingUpstreamPath:   info.ImageRoutingUpstreamPath,
 	}, nil
+}
+
+func sanitizeImageRoutingAliases(request dto.ImageRequest, protocol dto.ImageRoutingProtocol) dto.ImageRequest {
+	if protocol != dto.ImageRoutingProtocolImagesGenerations && protocol != dto.ImageRoutingProtocolImagesEdits {
+		return request
+	}
+	if request.Extra == nil {
+		return request
+	}
+	originalExtra := request.Extra
+	request.Extra = make(map[string]json.RawMessage, len(originalExtra))
+	for key, value := range originalExtra {
+		if key == "resolution" || key == "aspect_ratio" {
+			continue
+		}
+		request.Extra[key] = append(json.RawMessage(nil), value...)
+	}
+	if len(request.Extra) == 0 {
+		request.Extra = nil
+	}
+	return request
+}
+
+func imageRoutingUsesMultipartEdit(protocol dto.ImageRoutingProtocol) bool {
+	return protocol == "" || protocol == dto.ImageRoutingProtocolImagesEdits || protocol == dto.ImageRoutingProtocolAdapter
 }
 
 func validateAsyncImagePricingFieldsUnchanged(before, after []byte) error {

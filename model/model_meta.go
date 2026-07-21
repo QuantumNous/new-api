@@ -1,13 +1,17 @@
 package model
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"gorm.io/gorm"
 )
+
+var ErrModelRenameForbidden = errors.New("model rename requires root access")
 
 const (
 	NameRuleExact = iota
@@ -45,6 +49,12 @@ type Model struct {
 }
 
 func (mi *Model) Insert() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return mi.insertWithTx(tx)
+	})
+}
+
+func (mi *Model) insertWithTx(tx *gorm.DB) error {
 	now := common.GetTimestamp()
 	mi.CreatedTime = now
 	mi.UpdatedTime = now
@@ -54,15 +64,19 @@ func (mi *Model) Insert() error {
 	originalSyncOfficial := mi.SyncOfficial
 
 	// 先创建记录（GORM 会对零值字段应用默认值）
-	if err := DB.Create(mi).Error; err != nil {
+	if err := tx.Create(mi).Error; err != nil {
 		return err
 	}
 
 	// 使用保存的原始值进行更新，确保零值能正确保存
-	return DB.Model(&Model{}).Where("id = ?", mi.Id).Updates(map[string]interface{}{
+	return tx.Model(&Model{}).Where("id = ?", mi.Id).Updates(map[string]interface{}{
 		"status":        originalStatus,
 		"sync_official": originalSyncOfficial,
 	}).Error
+}
+
+func (mi *Model) InsertWithOptions(values map[string]string, expectedValues map[string]string) error {
+	return mutateWithAtomicOptions(values, expectedValues, mi.insertWithTx)
 }
 
 func IsModelNameDuplicated(id int, name string) (bool, error) {
@@ -75,11 +89,99 @@ func IsModelNameDuplicated(id int, name string) (bool, error) {
 }
 
 func (mi *Model) Update() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return mi.updateWithTxPolicy(tx, true)
+	})
+}
+
+func (mi *Model) updateWithTxPolicy(tx *gorm.DB, allowRename bool) error {
+	var existing Model
+	if err := lockForUpdate(tx).Select("id", "model_name").Where("id = ?", mi.Id).First(&existing).Error; err != nil {
+		return err
+	}
+	if !allowRename && existing.ModelName != mi.ModelName {
+		return ErrModelRenameForbidden
+	}
+
 	mi.UpdatedTime = common.GetTimestamp()
 	// 使用 Select 强制更新所有字段，包括零值
-	return DB.Model(&Model{}).Where("id = ?", mi.Id).
+	result := tx.Model(&Model{}).Where("id = ?", mi.Id).
 		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
-		Updates(mi).Error
+		Updates(mi)
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+func (mi *Model) UpdateWithOptions(values map[string]string, expectedValues map[string]string) error {
+	return mi.UpdateWithOptionsPolicy(values, expectedValues, true)
+}
+
+func (mi *Model) UpdateWithOptionsPolicy(values map[string]string, expectedValues map[string]string, allowRename bool) error {
+	return mutateWithAtomicOptions(values, expectedValues, func(tx *gorm.DB) error {
+		return mi.updateWithTxPolicy(tx, allowRename)
+	})
+}
+
+func UpdateModelStatus(id int, status int) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var existing Model
+		if err := lockForUpdate(tx).Select("id").Where("id = ?", id).First(&existing).Error; err != nil {
+			return err
+		}
+		return tx.Model(&Model{}).Where("id = ?", id).Update("status", status).Error
+	})
+}
+
+func DeleteModelWithImageResolutionPrice(id int) error {
+	const optionKey = "ImageResolutionPrice"
+
+	common.OptionRuntimeRWMutex.Lock()
+	defer common.OptionRuntimeRWMutex.Unlock()
+
+	var nextOptionValue string
+	optionChanged := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var existing Model
+		if err := lockForUpdate(tx).Where("id = ?", id).First(&existing).Error; err != nil {
+			return err
+		}
+
+		var option Option
+		err := lockForUpdate(tx).Where("key = ?", optionKey).First(&option).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		currentOptionValue := ratio_setting.ImageResolutionPrice2JSONString()
+		if err == nil {
+			currentOptionValue = option.Value
+		}
+		nextValue, changed, err := ratio_setting.RemoveImageResolutionPriceModelsJSONString(
+			currentOptionValue,
+			[]string{existing.ModelName},
+		)
+		if err != nil {
+			return err
+		}
+		if changed {
+			option.Key = optionKey
+			option.Value = nextValue
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+			nextOptionValue = nextValue
+			optionChanged = true
+		}
+		return tx.Delete(&existing).Error
+	})
+	if err != nil {
+		return err
+	}
+	if optionChanged {
+		return updateOptionMapLocked(optionKey, nextOptionValue)
+	}
+	return nil
 }
 
 func (mi *Model) Delete() error {

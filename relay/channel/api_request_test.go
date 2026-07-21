@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -56,6 +58,86 @@ func TestRecordAttemptUpstreamHostUsesResolvedRequestURL(t *testing.T) {
 	info := &relaycommon.RelayInfo{}
 	recordAttemptUpstreamHost(req, info)
 	require.Equal(t, "actual.example", info.AttemptUpstreamHost)
+}
+
+func TestGetRequestURLUsesConfiguredImageRouteSnapshot(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		ImageRoutingProtocol:     dto.ImageRoutingProtocolImagesGenerations,
+		ImageRoutingUpstreamPath: "/custom/v1/images/generations",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://images.example.com/",
+		},
+	}
+
+	requestURL, err := getRequestURL(wssHostTestAdaptor{requestURL: "https://wrong.example.com/v1/images/generations"}, info)
+	require.NoError(t, err)
+	require.Equal(t, "https://images.example.com/custom/v1/images/generations", requestURL)
+}
+
+func TestGetRequestURLPreservesAdaptorQueryAndExpandsImageModelPath(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		ImageRoutingProtocol:     dto.ImageRoutingProtocolGeminiGenerate,
+		ImageRoutingUpstreamPath: "/v1beta/models/{model}:generateContent",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "https://generativelanguage.googleapis.com",
+			UpstreamModelName: "gemini-3.1-flash-image-preview",
+		},
+	}
+
+	requestURL, err := getRequestURL(wssHostTestAdaptor{
+		requestURL: "https://generativelanguage.googleapis.com/v1beta/models/default:generateContent?key=secret",
+	}, info)
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=secret",
+		requestURL,
+	)
+}
+
+func TestGetRequestURLPreservesVertexProviderPrefix(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		ImageRoutingProtocol:     dto.ImageRoutingProtocolGeminiGenerate,
+		ImageRoutingUpstreamPath: "/v1beta/models/{model}:generateContent",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeVertexAi,
+			UpstreamModelName: "gemini-3.1-flash-image-preview",
+		},
+	}
+
+	requestURL, err := getRequestURL(wssHostTestAdaptor{
+		requestURL: "https://aiplatform.googleapis.com/v1/projects/project-1/locations/global/publishers/google/models/default:generateContent?key=secret",
+	}, info)
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		"https://aiplatform.googleapis.com/v1/projects/project-1/locations/global/publishers/google/models/gemini-3.1-flash-image-preview:generateContent?key=secret",
+		requestURL,
+	)
+}
+
+func TestGetRequestURLPreservesAdvancedCustomAbsoluteTargetHost(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		ImageRoutingProtocol:     dto.ImageRoutingProtocolAdapter,
+		ImageRoutingUpstreamPath: "/custom/images/generations",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeAdvancedCustom,
+		},
+	}
+
+	requestURL, err := getRequestURL(wssHostTestAdaptor{
+		requestURL: "https://provider.example/private/route?signature=secret",
+	}, info)
+	require.NoError(t, err)
+	require.Equal(t, "https://provider.example/custom/images/generations?signature=secret", requestURL)
 }
 
 func TestRecordAttemptUpstreamURLSupportsWebSocketRoutes(t *testing.T) {

@@ -111,7 +111,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
-	request, err := helper.GetAndValidateRequest(c, relayFormat)
+	var request dto.Request
+	var err error
+	if relayFormat == types.RelayFormatOpenAIImage {
+		if validated, exists := common.GetContextKeyType[*dto.ImageRequest](c, constant.ContextKeyValidatedImageRequest); exists && validated != nil {
+			request = validated
+		} else {
+			request, err = helper.GetAndValidateRequest(c, relayFormat)
+		}
+	} else {
+		request, err = helper.GetAndValidateRequest(c, relayFormat)
+	}
 	if err != nil {
 		// Map "request body too large" to 413 so clients can handle it correctly
 		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
@@ -127,12 +137,85 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	var imageRequirement *dto.ImageSelectionRequirement
+	if imageRequest, ok := request.(*dto.ImageRequest); ok &&
+		(relayInfo.RelayMode == relayconstant.RelayModeImagesGenerations ||
+			relayInfo.RelayMode == relayconstant.RelayModeImagesEdits) {
+		operation := helper.ResolveImageOperation(relayInfo.RelayMode, relayInfo.OriginModelName, imageRequest)
+		selectedRequirement, selected := common.GetContextKeyType[dto.ImageSelectionRequirement](c, constant.ContextKeyImageSelectionRequirement)
+		if selected {
+			imageRequirement = &selectedRequirement
+		} else {
+			resolved, resolveErr := dto.ResolveImageSelectionRequirement(imageRequest, relayInfo.OriginModelName, operation)
+			if resolveErr != nil {
+				newAPIError = types.NewErrorWithStatusCode(resolveErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				return
+			}
+			imageRequirement = &resolved
+		}
+	}
 	preflightInfo := *relayInfo
 	preflightInfo.Request = nil
 	preflightInfo.InitChannelMeta(c)
 	if err := helper.ModelMappedHelper(c, &preflightInfo, nil); err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 		return
+	}
+	if imageRequirement != nil && preflightInfo.ChannelOtherSettings.ImageRouting != nil {
+		profile, found := preflightInfo.ChannelOtherSettings.ImageRouting.ProfileForModel(preflightInfo.OriginModelName)
+		if !found || profile == nil {
+			newAPIError = types.NewErrorWithStatusCode(
+				fmt.Errorf("channel image routing does not define model %s", preflightInfo.OriginModelName),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+			return
+		}
+		resolvedRequirement, resolveErr := profile.ApplyDefaults(*imageRequirement)
+		if resolveErr != nil || !preflightInfo.ChannelOtherSettings.ImageRouting.Supports(preflightInfo.OriginModelName, resolvedRequirement) {
+			if resolveErr == nil {
+				resolveErr = errors.New("selected channel does not support the resolved image defaults")
+			}
+			newAPIError = types.NewErrorWithStatusCode(resolveErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			return
+		}
+		*imageRequirement = resolvedRequirement
+		protocol, upstreamPath, routeOK := profile.RouteForOperation(resolvedRequirement.Operation)
+		if !routeOK {
+			newAPIError = types.NewErrorWithStatusCode(
+				fmt.Errorf("channel image routing does not define a route for operation %s", resolvedRequirement.Operation),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+			return
+		}
+		relayInfo.ImageRoutingProtocol = protocol
+		relayInfo.ImageRoutingUpstreamPath = upstreamPath
+		if imageRequest, ok := request.(*dto.ImageRequest); ok {
+			if setErr := imageRequest.SetImageSelectionRequirement(resolvedRequirement); setErr != nil {
+				newAPIError = types.NewErrorWithStatusCode(setErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				return
+			}
+		}
+		common.SetContextKey(c, constant.ContextKeyImageSelectionRequirement, resolvedRequirement)
+	} else if imageRequest, ok := request.(*dto.ImageRequest); ok && imageRequirement != nil {
+		// Legacy channels have no explicit provider profile. Apply the catalog
+		// default only after channel selection so a verified 4K-only profile is
+		// not filtered out by an eager global 1K default.
+		operation := helper.ResolveImageOperation(relayInfo.RelayMode, relayInfo.OriginModelName, imageRequest)
+		resolvedRequirement, resolveErr := dto.ResolveImageSelectionRequirementWithModelDefaults(imageRequest, relayInfo.OriginModelName, operation)
+		if resolveErr != nil {
+			newAPIError = types.NewErrorWithStatusCode(resolveErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			return
+		}
+		*imageRequirement = resolvedRequirement
+		if setErr := imageRequest.SetImageSelectionRequirement(resolvedRequirement); setErr != nil {
+			newAPIError = types.NewErrorWithStatusCode(setErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			return
+		}
+		common.SetContextKey(c, constant.ContextKeyImageSelectionRequirement, resolvedRequirement)
 	}
 	if err := helper.ValidateUnifiedImageEntryPoint(&preflightInfo, request); err != nil {
 		newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -218,11 +301,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}()
 
 	retryParam := &service.RetryParam{
-		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
-		Retry:       common.GetPointer(0),
+		Ctx:              c,
+		TokenGroup:       relayInfo.TokenGroup,
+		ModelName:        relayInfo.OriginModelName,
+		RequestPath:      c.Request.URL.Path,
+		ImageRequirement: imageRequirement,
+		Retry:            common.GetPointer(0),
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil

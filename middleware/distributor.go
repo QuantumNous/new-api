@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -44,6 +46,14 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		imageRequirement, err := getImageSelectionRequirement(c, modelRequest.Model)
+		if err != nil {
+			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+			return
+		}
+		if imageRequirement != nil {
+			common.SetContextKey(c, constant.ContextKeyImageSelectionRequirement, *imageRequirement)
+		}
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -57,6 +67,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if !model.ChannelSupportsImageSelection(channel, modelRequest.Model, imageRequirement) {
+				abortWithOpenAiMessage(c, http.StatusBadRequest, fmt.Sprintf("channel #%d does not support the requested image variant", channel.Id))
 				return
 			}
 		} else {
@@ -111,7 +125,11 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
-				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+				// Explicit image capabilities are authoritative across every eligible
+				// channel. A sticky channel may be legacy-unconfigured even when another
+				// candidate has a verified profile, so image requests always use the
+				// capability-aware selector below.
+				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found && imageRequirement == nil {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					affinityKey := model.ChannelHealthKey{ChannelID: preferredChannelID, Model: modelRequest.Model, Path: service.ChannelHealthPath(c.Request.URL.Path)}
@@ -127,7 +145,8 @@ func Distribute() func(c *gin.Context) {
 					// paying a cold prefill on every hop. (An Advanced Custom channel
 					// whose routes do not cover this path is still not pinnable.)
 					stickyUsable := err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) &&
-						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model)
+						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) &&
+						model.ChannelSupportsImageSelection(preferred, modelRequest.Model, imageRequirement)
 					if stickyUsable && !model.AcquireChannelHealthForAffinity(affinityKey) {
 						// The channel is failing, not merely slow: staying would error.
 						// Leaving means the next channel is cold, so flag it — the cold
@@ -170,11 +189,12 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:         c,
-						ModelName:   modelRequest.Model,
-						TokenGroup:  usingGroup,
-						RequestPath: c.Request.URL.Path,
-						Retry:       common.GetPointer(0),
+						Ctx:              c,
+						ModelName:        modelRequest.Model,
+						TokenGroup:       usingGroup,
+						RequestPath:      c.Request.URL.Path,
+						ImageRequirement: imageRequirement,
+						Retry:            common.GetPointer(0),
 					})
 					if err != nil {
 						showGroup := usingGroup
@@ -187,7 +207,13 @@ func Distribute() func(c *gin.Context) {
 						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
 						//	message = "数据库一致性已被破坏，请联系管理员"
 						//}
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
+						statusCode := http.StatusServiceUnavailable
+						errorCode := types.ErrorCodeModelNotFound
+						if imageRequirement != nil {
+							statusCode = http.StatusBadRequest
+							errorCode = types.ErrorCodeInvalidRequest
+						}
+						abortWithOpenAiMessage(c, statusCode, message, errorCode)
 						return
 					}
 					if channel == nil {
@@ -277,6 +303,34 @@ func channelSupportsRequestPath(channel *model.Channel, requestPath string, requ
 	}
 	config := channel.GetOtherSettings().AdvancedCustom
 	return config != nil && config.SupportsPathForModel(requestPath, requestModel)
+}
+
+func getImageSelectionRequirement(c *gin.Context, modelName string) (*dto.ImageSelectionRequirement, error) {
+	if c == nil || c.Request == nil || c.Request.Method != http.MethodPost {
+		return nil, nil
+	}
+	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
+	switch relayMode {
+	case relayconstant.RelayModeImagesGenerations:
+	case relayconstant.RelayModeImagesEdits:
+	default:
+		return nil, nil
+	}
+
+	request, err := relayhelper.GetAndValidOpenAIImageRequest(c, relayMode)
+	if err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		request.Model = modelName
+	}
+	common.SetContextKey(c, constant.ContextKeyValidatedImageRequest, request)
+	operation := relayhelper.ResolveImageOperation(relayMode, modelName, request)
+	requirement, err := dto.ResolveImageSelectionRequirement(request, modelName, operation)
+	if err != nil {
+		return nil, err
+	}
+	return &requirement, nil
 }
 
 // getModelFromRequest 从请求中读取模型信息
@@ -469,8 +523,17 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
 		contentType := c.ContentType()
 		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
-			req, err := getModelFromRequest(c)
-			if err == nil && req.Model != "" {
+			if contentType == gin.MIMEMultipartPOSTForm {
+				form, err := common.ParseMultipartFormReusable(c)
+				if err != nil {
+					return nil, false, err
+				}
+				modelRequest.Model = strings.TrimSpace(url.Values(form.Value).Get("model"))
+			} else {
+				req, err := getModelFromRequest(c)
+				if err != nil {
+					return nil, false, err
+				}
 				modelRequest.Model = req.Model
 			}
 		}

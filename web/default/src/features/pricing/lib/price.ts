@@ -239,6 +239,27 @@ export function formatFixedPrice(
   })
 }
 
+/** Format a model's fixed image price for one resolution tier. */
+export function formatImageResolutionPrice(
+  priceInUSD: number,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1
+): string {
+  const displayPrice = applyRechargeRate(
+    priceInUSD,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+
+  return formatCurrencyFromUSD(displayPrice, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
+}
+
 /**
  * Format fixed price for pay-per-request models (minimum price from all groups)
  */

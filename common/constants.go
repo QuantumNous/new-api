@@ -80,6 +80,12 @@ var SessionCookieTrustedURLs []string
 var OptionMap map[string]string
 var OptionMapRWMutex sync.RWMutex
 
+// OptionRuntimeRWMutex protects coherent publication of related runtime
+// options. Billing and routing readers hold a read lock while assembling a
+// request snapshot; atomic option writers hold the write lock while replacing
+// all affected runtime values.
+var OptionRuntimeRWMutex sync.RWMutex
+
 var ItemsPerPage = 10
 var MaxRecentItems = 1000
 

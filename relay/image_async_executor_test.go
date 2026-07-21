@@ -292,6 +292,69 @@ func TestGenericImageExecutorRebuildsEditMultipartFromStagedInput(t *testing.T) 
 	assert.Equal(t, "https://images.example/result.png", result.Response.Data[0].Url)
 }
 
+func TestGenericImageExecutorUsesJSONForEditOperationOnGenerationsProtocol(t *testing.T) {
+	imageDataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("image"))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		var body map[string]any
+		require.NoError(t, common.DecodeJson(r.Body, &body))
+		require.Equal(t, "gpt-image-2", body["model"])
+		require.Equal(t, "edit the image", body["prompt"])
+		require.Contains(t, body, "images")
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"data":[{"url":"https://images.example/result.png"}]}`))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	request := &dto.ImageRequest{
+		Model:  "gpt-image-2",
+		Prompt: "edit the image",
+		Images: json.RawMessage(`["` + imageDataURI + `"]`),
+	}
+	info := &relaycommon.RelayInfo{
+		RelayMode:                relayconstant.RelayModeImagesEdits,
+		RelayFormat:              types.RelayFormatOpenAIImage,
+		OriginModelName:          request.Model,
+		RequestURLPath:           "/v1/images/generations",
+		ImageRoutingProtocol:     dto.ImageRoutingProtocolImagesGenerations,
+		ImageRoutingUpstreamPath: "/v1/images/generations",
+		RequestHeaders:           map[string]string{"Content-Type": "application/json"},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeOpenAI,
+			ChannelBaseUrl:    server.URL,
+			ApiType:           constant.APITypeOpenAI,
+			ApiKey:            "test-key",
+			UpstreamModelName: request.Model,
+		},
+	}
+
+	result, apiErr := image_stream.ExecuteGenericImageAdaptor(context.Background(), &image_stream.GenericImageExecutionRequest{
+		RelayInfo:    info,
+		ImageRequest: request,
+	})
+
+	require.Nil(t, apiErr)
+	require.NotNil(t, result)
+	require.Len(t, result.Response.Data, 1)
+}
+
+func TestSanitizeImageRoutingAliasesRemovesGatewayDimensions(t *testing.T) {
+	request := dto.ImageRequest{Extra: map[string]json.RawMessage{
+		"resolution":      json.RawMessage(`"4K"`),
+		"aspect_ratio":    json.RawMessage(`"1:1"`),
+		"negative_prompt": json.RawMessage(`"fog"`),
+	}}
+
+	sanitized := sanitizeImageRoutingAliases(request, dto.ImageRoutingProtocolImagesGenerations)
+
+	assert.NotContains(t, sanitized.Extra, "resolution")
+	assert.NotContains(t, sanitized.Extra, "aspect_ratio")
+	assert.JSONEq(t, `"fog"`, string(sanitized.Extra["negative_prompt"]))
+	assert.Contains(t, request.Extra, "resolution")
+}
+
 func TestGenericImageExecutorRebuildsEditMaskAndRepeatedFields(t *testing.T) {
 	imageBytes := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x01}
 	maskBytes := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x02}

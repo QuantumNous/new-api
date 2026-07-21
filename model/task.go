@@ -141,6 +141,8 @@ type TaskPrivateData struct {
 	BillingDBApplied     bool                `json:"billing_db_applied,omitempty"`
 	TokenPreConsumed     int                 `json:"token_pre_consumed,omitempty"`
 	TokenBillingEnabled  bool                `json:"token_billing_enabled,omitempty"`
+	WalletLegacyDebit    bool                `json:"wallet_legacy_debit,omitempty"`
+	TokenLegacyDebit     bool                `json:"token_legacy_debit,omitempty"`
 	FinalQuotaClamp      *common.QuotaClamp  `json:"final_quota_clamp,omitempty"`
 	ClientRequestHash    string              `json:"client_request_hash,omitempty"`
 	ChannelMultiKeyIndex int                 `json:"channel_multi_key_index,omitempty"`
@@ -162,11 +164,24 @@ type TaskBillingContext struct {
 	OtherRatios           map[string]float64           `json:"other_ratios,omitempty"`            // 附加倍率（时长、分辨率等）
 	OriginModelName       string                       `json:"origin_model_name,omitempty"`       // 模型名称，必须为OriginModelName
 	PerCallBilling        bool                         `json:"per_call_billing,omitempty"`        // 按次计费：跳过轮询阶段的差额结算
+	ImageRequest          *TaskImageBillingContext     `json:"image_request,omitempty"`           // 生图路由和计费合同快照
 	TieredBillingSnapshot *billingexpr.BillingSnapshot `json:"tiered_billing_snapshot,omitempty"`
 	// BillingRequestInput remains readable for legacy rows and in-memory task
 	// construction. TaskPrivateData.Value always encrypts it before persistence.
 	BillingRequestInput          *billingexpr.RequestInput `json:"billing_request_input,omitempty"`
 	EncryptedBillingRequestInput string                    `json:"billing_request_input_encrypted,omitempty"`
+}
+
+type TaskImageBillingContext struct {
+	Operation    dto.ImageOperation       `json:"operation,omitempty"`
+	Resolution   string                   `json:"resolution,omitempty"`
+	AspectRatio  string                   `json:"aspect_ratio,omitempty"`
+	Size         string                   `json:"size,omitempty"`
+	Quality      string                   `json:"quality,omitempty"`
+	OutputFormat string                   `json:"output_format,omitempty"`
+	Count        uint                     `json:"count,omitempty"`
+	Protocol     dto.ImageRoutingProtocol `json:"protocol,omitempty"`
+	UpstreamPath string                   `json:"upstream_path,omitempty"`
 }
 
 // ResolveBillingRequestInput decrypts the request snapshot into a temporary

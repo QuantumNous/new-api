@@ -343,9 +343,7 @@ func buildImagesResponseWithStorage(ctx context.Context, agg *UpstreamResponse, 
 		if wantB64 {
 			entry.B64Json = item.Result
 		} else {
-			url, err := r2.PutObject(ctx,
-				"images/"+sha256HexBytes(raw)+"."+ext,
-				MimeForExt(ext), raw)
+			url, _, err := r2.PutImageDeduped(ctx, raw, ext)
 			if err != nil {
 				var putErr *r2PutError
 				return nil, &imageStorageError{

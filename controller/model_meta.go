@@ -1,7 +1,8 @@
 package controller
 
 import (
-	"encoding/json"
+	"errors"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -87,14 +88,29 @@ func GetModelMeta(c *gin.Context) {
 }
 
 // CreateModelMeta 新建模型
+type modelMetaMutationRequest struct {
+	model.Model
+	OptionUpdates []OptionUpdateRequest `json:"option_updates,omitempty"`
+}
+
 func CreateModelMeta(c *gin.Context) {
-	var m model.Model
-	if err := c.ShouldBindJSON(&m); err != nil {
+	var request modelMetaMutationRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	m := request.Model
 	if m.ModelName == "" {
 		common.ApiErrorMsg(c, "模型名称不能为空")
+		return
+	}
+	if len(request.OptionUpdates) > 0 && c.GetInt("role") < common.RoleRootUser {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "无权修改模型计费配置"})
+		return
+	}
+	optionValues, expectedValues, optionKeys, err := parseAtomicOptionUpdates(request.OptionUpdates, false)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	// 名称冲突检查
@@ -106,11 +122,20 @@ func CreateModelMeta(c *gin.Context) {
 		return
 	}
 
-	if err := m.Insert(); err != nil {
+	if err := m.InsertWithOptions(optionValues, expectedValues); err != nil {
+		if errors.Is(err, model.ErrOptionUpdateConflict) {
+			c.JSON(http.StatusConflict, gin.H{"success": false, "message": "计费配置已被其他管理员修改，请刷新后重试"})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
 	model.RefreshPricing()
+	if len(optionKeys) > 0 {
+		recordManageAudit(c, "model.create_with_options", map[string]interface{}{
+			"model_id": m.Id, "model_name": m.ModelName, "option_keys": strings.Join(optionKeys, ", "),
+		})
+	}
 	common.ApiSuccess(c, &m)
 }
 
@@ -118,23 +143,37 @@ func CreateModelMeta(c *gin.Context) {
 func UpdateModelMeta(c *gin.Context) {
 	statusOnly := c.Query("status_only") == "true"
 
-	var m model.Model
-	if err := c.ShouldBindJSON(&m); err != nil {
+	var request modelMetaMutationRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	m := request.Model
 	if m.Id == 0 {
 		common.ApiErrorMsg(c, "缺少模型 ID")
 		return
 	}
+	if len(request.OptionUpdates) > 0 && c.GetInt("role") < common.RoleRootUser {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "无权修改模型计费配置"})
+		return
+	}
 
 	if statusOnly {
+		if len(request.OptionUpdates) > 0 {
+			common.ApiErrorMsg(c, "状态更新不支持同时修改计费配置")
+			return
+		}
 		// 只更新状态，防止误清空其他字段
-		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
+		if err := model.UpdateModelStatus(m.Id, m.Status); err != nil {
 			common.ApiError(c, err)
 			return
 		}
 	} else {
+		optionValues, expectedValues, optionKeys, err := parseAtomicOptionUpdates(request.OptionUpdates, false)
+		if err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
 		// 名称冲突检查
 		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
 			common.ApiError(c, err)
@@ -144,9 +183,23 @@ func UpdateModelMeta(c *gin.Context) {
 			return
 		}
 
-		if err := m.Update(); err != nil {
+		allowRename := c.GetInt("role") >= common.RoleRootUser
+		if err := m.UpdateWithOptionsPolicy(optionValues, expectedValues, allowRename); err != nil {
+			if errors.Is(err, model.ErrModelRenameForbidden) {
+				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "只有根管理员可以修改模型名称"})
+				return
+			}
+			if errors.Is(err, model.ErrOptionUpdateConflict) {
+				c.JSON(http.StatusConflict, gin.H{"success": false, "message": "计费配置已被其他管理员修改，请刷新后重试"})
+				return
+			}
 			common.ApiError(c, err)
 			return
+		}
+		if len(optionKeys) > 0 {
+			recordManageAudit(c, "model.update_with_options", map[string]interface{}{
+				"model_id": m.Id, "model_name": m.ModelName, "option_keys": strings.Join(optionKeys, ", "),
+			})
 		}
 	}
 	model.RefreshPricing()
@@ -161,7 +214,7 @@ func DeleteModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if err := model.DB.Delete(&model.Model{}, id).Error; err != nil {
+	if err := model.DeleteModelWithImageResolutionPrice(id); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -201,7 +254,7 @@ func enrichModels(models []*model.Model) {
 			mm := models[idx]
 			if mm.Endpoints == "" {
 				eps := model.GetModelSupportEndpointTypes(mm.ModelName)
-				if b, err := json.Marshal(eps); err == nil {
+				if b, err := common.Marshal(eps); err == nil {
 					mm.Endpoints = string(b)
 				}
 			}
@@ -291,7 +344,7 @@ func enrichModels(models []*model.Model) {
 			for et := range es {
 				eps = append(eps, et)
 			}
-			if b, err := json.Marshal(eps); err == nil {
+			if b, err := common.Marshal(eps); err == nil {
 				mm.Endpoints = string(b)
 			}
 		}

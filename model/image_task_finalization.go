@@ -79,16 +79,25 @@ func isImageTaskFinalizationInvariantError(err error) bool {
 }
 
 type imageTaskCacheAdjustment struct {
-	taskID     string
-	userID     int
-	userDelta  int
-	tokenKey   string
-	tokenDelta int
+	taskID            string
+	userID            int
+	userDelta         int
+	tokenKey          string
+	tokenDelta        int
+	walletLegacyDebit bool
+	tokenLegacyDebit  bool
 }
 
 type imageTaskCacheCoordinator struct {
 	prepare func(imageTaskCacheAdjustment, *User, *Token) error
 	commit  func(imageTaskCacheAdjustment) error
+}
+
+func imageLegacyDebitMarker(legacy bool) int {
+	if legacy {
+		return 1
+	}
+	return 0
 }
 
 var (
@@ -258,6 +267,25 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 		}
 		if task.Status != TaskStatusFinalizing {
 			return fmt.Errorf("image task %s is not finalizing", task.TaskID)
+		}
+		cacheAdjustment.walletLegacyDebit = task.PrivateData.WalletLegacyDebit
+		cacheAdjustment.tokenLegacyDebit = task.PrivateData.TokenLegacyDebit
+		var reservation ImageBillingReservation
+		reservationQuery := lockForUpdate(tx).Where("task_id = ?", task.TaskID).First(&reservation)
+		if reservationQuery.Error != nil && !errors.Is(reservationQuery.Error, gorm.ErrRecordNotFound) {
+			return reservationQuery.Error
+		}
+		if reservationQuery.Error == nil && reservation.Status != ImageBillingReservationRefunded {
+			if reservation.UserID != task.UserId {
+				return fmt.Errorf("image task %s billing reservation user mismatch", task.TaskID)
+			}
+			if err := normalizeImageReservationQuotaModeTx(tx, &reservation); err != nil {
+				return fmt.Errorf("normalize image task %s billing reservation: %w", task.TaskID, err)
+			}
+			cacheAdjustment.walletLegacyDebit = reservation.WalletLegacyDebit
+			cacheAdjustment.tokenLegacyDebit = reservation.TokenLegacyDebit
+			task.PrivateData.WalletLegacyDebit = reservation.WalletLegacyDebit
+			task.PrivateData.TokenLegacyDebit = reservation.TokenLegacyDebit
 		}
 
 		targetStatus := task.PrivateData.BillingFinalStatus
@@ -429,7 +457,7 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 				"request_count": user.RequestCount + 1,
 			}
 			if !isSubscription && delta != 0 {
-				newQuota, err := checkedImageQuotaAdd(user.Quota, -delta)
+				newQuota, err := checkedImageReservationQuotaAdd(user.Quota, -delta, task.PrivateData.WalletLegacyDebit)
 				if err != nil {
 					return fmt.Errorf("adjust user quota for image task %s: %w", task.TaskID, err)
 				}
@@ -441,7 +469,7 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 
 			if task.PrivateData.TokenId > 0 && tokenDelta != 0 {
 				if hasToken {
-					newRemainQuota, err := checkedImageQuotaAdd(token.RemainQuota, -tokenDelta)
+					newRemainQuota, err := checkedImageReservationQuotaAdd(token.RemainQuota, -tokenDelta, task.PrivateData.TokenLegacyDebit)
 					if err != nil {
 						return fmt.Errorf("adjust token remaining quota for image task %s: %w", task.TaskID, err)
 					}
@@ -710,13 +738,34 @@ local task_id = ARGV[4]
 local hold_ttl = tonumber(ARGV[5])
 local min_quota = tonumber(ARGV[6])
 local max_quota = tonumber(ARGV[7])
+local max_legacy_quota = tonumber(ARGV[8])
+local wallet_legacy_debit = ARGV[10] == '1'
+local token_legacy_debit = ARGV[11] == '1'
+
+local function marker_flag(field)
+  return redis.call('HGET', KEYS[1], field) or '0'
+end
+
+local function quota_adjustment_allowed(current, next_quota, allow_legacy)
+  local normal = current >= min_quota and current <= max_quota
+    and next_quota >= min_quota and next_quota <= max_quota
+  if normal then
+    return true
+  end
+  return allow_legacy
+    and current >= 0 and current <= max_legacy_quota
+    and next_quota >= 0 and next_quota <= max_legacy_quota
+    and (current > max_quota or next_quota > max_quota)
+end
 
 local state = redis.call('HGET', KEYS[1], 'state')
 if state then
   if redis.call('HGET', KEYS[1], 'user_key') ~= KEYS[2]
     or redis.call('HGET', KEYS[1], 'user_delta') ~= ARGV[1]
     or redis.call('HGET', KEYS[1], 'token_key') ~= KEYS[3]
-    or redis.call('HGET', KEYS[1], 'token_delta') ~= ARGV[2] then
+    or redis.call('HGET', KEYS[1], 'token_delta') ~= ARGV[2]
+    or marker_flag('wallet_legacy_debit') ~= ARGV[10]
+    or marker_flag('token_legacy_debit') ~= ARGV[11] then
     return -4
   end
   if state ~= 'prepared' then
@@ -747,7 +796,7 @@ if user_delta ~= 0 then
     if next_quota < 0 then
       return -1
     end
-    if next_quota < min_quota or next_quota > max_quota then
+    if not quota_adjustment_allowed(current, next_quota, wallet_legacy_debit) then
       return -4
     end
     apply_user = true
@@ -765,7 +814,7 @@ if token_delta ~= 0 then
       return -4
     end
   else
-    local current = tonumber(redis.call('HGET', KEYS[3], ARGV[8]))
+    local current = tonumber(redis.call('HGET', KEYS[3], ARGV[9]))
     if current == nil then
       return -3
     end
@@ -774,7 +823,7 @@ if token_delta ~= 0 then
     if not unlimited and next_quota < 0 then
       return -2
     end
-    if next_quota < min_quota or next_quota > max_quota then
+    if not quota_adjustment_allowed(current, next_quota, token_legacy_debit) then
       return -4
     end
     apply_token = true
@@ -791,7 +840,7 @@ if user_delta ~= 0 then
   redis.call('EXPIRE', KEYS[2], hold_ttl)
 end
 if apply_token then
-  redis.call('HINCRBY', KEYS[3], ARGV[8], token_delta)
+  redis.call('HINCRBY', KEYS[3], ARGV[9], token_delta)
   redis.call('HSET', KEYS[3], task_field, ARGV[2])
 end
 if token_delta ~= 0 then
@@ -805,7 +854,9 @@ redis.call('HSET', KEYS[1],
   'user_key', KEYS[2],
   'user_delta', ARGV[1],
   'token_key', KEYS[3],
-  'token_delta', ARGV[2])
+  'token_delta', ARGV[2],
+  'wallet_legacy_debit', ARGV[10],
+  'token_legacy_debit', ARGV[11])
 redis.call('EXPIRE', KEYS[1], hold_ttl)
 return 1
 `
@@ -823,6 +874,14 @@ return 1
 		tokenKey = fmt.Sprintf("token:%s", tokenHMAC)
 		tokenPinsKey = imageTaskTokenQuotaPinsKey(tokenHMAC)
 	}
+	walletLegacyDebit := 0
+	if adjustment.walletLegacyDebit {
+		walletLegacyDebit = 1
+	}
+	tokenLegacyDebit := 0
+	if adjustment.tokenLegacyDebit {
+		tokenLegacyDebit = 1
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := common.RDB.Eval(
@@ -836,7 +895,10 @@ return 1
 		imageTaskQuotaCacheHoldSeconds,
 		common.MinQuota,
 		common.MaxQuota,
+		int64(common.MaxLegacyQuota),
 		constant.TokenFiledRemainQuota,
+		walletLegacyDebit,
+		tokenLegacyDebit,
 	).Int64()
 	if err != nil {
 		return fmt.Errorf("%w: prepare task %s: %v", errImageTaskQuotaCacheUnavailable, adjustment.taskID, err)
@@ -881,6 +943,10 @@ local task_id = ARGV[4]
 local marker_ttl = tonumber(ARGV[5])
 local cache_ttl = tonumber(ARGV[6])
 
+local function marker_flag(field)
+  return redis.call('HGET', KEYS[1], field) or '0'
+end
+
 local state = redis.call('HGET', KEYS[1], 'state')
 if not state then
   -- A missing marker is not evidence that the cache phase completed. The
@@ -895,7 +961,9 @@ end
 if redis.call('HGET', KEYS[1], 'user_key') ~= KEYS[2]
   or redis.call('HGET', KEYS[1], 'user_delta') ~= ARGV[1]
   or redis.call('HGET', KEYS[1], 'token_key') ~= KEYS[3]
-  or redis.call('HGET', KEYS[1], 'token_delta') ~= ARGV[2] then
+  or redis.call('HGET', KEYS[1], 'token_delta') ~= ARGV[2]
+  or marker_flag('wallet_legacy_debit') ~= ARGV[7]
+  or marker_flag('token_legacy_debit') ~= ARGV[8] then
   return -4
 end
 if state == 'committed' then
@@ -950,7 +1018,9 @@ redis.call('HSET', KEYS[1],
   'user_key', KEYS[2],
   'user_delta', ARGV[1],
   'token_key', KEYS[3],
-  'token_delta', ARGV[2])
+  'token_delta', ARGV[2],
+  'wallet_legacy_debit', ARGV[7],
+  'token_legacy_debit', ARGV[8])
 redis.call('EXPIRE', KEYS[1], marker_ttl)
 return 1
 `
@@ -976,6 +1046,14 @@ return 1
 	if cacheTTL <= 0 {
 		cacheTTL = 1
 	}
+	walletLegacyDebit := 0
+	if adjustment.walletLegacyDebit {
+		walletLegacyDebit = 1
+	}
+	tokenLegacyDebit := 0
+	if adjustment.tokenLegacyDebit {
+		tokenLegacyDebit = 1
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := common.RDB.Eval(
@@ -988,6 +1066,8 @@ return 1
 		adjustment.taskID,
 		imageTaskQuotaCacheHoldSeconds,
 		cacheTTL,
+		walletLegacyDebit,
+		tokenLegacyDebit,
 	).Int64()
 	if err != nil {
 		return fmt.Errorf("%w: commit task %s: %v", errImageTaskQuotaCacheUnavailable, adjustment.taskID, err)
@@ -1159,7 +1239,7 @@ return 1
 // phase did not commit. It invalidates the affected quota snapshots before the
 // compensating database refund, so either side of a crash reloads authoritative
 // balances instead of leaving a terminal task pinned in Redis.
-func rollbackPreparedImageTaskCache(taskID string, userID int, tokenKey string) error {
+func rollbackPreparedImageTaskCache(taskID string, userID int, tokenKey string, walletLegacyDebit bool, tokenLegacyDebit bool) error {
 	if !common.RedisEnabled {
 		return nil
 	}
@@ -1181,16 +1261,26 @@ end
 
 local expected_user_delta = nil
 local expected_token_delta = nil
+local expected_user_legacy = ARGV[12]
+local expected_token_legacy = ARGV[13]
 if state then
   local marker_user_key = redis.call('HGET', KEYS[1], 'user_key')
   local marker_token_key = redis.call('HGET', KEYS[1], 'token_key')
   local marker_user_delta = redis.call('HGET', KEYS[1], 'user_delta')
   local marker_token_delta = redis.call('HGET', KEYS[1], 'token_delta')
+	local marker_user_legacy = redis.call('HGET', KEYS[1], 'wallet_legacy_debit') or ARGV[12]
+	local marker_token_legacy = redis.call('HGET', KEYS[1], 'token_legacy_debit') or ARGV[13]
   if not marker_user_key or not marker_token_key or not marker_user_delta or not marker_token_delta then
+    return -4
+  end
+  if (marker_user_legacy ~= '0' and marker_user_legacy ~= '1')
+    or (marker_token_legacy ~= '0' and marker_token_legacy ~= '1') then
     return -4
   end
   expected_user_delta = tonumber(marker_user_delta)
   expected_token_delta = tonumber(marker_token_delta)
+  expected_user_legacy = marker_user_legacy
+  expected_token_legacy = marker_token_legacy
   if not expected_user_delta or not expected_token_delta then
     return -4
   end
@@ -1202,7 +1292,7 @@ if state then
   end
 end
 
-local function inspect_leg(cache_key, quota_field, expected_delta)
+local function inspect_leg(cache_key, quota_field, expected_delta, allow_legacy)
   local tagged = redis.call('HGET', cache_key, ARGV[1])
   if tagged then
     local tagged_delta = tonumber(tagged)
@@ -1214,7 +1304,16 @@ local function inspect_leg(cache_key, quota_field, expected_delta)
       return -3, 0, false
     end
     local restored = current - tagged_delta
-    if restored < tonumber(ARGV[5]) or restored > tonumber(ARGV[6]) then
+    local min_quota = tonumber(ARGV[5])
+    local max_quota = tonumber(ARGV[6])
+    local max_legacy_quota = tonumber(ARGV[11])
+    local normal = current >= min_quota and current <= max_quota
+      and restored >= min_quota and restored <= max_quota
+    local legacy = allow_legacy == '1'
+      and current >= 0 and current <= max_legacy_quota
+      and restored >= 0 and restored <= max_legacy_quota
+      and (current > max_quota or restored > max_quota)
+    if not normal and not legacy then
       return -4, 0, false
     end
     return 1, tagged_delta, true
@@ -1242,11 +1341,11 @@ local function apply_rollback(cache_key, pins_key, invalidation_key, quota_field
   end
 end
 
-local user_result, user_delta, user_has_tag = inspect_leg(KEYS[2], 'Quota', expected_user_delta)
+local user_result, user_delta, user_has_tag = inspect_leg(KEYS[2], 'Quota', expected_user_delta, expected_user_legacy)
 if user_result ~= 1 then
   return user_result
 end
-local token_result, token_delta, token_has_tag = inspect_leg(KEYS[3], ARGV[10], expected_token_delta)
+local token_result, token_delta, token_has_tag = inspect_leg(KEYS[3], ARGV[10], expected_token_delta, expected_token_legacy)
 if token_result ~= 1 then
   return token_result
 end
@@ -1292,6 +1391,9 @@ return 1
 		markerKey+":no-token",
 		imageTaskQuotaCacheHoldSeconds,
 		constant.TokenFiledRemainQuota,
+		int64(common.MaxLegacyQuota),
+		imageLegacyDebitMarker(walletLegacyDebit),
+		imageLegacyDebitMarker(tokenLegacyDebit),
 	).Int64()
 	if err != nil {
 		return fmt.Errorf("%w: rollback task %s: %v", errImageTaskQuotaCacheUnavailable, taskID, err)
@@ -1303,8 +1405,30 @@ return 1
 }
 
 func checkedImageQuotaAdd(current int, delta int) (int, error) {
-	value := int64(current) + int64(delta)
-	if value < int64(common.MinQuota) || value > int64(common.MaxQuota) {
+	value, err := checkedInt64Add(int64(current), int64(delta))
+	if err != nil {
+		return 0, errors.New("quota adjustment is out of range")
+	}
+	if current < common.MinQuota || current > common.MaxQuota ||
+		value < int64(common.MinQuota) || value > int64(common.MaxQuota) {
+		return 0, errors.New("quota adjustment is out of range")
+	}
+	return int(value), nil
+}
+
+func checkedImageReservationQuotaAdd(current int, delta int, allowLegacy bool) (int, error) {
+	currentValue := int64(current)
+	value, err := checkedInt64Add(currentValue, int64(delta))
+	if err != nil {
+		return 0, errors.New("quota adjustment is out of range")
+	}
+	if currentValue >= int64(common.MinQuota) && currentValue <= int64(common.MaxQuota) &&
+		value >= int64(common.MinQuota) && value <= int64(common.MaxQuota) {
+		return int(value), nil
+	}
+	if !allowLegacy || currentValue < 0 || currentValue > int64(common.MaxLegacyQuota) ||
+		value < 0 || value > int64(common.MaxLegacyQuota) ||
+		(currentValue <= int64(common.MaxQuota) && value <= int64(common.MaxQuota)) {
 		return 0, errors.New("quota adjustment is out of range")
 	}
 	return int(value), nil

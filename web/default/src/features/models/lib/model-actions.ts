@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type QueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
 import { updateModelStatus, deleteModel as deleteModelAPI } from '../api'
+import type { Model } from '../types'
 import { modelsQueryKeys } from './query-keys'
 
 // ============================================================================
@@ -99,15 +100,16 @@ export async function handleToggleModelStatus(
  * Delete a single model
  */
 export async function handleDeleteModel(
-  id: number,
+  model: Pick<Model, 'id' | 'model_name'>,
   queryClient?: QueryClient,
   onSuccess?: () => void
 ): Promise<void> {
   try {
-    const response = await deleteModelAPI(id)
+    const response = await deleteModelAPI(model.id)
     if (response.success) {
       toast.success(i18next.t('Model deleted successfully'))
       queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+      queryClient?.invalidateQueries({ queryKey: ['system-options'] })
       onSuccess?.()
     } else {
       toast.error(response.message || i18next.t('Failed to delete model'))
@@ -123,29 +125,28 @@ export async function handleDeleteModel(
  * Batch delete models
  */
 export async function handleBatchDeleteModels(
-  ids: number[],
+  models: Array<Pick<Model, 'id' | 'model_name'>>,
   queryClient?: QueryClient,
   onSuccess?: (deletedCount: number) => void
 ): Promise<void> {
-  if (ids.length === 0) {
+  if (models.length === 0) {
     toast.error(i18next.t('Please select at least one model'))
     return
   }
 
   try {
-    const deletePromises = ids.map((id) => deleteModelAPI(id))
-    const results = await Promise.all(deletePromises)
+    const results = await Promise.allSettled(
+      models.map((model) => deleteModelAPI(model.id))
+    )
 
     let successCount = 0
     let failedCount = 0
 
-    results.forEach((res, index) => {
-      if (res.success) {
+    results.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value.success) {
         successCount++
       } else {
         failedCount++
-        // eslint-disable-next-line no-console
-        console.error(`Failed to delete model ${ids[index]}:`, res.message)
       }
     })
 
@@ -156,6 +157,7 @@ export async function handleBatchDeleteModels(
         })
       )
       queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+      queryClient?.invalidateQueries({ queryKey: ['system-options'] })
       onSuccess?.(successCount)
     }
 

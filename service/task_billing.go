@@ -190,6 +190,44 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 				other[k] = v
 			}
 		}
+		if imageRequest := bc.ImageRequest; imageRequest != nil {
+			imageInfo := make(map[string]interface{})
+			if imageRequest.Operation != "" {
+				imageInfo["operation"] = imageRequest.Operation
+			}
+			if imageRequest.Resolution != "" {
+				imageInfo["resolution"] = imageRequest.Resolution
+			}
+			if imageRequest.AspectRatio != "" {
+				imageInfo["aspect_ratio"] = imageRequest.AspectRatio
+			}
+			if imageRequest.Size != "" {
+				imageInfo["size"] = imageRequest.Size
+			}
+			if imageRequest.Quality != "" {
+				imageInfo["quality"] = imageRequest.Quality
+			}
+			if imageRequest.OutputFormat != "" {
+				imageInfo["output_format"] = imageRequest.OutputFormat
+			}
+			if imageRequest.Count > 0 {
+				imageInfo["count"] = imageRequest.Count
+			}
+			if imageRequest.Protocol != "" {
+				imageInfo["protocol"] = imageRequest.Protocol
+			}
+			if imageRequest.UpstreamPath != "" {
+				imageInfo["upstream_path"] = imageRequest.UpstreamPath
+			}
+			if len(imageInfo) > 0 {
+				adminInfo, ok := other["admin_info"].(map[string]interface{})
+				if !ok || adminInfo == nil {
+					adminInfo = make(map[string]interface{})
+					other["admin_info"] = adminInfo
+				}
+				adminInfo["image_request"] = imageInfo
+			}
+		}
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {
@@ -551,13 +589,6 @@ func calculateTaskQuotaByTokens(task *model.Task, totalTokens int) (int, string,
 
 	modelName := taskModelName(task)
 
-	// 获取模型价格和倍率
-	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
-	// 只有配置了倍率(非固定价格)时才按 token 重新计费
-	if !hasRatioSetting || modelRatio <= 0 {
-		return 0, "", nil, false
-	}
-
 	// 获取用户和组的倍率信息
 	group := task.Group
 	if group == "" {
@@ -567,6 +598,16 @@ func calculateTaskQuotaByTokens(task *model.Task, totalTokens int) (int, string,
 		}
 	}
 	if group == "" {
+		return 0, "", nil, false
+	}
+
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
+
+	// 获取模型价格和倍率
+	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
+	// 只有配置了倍率(非固定价格)时才按 token 重新计费
+	if !hasRatioSetting || modelRatio <= 0 {
 		return 0, "", nil, false
 	}
 

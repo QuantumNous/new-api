@@ -30,8 +30,13 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice, formatRequestPrice } from '../lib/price'
+import { getImageResolutionStartingPrice } from '../lib/image-resolution-price'
+import { getDisplayGroupRatio, isTokenBasedModel } from '../lib/model-helpers'
+import {
+  formatImageResolutionPrice,
+  formatPrice,
+  formatRequestPrice,
+} from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -78,6 +83,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         ),
       })
     : null
+  const imageResolutionStartingPrice = getImageResolutionStartingPrice(
+    props.model
+  )
 
   const primaryGroup = groups[0]
   const bottomTags = [...endpoints.slice(0, 2), ...tags.slice(0, 2)]
@@ -127,6 +135,22 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         </span>
       )
     }
+  } else if (imageResolutionStartingPrice !== null) {
+    priceSummary = (
+      <span className='text-muted-foreground whitespace-nowrap'>
+        {t('From')}{' '}
+        <span className='text-foreground font-mono font-semibold'>
+          {formatImageResolutionPrice(
+            imageResolutionStartingPrice *
+              getDisplayGroupRatio(props.model, props.selectedGroup),
+            showRechargePrice,
+            priceRate,
+            usdExchangeRate
+          )}
+        </span>{' '}
+        / {t('image')}
+      </span>
+    )
   } else if (isTokenBased) {
     priceSummary = (
       <>
@@ -263,9 +287,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               {item}
             </span>
           ))}
-          <span className='text-muted-foreground/50 text-xs'>
-            {tokenUnitLabel}
-          </span>
+          {(isDynamicPricing ||
+            (isTokenBased && imageResolutionStartingPrice === null)) && (
+            <span className='text-muted-foreground/50 text-xs'>
+              {tokenUnitLabel}
+            </span>
+          )}
           {hiddenCount > 0 && (
             <span className='text-muted-foreground/40 text-xs'>
               +{hiddenCount}

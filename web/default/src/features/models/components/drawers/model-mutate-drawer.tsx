@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Loader2 } from 'lucide-react'
+import { AlertCircle, ChevronDown, Loader2 } from 'lucide-react'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +35,7 @@ import {
 } from '@/components/drawer-layout'
 import { JsonEditor } from '@/components/json-editor'
 import { TagInput } from '@/components/tag-input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -73,17 +74,26 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  getSafeServerMessage,
+  resolveMutationErrorMessage,
+} from '@/features/system-settings/api'
+import {
   useSystemOptions,
   getOptionValue,
 } from '@/features/system-settings/hooks/use-system-options'
-import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
+import {
+  type ImageResolutionPriceMap,
+  renameImageResolutionPriceModel,
+} from '@/features/system-settings/models/image-resolution-price'
 import { normalizeJsonString } from '@/features/system-settings/models/utils'
 import type { ModelSettings } from '@/features/system-settings/types'
 import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
+import { canMutateModelPricingOptions } from '../../lib/model-mutation-permissions'
 import type { Model } from '../../types'
 
 // Extended schema for ratio configuration (internal form state only)
@@ -125,6 +135,8 @@ export function ModelMutateDrawer({
 }: ModelMutateDrawerProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const currentUserRole = useAuthStore((state) => state.auth.user?.role)
+  const canEditPricingOptions = canMutateModelPricingOptions(currentUserRole)
   const currentModelId = currentRow?.id
   const isEditing = Boolean(currentModelId)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -157,9 +169,13 @@ export function ModelMutateDrawer({
   })
 
   // Fetch system options for ratio configuration
-  const { data: systemOptionsData } = useSystemOptions()
-
-  const updateOption = useUpdateOption()
+  const {
+    data: systemOptionsData,
+    isPending: isSystemOptionsPending,
+    isFetching: isSystemOptionsFetching,
+    isError: isSystemOptionsError,
+    refetch: refetchSystemOptions,
+  } = useSystemOptions(open && canEditPricingOptions)
 
   // Get model settings from system options
   const modelSettings = useMemo(() => {
@@ -182,6 +198,7 @@ export function ModelMutateDrawer({
       'claude.thinking_adapter_enabled': true,
       'claude.thinking_adapter_budget_tokens_percentage': 0.8,
       ModelPrice: '',
+      ImageResolutionPrice: '{}',
       ModelRatio: '',
       CacheRatio: '',
       CompletionRatio: '',
@@ -224,6 +241,18 @@ export function ModelMutateDrawer({
     }
     return getOptionValue(systemOptionsData.data, defaultModelSettings)
   }, [systemOptionsData])
+  const hasSystemOptions =
+    systemOptionsData?.success === true &&
+    Array.isArray(systemOptionsData.data) &&
+    modelSettings !== null
+  const isSystemOptionsLoading =
+    canEditPricingOptions && (isSystemOptionsPending || isSystemOptionsFetching)
+  const isSystemOptionsReady =
+    !canEditPricingOptions ||
+    (hasSystemOptions && !isSystemOptionsLoading && !isSystemOptionsError)
+  const didSystemOptionsLoadFail =
+    canEditPricingOptions &&
+    (isSystemOptionsError || (!isSystemOptionsLoading && !hasSystemOptions))
 
   const form = useForm<ExtendedModelFormValues>({
     resolver: zodResolver(extendedModelFormSchema),
@@ -414,6 +443,8 @@ export function ModelMutateDrawer({
 
   const onSubmit = useCallback(
     async (values: ExtendedModelFormValues): Promise<void> => {
+      if (!isSystemOptionsReady) return
+
       setIsSubmitting(true)
       try {
         const submitData = {
@@ -436,12 +467,7 @@ export function ModelMutateDrawer({
           ...modelData
         } = submitData
 
-        const response =
-          isEditing && currentModelId
-            ? await updateModel({ ...modelData, id: currentModelId })
-            : await createModel(modelData)
-
-        if (response.success) {
+        {
           // Handle ratio configuration updates in system settings
           const finalModelName = values.model_name
           const hasRatioConfig =
@@ -458,12 +484,22 @@ export function ModelMutateDrawer({
 
           // Always process system settings updates if we have modelSettings
           // This ensures we can remove stale entries even when clearing all pricing fields
-          if (modelSettings) {
+          const optionUpdates: Array<{
+            key: string
+            value: string
+            expected_value: string
+          }> = []
+          if (canEditPricingOptions && modelSettings) {
             // Read existing configurations
             const priceMap = safeJsonParse<Record<string, number>>(
               modelSettings.ModelPrice,
               { fallback: {}, silent: true }
             )
+            let imageResolutionPriceMap =
+              safeJsonParse<ImageResolutionPriceMap>(
+                modelSettings.ImageResolutionPrice,
+                { fallback: {}, silent: true }
+              )
             const ratioMap = safeJsonParse<Record<string, number>>(
               modelSettings.ModelRatio,
               { fallback: {}, silent: true }
@@ -491,6 +527,11 @@ export function ModelMutateDrawer({
 
             // Remove old model name entries if model name changed (always, even if no new config)
             if (isEditing && oldModelName && oldModelName !== finalModelName) {
+              imageResolutionPriceMap = renameImageResolutionPriceModel(
+                imageResolutionPriceMap,
+                oldModelName,
+                finalModelName
+              )
               delete priceMap[oldModelName]
               delete ratioMap[oldModelName]
               delete cacheMap[oldModelName]
@@ -554,27 +595,51 @@ export function ModelMutateDrawer({
             }
 
             // Update system options if there are changes
-            const updates: Array<{ key: string; value: string }> = []
-
             const newModelPrice = normalizeJsonString(JSON.stringify(priceMap))
             if (
               newModelPrice !== normalizeJsonString(modelSettings.ModelPrice)
             ) {
-              updates.push({ key: 'ModelPrice', value: newModelPrice })
+              optionUpdates.push({
+                key: 'ModelPrice',
+                value: newModelPrice,
+                expected_value: modelSettings.ModelPrice,
+              })
+            }
+
+            const newImageResolutionPrice = normalizeJsonString(
+              JSON.stringify(imageResolutionPriceMap)
+            )
+            if (
+              newImageResolutionPrice !==
+              normalizeJsonString(modelSettings.ImageResolutionPrice)
+            ) {
+              optionUpdates.push({
+                key: 'ImageResolutionPrice',
+                value: newImageResolutionPrice,
+                expected_value: modelSettings.ImageResolutionPrice,
+              })
             }
 
             const newModelRatio = normalizeJsonString(JSON.stringify(ratioMap))
             if (
               newModelRatio !== normalizeJsonString(modelSettings.ModelRatio)
             ) {
-              updates.push({ key: 'ModelRatio', value: newModelRatio })
+              optionUpdates.push({
+                key: 'ModelRatio',
+                value: newModelRatio,
+                expected_value: modelSettings.ModelRatio,
+              })
             }
 
             const newCacheRatio = normalizeJsonString(JSON.stringify(cacheMap))
             if (
               newCacheRatio !== normalizeJsonString(modelSettings.CacheRatio)
             ) {
-              updates.push({ key: 'CacheRatio', value: newCacheRatio })
+              optionUpdates.push({
+                key: 'CacheRatio',
+                value: newCacheRatio,
+                expected_value: modelSettings.CacheRatio,
+              })
             }
 
             const newCompletionRatio = normalizeJsonString(
@@ -584,9 +649,10 @@ export function ModelMutateDrawer({
               newCompletionRatio !==
               normalizeJsonString(modelSettings.CompletionRatio)
             ) {
-              updates.push({
+              optionUpdates.push({
                 key: 'CompletionRatio',
                 value: newCompletionRatio,
+                expected_value: modelSettings.CompletionRatio,
               })
             }
 
@@ -594,14 +660,22 @@ export function ModelMutateDrawer({
             if (
               newImageRatio !== normalizeJsonString(modelSettings.ImageRatio)
             ) {
-              updates.push({ key: 'ImageRatio', value: newImageRatio })
+              optionUpdates.push({
+                key: 'ImageRatio',
+                value: newImageRatio,
+                expected_value: modelSettings.ImageRatio,
+              })
             }
 
             const newAudioRatio = normalizeJsonString(JSON.stringify(audioMap))
             if (
               newAudioRatio !== normalizeJsonString(modelSettings.AudioRatio)
             ) {
-              updates.push({ key: 'AudioRatio', value: newAudioRatio })
+              optionUpdates.push({
+                key: 'AudioRatio',
+                value: newAudioRatio,
+                expected_value: modelSettings.AudioRatio,
+              })
             }
 
             const newAudioCompletionRatio = normalizeJsonString(
@@ -611,16 +685,37 @@ export function ModelMutateDrawer({
               newAudioCompletionRatio !==
               normalizeJsonString(modelSettings.AudioCompletionRatio)
             ) {
-              updates.push({
+              optionUpdates.push({
                 key: 'AudioCompletionRatio',
                 value: newAudioCompletionRatio,
+                expected_value: modelSettings.AudioCompletionRatio,
               })
             }
+          }
 
-            // Apply all updates (including deletions when clearing fields)
-            for (const update of updates) {
-              await updateOption.mutateAsync(update)
+          const response =
+            isEditing && currentModelId
+              ? await updateModel({
+                  ...modelData,
+                  id: currentModelId,
+                  option_updates: optionUpdates,
+                })
+              : await createModel({
+                  ...modelData,
+                  option_updates: optionUpdates,
+                })
+
+          if (!response.success) {
+            toast.error(
+              getSafeServerMessage(response.message) || t('Operation failed')
+            )
+            if (canEditPricingOptions) {
+              void queryClient.invalidateQueries({
+                queryKey: ['system-options'],
+                refetchType: 'active',
+              })
             }
+            return
           }
 
           toast.success(
@@ -629,13 +724,29 @@ export function ModelMutateDrawer({
               : 'Model created successfully'
           )
           queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
-          queryClient.invalidateQueries({ queryKey: ['system-options'] })
+          if (canEditPricingOptions) {
+            queryClient.invalidateQueries({ queryKey: ['system-options'] })
+          }
           onOpenChange(false)
-        } else {
-          toast.error(response.message || 'Operation failed')
         }
       } catch (error: unknown) {
-        toast.error((error as Error)?.message || 'Operation failed')
+        toast.error(
+          resolveMutationErrorMessage(error, {
+            conflict: t(
+              'Pricing settings changed on the server. The latest values were reloaded; review them and try again.'
+            ),
+            server: t(
+              'The server could not save your changes. Please try again.'
+            ),
+            fallback: t('Operation failed'),
+          })
+        )
+        if (canEditPricingOptions) {
+          void queryClient.invalidateQueries({
+            queryKey: ['system-options'],
+            refetchType: 'active',
+          })
+        }
       } finally {
         setIsSubmitting(false)
       }
@@ -648,7 +759,9 @@ export function ModelMutateDrawer({
       pricingMode,
       oldModelName,
       modelSettings,
-      updateOption,
+      isSystemOptionsReady,
+      canEditPricingOptions,
+      t,
     ]
   )
 
@@ -676,6 +789,32 @@ export function ModelMutateDrawer({
           </SheetDescription>
         </SheetHeader>
 
+        {didSystemOptionsLoadFail && (
+          <Alert variant='destructive'>
+            <AlertCircle aria-hidden='true' />
+            <AlertDescription className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+              <span>
+                {t(
+                  'Pricing settings could not be loaded. Saving is disabled to protect existing prices.'
+                )}
+              </span>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                className='shrink-0'
+                disabled={isSystemOptionsFetching}
+                onClick={() => void refetchSystemOptions()}
+              >
+                {isSystemOptionsFetching && (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                )}
+                {t('Retry')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Form {...form}>
           <form
             id='model-form'
@@ -699,6 +838,7 @@ export function ModelMutateDrawer({
                     <FormControl>
                       <Input
                         placeholder={t('gpt-4, claude-3-opus, etc.')}
+                        disabled={isEditing && !canEditPricingOptions}
                         {...field}
                       />
                     </FormControl>
@@ -915,7 +1055,9 @@ export function ModelMutateDrawer({
             </SideDrawerSection>
 
             {/* Pricing Configuration */}
-            <SideDrawerSection>
+            <SideDrawerSection
+              className={canEditPricingOptions ? undefined : 'hidden'}
+            >
               <h3 className='text-sm font-semibold'>
                 {t('Pricing Configuration')}
               </h3>
@@ -1316,8 +1458,14 @@ export function ModelMutateDrawer({
           >
             {t('Cancel')}
           </SheetClose>
-          <Button form='model-form' type='submit' disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+          <Button
+            form='model-form'
+            type='submit'
+            disabled={isSubmitting || !isSystemOptionsReady}
+          >
+            {(isSubmitting || isSystemOptionsLoading) && (
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            )}
             {isEditing ? t('Update Model') : t('Save changes')}
           </Button>
         </SheetFooter>

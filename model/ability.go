@@ -28,14 +28,15 @@ type Ability struct {
 
 type AbilityWithChannel struct {
 	Ability
-	ChannelType         int     `json:"channel_type"`
-	ChannelModelMapping *string `json:"-"`
+	ChannelType              int     `json:"channel_type"`
+	ChannelModelMapping      *string `json:"-"`
+	ChannelOtherSettingsJSON string  `json:"-"`
 }
 
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
 	err := DB.Table("abilities").
-		Select("abilities.*, channels.type as channel_type, channels.model_mapping as channel_model_mapping").
+		Select("abilities.*, channels.type as channel_type, channels.model_mapping as channel_model_mapping, channels.settings as channel_other_settings_json").
 		Joins("left join channels on abilities.channel_id = channels.id").
 		Where("abilities.enabled = ?", true).
 		Scan(&abilities).Error
@@ -113,8 +114,13 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 
 func GetChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
 	var abilities []Ability
+	normalizedRequirement, err := normalizeImageSelectionRequirement(options.ImageRequirement)
+	if err != nil {
+		return nil, err
+	}
+	options.ImageRequirement = normalizedRequirement
 
-	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+	err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
 		Order("priority DESC").
 		Order("weight DESC").
 		Find(&abilities).Error
@@ -124,6 +130,10 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	// Advanced Custom (type 58) channels only serve the request paths their
 	// configured routes match; drop the rest before health/priority selection.
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, options.RequestPath, model)
+	abilities, err = filterAbilitiesByImageRequirement(abilities, model, options.ImageRequirement)
+	if err != nil {
+		return nil, err
+	}
 
 	avoidedChannelIDs := avoidedHostChannelIDs(abilities, options.AvoidChannelHosts, options.RequestPath, model)
 	availableAbilities := make([]Ability, 0, len(abilities))
@@ -206,6 +216,70 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	channel := Channel{}
 	err = DB.First(&channel, "id = ?", channelId).Error
 	return &channel, err
+}
+
+func filterAbilitiesByImageRequirement(abilities []Ability, model string, requirement *dto.ImageSelectionRequirement) ([]Ability, error) {
+	if requirement == nil || len(abilities) == 0 {
+		return abilities, nil
+	}
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
+	channelIDs := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, exists := seen[ability.ChannelId]; exists {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+
+	var channels []Channel
+	if err := DB.Select("id", "settings").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	channelByID := make(map[int]*Channel, len(channels))
+	explicitModelRouting := false
+	for i := range channels {
+		channelByID[channels[i].Id] = &channels[i]
+		state := imageRoutingConfigFromChannel(&channels[i])
+		if state.configured && state.config == nil {
+			explicitModelRouting = true
+		} else if state.config != nil {
+			if _, ok := state.config.ProfileForModel(model); ok {
+				explicitModelRouting = true
+			}
+		}
+	}
+	filtered := make([]Ability, 0, len(abilities))
+	resolvedRequirements := make([]dto.ImageSelectionRequirement, 0, len(abilities))
+	for _, ability := range abilities {
+		channel, exists := channelByID[ability.ChannelId]
+		if !exists {
+			continue
+		}
+		state := imageRoutingConfigFromChannel(channel)
+		if state.configured && imageRoutingConfigSupports(state, model, requirement) {
+			profile, _ := state.config.ProfileForModel(model)
+			resolved, err := profile.ApplyDefaults(*requirement)
+			if err != nil {
+				return nil, err
+			}
+			if !imageRoutingProfileHasResolutionPrice(model, profile, resolved) {
+				continue
+			}
+			filtered = append(filtered, ability)
+			resolvedRequirements = append(resolvedRequirements, resolved)
+			continue
+		}
+		if !state.configured && !explicitModelRouting {
+			filtered = append(filtered, ability)
+		}
+	}
+	if err := validateImageRoutingDefaultConsistency(*requirement, resolvedRequirements); err != nil {
+		return nil, err
+	}
+	return filtered, nil
 }
 
 func effectiveAbilitySelectionWeights(abilities []Ability, model string, path string) []int {

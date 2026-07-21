@@ -34,8 +34,10 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import { getImageResolutionStartingPrice } from '../lib/image-resolution-price'
+import { getDisplayGroupRatio, isTokenBasedModel } from '../lib/model-helpers'
 import {
+  formatImageResolutionPrice,
   formatPrice,
   formatRequestPrice,
   stripTrailingZeros,
@@ -176,6 +178,34 @@ export function usePricingColumns(
         }
 
         const isTokenBased = isTokenBasedModel(model)
+        const imageResolutionStartingPrice =
+          getImageResolutionStartingPrice(model)
+
+        if (imageResolutionStartingPrice !== null) {
+          const price = stripTrailingZeros(
+            formatImageResolutionPrice(
+              imageResolutionStartingPrice *
+                getDisplayGroupRatio(model, selectedGroup),
+              showRechargePrice,
+              priceRate,
+              usdExchangeRate
+            )
+          )
+
+          return (
+            <div className='max-w-full min-w-0'>
+              <span className='font-mono text-sm tabular-nums'>
+                <span className='text-muted-foreground mr-1 font-sans text-xs'>
+                  {t('From')}
+                </span>
+                {price}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {t('image')}
+              </div>
+            </div>
+          )
+        }
 
         if (isTokenBased) {
           const inputPrice = stripTrailingZeros(

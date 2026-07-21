@@ -462,6 +462,33 @@ func TestRequestAsyncImageUpstreamBuildsResponsesEditFromStagedInput(t *testing.
 	assert.Equal(t, "result", response.Output[0].Result)
 }
 
+func TestRequestAsyncImageUpstreamUsesSnapshottedResponsesPath(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/gateway/v1/responses", r.URL.Path)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, err := w.Write([]byte("data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"image_generation_call\",\"result\":\"result\"}}\n\n" +
+			"data: {\"type\":\"response.completed\",\"response\":{\"model\":\"gpt-image-2\",\"usage\":{\"input_tokens\":2,\"output_tokens\":3}}}\n\n"))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	response, err := requestAsyncImageUpstreamWithLeaseAtPath(
+		context.Background(),
+		server.URL,
+		"request-key",
+		"",
+		"gpt-image-2",
+		"task-custom-path",
+		&dto.ImageRequest{Model: "gpt-image-2", Prompt: "draw"},
+		nil,
+		"/gateway/v1/responses",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	require.Len(t, response.Output, 1)
+}
+
 func TestRequestAsyncImageUpstreamDoesNotReturnProviderErrorBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
