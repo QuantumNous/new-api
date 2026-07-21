@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/types"
 )
 
 type ChannelSettings struct {
@@ -172,13 +172,13 @@ func (c *AdvancedCustomConfig) SupportsPathForModel(requestPath string, model st
 	return ok
 }
 
-func (c *AdvancedCustomConfig) SupportedEndpointTypesForModel(model string) []constant.EndpointType {
+func (c *AdvancedCustomConfig) SupportedEndpointTypesForModel(model string) []types.EndpointType {
 	if c == nil {
 		return nil
 	}
 	model = strings.TrimSpace(model)
-	endpoints := make([]constant.EndpointType, 0, len(c.Routes))
-	seen := make(map[constant.EndpointType]struct{}, len(c.Routes))
+	endpoints := make([]types.EndpointType, 0, len(c.Routes))
+	seen := make(map[types.EndpointType]struct{}, len(c.Routes))
 	for _, route := range c.Routes {
 		if !matchAdvancedCustomRouteModel(route.Models, model) {
 			continue
@@ -196,25 +196,25 @@ func (c *AdvancedCustomConfig) SupportedEndpointTypesForModel(model string) []co
 	return endpoints
 }
 
-func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (constant.EndpointType, bool) {
+func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (types.EndpointType, bool) {
 	switch incomingPath {
 	case advancedCustomEndpointPathOpenAIChat:
-		return constant.EndpointTypeOpenAI, true
+		return types.EndpointTypeOpenAI, true
 	case advancedCustomEndpointPathOpenAIResponses:
-		return constant.EndpointTypeOpenAIResponse, true
+		return types.EndpointTypeOpenAIResponse, true
 	case advancedCustomEndpointPathOpenAIResponsesCompact:
-		return constant.EndpointTypeOpenAIResponseCompact, true
+		return types.EndpointTypeOpenAIResponseCompact, true
 	case advancedCustomEndpointPathClaudeMessages:
-		return constant.EndpointTypeAnthropic, true
+		return types.EndpointTypeAnthropic, true
 	case advancedCustomEndpointPathJinaRerank:
-		return constant.EndpointTypeJinaRerank, true
+		return types.EndpointTypeJinaRerank, true
 	case advancedCustomEndpointPathImageGeneration:
-		return constant.EndpointTypeImageGeneration, true
+		return types.EndpointTypeImageGeneration, true
 	case advancedCustomEndpointPathEmbeddings:
-		return constant.EndpointTypeEmbeddings, true
+		return types.EndpointTypeEmbeddings, true
 	default:
 		if isAdvancedCustomGeminiIncomingPath(incomingPath) {
-			return constant.EndpointTypeGemini, true
+			return types.EndpointTypeGemini, true
 		}
 		return "", false
 	}

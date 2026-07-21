@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
@@ -41,7 +40,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 		openAIRequest.Stream = kitutil.GetPointer(*claudeRequest.Stream)
 	}
 
-	isOpenRouter := convmeta.ChannelTypeOf(info) == constant.ChannelTypeOpenRouter
+	isOpenRouter := convmeta.OptionsOf(info).OpenRouterDialect
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
 			effortBytes, _ := kitutil.Marshal(effort)

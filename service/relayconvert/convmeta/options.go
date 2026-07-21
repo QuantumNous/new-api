@@ -8,6 +8,12 @@ type Options struct {
 	Claude ClaudeOptions
 	Gemini GeminiOptions
 
+	// OpenRouterDialect marks the upstream as OpenRouter's OpenAI-compatible
+	// surface, which accepts extra fields (reasoning config, cache_control on
+	// system parts) that converters emit only for that dialect. The host sets
+	// it from the channel type.
+	OpenRouterDialect bool
+
 	// PreserveThinkingSuffix reports models whose -thinking/-nothinking/effort
 	// suffix must be kept on the outgoing model name (host blacklist lookup).
 	// Nil means "never preserve".

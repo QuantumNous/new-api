@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/types"
 )
 
 func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
@@ -91,7 +91,7 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 				Role:    "assistant",
 				Content: "",
 			},
-			FinishReason: constant.FinishReasonStop,
+			FinishReason: types.FinishReasonStop,
 		}
 		if len(candidate.Content.Parts) > 0 {
 			var content strings.Builder
@@ -130,7 +130,7 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 						content.WriteByte(')')
 					}
 				} else if part.FunctionCall != nil {
-					choice.FinishReason = constant.FinishReasonToolCalls
+					choice.FinishReason = types.FinishReasonToolCalls
 					if call := geminiResponseToolCall(&part); call != nil {
 						toolCalls = append(toolCalls, *call)
 					}
@@ -164,17 +164,17 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 		if candidate.FinishReason != nil {
 			switch *candidate.FinishReason {
 			case "STOP":
-				choice.FinishReason = constant.FinishReasonStop
+				choice.FinishReason = types.FinishReasonStop
 			case "MAX_TOKENS":
-				choice.FinishReason = constant.FinishReasonLength
+				choice.FinishReason = types.FinishReasonLength
 			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "OTHER":
-				choice.FinishReason = constant.FinishReasonContentFilter
+				choice.FinishReason = types.FinishReasonContentFilter
 			default:
-				choice.FinishReason = constant.FinishReasonContentFilter
+				choice.FinishReason = types.FinishReasonContentFilter
 			}
 		}
 		if isToolCall {
-			choice.FinishReason = constant.FinishReasonToolCalls
+			choice.FinishReason = types.FinishReasonToolCalls
 		}
 
 		fullTextResponse.Choices = append(fullTextResponse.Choices, choice)
@@ -216,13 +216,13 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 		if candidate.FinishReason != nil {
 			switch *candidate.FinishReason {
 			case "STOP":
-				choice.FinishReason = &constant.FinishReasonStop
+				choice.FinishReason = &types.FinishReasonStop
 			case "MAX_TOKENS":
-				choice.FinishReason = &constant.FinishReasonLength
+				choice.FinishReason = &types.FinishReasonLength
 			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "OTHER":
-				choice.FinishReason = &constant.FinishReasonContentFilter
+				choice.FinishReason = &types.FinishReasonContentFilter
 			default:
-				choice.FinishReason = &constant.FinishReasonContentFilter
+				choice.FinishReason = &types.FinishReasonContentFilter
 			}
 		}
 		for _, part := range candidate.Content.Parts {
@@ -270,7 +270,7 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			choice.Delta.SetContentString(content.String())
 		}
 		if isTools {
-			choice.FinishReason = &constant.FinishReasonToolCalls
+			choice.FinishReason = &types.FinishReasonToolCalls
 		}
 		choices = append(choices, choice)
 	}

@@ -236,6 +236,10 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 
 	info.ChannelMeta = channelMeta
 
+	// Channel identity feeds the converter options snapshot (e.g.
+	// OpenRouterDialect); drop the cache so a cross-channel retry rebuilds it.
+	info.convOptions = nil
+
 	// reset some fields based on channel meta
 	// 重置某些字段，例如模型名称等
 	if info.Request != nil {
@@ -726,6 +730,7 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 				SupportsImagine:                       model_setting.IsGeminiModelSupportImagine,
 				SafetySetting:                         model_setting.GetGeminiSafetySetting,
 			},
+			OpenRouterDialect:      info.GetChannelType() == constant.ChannelTypeOpenRouter,
 			PreserveThinkingSuffix: model_setting.ShouldPreserveThinkingSuffix,
 		}
 	}
