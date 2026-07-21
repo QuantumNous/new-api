@@ -148,6 +148,14 @@ func uploadFaceDetect(webpBytes []byte, proxy string) (string, error) {
 	if _, err := part.Write(webpBytes); err != nil {
 		return "", err
 	}
+	// MegaByAI rejects lightly-masked faces (default singleEye + size=5 is not enough).
+	// Mask both eyes with near full-face boxes.
+	if err := w.WriteField("singleEye", "0"); err != nil {
+		return "", err
+	}
+	if err := w.WriteField("size", "10"); err != nil {
+		return "", err
+	}
 	if err := w.Close(); err != nil {
 		return "", err
 	}

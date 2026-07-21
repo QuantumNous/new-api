@@ -39,7 +39,7 @@ UI（classic + default）：仅渠道类型 `megabyai`（65）显示开关「过
    - URL：下载字节（遵守项目现有 SSRF / fetch 设置）
    - 文件：直接读 buffer
    - **网关本地预处理**：解码图片 → 最长边 >1600 时等比缩小（不放大）→ 编码为 **WebP**（建议质量约 80）
-   - 将预处理后的 WebP 以 `POST https://face.83zi.com/api/detect` 上传，字段名 `image`，文件名可用 `*.webp`
+   - 将预处理后的 WebP 以 `POST https://face.83zi.com/api/detect` 上传，字段名 `image`；并传 `singleEye=0`、`size=10`（双眼 + 近整脸遮挡，避免上游仍判真人脸）
 3. 用返回 `url` 替换，统一写入 `referenceImages`，清除别名字段
 4. 再执行现有 `rejectUnsupportedFrames` + `normalizeCreateBody`（含去掉 `seconds` 等）
 
