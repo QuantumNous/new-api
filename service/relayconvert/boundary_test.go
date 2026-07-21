@@ -37,10 +37,6 @@ var forbiddenPrefixes = []string{
 
 // Known pre-existing couplings, removed phase by phase. Key: "dir|import".
 var allowedViolations = map[string]bool{
-	// Phase 1 removes gin.Context passthrough and setting reads.
-	"service/relayconvert|github.com/gin-gonic/gin":                  true,
-	"service/relayconvert|" + modulePrefix + "setting/model_setting": true,
-	"service/relayconvert|" + modulePrefix + "setting/reasoning":     true,
 	// Phase 2 removes dto's gin helper methods (IsStream(c) etc.) and logger reach.
 	"dto|github.com/gin-gonic/gin":   true,
 	"dto|" + modulePrefix + "logger": true,
