@@ -28,6 +28,12 @@ func TestInitChannelCachePreservesLastKnownGoodCacheOnQueryFailure(t *testing.T)
 			db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 			require.NoError(t, err)
 			require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}))
+			require.NoError(t, db.Create(&Channel{
+				Id:     29,
+				Status: common.ChannelStatusEnabled,
+				Group:  "default",
+				Models: "gpt-5.6-sol",
+			}).Error)
 
 			DB = db
 			common.MemoryCacheEnabled = true
@@ -58,6 +64,8 @@ func TestInitChannelCachePreservesLastKnownGoodCacheOnQueryFailure(t *testing.T)
 			got, err := CacheGetChannel(17)
 			require.NoError(t, err)
 			assert.Same(t, cached, got)
+			_, err = CacheGetChannel(29)
+			assert.Error(t, err, "a partial database snapshot must not replace the last-known-good cache")
 		})
 	}
 }
