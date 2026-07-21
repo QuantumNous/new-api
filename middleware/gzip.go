@@ -1,13 +1,16 @@
 package middleware
 
 import (
+	"bufio"
 	"compress/gzip"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/andybalholm/brotli"
 	"github.com/gin-gonic/gin"
+	"github.com/klauspost/compress/zstd"
 )
 
 type readCloser struct {
@@ -38,16 +41,39 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 		wrapMaxBytes := func(body io.ReadCloser) io.ReadCloser {
 			return http.MaxBytesReader(c.Writer, body, maxBytes)
 		}
+		clearContentLength := func() {
+			c.Request.ContentLength = -1
+			c.Request.Header.Del("Content-Length")
+		}
 
-		switch c.GetHeader("Content-Encoding") {
+		encoding := strings.ToLower(c.GetHeader("Content-Encoding"))
+		encoding = strings.TrimSpace(encoding)
+
+		// Use bufio.Reader to peek without consuming
+		br := bufio.NewReader(origBody)
+		peek, _ := br.Peek(4)
+
+		if encoding == "" || encoding == "identity" {
+			if len(peek) >= 2 && peek[0] == 0x1f && peek[1] == 0x8b {
+				encoding = "gzip"
+			} else if len(peek) >= 4 && peek[0] == 0x28 && peek[1] == 0xb5 && peek[2] == 0x2f && peek[3] == 0xfd {
+				encoding = "zstd"
+			}
+		}
+
+		switch encoding {
 		case "gzip":
-			gzipReader, err := gzip.NewReader(origBody)
+			gzipReader, err := gzip.NewReader(br)
 			if err != nil {
 				_ = origBody.Close()
-				c.AbortWithStatus(http.StatusBadRequest)
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+					"error": gin.H{
+						"message": "invalid gzip body",
+						"type":    "invalid_request_error",
+					},
+				})
 				return
 			}
-			// Replace the request body with the decompressed data, and enforce a max size (post-decompression).
 			c.Request.Body = wrapMaxBytes(&readCloser{
 				Reader: gzipReader,
 				closeFn: func() error {
@@ -55,19 +81,55 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 					return origBody.Close()
 				},
 			})
+			clearContentLength()
 			c.Request.Header.Del("Content-Encoding")
 		case "br":
-			reader := brotli.NewReader(origBody)
+			reader := brotli.NewReader(br)
 			c.Request.Body = wrapMaxBytes(&readCloser{
 				Reader: reader,
 				closeFn: func() error {
 					return origBody.Close()
 				},
 			})
+			clearContentLength()
 			c.Request.Header.Del("Content-Encoding")
+		case "zstd":
+			decoder, err := zstd.NewReader(br)
+			if err != nil {
+				_ = origBody.Close()
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+					"error": gin.H{
+						"message": "invalid zstd body",
+						"type":    "invalid_request_error",
+					},
+				})
+				return
+			}
+			c.Request.Body = wrapMaxBytes(&readCloser{
+				Reader: decoder,
+				closeFn: func() error {
+					decoder.Close()
+					return origBody.Close()
+				},
+			})
+			clearContentLength()
+			c.Request.Header.Del("Content-Encoding")
+		case "", "identity":
+			c.Request.Body = wrapMaxBytes(&readCloser{
+				Reader: br,
+				closeFn: func() error {
+					return origBody.Close()
+				},
+			})
 		default:
-			// Even for uncompressed bodies, enforce a max size to avoid huge request allocations.
-			c.Request.Body = wrapMaxBytes(origBody)
+			_ = origBody.Close()
+			c.AbortWithStatusJSON(http.StatusUnsupportedMediaType, gin.H{
+				"error": gin.H{
+					"message": "unsupported content encoding: " + encoding,
+					"type":    "invalid_request_error",
+				},
+			})
+			return
 		}
 
 		// Continue processing the request
