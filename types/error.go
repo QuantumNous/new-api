@@ -69,14 +69,15 @@ const (
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"
 
 	// response error
-	ErrorCodeReadResponseBodyFailed ErrorCode = "read_response_body_failed"
-	ErrorCodeBadResponseStatusCode  ErrorCode = "bad_response_status_code"
-	ErrorCodeBadResponse            ErrorCode = "bad_response"
-	ErrorCodeBadResponseBody        ErrorCode = "bad_response_body"
-	ErrorCodeEmptyResponse          ErrorCode = "empty_response"
-	ErrorCodeAwsInvokeError         ErrorCode = "aws_invoke_error"
-	ErrorCodeModelNotFound          ErrorCode = "model_not_found"
-	ErrorCodePromptBlocked          ErrorCode = "prompt_blocked"
+	ErrorCodeReadResponseBodyFailed   ErrorCode = "read_response_body_failed"
+	ErrorCodeBadResponseStatusCode    ErrorCode = "bad_response_status_code"
+	ErrorCodeBadResponse              ErrorCode = "bad_response"
+	ErrorCodeBadResponseBody          ErrorCode = "bad_response_body"
+	ErrorCodeEmptyResponse            ErrorCode = "empty_response"
+	ErrorCodeAwsInvokeError           ErrorCode = "aws_invoke_error"
+	ErrorCodeModelNotFound            ErrorCode = "model_not_found"
+	ErrorCodePromptBlocked            ErrorCode = "prompt_blocked"
+	ErrorCodeThinkingSignatureInvalid ErrorCode = "thinking_signature_invalid"
 
 	// sql error
 	ErrorCodeQueryDataError  ErrorCode = "query_data_error"
