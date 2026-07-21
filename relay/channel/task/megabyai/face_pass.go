@@ -57,19 +57,26 @@ func applyFacePass(body map[string]interface{}, fileBlobs [][]byte, proxy string
 	}
 
 	if len(items) == 0 {
+		common.SysLog("[megabyai_face_pass] no images to process")
 		return nil
 	}
+
+	common.SysLog(fmt.Sprintf("[megabyai_face_pass] start count=%d multipart=%d urls=%d",
+		len(items), len(fileBlobs), len(urls)))
 
 	outURLs := make([]string, 0, len(items))
 	for i, it := range items {
 		webpBytes, err := preprocessToWebP(it.data)
 		if err != nil {
+			common.SysLog(fmt.Sprintf("[megabyai_face_pass] preprocess fail index=%d from=%s err=%v", i, truncate(it.from, 120), err))
 			return fmt.Errorf("preprocess image[%d] (%s): %w", i, it.from, err)
 		}
 		url, err := uploadFaceDetect(webpBytes, proxy)
 		if err != nil {
+			common.SysLog(fmt.Sprintf("[megabyai_face_pass] upload fail index=%d from=%s err=%v", i, truncate(it.from, 120), err))
 			return fmt.Errorf("face detect image[%d] (%s): %w", i, it.from, err)
 		}
+		common.SysLog(fmt.Sprintf("[megabyai_face_pass] ok index=%d/%d from=%s out=%s", i+1, len(items), truncate(it.from, 120), url))
 		outURLs = append(outURLs, url)
 	}
 
@@ -78,6 +85,7 @@ func applyFacePass(body map[string]interface{}, fileBlobs [][]byte, proxy string
 		delete(body, key)
 	}
 	body["referenceImages"] = outURLs
+	common.SysLog(fmt.Sprintf("[megabyai_face_pass] done count=%d", len(outURLs)))
 	return nil
 }
 
@@ -146,14 +154,6 @@ func uploadFaceDetect(webpBytes []byte, proxy string) (string, error) {
 		return "", err
 	}
 	if _, err := part.Write(webpBytes); err != nil {
-		return "", err
-	}
-	// MegaByAI rejects lightly-masked faces (default singleEye + size=5 is not enough).
-	// Mask both eyes with near full-face boxes.
-	if err := w.WriteField("singleEye", "0"); err != nil {
-		return "", err
-	}
-	if err := w.WriteField("size", "10"); err != nil {
 		return "", err
 	}
 	if err := w.Close(); err != nil {

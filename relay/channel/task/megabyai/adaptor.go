@@ -106,6 +106,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err := rejectUnsupportedFrames(bodyMap); err != nil {
 			return nil, err
 		}
+		common.SysLog(fmt.Sprintf("[megabyai_face_pass] json facePass=%v image_urls=%d", a.facePass, len(collectImageURLs(bodyMap))))
 		if a.facePass {
 			if err := applyFacePass(bodyMap, nil, a.proxy); err != nil {
 				return nil, errors.Wrap(err, "megabyai_face_pass_failed")
@@ -129,6 +130,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err := rejectUnsupportedFrames(bodyMap); err != nil {
 			return nil, err
 		}
+		common.SysLog(fmt.Sprintf("[megabyai_face_pass] multipart facePass=%v image_urls=%d", a.facePass, len(collectImageURLs(bodyMap))))
 		if a.facePass {
 			blobs, err := collectMultipartImageBlobs(formData)
 			if err != nil {
