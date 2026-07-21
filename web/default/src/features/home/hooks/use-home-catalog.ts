@@ -24,10 +24,7 @@ import { useStatus } from '@/hooks/use-status'
 import { getModuleAccessFromStatus } from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
 
-import {
-  getHomeCatalogModels,
-  selectFeaturedCatalogModels,
-} from '../lib/catalog'
+import { getHomeCatalogModels } from '../lib/catalog'
 
 export function useHomeCatalog() {
   const { status, loading: statusLoading } = useStatus()
@@ -55,14 +52,8 @@ export function useHomeCatalog() {
     () => (canQueryCatalog ? getHomeCatalogModels(query.data) : []),
     [canQueryCatalog, query.data]
   )
-  const featuredModels = useMemo(
-    () => selectFeaturedCatalogModels(models),
-    [models]
-  )
-
   return {
     models,
-    featuredModels,
     isLoading: statusLoading || (canQueryCatalog && query.isLoading),
     isAvailable: canQueryCatalog && !query.isError,
   }

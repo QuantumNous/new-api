@@ -57,7 +57,10 @@ export function LandingHero(props: LandingHeroProps) {
           <br />
           {t('Connect to global AI models')}
         </h1>
-        <div className='mt-8 flex flex-wrap items-center justify-center gap-3 lg:mt-12'>
+        <p className='text-muted-foreground mt-5 max-w-2xl text-base leading-7 font-medium sm:text-lg'>
+          {t('Prices start at less than 1/100 of official rates.')}
+        </p>
+        <div className='mt-7 flex flex-wrap items-center justify-center gap-3 lg:mt-10'>
           <Button
             size='lg'
             className='h-11 px-5'

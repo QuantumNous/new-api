@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useHomeCatalog } from '../../hooks'
+import { AiClientsSection } from './ai-clients-section'
 import { CapabilitiesSection } from './capabilities-section'
 import { ConsolePreviewSection } from './console-preview-section'
 import { FaqSection } from './faq-section'
@@ -25,7 +26,6 @@ import { GatewaySection } from './gateway-section'
 import { HomeCtaSection } from './home-cta-section'
 import { LandingHero } from './landing-hero'
 import { PricingPreviewSection } from './pricing-preview-section'
-import { SdkWorkbenchSection } from './sdk-workbench-section'
 
 interface DefaultHomeProps {
   isAuthenticated: boolean
@@ -40,14 +40,11 @@ export function DefaultHome(props: DefaultHomeProps) {
         isAuthenticated={props.isAuthenticated}
         catalogAvailable={catalog.isAvailable}
       />
-      <FeaturedModelsSection
-        models={catalog.featuredModels}
-        isLoading={catalog.isLoading}
-      />
+      <AiClientsSection />
+      <FeaturedModelsSection catalogAvailable={catalog.isAvailable} />
       <CapabilitiesSection />
       <ConsolePreviewSection models={catalog.models} />
       <GatewaySection />
-      <SdkWorkbenchSection />
       <PricingPreviewSection
         models={catalog.models}
         isLoading={catalog.isLoading}

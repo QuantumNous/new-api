@@ -24,12 +24,13 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
 
+import generatedInterfaceGridAvif from '@/assets/home/generated-interface-grid.avif'
+import generatedInterfaceGridWebp from '@/assets/home/generated-interface-grid.webp'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 
 import { SectionHeading } from './section-heading'
 
-const IMAGE_PREVIEW_NUMBERS = [1, 2, 3, 4]
 const WAVE_BARS = [24, 52, 34, 78, 46, 92, 62, 36, 72, 44, 60].map(
   (height, position) => ({ id: `wave-${position + 1}`, height })
 )
@@ -79,19 +80,25 @@ export function CapabilitiesSection() {
                 <p className='text-muted-foreground text-xs font-semibold uppercase'>
                   {t('Output')}
                 </p>
-                <div className='mt-4 grid grid-cols-2 gap-2'>
-                  {IMAGE_PREVIEW_NUMBERS.map((number) => (
-                    <div
-                      key={number}
-                      className='border-primary/20 bg-background text-primary flex aspect-[1.25] items-center justify-center rounded-lg border'
-                    >
-                      <HugeiconsIcon icon={Image01Icon} className='size-5' />
-                      <span className='sr-only'>
-                        {t('Generated image {{number}}', { number })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <picture
+                  className='mt-4 block overflow-hidden rounded-lg'
+                  aria-hidden='true'
+                >
+                  <source
+                    srcSet={generatedInterfaceGridAvif}
+                    type='image/avif'
+                  />
+                  <img
+                    src={generatedInterfaceGridWebp}
+                    alt=''
+                    width={1012}
+                    height={812}
+                    loading='lazy'
+                    decoding='async'
+                    fetchPriority='low'
+                    className='aspect-[253/203] h-auto w-full object-cover'
+                  />
+                </picture>
               </div>
             </div>
           </section>

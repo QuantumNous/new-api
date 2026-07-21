@@ -51,33 +51,6 @@ export function getHomeCatalogModels(
   })
 }
 
-export function selectFeaturedCatalogModels(
-  models: HomeCatalogModel[],
-  limit = 5
-): HomeCatalogModel[] {
-  if (models.length <= limit) return models
-
-  const selected: HomeCatalogModel[] = []
-  const selectedNames = new Set<string>()
-  const seenVendors = new Set<number>()
-
-  for (const model of models) {
-    if (model.vendor_id == null || seenVendors.has(model.vendor_id)) continue
-    selected.push(model)
-    selectedNames.add(model.model_name)
-    seenVendors.add(model.vendor_id)
-    if (selected.length === limit) return selected
-  }
-
-  for (const model of models) {
-    if (selectedNames.has(model.model_name)) continue
-    selected.push(model)
-    if (selected.length === limit) break
-  }
-
-  return selected
-}
-
 export function fillProviderMarquee(
   vendors: PricingVendor[],
   minimumItems = 12

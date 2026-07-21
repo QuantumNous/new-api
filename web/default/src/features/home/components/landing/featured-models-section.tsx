@@ -16,8 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
@@ -26,129 +24,137 @@ import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { QUOTA_TYPE_VALUES } from '@/features/pricing/constants'
-import { formatPrice, formatRequestPrice } from '@/features/pricing/lib/price'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
-import type { HomeCatalogModel } from '../../lib/catalog'
 import { SectionHeading } from './section-heading'
 
+interface FeaturedModel {
+  modelName: string
+  provider: string
+  icon: string
+  inputPrice: string
+  outputPrice?: string
+  endpoint: string
+  billingMode?: 'request'
+}
+
 interface FeaturedModelsSectionProps {
-  models: HomeCatalogModel[]
-  isLoading: boolean
+  catalogAvailable: boolean
 }
 
-const TOKEN_COUNT_FORMAT = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 1,
-})
-const MODEL_LOADING_KEYS = Array.from(
-  { length: 6 },
-  (_, position) => `model-loading-${position + 1}`
-)
+const FEATURED_MODELS: FeaturedModel[] = [
+  {
+    modelName: 'gpt-5.6-sol',
+    provider: 'OpenAI',
+    icon: "OpenAI.Avatar.type={'gpt5'}.shape={'square'}",
+    inputPrice: '$0.50',
+    outputPrice: '$3.00',
+    endpoint: '/v1/responses',
+  },
+  {
+    modelName: 'claude-opus-4-6',
+    provider: 'Anthropic',
+    icon: 'Claude.Color',
+    inputPrice: '$0.50',
+    outputPrice: '$2.50',
+    endpoint: '/v1/messages',
+  },
+  {
+    modelName: 'claude-fable-5',
+    provider: 'Anthropic',
+    icon: 'Claude.Color',
+    inputPrice: '$1.00',
+    outputPrice: '$5.00',
+    endpoint: '/v1/messages',
+  },
+  {
+    modelName: 'grok-4.5',
+    provider: 'xAI',
+    icon: "Grok.Avatar.shape={'square'}",
+    inputPrice: '$0.20',
+    outputPrice: '$0.60',
+    endpoint: '/v1/responses',
+  },
+  {
+    modelName: 'gpt-image-2',
+    provider: 'OpenAI',
+    icon: 'Dalle.Color',
+    inputPrice: '$0.50',
+    endpoint: '/v1/images/generations',
+    billingMode: 'request',
+  },
+  {
+    modelName: 'gemini-3.1-pro-preview',
+    provider: 'Google',
+    icon: 'Gemini.Color',
+    inputPrice: '$0.20',
+    outputPrice: '$1.20',
+    endpoint: '/v1beta/models/{model}:generateContent',
+  },
+]
 
-function formatTokenCount(tokens: number | undefined): string | null {
-  if (!tokens || tokens <= 0) return null
-  if (tokens >= 1_000_000) {
-    return `${TOKEN_COUNT_FORMAT.format(tokens / 1_000_000)}M`
-  }
-  if (tokens >= 1_000) {
-    return `${TOKEN_COUNT_FORMAT.format(tokens / 1_000)}K`
-  }
-  return TOKEN_COUNT_FORMAT.format(tokens)
-}
-
-function ModelPreviewCard(props: { model: HomeCatalogModel }) {
+function ModelPreviewCard(props: { model: FeaturedModel }) {
   const { t } = useTranslation()
-  const model = props.model
-  const iconKey = model.icon || model.vendor_icon || model.vendor_name
-  const endpoint = model.supported_endpoint_types?.[0]
-  const context = formatTokenCount(model.context_length)
-  const isRequestPriced = model.quota_type === QUOTA_TYPE_VALUES.REQUEST
-  const inputPrice = isRequestPriced
-    ? formatRequestPrice(model)
-    : formatPrice(model, 'input', 'M')
-  const outputPrice = isRequestPriced ? null : formatPrice(model, 'output', 'M')
 
   return (
-    <Card className='min-h-72 rounded-lg' data-card-hover='true'>
+    <Card className='h-full min-h-72 rounded-lg' data-card-hover='true'>
       <CardHeader>
-        <div className='bg-muted mb-3 flex size-10 items-center justify-center rounded-lg'>
-          {getLobeIcon(iconKey, 26)}
+        <div className='border-border/70 bg-background mb-3 flex size-11 items-center justify-center overflow-hidden rounded-lg border shadow-xs'>
+          {getLobeIcon(props.model.icon, 30)}
         </div>
-        <CardTitle className='truncate text-lg'>{model.model_name}</CardTitle>
-        <CardDescription className='line-clamp-2 min-h-10 leading-5'>
-          {model.description ||
-            model.vendor_description ||
-            t('Available through the unified API gateway.')}
-        </CardDescription>
-        {model.vendor_name && (
-          <CardAction>
-            <Badge variant='outline'>{model.vendor_name}</Badge>
-          </CardAction>
-        )}
+        <CardTitle className='truncate text-lg'>
+          {props.model.modelName}
+        </CardTitle>
+        <CardAction>
+          <Badge variant='outline'>{props.model.provider}</Badge>
+        </CardAction>
       </CardHeader>
 
       <CardContent className='mt-auto grid grid-cols-2 gap-4'>
         <div>
           <p className='text-muted-foreground text-xs'>
-            {isRequestPriced ? t('Price') : t('Input')}
+            {props.model.billingMode === 'request' ? t('Price') : t('Input')}
           </p>
           <p className='mt-1 font-mono text-sm font-semibold tabular-nums'>
-            {inputPrice}
+            {props.model.inputPrice}
           </p>
         </div>
         <div>
           <p className='text-muted-foreground text-xs'>
-            {outputPrice ? t('Output') : t('Billing')}
+            {props.model.billingMode === 'request' ? t('Billing') : t('Output')}
           </p>
           <p className='mt-1 truncate font-mono text-sm font-semibold tabular-nums'>
-            {outputPrice || t('Per request')}
+            {props.model.billingMode === 'request'
+              ? t('Per request')
+              : props.model.outputPrice}
           </p>
         </div>
       </CardContent>
 
       <CardFooter className='justify-between gap-3'>
         <span className='text-muted-foreground text-xs'>
-          {context ? `${t('Context')} ${context}` : t('Live catalog')}
+          {props.model.billingMode === 'request'
+            ? t('Image')
+            : t('Per 1M tokens')}
         </span>
-        <span className='text-muted-foreground max-w-28 truncate text-xs'>
-          {endpoint || t('Compatible API')}
+        <span
+          className='text-muted-foreground max-w-40 truncate text-xs'
+          title={props.model.endpoint}
+        >
+          {props.model.endpoint}
         </span>
       </CardFooter>
     </Card>
   )
 }
 
-function ModelsLoadingGrid() {
-  return (
-    <div className='grid gap-3 md:grid-cols-2 lg:grid-cols-3'>
-      {MODEL_LOADING_KEYS.map((key) => (
-        <Card key={key} className='min-h-72 rounded-lg'>
-          <CardHeader>
-            <Skeleton className='mb-3 size-10 rounded-lg' />
-            <Skeleton className='h-5 w-2/3' />
-            <Skeleton className='h-10 w-full' />
-          </CardHeader>
-          <CardContent className='mt-auto grid grid-cols-2 gap-4'>
-            <Skeleton className='h-10' />
-            <Skeleton className='h-10' />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  )
-}
-
 export function FeaturedModelsSection(props: FeaturedModelsSectionProps) {
   const { t } = useTranslation()
-
-  if (!props.isLoading && props.models.length === 0) return null
+  const targetPath = props.catalogAvailable ? '/pricing' : '/docs'
 
   return (
     <section className='px-4 py-16 sm:px-6 sm:py-20 lg:py-24'>
@@ -158,44 +164,17 @@ export function FeaturedModelsSection(props: FeaturedModelsSectionProps) {
           title={t('Find the right model for every task.')}
         />
 
-        {props.isLoading ? (
-          <ModelsLoadingGrid />
-        ) : (
-          <div className='grid gap-3 md:grid-cols-2 lg:grid-cols-3'>
-            {props.models.map((model) => (
-              <ModelPreviewCard key={model.model_name} model={model} />
-            ))}
-
-            <Link to='/pricing' className='group block'>
-              <Card className='min-h-72 rounded-lg' data-card-hover='true'>
-                <CardHeader>
-                  <div className='bg-primary/10 text-primary mb-3 flex size-10 items-center justify-center rounded-lg text-lg font-semibold'>
-                    +
-                  </div>
-                  <CardTitle>{t('More models')}</CardTitle>
-                  <CardDescription className='min-h-10 leading-5'>
-                    {t('Browse the complete model catalog and live pricing.')}
-                  </CardDescription>
-                  <CardAction>
-                    <HugeiconsIcon
-                      icon={ArrowRight01Icon}
-                      className='text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5'
-                      aria-hidden='true'
-                    />
-                  </CardAction>
-                </CardHeader>
-                <CardFooter className='mt-auto justify-between'>
-                  <span className='text-muted-foreground text-xs'>
-                    {t('Live catalog')}
-                  </span>
-                  <span className='text-xs font-medium'>
-                    {t('View all models')}
-                  </span>
-                </CardFooter>
-              </Card>
+        <div className='grid gap-3 md:grid-cols-2 lg:grid-cols-3'>
+          {FEATURED_MODELS.map((model) => (
+            <Link
+              key={model.modelName}
+              to={targetPath}
+              className='focus-visible:ring-ring/50 group block rounded-lg focus-visible:ring-[3px] focus-visible:outline-none'
+            >
+              <ModelPreviewCard model={model} />
             </Link>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
     </section>
   )

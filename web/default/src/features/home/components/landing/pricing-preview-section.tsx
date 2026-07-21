@@ -85,7 +85,7 @@ export function PricingPreviewSection(props: PricingPreviewSectionProps) {
       <div className='mx-auto w-full max-w-6xl'>
         <SectionHeading
           eyebrow={t('Transparent pricing')}
-          title={t('See the price before you send a request.')}
+          title={t('Model pricing at a glance')}
           description={t(
             'Models and endpoints can use different billing modes. Live pricing is always shown in the model catalog.'
           )}
