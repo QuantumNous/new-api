@@ -71,6 +71,16 @@ func TestShouldPreferDifferentCapacityHostOnlyForStreamingResponses(t *testing.T
 	assert.False(t, shouldPreferDifferentCapacityHost(newTestContext(), chatCompletions, upstream429))
 }
 
+func TestShouldPreferDifferentRetryHostAcrossPrioritiesForTransportFailure(t *testing.T) {
+	transportErr := types.NewErrorWithStatusCode(
+		errors.New("net/http: timeout awaiting response headers"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusBadGateway,
+	)
+
+	assert.True(t, shouldPreferDifferentRetryHostAcrossPriorities(newTestContext(), nil, transportErr))
+}
+
 func TestPreferDifferentRetryHostRecordsSliceTimedOutHost(t *testing.T) {
 	retryParam := &service.RetryParam{}
 	info := &relaycommon.RelayInfo{
