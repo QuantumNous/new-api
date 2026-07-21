@@ -174,8 +174,11 @@ func getChannelWithOptions(group string, model string, retry int, options Channe
 				continue
 			}
 		}
-		if IsChannelCoolingDown(ability.ChannelId) {
-			coolingAbilities = append(coolingAbilities, ability)
+		cooldown := getChannelCooldownState(ability.ChannelId)
+		if cooldown.active {
+			if cooldown.allowFallback {
+				coolingAbilities = append(coolingAbilities, ability)
+			}
 			continue
 		}
 		key := ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: options.Path}

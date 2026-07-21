@@ -1444,6 +1444,32 @@ func firstImageRoutingTestValue(values []string) string {
 	return values[0]
 }
 
+func TestGetRandomSatisfiedChannelDoesNotFallbackToStrictCoolingChannelWithMemoryCache(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	t.Cleanup(func() {
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(0)
+	channel := &Channel{Id: 17, Type: 1, Key: "key-17", Status: common.ChannelStatusEnabled, Name: "rate-limited", Weight: &weight, Priority: &priority, Models: "gpt-5.5", Group: "default"}
+	SetChannelCacheForTest(map[int]*Channel{17: channel}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17}},
+	})
+	CooldownChannelWithoutFallback(17, "upstream_rate_limit", time.Hour)
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		AllowCoolingFallback: true,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, selected, "strict cooldown must not be bypassed when healthy channels are exhausted")
+}
+
 // TestCoolingFallbackDoesNotReuseExcludedChannelOnRetry is B1's safety property:
 // even with cooling fallback permitted, a channel already tried this request
 // (in ExcludedChannelIDs) is never re-selected — so a channel that just failed
@@ -1571,4 +1597,25 @@ func TestGetChannelReturnsCoolingChannelWhenAllCandidatesCoolingWithoutMemoryCac
 	if selected == nil || selected.Id != 17 {
 		t.Fatalf("expected cooling fallback channel 17, got %#v", selected)
 	}
+}
+
+func TestGetChannelDoesNotFallbackToStrictCoolingChannelWithoutMemoryCache(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+
+	priority := int64(10)
+	weight := uint(0)
+	channel := Channel{Id: 17, Type: 1, Key: "key-17", Status: common.ChannelStatusEnabled, Name: "rate-limited", Weight: &weight, Priority: &priority, Models: "gpt-5.5", Group: "default"}
+	require.NoError(t, DB.Create(&channel).Error)
+	ability := Ability{Group: "default", Model: "gpt-5.5", ChannelId: 17, Enabled: true, Priority: &priority, Weight: weight}
+	require.NoError(t, DB.Create(&ability).Error)
+
+	CooldownChannelWithoutFallback(17, "upstream_rate_limit", time.Hour)
+
+	selected, err := GetChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		AllowCoolingFallback: true,
+		RequestPath:          "/v1/responses",
+		Path:                 "/v1/responses",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, selected, "strict cooldown must be enforced without the memory cache")
 }

@@ -39,7 +39,10 @@ func InitChannelCache() {
 	newChannel2advancedCustomConfig := make(map[int]*dto.AdvancedCustomConfig)
 	newChannel2ImageRoutingConfig := make(map[int]cachedImageRoutingConfig)
 	var channels []*Channel
-	DB.Find(&channels)
+	if err := DB.Find(&channels).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to sync channels from database: %v", err))
+		return
+	}
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
 		settings, err := channel.parseOtherSettings()
@@ -63,7 +66,10 @@ func InitChannelCache() {
 		}
 	}
 	var abilities []*Ability
-	DB.Find(&abilities)
+	if err := DB.Find(&abilities).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to sync channel abilities from database: %v", err))
+		return
+	}
 	groups := make(map[string]bool)
 	for _, ability := range abilities {
 		groups[ability.Group] = true
@@ -238,8 +244,11 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 				return nil, nil
 			}
 		}
-		if IsChannelCoolingDown(channel.Id) && !options.AllowCoolingFallback {
-			return nil, nil
+		cooldown := getChannelCooldownState(channel.Id)
+		if cooldown.active {
+			if !options.AllowCoolingFallback || !cooldown.allowFallback {
+				return nil, nil
+			}
 		}
 		if shouldEnforceChannelHostCircuit(host, model, options.Path) && !options.AllowCoolingFallback {
 			return nil, nil
@@ -267,8 +276,11 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 				continue
 			}
 		}
-		if IsChannelCoolingDown(channel.Id) {
-			coolingChannels = append(coolingChannels, channel)
+		cooldown := getChannelCooldownState(channel.Id)
+		if cooldown.active {
+			if cooldown.allowFallback {
+				coolingChannels = append(coolingChannels, channel)
+			}
 			continue
 		}
 		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path}
