@@ -89,6 +89,10 @@ func InitEnv() {
 	// channels and away from slow/unhealthy ones. Set
 	// ADAPTIVE_CHANNEL_HEALTH_ENABLED=false to disable without a redeploy.
 	AdaptiveChannelHealthEnabled = GetEnvOrDefaultBool("ADAPTIVE_CHANNEL_HEALTH_ENABLED", true)
+	UpstreamHostCircuitMode = strings.ToLower(strings.TrimSpace(GetEnvOrDefaultString("UPSTREAM_HOST_CIRCUIT_MODE", UpstreamHostCircuitModeOff)))
+	if UpstreamHostCircuitMode != UpstreamHostCircuitModeObserve && UpstreamHostCircuitMode != UpstreamHostCircuitModeEnforce {
+		UpstreamHostCircuitMode = UpstreamHostCircuitModeOff
+	}
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 	initNodeNameIdentity()
 	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)

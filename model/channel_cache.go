@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -141,8 +140,15 @@ type ChannelSelectionOptions struct {
 	// AvoidChannelHosts is a soft exclusion used after a transport failure.
 	// The selected priority tier prefers a different host, while same-host
 	// channels remain a fallback so operator priority and availability stay intact.
-	AvoidChannelHosts    map[string]struct{}
-	AllowCoolingFallback bool
+	AvoidChannelHosts map[string]struct{}
+	// PreferDifferentHost is enabled only for request-local capacity recovery.
+	// It prefers any healthy different-host candidate across priority tiers, but
+	// still falls back to the avoided host when no alternative exists.
+	PreferDifferentHost bool
+	// DeferAvoidedHostFallback lets auto-group selection scan later groups for a
+	// different upstream before falling back to an avoided host.
+	DeferAvoidedHostFallback bool
+	AllowCoolingFallback     bool
 	// RequestPath is the RAW request path, used to match Advanced Custom
 	// (type 58) channels against their configured routes.
 	RequestPath string
@@ -151,6 +157,8 @@ type ChannelSelectionOptions struct {
 	// It must stay normalized: the health registry is bounded, so raw paths
 	// would explode its key cardinality.
 	Path string
+
+	requireDifferentHost bool
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
@@ -163,7 +171,6 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		return nil, err
 	}
 	options.ImageRequirement = normalizedRequirement
-	requestPath := options.RequestPath
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
 		return GetChannelWithOptions(group, model, retry, options)
@@ -172,13 +179,33 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		common.OptionRuntimeRWMutex.RLock()
 		defer common.OptionRuntimeRWMutex.RUnlock()
 	}
+	if options.PreferDifferentHost && len(options.AvoidChannelHosts) > 0 {
+		differentHostOptions := options
+		differentHostOptions.PreferDifferentHost = false
+		differentHostOptions.DeferAvoidedHostFallback = false
+		differentHostOptions.AllowCoolingFallback = false
+		differentHostOptions.requireDifferentHost = true
+		channel, err := getRandomSatisfiedChannelWithOptions(group, model, 0, differentHostOptions)
+		if err != nil || channel != nil || options.DeferAvoidedHostFallback {
+			return channel, err
+		}
+	}
+	fallbackOptions := options
+	fallbackOptions.PreferDifferentHost = false
+	fallbackOptions.DeferAvoidedHostFallback = false
+	fallbackOptions.requireDifferentHost = false
+	return getRandomSatisfiedChannelWithOptions(group, model, retry, fallbackOptions)
+}
+
+func getRandomSatisfiedChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
+	requestPath := options.RequestPath
 
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
 
 	// First, try to find channels with the exact model name.
 	channels := filterChannelsByRequestPathAndModel(group2model2channels[group][model], requestPath, model)
-	channels, err = filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
+	channels, err := filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +232,16 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		if _, excluded := options.ExcludedChannelIDs[channel.Id]; excluded {
 			return nil, nil
 		}
+		host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+		if options.requireDifferentHost {
+			if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
+				return nil, nil
+			}
+		}
 		if IsChannelCoolingDown(channel.Id) && !options.AllowCoolingFallback {
+			return nil, nil
+		}
+		if shouldEnforceChannelHostCircuit(host, model, options.Path) && !options.AllowCoolingFallback {
 			return nil, nil
 		}
 		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path}
@@ -225,6 +261,12 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 		if _, excluded := options.ExcludedChannelIDs[channel.Id]; excluded {
 			continue
 		}
+		if options.requireDifferentHost {
+			host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+			if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
+				continue
+			}
+		}
 		if IsChannelCoolingDown(channel.Id) {
 			coolingChannels = append(coolingChannels, channel)
 			continue
@@ -238,57 +280,86 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	if len(availableChannels) == 0 && options.AllowCoolingFallback {
 		availableChannels = coolingChannels
 	}
-
-	uniquePriorities := make(map[int]bool)
+	priorityCandidates := make([]channelPriorityCandidate, 0, len(availableChannels))
 	for _, channel := range availableChannels {
-		uniquePriorities[int(channel.GetPriority())] = true
+		priorityCandidates = append(priorityCandidates, channelPriorityCandidate{
+			channelID: channel.Id,
+			priority:  int(channel.GetPriority()),
+		})
 	}
-	if len(uniquePriorities) == 0 {
+	sortedUniquePriorities, effectivePriorityRanks, priorityProbeCandidates := buildChannelPriorityRanks(priorityCandidates, model, options.Path)
+	if len(sortedUniquePriorities) == 0 {
 		return nil, nil
 	}
 
-	var sortedUniquePriorities []int
-	for priority := range uniquePriorities {
-		sortedUniquePriorities = append(sortedUniquePriorities, priority)
+	if retry >= len(sortedUniquePriorities) {
+		retry = len(sortedUniquePriorities) - 1
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 
-	if retry >= len(uniquePriorities) {
-		retry = len(uniquePriorities) - 1
-	}
-	targetPriority := int64(sortedUniquePriorities[retry])
-
-	// get the priority for the given retry number
-	var preferredChannels []*Channel
-	var avoidedChannels []*Channel
-	for _, channel := range availableChannels {
-		if channel.GetPriority() != targetPriority {
+	var hostFallbackPreferred []*Channel
+	var hostFallbackAvoided []*Channel
+	for priorityIndex := retry; priorityIndex < len(sortedUniquePriorities); priorityIndex++ {
+		var preferredChannels []*Channel
+		var avoidedChannels []*Channel
+		var blockedPreferred []*Channel
+		var blockedAvoided []*Channel
+		for _, channel := range availableChannels {
+			if effectivePriorityRanks[channel.Id] != priorityIndex {
+				continue
+			}
+			host := channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
+			_, avoided := options.AvoidChannelHosts[host]
+			if shouldEnforceChannelHostCircuit(host, model, options.Path) {
+				if avoided && host != "" {
+					blockedAvoided = append(blockedAvoided, channel)
+				} else {
+					blockedPreferred = append(blockedPreferred, channel)
+				}
+				continue
+			}
+			if avoided && host != "" {
+				avoidedChannels = append(avoidedChannels, channel)
+			} else {
+				preferredChannels = append(preferredChannels, channel)
+			}
+		}
+		if len(hostFallbackPreferred) == 0 && len(hostFallbackAvoided) == 0 &&
+			(len(blockedPreferred) > 0 || len(blockedAvoided) > 0) {
+			hostFallbackPreferred = blockedPreferred
+			hostFallbackAvoided = blockedAvoided
+		}
+		if len(preferredChannels) == 0 && len(avoidedChannels) == 0 {
 			continue
 		}
-		host := ""
-		if len(options.AvoidChannelHosts) > 0 {
-			host = channelRetryHost(channel, channel2advancedCustomConfig[channel.Id], options.RequestPath, model)
-		}
-		if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
-			avoidedChannels = append(avoidedChannels, channel)
-		} else {
-			preferredChannels = append(preferredChannels, channel)
-		}
-	}
-	if len(preferredChannels) == 0 && len(avoidedChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
-	}
 
-	preferredWeights := effectiveChannelSelectionWeights(preferredChannels, model, options.Path)
-	avoidedWeights := effectiveChannelSelectionWeights(avoidedChannels, model, options.Path)
-	return selectAcquirableChannelWithFallback(
-		preferredChannels,
-		preferredWeights,
-		avoidedChannels,
-		avoidedWeights,
-		model,
-		options.Path,
-	)
+		selected, err := selectAcquirableChannelWithFallback(
+			preferredChannels,
+			effectiveChannelSelectionWeights(preferredChannels, model, options.Path),
+			avoidedChannels,
+			effectiveChannelSelectionWeights(avoidedChannels, model, options.Path),
+			model,
+			options.Path,
+			priorityProbeCandidates,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if selected != nil {
+			return selected, nil
+		}
+	}
+	if options.AllowCoolingFallback && (len(hostFallbackPreferred) > 0 || len(hostFallbackAvoided) > 0) {
+		return selectAcquirableChannelWithFallback(
+			hostFallbackPreferred,
+			effectiveChannelSelectionWeights(hostFallbackPreferred, model, options.Path),
+			hostFallbackAvoided,
+			effectiveChannelSelectionWeights(hostFallbackAvoided, model, options.Path),
+			model,
+			options.Path,
+			priorityProbeCandidates,
+		)
+	}
+	return nil, nil
 }
 
 func effectiveChannelSelectionWeights(channels []*Channel, model string, path string) []int {
@@ -326,14 +397,14 @@ func effectiveChannelSelectionWeights(channels []*Channel, model string, path st
 	return effectiveWeights
 }
 
-func selectAcquirableChannelWithFallback(preferred []*Channel, preferredWeights []int, fallback []*Channel, fallbackWeights []int, model string, path string) (*Channel, error) {
+func selectAcquirableChannelWithFallback(preferred []*Channel, preferredWeights []int, fallback []*Channel, fallbackWeights []int, model string, path string, priorityProbeCandidates map[int]bool) (*Channel, error) {
 	if len(preferred) > 0 {
-		channel, err := selectAcquirableChannel(preferred, preferredWeights, model, path)
+		channel, err := selectAcquirableChannel(preferred, preferredWeights, model, path, priorityProbeCandidates)
 		if channel != nil || len(fallback) == 0 {
 			return channel, err
 		}
 	}
-	return selectAcquirableChannel(fallback, fallbackWeights, model, path)
+	return selectAcquirableChannel(fallback, fallbackWeights, model, path, priorityProbeCandidates)
 }
 
 // selectAcquirableChannel picks a weighted-random starting candidate, then
@@ -341,13 +412,13 @@ func selectAcquirableChannelWithFallback(preferred []*Channel, preferredWeights 
 // until one successfully acquires its health lease. This ensures a lost
 // half-open probe race on the initial pick still falls back to other
 // available candidates instead of failing outright.
-func selectAcquirableChannel(candidates []*Channel, weights []int, model string, path string) (*Channel, error) {
+func selectAcquirableChannel(candidates []*Channel, weights []int, model string, path string, priorityProbeCandidates map[int]bool) (*Channel, error) {
 	totalWeight := 0
 	for _, w := range weights {
 		totalWeight += w
 	}
 	if totalWeight <= 0 {
-		return nil, errors.New("channel not found")
+		return nil, nil
 	}
 
 	startIdx := 0
@@ -368,11 +439,17 @@ func selectAcquirableChannel(candidates []*Channel, weights []int, model string,
 		}
 		channel := candidates[idx]
 		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: path}
+		if priorityProbeCandidates[channel.Id] {
+			if AcquireChannelPriorityProbe(key) {
+				return channel, nil
+			}
+			continue
+		}
 		if AcquireChannelHealth(key) {
 			return channel, nil
 		}
 	}
-	return nil, errors.New("channel not found")
+	return nil, nil
 }
 
 func SetChannelCacheForTest(channels map[int]*Channel, groupModelChannels map[string]map[string][]int) {

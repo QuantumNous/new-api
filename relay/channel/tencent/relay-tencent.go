@@ -110,6 +110,7 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 			common.SysLog("error unmarshalling stream response: " + err.Error())
 			continue
 		}
+		info.SetFirstResponseTime()
 
 		response := streamResponseTencent2OpenAI(&tencentResponse)
 		if len(response.Choices) != 0 {

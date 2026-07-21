@@ -23,7 +23,10 @@ type RetryParam struct {
 	// AvoidChannelHosts is a same-request preference inside the selected auto
 	// group and priority tier; it never overrides operator group/priority order.
 	AvoidChannelHosts map[string]struct{}
-	resetNextTry      bool
+	// PreferDifferentHost lets capacity recovery cross priority tiers before
+	// falling back to another channel on an already-failed upstream host.
+	PreferDifferentHost bool
+	resetNextTry        bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -50,6 +53,25 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+// PrepareAvailabilityFallback gives the selector one final pass over untried
+// channels without expanding the configured priority depth. Auto-group state
+// is rewound because its normal cross-group walk may already be past the final
+// group when the relay discovers that every configured retry returned 429.
+func (p *RetryParam) PrepareAvailabilityFallback(retry int) {
+	if p == nil {
+		return
+	}
+	if retry < 0 {
+		retry = 0
+	}
+	p.SetRetry(retry)
+	if p.TokenGroup == "auto" && p.Ctx != nil {
+		common.SetContextKey(p.Ctx, constant.ContextKeyAutoGroupIndex, 0)
+		common.SetContextKey(p.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+	}
+	p.ResetRetryNextTry()
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -110,77 +132,86 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 		}
 
-		for i := startGroupIndex; i < len(autoGroups); i++ {
-			autoGroup := autoGroups[i]
-			// Calculate priorityRetry for current group
-			// 计算当前分组的 priorityRetry
-			priorityRetry := param.GetRetry()
-			// If moved to a new group, reset priorityRetry and update startRetryIndex
-			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
-			if i > startGroupIndex {
-				priorityRetry = 0
-			}
-			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
+		selectionPasses := 1
+		if param.PreferDifferentHost && len(param.AvoidChannelHosts) > 0 {
+			selectionPasses = 2
+		}
+		originalRetry := param.GetRetry()
+		for pass := 0; pass < selectionPasses && channel == nil; pass++ {
+			differentHostPass := selectionPasses == 2 && pass == 0
+			for i := startGroupIndex; i < len(autoGroups); i++ {
+				autoGroup := autoGroups[i]
+				// Calculate priorityRetry for current group
+				// 计算当前分组的 priorityRetry
+				priorityRetry := originalRetry
+				// If moved to a new group, reset priorityRetry and update startRetryIndex
+				// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
+				if differentHostPass || i > startGroupIndex {
+					priorityRetry = 0
+				}
+				logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d, differentHostPass: %t", autoGroup, priorityRetry, differentHostPass)
 
-			var selectionErr error
-			channel, selectionErr = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
-				ExcludedChannelIDs: param.ExcludedChannelIDs,
-				ImageRequirement:   param.ImageRequirement,
-				AvoidChannelHosts:  param.AvoidChannelHosts,
-				// Raw path matches Advanced Custom routes; normalized path keys the
-				// bounded channel-health registry.
-				RequestPath: param.RequestPath,
-				// Last-resort fallback to a cooling channel when no healthy one is
-				// available: on the first pass (nothing excluded yet) or on the final
-				// group of the walk, where there is no further group whose healthy
-				// channels we would rather try first.
-				AllowCoolingFallback: len(param.ExcludedChannelIDs) == 0 || i == len(autoGroups)-1,
-				Path:                 ChannelHealthPath(param.RequestPath),
-			})
-			if selectionErr != nil {
-				return nil, selectGroup, selectionErr
-			}
-			if channel == nil {
-				// Current group has no available channel for this model, try next group
-				// 当前分组没有该模型的可用渠道，尝试下一个分组
-				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, param.ModelName, priorityRetry)
-				// 重置状态以尝试下一个分组
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				continue
-			}
-			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoGroup)
-			selectGroup = autoGroup
-			logger.LogDebug(param.Ctx, "Auto selected group: %s", autoGroup)
+				channel, err = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
+					ExcludedChannelIDs:       param.ExcludedChannelIDs,
+					ImageRequirement:         param.ImageRequirement,
+					AvoidChannelHosts:        param.AvoidChannelHosts,
+					PreferDifferentHost:      differentHostPass,
+					DeferAvoidedHostFallback: differentHostPass,
+					// Raw path matches Advanced Custom routes; normalized path keys the
+					// bounded channel-health registry.
+					RequestPath: param.RequestPath,
+					// The first pass only looks for a healthy different upstream. The
+					// second pass preserves the existing cooling fallback policy.
+					AllowCoolingFallback: !differentHostPass && (len(param.ExcludedChannelIDs) == 0 || i == len(autoGroups)-1),
+					Path:                 ChannelHealthPath(param.RequestPath),
+				})
+				if err != nil {
+					return nil, selectGroup, err
+				}
+				if channel == nil {
+					logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d", autoGroup, param.ModelName, priorityRetry)
+					if differentHostPass {
+						continue
+					}
+					// Reset state only during the normal fallback pass. The
+					// different-host scan must not discard an earlier group's usable
+					// same-host candidates.
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+					param.SetRetry(0)
+					continue
+				}
+				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoGroup)
+				selectGroup = autoGroup
+				logger.LogDebug(param.Ctx, "Auto selected group: %s", autoGroup)
 
-			// Prepare state for next retry
-			// 为下一次重试准备状态
-			if crossGroupRetry && priorityRetry >= common.RetryTimes {
-				// Current group has exhausted all retries, prepare to switch to next group
-				// This request still uses current group, but next retry will use next group
-				// 当前分组已用完所有重试次数，准备切换到下一个分组
-				// 本次请求仍使用当前分组，但下次重试将使用下一个分组
-				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				param.ResetRetryNextTry()
-			} else {
-				// Stay in current group, save current state
-				// 保持在当前分组，保存当前状态
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+				// Prepare state for next retry
+				// 为下一次重试准备状态
+				if crossGroupRetry && priorityRetry >= common.RetryTimes {
+					// Current group has exhausted all retries, prepare to switch to next group
+					// This request still uses current group, but next retry will use next group
+					// 当前分组已用完所有重试次数，准备切换到下一个分组
+					// 本次请求仍使用当前分组，但下次重试将使用下一个分组
+					logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+					// Reset retry counter so outer loop can continue for next group
+					// 重置重试计数器，以便外层循环可以为下一个分组继续
+					param.SetRetry(0)
+					param.ResetRetryNextTry()
+				} else {
+					// Stay in current group, save current state
+					// 保持在当前分组，保存当前状态
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+				}
+				break
 			}
-			break
 		}
 	} else {
 		channel, err = model.GetRandomSatisfiedChannelWithOptions(param.TokenGroup, param.ModelName, param.GetRetry(), model.ChannelSelectionOptions{
-			ExcludedChannelIDs: param.ExcludedChannelIDs,
-			ImageRequirement:   param.ImageRequirement,
-			AvoidChannelHosts:  param.AvoidChannelHosts,
+			ExcludedChannelIDs:  param.ExcludedChannelIDs,
+			ImageRequirement:    param.ImageRequirement,
+			AvoidChannelHosts:   param.AvoidChannelHosts,
+			PreferDifferentHost: param.PreferDifferentHost,
 			// Raw path matches Advanced Custom routes; normalized path keys the
 			// bounded channel-health registry.
 			RequestPath: param.RequestPath,

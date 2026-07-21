@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,4 +51,34 @@ func TestRelayRetryHostPrefersResolvedAttemptHost(t *testing.T) {
 
 	info.AttemptUpstreamHost = ""
 	assert.Equal(t, "configured.example", relayRetryHost(info))
+}
+
+func TestShouldPreferDifferentCapacityHostOnlyForStreamingResponses(t *testing.T) {
+	upstream429 := types.NewErrorWithStatusCode(
+		errors.New("Upstream rate limit exceeded, please retry later"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+	upstream429.UpstreamStatusCode = http.StatusTooManyRequests
+
+	streamingResponses := &relaycommon.RelayInfo{IsStream: true, RelayMode: relayconstant.RelayModeResponses}
+	assert.True(t, shouldPreferDifferentCapacityHost(newTestContext(), streamingResponses, upstream429))
+
+	nonStreamingResponses := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeResponses}
+	assert.False(t, shouldPreferDifferentCapacityHost(newTestContext(), nonStreamingResponses, upstream429))
+
+	chatCompletions := &relaycommon.RelayInfo{IsStream: true, RelayMode: relayconstant.RelayModeChatCompletions}
+	assert.False(t, shouldPreferDifferentCapacityHost(newTestContext(), chatCompletions, upstream429))
+}
+
+func TestPreferDifferentRetryHostRecordsSliceTimedOutHost(t *testing.T) {
+	retryParam := &service.RetryParam{}
+	info := &relaycommon.RelayInfo{
+		AttemptUpstreamHost: "https://SLOW.example:443/v1/responses",
+	}
+
+	preferDifferentRetryHost(newTestContext(), retryParam, info, true)
+
+	assert.Contains(t, retryParam.AvoidChannelHosts, "slow.example")
+	assert.True(t, retryParam.PreferDifferentHost)
 }

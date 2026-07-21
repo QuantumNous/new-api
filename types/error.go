@@ -100,7 +100,11 @@ type NewAPIError struct {
 	errorType      ErrorType
 	errorCode      ErrorCode
 	StatusCode     int
-	Metadata       json.RawMessage
+	// UpstreamStatusCode is the immutable HTTP status received from an upstream.
+	// StatusCode may later be remapped for the client, so routing health must use
+	// this field when it needs proof that a 502/503 came from the provider.
+	UpstreamStatusCode int
+	Metadata           json.RawMessage
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.

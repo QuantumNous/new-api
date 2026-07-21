@@ -19,9 +19,13 @@ func CooldownChannel(channelId int, reason string, duration time.Duration) {
 	channelCooldowns.Lock()
 	defer channelCooldowns.Unlock()
 
+	expires := time.Now().Add(duration)
+	if current, ok := channelCooldowns.items[channelId]; ok && current.expires.After(expires) {
+		return
+	}
 	channelCooldowns.items[channelId] = channelCooldown{
 		reason:  reason,
-		expires: time.Now().Add(duration),
+		expires: expires,
 	}
 }
 

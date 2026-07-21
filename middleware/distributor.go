@@ -133,6 +133,12 @@ func Distribute() func(c *gin.Context) {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					affinityKey := model.ChannelHealthKey{ChannelID: preferredChannelID, Model: modelRequest.Model, Path: service.ChannelHealthPath(c.Request.URL.Path)}
+					hostCircuitOpen := err == nil && preferred != nil && model.IsChannelRouteHostCoolingDown(
+						preferred,
+						modelRequest.Model,
+						c.Request.URL.Path,
+						affinityKey.Path,
+					)
 					// Keep prompt-cache affinity as long as the sticky channel can
 					// still serve the request. The session already holds this
 					// channel's upstream prompt cache; leaving throws it away and the
@@ -144,9 +150,14 @@ func Distribute() func(c *gin.Context) {
 					// migrated on slowness and made a session churn #42->#41->#29->#17,
 					// paying a cold prefill on every hop. (An Advanced Custom channel
 					// whose routes do not cover this path is still not pinnable.)
-					stickyUsable := err == nil && preferred != nil && !model.IsChannelCoolingDown(preferred.Id) &&
+					stickyUsable := err == nil && preferred != nil && !hostCircuitOpen && !model.IsChannelCoolingDown(preferred.Id) &&
 						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) &&
 						model.ChannelSupportsImageSelection(preferred, modelRequest.Model, imageRequirement)
+					if hostCircuitOpen {
+						logger.LogInfo(c, fmt.Sprintf(
+							"channel_affinity_released: channel #%d shares an open upstream host circuit for model=%s path=%s",
+							preferred.Id, modelRequest.Model, affinityKey.Path))
+					}
 					if stickyUsable && !model.AcquireChannelHealthForAffinity(affinityKey) {
 						// The channel is failing, not merely slow: staying would error.
 						// Leaving means the next channel is cold, so flag it — the cold
@@ -181,6 +192,12 @@ func Distribute() func(c *gin.Context) {
 							affinityUsable = true
 							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
+					}
+					if !affinityUsable {
+						// The next selected channel cannot share this affinity's prompt
+						// cache. Mark the migration so its one-time cold prefill does not
+						// poison channel latency scoring or trigger another migration.
+						common.SetContextKey(c, constant.ContextKeyAffinityColdStart, true)
 					}
 					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
 						service.ClearCurrentChannelAffinityCache(c)

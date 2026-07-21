@@ -21,6 +21,8 @@ import (
 // as failing rather than healthy.
 func TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure(t *testing.T) {
 	upstreamErr := types.NewErrorWithStatusCode(errors.New("do request failed"), types.ErrorCodeDoRequestFailed, http.StatusBadGateway)
+	mappedUpstreamErr := types.NewErrorWithStatusCode(errors.New("upstream overloaded"), types.ErrorCodeBadResponseStatusCode, http.StatusBadRequest)
+	mappedUpstreamErr.UpstreamStatusCode = http.StatusServiceUnavailable
 	localErr := types.NewErrorWithStatusCode(errors.New("convert request failed"), types.ErrorCodeConvertRequestFailed, http.StatusInternalServerError)
 	failedStream := relaycommon.NewStreamStatus()
 	failedStream.SetEndReason(relaycommon.StreamEndReasonUpstreamFailed, errors.New("upstream response.failed"))
@@ -44,6 +46,7 @@ func TestChannelHealthOutcomeStatusScoresEmptyUpstreamAsFailure(t *testing.T) {
 		{name: "internal stream failure", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: internalFailureStream}, wantStatus: http.StatusInternalServerError, wantLocalErr: true},
 		{name: "client terminal failure wins over empty usage", apiErr: nil, relayInfo: &relaycommon.RelayInfo{StreamStatus: clientTerminalStream, UpstreamEmptyResponse: true}, wantStatus: http.StatusBadRequest, wantLocalErr: false},
 		{name: "upstream error wins over empty flag", apiErr: upstreamErr, relayInfo: &relaycommon.RelayInfo{UpstreamEmptyResponse: true}, wantStatus: http.StatusBadGateway, wantLocalErr: false},
+		{name: "immutable upstream status wins over client mapping", apiErr: mappedUpstreamErr, relayInfo: &relaycommon.RelayInfo{}, wantStatus: http.StatusServiceUnavailable, wantLocalErr: false},
 		{name: "gateway-local error", apiErr: localErr, relayInfo: &relaycommon.RelayInfo{}, wantStatus: http.StatusInternalServerError, wantLocalErr: true},
 	}
 
@@ -104,6 +107,156 @@ func TestRecordChannelHealthOutcomeHealthySuccessStaysAvailable(t *testing.T) {
 	if !IsChannelHealthAvailable(channelID, modelName, requestPath) {
 		t.Fatal("expected healthy successes to keep the channel available")
 	}
+}
+
+// A RelayInfo is reused across channel retries. If an earlier attempt emitted
+// data before failing, FirstResponseTime belongs to that earlier attempt. The
+// current stream's FirstDataAt is the only attempt-local TTFT signal; falling
+// back to time.Since(attemptStart) would score the whole successful stream as
+// TTFT and can evict a healthy fallback channel.
+func TestRecordChannelHealthOutcomeUsesCurrentAttemptFirstDataAfterRetry(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001433
+	const modelName = "test-retry-attempt-first-data"
+	const requestPath = "/v1/responses"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-20 * time.Second)
+		status := &relaycommon.StreamStatus{
+			StartedAt:   attemptStart.Add(500 * time.Millisecond),
+			FirstDataAt: attemptStart.Add(time.Second),
+			LastDataAt:  attemptStart.Add(19 * time.Second),
+			EndedAt:     attemptStart.Add(19 * time.Second),
+			EndReason:   relaycommon.StreamEndReasonDone,
+		}
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			StreamStatus:      status,
+		}
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.True(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a fallback channel with 1s current-attempt TTFT must not be scored with its 20s total stream duration")
+}
+
+func TestRecordChannelHealthOutcomeDoesNotUseStreamDurationWhenCurrentAttemptHasNoData(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001434
+	const modelName = "test-retry-attempt-no-current-data"
+	const requestPath = "/v1/responses"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-20 * time.Second)
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			IsStream:          true,
+			StreamStatus: &relaycommon.StreamStatus{
+				StartedAt: attemptStart.Add(500 * time.Millisecond),
+				EndedAt:   attemptStart.Add(19 * time.Second),
+				EndReason: relaycommon.StreamEndReasonDone,
+			},
+		}
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.True(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a current stream without attributable first data must not use total stream duration as TTFT")
+}
+
+func TestRecordChannelHealthOutcomeDoesNotUseStreamDurationWhenStreamStatusIsUnavailable(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001436
+	const modelName = "test-retry-stream-without-status"
+	const requestPath = "/v1/chat/completions"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-20 * time.Second)
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			IsStream:          true,
+		}
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.True(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a streaming adapter without StreamStatus must not use total stream duration as TTFT")
+}
+
+func TestRecordChannelHealthOutcomeCountsGenuinelySlowCurrentAttemptAfterRetry(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001435
+	const modelName = "test-retry-attempt-slow-current-data"
+	const requestPath = "/v1/responses"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-12 * time.Second)
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			StreamStatus: &relaycommon.StreamStatus{
+				StartedAt:   attemptStart.Add(500 * time.Millisecond),
+				FirstDataAt: attemptStart.Add(10 * time.Second),
+				LastDataAt:  attemptStart.Add(11 * time.Second),
+				EndedAt:     attemptStart.Add(11 * time.Second),
+				EndReason:   relaycommon.StreamEndReasonDone,
+			},
+		}
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.False(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a fallback channel with genuinely slow current-attempt TTFT must still open the circuit")
+}
+
+func TestRecordChannelHealthOutcomeCountsSlowCurrentAttemptWithoutStreamStatus(t *testing.T) {
+	oldEnabled := common.AdaptiveChannelHealthEnabled
+	common.AdaptiveChannelHealthEnabled = true
+	t.Cleanup(func() { common.AdaptiveChannelHealthEnabled = oldEnabled })
+
+	const channelID = 9001437
+	const modelName = "test-retry-slow-stream-without-status"
+	const requestPath = "/v1/chat/completions"
+
+	for i := 0; i < 3; i++ {
+		attemptStart := time.Now().Add(-10 * time.Second)
+		info := &relaycommon.RelayInfo{
+			StartTime:         attemptStart.Add(-30 * time.Second),
+			FirstResponseTime: attemptStart.Add(-10 * time.Second),
+			IsStream:          true,
+			StreamStatus: &relaycommon.StreamStatus{
+				StartedAt:   attemptStart.Add(-20 * time.Second),
+				FirstDataAt: attemptStart.Add(-19 * time.Second),
+				EndReason:   relaycommon.StreamEndReasonUpstreamFailed,
+			},
+		}
+		info.BeginChannelAttempt()
+		info.SetFirstResponseTime()
+
+		RecordChannelHealthOutcome(channelID, modelName, requestPath, info, attemptStart, nil, false)
+	}
+
+	assert.False(t, IsChannelHealthAvailable(channelID, modelName, requestPath),
+		"a genuinely slow current attempt must be scored even when its adapter has no StreamStatus")
 }
 
 // TestClientCanceledIsNotAttributedToChannel guards the mis-attribution bug seen

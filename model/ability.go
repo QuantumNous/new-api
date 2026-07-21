@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -113,6 +112,25 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 }
 
 func GetChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
+	if options.PreferDifferentHost && len(options.AvoidChannelHosts) > 0 {
+		differentHostOptions := options
+		differentHostOptions.PreferDifferentHost = false
+		differentHostOptions.DeferAvoidedHostFallback = false
+		differentHostOptions.AllowCoolingFallback = false
+		differentHostOptions.requireDifferentHost = true
+		channel, err := getChannelWithOptions(group, model, 0, differentHostOptions)
+		if err != nil || channel != nil || options.DeferAvoidedHostFallback {
+			return channel, err
+		}
+	}
+	fallbackOptions := options
+	fallbackOptions.PreferDifferentHost = false
+	fallbackOptions.DeferAvoidedHostFallback = false
+	fallbackOptions.requireDifferentHost = false
+	return getChannelWithOptions(group, model, retry, fallbackOptions)
+}
+
+func getChannelWithOptions(group string, model string, retry int, options ChannelSelectionOptions) (*Channel, error) {
 	var abilities []Ability
 	normalizedRequirement, err := normalizeImageSelectionRequirement(options.ImageRequirement)
 	if err != nil {
@@ -135,12 +153,26 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 		return nil, err
 	}
 
-	avoidedChannelIDs := avoidedHostChannelIDs(abilities, options.AvoidChannelHosts, options.RequestPath, model)
+	channelHosts := make(map[int]string)
+	if len(options.AvoidChannelHosts) > 0 || common.UpstreamHostCircuitMode == common.UpstreamHostCircuitModeEnforce {
+		channelHosts = abilityChannelHosts(abilities, options.RequestPath, model)
+	}
+	avoidedChannelIDs := make(map[int]struct{})
+	for channelID, host := range channelHosts {
+		if _, avoided := options.AvoidChannelHosts[host]; avoided && host != "" {
+			avoidedChannelIDs[channelID] = struct{}{}
+		}
+	}
 	availableAbilities := make([]Ability, 0, len(abilities))
 	coolingAbilities := make([]Ability, 0, len(abilities))
 	for _, ability := range abilities {
 		if _, excluded := options.ExcludedChannelIDs[ability.ChannelId]; excluded {
 			continue
+		}
+		if options.requireDifferentHost {
+			if _, avoided := avoidedChannelIDs[ability.ChannelId]; avoided {
+				continue
+			}
 		}
 		if IsChannelCoolingDown(ability.ChannelId) {
 			coolingAbilities = append(coolingAbilities, ability)
@@ -158,57 +190,85 @@ func GetChannelWithOptions(group string, model string, retry int, options Channe
 	if len(availableAbilities) == 0 {
 		return nil, nil
 	}
-
-	uniquePriorities := make(map[int]bool)
+	priorityCandidates := make([]channelPriorityCandidate, 0, len(availableAbilities))
 	for _, ability := range availableAbilities {
-		priority := int(0)
+		priority := 0
 		if ability.Priority != nil {
 			priority = int(*ability.Priority)
 		}
-		uniquePriorities[priority] = true
+		priorityCandidates = append(priorityCandidates, channelPriorityCandidate{
+			channelID: ability.ChannelId,
+			priority:  priority,
+		})
 	}
-
-	var sortedUniquePriorities []int
-	for priority := range uniquePriorities {
-		sortedUniquePriorities = append(sortedUniquePriorities, priority)
+	sortedUniquePriorities, effectivePriorityRanks, priorityProbeCandidates := buildChannelPriorityRanks(priorityCandidates, model, options.Path)
+	if len(sortedUniquePriorities) == 0 {
+		return nil, nil
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 
 	if retry >= len(sortedUniquePriorities) {
 		retry = len(sortedUniquePriorities) - 1
 	}
-	targetPriority := sortedUniquePriorities[retry]
-
-	var preferredAbilities []Ability
-	var avoidedAbilities []Ability
-	for _, ability := range availableAbilities {
-		priority := int(0)
-		if ability.Priority != nil {
-			priority = int(*ability.Priority)
+	var hostFallbackPreferred []Ability
+	var hostFallbackAvoided []Ability
+	channelId := 0
+	for priorityIndex := retry; priorityIndex < len(sortedUniquePriorities); priorityIndex++ {
+		var preferredAbilities []Ability
+		var avoidedAbilities []Ability
+		var blockedPreferred []Ability
+		var blockedAvoided []Ability
+		for _, ability := range availableAbilities {
+			if effectivePriorityRanks[ability.ChannelId] != priorityIndex {
+				continue
+			}
+			_, avoided := avoidedChannelIDs[ability.ChannelId]
+			if shouldEnforceChannelHostCircuit(channelHosts[ability.ChannelId], model, options.Path) {
+				if avoided {
+					blockedAvoided = append(blockedAvoided, ability)
+				} else {
+					blockedPreferred = append(blockedPreferred, ability)
+				}
+				continue
+			}
+			if avoided {
+				avoidedAbilities = append(avoidedAbilities, ability)
+			} else {
+				preferredAbilities = append(preferredAbilities, ability)
+			}
 		}
-		if priority != targetPriority {
+		if len(hostFallbackPreferred) == 0 && len(hostFallbackAvoided) == 0 &&
+			(len(blockedPreferred) > 0 || len(blockedAvoided) > 0) {
+			hostFallbackPreferred = blockedPreferred
+			hostFallbackAvoided = blockedAvoided
+		}
+		if len(preferredAbilities) == 0 && len(avoidedAbilities) == 0 {
 			continue
 		}
-		if _, avoided := avoidedChannelIDs[ability.ChannelId]; avoided {
-			avoidedAbilities = append(avoidedAbilities, ability)
-		} else {
-			preferredAbilities = append(preferredAbilities, ability)
+		selectedChannelId := selectAcquirableAbilityChannelIdWithFallback(
+			preferredAbilities,
+			effectiveAbilitySelectionWeights(preferredAbilities, model, options.Path),
+			avoidedAbilities,
+			effectiveAbilitySelectionWeights(avoidedAbilities, model, options.Path),
+			model,
+			options.Path,
+			priorityProbeCandidates,
+		)
+		if selectedChannelId != 0 {
+			channelId = selectedChannelId
+			break
 		}
 	}
-	if len(preferredAbilities) == 0 && len(avoidedAbilities) == 0 {
-		return nil, nil
+	if channelId == 0 && options.AllowCoolingFallback && (len(hostFallbackPreferred) > 0 || len(hostFallbackAvoided) > 0) {
+		channelId = selectAcquirableAbilityChannelIdWithFallback(
+			hostFallbackPreferred,
+			effectiveAbilitySelectionWeights(hostFallbackPreferred, model, options.Path),
+			hostFallbackAvoided,
+			effectiveAbilitySelectionWeights(hostFallbackAvoided, model, options.Path),
+			model,
+			options.Path,
+			priorityProbeCandidates,
+		)
 	}
-
-	preferredWeights := effectiveAbilitySelectionWeights(preferredAbilities, model, options.Path)
-	avoidedWeights := effectiveAbilitySelectionWeights(avoidedAbilities, model, options.Path)
-	channelId := selectAcquirableAbilityChannelIdWithFallback(
-		preferredAbilities,
-		preferredWeights,
-		avoidedAbilities,
-		avoidedWeights,
-		model,
-		options.Path,
-	)
 	if channelId == 0 {
 		return nil, nil
 	}
@@ -291,17 +351,17 @@ func effectiveAbilitySelectionWeights(abilities []Ability, model string, path st
 	return weights
 }
 
-func selectAcquirableAbilityChannelIdWithFallback(preferred []Ability, preferredWeights []int, fallback []Ability, fallbackWeights []int, model string, path string) int {
+func selectAcquirableAbilityChannelIdWithFallback(preferred []Ability, preferredWeights []int, fallback []Ability, fallbackWeights []int, model string, path string, priorityProbeCandidates map[int]bool) int {
 	if len(preferred) > 0 {
-		if channelID := selectAcquirableAbilityChannelId(preferred, preferredWeights, model, path); channelID != 0 {
+		if channelID := selectAcquirableAbilityChannelId(preferred, preferredWeights, model, path, priorityProbeCandidates); channelID != 0 {
 			return channelID
 		}
 	}
-	return selectAcquirableAbilityChannelId(fallback, fallbackWeights, model, path)
+	return selectAcquirableAbilityChannelId(fallback, fallbackWeights, model, path, priorityProbeCandidates)
 }
 
-func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, requestPath string, model string) map[int]struct{} {
-	if len(abilities) == 0 || len(avoidHosts) == 0 {
+func abilityChannelHosts(abilities []Ability, requestPath string, model string) map[int]string {
+	if len(abilities) == 0 {
 		return nil
 	}
 	channelIDs := make([]int, 0, len(abilities))
@@ -316,9 +376,10 @@ func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, 
 
 	var channels []Channel
 	if err := DB.Select("id", "type", "base_url", "settings").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to resolve channel hosts for routing: %v", err))
 		return nil
 	}
-	avoided := make(map[int]struct{})
+	hosts := make(map[int]string, len(channels))
 	for i := range channels {
 		var config *dto.AdvancedCustomConfig
 		if channels[i].Type == constant.ChannelTypeAdvancedCustom {
@@ -330,11 +391,21 @@ func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, 
 			}
 		}
 		host := channelRetryHost(&channels[i], config, requestPath, model)
-		if host == "" {
-			continue
+		if host != "" {
+			hosts[channels[i].Id] = host
 		}
-		if _, ok := avoidHosts[host]; ok {
-			avoided[channels[i].Id] = struct{}{}
+	}
+	return hosts
+}
+
+func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, requestPath string, model string) map[int]struct{} {
+	if len(avoidHosts) == 0 {
+		return nil
+	}
+	avoided := make(map[int]struct{})
+	for channelID, host := range abilityChannelHosts(abilities, requestPath, model) {
+		if _, ok := avoidHosts[host]; ok && host != "" {
+			avoided[channelID] = struct{}{}
 		}
 	}
 	return avoided
@@ -346,7 +417,7 @@ func avoidedHostChannelIDs(abilities []Ability, avoidHosts map[string]struct{}, 
 // ensures a lost half-open probe race on the initial pick still falls back
 // to other available candidates instead of failing outright. Returns 0 if
 // none can be acquired.
-func selectAcquirableAbilityChannelId(candidates []Ability, weights []int, model string, path string) int {
+func selectAcquirableAbilityChannelId(candidates []Ability, weights []int, model string, path string, priorityProbeCandidates map[int]bool) int {
 	totalWeight := 0
 	for _, w := range weights {
 		totalWeight += w
@@ -370,6 +441,12 @@ func selectAcquirableAbilityChannelId(candidates []Ability, weights []int, model
 		idx := (startIdx + offset) % len(candidates)
 		ability := candidates[idx]
 		key := ChannelHealthKey{ChannelID: ability.ChannelId, Model: model, Path: path}
+		if priorityProbeCandidates[ability.ChannelId] {
+			if AcquireChannelPriorityProbe(key) {
+				return ability.ChannelId
+			}
+			continue
+		}
 		if AcquireChannelHealth(key) {
 			return ability.ChannelId
 		}
