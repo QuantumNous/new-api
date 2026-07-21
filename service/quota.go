@@ -49,6 +49,12 @@ func hasCustomModelRatio(modelName string, currentRatio float64) bool {
 }
 
 func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
+	return calculateAudioQuotaLocked(info)
+}
+
+func calculateAudioQuotaLocked(info QuotaInfo) (int, *common.QuotaClamp) {
 	if info.UsePrice {
 		modelPrice := decimal.NewFromFloat(info.ModelPrice)
 		quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
@@ -106,6 +112,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	textOutTokens := usage.OutputTokenDetails.TextTokens
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
+	common.OptionRuntimeRWMutex.RLock()
 	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
 
@@ -137,7 +144,8 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		GroupRatio: actualGroupRatio,
 	}
 
-	quota, clamp := calculateAudioQuota(quotaInfo)
+	quota, clamp := calculateAudioQuotaLocked(quotaInfo)
+	common.OptionRuntimeRWMutex.RUnlock()
 	noteQuotaClamp(relayInfo, clamp)
 
 	if userQuota < quota {

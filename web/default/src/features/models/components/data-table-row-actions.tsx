@@ -132,7 +132,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         confirmText={t('Delete')}
         destructive
         handleConfirm={() => {
-          handleDeleteModel(model.id, queryClient)
+          handleDeleteModel(model, queryClient)
           setDeleteConfirmOpen(false)
         }}
       />

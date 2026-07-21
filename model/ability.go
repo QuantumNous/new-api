@@ -28,14 +28,15 @@ type Ability struct {
 
 type AbilityWithChannel struct {
 	Ability
-	ChannelType         int     `json:"channel_type"`
-	ChannelModelMapping *string `json:"-"`
+	ChannelType              int     `json:"channel_type"`
+	ChannelModelMapping      *string `json:"-"`
+	ChannelOtherSettingsJSON string  `json:"-"`
 }
 
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
 	err := DB.Table("abilities").
-		Select("abilities.*, channels.type as channel_type, channels.model_mapping as channel_model_mapping").
+		Select("abilities.*, channels.type as channel_type, channels.model_mapping as channel_model_mapping, channels.settings as channel_other_settings_json").
 		Joins("left join channels on abilities.channel_id = channels.id").
 		Where("abilities.enabled = ?", true).
 		Scan(&abilities).Error
@@ -221,6 +222,8 @@ func filterAbilitiesByImageRequirement(abilities []Ability, model string, requir
 	if requirement == nil || len(abilities) == 0 {
 		return abilities, nil
 	}
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
 	channelIDs := make([]int, 0, len(abilities))
 	seen := make(map[int]struct{}, len(abilities))
 	for _, ability := range abilities {
@@ -236,15 +239,45 @@ func filterAbilitiesByImageRequirement(abilities []Ability, model string, requir
 		return nil, err
 	}
 	channelByID := make(map[int]*Channel, len(channels))
+	explicitModelRouting := false
 	for i := range channels {
 		channelByID[channels[i].Id] = &channels[i]
+		state := imageRoutingConfigFromChannel(&channels[i])
+		if state.configured && state.config == nil {
+			explicitModelRouting = true
+		} else if state.config != nil {
+			if _, ok := state.config.ProfileForModel(model); ok {
+				explicitModelRouting = true
+			}
+		}
 	}
 	filtered := make([]Ability, 0, len(abilities))
+	resolvedRequirements := make([]dto.ImageSelectionRequirement, 0, len(abilities))
 	for _, ability := range abilities {
 		channel, exists := channelByID[ability.ChannelId]
-		if !exists || ChannelSupportsImageSelection(channel, model, requirement) {
+		if !exists {
+			continue
+		}
+		state := imageRoutingConfigFromChannel(channel)
+		if state.configured && imageRoutingConfigSupports(state, model, requirement) {
+			profile, _ := state.config.ProfileForModel(model)
+			resolved, err := profile.ApplyDefaults(*requirement)
+			if err != nil {
+				return nil, err
+			}
+			if !imageRoutingProfileHasResolutionPrice(model, profile, resolved) {
+				continue
+			}
+			filtered = append(filtered, ability)
+			resolvedRequirements = append(resolvedRequirements, resolved)
+			continue
+		}
+		if !state.configured && !explicitModelRouting {
 			filtered = append(filtered, ability)
 		}
+	}
+	if err := validateImageRoutingDefaultConsistency(*requirement, resolvedRequirements); err != nil {
+		return nil, err
 	}
 	return filtered, nil
 }

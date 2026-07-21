@@ -209,8 +209,10 @@ func TestConvertImageRequestRejectsUnsupportedBatchCount(t *testing.T) {
 
 func TestDoRequestAppliesAsyncIdempotencyAndCustomHeaderOverrides(t *testing.T) {
 	requestHeaders := make(chan http.Header, 1)
+	requestTargets := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestHeaders <- r.Header.Clone()
+		requestTargets <- r.URL.RequestURI()
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"code":10000,"data":{}}`))
 	}))
@@ -229,6 +231,8 @@ func TestDoRequestAppliesAsyncIdempotencyAndCustomHeaderOverrides(t *testing.T) 
 				"X-Custom-Header": "custom-value",
 			},
 		},
+		ImageRoutingProtocol:     dto.ImageRoutingProtocolAdapter,
+		ImageRoutingUpstreamPath: "/custom/images/generations",
 	}
 
 	result, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(`{"req_key":"jimeng-test","prompt":"draw"}`))
@@ -240,6 +244,7 @@ func TestDoRequestAppliesAsyncIdempotencyAndCustomHeaderOverrides(t *testing.T) 
 	require.NoError(t, err)
 
 	upstreamHeaders := <-requestHeaders
+	require.Equal(t, "/custom/images/generations?Action=CVProcess&Version=2022-08-31", <-requestTargets)
 	require.Equal(t, "image-task-stable-id", upstreamHeaders.Get("Idempotency-Key"))
 	require.Equal(t, "custom-value", upstreamHeaders.Get("X-Custom-Header"))
 	require.NotEmpty(t, upstreamHeaders.Get("Authorization"))

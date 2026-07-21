@@ -79,6 +79,7 @@ func setupImageHelperAsyncTestDB(t *testing.T) {
 	t.Setenv("CLOUDFLARE_R2_PUBLIC_BASE", "https://cdn.example.com")
 	t.Setenv("CRYPTO_SECRET", "test-crypto-secret")
 	t.Setenv("ASYNC_IMAGE_ENCRYPTED_WRITES_ENABLED", "true")
+	t.Setenv("ASYNC_IMAGE_PAYLOAD_V7_WRITES_ENABLED", "true")
 }
 
 func decryptStoredImageHandlerCheckpoint(t *testing.T, checkpoint json.RawMessage) []byte {
@@ -538,7 +539,7 @@ func TestImageHelperSubmitsNonGPTImageAsAsyncWhenExplicitlyDisabled(t *testing.T
 		Model:          "black-forest-labs/FLUX.1-schnell",
 		Prompt:         "a lighthouse in rain",
 		Async:          &asyncDisabled,
-		ResponseFormat: "b64_json",
+		ResponseFormat: "url",
 		Extra: map[string]json.RawMessage{
 			"negative_prompt": json.RawMessage(`"fog"`),
 			"batch_size":      json.RawMessage(`2`),
@@ -599,7 +600,7 @@ func TestImageHelperSubmitsNonGPTImageAsAsyncWhenExplicitlyDisabled(t *testing.T
 		PreparedRequest *image_stream.PreparedAsyncImageRequest `json:"prepared_request"`
 	}
 	require.NoError(t, common.Unmarshal(decryptStoredImageHandlerCheckpoint(t, task.CheckpointData), &checkpoint))
-	assert.Equal(t, 6, checkpoint.Version)
+	assert.Equal(t, 7, checkpoint.Version)
 	assert.Equal(t, image_stream.AsyncImageExecutorAdaptor, checkpoint.Executor)
 	require.NotNil(t, checkpoint.PreparedRequest)
 	assert.Equal(t, constant.APITypeSiliconFlow, checkpoint.PreparedRequest.APIType)
@@ -707,8 +708,16 @@ func TestImageHelperUsesResponsesExecutorForUnifiedGPTEvenWithPassThrough(t *tes
 	request := &dto.ImageRequest{}
 	require.NoError(t, common.Unmarshal([]byte(`{
 		"model":"gpt-image-2",
-		"input":{"prompt":"a brass telescope under the stars","aspect_ratio":"16:9","resolution":"2K"}
+		"input":{"prompt":"a brass telescope under the stars"}
 	}`), request))
+	require.NoError(t, request.SetImageSelectionRequirement(dto.ImageSelectionRequirement{
+		Operation:    dto.ImageOperationGeneration,
+		Resolution:   "2K",
+		AspectRatio:  "16:9",
+		Size:         "2048x1152",
+		OutputFormat: "png",
+		N:            1,
+	}))
 	require.True(t, request.HasUnifiedImageInput())
 
 	info := &relaycommon.RelayInfo{
@@ -760,6 +769,90 @@ func TestImageHelperUsesResponsesExecutorForUnifiedGPTEvenWithPassThrough(t *tes
 	assert.Nil(t, checkpoint.PreparedRequest)
 }
 
+func TestImageHelperConfiguredGenerationsRouteOverridesResponsesHeuristic(t *testing.T) {
+	setupImageHelperAsyncTestDB(t)
+
+	request := &dto.ImageRequest{}
+	require.NoError(t, common.Unmarshal([]byte(`{
+		"model":"gpt-image-2",
+		"input":{"prompt":"a brass telescope under the stars","aspect_ratio":"16:9","resolution":"2K"}
+	}`), request))
+	info := &relaycommon.RelayInfo{
+		RequestId:       "request-configured-gpt-generations",
+		StartTime:       time.Now(),
+		UserId:          22,
+		UsingGroup:      "default",
+		OriginModelName: request.Model,
+		RequestURLPath:  "/v1/images/generations",
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		RelayFormat:     types.RelayFormatOpenAIImage,
+		Request:         request,
+		PriceData: types.PriceData{FreeModel: true, GroupRatioInfo: types.GroupRatioInfo{
+			GroupRatio: 1,
+		}},
+	}
+	routingPath := "/upstream/v1/images/generations"
+	routing := &dto.ImageRoutingConfig{
+		Version: dto.ImageRoutingVersion1,
+		Profiles: []dto.ImageRoutingProfile{
+			{
+				Model:              request.Model,
+				Protocol:           dto.ImageRoutingProtocolImagesGenerations,
+				UpstreamPath:       routingPath,
+				Operations:         []dto.ImageOperation{dto.ImageOperationGeneration},
+				Resolutions:        []string{"2K"},
+				AspectRatios:       []string{"16:9"},
+				Sizes:              []string{"2048x1152"},
+				OutputFormats:      []string{"png"},
+				VerificationStatus: dto.ImageRoutingVerificationProductionVerified,
+				AllowedCombinations: []dto.ImageRoutingCombination{
+					{Operation: dto.ImageOperationGeneration, Resolution: "2K", AspectRatio: "16:9", Size: "2048x1152"},
+				},
+			},
+		},
+	}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+	common.SetContextKey(c, constant.ContextKeyChannelId, 77)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, int64(1700000005))
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://openai.example.com")
+	common.SetContextKey(c, constant.ContextKeyChannelKey, "openai-generations-key")
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{})
+	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ImageRouting: routing})
+	common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{})
+	common.SetContextKey(c, constant.ContextKeyChannelHeaderOverride, map[string]any{})
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, request.Model)
+
+	apiErr := ImageHelper(c, info)
+	require.Nil(t, apiErr)
+	assert.Equal(t, http.StatusAccepted, recorder.Code)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("platform = ?", constant.TaskPlatformOpenAIImage).First(&task).Error)
+	var checkpoint struct {
+		Executor                 string                                  `json:"executor"`
+		ImageRoutingProtocol     dto.ImageRoutingProtocol                `json:"image_routing_protocol"`
+		ImageRoutingUpstreamPath string                                  `json:"image_routing_upstream_path"`
+		ImageRequirement         *dto.ImageSelectionRequirement          `json:"image_requirement"`
+		PreparedRequest          *image_stream.PreparedAsyncImageRequest `json:"prepared_request"`
+	}
+	require.NoError(t, common.Unmarshal(decryptStoredImageHandlerCheckpoint(t, task.CheckpointData), &checkpoint))
+	assert.Equal(t, image_stream.AsyncImageExecutorAdaptor, checkpoint.Executor)
+	assert.Equal(t, dto.ImageRoutingProtocolImagesGenerations, checkpoint.ImageRoutingProtocol)
+	assert.Equal(t, routingPath, checkpoint.ImageRoutingUpstreamPath)
+	require.NotNil(t, checkpoint.ImageRequirement)
+	assert.Equal(t, "2K", checkpoint.ImageRequirement.Resolution)
+	assert.Equal(t, "16:9", checkpoint.ImageRequirement.AspectRatio)
+	assert.Equal(t, "2048x1152", checkpoint.ImageRequirement.Size)
+	assert.Equal(t, "png", checkpoint.ImageRequirement.OutputFormat)
+	require.NotNil(t, checkpoint.PreparedRequest)
+	assert.Equal(t, dto.ImageRoutingProtocolImagesGenerations, checkpoint.PreparedRequest.ImageRoutingProtocol)
+	assert.Equal(t, routingPath, checkpoint.PreparedRequest.ImageRoutingUpstreamPath)
+}
+
 func TestImageHelperPersistsMappedModelInOpenAIPassThroughBody(t *testing.T) {
 	setupImageHelperAsyncTestDB(t)
 
@@ -770,7 +863,7 @@ func TestImageHelperPersistsMappedModelInOpenAIPassThroughBody(t *testing.T) {
 		Async:          &asyncDisabled,
 		WebhookURL:     "https://8.8.8.8/image-ready",
 		WebhookSecret:  "webhook-test-secret",
-		ResponseFormat: "b64_json",
+		ResponseFormat: "url",
 	}
 	info := &relaycommon.RelayInfo{
 		RequestId:       "request-openai-pass-through-mapped-model",
@@ -792,7 +885,7 @@ func TestImageHelperPersistsMappedModelInOpenAIPassThroughBody(t *testing.T) {
 	rawBody := `{
 		"model":"public-image-model",
 		"prompt":"a copper telescope",
-		"response_format":"b64_json",
+		"response_format":"url",
 		"async":false,
 		"webhook_url":"https://8.8.8.8/image-ready",
 		"webhook_secret":"webhook-test-secret",
@@ -933,6 +1026,7 @@ func TestPrepareAsyncImageAdaptorRequestPreservesExtraOverrideAndRecalculatesPri
 
 	require.Nil(t, apiErr)
 	require.NotNil(t, prepared)
+	assert.Equal(t, uint(3), prepared.OutputCount)
 	assert.Equal(t, constant.APITypeSiliconFlow, prepared.APIType)
 	assert.Equal(t, constant.ChannelTypeSiliconFlow, prepared.ChannelType)
 	assert.Equal(t, int64(1700000001), prepared.ChannelCreateTime)
@@ -1066,6 +1160,83 @@ func TestPrepareAsyncImageAdaptorRequestPreservesUnifiedOpenAIExtra(t *testing.T
 	require.NoError(t, common.Unmarshal(prepared.Body, &body))
 	assert.Equal(t, float64(7), body["seed"])
 	assert.Equal(t, "rain", body["negative_prompt"])
+}
+
+func TestMaterializeImageSelectionRequirementFreezesCanonicalAndTypedValues(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:        "verified-image-model",
+		Prompt:       "a red kite",
+		Size:         "3840X2160",
+		Quality:      "LOW",
+		OutputFormat: json.RawMessage(`"JPG"`),
+		Extra: map[string]json.RawMessage{
+			"resolution":        json.RawMessage(`"4k"`),
+			"aspect_ratio":      json.RawMessage(`"16:9"`),
+			"generation_config": json.RawMessage(`{"candidateCount":2}`),
+		},
+	}
+	profile := &dto.ImageRoutingProfile{
+		VerificationStatus: dto.ImageRoutingVerificationProductionVerified,
+		Parameters: []dto.ImageRoutingParameter{{
+			Name: "generationConfig",
+			Type: "object",
+		}},
+	}
+	requirement := dto.ImageSelectionRequirement{
+		Operation:          dto.ImageOperationGeneration,
+		Resolution:         "4K",
+		AspectRatio:        "16:9",
+		Size:               "3840x2160",
+		Quality:            "low",
+		OutputFormat:       "jpeg",
+		N:                  1,
+		OptionalParameters: []string{"generation_config"},
+		OptionalValues: map[string]json.RawMessage{
+			"generation_config": json.RawMessage(`{"candidateCount":2}`),
+		},
+	}
+
+	require.NoError(t, materializeImageSelectionRequirement(request, requirement, profile))
+	assert.Equal(t, "3840x2160", request.Size)
+	assert.Equal(t, "low", request.Quality)
+	require.NotNil(t, request.N)
+	assert.Equal(t, uint(1), *request.N)
+	assert.JSONEq(t, `"4K"`, string(request.Extra["resolution"]))
+	assert.JSONEq(t, `"16:9"`, string(request.Extra["aspect_ratio"]))
+	assert.JSONEq(t, `"jpeg"`, string(request.OutputFormat))
+	assert.NotContains(t, request.Extra, "generation_config")
+	assert.JSONEq(t, `{"candidateCount":2}`, string(request.Extra["generationConfig"]))
+}
+
+func TestApplyImageRoutingProviderParametersSurvivesProviderDTOConversion(t *testing.T) {
+	request := &dto.ImageRequest{
+		Extra: map[string]json.RawMessage{
+			"generationConfig": json.RawMessage(`{"candidateCount":2,"seed":7}`),
+		},
+	}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-image-model",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelOtherSettings: dto.ChannelOtherSettings{ImageRouting: &dto.ImageRoutingConfig{
+				Version: dto.ImageRoutingVersion1,
+				Profiles: []dto.ImageRoutingProfile{{
+					Model:      "gemini-image-model",
+					Parameters: []dto.ImageRoutingParameter{{Name: "generationConfig", Type: "object"}},
+				}},
+			}},
+		},
+	}
+
+	body, injected, err := applyImageRoutingProviderParameters(
+		[]byte(`{"contents":[],"generationConfig":{"candidateCount":1}}`),
+		info,
+		request,
+	)
+	require.NoError(t, err)
+	assert.True(t, injected)
+	var fields map[string]json.RawMessage
+	require.NoError(t, common.Unmarshal(body, &fields))
+	assert.JSONEq(t, `{"candidateCount":2,"seed":7}`, string(fields["generationConfig"]))
 }
 
 func TestPrepareAsyncImageAdaptorRequestDefersNativeGeminiReferenceImages(t *testing.T) {

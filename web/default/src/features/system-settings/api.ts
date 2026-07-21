@@ -31,13 +31,85 @@ import type {
   UpstreamRatiosResponse,
 } from './types'
 
+type UnknownRecord = Record<string, unknown>
+
+export type NormalizedMutationError =
+  | { kind: 'conflict'; status: 409 }
+  | { kind: 'message'; status: number; message: string }
+  | { kind: 'server'; status?: number }
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null
+}
+
+export function getSafeServerMessage(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+
+  const message = value.trim()
+  if (message.length === 0 || message.length > 300) return undefined
+  for (const character of message) {
+    const codePoint = character.codePointAt(0)
+    if (codePoint !== undefined && (codePoint < 32 || codePoint === 127)) {
+      return undefined
+    }
+  }
+  return message
+}
+
+export function normalizeMutationError(
+  error: unknown
+): NormalizedMutationError {
+  if (!isRecord(error) || !isRecord(error.response)) {
+    return { kind: 'server' }
+  }
+
+  const status = error.response.status
+  if (typeof status !== 'number') return { kind: 'server' }
+  if (status === 409) return { kind: 'conflict', status }
+  if (status >= 500) return { kind: 'server', status }
+
+  const data = error.response.data
+  const message = isRecord(data)
+    ? getSafeServerMessage(data.message)
+    : undefined
+  if (message) return { kind: 'message', status, message }
+  return { kind: 'server', status }
+}
+
+export function resolveMutationErrorMessage(
+  error: unknown,
+  messages: { conflict: string; server: string; fallback: string }
+): string {
+  const normalized = normalizeMutationError(error)
+  if (normalized.kind === 'conflict') return messages.conflict
+  if (normalized.kind === 'message') return normalized.message
+  return normalized.status === undefined ? messages.fallback : messages.server
+}
+
 export async function getSystemOptions() {
   const res = await api.get<SystemOptionsResponse>('/api/option/')
   return res.data
 }
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
-  const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  const res = await api.put<UpdateOptionResponse>('/api/option/', request, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
+  return res.data
+}
+
+export async function updateSystemOptions(requests: UpdateOptionRequest[]) {
+  const res = await api.put<UpdateOptionResponse>(
+    '/api/option/batch',
+    {
+      updates: requests,
+    },
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
+  )
   return res.data
 }
 

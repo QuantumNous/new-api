@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
@@ -62,6 +63,45 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, "stream", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, billing_setting.BillingModeTieredExpr, info.TieredBillingSnapshot.BillingMode)
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
+}
+
+func TestModelPriceHelperTieredAllowsOrdinaryModelPriceWithImageResolution(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	savedConfig := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		savedConfig[key] = value
+		return nil
+	}))
+	savedModelPrices := ratio_setting.ModelPrice2JSONString()
+	savedResolutionPrices := ratio_setting.ImageResolutionPrice2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(savedConfig))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedModelPrices))
+		require.NoError(t, ratio_setting.UpdateImageResolutionPriceByJSONString(savedResolutionPrices))
+	})
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"tiered-image-model":"tiered_expr"}`,
+		"billing_setting.billing_expr": `{"tiered-image-model":"tier(\"base\", p * 2)"}`,
+	}))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"tiered-image-model":0.25}`))
+	require.NoError(t, ratio_setting.UpdateImageResolutionPriceByJSONString(`{}`))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "tiered-image-model",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		BillingRequestInput: &billingexpr.RequestInput{
+			Body: []byte(`{}`),
+		},
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{ImageResolution: "4K"})
+	require.NoError(t, err)
+	require.Equal(t, 1000, priceData.QuotaToPreConsume)
 }
 
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
@@ -271,4 +311,62 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 	require.Equal(t, "QuotaFromFloat", clamp.Op)
 	require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 	require.Nil(t, info.Billing)
+}
+
+func TestModelPriceHelperUsesResolutionPriceWithoutGroupSpecificModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedModelPrices := ratio_setting.ModelPrice2JSONString()
+	savedResolutionPrices := ratio_setting.ImageResolutionPrice2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedModelPrices))
+		require.NoError(t, ratio_setting.UpdateImageResolutionPriceByJSONString(savedResolutionPrices))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"gpt-image-price-test":0.25,"legacy-image-price-test":0.25}`))
+	require.NoError(t, ratio_setting.UpdateImageResolutionPriceByJSONString(
+		`{"gpt-image-price-test":{"1K":0.25,"4K":1.2}}`,
+	))
+
+	newInfo := func(group string) (*gin.Context, *relaycommon.RelayInfo) {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Set("group", group)
+		return ctx, &relaycommon.RelayInfo{
+			OriginModelName:      "gpt-image-price-test",
+			UserGroup:            group,
+			UsingGroup:           group,
+			ImageRoutingProtocol: dto.ImageRoutingProtocolImagesGenerations,
+		}
+	}
+
+	ctx, info := newInfo("default")
+	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{
+		ImageResolution: "4K",
+		ImagePriceRatio: 0.4,
+		BillingRatios:   map[string]float64{"n": 2},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1.2, priceData.ModelPrice)
+	require.Equal(t, 1_200_000, priceData.QuotaToPreConsume)
+
+	ctx, info = newInfo("default")
+	_, err = ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{
+		ImageResolution: "2K",
+		BillingRatios:   map[string]float64{"n": 1},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not have a configured price")
+
+	ctx, info = newInfo("default")
+	info.OriginModelName = "legacy-image-price-test"
+	info.ImageRoutingProtocol = ""
+	priceData, err = ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{ImageResolution: "2K"})
+	require.NoError(t, err)
+	require.Equal(t, 0.25, priceData.ModelPrice)
+	require.Equal(t, 125_000, priceData.QuotaToPreConsume)
+
+	ctx, info = newInfo("default")
+	info.ImageRoutingProtocol = ""
+	priceData, err = ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{ImageResolution: "4K"})
+	require.NoError(t, err)
+	require.Equal(t, 0.25, priceData.ModelPrice, "legacy routes must not silently adopt verified resolution prices")
 }

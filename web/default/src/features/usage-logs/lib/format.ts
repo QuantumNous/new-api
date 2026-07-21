@@ -327,6 +327,7 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'user.oauth_unbind': 'Removed an OAuth binding for the user',
   // System settings
   'option.update': 'Updated system setting {{key}}',
+  'option.update_batch': 'Updated system settings {{keys}}',
   'option.payment_compliance': 'Confirmed payment compliance',
   'option.reset_ratio': 'Reset model ratios',
   'option.clear_affinity_cache': 'Cleared channel affinity cache',
@@ -373,7 +374,11 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'vendor.delete': 'Deleted a vendor',
   // Model metadata
   'model.create': 'Created a model',
+  'model.create_with_options':
+    'Created model {{model_name}} (ID: {{model_id}}) with settings {{option_keys}}',
   'model.update': 'Updated a model',
+  'model.update_with_options':
+    'Updated model {{model_name}} (ID: {{model_id}}) with settings {{option_keys}}',
   'model.delete': 'Deleted a model',
   'model.sync_upstream': 'Synced upstream models',
   // Deployments

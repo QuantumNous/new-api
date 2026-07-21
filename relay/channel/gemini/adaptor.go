@@ -157,9 +157,14 @@ func nativeImageQualitySize(quality string) string {
 // the unified image API's explicit aspect_ratio/resolution fields. Explicit
 // unified values win over inferred values from size and quality.
 func nativeImageConfigForRequest(request dto.ImageRequest) (map[string]string, error) {
-	config, knownSize := nativeImageSizeMapping(request.Size)
-	if strings.TrimSpace(request.Size) != "" && !knownSize {
-		return nil, fmt.Errorf("unsupported image size %q", request.Size)
+	frozenRequirement, hasFrozenRequirement := request.ImageSelectionRequirement()
+	size := request.Size
+	if strings.TrimSpace(size) == "" && hasFrozenRequirement {
+		size = frozenRequirement.Size
+	}
+	config, knownSize := nativeImageSizeMapping(size)
+	if strings.TrimSpace(size) != "" && !knownSize {
+		return nil, fmt.Errorf("unsupported image size %q", size)
 	}
 	if quality := strings.TrimSpace(request.Quality); quality != "" {
 		qualitySize := nativeImageQualitySize(quality)
@@ -171,6 +176,14 @@ func nativeImageConfigForRequest(request dto.ImageRequest) (map[string]string, e
 		// request into 1K.
 		if config.ImageSize == "" {
 			config.ImageSize = qualitySize
+		}
+	}
+	if hasFrozenRequirement {
+		if config.AspectRatio == "" {
+			config.AspectRatio = strings.ToLower(strings.TrimSpace(frozenRequirement.AspectRatio))
+		}
+		if config.ImageSize == "" {
+			config.ImageSize = strings.ToUpper(strings.TrimSpace(frozenRequirement.Resolution))
 		}
 	}
 
@@ -350,11 +363,15 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		return nil, errors.New("not supported model for image generation, only imagen models are supported")
 	}
 	capabilities := common.ImageModelCapabilitiesForModel(upstreamModel)
+	frozenRequirement, hasFrozenRequirement := request.ImageSelectionRequirement()
 
 	// Preserve the legacy OpenAI size aliases while allowing the unified
 	// aspect_ratio field to override them.
 	aspectRatio := capabilities.DefaultAspectRatio
 	size := strings.TrimSpace(request.Size)
+	if size == "" && hasFrozenRequirement {
+		size = strings.TrimSpace(frozenRequirement.Size)
+	}
 	if size != "" {
 		if strings.Contains(size, ":") {
 			candidate := strings.ToLower(size)
@@ -389,6 +406,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			return nil, fmt.Errorf("aspect_ratio %s is not supported by model %s", value, upstreamModel)
 		}
 		aspectRatio = value
+	} else if hasFrozenRequirement && frozenRequirement.AspectRatio != "" {
+		aspectRatio = strings.ToLower(strings.TrimSpace(frozenRequirement.AspectRatio))
 	}
 
 	imageSize := ""
@@ -412,6 +431,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			return nil, fmt.Errorf("resolution %s is not supported by model %s", value, upstreamModel)
 		}
 		imageSize = value
+	} else if hasFrozenRequirement && frozenRequirement.Resolution != "" {
+		imageSize = strings.ToUpper(strings.TrimSpace(frozenRequirement.Resolution))
 	}
 
 	// build gemini imagen request

@@ -122,7 +122,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
+			var selectionErr error
+			channel, selectionErr = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
 				ExcludedChannelIDs: param.ExcludedChannelIDs,
 				ImageRequirement:   param.ImageRequirement,
 				AvoidChannelHosts:  param.AvoidChannelHosts,
@@ -136,6 +137,9 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 				AllowCoolingFallback: len(param.ExcludedChannelIDs) == 0 || i == len(autoGroups)-1,
 				Path:                 ChannelHealthPath(param.RequestPath),
 			})
+			if selectionErr != nil {
+				return nil, selectGroup, selectionErr
+			}
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组

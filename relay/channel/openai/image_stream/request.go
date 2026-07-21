@@ -84,6 +84,7 @@ func gptImageSizeFromUnifiedOptions(req *dto.ImageRequest, model string) (string
 		return "", errors.New("image request is required")
 	}
 	capabilities := common.ImageModelCapabilitiesForModel(model)
+	frozenRequirement, hasFrozenRequirement := req.ImageSelectionRequirement()
 	if req.Size != "" {
 		size := strings.TrimSpace(req.Size)
 		if capabilities.Family == common.ImageModelFamilyGPTImage2 {
@@ -103,6 +104,27 @@ func gptImageSizeFromUnifiedOptions(req *dto.ImageRequest, model string) (string
 
 	rawAspect, hasAspect := req.Extra["aspect_ratio"]
 	rawResolution, hasResolution := req.Extra["resolution"]
+	if hasFrozenRequirement {
+		if !hasAspect && frozenRequirement.AspectRatio != "" {
+			rawAspect, hasAspect = json.RawMessage(nil), true
+			encoded, err := common.Marshal(frozenRequirement.AspectRatio)
+			if err != nil {
+				return "", fmt.Errorf("encode frozen aspect_ratio: %w", err)
+			}
+			rawAspect = encoded
+		}
+		if !hasResolution && frozenRequirement.Resolution != "" {
+			rawResolution, hasResolution = json.RawMessage(nil), true
+			encoded, err := common.Marshal(frozenRequirement.Resolution)
+			if err != nil {
+				return "", fmt.Errorf("encode frozen resolution: %w", err)
+			}
+			rawResolution = encoded
+		}
+		if !hasAspect && !hasResolution && frozenRequirement.Size != "" {
+			return frozenRequirement.Size, nil
+		}
+	}
 	if !hasAspect && !hasResolution {
 		return "", nil
 	}

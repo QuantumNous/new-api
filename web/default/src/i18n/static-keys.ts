@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  // Audit log templates
+  'Updated system settings {{keys}}',
+  'Created model {{model_name}} (ID: {{model_id}}) with settings {{option_keys}}',
+  'Updated model {{model_name}} (ID: {{model_id}}) with settings {{option_keys}}',
+
   // Header navigation
   'Home',
   'Console',
@@ -76,6 +81,18 @@ export const STATIC_I18N_KEYS = [
   'More...',
   'Less',
   'Save {{percent}}%',
+  'From',
+  'image',
+  'Per image',
+  'Prices shown per image',
+  'Image resolution pricing',
+  'JSON map of model → resolution → USD cost per image.',
+  'Expected a JSON object mapping models to resolution price objects',
+  'Pricing settings changed on the server. The latest values were reloaded; review them and try again.',
+  'Pricing settings could not be loaded. Saving is disabled to protect existing prices.',
+  'The server could not save your changes. Please try again.',
+  'Model deleted, but image resolution pricing cleanup failed',
+  'Models deleted, but image resolution pricing cleanup failed',
 
   // Roles
   'Super Admin',

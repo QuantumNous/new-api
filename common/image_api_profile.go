@@ -40,9 +40,12 @@ const (
 )
 
 type ImageSizeCombination struct {
-	Resolution  string `json:"resolution"`
-	AspectRatio string `json:"aspect_ratio"`
-	Size        string `json:"size,omitempty"`
+	Operation    string `json:"operation,omitempty"`
+	Resolution   string `json:"resolution"`
+	AspectRatio  string `json:"aspect_ratio"`
+	Size         string `json:"size,omitempty"`
+	Quality      string `json:"quality,omitempty"`
+	OutputFormat string `json:"output_format,omitempty"`
 }
 
 type ImageModelCapabilities struct {
@@ -454,8 +457,18 @@ func intersectImageAPIParameters(left, right []ImageAPIParameter) []ImageAPIPara
 			parameter.Min = maxImageParameterBound(leftParameter.Min, rightParameter.Min)
 			parameter.Max = minImageParameterBound(leftParameter.Max, rightParameter.Max)
 			parameter.MaxItems = minImageParameterBound(leftParameter.MaxItems, rightParameter.MaxItems)
+			if parameter.Type == "enum" && len(parameter.EnumValues) == 0 {
+				break
+			}
+			if parameter.Min != nil && parameter.Max != nil && *parameter.Min > *parameter.Max {
+				break
+			}
+			if parameter.MaxItems != nil && *parameter.MaxItems <= 0 {
+				break
+			}
 			if !reflect.DeepEqual(leftParameter.Default, rightParameter.Default) {
 				parameter.Default = nil
+				parameter.Required = true
 			}
 			parameters = append(parameters, parameter)
 			break
@@ -731,8 +744,29 @@ func ImageAPIProfileForCapabilities(capabilities ImageModelCapabilities) *ImageA
 		Parameters:     parameters,
 	}
 	if len(capabilities.ResolutionAspectVariants) > 0 {
+		fields := make([]string, 0, 3)
+		for _, variant := range capabilities.ResolutionAspectVariants {
+			if variant.Operation != "" && !stringSliceContains(fields, "operation") {
+				fields = append(fields, "operation")
+			}
+			if variant.Resolution != "" && !stringSliceContains(fields, "resolution") {
+				fields = append(fields, "resolution")
+			}
+			if variant.AspectRatio != "" && !stringSliceContains(fields, "aspect_ratio") {
+				fields = append(fields, "aspect_ratio")
+			}
+			if variant.Size != "" && !stringSliceContains(fields, "size") {
+				fields = append(fields, "size")
+			}
+			if variant.Quality != "" && !stringSliceContains(fields, "quality") {
+				fields = append(fields, "quality")
+			}
+			if variant.OutputFormat != "" && !stringSliceContains(fields, "output_format") {
+				fields = append(fields, "output_format")
+			}
+		}
 		profile.Constraints = []ImageAPIConstraint{{
-			Type: "allowed_combinations", Fields: []string{"resolution", "aspect_ratio"},
+			Type: "allowed_combinations", Fields: fields,
 			Combinations: append([]ImageSizeCombination(nil), capabilities.ResolutionAspectVariants...),
 		}}
 	}

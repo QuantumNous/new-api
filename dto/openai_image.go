@@ -67,6 +67,14 @@ type ImageRequest struct {
 	// unifiedInput records that the request used the gateway's nested input
 	// envelope. It is intentionally not serialized or exposed as a JSON field.
 	unifiedInput bool
+	// imageSelectionRequirement is resolved before billing and channel retry so
+	// every stage uses the same canonical image variant.
+	imageSelectionRequirement *ImageSelectionRequirement
+	// Multipart file metadata is resolved by the reusable request parser before
+	// channel selection. File bytes remain in gin's multipart form and are never
+	// serialized into the provider request DTO.
+	multipartReferenceImageCount int
+	multipartHasMask             bool
 }
 
 func (i *ImageRequest) UnmarshalJSON(data []byte) error {
@@ -136,6 +144,18 @@ func (i *ImageRequest) UnmarshalJSON(data []byte) error {
 // `input` envelope used by unified image APIs.
 func (i ImageRequest) HasUnifiedImageInput() bool {
 	return i.unifiedInput
+}
+
+func (i *ImageRequest) SetMultipartImageSelectionMeta(referenceImageCount int, hasMask bool) {
+	if i == nil {
+		return
+	}
+	i.multipartReferenceImageCount = referenceImageCount
+	i.multipartHasMask = hasMask
+}
+
+func (i ImageRequest) MultipartImageSelectionMeta() (int, bool) {
+	return i.multipartReferenceImageCount, i.multipartHasMask
 }
 
 // ImageInputURLs returns the validated image URLs carried by the request's
@@ -655,6 +675,7 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		MaxTokens:       1584,
 		ImagePriceRatio: sizeRatio * qualityRatio,
 		BillingRatios:   map[string]float64{"n": float64(imageN)},
+		ImageResolution: i.imageBillingResolution(),
 	}
 }
 

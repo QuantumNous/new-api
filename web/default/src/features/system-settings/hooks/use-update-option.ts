@@ -20,7 +20,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
-import { updateSystemOption } from '../api'
+import {
+  getSafeServerMessage,
+  resolveMutationErrorMessage,
+  updateSystemOption,
+  updateSystemOptions,
+} from '../api'
 import type { UpdateOptionRequest } from '../types'
 
 // Configuration keys that require status refresh
@@ -51,15 +56,26 @@ const LEGAL_DOCUMENT_QUERY_KEYS = new Map([
 export function useUpdateOption() {
   const queryClient = useQueryClient()
 
+  const refetchSystemOptions = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ['system-options'],
+      refetchType: 'active',
+    })
+  }
+
   return useMutation({
-    mutationFn: (request: UpdateOptionRequest) => updateSystemOption(request),
+    mutationFn: (request: UpdateOptionRequest | UpdateOptionRequest[]) =>
+      Array.isArray(request)
+        ? updateSystemOptions(request)
+        : updateSystemOption(request),
     onSuccess: (data, variables) => {
       if (data.success) {
         // Always refresh system-options
-        queryClient.invalidateQueries({ queryKey: ['system-options'] })
+        refetchSystemOptions()
 
         // If updating frontend-display-related config, also refresh status
-        if (STATUS_RELATED_KEYS.has(variables.key)) {
+        const requests = Array.isArray(variables) ? variables : [variables]
+        if (requests.some((request) => STATUS_RELATED_KEYS.has(request.key))) {
           queryClient.invalidateQueries({ queryKey: ['status'] })
           try {
             window.localStorage.removeItem('status')
@@ -68,20 +84,39 @@ export function useUpdateOption() {
           }
         }
 
-        const legalDocumentQueryKey = LEGAL_DOCUMENT_QUERY_KEYS.get(
-          variables.key
-        )
-        if (legalDocumentQueryKey) {
-          queryClient.invalidateQueries({ queryKey: [legalDocumentQueryKey] })
+        for (const request of requests) {
+          const legalDocumentQueryKey = LEGAL_DOCUMENT_QUERY_KEYS.get(
+            request.key
+          )
+          if (legalDocumentQueryKey) {
+            queryClient.invalidateQueries({
+              queryKey: [legalDocumentQueryKey],
+            })
+          }
         }
 
         toast.success(i18next.t('Setting updated successfully'))
       } else {
-        toast.error(data.message || i18next.t('Failed to update setting'))
+        toast.error(
+          getSafeServerMessage(data.message) ||
+            i18next.t('Failed to update setting')
+        )
+        refetchSystemOptions()
       }
     },
-    onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to update setting'))
+    onError: (error: unknown) => {
+      toast.error(
+        resolveMutationErrorMessage(error, {
+          conflict: i18next.t(
+            'Pricing settings changed on the server. The latest values were reloaded; review them and try again.'
+          ),
+          server: i18next.t(
+            'The server could not save your changes. Please try again.'
+          ),
+          fallback: i18next.t('Failed to update setting'),
+        })
+      )
+      refetchSystemOptions()
     },
   })
 }

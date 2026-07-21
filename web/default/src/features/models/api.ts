@@ -42,6 +42,16 @@ import type {
 // Model CRUD Operations
 // ============================================================================
 
+export interface ModelOptionUpdate {
+  key: string
+  value: string
+  expected_value?: string
+}
+
+export type ModelMutationData = Partial<Model> & {
+  option_updates?: ModelOptionUpdate[]
+}
+
 /**
  * Get paginated list of models
  */
@@ -74,9 +84,12 @@ export async function getModel(id: number): Promise<GetModelResponse> {
  * Create new model
  */
 export async function createModel(
-  data: Partial<Model>
+  data: ModelMutationData
 ): Promise<{ success: boolean; message?: string; data?: Model }> {
-  const res = await api.post('/api/models/', data)
+  const res = await api.post('/api/models/', data, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
@@ -84,9 +97,12 @@ export async function createModel(
  * Update existing model
  */
 export async function updateModel(
-  data: Partial<Model> & { id: number }
+  data: ModelMutationData & { id: number }
 ): Promise<{ success: boolean; message?: string; data?: Model }> {
-  const res = await api.put('/api/models/', data)
+  const res = await api.put('/api/models/', data, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
   return res.data
 }
 

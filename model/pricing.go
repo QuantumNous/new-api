@@ -36,6 +36,7 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	APIProfile             *common.ImageAPIProfile `json:"api_profile,omitempty"`
+	ImageResolutionPrices  map[string]float64      `json:"image_resolution_prices,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
 }
 
@@ -65,6 +66,9 @@ var (
 )
 
 func GetPricing() []Pricing {
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
+
 	if time.Since(lastGetPricingTime) > time.Minute*1 || len(pricingMap) == 0 {
 		updatePricingLock.Lock()
 		defer updatePricingLock.Unlock()
@@ -109,13 +113,27 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 }
 
 func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCustomConfigs map[int]*dto.AdvancedCustomConfig) []constant.EndpointType {
+	var endpointTypes []constant.EndpointType
 	if ability.ChannelType != constant.ChannelTypeAdvancedCustom {
-		return common.GetEndpointTypesByChannelType(ability.ChannelType, pricingCapabilityModel(ability.Model, ability))
+		endpointTypes = common.GetEndpointTypesByChannelType(ability.ChannelType, pricingCapabilityModel(ability.Model, ability))
+	} else if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
+		endpointTypes = config.SupportedEndpointTypesForModel(ability.Model)
+	} else {
+		endpointTypes = common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 	}
-	if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
-		return config.SupportedEndpointTypesForModel(ability.Model)
+	if pricingAbilityHasVerifiedImageRoute(ability) {
+		hasImageEndpoint := false
+		for _, endpointType := range endpointTypes {
+			if endpointType == constant.EndpointTypeImageGeneration {
+				hasImageEndpoint = true
+				break
+			}
+		}
+		if !hasImageEndpoint {
+			endpointTypes = append(endpointTypes, constant.EndpointTypeImageGeneration)
+		}
 	}
-	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+	return endpointTypes
 }
 
 // loadPricingAdvancedCustomConfigs runs inside updatePricing while
@@ -364,11 +382,35 @@ func updatePricing() {
 			EnableGroup:            groups.Items(),
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
 		}
+		verifiedEndpointTypes := make([]constant.EndpointType, 0, len(pricing.SupportedEndpointTypes))
 		for _, endpointType := range pricing.SupportedEndpointTypes {
 			if endpointType == constant.EndpointTypeImageGeneration {
 				pricing.APIProfile = imageAPIProfileForPricing(model, modelAbilitiesMap[model])
-				break
+				if pricing.APIProfile == nil {
+					if common.IsImageGenerationModel(model) && strings.TrimSpace(metaMap[model].Endpoints) == "" {
+						verifiedEndpointTypes = verifiedEndpointTypes[:0]
+						break
+					}
+					continue
+				}
+				verifiedCapabilities, verifiedGroups, configured := verifiedPricingImageCapabilities(model, modelAbilitiesMap[model])
+				if configured {
+					verifiedEnableGroups := make([]string, 0, len(pricing.EnableGroup))
+					for _, group := range pricing.EnableGroup {
+						if _, ok := verifiedGroups[group]; ok {
+							verifiedEnableGroups = append(verifiedEnableGroups, group)
+						}
+					}
+					pricing.EnableGroup = verifiedEnableGroups
+				}
+				pricing.ImageResolutionPrices = verifiedImageResolutionPricesForPricing(model, verifiedCapabilities)
 			}
+			verifiedEndpointTypes = append(verifiedEndpointTypes, endpointType)
+		}
+		pricing.SupportedEndpointTypes = verifiedEndpointTypes
+		modelSupportEndpointTypes[model] = verifiedEndpointTypes
+		if len(pricing.SupportedEndpointTypes) == 0 {
+			continue
 		}
 
 		// 补充模型元数据（描述、标签、供应商、状态）
@@ -383,7 +425,7 @@ func updatePricing() {
 			pricing.VendorID = meta.VendorID
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
-		if findPrice {
+		if findPrice || len(pricing.ImageResolutionPrices) > 0 {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {

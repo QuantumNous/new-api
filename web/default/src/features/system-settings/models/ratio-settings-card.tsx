@@ -31,8 +31,14 @@ import { resetModelRatios } from '../api'
 import { SettingsPageTitleStatusPortal } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { applyOptionUpdates } from '../utils/apply-option-updates'
 import { GroupRatioForm } from './group-ratio-form'
+import { isImageResolutionPriceMap } from './image-resolution-price'
 import { ModelRatioForm } from './model-ratio-form'
+import {
+  advanceOptionCasBaselines,
+  createOptionCasBaselines,
+} from './ratio-settings-cas'
 import { ToolPriceSettings } from './tool-price-settings'
 import { UpstreamRatioSync } from './upstream-ratio-sync'
 import {
@@ -106,6 +112,12 @@ function createJsonStringField(
 const createModelSchema = (t: Translate) =>
   z.object({
     ModelPrice: createJsonStringField(t),
+    ImageResolutionPrice: createJsonStringField(t, {
+      allowEmpty: false,
+      predicate: isImageResolutionPriceMap,
+      predicateMessage:
+        'Expected a JSON object mapping models to resolution price objects',
+    }),
     ModelRatio: createJsonStringField(t),
     CacheRatio: createJsonStringField(t),
     CreateCacheRatio: createJsonStringField(t),
@@ -181,6 +193,9 @@ export function RatioSettingsCard({
 
   const modelNormalizedDefaults = useRef({
     ModelPrice: normalizeJsonString(modelDefaults.ModelPrice),
+    ImageResolutionPrice: normalizeJsonString(
+      modelDefaults.ImageResolutionPrice
+    ),
     ModelRatio: normalizeJsonString(modelDefaults.ModelRatio),
     CacheRatio: normalizeJsonString(modelDefaults.CacheRatio),
     CreateCacheRatio: normalizeJsonString(modelDefaults.CreateCacheRatio),
@@ -197,6 +212,7 @@ export function RatioSettingsCard({
   const [savedModelValues, setSavedModelValues] = useState(
     modelNormalizedDefaults.current
   )
+  const modelCasBaselines = useRef(createOptionCasBaselines(modelDefaults))
 
   const groupNormalizedDefaults = useRef({
     GroupRatio: normalizeJsonString(groupDefaults.GroupRatio),
@@ -209,6 +225,7 @@ export function RatioSettingsCard({
       groupDefaults.GroupSpecialUsableGroup
     ),
   })
+  const groupCasBaselines = useRef(createOptionCasBaselines(groupDefaults))
   const modelSchema = useMemo(() => createModelSchema(t), [t])
   const groupSchema = useMemo(() => createGroupSchema(t), [t])
 
@@ -218,6 +235,9 @@ export function RatioSettingsCard({
     defaultValues: {
       ...modelDefaults,
       ModelPrice: formatJsonForTextarea(modelDefaults.ModelPrice),
+      ImageResolutionPrice: formatJsonForTextarea(
+        modelDefaults.ImageResolutionPrice
+      ),
       ModelRatio: formatJsonForTextarea(modelDefaults.ModelRatio),
       CacheRatio: formatJsonForTextarea(modelDefaults.CacheRatio),
       CreateCacheRatio: formatJsonForTextarea(modelDefaults.CreateCacheRatio),
@@ -248,9 +268,24 @@ export function RatioSettingsCard({
     },
   })
 
+  const restoreSystemOptions = useCallback(async () => {
+    try {
+      await queryClient.invalidateQueries({
+        queryKey: ['system-options'],
+        refetchType: 'active',
+      })
+    } catch {
+      // The original save error is already surfaced by the mutation hook.
+    }
+  }, [queryClient])
+
   useEffect(() => {
+    modelCasBaselines.current = createOptionCasBaselines(modelDefaults)
     modelNormalizedDefaults.current = {
       ModelPrice: normalizeJsonString(modelDefaults.ModelPrice),
+      ImageResolutionPrice: normalizeJsonString(
+        modelDefaults.ImageResolutionPrice
+      ),
       ModelRatio: normalizeJsonString(modelDefaults.ModelRatio),
       CacheRatio: normalizeJsonString(modelDefaults.CacheRatio),
       CreateCacheRatio: normalizeJsonString(modelDefaults.CreateCacheRatio),
@@ -269,6 +304,9 @@ export function RatioSettingsCard({
     modelForm.reset({
       ...modelDefaults,
       ModelPrice: formatJsonForTextarea(modelDefaults.ModelPrice),
+      ImageResolutionPrice: formatJsonForTextarea(
+        modelDefaults.ImageResolutionPrice
+      ),
       ModelRatio: formatJsonForTextarea(modelDefaults.ModelRatio),
       CacheRatio: formatJsonForTextarea(modelDefaults.CacheRatio),
       CreateCacheRatio: formatJsonForTextarea(modelDefaults.CreateCacheRatio),
@@ -284,6 +322,7 @@ export function RatioSettingsCard({
   }, [modelDefaults, modelForm])
 
   useEffect(() => {
+    groupCasBaselines.current = createOptionCasBaselines(groupDefaults)
     groupNormalizedDefaults.current = {
       GroupRatio: normalizeJsonString(groupDefaults.GroupRatio),
       TopupGroupRatio: normalizeJsonString(groupDefaults.TopupGroupRatio),
@@ -313,6 +352,7 @@ export function RatioSettingsCard({
     async (values: ModelFormValues) => {
       const normalized = {
         ModelPrice: normalizeJsonString(values.ModelPrice),
+        ImageResolutionPrice: normalizeJsonString(values.ImageResolutionPrice),
         ModelRatio: normalizeJsonString(values.ModelRatio),
         CacheRatio: normalizeJsonString(values.CacheRatio),
         CreateCacheRatio: normalizeJsonString(values.CreateCacheRatio),
@@ -330,26 +370,53 @@ export function RatioSettingsCard({
         BillingExpr: 'billing_setting.billing_expr',
       }
 
-      const updates = (
+      let updates = (
         Object.keys(normalized) as Array<keyof ModelFormValues>
       ).filter(
         (key) => normalized[key] !== modelNormalizedDefaults.current[key]
       )
+      if (updates.includes('BillingMode') || updates.includes('BillingExpr')) {
+        updates = [
+          ...new Set<keyof ModelFormValues>([
+            ...updates,
+            'BillingMode',
+            'BillingExpr',
+          ]),
+        ]
+      }
 
       if (updates.length === 0) {
         toast.info(t('No model price changes to save'))
         return
       }
 
-      for (const key of updates) {
-        const apiKey = apiKeyMap[key as string] || (key as string)
-        await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
-      }
+      const optionUpdates = updates.map((key) => ({
+        key: apiKeyMap[key as string] || (key as string),
+        value: normalized[key],
+        expected_value: modelCasBaselines.current[key],
+      }))
+      try {
+        const saved = await applyOptionUpdates(
+          optionUpdates,
+          updateOption.mutateAsync
+        )
+        if (!saved) {
+          await restoreSystemOptions()
+          return
+        }
 
-      modelNormalizedDefaults.current = normalized
-      setSavedModelValues(normalized)
+        modelNormalizedDefaults.current = normalized
+        modelCasBaselines.current = advanceOptionCasBaselines(
+          modelCasBaselines.current,
+          updates,
+          normalized
+        )
+        setSavedModelValues(normalized)
+      } catch {
+        await restoreSystemOptions()
+      }
     },
-    [t, updateOption]
+    [restoreSystemOptions, t, updateOption]
   )
 
   const saveGroupRatios = useCallback(
@@ -378,12 +445,33 @@ export function RatioSettingsCard({
         (key) => normalized[key] !== groupNormalizedDefaults.current[key]
       )
 
-      for (const key of updates) {
-        const apiKey = apiKeyMap[key] || key
-        await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
+      const optionUpdates = updates.map((key) => ({
+        key: apiKeyMap[key] || key,
+        value: normalized[key],
+        expected_value: groupCasBaselines.current[key],
+      }))
+
+      try {
+        const saved = await applyOptionUpdates(
+          optionUpdates,
+          updateOption.mutateAsync
+        )
+        if (!saved) {
+          await restoreSystemOptions()
+          return
+        }
+
+        groupNormalizedDefaults.current = normalized
+        groupCasBaselines.current = advanceOptionCasBaselines(
+          groupCasBaselines.current,
+          updates,
+          normalized
+        )
+      } catch {
+        await restoreSystemOptions()
       }
     },
-    [updateOption]
+    [restoreSystemOptions, updateOption]
   )
 
   const handleResetRatios = useCallback(() => {

@@ -151,7 +151,8 @@ func executeGenericImageAdaptor(ctx context.Context, input *image_stream.Generic
 	}
 	var httpRequest *http.Request
 	var err error
-	rebuiltEditMultipart := info.RelayMode == relayconstant.RelayModeImagesEdits && input.UpstreamResponse == nil
+	rebuiltEditMultipart := info.RelayMode == relayconstant.RelayModeImagesEdits &&
+		input.UpstreamResponse == nil && imageRoutingUsesMultipartEdit(info.ImageRoutingProtocol)
 	if rebuiltEditMultipart {
 		httpRequest, err = buildGenericImageEditHTTPRequest(ctx, requestURL, request)
 	} else {
@@ -243,10 +244,32 @@ func executeGenericImageAdaptor(ctx context.Context, input *image_stream.Generic
 				}
 			} else {
 				if convertedBuffer, ok := convertedRequest.(*bytes.Buffer); ok {
-					requestBody = convertedBuffer
-					info.UpstreamRequestBodySize = int64(convertedBuffer.Len())
+					jsonData, injected, marshalErr := applyImageRoutingProviderParameters(convertedBuffer.Bytes(), info, request)
+					if marshalErr != nil {
+						return nil, types.NewError(marshalErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+					}
+					if !injected {
+						requestBody = convertedBuffer
+						info.UpstreamRequestBodySize = int64(convertedBuffer.Len())
+					} else {
+						if len(info.ParamOverride) > 0 {
+							jsonData, marshalErr = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+							if marshalErr != nil {
+								return nil, newAPIErrorFromParamOverride(marshalErr)
+							}
+						}
+						requestBody, info.UpstreamRequestBodySize, requestBodyCloser, marshalErr = relaycommon.NewOutboundJSONBody(jsonData)
+						if marshalErr != nil {
+							return nil, types.NewError(marshalErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+						}
+						c.Request.Header.Set("Content-Type", "application/json")
+					}
 				} else {
 					jsonData, marshalErr := common.Marshal(convertedRequest)
+					if marshalErr != nil {
+						return nil, types.NewError(marshalErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+					}
+					jsonData, _, marshalErr = applyImageRoutingProviderParameters(jsonData, info, request)
 					if marshalErr != nil {
 						return nil, types.NewError(marshalErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 					}

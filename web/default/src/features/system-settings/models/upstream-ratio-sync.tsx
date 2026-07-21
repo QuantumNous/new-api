@@ -26,8 +26,10 @@ import { Button } from '@/components/ui/button'
 
 import {
   fetchUpstreamRatios,
+  getSafeServerMessage,
   getUpstreamChannels,
-  updateSystemOption,
+  resolveMutationErrorMessage,
+  updateSystemOptions,
 } from '../api'
 import type {
   DifferencesMap,
@@ -193,14 +195,21 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   })
 
   const { mutate: syncMutate, isPending: isSyncPending } = useMutation({
-    mutationFn: async (updates: Array<{ key: string; value: string }>) => {
-      for (const update of updates) {
-        await updateSystemOption(update)
+    mutationFn: updateSystemOptions,
+    onSuccess: (data) => {
+      if (!data.success) {
+        toast.error(
+          getSafeServerMessage(data.message) || t('Failed to sync prices')
+        )
+        void queryClient.invalidateQueries({
+          queryKey: ['system-options'],
+          refetchType: 'active',
+        })
+        return
       }
-    },
-    onSuccess: () => {
+
       toast.success(t('Prices synced successfully'))
-      queryClient.invalidateQueries({ queryKey: ['system-options'] })
+      void queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
       setDifferences((prevDiffs) => {
         const newDiffs = { ...prevDiffs }
@@ -219,8 +228,22 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
 
       setResolutions({})
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Failed to sync prices'))
+    onError: (error: unknown) => {
+      toast.error(
+        resolveMutationErrorMessage(error, {
+          conflict: t(
+            'Pricing settings changed on the server. The latest values were reloaded; review them and try again.'
+          ),
+          server: t(
+            'The server could not save your changes. Please try again.'
+          ),
+          fallback: t('Failed to sync prices'),
+        })
+      )
+      void queryClient.invalidateQueries({
+        queryKey: ['system-options'],
+        refetchType: 'active',
+      })
     },
   })
 
@@ -381,16 +404,18 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       const updates = Object.entries(finalRatios).map(([key, value]) => ({
         key,
         value: JSON.stringify(value, null, 2),
+        expected_value:
+          modelRatios[key as keyof UpstreamRatioSyncProps['modelRatios']],
       }))
 
       return new Promise<boolean>((resolve) => {
         syncMutate(updates, {
-          onSuccess: () => resolve(true),
+          onSuccess: (data) => resolve(data.success),
           onError: () => resolve(false),
         })
       })
     },
-    [resolutions, syncMutate]
+    [modelRatios, resolutions, syncMutate]
   )
 
   const findSourceChannel = (

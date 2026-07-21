@@ -40,7 +40,7 @@ func insertPricingEndpointChannel(t *testing.T, channelID int, channelType int, 
 		Status: common.ChannelStatusEnabled,
 		Name:   fmt.Sprintf("channel-%d", channelID),
 	}
-	if settings.AdvancedCustom != nil {
+	if settings.AdvancedCustom != nil || settings.ImageRouting != nil {
 		channel.SetOtherSettings(settings)
 	}
 	require.NoError(t, DB.Create(channel).Error)

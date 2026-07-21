@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import { Power, PowerOff, Trash2, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -77,7 +77,7 @@ export function DataTableBulkActions<TData>({
   }
 
   const handleDeleteAll = () => {
-    handleBatchDeleteModels(selectedIds, queryClient, () => {
+    handleBatchDeleteModels(selectedModels, queryClient, () => {
       setShowDeleteConfirm(false)
       handleClearSelection()
     })

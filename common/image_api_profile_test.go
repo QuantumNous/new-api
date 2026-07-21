@@ -55,7 +55,7 @@ func TestGPTImage2ProfileAndValidatorShareCombinationMatrix(t *testing.T) {
 	assert.Equal(t, []string{"edit"}, profile.Operations)
 	require.Len(t, profile.Constraints, 1)
 	assert.Equal(t, "allowed_combinations", profile.Constraints[0].Type)
-	assert.Equal(t, []string{"resolution", "aspect_ratio"}, profile.Constraints[0].Fields)
+	assert.Equal(t, []string{"resolution", "aspect_ratio", "size"}, profile.Constraints[0].Fields)
 	assert.Len(t, profile.Constraints[0].Combinations, 16)
 
 	for _, combination := range profile.Constraints[0].Combinations {
@@ -176,6 +176,46 @@ func TestSeedreamProfileOnlyPublishesMappedGatewayParameters(t *testing.T) {
 	n := imageAPIParameterByName(t, profile, "n")
 	require.NotNil(t, n.Max)
 	assert.Equal(t, 1, *n.Max)
+}
+
+func TestIntersectImageModelCapabilitiesDropsUnsatisfiableParameters(t *testing.T) {
+	leftMin, leftMax := 1, 4
+	rightMin, rightMax := 5, 8
+	invalidMaxItems := 0
+	left := ImageModelCapabilities{AdditionalParameters: []ImageAPIParameter{
+		{Name: "mode", Type: "enum", EnumValues: []string{"fast"}},
+		{Name: "steps", Type: "integer", Min: &leftMin, Max: &leftMax},
+		{Name: "references", Type: "array", MaxItems: &invalidMaxItems},
+	}}
+	right := ImageModelCapabilities{AdditionalParameters: []ImageAPIParameter{
+		{Name: "mode", Type: "enum", EnumValues: []string{"quality"}},
+		{Name: "steps", Type: "integer", Min: &rightMin, Max: &rightMax},
+		{Name: "references", Type: "array", MaxItems: &invalidMaxItems},
+	}}
+
+	intersection := IntersectImageModelCapabilities(left, right)
+	assert.Empty(t, intersection.AdditionalParameters)
+}
+
+func TestIntersectImageModelCapabilitiesKeepsSatisfiableParameterIntersection(t *testing.T) {
+	leftMin, leftMax := 1, 8
+	rightMin, rightMax := 3, 6
+	left := ImageModelCapabilities{AdditionalParameters: []ImageAPIParameter{
+		{Name: "mode", Type: "enum", EnumValues: []string{"fast", "quality"}},
+		{Name: "steps", Type: "integer", Min: &leftMin, Max: &leftMax},
+	}}
+	right := ImageModelCapabilities{AdditionalParameters: []ImageAPIParameter{
+		{Name: "mode", Type: "enum", EnumValues: []string{"quality", "draft"}},
+		{Name: "steps", Type: "integer", Min: &rightMin, Max: &rightMax},
+	}}
+
+	intersection := IntersectImageModelCapabilities(left, right)
+	require.Len(t, intersection.AdditionalParameters, 2)
+	assert.Equal(t, []string{"quality"}, intersection.AdditionalParameters[0].EnumValues)
+	require.NotNil(t, intersection.AdditionalParameters[1].Min)
+	require.NotNil(t, intersection.AdditionalParameters[1].Max)
+	assert.Equal(t, 3, *intersection.AdditionalParameters[1].Min)
+	assert.Equal(t, 6, *intersection.AdditionalParameters[1].Max)
 }
 
 func parameterNames(parameters []ImageAPIParameter) []string {

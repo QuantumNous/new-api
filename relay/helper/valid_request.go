@@ -252,6 +252,36 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				}
 				imageRequest.Image = json.RawMessage(encoded)
 			}
+			if maskValue := formData.Get("mask"); maskValue != "" {
+				encoded, err := common.Marshal(maskValue)
+				if err != nil {
+					return nil, fmt.Errorf("encode mask: %w", err)
+				}
+				imageRequest.Mask = json.RawMessage(encoded)
+			} else if maskFiles := form.File["mask"]; len(maskFiles) > 0 {
+				// The binary mask is staged after channel selection. Preserve only
+				// presence here so capability filtering cannot select a route that
+				// does not advertise mask support.
+				imageRequest.Mask = json.RawMessage(`"__multipart_mask__"`)
+			}
+			multipartImageCount := len(form.File["image"])
+			if multipartImageCount == 0 {
+				multipartImageCount = len(form.File["image[]"])
+			}
+			if multipartImageCount == 0 {
+				for fieldName, files := range form.File {
+					if strings.HasPrefix(fieldName, "image[") {
+						multipartImageCount += len(files)
+					}
+				}
+			}
+			if multipartImageCount == 0 {
+				multipartImageCount = len(form.Value["image"])
+				if multipartImageCount == 0 {
+					multipartImageCount = len(form.Value["image[]"])
+				}
+			}
+			imageRequest.SetMultipartImageSelectionMeta(multipartImageCount, len(form.File["mask"]) > 0 || formData.Get("mask") != "")
 
 			if imageRequest.Model == "gpt-image-1" {
 				if imageRequest.Quality == "" {

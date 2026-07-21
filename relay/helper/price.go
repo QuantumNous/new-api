@@ -70,12 +70,32 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
+
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	useResolutionPrice := false
+	if meta != nil && meta.ImageResolution != "" && info.ImageRoutingProtocol != "" {
+		if resolutionPrice, ok := ratio_setting.GetImageResolutionPrice(info.OriginModelName, meta.ImageResolution); ok {
+			modelPrice = resolutionPrice
+			usePrice = true
+			useResolutionPrice = true
+		} else {
+			return types.PriceData{}, fmt.Errorf(
+				"image resolution %s does not have a configured price for model %s",
+				meta.ImageResolution,
+				info.OriginModelName,
+			)
+		}
+	}
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+		if useResolutionPrice {
+			return types.PriceData{}, fmt.Errorf("image resolution tier pricing cannot be combined with tiered_expr billing for model %s", info.OriginModelName)
+		}
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
@@ -123,7 +143,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 		preConsumedQuota = quota
 	} else {
-		if meta.ImagePriceRatio != 0 {
+		if !useResolutionPrice && meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
 		}
 	}
@@ -184,6 +204,9 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
+
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
@@ -252,6 +275,9 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 }
 
 func HasModelBillingConfig(modelName string) bool {
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
+
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
 	}

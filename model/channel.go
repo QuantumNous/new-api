@@ -1007,11 +1007,134 @@ func (channel *Channel) ValidateSettings() error {
 		}
 	}
 	if channelOtherSettings.ImageRouting != nil {
-		if err := channelOtherSettings.ImageRouting.Validate(); err != nil {
+		if err := channel.validateImageRoutingSettings(channelOtherSettings.ImageRouting); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (channel *Channel) validateImageRoutingSettings(config *dto.ImageRoutingConfig) error {
+	if err := config.Validate(); err != nil {
+		return err
+	}
+	for i, profile := range config.Profiles {
+		effectiveModel, err := resolveImageRoutingModelMapping(profile.Model, channel.GetModelMapping())
+		if err != nil {
+			return fmt.Errorf("image_routing.profiles[%d].model_mapping: %w", i, err)
+		}
+		for _, operation := range profile.Operations {
+			protocol, _, ok := profile.RouteForOperation(operation)
+			if !ok {
+				return fmt.Errorf("image_routing.profiles[%d] has no route for operation %q", i, operation)
+			}
+			if protocol == dto.ImageRoutingProtocolResponsesSSE && channel.Type != constant.ChannelTypeOpenAI && channel.Type != constant.ChannelTypeUnknown {
+				return fmt.Errorf("image_routing.profiles[%d].protocol responses_sse requires an OpenAI channel", i)
+			}
+			if !imageRoutingProtocolCompatibleWithChannel(protocol, operation, channel.Type) {
+				return fmt.Errorf("image_routing.profiles[%d].protocol %s is incompatible with channel type %d", i, protocol, channel.Type)
+			}
+			if protocol != dto.ImageRoutingProtocolResponsesSSE {
+				continue
+			}
+			if effectiveModel == "*" || !strings.HasPrefix(strings.ToLower(effectiveModel), "gpt-image-") {
+				return fmt.Errorf("image_routing.profiles[%d].protocol responses_sse requires an explicit gpt-image-* model", i)
+			}
+			if channel.ParamOverride != nil && strings.TrimSpace(*channel.ParamOverride) != "" {
+				return fmt.Errorf("image_routing.profiles[%d].protocol responses_sse does not support parameter overrides", i)
+			}
+			if channel.HeaderOverride != nil && strings.TrimSpace(*channel.HeaderOverride) != "" {
+				return fmt.Errorf("image_routing.profiles[%d].protocol responses_sse does not support header overrides", i)
+			}
+			if channel.OpenAIOrganization != nil && strings.TrimSpace(*channel.OpenAIOrganization) != "" {
+				return fmt.Errorf("image_routing.profiles[%d].protocol responses_sse does not support an OpenAI organization", i)
+			}
+			if profile.MaxOutputImages > 1 {
+				return fmt.Errorf("image_routing.profiles[%d].protocol responses_sse supports only max_output_images=1", i)
+			}
+		}
+	}
+	return nil
+}
+
+func resolveImageRoutingModelMapping(model, rawMapping string) (string, error) {
+	current := strings.TrimPrefix(strings.TrimSpace(model), "models/")
+	if current == "" || strings.TrimSpace(rawMapping) == "" || strings.TrimSpace(rawMapping) == "{}" {
+		return current, nil
+	}
+	mapping := make(map[string]string)
+	if err := common.UnmarshalJsonStr(rawMapping, &mapping); err != nil {
+		return "", fmt.Errorf("invalid model_mapping: %w", err)
+	}
+	visited := map[string]struct{}{current: {}}
+	for {
+		mapped, ok := mapping[current]
+		if !ok || strings.TrimSpace(mapped) == "" {
+			return current, nil
+		}
+		mapped = strings.TrimPrefix(strings.TrimSpace(mapped), "models/")
+		if _, exists := visited[mapped]; exists {
+			return "", errors.New("model_mapping_contains_cycle")
+		}
+		visited[mapped] = struct{}{}
+		current = mapped
+	}
+}
+
+func imageRoutingProtocolCompatibleWithChannel(protocol dto.ImageRoutingProtocol, operation dto.ImageOperation, channelType int) bool {
+	// A zero channel type is used while a channel is being assembled and in
+	// legacy records. The concrete channel type is still enforced before relay
+	// execution, so keep settings validation backward-compatible at this stage.
+	if channelType == constant.ChannelTypeUnknown {
+		return true
+	}
+	switch protocol {
+	case dto.ImageRoutingProtocolResponsesSSE:
+		return channelType == constant.ChannelTypeOpenAI
+	case dto.ImageRoutingProtocolGeminiGenerate, dto.ImageRoutingProtocolImagenPredict:
+		return channelType == constant.ChannelTypeGemini || channelType == constant.ChannelTypeVertexAi
+	case dto.ImageRoutingProtocolImagesGenerations, dto.ImageRoutingProtocolImagesEdits:
+		apiType, known := common.ChannelType2APIType(channelType)
+		if !known {
+			return false
+		}
+		switch apiType {
+		case constant.APITypeOpenAI, constant.APITypeOpenRouter, constant.APITypeXinference,
+			constant.APITypeAdvancedCustom:
+			return true
+		case constant.APITypeZhipuV4:
+			return operation == dto.ImageOperationGeneration && protocol == dto.ImageRoutingProtocolImagesGenerations
+		default:
+			return false
+		}
+	case dto.ImageRoutingProtocolAdapter:
+		apiType, known := common.ChannelType2APIType(channelType)
+		if !known {
+			return false
+		}
+		switch apiType {
+		case constant.APITypeOpenAI,
+			constant.APITypeOpenRouter,
+			constant.APITypeXinference,
+			constant.APITypeAli,
+			constant.APITypeGemini,
+			constant.APITypeVertexAi,
+			constant.APITypeSiliconFlow,
+			constant.APITypeJimeng,
+			constant.APITypeReplicate,
+			constant.APITypeAdvancedCustom:
+			return true
+		case constant.APITypeZhipuV4,
+			constant.APITypeMiniMax,
+			constant.APITypeVolcEngine,
+			constant.APITypeXai:
+			return operation == dto.ImageOperationGeneration
+		default:
+			return false
+		}
+	default:
+		return false
+	}
 }
 
 func (channel *Channel) GetSetting() dto.ChannelSettings {

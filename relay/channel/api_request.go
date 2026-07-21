@@ -13,6 +13,7 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
+	baseconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -307,8 +308,69 @@ func ApplyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 	}
 }
 
+func getRequestURL(a Adaptor, info *common.RelayInfo) (string, error) {
+	if info != nil && strings.TrimSpace(info.ImageRoutingUpstreamPath) != "" {
+		path := strings.TrimSpace(info.ImageRoutingUpstreamPath)
+		if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
+			return "", fmt.Errorf("invalid image routing upstream path")
+		}
+		// Always let the adaptor build its normal URL first. Vertex uses this
+		// step to load service-account credentials and to append API-key query
+		// auth; replacing the URL before calling it silently breaks both modes.
+		defaultURL, err := a.GetRequestURL(info)
+		if err != nil {
+			return "", err
+		}
+		if strings.Contains(path, "{model}") {
+			path = strings.ReplaceAll(path, "{model}", url.PathEscape(strings.TrimSpace(info.UpstreamModelName)))
+		}
+		defaultParsed, err := url.Parse(defaultURL)
+		if err != nil {
+			return "", fmt.Errorf("parse adaptor request url: %w", err)
+		}
+		var routed *url.URL
+		if info.ChannelType == baseconstant.ChannelTypeVertexAi {
+			defaultModelIndex := strings.LastIndex(defaultParsed.Path, "/models/")
+			routeModelIndex := strings.LastIndex(path, "/models/")
+			if defaultModelIndex < 0 || routeModelIndex < 0 {
+				return "", fmt.Errorf("vertex image routing path is incompatible with the adaptor request url")
+			}
+			routedValue := *defaultParsed
+			routedValue.Path = defaultParsed.Path[:defaultModelIndex] + path[routeModelIndex:]
+			routedValue.RawPath = ""
+			routed = &routedValue
+		} else if strings.TrimSpace(info.ChannelBaseUrl) == "" || info.ChannelType == baseconstant.ChannelTypeAdvancedCustom {
+			if defaultParsed.Scheme == "" || defaultParsed.Host == "" {
+				return "", fmt.Errorf("adaptor request url has no absolute provider base")
+			}
+			routedValue := *defaultParsed
+			routedValue.Path = path
+			routedValue.RawPath = ""
+			routed = &routedValue
+		} else {
+			routedURL := common.GetFullRequestURL(strings.TrimRight(info.ChannelBaseUrl, "/"), path, info.ChannelType)
+			routed, err = url.Parse(routedURL)
+			if err != nil {
+				return "", fmt.Errorf("parse image routing url: %w", err)
+			}
+		}
+		// The explicit route controls only the path. Keep provider-generated
+		// query authentication and any adaptor-specific URL parameters intact.
+		routed.RawQuery = defaultParsed.RawQuery
+		routed.Fragment = ""
+		return routed.String(), nil
+	}
+	return a.GetRequestURL(info)
+}
+
+// ResolveRequestURL applies the shared route snapshot semantics for adaptors
+// that must construct and sign their own HTTP requests.
+func ResolveRequestURL(a Adaptor, info *common.RelayInfo) (string, error) {
+	return getRequestURL(a, info)
+}
+
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	fullRequestURL, err := getRequestURL(a, info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
@@ -338,7 +400,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 }
 
 func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	fullRequestURL, err := getRequestURL(a, info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
@@ -370,7 +432,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 }
 
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	fullRequestURL, err := getRequestURL(a, info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}

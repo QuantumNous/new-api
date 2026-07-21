@@ -6,12 +6,16 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRetryParamPreservesImageRequirementAcrossSelections(t *testing.T) {
+	previousPrices := ratio_setting.ImageResolutionPrice2JSONString()
+	require.NoError(t, ratio_setting.UpdateImageResolutionPriceByJSONString(`{"gpt-image-2":{"1K":0.25,"4K":1.2}}`))
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateImageResolutionPriceByJSONString(previousPrices)) })
 	oldMemoryCacheEnabled := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = true
 	model.ClearChannelCacheForTest()

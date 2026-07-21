@@ -148,6 +148,13 @@ func TestGetAndValidOpenAIImageRequestAcceptsMultipartMask(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "gpt-image-1", request.Model)
 	require.Len(t, c.Request.MultipartForm.File["mask"], 1)
+	referenceImageCount, hasMask := request.MultipartImageSelectionMeta()
+	require.Equal(t, 1, referenceImageCount)
+	require.True(t, hasMask)
+	requirement, err := dto.ResolveImageSelectionRequirement(request, request.Model, dto.ImageOperationEdit)
+	require.NoError(t, err)
+	require.Equal(t, 1, requirement.ReferenceImageCount)
+	require.True(t, requirement.HasMask)
 }
 
 // TestGetAndValidOpenAIImageRequestNBounds guards the billing invariant that

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -20,6 +22,7 @@ import (
 
 var completionRatioMetaOptionKeys = []string{
 	"ModelPrice",
+	"ImageResolutionPrice",
 	"ModelRatio",
 	"CompletionRatio",
 	"CacheRatio",
@@ -78,6 +81,8 @@ func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	optionValues := make(map[string]string)
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
@@ -113,8 +118,215 @@ func GetOptions(c *gin.Context) {
 }
 
 type OptionUpdateRequest struct {
-	Key   string `json:"key"`
-	Value any    `json:"value"`
+	Key           string  `json:"key"`
+	Value         any     `json:"value"`
+	ExpectedValue *string `json:"expected_value,omitempty"`
+}
+
+type OptionBatchUpdateRequest struct {
+	Updates []OptionUpdateRequest `json:"updates"`
+}
+
+var atomicOptionUpdateKeys = map[string]struct{}{
+	"ModelPrice":                   {},
+	"ImageResolutionPrice":         {},
+	"ModelRatio":                   {},
+	"CacheRatio":                   {},
+	"CreateCacheRatio":             {},
+	"CompletionRatio":              {},
+	"ImageRatio":                   {},
+	"AudioRatio":                   {},
+	"AudioCompletionRatio":         {},
+	"ExposeRatioEnabled":           {},
+	"billing_setting.billing_mode": {},
+	"billing_setting.billing_expr": {},
+	"GroupRatio":                   {},
+	"TopupGroupRatio":              {},
+	"UserUsableGroups":             {},
+	"GroupGroupRatio":              {},
+	"AutoGroups":                   {},
+	"DefaultUseAutoGroup":          {},
+	"group_ratio_setting.group_special_usable_group": {},
+}
+
+func optionValueString(value any) string {
+	switch typed := value.(type) {
+	case bool:
+		return common.Interface2String(typed)
+	case float64:
+		return common.Interface2String(typed)
+	case int:
+		return common.Interface2String(typed)
+	default:
+		return fmt.Sprintf("%v", value)
+	}
+}
+
+func validateFloatMapJSONString(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parsed := make(map[string]float64)
+	return common.UnmarshalJsonStr(value, &parsed)
+}
+
+func validateAtomicOptionUpdates(values map[string]string) error {
+	for key, value := range values {
+		if _, ok := atomicOptionUpdateKeys[key]; !ok {
+			return fmt.Errorf("option %q does not support atomic batch updates", key)
+		}
+		switch key {
+		case "ImageResolutionPrice":
+			if err := ratio_setting.ValidateImageResolutionPriceJSONString(value); err != nil {
+				return fmt.Errorf("invalid ImageResolutionPrice: %w", err)
+			}
+		case "GroupRatio":
+			if err := ratio_setting.CheckGroupRatio(value); err != nil {
+				return fmt.Errorf("invalid GroupRatio: %w", err)
+			}
+		case "ModelPrice", "ModelRatio", "CacheRatio", "CreateCacheRatio", "CompletionRatio",
+			"ImageRatio", "AudioRatio", "AudioCompletionRatio", "TopupGroupRatio":
+			parsed := make(map[string]float64)
+			if err := common.UnmarshalJsonStr(value, &parsed); err != nil {
+				return fmt.Errorf("invalid %s: %w", key, err)
+			}
+		case "GroupGroupRatio":
+			parsed := make(map[string]map[string]float64)
+			if err := common.UnmarshalJsonStr(value, &parsed); err != nil {
+				return fmt.Errorf("invalid GroupGroupRatio: %w", err)
+			}
+		case "UserUsableGroups":
+			parsed := make(map[string]string)
+			if err := common.UnmarshalJsonStr(value, &parsed); err != nil {
+				return fmt.Errorf("invalid UserUsableGroups: %w", err)
+			}
+		case "group_ratio_setting.group_special_usable_group":
+			parsed := make(map[string]map[string]string)
+			if err := common.UnmarshalJsonStr(value, &parsed); err != nil {
+				return fmt.Errorf("invalid group special usable group: %w", err)
+			}
+		case "AutoGroups":
+			var parsed []string
+			if err := common.UnmarshalJsonStr(value, &parsed); err != nil {
+				return fmt.Errorf("invalid AutoGroups: %w", err)
+			}
+		case "ExposeRatioEnabled", "DefaultUseAutoGroup":
+			if value != "true" && value != "false" {
+				return fmt.Errorf("invalid %s: expected true or false", key)
+			}
+		case "billing_setting.billing_mode":
+			modes := make(map[string]string)
+			if err := common.UnmarshalJsonStr(value, &modes); err != nil {
+				return fmt.Errorf("invalid billing mode: %w", err)
+			}
+			for modelName, mode := range modes {
+				if mode != billing_setting.BillingModeRatio && mode != billing_setting.BillingModeTieredExpr {
+					return fmt.Errorf("invalid billing mode %q for model %q", mode, modelName)
+				}
+			}
+		case "billing_setting.billing_expr":
+			expressions := make(map[string]string)
+			if err := common.UnmarshalJsonStr(value, &expressions); err != nil {
+				return fmt.Errorf("invalid billing expression map: %w", err)
+			}
+			for modelName, expression := range expressions {
+				if strings.TrimSpace(expression) == "" {
+					return fmt.Errorf("billing expression for model %q is empty", modelName)
+				}
+				if err := billing_setting.SmokeTestExpr(expression); err != nil {
+					return fmt.Errorf("invalid billing expression for model %q: %w", modelName, err)
+				}
+			}
+		}
+	}
+
+	modeValue, hasModes := values["billing_setting.billing_mode"]
+	expressionValue, hasExpressions := values["billing_setting.billing_expr"]
+	if !hasModes && !hasExpressions {
+		return nil
+	}
+	if hasModes != hasExpressions {
+		return fmt.Errorf("billing mode and billing expression must be updated together")
+	}
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
+	modes := billing_setting.GetBillingModeCopy()
+	if hasModes {
+		modes = make(map[string]string)
+		if err := common.UnmarshalJsonStr(modeValue, &modes); err != nil {
+			return err
+		}
+	}
+	expressions := billing_setting.GetBillingExprCopy()
+	if hasExpressions {
+		expressions = make(map[string]string)
+		if err := common.UnmarshalJsonStr(expressionValue, &expressions); err != nil {
+			return err
+		}
+	}
+	for modelName, mode := range modes {
+		if mode == billing_setting.BillingModeTieredExpr && strings.TrimSpace(expressions[modelName]) == "" {
+			return fmt.Errorf("tiered_expr billing for model %q requires an expression", modelName)
+		}
+	}
+	return nil
+}
+
+func parseAtomicOptionUpdates(updates []OptionUpdateRequest, requireUpdates bool) (map[string]string, map[string]string, []string, error) {
+	if len(updates) == 0 {
+		if requireUpdates {
+			return nil, nil, nil, fmt.Errorf("无效的批量参数")
+		}
+		return map[string]string{}, map[string]string{}, nil, nil
+	}
+	if len(updates) > 64 {
+		return nil, nil, nil, fmt.Errorf("无效的批量参数")
+	}
+
+	values := make(map[string]string, len(updates))
+	expectedValues := make(map[string]string, len(updates))
+	keys := make([]string, 0, len(updates))
+	for _, update := range updates {
+		key := strings.TrimSpace(update.Key)
+		if key == "" || key != update.Key {
+			return nil, nil, nil, fmt.Errorf("无效的配置项名称")
+		}
+		if _, exists := values[key]; exists {
+			return nil, nil, nil, fmt.Errorf("批量配置项不能重复")
+		}
+		values[key] = optionValueString(update.Value)
+		if update.ExpectedValue != nil {
+			expectedValues[key] = *update.ExpectedValue
+		}
+		keys = append(keys, key)
+	}
+	if err := validateAtomicOptionUpdates(values); err != nil {
+		return nil, nil, nil, err
+	}
+	return values, expectedValues, keys, nil
+}
+
+func UpdateOptionsBatch(c *gin.Context) {
+	var request OptionBatchUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效的批量参数"})
+		return
+	}
+	values, expectedValues, keys, err := parseAtomicOptionUpdates(request.Updates, true)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	if err := model.UpdateAtomicOptionsBulk(values, expectedValues); err != nil {
+		if errors.Is(err, model.ErrOptionUpdateConflict) {
+			c.JSON(http.StatusConflict, gin.H{"success": false, "message": "配置已被其他管理员修改，请刷新后重试"})
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "option.update_batch", map[string]interface{}{"keys": strings.Join(keys, ", ")})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
 func UpdateOption(c *gin.Context) {
@@ -127,16 +339,7 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
-	switch option.Value.(type) {
-	case bool:
-		option.Value = common.Interface2String(option.Value.(bool))
-	case float64:
-		option.Value = common.Interface2String(option.Value.(float64))
-	case int:
-		option.Value = common.Interface2String(option.Value.(int))
-	default:
-		option.Value = fmt.Sprintf("%v", option.Value)
-	}
+	option.Value = optionValueString(option.Value)
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
@@ -233,7 +436,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "ImageRatio":
-		err = ratio_setting.UpdateImageRatioByJSONString(option.Value.(string))
+		err = validateFloatMapJSONString(option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -241,8 +444,17 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "ImageResolutionPrice":
+		err = ratio_setting.ValidateImageResolutionPriceJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "图片分辨率价格设置失败: " + err.Error(),
+			})
+			return
+		}
 	case "AudioRatio":
-		err = ratio_setting.UpdateAudioRatioByJSONString(option.Value.(string))
+		err = validateFloatMapJSONString(option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -251,7 +463,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "AudioCompletionRatio":
-		err = ratio_setting.UpdateAudioCompletionRatioByJSONString(option.Value.(string))
+		err = validateFloatMapJSONString(option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -260,7 +472,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "CreateCacheRatio":
-		err = ratio_setting.UpdateCreateCacheRatioByJSONString(option.Value.(string))
+		err = validateFloatMapJSONString(option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

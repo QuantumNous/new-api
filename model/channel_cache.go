@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -166,19 +168,29 @@ func GetRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	if !common.MemoryCacheEnabled {
 		return GetChannelWithOptions(group, model, retry, options)
 	}
+	if normalizedRequirement != nil {
+		common.OptionRuntimeRWMutex.RLock()
+		defer common.OptionRuntimeRWMutex.RUnlock()
+	}
 
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
 
 	// First, try to find channels with the exact model name.
 	channels := filterChannelsByRequestPathAndModel(group2model2channels[group][model], requestPath, model)
-	channels = filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
+	channels, err = filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
+	if err != nil {
+		return nil, err
+	}
 
 	// If no channels found, try to find channels with the normalized model name.
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
 		channels = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, model)
-		channels = filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
+		channels, err = filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(channels) == 0 {
@@ -386,19 +398,29 @@ func ClearChannelCacheForTest() {
 }
 
 // ChannelSupportsImageSelection is shared by automatic routing and callers
-// that pin a specific channel. A channel without image_routing remains eligible
-// for backwards compatibility; once configured, only verified matching profiles
-// satisfy an image requirement.
+// that pin a specific channel. A standalone channel without image_routing
+// remains eligible for backwards compatibility; automatic selection separately
+// makes explicit profiles authoritative once a model starts migration.
 func ChannelSupportsImageSelection(channel *Channel, model string, requirement *dto.ImageSelectionRequirement) bool {
 	if requirement == nil {
 		return true
 	}
+	common.OptionRuntimeRWMutex.RLock()
+	defer common.OptionRuntimeRWMutex.RUnlock()
 	normalized, err := normalizeImageSelectionRequirement(requirement)
 	if err != nil {
 		return false
 	}
 	state := imageRoutingConfigFromChannel(channel)
-	return imageRoutingConfigSupports(state, model, normalized)
+	if !imageRoutingConfigSupports(state, model, normalized) {
+		return false
+	}
+	if !state.configured || state.config == nil {
+		return true
+	}
+	profile, _ := state.config.ProfileForModel(model)
+	resolved, err := profile.ApplyDefaults(*normalized)
+	return err == nil && imageRoutingProfileHasResolutionPrice(model, profile, resolved)
 }
 
 // ChannelImageRoutingProfile resolves the explicit protocol profile for relay
@@ -417,18 +439,128 @@ func ChannelImageRoutingProfile(channel *Channel, model string) (*dto.ImageRouti
 }
 
 // Caller must hold channelSyncLock when using this helper.
-func filterChannelsByImageRequirement(channels []int, model string, requirement *dto.ImageSelectionRequirement) []int {
+func filterChannelsByImageRequirement(channels []int, model string, requirement *dto.ImageSelectionRequirement) ([]int, error) {
 	if requirement == nil || len(channels) == 0 {
-		return channels
+		return channels, nil
 	}
-	filtered := make([]int, 0, len(channels))
+	explicitModelRouting := false
 	for _, channelID := range channels {
 		state, configured := channel2ImageRoutingConfig[channelID]
-		if !configured || imageRoutingConfigSupports(state, model, requirement) {
+		if !configured {
+			continue
+		}
+		if state.config == nil {
+			explicitModelRouting = true
+			break
+		}
+		if _, ok := state.config.ProfileForModel(model); ok {
+			explicitModelRouting = true
+			break
+		}
+	}
+	filtered := make([]int, 0, len(channels))
+	resolvedRequirements := make([]dto.ImageSelectionRequirement, 0, len(channels))
+	for _, channelID := range channels {
+		state, configured := channel2ImageRoutingConfig[channelID]
+		if configured && imageRoutingConfigSupports(state, model, requirement) {
+			filtered = append(filtered, channelID)
+			profile, _ := state.config.ProfileForModel(model)
+			resolved, err := profile.ApplyDefaults(*requirement)
+			if err != nil {
+				return nil, err
+			}
+			if !imageRoutingProfileHasResolutionPrice(model, profile, resolved) {
+				filtered = filtered[:len(filtered)-1]
+				continue
+			}
+			resolvedRequirements = append(resolvedRequirements, resolved)
+			continue
+		}
+		if !configured && !explicitModelRouting {
 			filtered = append(filtered, channelID)
 		}
 	}
-	return filtered
+	if err := validateImageRoutingDefaultConsistency(*requirement, resolvedRequirements); err != nil {
+		return nil, err
+	}
+	return filtered, nil
+}
+
+func imageRoutingProfileHasResolutionPrice(model string, profile *dto.ImageRoutingProfile, requirement dto.ImageSelectionRequirement) bool {
+	if profile == nil || len(profile.Resolutions) == 0 || requirement.Resolution == "" {
+		return true
+	}
+	if billing_setting.GetBillingMode(model) == billing_setting.BillingModeTieredExpr {
+		return false
+	}
+	if requirement.Resolution == "auto" {
+		return false
+	}
+	_, ok := ratio_setting.GetImageResolutionPrice(model, requirement.Resolution)
+	return ok
+}
+
+func validateImageRoutingDefaultConsistency(requested dto.ImageSelectionRequirement, resolved []dto.ImageSelectionRequirement) error {
+	if len(resolved) < 2 {
+		return nil
+	}
+	fields := []struct {
+		name      string
+		requested string
+		value     func(dto.ImageSelectionRequirement) string
+	}{
+		{name: "resolution", requested: requested.Resolution, value: func(requirement dto.ImageSelectionRequirement) string { return requirement.Resolution }},
+		{name: "aspect_ratio", requested: requested.AspectRatio, value: func(requirement dto.ImageSelectionRequirement) string { return requirement.AspectRatio }},
+		{name: "size", requested: requested.Size, value: func(requirement dto.ImageSelectionRequirement) string { return requirement.Size }},
+		{name: "quality", requested: requested.Quality, value: func(requirement dto.ImageSelectionRequirement) string { return requirement.Quality }},
+		{name: "output_format", requested: requested.OutputFormat, value: func(requirement dto.ImageSelectionRequirement) string { return requirement.OutputFormat }},
+	}
+	for _, field := range fields {
+		if field.requested != "" {
+			continue
+		}
+		baseline := field.value(resolved[0])
+		for _, requirement := range resolved[1:] {
+			if field.value(requirement) != baseline {
+				return fmt.Errorf("image request must specify %s because eligible channels have different defaults", field.name)
+			}
+		}
+	}
+	parameterNames := make(map[string]struct{})
+	for _, requirement := range resolved {
+		for name := range requirement.OptionalValues {
+			parameterNames[name] = struct{}{}
+		}
+	}
+	sortedParameterNames := make([]string, 0, len(parameterNames))
+	for name := range parameterNames {
+		if _, explicitlyRequested := requested.OptionalValues[name]; !explicitlyRequested {
+			sortedParameterNames = append(sortedParameterNames, name)
+		}
+	}
+	sort.Strings(sortedParameterNames)
+	for _, name := range sortedParameterNames {
+		baseline, baselineExists := resolved[0].OptionalValues[name]
+		for _, requirement := range resolved[1:] {
+			candidate, candidateExists := requirement.OptionalValues[name]
+			if candidateExists != baselineExists || candidateExists && !sameImageRoutingJSONValue(baseline, candidate) {
+				return fmt.Errorf("image request must specify %s because eligible channels have different defaults", name)
+			}
+		}
+	}
+	return nil
+}
+
+func sameImageRoutingJSONValue(left, right []byte) bool {
+	var leftValue interface{}
+	var rightValue interface{}
+	if err := common.Unmarshal(left, &leftValue); err != nil {
+		return false
+	}
+	if err := common.Unmarshal(right, &rightValue); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
 }
 
 func imageRoutingConfigFromChannel(channel *Channel) cachedImageRoutingConfig {

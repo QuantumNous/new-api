@@ -87,6 +87,30 @@ func TestConvertNativeImageRequestAcceptsPromptWithoutReferenceImages(t *testing
 	assert.Equal(t, request.Prompt, geminiRequest.Contents[0].Parts[0].Text)
 }
 
+func TestConvertNativeImageRequestMaterializesFrozenRouteDefaults(t *testing.T) {
+	request := dto.ImageRequest{
+		Model:  "gemini-3.1-flash-image-preview",
+		Prompt: "a paper boat",
+	}
+	require.NoError(t, request.SetImageSelectionRequirement(dto.ImageSelectionRequirement{
+		Operation:   dto.ImageOperationGeneration,
+		Resolution:  "4K",
+		AspectRatio: "16:9",
+		Size:        "3840x2160",
+		N:           1,
+	}))
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(testGeminiImageContext(), testNativeImageInfo(request.Model), request)
+	require.NoError(t, err)
+	geminiRequest, ok := converted.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+
+	var imageConfig map[string]string
+	require.NoError(t, common.Unmarshal(geminiRequest.GenerationConfig.ImageConfig, &imageConfig))
+	assert.Equal(t, "16:9", imageConfig["aspectRatio"])
+	assert.Equal(t, "4K", imageConfig["imageSize"])
+}
+
 func TestConvertNativeImageRequestMapsSizeOnlyAndCandidateCount(t *testing.T) {
 	two := uint(2)
 	request := dto.ImageRequest{

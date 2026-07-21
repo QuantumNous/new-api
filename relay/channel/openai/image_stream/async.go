@@ -107,20 +107,25 @@ type asyncImageRunResult struct {
 }
 
 type asyncImageTaskPayload struct {
-	Version           int                        `json:"version,omitempty"`
-	Executor          string                     `json:"executor,omitempty"`
-	RelayMode         int                        `json:"relay_mode,omitempty"`
-	Request           *dto.ImageRequest          `json:"request"`
-	RequestExtra      map[string]json.RawMessage `json:"request_extra,omitempty"`
-	InputObjectKeys   []string                   `json:"input_object_keys,omitempty"`
-	MaskObjectKey     string                     `json:"mask_object_key,omitempty"`
-	PreparedRequest   *PreparedAsyncImageRequest `json:"prepared_request,omitempty"`
-	ChannelBaseURL    string                     `json:"channel_base_url,omitempty"`
-	ChannelProxy      string                     `json:"channel_proxy,omitempty"`
-	ChannelType       int                        `json:"channel_type,omitempty"`
-	ChannelCreateTime int64                      `json:"channel_create_time,omitempty"`
-	ProviderStored    bool                       `json:"provider_response_stored,omitempty"`
-	ArtifactStored    bool                       `json:"artifact_stored,omitempty"`
+	Version                    int                            `json:"version,omitempty"`
+	Executor                   string                         `json:"executor,omitempty"`
+	RelayMode                  int                            `json:"relay_mode,omitempty"`
+	ImageRoutingProtocol       dto.ImageRoutingProtocol       `json:"image_routing_protocol,omitempty"`
+	ImageRoutingUpstreamPath   string                         `json:"image_routing_upstream_path,omitempty"`
+	ImageRequirement           *dto.ImageSelectionRequirement `json:"image_requirement,omitempty"`
+	Request                    *dto.ImageRequest              `json:"request"`
+	RequestExtra               map[string]json.RawMessage     `json:"request_extra,omitempty"`
+	InputObjectKeys            []string                       `json:"input_object_keys,omitempty"`
+	MaskObjectKey              string                         `json:"mask_object_key,omitempty"`
+	PreparedRequest            *PreparedAsyncImageRequest     `json:"prepared_request,omitempty"`
+	ChannelBaseURL             string                         `json:"channel_base_url,omitempty"`
+	ChannelProxy               string                         `json:"channel_proxy,omitempty"`
+	ExecutionDestinationHash   string                         `json:"execution_destination_hash,omitempty"`
+	ExecutionDestinationStored bool                           `json:"execution_destination_stored,omitempty"`
+	ChannelType                int                            `json:"channel_type,omitempty"`
+	ChannelCreateTime          int64                          `json:"channel_create_time,omitempty"`
+	ProviderStored             bool                           `json:"provider_response_stored,omitempty"`
+	ArtifactStored             bool                           `json:"artifact_stored,omitempty"`
 	// ProviderCallStarted was written before the upstream request. A checkpoint
 	// with this bit but no stored response is ambiguous after restart and must
 	// never be resubmitted automatically.
@@ -144,7 +149,8 @@ type genericStoredImageEnvelope struct {
 
 const (
 	asyncImageRouteSnapshotVersion = 3
-	asyncImagePayloadVersion       = 6
+	asyncImageLegacyPayloadVersion = 6
+	asyncImagePayloadVersion       = 7
 	AsyncImageExecutorResponses    = "responses_sse"
 	AsyncImageExecutorAdaptor      = "adaptor"
 )
@@ -154,21 +160,26 @@ const (
 // normalized ImageRequest and route snapshot so providers that inline reference
 // images do not put those bytes in the task row.
 type PreparedAsyncImageRequest struct {
-	Body                    []byte            `json:"body,omitempty"`
-	DeferConversion         bool              `json:"defer_conversion,omitempty"`
-	RelayMode               int               `json:"relay_mode,omitempty"`
-	ContentType             string            `json:"content_type,omitempty"`
-	ClientHeaders           map[string]string `json:"client_headers,omitempty"`
-	RequestURLPath          string            `json:"request_url_path,omitempty"`
-	ChannelBaseURL          string            `json:"channel_base_url,omitempty"`
-	APIType                 int               `json:"api_type"`
-	ChannelType             int               `json:"channel_type"`
-	ChannelCreateTime       int64             `json:"channel_create_time,omitempty"`
-	ConfigurationStored     bool              `json:"configuration_stored,omitempty"`
-	APIVersion              string            `json:"api_version,omitempty"`
-	Organization            string            `json:"organization,omitempty"`
-	ExecutionOverrideHash   string            `json:"execution_override_hash,omitempty"`
-	ExecutionOverrideStored bool              `json:"execution_override_stored,omitempty"`
+	Body                       []byte                   `json:"body,omitempty"`
+	DeferConversion            bool                     `json:"defer_conversion,omitempty"`
+	OutputCount                uint                     `json:"output_count,omitempty"`
+	RelayMode                  int                      `json:"relay_mode,omitempty"`
+	ContentType                string                   `json:"content_type,omitempty"`
+	ClientHeaders              map[string]string        `json:"client_headers,omitempty"`
+	RequestURLPath             string                   `json:"request_url_path,omitempty"`
+	ImageRoutingProtocol       dto.ImageRoutingProtocol `json:"image_routing_protocol,omitempty"`
+	ImageRoutingUpstreamPath   string                   `json:"image_routing_upstream_path,omitempty"`
+	ChannelBaseURL             string                   `json:"channel_base_url,omitempty"`
+	ExecutionDestinationHash   string                   `json:"execution_destination_hash,omitempty"`
+	ExecutionDestinationStored bool                     `json:"execution_destination_stored,omitempty"`
+	APIType                    int                      `json:"api_type"`
+	ChannelType                int                      `json:"channel_type"`
+	ChannelCreateTime          int64                    `json:"channel_create_time,omitempty"`
+	ConfigurationStored        bool                     `json:"configuration_stored,omitempty"`
+	APIVersion                 string                   `json:"api_version,omitempty"`
+	Organization               string                   `json:"organization,omitempty"`
+	ExecutionOverrideHash      string                   `json:"execution_override_hash,omitempty"`
+	ExecutionOverrideStored    bool                     `json:"execution_override_stored,omitempty"`
 	// ParamOverride is resolved from the current channel at worker execution
 	// time. It is intentionally never serialized into the task checkpoint
 	// because param operations can carry header credentials in arbitrary values.
@@ -241,6 +252,63 @@ func SubmitAsyncImage(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Imag
 	}
 	if relayMode != relayconstant.RelayModeImagesGenerations && relayMode != relayconstant.RelayModeImagesEdits {
 		return types.NewErrorWithStatusCode(fmt.Errorf("unsupported async image relay mode %d", relayMode), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	imageOperation := dto.ImageOperationGeneration
+	if relayMode == relayconstant.RelayModeImagesEdits {
+		imageOperation = dto.ImageOperationEdit
+	}
+	imageRequirement, hasImageRequirement := req.ImageSelectionRequirement()
+	if !hasImageRequirement {
+		var requirementErr error
+		imageRequirement, requirementErr = dto.ResolveImageSelectionRequirementWithModelDefaults(req, info.OriginModelName, imageOperation)
+		if requirementErr != nil {
+			return types.NewErrorWithStatusCode(requirementErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if err := req.SetImageSelectionRequirement(imageRequirement); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+	}
+	if len(prepared) > 0 && prepared[0] != nil && prepared[0].OutputCount > 0 {
+		finalRequirement := imageRequirement
+		finalRequirement.N = prepared[0].OutputCount
+		if config := info.ChannelOtherSettings.ImageRouting; config != nil && !config.Supports(info.OriginModelName, finalRequirement) {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("channel image routing does not support %d output images for model %s", finalRequirement.N, info.OriginModelName),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		if err := req.SetImageSelectionRequirement(finalRequirement); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		imageRequirement = finalRequirement
+	}
+	if err := validateAsyncImageRoutingSnapshot(info.ImageRoutingProtocol, info.ImageRoutingUpstreamPath, len(prepared) > 0 && prepared[0] != nil); err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	requiresPayloadV7 := true
+	standardOutputCount := uint(1)
+	if req.N != nil {
+		standardOutputCount = *req.N
+	}
+	if len(prepared) > 0 && prepared[0] != nil && prepared[0].OutputCount > 0 && prepared[0].OutputCount != standardOutputCount {
+		requiresPayloadV7 = true
+	}
+	if requiresPayloadV7 && !common.GetEnvOrDefaultBool("ASYNC_IMAGE_PAYLOAD_V7_WRITES_ENABLED", false) {
+		return types.NewErrorWithStatusCode(
+			errors.New("durable image routing is waiting for the async worker v7 rollout; set ASYNC_IMAGE_PAYLOAD_V7_WRITES_ENABLED=true after every worker has been upgraded"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusServiceUnavailable,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+	if info.ChannelMeta == nil {
+		return types.NewError(errors.New("image channel metadata is missing"), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	executionDestinationHash, err := AsyncImageExecutionDestinationFingerprint(info.ChannelBaseUrl, info.ChannelSetting.Proxy)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 	hasInputSources := inputs != nil && len(inputs.ObjectKeys) > 0
 	if relayMode == relayconstant.RelayModeImagesEdits && !hasInputSources {
@@ -331,6 +399,17 @@ func SubmitAsyncImage(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Imag
 		OtherRatios:          info.PriceData.OtherRatios(),
 		OriginModelName:      info.OriginModelName,
 		PerCallBilling:       common.StringsContains(constant.TaskPricePatches, info.OriginModelName) || info.PriceData.UsePrice,
+		ImageRequest: &model.TaskImageBillingContext{
+			Operation:    imageRequirement.Operation,
+			Resolution:   imageRequirement.Resolution,
+			AspectRatio:  imageRequirement.AspectRatio,
+			Size:         imageRequirement.Size,
+			Quality:      imageRequirement.Quality,
+			OutputFormat: imageRequirement.OutputFormat,
+			Count:        imageRequirement.N,
+			Protocol:     info.ImageRoutingProtocol,
+			UpstreamPath: info.ImageRoutingUpstreamPath,
+		},
 	}
 	if info.TieredBillingSnapshot != nil {
 		snapshot := *info.TieredBillingSnapshot
@@ -432,6 +511,14 @@ func SubmitAsyncImage(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Imag
 	if len(prepared) > 0 && prepared[0] != nil {
 		executor = AsyncImageExecutorAdaptor
 		preparedCopy := *prepared[0]
+		if info.ImageRoutingProtocol != "" && preparedCopy.ImageRoutingProtocol != "" && preparedCopy.ImageRoutingProtocol != info.ImageRoutingProtocol {
+			refundPreparedAsyncImageSubmission(c, info, task.TaskID, "image routing protocol snapshot mismatch")
+			return types.NewError(errors.New("image routing protocol snapshot mismatch"), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if info.ImageRoutingUpstreamPath != "" && preparedCopy.ImageRoutingUpstreamPath != "" && preparedCopy.ImageRoutingUpstreamPath != info.ImageRoutingUpstreamPath {
+			refundPreparedAsyncImageSubmission(c, info, task.TaskID, "image routing path snapshot mismatch")
+			return types.NewError(errors.New("image routing path snapshot mismatch"), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
 		preparedCopy.RelayMode = relayMode
 		preparedCopy.Body = append([]byte(nil), prepared[0].Body...)
 		if len(inputObjectKeys) > 0 {
@@ -441,6 +528,29 @@ func SubmitAsyncImage(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Imag
 			preparedCopy.Body = nil
 		}
 		preparedCopy.ClientHeaders = copyAsyncImageHeaders(prepared[0].ClientHeaders)
+		if preparedCopy.ImageRoutingProtocol == "" {
+			preparedCopy.ImageRoutingProtocol = info.ImageRoutingProtocol
+		}
+		if preparedCopy.ImageRoutingUpstreamPath == "" {
+			preparedCopy.ImageRoutingUpstreamPath = info.ImageRoutingUpstreamPath
+		}
+		if preparedCopy.ExecutionDestinationStored && preparedCopy.ExecutionDestinationHash == "" {
+			refundPreparedAsyncImageSubmission(c, info, task.TaskID, "image channel destination fingerprint is missing")
+			return types.NewError(errors.New("image channel destination fingerprint is missing"), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if !preparedCopy.ExecutionDestinationStored {
+			proxy := ""
+			if preparedCopy.ChannelSetting != nil {
+				proxy = preparedCopy.ChannelSetting.Proxy
+			}
+			destinationHash, fingerprintErr := AsyncImageExecutionDestinationFingerprint(preparedCopy.ChannelBaseURL, proxy)
+			if fingerprintErr != nil {
+				refundPreparedAsyncImageSubmission(c, info, task.TaskID, fingerprintErr.Error())
+				return types.NewError(fingerprintErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			preparedCopy.ExecutionDestinationHash = destinationHash
+			preparedCopy.ExecutionDestinationStored = true
+		}
 		// Resolve proxy, route, base URL, and header credentials from the current
 		// channel only when the worker executes.
 		preparedCopy.ChannelBaseURL = ""
@@ -468,15 +578,42 @@ func SubmitAsyncImage(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Imag
 		}
 		preparedRequest = &preparedCopy
 	}
+	routingProtocol := info.ImageRoutingProtocol
+	routingUpstreamPath := info.ImageRoutingUpstreamPath
+	if preparedRequest != nil {
+		if routingProtocol == "" {
+			routingProtocol = preparedRequest.ImageRoutingProtocol
+		}
+		if routingUpstreamPath == "" {
+			routingUpstreamPath = preparedRequest.ImageRoutingUpstreamPath
+		}
+	}
+	if err := validateAsyncImageRoutingSnapshot(routingProtocol, routingUpstreamPath, preparedRequest != nil); err != nil {
+		refundPreparedAsyncImageSubmission(c, info, task.TaskID, err.Error())
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	imageRequirementSnapshot := imageRequirement
+	if preparedRequest != nil && preparedRequest.OutputCount > 0 {
+		imageRequirementSnapshot.N = preparedRequest.OutputCount
+	}
+	payloadVersion := asyncImageLegacyPayloadVersion
+	if requiresPayloadV7 {
+		payloadVersion = asyncImagePayloadVersion
+	}
 	payload := asyncImageTaskPayload{
-		Version:         asyncImagePayloadVersion,
-		Executor:        executor,
-		RelayMode:       relayMode,
-		Request:         persistedAsyncImageRequest(req, inputObjectKeys, maskObjectKey),
-		RequestExtra:    copyAsyncImageExtra(req.Extra),
-		InputObjectKeys: inputObjectKeys,
-		MaskObjectKey:   maskObjectKey,
-		PreparedRequest: preparedRequest,
+		Version:                    payloadVersion,
+		Executor:                   executor,
+		RelayMode:                  relayMode,
+		ImageRoutingProtocol:       routingProtocol,
+		ImageRoutingUpstreamPath:   routingUpstreamPath,
+		ImageRequirement:           &imageRequirementSnapshot,
+		Request:                    persistedAsyncImageRequest(req, inputObjectKeys, maskObjectKey),
+		RequestExtra:               copyAsyncImageExtra(req.Extra),
+		InputObjectKeys:            inputObjectKeys,
+		MaskObjectKey:              maskObjectKey,
+		PreparedRequest:            preparedRequest,
+		ExecutionDestinationHash:   executionDestinationHash,
+		ExecutionDestinationStored: true,
 	}
 	if info.ChannelMeta != nil {
 		payload.ChannelType = info.ChannelType
@@ -1444,6 +1581,18 @@ func ValidateAsyncImageDelivery(req *dto.ImageRequest) *types.NewAPIError {
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
+	req.ResponseFormat = strings.ToLower(strings.TrimSpace(req.ResponseFormat))
+	if req.ResponseFormat == "" {
+		req.ResponseFormat = "url"
+	}
+	if req.ResponseFormat != "url" {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("response_format must be url for asynchronous image generation"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
 	req.WebhookURL = strings.TrimSpace(req.WebhookURL)
 	if len(req.WebhookURL) > 2048 {
 		return types.NewErrorWithStatusCode(errors.New("webhook_url is too long"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -1836,6 +1985,11 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 	if request == nil {
 		return false, failAsyncImageTask(ctx, task, errors.New("image request is missing"))
 	}
+	if payload.ImageRequirement != nil {
+		if err := request.SetImageSelectionRequirement(*payload.ImageRequirement); err != nil {
+			return false, failAsyncImageTask(ctx, task, fmt.Errorf("restore image selection requirement: %w", err))
+		}
+	}
 	if len(payload.InputObjectKeys) > 0 {
 		select {
 		case asyncImageInputExecutionSemaphore <- struct{}{}:
@@ -1850,6 +2004,10 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 	aggregated := payload.Upstream
 	var genericArtifact *genericImageArtifact
 	var genericUpstream *GenericImageUpstreamResponse
+	var genericAttemptStart time.Time
+	var genericChannel *model.Channel
+	var genericAPIKey string
+	var genericInfo *relaycommon.RelayInfo
 	if payload.ArtifactStored || payload.ProviderStored {
 		if err := outputLease.acquire(ctx); err != nil {
 			return false, err
@@ -1882,11 +2040,14 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 		if payload.PreparedRequest == nil || (!payload.PreparedRequest.DeferConversion && len(payload.PreparedRequest.Body) == 0) {
 			return false, failAsyncImageTask(ctx, task, errors.New("prepared provider image request is missing"))
 		}
-		channel, apiKey, err := loadAsyncImageChannel(task, payload.PreparedRequest, payload.ProviderStored)
+		genericChannel, genericAPIKey, err = loadAsyncImageChannel(task, payload.PreparedRequest, payload.ProviderStored)
 		if err != nil {
 			return false, failAsyncImageTask(ctx, task, err)
 		}
-		genericInfo := genericAsyncImageRelayInfo(task, channel, apiKey, payload.PreparedRequest, payload.RelayMode)
+		if err := validateAsyncImageExecutionDestination(genericChannel, payload.ExecutionDestinationHash, payload.ExecutionDestinationStored); err != nil {
+			return false, failAsyncImageTask(ctx, task, err)
+		}
+		genericInfo = genericAsyncImageRelayInfo(task, genericChannel, genericAPIKey, payload.PreparedRequest, payload.RelayMode)
 		executionRequest := request
 		if genericUpstream == nil {
 			executionRequest, err = hydrateAsyncImageInputObjects(ctx, request, payload.InputObjectKeys, payload.MaskObjectKey)
@@ -1894,7 +2055,7 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 				return false, failAsyncImageTask(ctx, task, fmt.Errorf("prepare staged image inputs: %w", err))
 			}
 		}
-		attemptStart := time.Now()
+		genericAttemptStart = time.Now()
 		executionCtx, cancel := context.WithTimeout(ctx, asyncImageUpstreamTimeout)
 		passThroughBody := payload.PreparedRequest.Body
 		if payload.PreparedRequest.DeferConversion {
@@ -2007,8 +2168,8 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 				// storage. A transient CDN/R2 read failure is a task-local retry and
 				// must not mark an otherwise healthy provider channel as unavailable.
 				if !deferredConversionRetry {
-					service.RecordChannelHealthOutcome(channel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, attemptStart, apiErr, false)
-					service.CooldownChannelForUpstreamError(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, apiKey, channel.GetAutoBan()), apiErr)
+					service.RecordChannelHealthOutcome(genericChannel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, genericAttemptStart, apiErr, false)
+					service.CooldownChannelForUpstreamError(*types.NewChannelError(genericChannel.Id, genericChannel.Type, genericChannel.Name, genericChannel.ChannelInfo.IsMultiKey, genericAPIKey, genericChannel.GetAutoBan()), apiErr)
 				}
 				if task.ProviderAttempts+1 >= asyncImageProviderAttempts {
 					return false, failAsyncImageTask(ctx, task, fmt.Errorf("provider image submission exhausted retries: %w", apiErr))
@@ -2023,14 +2184,17 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 				}
 				return false, errAsyncImageRetryScheduled
 			}
-			service.RecordChannelHealthOutcome(channel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, attemptStart, apiErr, false)
-			service.CooldownChannelForUpstreamError(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, apiKey, channel.GetAutoBan()), apiErr)
+			service.RecordChannelHealthOutcome(genericChannel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, genericAttemptStart, apiErr, false)
+			service.CooldownChannelForUpstreamError(*types.NewChannelError(genericChannel.Id, genericChannel.Type, genericChannel.Name, genericChannel.ChannelInfo.IsMultiKey, genericAPIKey, genericChannel.GetAutoBan()), apiErr)
 			return false, failAsyncImageTask(ctx, task, apiErr)
 		}
 		if result == nil || result.Response == nil || len(result.Response.Data) == 0 {
-			return false, failAsyncImageTask(ctx, task, errors.New("provider returned no image response"))
+			responseErr := errors.New("provider returned no image response")
+			apiErr := types.NewErrorWithStatusCode(responseErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+			service.RecordChannelHealthOutcome(genericChannel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, genericAttemptStart, apiErr, false)
+			service.CooldownChannelForUpstreamError(*types.NewChannelError(genericChannel.Id, genericChannel.Type, genericChannel.Name, genericChannel.ChannelInfo.IsMultiKey, genericAPIKey, genericChannel.GetAutoBan()), apiErr)
+			return false, failAsyncImageTask(ctx, task, responseErr)
 		}
-		service.RecordChannelHealthOutcome(channel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, attemptStart, nil, false)
 		genericArtifact = &genericImageArtifact{
 			Response:    result.Response,
 			Usage:       result.Usage,
@@ -2052,7 +2216,14 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 				return false, ctx.Err()
 			}
 			var sourceStorageErr *imageStorageError
-			if !errors.As(materializeErr, &sourceStorageErr) || sourceStorageErr.Permanent() || task.DownloadAttempts+1 >= asyncImageDownloadAttempts {
+			permanentFailure := !errors.As(materializeErr, &sourceStorageErr) || sourceStorageErr.Permanent()
+			retriesExhausted := task.DownloadAttempts+1 >= asyncImageDownloadAttempts
+			if permanentFailure || retriesExhausted {
+				apiErr := types.NewErrorWithStatusCode(materializeErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+				if genericChannel != nil {
+					service.RecordChannelHealthOutcome(genericChannel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, genericAttemptStart, apiErr, false)
+					service.CooldownChannelForUpstreamError(*types.NewChannelError(genericChannel.Id, genericChannel.Type, genericChannel.Name, genericChannel.ChannelInfo.IsMultiKey, genericAPIKey, genericChannel.GetAutoBan()), apiErr)
+				}
 				return false, failAsyncImageTask(ctx, task, fmt.Errorf("materialize provider image response: %w", materializeErr))
 			}
 			delay := asyncImageRetryDelay(task.DownloadAttempts)
@@ -2064,6 +2235,32 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 				logger.LogWarn(ctx, fmt.Sprintf("provider image download deferred: task=%s retry=%s", task.TaskID, delay))
 			}
 			return false, errAsyncImageRetryScheduled
+		}
+
+		outputContract := asyncImageExpectedOutputContract(payload)
+		var contractErr error
+		if outputContract.requiresValidation() {
+			contractErr = ValidateImageDataListContract(
+				materialized.Data,
+				outputContract.size,
+				outputContract.aspectRatio,
+				outputContract.format,
+				outputContract.count,
+			)
+		}
+		if contractErr == nil {
+			if genericChannel != nil && !genericAttemptStart.IsZero() {
+				service.RecordChannelHealthOutcome(genericChannel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, genericAttemptStart, nil, false)
+			}
+		} else {
+			apiErr := types.NewErrorWithStatusCode(contractErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+			if genericChannel != nil {
+				if !genericAttemptStart.IsZero() {
+					service.RecordChannelHealthOutcome(genericChannel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), genericInfo, genericAttemptStart, apiErr, false)
+				}
+				service.CooldownChannelForUpstreamError(*types.NewChannelError(genericChannel.Id, genericChannel.Type, genericChannel.Name, genericChannel.ChannelInfo.IsMultiKey, genericAPIKey, genericChannel.GetAutoBan()), apiErr)
+			}
+			return false, failAsyncImageTask(ctx, task, fmt.Errorf("validate provider image output contract: %w", contractErr))
 		}
 
 		genericArtifact.Response = materialized
@@ -2105,6 +2302,9 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 		}
 		baseURL := channel.GetBaseURL()
 		proxy := channel.GetSetting().Proxy
+		if err := validateAsyncImageExecutionDestination(channel, payload.ExecutionDestinationHash, payload.ExecutionDestinationStored); err != nil {
+			return false, failAsyncImageTask(ctx, task, err)
+		}
 		if payload.Version >= asyncImageRouteSnapshotVersion && payload.ChannelBaseURL != "" {
 			baseURL = payload.ChannelBaseURL
 		}
@@ -2128,7 +2328,7 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 		}
 		attemptStart := time.Now()
 		var upstreamErr error
-		aggregated, upstreamErr = requestAsyncImageUpstreamWithLease(
+		aggregated, upstreamErr = requestAsyncImageUpstreamWithLeaseAtPath(
 			ctx,
 			baseURL,
 			apiKey,
@@ -2137,9 +2337,26 @@ func executeAsyncImageTask(ctx context.Context, task *model.Task) (bool, error) 
 			task.TaskID,
 			executionRequest,
 			outputLease,
+			payload.ImageRoutingUpstreamPath,
 			payload.RelayMode,
 		)
 		if upstreamErr == nil {
+			outputContract := asyncImageExpectedOutputContract(payload)
+			if outputContract.requiresValidation() {
+				images := make([]dto.ImageData, 0, len(aggregated.Output))
+				for _, item := range aggregated.Output {
+					if item.Type == "image_generation_call" && strings.TrimSpace(item.Result) != "" {
+						images = append(images, dto.ImageData{B64Json: item.Result})
+					}
+				}
+				contractErr := ValidateImageDataListContract(images, outputContract.size, outputContract.aspectRatio, outputContract.format, outputContract.count)
+				if contractErr != nil {
+					apiError := types.NewErrorWithStatusCode(contractErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+					service.RecordChannelHealthOutcome(channel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), nil, attemptStart, apiError, false)
+					service.CooldownChannelForUpstreamError(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, apiKey, channel.GetAutoBan()), apiError)
+					return false, failCheckpointPendingAsyncImageTask(ctx, task, fmt.Errorf("validate provider image output contract: %w", contractErr))
+				}
+			}
 			service.RecordChannelHealthOutcome(channel.Id, task.Properties.OriginModelName, asyncImageHealthPath(payload), nil, attemptStart, nil, false)
 		} else {
 			var validationErr *imageRequestValidationError
@@ -2389,6 +2606,9 @@ func loadAsyncImageChannel(task *model.Task, prepared *PreparedAsyncImageRequest
 	} else if len(currentParamOverride) > 0 || len(currentHeadersOverride) > 0 {
 		return nil, "", errors.New("image channel override snapshot is missing")
 	}
+	if err := validateAsyncImageExecutionDestination(channel, prepared.ExecutionDestinationHash, prepared.ExecutionDestinationStored); err != nil {
+		return nil, "", err
+	}
 	if prepared.ChannelBaseURL == "" && channel.GetBaseURL() == "" {
 		return nil, "", errors.New("image channel base_url is empty")
 	}
@@ -2506,14 +2726,17 @@ func genericAsyncImageRelayInfo(task *model.Task, channel *model.Channel, apiKey
 		}
 	}
 	return &relaycommon.RelayInfo{
-		RequestId:       task.TaskID,
-		StartTime:       time.Now(),
-		RelayMode:       relayMode,
-		RelayFormat:     types.RelayFormatOpenAIImage,
-		OriginModelName: task.Properties.OriginModelName,
-		RequestURLPath:  requestURLPath,
-		RequestHeaders:  requestHeaders,
-		PriceData:       priceData,
+		RequestId:                task.TaskID,
+		StartTime:                time.Now(),
+		RelayMode:                relayMode,
+		RelayFormat:              types.RelayFormatOpenAIImage,
+		OriginModelName:          task.Properties.OriginModelName,
+		RequestURLPath:           requestURLPath,
+		ImageRoutingProtocol:     prepared.ImageRoutingProtocol,
+		ImageRoutingUpstreamPath: prepared.ImageRoutingUpstreamPath,
+		ImageRoutingSnapshot:     prepared.ImageRoutingProtocol != "" || prepared.ImageRoutingUpstreamPath != "",
+		RequestHeaders:           requestHeaders,
+		PriceData:                priceData,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType:          channel.Type,
 			ChannelId:            channel.Id,
@@ -2586,6 +2809,41 @@ func AsyncImageExecutionOverrideFingerprint(paramOverride, headersOverride map[s
 		return "", err
 	}
 	return common.GenerateHMAC(string(encoded)), nil
+}
+
+// AsyncImageExecutionDestinationFingerprint binds a task to its submitted
+// upstream base URL and proxy without persisting either credential-bearing
+// value in the task checkpoint.
+func AsyncImageExecutionDestinationFingerprint(baseURL, proxy string) (string, error) {
+	encoded, err := common.Marshal(struct {
+		BaseURL string `json:"base_url"`
+		Proxy   string `json:"proxy"`
+	}{
+		BaseURL: strings.TrimSpace(baseURL),
+		Proxy:   strings.TrimSpace(proxy),
+	})
+	if err != nil {
+		return "", err
+	}
+	return common.GenerateHMAC(string(encoded)), nil
+}
+
+func validateAsyncImageExecutionDestination(channel *model.Channel, expectedHash string, stored bool) error {
+	if !stored {
+		return nil
+	}
+	if channel == nil || expectedHash == "" {
+		return errors.New("image channel destination fingerprint is missing")
+	}
+	currentSetting := channel.GetSetting()
+	currentHash, err := AsyncImageExecutionDestinationFingerprint(channel.GetBaseURL(), currentSetting.Proxy)
+	if err != nil {
+		return fmt.Errorf("fingerprint current image channel destination: %w", err)
+	}
+	if currentHash != expectedHash {
+		return errors.New("image channel destination changed after task submission")
+	}
+	return nil
 }
 
 // AsyncImageAdvancedRouteFingerprint binds a task to the complete current
@@ -2719,6 +2977,9 @@ func decodeAsyncImageTaskPayload(data []byte) (asyncImageTaskPayload, error) {
 	if err := common.Unmarshal(data, &payload); err != nil {
 		return payload, err
 	}
+	if payload.Version > asyncImagePayloadVersion {
+		return payload, fmt.Errorf("unsupported persisted image payload version %d", payload.Version)
+	}
 	if payload.Request != nil {
 		payload.Request.Extra = copyAsyncImageExtra(payload.RequestExtra)
 		if payload.Executor == "" {
@@ -2736,11 +2997,31 @@ func decodeAsyncImageTaskPayload(data []byte) (asyncImageTaskPayload, error) {
 			return payload, fmt.Errorf("unsupported persisted image relay mode %d", payload.RelayMode)
 		}
 		if payload.PreparedRequest != nil {
+			if payload.ImageRoutingProtocol == "" {
+				payload.ImageRoutingProtocol = payload.PreparedRequest.ImageRoutingProtocol
+			} else if payload.PreparedRequest.ImageRoutingProtocol != "" && payload.PreparedRequest.ImageRoutingProtocol != payload.ImageRoutingProtocol {
+				return payload, errors.New("persisted image routing protocol does not match prepared request")
+			}
+			if payload.ImageRoutingUpstreamPath == "" {
+				payload.ImageRoutingUpstreamPath = payload.PreparedRequest.ImageRoutingUpstreamPath
+			} else if payload.PreparedRequest.ImageRoutingUpstreamPath != "" && payload.PreparedRequest.ImageRoutingUpstreamPath != payload.ImageRoutingUpstreamPath {
+				return payload, errors.New("persisted image routing path does not match prepared request")
+			}
 			if payload.PreparedRequest.RelayMode == relayconstant.RelayModeUnknown {
 				payload.PreparedRequest.RelayMode = payload.RelayMode
 			} else if payload.PreparedRequest.RelayMode != payload.RelayMode {
 				return payload, errors.New("persisted image relay mode does not match prepared request")
 			}
+		}
+		if err := validateAsyncImageRoutingSnapshot(payload.ImageRoutingProtocol, payload.ImageRoutingUpstreamPath, payload.Executor == AsyncImageExecutorAdaptor); err != nil {
+			return payload, fmt.Errorf("invalid persisted image routing snapshot: %w", err)
+		}
+		if payload.ImageRequirement != nil {
+			normalized, err := payload.ImageRequirement.Normalize()
+			if err != nil {
+				return payload, fmt.Errorf("invalid persisted image requirement: %w", err)
+			}
+			payload.ImageRequirement = &normalized
 		}
 		return payload, nil
 	}
@@ -2753,14 +3034,65 @@ func decodeAsyncImageTaskPayload(data []byte) (asyncImageTaskPayload, error) {
 	return payload, nil
 }
 
-func asyncImageHealthPath(payload asyncImageTaskPayload) string {
-	if payload.PreparedRequest != nil && strings.TrimSpace(payload.PreparedRequest.RequestURLPath) != "" {
-		return payload.PreparedRequest.RequestURLPath
+func validateAsyncImageRoutingSnapshot(protocol dto.ImageRoutingProtocol, upstreamPath string, adaptorExecutor bool) error {
+	upstreamPath = strings.TrimSpace(upstreamPath)
+	if protocol == "" {
+		if upstreamPath != "" {
+			return errors.New("image routing path requires a protocol")
+		}
+		return nil
 	}
+	if err := dto.ValidateImageRoutingEndpoint(protocol, upstreamPath); err != nil {
+		return err
+	}
+	if protocol == dto.ImageRoutingProtocolResponsesSSE && adaptorExecutor {
+		return errors.New("Responses image routing cannot use the adaptor executor")
+	}
+	if protocol != dto.ImageRoutingProtocolResponsesSSE && !adaptorExecutor {
+		return fmt.Errorf("image routing protocol %s requires the adaptor executor", protocol)
+	}
+	return nil
+}
+
+func asyncImageHealthPath(payload asyncImageTaskPayload) string {
 	if payload.RelayMode == relayconstant.RelayModeImagesEdits {
 		return "/v1/images/edits"
 	}
 	return "/v1/images/generations"
+}
+
+type asyncImageOutputContract struct {
+	size        string
+	aspectRatio string
+	format      string
+	count       uint
+}
+
+func (contract asyncImageOutputContract) requiresValidation() bool {
+	return contract.size != "" || contract.aspectRatio != "" || contract.format != "" || contract.count > 0
+}
+
+func asyncImageExpectedOutputContract(payload asyncImageTaskPayload) asyncImageOutputContract {
+	if payload.ImageRoutingProtocol == "" || payload.ImageRequirement == nil {
+		return asyncImageOutputContract{}
+	}
+	size := strings.ToLower(strings.TrimSpace(payload.ImageRequirement.Size))
+	if size == "auto" {
+		size = ""
+	}
+	aspectRatio := strings.ToLower(strings.TrimSpace(payload.ImageRequirement.AspectRatio))
+	if aspectRatio == "auto" {
+		aspectRatio = ""
+	}
+	outputFormat := strings.ToLower(strings.TrimSpace(payload.ImageRequirement.OutputFormat))
+	if outputFormat == "jpg" {
+		outputFormat = "jpeg"
+	}
+	count := payload.ImageRequirement.N
+	if count == 0 {
+		count = 1
+	}
+	return asyncImageOutputContract{size: size, aspectRatio: aspectRatio, format: outputFormat, count: count}
 }
 
 func failAsyncImageTask(ctx context.Context, task *model.Task, cause error) error {
@@ -2777,6 +3109,29 @@ func failAsyncImageTask(ctx context.Context, task *model.Task, cause error) erro
 	won, err := task.TransitionImageTaskToFinalizing(model.TaskStatusFailure, 0)
 	if err != nil {
 		return fmt.Errorf("prepare failed image task %s: %w", task.TaskID, err)
+	}
+	if won {
+		if _, err := finalizePersistedImageTask(ctx, task.TaskID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func failCheckpointPendingAsyncImageTask(ctx context.Context, task *model.Task, cause error) error {
+	if cause == nil {
+		cause = errors.New("image generation failed")
+	}
+	reason := common.MaskSensitiveInfo(cause.Error())
+	if len(reason) > 2000 {
+		reason = reason[:2000]
+	}
+	task.FailReason = reason
+	task.CheckpointData = nil
+	task.PrivateData.FinalQuotaClamp = nil
+	won, err := task.TransitionCheckpointPendingImageTaskToFinalizing(model.TaskStatusFailure, 0)
+	if err != nil {
+		return fmt.Errorf("prepare failed checkpoint-pending image task %s: %w", task.TaskID, err)
 	}
 	if won {
 		if _, err := finalizePersistedImageTask(ctx, task.TaskID); err != nil {
@@ -2817,6 +3172,17 @@ func requestAsyncImageUpstreamWithLease(
 	outputLease *asyncImageOutputLease,
 	relayModes ...int,
 ) (*UpstreamResponse, error) {
+	return requestAsyncImageUpstreamWithLeaseAtPath(ctx, baseURL, apiKey, proxy, modelOverride, taskID, req, outputLease, "", relayModes...)
+}
+
+func requestAsyncImageUpstreamWithLeaseAtPath(
+	ctx context.Context,
+	baseURL, apiKey, proxy, modelOverride, taskID string,
+	req *dto.ImageRequest,
+	outputLease *asyncImageOutputLease,
+	upstreamPath string,
+	relayModes ...int,
+) (*UpstreamResponse, error) {
 	relayMode := relayconstant.RelayModeImagesGenerations
 	if len(relayModes) > 0 && relayModes[0] != relayconstant.RelayModeUnknown {
 		relayMode = relayModes[0]
@@ -2838,7 +3204,14 @@ func requestAsyncImageUpstreamWithLease(
 
 	requestCtx, cancel := context.WithTimeout(ctx, asyncImageUpstreamTimeout)
 	defer cancel()
-	url := strings.TrimRight(baseURL, "/") + "/v1/responses"
+	if strings.TrimSpace(upstreamPath) == "" {
+		upstreamPath = "/v1/responses"
+	}
+	upstreamPath = strings.TrimSpace(upstreamPath)
+	if !strings.HasPrefix(upstreamPath, "/") || strings.HasPrefix(upstreamPath, "//") || strings.ContainsAny(upstreamPath, "?#") {
+		return nil, &imageRequestValidationError{err: errors.New("invalid image routing upstream path")}
+	}
+	url := strings.TrimRight(baseURL, "/") + upstreamPath
 	httpReq, err := http.NewRequestWithContext(requestCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create image request: %w", err)

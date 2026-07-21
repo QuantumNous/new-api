@@ -236,6 +236,31 @@ func TestTaskBillingOtherFiltersHistoricalOtherRatios(t *testing.T) {
 	assert.NotContains(t, other, "inf")
 }
 
+func TestTaskBillingOtherIncludesAuditableImageRequestSnapshot(t *testing.T) {
+	task := makeTask(1, 1, 100, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.ImageRequest = &model.TaskImageBillingContext{
+		Operation:    dto.ImageOperationGeneration,
+		Resolution:   "4K",
+		AspectRatio:  "16:9",
+		Size:         "3840x2160",
+		Quality:      "high",
+		OutputFormat: "png",
+		Count:        2,
+		Protocol:     dto.ImageRoutingProtocolImagesGenerations,
+		UpstreamPath: "/v1/images/generations",
+	}
+
+	other := taskBillingOther(task)
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	imageRequest, ok := adminInfo["image_request"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "4K", imageRequest["resolution"])
+	assert.Equal(t, "3840x2160", imageRequest["size"])
+	assert.Equal(t, uint(2), imageRequest["count"])
+	assert.Equal(t, dto.ImageRoutingProtocolImagesGenerations, imageRequest["protocol"])
+}
+
 func TestTaskBillingContextPriceDataFiltersMultiplier(t *testing.T) {
 	priceData := taskBillingContextPriceData(&model.TaskBillingContext{
 		OtherRatios: map[string]float64{

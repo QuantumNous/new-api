@@ -51,6 +51,10 @@ import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { useMediaQuery } from '@/hooks'
 
 import { safeJsonParse } from '../utils/json-parser'
+import {
+  type ImageResolutionPriceMap,
+  removeImageResolutionPriceModel,
+} from './image-resolution-price'
 import type { PricingMode } from './model-pricing-core'
 import {
   ModelPricingEditorPanel,
@@ -78,6 +82,7 @@ type ModelRatioVisualEditorProps = {
   savedBillingMode: string
   savedBillingExpr: string
   modelPrice: string
+  imageResolutionPrice: string
   modelRatio: string
   cacheRatio: string
   createCacheRatio: string
@@ -117,6 +122,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedBillingMode,
     savedBillingExpr,
     modelPrice,
+    imageResolutionPrice,
     modelRatio,
     cacheRatio,
     createCacheRatio,
@@ -380,6 +386,14 @@ const ModelRatioVisualEditorComponent = forwardRef<
         billingExpr,
         { fallback: {}, silent: true }
       )
+      const imageResolutionPriceMap = safeJsonParse<ImageResolutionPriceMap>(
+        imageResolutionPrice,
+        { fallback: {}, silent: true }
+      )
+      const nextImageResolutionPriceMap = removeImageResolutionPriceModel(
+        imageResolutionPriceMap,
+        name
+      )
 
       delete priceMap[name]
       delete ratioMap[name]
@@ -393,6 +407,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
       delete billingExprMap[name]
 
       onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
+      onChange(
+        'ImageResolutionPrice',
+        JSON.stringify(nextImageResolutionPriceMap, null, 2)
+      )
       onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
       onChange('CacheRatio', JSON.stringify(cacheMap, null, 2))
       onChange('CreateCacheRatio', JSON.stringify(createCacheMap, null, 2))
@@ -420,6 +438,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     },
     [
       modelPrice,
+      imageResolutionPrice,
       modelRatio,
       cacheRatio,
       createCacheRatio,
@@ -842,6 +861,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.savedBillingMode === nextProps.savedBillingMode &&
       prevProps.savedBillingExpr === nextProps.savedBillingExpr &&
       prevProps.modelPrice === nextProps.modelPrice &&
+      prevProps.imageResolutionPrice === nextProps.imageResolutionPrice &&
       prevProps.modelRatio === nextProps.modelRatio &&
       prevProps.cacheRatio === nextProps.cacheRatio &&
       prevProps.createCacheRatio === nextProps.createCacheRatio &&
