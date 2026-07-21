@@ -38,9 +38,9 @@ func (a *sunoFailurePollingAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
 func (a *sunoFailurePollingAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
 	taskIDs, _ := body["ids"].([]string)
-	items := make([]dto.SunoDataResponse, 0, len(taskIDs))
+	items := make([]taskdto.SunoDataResponse, 0, len(taskIDs))
 	for _, taskID := range taskIDs {
-		items = append(items, dto.SunoDataResponse{
+		items = append(items, taskdto.SunoDataResponse{
 			TaskID:     taskID,
 			Status:     string(model.TaskStatusFailure),
 			FailReason: a.failReason,
@@ -48,8 +48,8 @@ func (a *sunoFailurePollingAdaptor) FetchTask(_ string, _ string, body map[strin
 		})
 	}
 
-	responseBody, err := common.Marshal(dto.TaskResponse[[]dto.SunoDataResponse]{
-		Code: dto.TaskSuccessCode,
+	responseBody, err := common.Marshal(taskdto.TaskResponse[[]taskdto.SunoDataResponse]{
+		Code: taskdto.TaskSuccessCode,
 		Data: items,
 	})
 	if err != nil {

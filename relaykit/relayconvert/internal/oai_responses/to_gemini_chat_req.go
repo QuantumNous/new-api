@@ -65,14 +65,20 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 		ReasoningEffort:     ReasoningEffort(req),
 	})
 
-	safetySettings := make([]dto.GeminiChatSafetySettings, 0, len(sharedgemini.SafetySettingCategories))
+	var safetySettings []dto.GeminiChatSafetySettings
 	for _, category := range sharedgemini.SafetySettingCategories {
+		threshold := opts.Gemini.SafetySettingFor(category)
+		if threshold == "" {
+			continue
+		}
 		safetySettings = append(safetySettings, dto.GeminiChatSafetySettings{
 			Category:  category,
-			Threshold: opts.Gemini.SafetySettingFor(category),
+			Threshold: threshold,
 		})
 	}
-	geminiRequest.SafetySettings = safetySettings
+	if len(safetySettings) > 0 {
+		geminiRequest.SafetySettings = safetySettings
+	}
 
 	functions, err := RequestFunctionDeclarations(req.Tools)
 	if err != nil {
