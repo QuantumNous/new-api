@@ -397,6 +397,23 @@ export interface FirstTopupPromoInfo {
   expires_at: number
 }
 
+export interface SignupGiftInfo {
+  enabled: boolean
+  benefit_type: 'wallet_credit' | 'trial_subscription' | 'none'
+  trial_credit_usd?: number
+}
+
+export async function getSignupGift(): Promise<SignupGiftInfo | null> {
+  try {
+    const res = await api.get('/api/user/signup_gift')
+    if (res.data?.success && res.data?.data)
+      return res.data.data as SignupGiftInfo
+  } catch {
+    // Keep sharing available when the campaign configuration is temporarily unavailable.
+  }
+  return null
+}
+
 export async function getFirstTopupPromo(): Promise<FirstTopupPromoInfo | null> {
   try {
     const res = await api.get('/api/user/first_topup_promo')

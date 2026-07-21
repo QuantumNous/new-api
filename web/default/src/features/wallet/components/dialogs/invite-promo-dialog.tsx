@@ -16,9 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useRef } from 'react'
-import { Gift, Check, Copy } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Gift, Check, Copy, Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -26,11 +28,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CopyButton } from '@/components/copy-button'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { trackInvitePromoEvent } from '../../api'
+import { getSignupGift, trackInvitePromoEvent } from '../../api'
 
 interface InvitePromoDialogProps {
   open: boolean
@@ -39,13 +39,19 @@ interface InvitePromoDialogProps {
   affiliateLink: string
 }
 
-export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink }: InvitePromoDialogProps) {
+export function InvitePromoDialog({
+  open,
+  onOpenChange,
+  affRatio,
+  affiliateLink,
+}: InvitePromoDialogProps) {
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({
     successMessage: t('Copied! Share it with your friends'),
   })
   const isCopied = copiedText === affiliateLink
   const wasOpenRef = useRef(false)
+  const [trialCreditUsd, setTrialCreditUsd] = useState<number | null>(null)
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
@@ -54,11 +60,48 @@ export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink 
     wasOpenRef.current = open
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+
+    let cancelled = false
+    void getSignupGift().then((gift) => {
+      if (
+        !cancelled &&
+        gift?.enabled &&
+        gift.benefit_type === 'trial_subscription' &&
+        Number(gift.trial_credit_usd) > 0
+      ) {
+        setTrialCreditUsd(Number(gift.trial_credit_usd))
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
   async function handleCopy() {
     const success = await copyToClipboard(affiliateLink)
     if (success) {
       void trackInvitePromoEvent('invite_popup_copy')
     }
+  }
+
+  function shareMessage() {
+    const credit = trialCreditUsd
+      ? `$${Number.isInteger(trialCreditUsd) ? trialCreditUsd : trialCreditUsd.toFixed(2)}`
+      : ''
+    return t('Share APIMaster invite', { credit })
+  }
+
+  function openShare(target: 'x' | 'telegram') {
+    const message = shareMessage()
+    const shareUrl =
+      target === 'x'
+        ? `https://x.com/intent/post?text=${encodeURIComponent(`${message}\n${affiliateLink}`)}`
+        : `https://t.me/share/url?url=${encodeURIComponent(affiliateLink)}&text=${encodeURIComponent(message)}`
+
+    window.open(shareUrl, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -80,7 +123,7 @@ export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink 
         </DialogHeader>
 
         <div className='flex flex-col gap-2 text-left'>
-          <div className='text-muted-foreground text-xs font-medium uppercase tracking-wider'>
+          <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
             {t('Your referral link')}
           </div>
           <div className='flex items-center gap-2'>
@@ -103,12 +146,38 @@ export function InvitePromoDialog({ open, onOpenChange, affRatio, affiliateLink 
           </div>
         </div>
 
+        <div className='mt-2 grid grid-cols-2 gap-3'>
+          <Button
+            type='button'
+            variant='outline'
+            className='border-border text-foreground bg-background hover:bg-muted'
+            onClick={() => openShare('x')}
+          >
+            <span className='text-base font-semibold'>X</span>
+            {t('Share on X')}
+          </Button>
+          <Button
+            type='button'
+            variant='outline'
+            className='border-sky-500/45 bg-sky-500/10 text-sky-600 hover:bg-sky-500/15 hover:text-sky-600 dark:text-sky-300 dark:hover:text-sky-200'
+            onClick={() => openShare('telegram')}
+          >
+            <Send className='size-4' />
+            {t('Share on Telegram')}
+          </Button>
+        </div>
+
         <Button
-          className='mt-2 w-full border-0 text-white shadow-md shadow-amber-500/30 hover:brightness-105'
+          type='button'
+          className='w-full border-0 text-white shadow-md shadow-amber-500/30 hover:brightness-105'
           style={{ background: 'linear-gradient(135deg, #f59e0b, #ea580c)' }}
           onClick={handleCopy}
         >
-          {isCopied ? <Check className='size-4' /> : <Copy className='size-4' />}
+          {isCopied ? (
+            <Check className='size-4' />
+          ) : (
+            <Copy className='size-4' />
+          )}
           {t('Copy referral link')}
         </Button>
       </DialogContent>
