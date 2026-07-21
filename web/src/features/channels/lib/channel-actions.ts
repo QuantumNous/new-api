@@ -660,7 +660,8 @@ export async function handleFixAbilities(
 }
 
 /**
- * Test all enabled channels
+ * Enqueue batch channel health checks.
+ * Skips manually disabled channels and channels with scheduled health checks disabled.
  */
 export async function handleTestAllChannels(
   queryClient?: QueryClient,
@@ -671,7 +672,7 @@ export async function handleTestAllChannels(
     if (response.success) {
       toast.success(
         i18next.t(
-          'Testing all enabled channels started. Please refresh to see results.'
+          'Batch channel health check started. Channels with scheduled tests disabled are skipped. Refresh to see results.'
         )
       )
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
