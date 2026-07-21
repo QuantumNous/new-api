@@ -57,6 +57,7 @@ type TaskAdaptor struct {
 	apiKey      string
 	baseURL     string
 	facePass    bool
+	faceOpts    facePassOptions
 	proxy       string
 }
 
@@ -65,6 +66,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.baseURL = strings.TrimRight(strings.TrimSpace(info.ChannelBaseUrl), "/")
 	a.apiKey = info.ApiKey
 	a.facePass = megabyaiFacePassEnabled(info.ChannelOtherSettings)
+	a.faceOpts = facePassOptionsFromSettings(info.ChannelOtherSettings)
 	a.proxy = strings.TrimSpace(info.ChannelSetting.Proxy)
 }
 
@@ -106,13 +108,20 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err := rejectUnsupportedFrames(bodyMap); err != nil {
 			return nil, err
 		}
-		common.SysLog(fmt.Sprintf("[megabyai_face_pass] json facePass=%v image_urls=%d", a.facePass, len(collectImageURLs(bodyMap))))
+		inURLs := collectImageURLs(bodyMap)
+		common.SysLog(fmt.Sprintf("[megabyai_face_pass] json facePass=%v singleEye=%v size=%d image_urls=%d: %s",
+			a.facePass, a.faceOpts.singleEye, a.faceOpts.size, len(inURLs), strings.Join(inURLs, " | ")))
 		if a.facePass {
-			if err := applyFacePass(bodyMap, nil, a.proxy); err != nil {
+			if err := applyFacePass(bodyMap, nil, a.proxy, a.faceOpts); err != nil {
 				return nil, errors.Wrap(err, "megabyai_face_pass_failed")
 			}
+		} else if len(inURLs) > 0 {
+			common.SysLog(fmt.Sprintf("[megabyai_face_pass] skipped; upstream will use: %s", strings.Join(inURLs, " | ")))
 		}
 		normalizeCreateBody(bodyMap)
+		if refs := collectImageURLs(bodyMap); len(refs) > 0 {
+			common.SysLog(fmt.Sprintf("[megabyai_face_pass] final referenceImages=%d: %s", len(refs), strings.Join(refs, " | ")))
+		}
 		newBody, err := common.Marshal(bodyMap)
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal_request_body_failed")
@@ -130,17 +139,22 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err := rejectUnsupportedFrames(bodyMap); err != nil {
 			return nil, err
 		}
-		common.SysLog(fmt.Sprintf("[megabyai_face_pass] multipart facePass=%v image_urls=%d", a.facePass, len(collectImageURLs(bodyMap))))
+		inURLs := collectImageURLs(bodyMap)
+		common.SysLog(fmt.Sprintf("[megabyai_face_pass] multipart facePass=%v singleEye=%v size=%d image_urls=%d: %s",
+			a.facePass, a.faceOpts.singleEye, a.faceOpts.size, len(inURLs), strings.Join(inURLs, " | ")))
 		if a.facePass {
 			blobs, err := collectMultipartImageBlobs(formData)
 			if err != nil {
 				return nil, errors.Wrap(err, "read_multipart_images_failed")
 			}
-			if err := applyFacePass(bodyMap, blobs, a.proxy); err != nil {
+			if err := applyFacePass(bodyMap, blobs, a.proxy, a.faceOpts); err != nil {
 				return nil, errors.Wrap(err, "megabyai_face_pass_failed")
 			}
 		}
 		normalizeCreateBody(bodyMap)
+		if refs := collectImageURLs(bodyMap); len(refs) > 0 {
+			common.SysLog(fmt.Sprintf("[megabyai_face_pass] final referenceImages=%d: %s", len(refs), strings.Join(refs, " | ")))
+		}
 		newBody, err := common.Marshal(bodyMap)
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal_request_body_failed")

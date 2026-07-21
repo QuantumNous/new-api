@@ -25,6 +25,31 @@ func TestMegabyaiFacePassEnabledDefaultOn(t *testing.T) {
 	}
 }
 
+func TestMegabyaiFaceSingleEyeAndSizeDefaults(t *testing.T) {
+	if !megabyaiFaceSingleEye(dto.ChannelOtherSettings{}) {
+		t.Fatal("singleEye nil should default true")
+	}
+	off := false
+	if megabyaiFaceSingleEye(dto.ChannelOtherSettings{MegabyaiFaceSingleEye: &off}) {
+		t.Fatal("singleEye false should be false")
+	}
+	if megabyaiFaceSize(dto.ChannelOtherSettings{}) != 5 {
+		t.Fatal("size nil should default 5")
+	}
+	n := 10
+	if megabyaiFaceSize(dto.ChannelOtherSettings{MegabyaiFaceSize: &n}) != 10 {
+		t.Fatal("size 10 should stay 10")
+	}
+	low := 0
+	if megabyaiFaceSize(dto.ChannelOtherSettings{MegabyaiFaceSize: &low}) != 1 {
+		t.Fatal("size 0 should clamp to 1")
+	}
+	high := 99
+	if megabyaiFaceSize(dto.ChannelOtherSettings{MegabyaiFaceSize: &high}) != 10 {
+		t.Fatal("size 99 should clamp to 10")
+	}
+}
+
 func TestResizeMaxLongEdgeDownscales(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 3200, 1800))
 	for y := 0; y < 1800; y++ {

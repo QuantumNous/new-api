@@ -78,6 +78,8 @@ export const channelFormSchema = z.object({
     .enum(['auto', 'official', 'openai'])
     .optional(), // VolcEngine/DoubaoVideo: video API path style
   megabyai_face_pass: z.boolean().optional(), // megabyai: face-pass (default on)
+  megabyai_face_single_eye: z.boolean().optional(), // megabyai: single-eye mask (default on)
+  megabyai_face_size: z.number().int().min(1).max(10).optional(), // megabyai: mask size 1-10 (default 5)
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -138,6 +140,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   claude_beta_query: false,
   volcengine_video_api_style: 'auto',
   megabyai_face_pass: true,
+  megabyai_face_single_eye: true,
+  megabyai_face_size: 5,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -194,6 +198,8 @@ export function transformChannelToFormDefaults(
   let claudeBetaQuery = false
   let volcengineVideoApiStyle: 'auto' | 'official' | 'openai' = 'auto'
   let megabyaiFacePass = true
+  let megabyaiFaceSingleEye = true
+  let megabyaiFaceSize = 5
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -220,6 +226,14 @@ export function transformChannelToFormDefaults(
       }
       // nil / missing => on; only explicit false turns off
       megabyaiFacePass = parsed.megabyai_face_pass !== false
+      megabyaiFaceSingleEye = parsed.megabyai_face_single_eye !== false
+      {
+        const sizeNum = Number(parsed.megabyai_face_size)
+        megabyaiFaceSize =
+          Number.isFinite(sizeNum) && sizeNum >= 1 && sizeNum <= 10
+            ? Math.floor(sizeNum)
+            : 5
+      }
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -276,6 +290,8 @@ export function transformChannelToFormDefaults(
     claude_beta_query: claudeBetaQuery,
     volcengine_video_api_style: volcengineVideoApiStyle,
     megabyai_face_pass: megabyaiFacePass,
+    megabyai_face_single_eye: megabyaiFaceSingleEye,
+    megabyai_face_size: megabyaiFaceSize,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -390,11 +406,28 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     delete settingsObj.volcengine_video_api_style
   }
 
-  // megabyai (type 65): face-pass (default on)
+  // megabyai (type 65): face-pass (default on) + mask params
   if (formData.type === 65) {
     settingsObj.megabyai_face_pass = formData.megabyai_face_pass !== false
-  } else if ('megabyai_face_pass' in settingsObj) {
-    delete settingsObj.megabyai_face_pass
+    settingsObj.megabyai_face_single_eye =
+      formData.megabyai_face_single_eye !== false
+    {
+      const sizeNum = Number(formData.megabyai_face_size)
+      settingsObj.megabyai_face_size =
+        Number.isFinite(sizeNum) && sizeNum >= 1 && sizeNum <= 10
+          ? Math.floor(sizeNum)
+          : 5
+    }
+  } else {
+    if ('megabyai_face_pass' in settingsObj) {
+      delete settingsObj.megabyai_face_pass
+    }
+    if ('megabyai_face_single_eye' in settingsObj) {
+      delete settingsObj.megabyai_face_single_eye
+    }
+    if ('megabyai_face_size' in settingsObj) {
+      delete settingsObj.megabyai_face_size
+    }
   }
 
   // Upstream model update settings (for model-fetchable channel types)

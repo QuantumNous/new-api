@@ -43,6 +43,8 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateIgnoredModels      []string      `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
 	VolcengineVideoAPIStyle               string        `json:"volcengine_video_api_style,omitempty"`                 // 火山视频 API 协议：auto / official / openai
 	MegabyaiFacePass                      *bool         `json:"megabyai_face_pass,omitempty"`                        // megabyai：参考图过人脸（nil/true=开，false=关）
+	MegabyaiFaceSingleEye                 *bool         `json:"megabyai_face_single_eye,omitempty"`                   // megabyai：单眼遮挡（nil/true=开，false=双眼）
+	MegabyaiFaceSize                      *int          `json:"megabyai_face_size,omitempty"`                        // megabyai：遮挡尺寸 1–10（nil=5）
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
