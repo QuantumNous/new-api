@@ -106,7 +106,11 @@ func isChannelAttributableError(apiErr *types.NewAPIError) bool {
 // silently returns nothing is treated as failing rather than healthy.
 func channelHealthOutcomeStatus(apiErr *types.NewAPIError, relayInfo *relaycommon.RelayInfo) (statusCode int, localError bool) {
 	if apiErr != nil {
-		return apiErr.StatusCode, !isChannelAttributableError(apiErr)
+		statusCode := apiErr.StatusCode
+		if apiErr.UpstreamStatusCode != 0 {
+			statusCode = apiErr.UpstreamStatusCode
+		}
+		return statusCode, !isChannelAttributableError(apiErr)
 	}
 	if relayInfo != nil && relayInfo.StreamStatus != nil {
 		switch relayInfo.StreamStatus.Snapshot().EndReason {
@@ -147,8 +151,13 @@ func RecordChannelHealthOutcome(channelID int, modelName, requestPath string, re
 	// generation completes. That duration is expected to exceed the text TTFT
 	// slow threshold, so image routes use health failures but not latency scoring.
 	if healthKey.Path != "/v1/images/generations" && healthKey.Path != "/v1/images/edits" {
-		if relayInfo != nil && relayInfo.HasSendResponse() && relayInfo.FirstResponseTime.After(attemptStart) {
-			outcome.Latency = relayInfo.FirstResponseTime.Sub(attemptStart)
+		if relayInfo != nil {
+			firstResponseAt := relayInfo.FirstResponseTimeForAttempt(attemptStart)
+			if !firstResponseAt.IsZero() {
+				outcome.Latency = firstResponseAt.Sub(attemptStart)
+			} else if !relayInfo.IsStream && !attemptStart.IsZero() {
+				outcome.Latency = time.Since(attemptStart)
+			}
 		} else if !attemptStart.IsZero() {
 			outcome.Latency = time.Since(attemptStart)
 		}

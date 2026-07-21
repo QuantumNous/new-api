@@ -9,12 +9,14 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 )
 
 const (
-	StreamChannelCooldownDuration = time.Hour
-	streamQualityWindow           = 5 * time.Minute
-	streamQualityFailureThreshold = 5
+	StreamChannelCooldownDuration  = time.Hour
+	StreamCapacityCooldownDuration = 15 * time.Minute
+	streamQualityWindow            = 5 * time.Minute
+	streamQualityFailureThreshold  = 5
 )
 
 type streamChannelQualityKey struct {
@@ -55,6 +57,51 @@ func ObserveStreamChannelQuality(relayInfo *relaycommon.RelayInfo) {
 	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", relayInfo.ChannelId, StreamChannelCooldownDuration, cooldownReason))
 	model.CooldownChannel(relayInfo.ChannelId, cooldownReason, StreamChannelCooldownDuration)
 	clearStreamChannelFailures(relayInfo.ChannelId, modelName)
+}
+
+// ObserveStreamChannelQualityForRequest applies request-local consequences in
+// addition to the rolling quality signal. A committed SSE failure cannot be
+// retried safely, but an explicit account-concurrency failure should stop this
+// request from pinning the failed channel again.
+func ObserveStreamChannelQualityForRequest(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
+	if relayInfo == nil || relayInfo.IsChannelTest || relayInfo.StreamStatus == nil || relayInfo.ChannelId == 0 {
+		ObserveStreamChannelQuality(relayInfo)
+		return
+	}
+	snapshot := relayInfo.StreamStatus.Snapshot()
+	if streamInstabilityReason(relayInfo) != "" {
+		suppressChannelAffinityRecord(c)
+	}
+	if snapshot.EndReason == relaycommon.StreamEndReasonUpstreamFailed &&
+		isStreamAccountConcurrencyFailure(snapshot) &&
+		!relayInfo.ChannelIsMultiKey {
+		modelName := relayInfo.OriginModelName
+		if modelName == "" {
+			modelName = relayInfo.UpstreamModelName
+		}
+		reason := fmt.Sprintf("stream_capacity model=%s error=%s", modelName, snapshot.EndError)
+		common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", relayInfo.ChannelId, StreamCapacityCooldownDuration, reason))
+		model.CooldownChannel(relayInfo.ChannelId, reason, StreamCapacityCooldownDuration)
+		clearStreamChannelFailures(relayInfo.ChannelId, modelName)
+		return
+	}
+	ObserveStreamChannelQuality(relayInfo)
+}
+
+func isStreamAccountConcurrencyFailure(snapshot relaycommon.StreamSnapshot) bool {
+	messages := make([]string, 0, len(snapshot.Errors)+1)
+	if snapshot.EndError != nil {
+		messages = append(messages, snapshot.EndError.Error())
+	}
+	for _, entry := range snapshot.Errors {
+		messages = append(messages, entry.Message)
+	}
+	for _, message := range messages {
+		if strings.Contains(strings.ToLower(message), "concurrency limit exceeded for account") {
+			return true
+		}
+	}
+	return false
 }
 
 func streamInstabilityReason(relayInfo *relaycommon.RelayInfo) string {

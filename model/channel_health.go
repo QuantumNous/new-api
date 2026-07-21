@@ -3,6 +3,7 @@ package model
 import (
 	"math"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -49,6 +50,15 @@ const (
 	// channelHealthSlowLatency.
 	channelHealthSlowThreshold             = 3
 	defaultChannelHealthSlowLatencySeconds = 9
+
+	// A channel needs two recent, attributable slow responses before it can
+	// move down one configured priority tier. This is intentionally earlier and
+	// softer than the three-sample slow circuit, so a channel can yield traffic
+	// without being made unavailable. Two fast scored responses are required to
+	// restore its original tier, which prevents priority flapping around the
+	// latency threshold.
+	channelHealthPriorityDemotionThreshold = 2
+	channelHealthPriorityRecoveryThreshold = 2
 
 	// affinityFastLatency is the first-token latency below which a channel counts
 	// as "genuinely fast right now". Used only to bias channel *selection* toward
@@ -100,16 +110,19 @@ type ChannelOutcome struct {
 }
 
 type channelHealthEntry struct {
-	state            ChannelHealthState
-	failures         []time.Time
-	slowSamples      []time.Time
-	recentOutcomes   []bool // rolling window of recent attempts; true = failure, most recent last
-	consecutiveOpens int    // opens since the last sustained-healthy reset; drives the backoff interval
-	healthyStreak    int    // consecutive fast closed-state successes; clears the backoff
-	openUntil        time.Time
-	probeLeaseUntil  time.Time
-	latencyEWMA      float64
-	lastSeenAt       time.Time
+	state               ChannelHealthState
+	failures            []time.Time
+	slowSamples         []time.Time
+	recentOutcomes      []bool // rolling window of recent attempts; true = failure, most recent last
+	consecutiveOpens    int    // opens since the last sustained-healthy reset; drives the backoff interval
+	healthyStreak       int    // consecutive fast closed-state successes; clears the backoff
+	openUntil           time.Time
+	probeLeaseUntil     time.Time
+	latencyEWMA         float64
+	priorityDemoted     bool
+	priorityDemotedAt   time.Time
+	priorityFastSamples int
+	lastSeenAt          time.Time
 	// openedBySlow records why the circuit last opened: true = sustained
 	// slowness, false = failures. Read by affinity to decide whether a
 	// cache-holding session should ride out the open state (slow) or leave it
@@ -132,6 +145,20 @@ func (e *channelHealthEntry) recentFailureCount() int {
 		}
 	}
 	return n
+}
+
+func (e *channelHealthEntry) resetPriorityFastSamples() {
+	if !e.priorityDemoted {
+		return
+	}
+	e.priorityFastSamples = 0
+}
+
+func (e *channelHealthEntry) restartPriorityRecoveryInterval(now time.Time) {
+	e.resetPriorityFastSamples()
+	if e.priorityDemoted {
+		e.priorityDemotedAt = now
+	}
 }
 
 // openWithBackoff opens the circuit for an interval that grows with the number
@@ -162,6 +189,14 @@ func (e *channelHealthEntry) openWithBackoff(now time.Time, bySlow bool) {
 	e.slowSamples = nil
 	e.recentOutcomes = nil
 	e.healthyStreak = 0
+	// The circuit supplies the recovery probe, but a slow channel must retain
+	// its soft demotion after that probe closes the circuit. Otherwise one fast
+	// half-open response would immediately restore the original priority tier
+	// even while the latency EWMA is still unhealthy.
+	if bySlow {
+		e.priorityDemoted = true
+	}
+	e.restartPriorityRecoveryInterval(now)
 	if e.consecutiveOpens <= channelHealthMaxBackoffShift {
 		e.consecutiveOpens++
 	}
@@ -230,14 +265,26 @@ func isChannelOverloadStatus(statusCode int) bool {
 }
 
 func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutcome) {
-	if !common.AdaptiveChannelHealthEnabled || outcome.LocalError || outcome.SemanticError {
+	if !common.AdaptiveChannelHealthEnabled {
 		return
 	}
 	// Ignore genuine client 4xx (bad request, auth, not found, unprocessable);
 	// they are not the channel's availability problem. 408/429 are the
 	// exception: they signal an overloaded channel and must count.
-	if outcome.StatusCode >= http.StatusBadRequest && outcome.StatusCode < http.StatusInternalServerError &&
-		!isChannelOverloadStatus(outcome.StatusCode) {
+	ignoredOutcome := outcome.LocalError || outcome.SemanticError ||
+		(outcome.StatusCode >= http.StatusBadRequest && outcome.StatusCode < http.StatusInternalServerError &&
+			!isChannelOverloadStatus(outcome.StatusCode))
+	if ignoredOutcome {
+		// Ignored outcomes still break a consecutive fast-recovery streak. They
+		// provide no evidence that the upstream channel is fast enough to regain
+		// its configured priority, but they must not otherwise affect health.
+		r.mu.Lock()
+		if entry := r.entries[key]; entry != nil && entry.priorityDemoted {
+			now := r.now()
+			entry.lastSeenAt = now
+			entry.resetPriorityFastSamples()
+		}
+		r.mu.Unlock()
 		return
 	}
 
@@ -252,6 +299,7 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 
 	if outcome.StatusCode >= http.StatusInternalServerError || outcome.StatusCode <= 0 || isChannelOverloadStatus(outcome.StatusCode) {
 		entry.healthyStreak = 0
+		entry.restartPriorityRecoveryInterval(now)
 		entry.pushRecentOutcome(true)
 		if entry.state == ChannelHealthHalfOpen {
 			entry.openWithBackoff(now, false)
@@ -284,10 +332,9 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 		}
 	}
 
-	// A successful-but-slow response is a soft failure: a channel that keeps
-	// taking too long to first token is evicted and re-probed like a failing
-	// one, so latency weighting (which only reorders within a priority tier) is
-	// not the only defense against consistently-slow channels.
+	// A successful-but-slow response is a soft failure: repeated slowness first
+	// lowers the effective priority, then evicts and re-probes the channel like a
+	// failing one if it persists to the circuit threshold.
 	slow := outcome.Latency >= channelHealthSlowLatency() && !outcome.ColdCacheStart
 
 	if entry.state == ChannelHealthHalfOpen {
@@ -301,9 +348,6 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 		entry.recentOutcomes = nil
 		entry.openUntil = time.Time{}
 		entry.probeLeaseUntil = time.Time{}
-		entry.pushRecentOutcome(false)
-		entry.registerHealthySuccess()
-		return
 	}
 
 	entry.pushRecentOutcome(false)
@@ -311,15 +355,58 @@ func (r *channelHealthRegistry) Record(key ChannelHealthKey, outcome ChannelOutc
 	if slow {
 		entry.slowSamples = pruneChannelHealthFailures(entry.slowSamples, now.Add(-channelHealthFailureWindow))
 		entry.slowSamples = append(entry.slowSamples, now)
+		entry.restartPriorityRecoveryInterval(now)
+		if len(entry.slowSamples) >= channelHealthPriorityDemotionThreshold && entry.latencyEWMA >= float64(channelHealthSlowLatency()) {
+			entry.priorityDemoted = true
+			entry.priorityDemotedAt = now
+		}
 		if len(entry.slowSamples) >= channelHealthSlowThreshold {
 			entry.openWithBackoff(now, true)
 		}
 		return
 	}
 	// A fast success signals recovery: clear accumulated slowness and advance the
-	// healthy streak that eventually clears the flapping backoff.
+	// healthy streak that eventually clears the flapping backoff. Priority
+	// demotion has its own two-sample recovery hysteresis so a single upstream
+	// blip does not bounce a channel between tiers.
 	entry.slowSamples = nil
+	if entry.priorityDemoted {
+		if outcome.ColdCacheStart || outcome.Latency <= 0 {
+			entry.resetPriorityFastSamples()
+		} else {
+			entry.priorityFastSamples++
+			if entry.priorityFastSamples >= channelHealthPriorityRecoveryThreshold {
+				if entry.latencyEWMA < float64(channelHealthSlowLatency()) {
+					entry.priorityDemoted = false
+					entry.priorityDemotedAt = time.Time{}
+					entry.priorityFastSamples = 0
+				} else {
+					entry.restartPriorityRecoveryInterval(now)
+				}
+			}
+		}
+	}
 	entry.registerHealthySuccess()
+}
+
+func (e *channelHealthEntry) acquire(now time.Time) bool {
+	e.lastSeenAt = now
+	if e.state == ChannelHealthClosed {
+		return true
+	}
+	if e.state == ChannelHealthOpen {
+		if now.Before(e.openUntil) {
+			return false
+		}
+		e.state = ChannelHealthHalfOpen
+		e.probeLeaseUntil = now.Add(channelHealthProbeLease)
+		return true
+	}
+	if now.Before(e.probeLeaseUntil) {
+		return false
+	}
+	e.probeLeaseUntil = now.Add(channelHealthProbeLease)
+	return true
 }
 
 func (r *channelHealthRegistry) Acquire(key ChannelHealthKey) bool {
@@ -334,23 +421,7 @@ func (r *channelHealthRegistry) Acquire(key ChannelHealthKey) bool {
 	if entry == nil {
 		return true
 	}
-	entry.lastSeenAt = now
-	if entry.state == ChannelHealthClosed {
-		return true
-	}
-	if entry.state == ChannelHealthOpen {
-		if now.Before(entry.openUntil) {
-			return false
-		}
-		entry.state = ChannelHealthHalfOpen
-		entry.probeLeaseUntil = now.Add(channelHealthProbeLease)
-		return true
-	}
-	if now.Before(entry.probeLeaseUntil) {
-		return false
-	}
-	entry.probeLeaseUntil = now.Add(channelHealthProbeLease)
-	return true
+	return entry.acquire(now)
 }
 
 // acquireForAffinity is the affinity-path counterpart to Acquire. A session that
@@ -448,6 +519,58 @@ func (r *channelHealthRegistry) Score(key ChannelHealthKey) float64 {
 	return math.Max(minimumChannelHealthScore, math.Min(1, score))
 }
 
+// prioritySelectionState reports whether a closed channel is softly demoted
+// and whether its one-minute recovery interval has elapsed. Merely inspecting
+// candidates does not consume that opportunity; acquirePriorityProbe reserves
+// it only after the selector actually chooses the channel.
+func (r *channelHealthRegistry) prioritySelectionState(key ChannelHealthKey) (demoted bool, probeEligible bool) {
+	if !common.AdaptiveChannelHealthEnabled {
+		return false, false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	entry := r.entries[key]
+	if entry == nil || entry.state != ChannelHealthClosed || !entry.priorityDemoted {
+		return false, false
+	}
+	now := r.now()
+	entry.lastSeenAt = now
+	return true, now.Sub(entry.priorityDemotedAt) > channelHealthFailureWindow
+}
+
+func (r *channelHealthRegistry) shouldDemotePriority(key ChannelHealthKey) bool {
+	demoted, probeEligible := r.prioritySelectionState(key)
+	return demoted && !probeEligible
+}
+
+// acquirePriorityProbe atomically reserves a stale soft-demotion recovery
+// opportunity. Concurrent selectors may all observe the candidate as eligible,
+// but only the first one that actually selects it can send a probe; the rest
+// fall back to another candidate.
+func (r *channelHealthRegistry) acquirePriorityProbe(key ChannelHealthKey) bool {
+	if !common.AdaptiveChannelHealthEnabled {
+		return true
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := r.now()
+	entry := r.entries[key]
+	if entry == nil {
+		return true
+	}
+	if !entry.priorityDemoted {
+		return entry.acquire(now)
+	}
+	entry.lastSeenAt = now
+	if entry.state != ChannelHealthClosed || now.Sub(entry.priorityDemotedAt) <= channelHealthFailureWindow {
+		return false
+	}
+	entry.priorityDemotedAt = now
+	return true
+}
+
 // selectionFactors returns, in one lock, a channel's health score and whether
 // it is *measured fast* — a closed circuit with a latency EWMA below
 // affinityFastLatency. The two are needed together at channel selection.
@@ -504,6 +627,68 @@ func EffectiveSelectionWeight(baseWeight int, key ChannelHealthKey) int {
 		w *= fastChannelSelectionBoost
 	}
 	return w
+}
+
+type channelPriorityCandidate struct {
+	channelID int
+	priority  int
+}
+
+// buildChannelPriorityRanks builds the configured priority tiers and the
+// effective tier for each candidate. Reusing this for the memory-cache and DB
+// selectors keeps their routing behavior identical. A repeatedly slow channel
+// moves down by at most one configured tier; if it is already in the lowest
+// tier, normal health weighting remains the only adjustment.
+func buildChannelPriorityRanks(candidates []channelPriorityCandidate, model string, path string) ([]int, map[int]int, map[int]bool) {
+	if len(candidates) == 0 {
+		return nil, nil, nil
+	}
+	uniquePriorities := make(map[int]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		uniquePriorities[candidate.priority] = struct{}{}
+	}
+	priorities := make([]int, 0, len(uniquePriorities))
+	for priority := range uniquePriorities {
+		priorities = append(priorities, priority)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(priorities)))
+
+	configuredRanks := make(map[int]int, len(priorities))
+	for rank, priority := range priorities {
+		configuredRanks[priority] = rank
+	}
+	effectiveRanks := make(map[int]int, len(candidates))
+	priorityProbeCandidates := make(map[int]bool)
+	for _, candidate := range candidates {
+		rank := configuredRanks[candidate.priority]
+		key := ChannelHealthKey{ChannelID: candidate.channelID, Model: model, Path: path}
+		if rank+1 < len(priorities) {
+			demoted, probeEligible := adaptiveChannelHealth.prioritySelectionState(key)
+			if demoted {
+				if probeEligible {
+					priorityProbeCandidates[candidate.channelID] = true
+				} else {
+					rank++
+				}
+			}
+		}
+		effectiveRanks[candidate.channelID] = rank
+	}
+	return priorities, effectiveRanks, priorityProbeCandidates
+}
+
+// ShouldDemoteChannelPriority reports the current soft-priority signal. A stale
+// demotion reports false so a selector can offer a recovery probe; callers that
+// act on that opportunity must reserve it with AcquireChannelPriorityProbe.
+// Affinity routing intentionally does not use either signal.
+func ShouldDemoteChannelPriority(key ChannelHealthKey) bool {
+	return adaptiveChannelHealth.shouldDemotePriority(key)
+}
+
+// AcquireChannelPriorityProbe reserves a soft-demotion recovery opportunity
+// only after weighted selection has chosen that channel.
+func AcquireChannelPriorityProbe(key ChannelHealthKey) bool {
+	return adaptiveChannelHealth.acquirePriorityProbe(key)
 }
 
 func RecordChannelOutcome(key ChannelHealthKey, outcome ChannelOutcome) {

@@ -20,11 +20,12 @@ import (
 )
 
 const (
-	ginKeyChannelAffinityCacheKey   = "channel_affinity_cache_key"
-	ginKeyChannelAffinityTTLSeconds = "channel_affinity_ttl_seconds"
-	ginKeyChannelAffinityMeta       = "channel_affinity_meta"
-	ginKeyChannelAffinityLogInfo    = "channel_affinity_log_info"
-	ginKeyChannelAffinitySkipRetry  = "channel_affinity_skip_retry_on_failure"
+	ginKeyChannelAffinityCacheKey       = "channel_affinity_cache_key"
+	ginKeyChannelAffinityTTLSeconds     = "channel_affinity_ttl_seconds"
+	ginKeyChannelAffinityMeta           = "channel_affinity_meta"
+	ginKeyChannelAffinityLogInfo        = "channel_affinity_log_info"
+	ginKeyChannelAffinitySkipRetry      = "channel_affinity_skip_retry_on_failure"
+	ginKeyChannelAffinitySuppressRecord = "channel_affinity_suppress_record"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v1"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
@@ -716,6 +717,9 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	if channelID <= 0 {
 		return
 	}
+	if c != nil && c.GetBool(ginKeyChannelAffinitySuppressRecord) {
+		return
+	}
 	setting := operation_setting.GetChannelAffinitySetting()
 	if setting == nil || !setting.Enabled {
 		return
@@ -738,6 +742,12 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	cache := getChannelAffinityCache()
 	if err := cache.SetWithTTL(cacheKey, channelID, time.Duration(ttlSeconds)*time.Second); err != nil {
 		common.SysError(fmt.Sprintf("channel affinity cache set failed: key=%s, err=%v", cacheKey, err))
+	}
+}
+
+func suppressChannelAffinityRecord(c *gin.Context) {
+	if c != nil {
+		c.Set(ginKeyChannelAffinitySuppressRecord, true)
 	}
 }
 

@@ -1,23 +1,43 @@
 package channel
 
 import (
+	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type wssHostTestAdaptor struct {
 	Adaptor
 	requestURL string
+}
+
+type blockingCloseReadCloser struct {
+	unblock <-chan struct{}
+}
+
+func (blockingCloseReadCloser) Read([]byte) (int, error) {
+	return 0, io.EOF
+}
+
+func (r blockingCloseReadCloser) Close() error {
+	select {
+	case <-r.unblock:
+	case <-time.After(500 * time.Millisecond):
+	}
+	return nil
 }
 
 func (a wssHostTestAdaptor) GetRequestURL(_ *relaycommon.RelayInfo) (string, error) {
@@ -170,6 +190,243 @@ func TestDoWssRequestRecordsResolvedHostBeforeDialFailure(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, conn)
 	require.Equal(t, serverURL.Hostname(), info.AttemptUpstreamHost)
+}
+
+func TestDoRequestDoesNotExposeSSEHeadersForRejectedStream(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"message":"rate limited"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	resp, err := DoRequest(c, req, &relaycommon.RelayInfo{
+		IsStream:    true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	assert.Empty(t, recorder.Header().Get("Content-Type"))
+	assert.Empty(t, recorder.Header().Get("Transfer-Encoding"))
+	assert.False(t, c.Writer.Written())
+}
+
+func TestDoRequestDefersSSEHeadersUntilAcceptedBodyHandler(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	resp, err := DoRequest(c, req, &relaycommon.RelayInfo{
+		IsStream:    true,
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Empty(t, recorder.Header().Get("Content-Type"))
+	assert.Empty(t, recorder.Header().Get("Transfer-Encoding"))
+	assert.False(t, c.Writer.Written())
+}
+
+func TestDoRequestBoundsCapacityFallbackResponseHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-time.After(500 * time.Millisecond):
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	startedAt := time.Now()
+	resp, err := DoRequest(c, req, &relaycommon.RelayInfo{
+		IsStream:                       true,
+		ChannelMeta:                    &relaycommon.ChannelMeta{},
+		CapacityFallbackHeaderDeadline: startedAt.Add(50 * time.Millisecond),
+	})
+	require.ErrorIs(t, err, ErrCapacityFallbackHeaderDeadline)
+	require.Nil(t, resp)
+	assert.Less(t, time.Since(startedAt), 300*time.Millisecond)
+}
+
+func TestDoRequestKeepsCapacityDeadlineUntilCompleteResponseHeaders(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	stopServer := make(chan struct{})
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer conn.Close()
+		requestBytes := make([]byte, 1024)
+		_, _ = conn.Read(requestBytes)
+		_, _ = io.WriteString(conn, "HTTP/1.1 200")
+		select {
+		case <-stopServer:
+		case <-time.After(500 * time.Millisecond):
+		}
+	}()
+	t.Cleanup(func() {
+		close(stopServer)
+		_ = listener.Close()
+		<-serverDone
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	startedAt := time.Now()
+	resp, err := DoRequest(c, req, &relaycommon.RelayInfo{
+		IsStream:                       true,
+		ChannelMeta:                    &relaycommon.ChannelMeta{},
+		CapacityFallbackHeaderDeadline: startedAt.Add(50 * time.Millisecond),
+	})
+	require.ErrorIs(t, err, ErrCapacityFallbackHeaderDeadline)
+	require.Nil(t, resp)
+	assert.Less(t, time.Since(startedAt), 300*time.Millisecond)
+}
+
+func TestDoRequestCapacityFallbackDeadlineStopsAtResponseHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		time.Sleep(100 * time.Millisecond)
+		_, _ = w.Write([]byte("data: ok\n\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	resp, err := DoRequest(c, req, &relaycommon.RelayInfo{
+		IsStream:                       true,
+		ChannelMeta:                    &relaycommon.ChannelMeta{},
+		CapacityFallbackHeaderDeadline: time.Now().Add(50 * time.Millisecond),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "data: ok\n\n", string(body))
+}
+
+func TestDoRequestPreservesClientCancellationCause(t *testing.T) {
+	requestStarted := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		select {
+		case <-r.Context().Done():
+		case <-time.After(500 * time.Millisecond):
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	requestContext, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}")).WithContext(requestContext)
+	req, err := http.NewRequestWithContext(requestContext, http.MethodPost, server.URL+"/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	result := make(chan error, 1)
+	go func() {
+		_, requestErr := DoRequest(c, req, &relaycommon.RelayInfo{
+			IsStream:                       true,
+			ChannelMeta:                    &relaycommon.ChannelMeta{},
+			CapacityFallbackHeaderDeadline: time.Now().Add(time.Second),
+		})
+		result <- requestErr
+	}()
+
+	<-requestStarted
+	cancel()
+	require.ErrorIs(t, <-result, context.Canceled)
+}
+
+func TestDoRequestPrefersClientCancellationOverExpiredFallbackDeadline(t *testing.T) {
+	requestContext, cancel := context.WithCancel(context.Background())
+	cancel()
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}")).WithContext(requestContext)
+	req, err := http.NewRequestWithContext(requestContext, http.MethodPost, "http://127.0.0.1:1/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	resp, err := DoRequest(c, req, &relaycommon.RelayInfo{
+		IsStream:                       true,
+		ChannelMeta:                    &relaycommon.ChannelMeta{},
+		CapacityFallbackHeaderDeadline: time.Now().Add(-time.Second),
+	})
+	require.Nil(t, resp)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.NotErrorIs(t, err, ErrCapacityFallbackHeaderDeadline)
+}
+
+func TestCancelOnDoneReadCloserCancelsBeforeUnderlyingClose(t *testing.T) {
+	unblock := make(chan struct{})
+	canceled := make(chan struct{})
+	body := &cancelOnDoneReadCloser{
+		ReadCloser: blockingCloseReadCloser{unblock: unblock},
+		cancel: func() {
+			close(canceled)
+			close(unblock)
+		},
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		_ = body.Close()
+		close(closed)
+	}()
+
+	select {
+	case <-canceled:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("derived request context was not canceled before the underlying body close")
+	}
+	select {
+	case <-closed:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("response body close remained blocked after context cancellation")
+	}
 }
 
 func TestProcessHeaderOverride_ChannelTestSkipsClientHeaderPlaceholder(t *testing.T) {
