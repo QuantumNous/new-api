@@ -8,11 +8,11 @@
 
 services:
   gateway:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/registry.k8s.io/nginx-slim:0.21
+    image: nginx:1.30.4-alpine@sha256:97d490c12ba55b4946b01546d1c3ed324e8d41ab1c9fcb2a616aa470620e5b46
     container_name: new-api-gateway
     restart: unless-stopped
     ports:
-      - "${NEWAPI_BIND_ADDRESS:-0.0.0.0}:${NEWAPI_PORT:-3000}:80"
+      - "${NEWAPI_BIND_ADDRESS:-127.0.0.1}:${NEWAPI_PORT:-3000}:80"
     volumes:
       - ./deploy/newapi-local/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
@@ -23,7 +23,7 @@ services:
       seedance-compat:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "nginx", "-t"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/api/status | grep -q '\"success\":[[:space:]]*true' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -71,8 +71,8 @@ services:
     env_file:
       - .env
     environment:
-      - SQL_DSN=postgresql://${NEWAPI_POSTGRES_USER:-root}:${NEWAPI_POSTGRES_PASSWORD:-123456}@postgres:5432/${NEWAPI_POSTGRES_DB:-new-api}
-      - REDIS_CONN_STRING=redis://:${NEWAPI_REDIS_PASSWORD:-123456}@redis:6379
+      - SQL_DSN=postgresql://${NEWAPI_POSTGRES_USER:-root}:${NEWAPI_POSTGRES_PASSWORD:-123456}@postgres:5432/${NEWAPI_POSTGRES_DB:-new-api}?sslmode=disable
+      - REDIS_CONN_STRING=redis://:${NEWAPI_REDIS_PASSWORD:-123456}@redis:6379/0
       - TZ=${TZ:-Asia/Shanghai}
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set in .env or shell environment}
       - CRYPTO_SECRET=${CRYPTO_SECRET:?CRYPTO_SECRET must be set in .env or shell environment}
@@ -94,28 +94,39 @@ services:
       - SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL=${SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL:-}
       - SKILL_HUB_ALLOW_LOCAL_HTTP=${SKILL_HUB_ALLOW_LOCAL_HTTP:-true}
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       new-api-local-network:
         aliases:
           - new-api
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/api/status | grep -q '\"success\":[[:space:]]*true' || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 30s
 
   redis:
-    image: redis:latest
+    image: redis:8.8.0@sha256:234c902a2db49461a129e2d4aeff85b28cf20187ed274a67f6e50995fa713c7b
     container_name: new-api-local-redis
     restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${NEWAPI_REDIS_PASSWORD:-123456}
     command: ["redis-server", "--requirepass", "${NEWAPI_REDIS_PASSWORD:-123456}"]
     networks:
       - new-api-local-network
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep -q '^PONG$' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   postgres:
-    image: postgres:15
+    image: postgres:15.18@sha256:74e110c41804365e3915fcc09d5e7a1eff50161aaa94d5da0e58e0cd75ae509c
     container_name: new-api-local-postgres
     restart: unless-stopped
     environment:
@@ -127,6 +138,12 @@ services:
       - pg_data_local:/var/lib/postgresql/data
     networks:
       - new-api-local-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 volumes:
   pg_data_local:

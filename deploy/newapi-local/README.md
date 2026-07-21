@@ -148,6 +148,33 @@ docker compose down
 
 首次访问时，打开 `http://localhost:3000`，完成初始化页面来创建管理员账号和密码。
 
+### 3.1 从仓库根目录构建完整本地栈
+
+仓库根目录的 `docker-compose.local.yml` 会从当前源码构建 `new-api` 和 `seedance-compat`，并启动 PostgreSQL、Redis 与统一 Nginx 网关。启动前需要在仓库根目录的 `.env` 中设置稳定且随机的 `SESSION_SECRET` 和 `CRYPTO_SECRET`；不要把真实密钥提交到版本库。
+
+启动：
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+停止：
+
+```bash
+docker compose -f docker-compose.local.yml down
+```
+
+这套配置默认只监听 `127.0.0.1:3000`。确实需要从局域网访问时，可显式设置：
+
+```env
+NEWAPI_BIND_ADDRESS=0.0.0.0
+NEWAPI_PORT=3000
+```
+
+同时必须替换 `NEWAPI_POSTGRES_PASSWORD` 和 `NEWAPI_REDIS_PASSWORD` 的开发默认值。由于同一个变量既用于服务端密码，也会直接拼入 PostgreSQL/Redis 连接 URI，建议使用字母、数字、连字符和下划线组成的 URL-safe 随机值。
+
+启动顺序由 PostgreSQL、Redis 和应用健康检查控制。网关通过 Docker 内置 DNS 动态解析 `new-api` 与 `seedance-compat`，后端容器重建并更换 IP 后不需要重启网关；网关同时支持 WebSocket 升级和无缓冲流式响应。Redis 在这套本地配置中只作为易失缓存使用，停止或重建后缓存数据可能丢失。
+
 ## 4. 本地 PostgreSQL 模式
 
 当你希望 `New API` 把主数据库存到 PostgreSQL，而不是 `./data/one-api.db` 时，使用 `docker-compose.postgres.yml`。

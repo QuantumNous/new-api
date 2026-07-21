@@ -91,6 +91,7 @@ type SkillHubSkillResponse struct {
 	Published   bool           `json:"published,omitempty"`
 	Status      int            `json:"status,omitempty"`
 	Sort        int            `json:"sort,omitempty"`
+	Favorited   bool           `json:"favorited,omitempty"`
 	UpdatedAt   string         `json:"updatedAt,omitempty"`
 	Source      SkillHubSource `json:"source,omitempty"`
 }
@@ -363,6 +364,9 @@ func (s *SkillHubSkill) UpdateReturningPreviousObjects() (string, string, error)
 
 func DeleteSkillHubSkill(skill *SkillHubSkill) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("skill_id = ?", skill.Id).Delete(&SkillHubFavorite{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("skill_id = ?", skill.Id).Delete(&SkillHubSkillTag{}).Error; err != nil {
 			return err
 		}
@@ -388,6 +392,9 @@ func DeleteSkillHubSkills(skills []*SkillHubSkill) error {
 		ids = append(ids, skill.Id)
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("skill_id IN ?", ids).Delete(&SkillHubFavorite{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("skill_id IN ?", ids).Delete(&SkillHubSkillTag{}).Error; err != nil {
 			return err
 		}

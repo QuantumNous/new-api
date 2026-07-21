@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type skillHubSkillRequest struct {
@@ -81,8 +82,13 @@ func ListSkillHubSkills(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	responses, err := skillHubSkillResponses(c, skills, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, model.SkillHubListResponse{
-		Items: model.SkillHubSkillsToResponses(skills, false),
+		Items: responses,
 		Total: total,
 	})
 }
@@ -98,8 +104,13 @@ func ListRecommendedSkillHubSkills(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	responses, err := skillHubSkillResponses(c, skills, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, model.SkillHubListResponse{
-		Items: model.SkillHubSkillsToResponses(skills, false),
+		Items: responses,
 		Total: total,
 	})
 }
@@ -114,7 +125,67 @@ func GetSkillHubSkill(c *gin.Context) {
 		common.ApiErrorMsg(c, "skill not found")
 		return
 	}
-	common.ApiSuccess(c, skill.ToResponse(false))
+	responses, err := skillHubSkillResponses(c, []*model.SkillHubSkill{skill}, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, responses[0])
+}
+
+func ListFavoriteSkillHubSkills(c *gin.Context) {
+	tagIDs, err := parseSkillHubTagIDs(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	userID := c.GetInt("id")
+	skills, total, err := model.SearchFavoriteSkillHubSkills(
+		userID,
+		tagIDs,
+		c.Query("keyword"),
+		pageInfo.GetStartIdx(),
+		pageInfo.GetPageSize(),
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	responses, err := skillHubSkillResponses(c, skills, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubListResponse{Items: responses, Total: total})
+}
+
+func FavoriteSkillHubSkill(c *gin.Context) {
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil || skill.Status != model.SkillHubStatusPublished {
+		common.ApiErrorMsg(c, "skill not found")
+		return
+	}
+	if err := model.FavoriteSkillHubSkill(c.GetInt("id"), skill.Id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"id": skill.SkillID, "favorited": true})
+}
+
+func UnfavoriteSkillHubSkill(c *gin.Context) {
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		common.ApiError(c, err)
+		return
+	}
+	if err == nil {
+		if removeErr := model.UnfavoriteSkillHubSkill(c.GetInt("id"), skill.Id); removeErr != nil {
+			common.ApiError(c, removeErr)
+			return
+		}
+	}
+	common.ApiSuccess(c, gin.H{"id": strings.TrimSpace(c.Param("id")), "favorited": false})
 }
 
 func DownloadSkillHubSkill(c *gin.Context) {
@@ -494,8 +565,13 @@ func listSkillHubSkillsByTags(c *gin.Context, admin bool) {
 			common.ApiError(c, err)
 			return
 		}
+		responses, err := skillHubSkillResponses(c, skills, admin)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		common.ApiSuccess(c, model.SkillHubListResponse{
-			Items: model.SkillHubSkillsToResponses(skills, admin),
+			Items: responses,
 			Total: total,
 		})
 		return
@@ -505,10 +581,27 @@ func listSkillHubSkillsByTags(c *gin.Context, admin bool) {
 		common.ApiError(c, err)
 		return
 	}
+	responses, err := skillHubSkillResponses(c, skills, admin)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, model.SkillHubListResponse{
-		Items: model.SkillHubSkillsToResponses(skills, admin),
+		Items: responses,
 		Total: total,
 	})
+}
+
+func skillHubSkillResponses(c *gin.Context, skills []*model.SkillHubSkill, admin bool) ([]model.SkillHubSkillResponse, error) {
+	if admin {
+		return model.SkillHubSkillsToResponses(skills, true), nil
+	}
+	c.Header("Vary", "Authorization, Cookie, New-Api-User")
+	userID := c.GetInt("id")
+	if userID > 0 {
+		c.Header("Cache-Control", "private, no-store")
+	}
+	return model.SkillHubSkillsToResponsesForUser(skills, false, userID)
 }
 
 func parseSkillHubTagIDs(c *gin.Context) ([]int, error) {

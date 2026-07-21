@@ -532,6 +532,9 @@ func TestDeleteSkillHubSkillRemovesTagRelations(t *testing.T) {
 	if err := skill.Insert(); err != nil {
 		t.Fatalf("create skill: %v", err)
 	}
+	if err := FavoriteSkillHubSkill(42, skill.Id); err != nil {
+		t.Fatalf("favorite skill: %v", err)
+	}
 	if err := DeleteSkillHubSkill(skill); err != nil {
 		t.Fatalf("delete skill: %v", err)
 	}
@@ -542,6 +545,120 @@ func TestDeleteSkillHubSkillRemovesTagRelations(t *testing.T) {
 	if counts["cleanup"] != 0 {
 		t.Fatalf("cleanup usage count = %d; want 0", counts["cleanup"])
 	}
+	var favoriteCount int64
+	if err := DB.Model(&SkillHubFavorite{}).Where("skill_id = ?", skill.Id).Count(&favoriteCount).Error; err != nil {
+		t.Fatalf("count favorites: %v", err)
+	}
+	if favoriteCount != 0 {
+		t.Fatalf("favorite count = %d; want 0", favoriteCount)
+	}
+}
+
+func TestSkillHubFavoritesAreIdempotentAndScopedByUser(t *testing.T) {
+	setupSkillHubTestDB(t)
+
+	skill := &SkillHubSkill{
+		SkillID:    "favorite-skill",
+		Name:       "Favorite Skill",
+		Version:    "1.0.0",
+		Status:     SkillHubStatusPublished,
+		SourceType: "zip",
+		SourceURL:  "https://example.com/favorite.zip",
+	}
+	if err := skill.Insert(); err != nil {
+		t.Fatalf("create skill: %v", err)
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := FavoriteSkillHubSkill(10, skill.Id); err != nil {
+			t.Fatalf("favorite attempt %d: %v", attempt+1, err)
+		}
+	}
+	if err := FavoriteSkillHubSkill(20, skill.Id); err != nil {
+		t.Fatalf("favorite for second user: %v", err)
+	}
+
+	var count int64
+	if err := DB.Model(&SkillHubFavorite{}).Count(&count).Error; err != nil {
+		t.Fatalf("count favorites: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("favorite count = %d, want one row per user", count)
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := UnfavoriteSkillHubSkill(10, skill.Id); err != nil {
+			t.Fatalf("unfavorite attempt %d: %v", attempt+1, err)
+		}
+	}
+	if err := DB.Model(&SkillHubFavorite{}).Count(&count).Error; err != nil {
+		t.Fatalf("count favorites after unfavorite: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("favorite count after unfavorite = %d, want second user's row preserved", count)
+	}
+}
+
+func TestSearchFavoriteSkillHubSkillsHidesUnavailableSkillsAndSupportsFilters(t *testing.T) {
+	setupSkillHubTestDB(t)
+
+	published := &SkillHubSkill{
+		SkillID:    "published-favorite",
+		Name:       "Published Favorite",
+		Version:    "1.0.0",
+		Tags:       StringListToJSON([]string{"office"}),
+		Status:     SkillHubStatusPublished,
+		SourceType: "zip",
+		SourceURL:  "https://example.com/published.zip",
+	}
+	draft := &SkillHubSkill{
+		SkillID:    "draft-favorite",
+		Name:       "Draft Favorite",
+		Version:    "1.0.0",
+		Tags:       StringListToJSON([]string{"office"}),
+		Status:     SkillHubStatusPublished,
+		SourceType: "zip",
+		SourceURL:  "https://example.com/draft.zip",
+	}
+	for _, skill := range []*SkillHubSkill{published, draft} {
+		if err := skill.Insert(); err != nil {
+			t.Fatalf("create %s: %v", skill.SkillID, err)
+		}
+		if err := FavoriteSkillHubSkill(10, skill.Id); err != nil {
+			t.Fatalf("favorite %s: %v", skill.SkillID, err)
+		}
+	}
+	if err := DB.Model(draft).Update("status", SkillHubStatusDraft).Error; err != nil {
+		t.Fatalf("unpublish draft favorite: %v", err)
+	}
+	if err := FavoriteSkillHubSkill(20, published.Id); err != nil {
+		t.Fatalf("favorite for second user: %v", err)
+	}
+
+	officeTag := mustGetSkillHubTagByName(t, "office")
+	skills, total, err := SearchFavoriteSkillHubSkills(10, []int{officeTag.Id}, "Published", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchFavoriteSkillHubSkills() error = %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("favorite total = %d, want only the published matching skill", total)
+	}
+	assertSkillHubSkillIDs(t, skills, []string{"published-favorite"})
+
+	responses, err := SkillHubSkillsToResponsesForUser(skills, false, 10)
+	if err != nil {
+		t.Fatalf("SkillHubSkillsToResponsesForUser() error = %v", err)
+	}
+	if len(responses) != 1 || !responses[0].Favorited {
+		t.Fatalf("favorite responses = %#v", responses)
+	}
+
+	otherUserSkills, otherTotal, err := SearchFavoriteSkillHubSkills(30, nil, "", 0, 10)
+	if err != nil {
+		t.Fatalf("other user search error = %v", err)
+	}
+	if otherTotal != 0 || len(otherUserSkills) != 0 {
+		t.Fatalf("other user favorites = %#v, total = %d; want empty", otherUserSkills, otherTotal)
+	}
 }
 
 func setupSkillHubTestDB(t *testing.T) {
@@ -551,7 +668,7 @@ func setupSkillHubTestDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite memory db: %v", err)
 	}
-	if err := db.AutoMigrate(&SkillHubSkill{}, &SkillHubTag{}, &SkillHubSkillTag{}); err != nil {
+	if err := db.AutoMigrate(&SkillHubSkill{}, &SkillHubTag{}, &SkillHubSkillTag{}, &SkillHubFavorite{}); err != nil {
 		t.Fatalf("migrate skill hub tables: %v", err)
 	}
 	DB = db

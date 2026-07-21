@@ -20,7 +20,7 @@
       "get": {
         "summary": "获取技能广场技能列表",
         "deprecated": false,
-        "description": "🔓 无需鉴权；仅返回已发布技能",
+        "description": "🔓 无需鉴权；仅返回已发布技能；存在登录会话时附带当前用户的收藏状态",
         "tags": [
           "技能广场"
         ],
@@ -81,7 +81,7 @@
       "get": {
         "summary": "随机获取推荐技能",
         "deprecated": false,
-        "description": "🔓 无需鉴权；从已发布且标记推荐的技能中随机返回一组，用于前台“换一换”",
+        "description": "🔓 无需鉴权；从已发布且标记推荐的技能中随机返回一组；存在登录会话时附带当前用户的收藏状态",
         "tags": [
           "技能广场"
         ],
@@ -170,7 +170,7 @@
       "get": {
         "summary": "按标签获取技能广场技能列表",
         "deprecated": false,
-        "description": "🔓 无需鉴权；按一个或多个标签 ID 返回已发布技能；未传 tag_ids 时返回全部已发布技能",
+        "description": "🔓 无需鉴权；按一个或多个标签 ID 返回已发布技能；存在登录会话时附带当前用户的收藏状态",
         "tags": [
           "技能广场"
         ],
@@ -240,7 +240,7 @@
       "get": {
         "summary": "获取技能广场技能详情",
         "deprecated": false,
-        "description": "🔓 无需鉴权；仅可获取已发布技能",
+        "description": "🔓 无需鉴权；仅可获取已发布技能；存在登录会话时附带当前用户的收藏状态",
         "tags": [
           "技能广场"
         ],
@@ -314,6 +314,160 @@
             }
           }
         }
+      }
+    },
+    "/api/skill-hub/favorites": {
+      "get": {
+        "summary": "获取当前用户收藏的技能",
+        "deprecated": false,
+        "description": "🔒 需要用户登录；只返回当前仍存在且已发布的收藏技能",
+        "tags": [
+          "技能广场"
+        ],
+        "parameters": [
+          {
+            "name": "tag_ids",
+            "in": "query",
+            "description": "标签 ID，多个 ID 使用英文逗号分隔；最多 50 个 ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "搜索关键字，匹配技能 ID、名称、描述、标签、来源或源地址；最多 128 个字符",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量，最大 100",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubListApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/skill-hub/favorites/{id}": {
+      "put": {
+        "summary": "收藏技能",
+        "deprecated": false,
+        "description": "🔒 需要用户登录；幂等地收藏一个当前已发布的技能",
+        "tags": [
+          "技能广场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "技能 ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubFavoriteApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "取消收藏技能",
+        "deprecated": false,
+        "description": "🔒 需要用户登录；幂等地取消收藏，技能已经删除时也返回成功",
+        "tags": [
+          "技能广场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "技能 ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubFavoriteApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
       }
     },
     "/api/admin/skill-hub/tags": {
@@ -661,20 +815,76 @@
       "post": {
         "summary": "批量删除技能",
         "description": "需要管理员权限。一次可删除 1 至 200 个技能，并清理关联标签关系及受管 OSS 文件。",
-        "tags": ["技能广场管理"],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SkillHubBatchRequest"}}}},
-        "responses": {"200": {"description": "批量删除结果"}},
-        "security": [{"SessionAuth": [], "NewApiUser": []}, {"AccessToken": [], "NewApiUser": []}]
+        "tags": [
+          "技能广场管理"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubBatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "批量删除结果"
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
       }
     },
     "/api/admin/skill-hub/skills/batch-export": {
       "post": {
         "summary": "批量导出技能",
         "description": "需要管理员权限。将真实技能 ZIP、图标文件和 manifest.json 打包为可再次批量导入的 ZIP。一次可导出 1 至 200 个技能。",
-        "tags": ["技能广场管理"],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SkillHubBatchRequest"}}}},
-        "responses": {"200": {"description": "导出压缩包", "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}}}},
-        "security": [{"SessionAuth": [], "NewApiUser": []}, {"AccessToken": [], "NewApiUser": []}]
+        "tags": [
+          "技能广场管理"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubBatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "导出压缩包",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
       }
     },
     "/api/admin/skill-hub/skills/{id}": {
@@ -1129,6 +1339,10 @@
             "type": "boolean",
             "description": "是否推荐到技能广场推荐模块"
           },
+          "favorited": {
+            "type": "boolean",
+            "description": "当前登录用户是否已收藏；匿名请求或未收藏时省略"
+          },
           "published": {
             "type": "boolean",
             "description": "是否已发布；公开接口不返回有效值"
@@ -1239,14 +1453,18 @@
       },
       "SkillHubBatchRequest": {
         "type": "object",
-        "required": ["ids"],
+        "required": [
+          "ids"
+        ],
         "properties": {
           "ids": {
             "type": "array",
             "description": "技能 ID 列表，去重后须包含 1 至 200 项",
             "minItems": 1,
             "maxItems": 200,
-            "items": {"type": "string"}
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -1375,6 +1593,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/SkillHubSkill"
+          }
+        }
+      },
+      "SkillHubFavoriteState": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "技能 ID"
+          },
+          "favorited": {
+            "type": "boolean",
+            "description": "操作后的收藏状态"
+          }
+        }
+      },
+      "SkillHubFavoriteApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SkillHubFavoriteState"
           }
         }
       },

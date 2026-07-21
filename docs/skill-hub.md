@@ -2,6 +2,14 @@
 
 Skill Hub 用于向本地 connector 返回可安装的 Skill 列表。当前支持通过 HTTPS Zip 包安装，并支持在管理后台上传 Skill 图标到 OSS 后展示给 connector 用户。
 
+## 用户收藏
+
+登录用户可以收藏技能，收藏关系保存在服务端 `skill_hub_favorites` 表中，并通过用户 ID 与技能内部 ID 的唯一组合约束避免重复记录。收藏和本地安装状态互相独立，因此用户可以收藏尚未安装或已经安装的技能，并在使用同一账号的不同客户端上恢复收藏列表。
+
+收藏列表只返回当前仍存在且处于已发布状态的技能。技能下架时收藏关系保留但不展示，重新发布后恢复展示；技能被删除时会在同一数据库事务中清理对应收藏关系。收藏关系使用技能内部 ID，删除后重新创建同名技能不会继承旧收藏。
+
+收藏、取消收藏接口是幂等的。普通技能列表、推荐列表和详情接口在存在登录会话时会返回 `favorited: true`；匿名请求保持原有公开响应语义。
+
 ## OSS 存储策略
 
 Skill 包和 Skill 图标的访问方式不同：
@@ -162,35 +170,35 @@ Skill Hub 列表接口统一使用 `GET` query 参数，不需要请求体。
 
 分页参数：
 
-| 参数        | 说明                                  |
-| ----------- | ------------------------------------- |
-| `p`         | 页码，从 `1` 开始；为空时默认第 1 页  |
+| 参数        | 说明                                   |
+| ----------- | -------------------------------------- |
+| `p`         | 页码，从 `1` 开始；为空时默认第 1 页   |
 | `page_size` | 每页数量；为空时使用系统默认，最大 100 |
 
 关键字参数：
 
-| 参数      | 说明                                                                    |
-| --------- | ----------------------------------------------------------------------- |
+| 参数      | 说明                                                                                  |
+| --------- | ------------------------------------------------------------------------------------- |
 | `keyword` | 可选。技能列表匹配 Skill ID、名称、描述、标签、来源和源地址；标签列表只匹配标签名称。 |
 
 `keyword` 会先去除首尾空白，最大 128 个字符。`%`、`_`、`!` 会被当作普通字符处理，不再作为 SQL `LIKE` 通配符参与匹配。
 
 标签筛选参数：
 
-| 参数      | 说明                                                                                   |
-| --------- | -------------------------------------------------------------------------------------- |
-| `tag_ids` | 可选。标签 ID，多个 ID 用英文逗号分隔，例如 `1,2`；也兼容重复 query 写法。             |
-| `tag_id`  | 可选。兼容单标签 ID 参数。                                                             |
-| `ids`     | 可选。兼容多个标签 ID 参数。                                                           |
+| 参数      | 说明                                                                       |
+| --------- | -------------------------------------------------------------------------- |
+| `tag_ids` | 可选。标签 ID，多个 ID 用英文逗号分隔，例如 `1,2`；也兼容重复 query 写法。 |
+| `tag_id`  | 可选。兼容单标签 ID 参数。                                                 |
+| `ids`     | 可选。兼容多个标签 ID 参数。                                               |
 
 标签筛选是“匹配任一标签”的 OR 语义。`tag_ids` 为空、不传或传空字符串时，不启用标签过滤，返回全部技能。一次最多传 50 个标签 ID；非法 ID 会返回统一错误结构。
 
 公开端和管理端的可见范围不同：
 
-| 接口类型 | 技能列表范围                 | 标签列表范围                                      |
-| -------- | ---------------------------- | ------------------------------------------------- |
-| 公开端   | 只返回已发布 Skill           | 只返回已发布 Skill 正在使用的标签，`usageCount` 只统计已发布 Skill |
-| 管理端   | 返回全部状态 Skill           | 返回标签库中的全部标签，`usageCount` 统计全部状态 Skill |
+| 接口类型 | 技能列表范围       | 标签列表范围                                                       |
+| -------- | ------------------ | ------------------------------------------------------------------ |
+| 公开端   | 只返回已发布 Skill | 只返回已发布 Skill 正在使用的标签，`usageCount` 只统计已发布 Skill |
+| 管理端   | 返回全部状态 Skill | 返回标签库中的全部标签，`usageCount` 统计全部状态 Skill            |
 
 标签和 Skill 的关联由数据库迁移、后台标签列表兜底同步，以及 Skill 新建/更新/删除流程维护。公开 `GET /api/skill-hub/tags` 只读关联表，不会在请求中扫描 Skill 表并写入标签表。
 
@@ -338,27 +346,30 @@ GET /api/skill-hub/tags/skills?tag_ids=1,2&p=1&page_size=20
 
 ## 相关接口
 
-| 接口                                             | 权限   | 用途                                                         |
-| ------------------------------------------------ | ------ | ------------------------------------------------------------ |
-| `POST /api/admin/skill-hub/direct-upload/init`   | 管理员 | 初始化 Skill Zip 包或图标 OSS 直传，返回 PUT signed URL      |
-| `POST /api/admin/skill-hub/direct-upload/complete` | 管理员 | 完成直传确认，校验 OSS 对象并返回 URL、object、checksum      |
-| `POST /api/admin/skill-hub/direct-upload/discard` | 管理员 | 丢弃未保存上传，删除对应 OSS 对象                            |
-| `GET /api/admin/skill-hub/skills`                | 管理员 | 分页搜索后台 Skill 列表，支持 `keyword`、`p`、`page_size`    |
-| `POST /api/admin/skill-hub/skills`               | 管理员 | 新建 Skill                                                   |
-| `GET /api/admin/skill-hub/skills/:id`            | 管理员 | 获取后台 Skill 详情                                          |
-| `PUT /api/admin/skill-hub/skills/:id`            | 管理员 | 更新 Skill，保存成功后清理被替换的旧 OSS 对象                |
-| `DELETE /api/admin/skill-hub/skills/:id`         | 管理员 | 删除 Skill，并 best-effort 删除关联 OSS 对象                 |
-| `POST /api/admin/skill-hub/skills/:id/publish`   | 管理员 | 发布 Skill                                                   |
-| `POST /api/admin/skill-hub/skills/:id/unpublish` | 管理员 | 下架 Skill                                                   |
-| `GET /api/admin/skill-hub/tags`                  | 管理员 | 分页搜索标签库，支持 `keyword`、`p`、`page_size`             |
-| `GET /api/admin/skill-hub/tags/skills`           | 管理员 | 按 `tag_ids` 查询后台 Skill；不传标签时返回全部，支持 `keyword` |
-| `POST /api/admin/skill-hub/tags`                 | 管理员 | 新建标签                                                     |
-| `DELETE /api/admin/skill-hub/tags/:name`         | 管理员 | 删除未被 Skill 使用的标签                                    |
-| `GET /api/skill-hub/skills`                      | 公开   | connector 拉取已发布 Skill 列表                              |
-| `GET /api/skill-hub/tags`                        | 公开   | connector 拉取已发布 Skill 使用中的标签列表                  |
-| `GET /api/skill-hub/tags/skills`                 | 公开   | 按 `tag_ids` 查询已发布 Skill；不传标签时返回全部，支持 `keyword` |
-| `GET /api/skill-hub/skills/:id`                  | 公开   | connector 拉取 Skill 详情                                    |
-| `GET /api/skill-hub/skills/:id/download`         | 公开   | 跳转到 Zip 包短期 signed URL                                 |
+| 接口                                               | 权限   | 用途                                                              |
+| -------------------------------------------------- | ------ | ----------------------------------------------------------------- |
+| `POST /api/admin/skill-hub/direct-upload/init`     | 管理员 | 初始化 Skill Zip 包或图标 OSS 直传，返回 PUT signed URL           |
+| `POST /api/admin/skill-hub/direct-upload/complete` | 管理员 | 完成直传确认，校验 OSS 对象并返回 URL、object、checksum           |
+| `POST /api/admin/skill-hub/direct-upload/discard`  | 管理员 | 丢弃未保存上传，删除对应 OSS 对象                                 |
+| `GET /api/admin/skill-hub/skills`                  | 管理员 | 分页搜索后台 Skill 列表，支持 `keyword`、`p`、`page_size`         |
+| `POST /api/admin/skill-hub/skills`                 | 管理员 | 新建 Skill                                                        |
+| `GET /api/admin/skill-hub/skills/:id`              | 管理员 | 获取后台 Skill 详情                                               |
+| `PUT /api/admin/skill-hub/skills/:id`              | 管理员 | 更新 Skill，保存成功后清理被替换的旧 OSS 对象                     |
+| `DELETE /api/admin/skill-hub/skills/:id`           | 管理员 | 删除 Skill，并 best-effort 删除关联 OSS 对象                      |
+| `POST /api/admin/skill-hub/skills/:id/publish`     | 管理员 | 发布 Skill                                                        |
+| `POST /api/admin/skill-hub/skills/:id/unpublish`   | 管理员 | 下架 Skill                                                        |
+| `GET /api/admin/skill-hub/tags`                    | 管理员 | 分页搜索标签库，支持 `keyword`、`p`、`page_size`                  |
+| `GET /api/admin/skill-hub/tags/skills`             | 管理员 | 按 `tag_ids` 查询后台 Skill；不传标签时返回全部，支持 `keyword`   |
+| `POST /api/admin/skill-hub/tags`                   | 管理员 | 新建标签                                                          |
+| `DELETE /api/admin/skill-hub/tags/:name`           | 管理员 | 删除未被 Skill 使用的标签                                         |
+| `GET /api/skill-hub/skills`                        | 公开   | connector 拉取已发布 Skill 列表                                   |
+| `GET /api/skill-hub/tags`                          | 公开   | connector 拉取已发布 Skill 使用中的标签列表                       |
+| `GET /api/skill-hub/tags/skills`                   | 公开   | 按 `tag_ids` 查询已发布 Skill；不传标签时返回全部，支持 `keyword` |
+| `GET /api/skill-hub/skills/:id`                    | 公开   | connector 拉取 Skill 详情                                         |
+| `GET /api/skill-hub/skills/:id/download`           | 公开   | 跳转到 Zip 包短期 signed URL                                      |
+| `GET /api/skill-hub/favorites`                     | 用户   | 获取当前账号收藏且仍存在、已发布的技能，支持搜索和标签筛选        |
+| `PUT /api/skill-hub/favorites/:id`                 | 用户   | 幂等收藏指定技能                                                  |
+| `DELETE /api/skill-hub/favorites/:id`              | 用户   | 幂等取消收藏指定技能                                              |
 
 ## 管理接口 payload 示例
 

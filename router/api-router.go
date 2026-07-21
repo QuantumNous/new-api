@@ -34,11 +34,19 @@ func SetApiRouter(router *gin.Engine) {
 		skillHubRoute := apiRouter.Group("/skill-hub")
 		{
 			skillHubRoute.GET("/tags", controller.ListSkillHubTags)
-			skillHubRoute.GET("/tags/skills", controller.ListSkillHubSkillsByTags)
-			skillHubRoute.GET("/skills", controller.ListSkillHubSkills)
-			skillHubRoute.GET("/skills/recommend", controller.ListRecommendedSkillHubSkills)
+			skillHubRoute.GET("/tags/skills", middleware.TryUserAuth(), controller.ListSkillHubSkillsByTags)
+			skillHubRoute.GET("/skills", middleware.TryUserAuth(), controller.ListSkillHubSkills)
+			skillHubRoute.GET("/skills/recommend", middleware.TryUserAuth(), controller.ListRecommendedSkillHubSkills)
 			skillHubRoute.GET("/skills/:id/download", controller.DownloadSkillHubSkill)
-			skillHubRoute.GET("/skills/:id", controller.GetSkillHubSkill)
+			skillHubRoute.GET("/skills/:id", middleware.TryUserAuth(), controller.GetSkillHubSkill)
+
+			skillHubFavoriteRoute := skillHubRoute.Group("/favorites")
+			skillHubFavoriteRoute.Use(middleware.UserAuth())
+			{
+				skillHubFavoriteRoute.GET("", controller.ListFavoriteSkillHubSkills)
+				skillHubFavoriteRoute.PUT("/:id", controller.FavoriteSkillHubSkill)
+				skillHubFavoriteRoute.DELETE("/:id", controller.UnfavoriteSkillHubSkill)
+			}
 		}
 		clientReleaseRoute := apiRouter.Group("/client-releases")
 		{
