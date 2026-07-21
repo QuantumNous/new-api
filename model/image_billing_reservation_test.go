@@ -516,6 +516,61 @@ func TestImageBillingReservationRecoversLegacyRowWithoutQuotaModeMetadata(t *tes
 	assert.Zero(t, token.UsedQuota)
 }
 
+func TestImageBillingReservationReplayNormalizesBothLegacyModesBeforeRefund(t *testing.T) {
+	redisServer := useImageTaskTestRedis(t)
+	const reservationQuota = 125_000
+	user, token, task := seedPreparedImageBillingReservation(t, "mixed-legacy-row-replay", reservationQuota)
+	walletBalance := common.MaxQuota + 1_290_000_000
+	tokenBalance := 40_358_933
+	require.LessOrEqual(t, walletBalance, int(common.MaxLegacyQuota))
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", walletBalance).Error)
+	require.NoError(t, DB.Model(&Token{}).Where("id = ?", token.Id).Updates(map[string]any{
+		"remain_quota": tokenBalance,
+		"used_quota":   0,
+	}).Error)
+	require.NoError(t, DB.First(user, user.Id).Error)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	populateImageReservationTestCache(t, redisServer, user, token)
+
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, reservationQuota))
+	require.NoError(t, ReserveImageTaskWalletQuota(task.TaskID, user.Id, reservationQuota))
+	require.NoError(t, DB.Model(&ImageBillingReservation{}).Where("task_id = ?", task.TaskID).Updates(map[string]any{
+		"quota_mode_version":  0,
+		"wallet_legacy_debit": false,
+		"token_legacy_debit":  false,
+	}).Error)
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	require.NoError(t, common.RDB.HDel(
+		context.Background(),
+		"token:"+tokenHMAC,
+		imageReservationCacheModeField(task.TaskID),
+	).Err())
+
+	// Production reserves the token first. Replaying that normal leg must also
+	// recover the already-reserved legacy wallet before upgrading the row.
+	require.NoError(t, ReserveImageTaskTokenQuota(task.TaskID, token.Id, token.Key, reservationQuota))
+	reservation, err := GetImageBillingReservation(task.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, imageBillingReservationQuotaModeVersion, reservation.QuotaModeVersion)
+	assert.True(t, reservation.WalletLegacyDebit)
+	assert.False(t, reservation.TokenLegacyDebit)
+
+	applied, err := RefundImageBillingReservation(task.TaskID, "mixed legacy replay recovery")
+	require.NoError(t, err)
+	require.True(t, applied)
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, walletBalance, user.Quota)
+	require.NoError(t, DB.First(token, token.Id).Error)
+	assert.Equal(t, tokenBalance, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	cachedUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, walletBalance, cachedUser.Quota)
+	cachedToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, tokenBalance, cachedToken.RemainQuota)
+}
+
 func TestImageBillingReservationWalletTokenRecoveryIsIdempotent(t *testing.T) {
 	redisServer := useImageTaskTestRedis(t)
 	user, token, task := seedPreparedImageBillingReservation(t, "recover", 100)
