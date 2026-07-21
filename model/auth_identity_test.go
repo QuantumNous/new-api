@@ -443,3 +443,58 @@ func TestAuthIdentityPostgreSQLConflictKeepsTransactionUsable(t *testing.T) {
 	require.NoError(t, db.Model(&User{}).Select("display_name").Where("id = ?", challenger.Id).Scan(&displayName).Error)
 	assert.Equal(t, "pg-tx-challenger-ok", displayName)
 }
+
+func TestCreateAuthIdentityWithTxBackfillsNullProviderSubjectValue(t *testing.T) {
+	db := setupAuthIdentityTestDB(t)
+	user := createAuthIdentityTestUser(t, db, "null-subject-value-owner")
+	const subject = "null-value-subject"
+	hash := hashAuthIdentitySubject(subject)
+	require.NoError(t, db.Exec(
+		"INSERT INTO auth_identities (user_id, provider_key, provider_subject, provider_subject_value, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, ?)",
+		user.Id,
+		AuthIdentityProviderGitHub,
+		hash,
+		time.Now(),
+		time.Now(),
+	).Error)
+
+	var nullCount int64
+	require.NoError(t, db.Raw(
+		"SELECT COUNT(1) FROM auth_identities WHERE provider_subject = ? AND provider_subject_value IS NULL",
+		hash,
+	).Scan(&nullCount).Error)
+	require.EqualValues(t, 1, nullCount)
+
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return CreateAuthIdentityWithTx(tx, user.Id, AuthIdentityProviderGitHub, subject)
+	}))
+
+	var filled string
+	require.NoError(t, db.Raw(
+		"SELECT provider_subject_value FROM auth_identities WHERE provider_subject = ?",
+		hash,
+	).Scan(&filled).Error)
+	assert.Equal(t, subject, filled)
+
+	owner, err := GetUserByAuthIdentity(AuthIdentityProviderGitHub, subject)
+	require.NoError(t, err)
+	assert.Equal(t, user.Id, owner.Id)
+}
+
+func TestCreateAuthIdentityWithTxDoesNotOverwriteNonEmptyProviderSubjectValue(t *testing.T) {
+	db := setupAuthIdentityTestDB(t)
+	user := createAuthIdentityTestUser(t, db, "nonempty-subject-value-owner")
+	const subject = "Case-Sensitive-Subject"
+	require.NoError(t, EnsureAuthIdentity(user.Id, AuthIdentityProviderOIDC, subject))
+
+	// Attempting to bind the same hash owner with different casing is a collision
+	// when stored plaintext differs; empty backfill path must not clobber plaintext.
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		return CreateAuthIdentityWithTx(tx, user.Id, AuthIdentityProviderOIDC, subject)
+	})
+	require.NoError(t, err)
+
+	var stored AuthIdentity
+	require.NoError(t, db.Where("user_id = ? AND provider_key = ?", user.Id, AuthIdentityProviderOIDC).Take(&stored).Error)
+	assert.Equal(t, subject, stored.ProviderSubject)
+}

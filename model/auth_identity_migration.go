@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -67,6 +68,7 @@ func migrateLegacyExternalIdentityClaims() error {
 		batchLastID := claims[len(claims)-1].Id
 		conflictCount := 0
 		orphanCount := 0
+		malformedCount := 0
 		if err := DB.Transaction(func(tx *gorm.DB) error {
 			migratedAt := time.Now().UTC()
 			for _, claim := range claims {
@@ -74,13 +76,19 @@ func migrateLegacyExternalIdentityClaims() error {
 				if err != nil {
 					return fmt.Errorf("cannot validate legacy external identity row %d in batch %d: %w", claim.Id, batchNumber, err)
 				}
-				if !exists {
+				switch {
+				case !exists:
 					orphanCount++
-				} else if err := CreateAuthIdentityWithTx(tx, claim.UserId, claim.Provider, claim.Subject); err != nil {
-					if !isKnownAuthIdentityConflict(err) {
-						return fmt.Errorf("cannot migrate legacy external identity row %d in batch %d: %w", claim.Id, batchNumber, err)
+				case isMalformedLegacyAuthIdentityInput(claim.Provider, claim.Subject):
+					// Keep the batch moving: dirty legacy rows must not abort startup.
+					malformedCount++
+				default:
+					if err := CreateAuthIdentityWithTx(tx, claim.UserId, claim.Provider, claim.Subject); err != nil {
+						if !isKnownAuthIdentityConflict(err) {
+							return fmt.Errorf("cannot migrate legacy external identity row %d in batch %d: %w", claim.Id, batchNumber, err)
+						}
+						conflictCount++
 					}
-					conflictCount++
 				}
 				if err := tx.Model(&ExternalIdentityClaim{}).
 					Where("id = ? AND auth_identity_migrated_at IS NULL", claim.Id).
@@ -93,7 +101,7 @@ func migrateLegacyExternalIdentityClaims() error {
 			return err
 		}
 
-		logAuthIdentityMigrationBatch("external identity", batchNumber, batchFirstID, batchLastID, conflictCount, orphanCount)
+		logAuthIdentityMigrationBatch("external identity", batchNumber, batchFirstID, batchLastID, conflictCount, orphanCount, malformedCount)
 		lastID = batchLastID
 		if len(claims) < authIdentityBackfillBatchSize {
 			return nil
@@ -127,24 +135,30 @@ func migrateLegacyUserOAuthBindings() error {
 		batchLastID := bindings[len(bindings)-1].Id
 		conflictCount := 0
 		orphanCount := 0
+		malformedCount := 0
 		if err := DB.Transaction(func(tx *gorm.DB) error {
 			migratedAt := time.Now().UTC()
 			for _, binding := range bindings {
-				providerKey, err := AuthIdentityProviderKeyForCustomOAuth(binding.ProviderId)
-				if err != nil {
-					return fmt.Errorf("cannot migrate legacy custom OAuth binding row %d in batch %d: %w", binding.Id, batchNumber, err)
-				}
 				exists, err := authIdentityMigrationUserExists(tx, binding.UserId)
 				if err != nil {
 					return fmt.Errorf("cannot validate legacy custom OAuth binding row %d in batch %d: %w", binding.Id, batchNumber, err)
 				}
-				if !exists {
+				providerKey, keyErr := AuthIdentityProviderKeyForCustomOAuth(binding.ProviderId)
+				malformedBinding := keyErr != nil ||
+					isMalformedLegacyAuthIdentityInput(providerKey, binding.ProviderUserId)
+				switch {
+				case !exists:
 					orphanCount++
-				} else if err := CreateAuthIdentityWithTx(tx, binding.UserId, providerKey, binding.ProviderUserId); err != nil {
-					if !isKnownAuthIdentityConflict(err) {
-						return fmt.Errorf("cannot migrate legacy custom OAuth binding row %d in batch %d: %w", binding.Id, batchNumber, err)
+				case malformedBinding:
+					// provider_id <= 0, empty provider_user_id, or other key/subject input errors.
+					malformedCount++
+				default:
+					if err := CreateAuthIdentityWithTx(tx, binding.UserId, providerKey, binding.ProviderUserId); err != nil {
+						if !isKnownAuthIdentityConflict(err) {
+							return fmt.Errorf("cannot migrate legacy custom OAuth binding row %d in batch %d: %w", binding.Id, batchNumber, err)
+						}
+						conflictCount++
 					}
-					conflictCount++
 				}
 				if err := tx.Model(&UserOAuthBinding{}).
 					Where("id = ? AND auth_identity_migrated_at IS NULL", binding.Id).
@@ -157,7 +171,7 @@ func migrateLegacyUserOAuthBindings() error {
 			return err
 		}
 
-		logAuthIdentityMigrationBatch("custom OAuth binding", batchNumber, int64(batchFirstID), int64(batchLastID), conflictCount, orphanCount)
+		logAuthIdentityMigrationBatch("custom OAuth binding", batchNumber, int64(batchFirstID), int64(batchLastID), conflictCount, orphanCount, malformedCount)
 		lastID = batchLastID
 		if len(bindings) < authIdentityBackfillBatchSize {
 			return nil
@@ -199,17 +213,35 @@ func isKnownAuthIdentityConflict(err error) bool {
 		errors.Is(err, ErrAuthIdentityProviderAlreadyBound)
 }
 
-func logAuthIdentityMigrationBatch(source string, batchNumber int, firstID, lastID int64, conflictCount, orphanCount int) {
-	if conflictCount == 0 && orphanCount == 0 {
+// isMalformedLegacyAuthIdentityInput mirrors the input checks of
+// normalizeAuthIdentity so dirty legacy rows can be skipped without aborting
+// startup migration. It intentionally does not log the subject value.
+func isMalformedLegacyAuthIdentityInput(providerKey string, providerSubject string) bool {
+	providerKey = strings.ToLower(strings.TrimSpace(providerKey))
+	providerSubject = strings.TrimSpace(providerSubject)
+	return providerKey == "" ||
+		providerSubject == "" ||
+		len(providerKey) > 64 ||
+		len(providerSubject) > 256
+}
+
+func logAuthIdentityMigrationBatch(
+	source string,
+	batchNumber int,
+	firstID, lastID int64,
+	conflictCount, orphanCount, malformedCount int,
+) {
+	if conflictCount == 0 && orphanCount == 0 && malformedCount == 0 {
 		return
 	}
 	common.SysLog(fmt.Sprintf(
-		"auth identity migration source %s batch %d rows %d-%d skipped %d known conflicts and %d missing users",
+		"auth identity migration source %s batch %d rows %d-%d skipped %d known conflicts, %d missing users, and %d malformed rows",
 		source,
 		batchNumber,
 		firstID,
 		lastID,
 		conflictCount,
 		orphanCount,
+		malformedCount,
 	))
 }

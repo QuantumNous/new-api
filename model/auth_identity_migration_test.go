@@ -221,3 +221,97 @@ func TestCustomOAuthCompatibilityAPIUsesAuthIdentityAuthority(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, count)
 }
+
+func TestInitializeAuthIdentitiesSkipsMalformedLegacyRows(t *testing.T) {
+	db := setupAuthIdentityTestDB(t)
+	migrateLegacyAuthIdentityTestTables(t, db)
+
+	owner := createAuthIdentityTestUser(t, db, "malformed-owner")
+	// Empty / whitespace subjects and invalid custom provider id must not abort migration.
+	// Use distinct providers so legacy unique indexes (provider,user) / (provider,subject) are satisfied.
+	require.NoError(t, db.Exec(
+		"INSERT INTO external_identity_claims (provider, subject, user_id, created_at) VALUES (?, ?, ?, ?)",
+		AuthIdentityProviderGitHub, "", owner.Id, time.Now(),
+	).Error)
+	require.NoError(t, db.Exec(
+		"INSERT INTO external_identity_claims (provider, subject, user_id, created_at) VALUES (?, ?, ?, ?)",
+		AuthIdentityProviderDiscord, "   ", owner.Id, time.Now(),
+	).Error)
+	require.NoError(t, db.Create(&legacyExternalIdentityClaimSchema{
+		Provider: ExternalIdentityProviderTelegram,
+		Subject:  "good-telegram-subject",
+		UserId:   owner.Id,
+	}).Error)
+	require.NoError(t, db.Exec(
+		"INSERT INTO user_oauth_bindings (user_id, provider_id, provider_user_id, created_at) VALUES (?, ?, ?, ?)",
+		owner.Id, 0, "ignored-subject", time.Now(),
+	).Error)
+	require.NoError(t, db.Exec(
+		"INSERT INTO user_oauth_bindings (user_id, provider_id, provider_user_id, created_at) VALUES (?, ?, ?, ?)",
+		owner.Id, 54, "", time.Now(),
+	).Error)
+	require.NoError(t, db.Create(&legacyUserOAuthBindingSchema{
+		UserId:         owner.Id,
+		ProviderId:     55,
+		ProviderUserId: "good-custom-subject",
+	}).Error)
+
+	var logOutput bytes.Buffer
+	common.LogWriterMu.Lock()
+	oldDefaultWriter := gin.DefaultWriter
+	gin.DefaultWriter = &logOutput
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultWriter = oldDefaultWriter
+		common.LogWriterMu.Unlock()
+	})
+
+	require.NoError(t, InitializeAuthIdentities())
+
+	telegramOwner, err := GetUserByAuthIdentity(AuthIdentityProviderTelegram, "good-telegram-subject")
+	require.NoError(t, err)
+	assert.Equal(t, owner.Id, telegramOwner.Id)
+	customOwner, err := GetUserByOAuthBinding(55, "good-custom-subject")
+	require.NoError(t, err)
+	assert.Equal(t, owner.Id, customOwner.Id)
+
+	var claims []ExternalIdentityClaim
+	require.NoError(t, db.Order("id ASC").Find(&claims).Error)
+	require.Len(t, claims, 3)
+	for _, claim := range claims {
+		require.NotNil(t, claim.AuthIdentityMigratedAt)
+	}
+	var bindings []UserOAuthBinding
+	require.NoError(t, db.Order("id ASC").Find(&bindings).Error)
+	require.Len(t, bindings, 3)
+	for _, binding := range bindings {
+		require.NotNil(t, binding.AuthIdentityMigratedAt)
+	}
+
+	assert.Contains(t, logOutput.String(), "malformed rows")
+	assert.NotContains(t, logOutput.String(), "good-telegram-subject")
+	assert.NotContains(t, logOutput.String(), "good-custom-subject")
+
+	// Second run is idempotent: markers keep malformed rows from being reprocessed.
+	logOutput.Reset()
+	require.NoError(t, InitializeAuthIdentities())
+	assert.NotContains(t, logOutput.String(), "malformed rows")
+}
+
+func TestInitializeAuthIdentitiesAllMalformedBatchStillAdvances(t *testing.T) {
+	db := setupAuthIdentityTestDB(t)
+	migrateLegacyAuthIdentityTestTables(t, db)
+	owner := createAuthIdentityTestUser(t, db, "all-malformed-owner")
+	require.NoError(t, db.Exec(
+		"INSERT INTO external_identity_claims (provider, subject, user_id, created_at) VALUES (?, ?, ?, ?)",
+		ExternalIdentityProviderTelegram, "", owner.Id, time.Now(),
+	).Error)
+	require.NoError(t, InitializeAuthIdentities())
+	var claim ExternalIdentityClaim
+	require.NoError(t, db.First(&claim).Error)
+	require.NotNil(t, claim.AuthIdentityMigratedAt)
+	var identityCount int64
+	require.NoError(t, db.Model(&AuthIdentity{}).Count(&identityCount).Error)
+	assert.Zero(t, identityCount)
+}

@@ -112,7 +112,11 @@ func CreateAuthIdentityWithTx(tx *gorm.DB, userId int, providerKey string, provi
 			return nil
 		}
 		return tx.Model(&AuthIdentity{}).
-			Where("id = ? AND provider_subject_value = ?", boundIdentity.Id, "").
+			Where(
+				"id = ? AND (provider_subject_value = ? OR provider_subject_value IS NULL)",
+				boundIdentity.Id,
+				"",
+			).
 			Update("provider_subject_value", providerSubject).Error
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
