@@ -15,6 +15,7 @@ const (
 	responsesInputTypeFunctionCallOutput = "function_call_output"
 	responsesInputTypeCustomToolCall     = "custom_tool_call"
 	responsesInputTypeCustomToolOutput   = "custom_tool_call_output"
+	responsesInputTypeReasoning          = "reasoning"
 )
 
 const (
@@ -150,35 +151,47 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 		if err := common.Unmarshal(req.Input, &items); err != nil {
 			return nil, fmt.Errorf("invalid input array: %w", err)
 		}
+		pendingReasoning := ""
 		for _, item := range items {
-			nextMessages, err := responsesInputItemToChatMessages(item, messages)
+			nextMessages, err := responsesInputItemToChatMessages(item, messages, &pendingReasoning)
 			if err != nil {
 				return nil, err
 			}
 			messages = nextMessages
 		}
+		attachPendingReasoningToLastAssistant(messages, &pendingReasoning)
 		return messages, nil
 	default:
 		return nil, fmt.Errorf("unsupported responses input type %q", common.GetJsonType(req.Input))
 	}
 }
 
-func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message) ([]dto.Message, error) {
+func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message, pendingReasoning *string) ([]dto.Message, error) {
 	itemType := strings.TrimSpace(common.Interface2String(item["type"]))
 	switch itemType {
+	case responsesInputTypeReasoning:
+		appendPendingReasoning(pendingReasoning, responsesItemReasoningText(item))
+		return messages, nil
 	case responsesInputTypeFunctionCall:
 		toolCall, err := responsesFunctionCallItemToChatToolCall(item)
 		if err != nil {
 			return nil, err
 		}
-		return appendToolCallToLastAssistant(messages, toolCall), nil
+		appendPendingReasoning(pendingReasoning, responsesItemReasoningText(item))
+		messages = appendToolCallToLastAssistant(messages, toolCall)
+		attachPendingReasoningToLastAssistant(messages, pendingReasoning)
+		return messages, nil
 	case responsesInputTypeCustomToolCall:
 		toolCall, err := responsesCustomToolCallItemToChatToolCall(item)
 		if err != nil {
 			return nil, err
 		}
-		return appendToolCallToLastAssistant(messages, toolCall), nil
+		appendPendingReasoning(pendingReasoning, responsesItemReasoningText(item))
+		messages = appendToolCallToLastAssistant(messages, toolCall)
+		attachPendingReasoningToLastAssistant(messages, pendingReasoning)
+		return messages, nil
 	case responsesInputTypeFunctionCallOutput:
+		attachPendingReasoningToLastAssistant(messages, pendingReasoning)
 		callID := strings.TrimSpace(common.Interface2String(item["call_id"]))
 		content := responseToolOutputToChatContent(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), nil
@@ -192,7 +205,66 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 	if err != nil {
 		return nil, err
 	}
-	return append(messages, dto.Message{Role: role, Content: content}), nil
+
+	message := dto.Message{Role: role, Content: content}
+	if role == "assistant" {
+		appendReasoningContent(&message, responsesItemReasoningText(item))
+		messages = append(messages, message)
+		attachPendingReasoningToLastAssistant(messages, pendingReasoning)
+		return messages, nil
+	}
+
+	attachPendingReasoningToLastAssistant(messages, pendingReasoning)
+	return append(messages, message), nil
+}
+
+func responsesItemReasoningText(item map[string]any) string {
+	for _, key := range []string{"reasoning_content", "reasoning"} {
+		if text, ok := item[key].(string); ok && text != "" {
+			return text
+		}
+	}
+	if strings.TrimSpace(common.Interface2String(item["type"])) != responsesInputTypeReasoning {
+		return ""
+	}
+	for _, key := range []string{"summary", "content"} {
+		content, err := responsesInputContentToChatContent(item[key])
+		if text, ok := content.(string); err == nil && ok && text != "" {
+			return text
+		}
+	}
+	return common.Interface2String(item["text"])
+}
+
+func appendPendingReasoning(pending *string, reasoning string) {
+	if pending == nil || reasoning == "" || *pending == reasoning {
+		return
+	}
+	*pending += reasoning
+}
+
+func attachPendingReasoningToLastAssistant(messages []dto.Message, pending *string) {
+	if pending == nil || *pending == "" {
+		return
+	}
+	reasoning := *pending
+	*pending = ""
+	if len(messages) == 0 || messages[len(messages)-1].Role != "assistant" {
+		return
+	}
+	appendReasoningContent(&messages[len(messages)-1], reasoning)
+}
+
+func appendReasoningContent(message *dto.Message, reasoning string) {
+	if message == nil || reasoning == "" {
+		return
+	}
+	current := message.GetReasoningContent()
+	if current == reasoning {
+		return
+	}
+	message.ReasoningContent = new(string)
+	*message.ReasoningContent = current + reasoning
 }
 
 func responsesInputContentToChatContent(content any) (any, error) {
@@ -231,7 +303,7 @@ func responsesContentPartsToChatContent(parts []any) (any, error) {
 
 		partType := strings.TrimSpace(common.Interface2String(part["type"]))
 		switch partType {
-		case "input_text", "output_text", "text":
+		case "input_text", "output_text", "summary_text", "reasoning_text", "text":
 			text := common.Interface2String(part["text"])
 			textOnly.WriteString(text)
 			chatParts = append(chatParts, map[string]any{

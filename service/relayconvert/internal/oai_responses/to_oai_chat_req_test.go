@@ -128,6 +128,85 @@ func TestResponsesRequestToChatCompletionsRequestAssistantTextAndFunctionCallCoe
 	assert.JSONEq(t, `{"ok":true}`, got.Messages[1].StringContent())
 }
 
+func TestResponsesRequestToChatCompletionsRequestPreservesToolCallReasoning(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         []map[string]any
+		wantContent   string
+		wantReasoning string
+		wantCalls     int
+	}{
+		{
+			name: "reasoning before parallel function calls",
+			input: []map[string]any{
+				{
+					"type": "reasoning",
+					"summary": []map[string]any{
+						{"type": "summary_text", "text": "Need both "},
+						{"type": "summary_text", "text": "tool results."},
+					},
+				},
+				{"type": "function_call", "call_id": "call_1", "name": "first", "arguments": `{}`},
+				{"type": "function_call", "call_id": "call_2", "name": "second", "arguments": `{}`},
+				{"type": "function_call_output", "call_id": "call_1", "output": "one"},
+				{"type": "function_call_output", "call_id": "call_2", "output": "two"},
+			},
+			wantReasoning: "Need both tool results.",
+			wantCalls:     2,
+		},
+		{
+			name: "reasoning between assistant text and function call",
+			input: []map[string]any{
+				{
+					"role":    "assistant",
+					"content": []map[string]any{{"type": "output_text", "text": "Checking now."}},
+				},
+				{
+					"type":    "reasoning",
+					"content": []map[string]any{{"type": "summary_text", "text": "Need the lookup."}},
+				},
+				{"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": `{}`},
+				{"type": "function_call_output", "call_id": "call_1", "output": "done"},
+			},
+			wantContent:   "Checking now.",
+			wantReasoning: "Need the lookup.",
+			wantCalls:     1,
+		},
+		{
+			name: "reasoning embedded in function call",
+			input: []map[string]any{
+				{
+					"type":              "function_call",
+					"call_id":           "call_1",
+					"name":              "lookup",
+					"arguments":         `{}`,
+					"reasoning_content": "Need the lookup.",
+				},
+				{"type": "function_call_output", "call_id": "call_1", "output": "done"},
+			},
+			wantReasoning: "Need the lookup.",
+			wantCalls:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+				Model: "gpt-test",
+				Input: mustRawMessage(t, tt.input),
+			})
+			require.NoError(t, err)
+
+			require.Len(t, got.Messages, tt.wantCalls+1)
+			assistant := got.Messages[0]
+			assert.Equal(t, "assistant", assistant.Role)
+			assert.Equal(t, tt.wantContent, assistant.StringContent())
+			assert.Equal(t, tt.wantReasoning, assistant.GetReasoningContent())
+			assert.Len(t, assistant.ParseToolCalls(), tt.wantCalls)
+		})
+	}
+}
+
 func TestResponsesRequestToChatCompletionsRequestOnlyFunctionCallCreatesAssistant(t *testing.T) {
 	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
