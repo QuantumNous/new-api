@@ -214,6 +214,126 @@ func TestNormalizeCacheCreationSplit(t *testing.T) {
 	assert.Equal(t, 1, cache1h)
 }
 
+// TestStreamResponseOpenAI2ClaudeParallelToolCallsHaveValidBlockLifecycle
+// drives two parallel tool_use blocks (e.g. GLM-5.2 packing multiple tool
+// calls per chunk) through the OpenAI→Claude stream converter and asserts the
+// Anthropic SSE state machine stays valid: every content_block_delta/stop
+// targets an actively-open block index, no block starts twice, and every
+// started block is stopped (#4389).
+func TestStreamResponseOpenAI2ClaudeParallelToolCallsHaveValidBlockLifecycle(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{},
+	}
+
+	info.SendResponseCount = 1
+	events := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id: "chatcmpl_1", Model: "glm",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+				{Index: ptr(0), ID: "call_weather", Function: dto.FunctionResponse{Name: "get_weather"}},
+				{Index: ptr(1), ID: "call_time", Function: dto.FunctionResponse{Name: "get_time"}},
+			}},
+		}},
+	}, info)
+
+	info.SendResponseCount = 2
+	events = append(events, StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+				{Index: ptr(0), Function: dto.FunctionResponse{Arguments: `{"city":"Tokyo"}`}},
+				{Index: ptr(1), Function: dto.FunctionResponse{Arguments: `{}`}},
+			}},
+		}},
+	}, info)...)
+
+	info.SendResponseCount = 3
+	finishReason := "tool_calls"
+	events = append(events, StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{FinishReason: &finishReason}},
+		Usage:   &dto.Usage{},
+	}, info)...)
+
+	started := map[int]bool{}
+	stopped := map[int]bool{}
+	// capture argument payloads by block index so a converter that drops deltas
+	// (not just reorders them) still fails the test.
+	deltas := map[int][]string{}
+	for _, event := range events {
+		if event.Index == nil {
+			continue
+		}
+		idx := *event.Index
+		switch event.Type {
+		case "content_block_start":
+			require.False(t, started[idx], "block %d started twice", idx)
+			started[idx] = true
+		case "content_block_delta":
+			assert.True(t, started[idx], "block %d received delta before start", idx)
+			assert.False(t, stopped[idx], "block %d received delta after stop", idx)
+			if event.Delta != nil && event.Delta.PartialJson != nil {
+				deltas[idx] = append(deltas[idx], *event.Delta.PartialJson)
+			}
+		case "content_block_stop":
+			assert.True(t, started[idx], "block %d stopped before start", idx)
+			require.False(t, stopped[idx], "block %d stopped twice", idx)
+			stopped[idx] = true
+		}
+	}
+
+	assert.Equal(t, map[int]bool{0: true, 1: true}, started)
+	assert.Equal(t, started, stopped)
+	assert.Equal(t, []string{`{"city":"Tokyo"}`}, deltas[0], "block 0 must deliver its argument payload")
+	assert.Equal(t, []string{`{}`}, deltas[1], "block 1 must deliver its argument payload")
+}
+
+// TestStreamResponseOpenAI2ClaudeReplayedToolNameDoesNotDuplicateStart covers
+// providers that echo the full tool_call (id+name) in every delta instead of
+// streaming incremental fragments: a replayed name for an already-open index
+// must not emit a second content_block_start.
+func TestStreamResponseOpenAI2ClaudeReplayedToolNameDoesNotDuplicateStart(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{},
+	}
+
+	info.SendResponseCount = 1
+	first := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id: "chatcmpl_1", Model: "glm",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+				{Index: ptr(0), ID: "call_weather", Function: dto.FunctionResponse{Name: "get_weather"}},
+			}},
+		}},
+	}, info)
+
+	info.SendResponseCount = 2
+	// upstream re-echoes name+id alongside an arguments fragment
+	second := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+				{Index: ptr(0), ID: "call_weather", Function: dto.FunctionResponse{Name: "get_weather", Arguments: `{"city":"Tokyo"}`}},
+			}},
+		}},
+	}, info)
+
+	info.SendResponseCount = 3
+	finishReason := "tool_calls"
+	third := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{FinishReason: &finishReason}},
+		Usage:   &dto.Usage{},
+	}, info)
+
+	// collect every content_block_start index; a replayed name must not start a
+	// new block at any index (e.g. a spurious index 1), so assert the exact set.
+	var startIndexes []int
+	for _, event := range append(append(first, second...), third...) {
+		if event.Type != "content_block_start" || event.Index == nil {
+			continue
+		}
+		startIndexes = append(startIndexes, *event.Index)
+	}
+	assert.Equal(t, []int{0}, startIndexes, "only block 0 may start despite replayed name")
+}
+
 func ptr[T any](value T) *T {
 	return &value
 }
