@@ -34,7 +34,7 @@ electron/dist
 token_estimator_test.go
 skills-lock.json
 .playwright-mcp
-
+.omo/
 # Local-only live probes and scratch test workspaces.
 .local-tests/
 service/relayconvert/chat_responses_live_local_test.go

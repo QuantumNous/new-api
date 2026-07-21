@@ -46,12 +46,16 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
+	originalDB := model.DB
+	originalLogDB := model.LOG_DB
 	model.DB = db
 	model.LOG_DB = db
 
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}))
 
 	t.Cleanup(func() {
+		model.DB = originalDB
+		model.LOG_DB = originalLogDB
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()
@@ -69,7 +73,11 @@ func initModelListColumnNames(t *testing.T) {
 	originalMainDatabaseType := common.MainDatabaseType()
 	originalLogDatabaseType := common.LogDatabaseType()
 	originalSQLDSN, hadSQLDSN := os.LookupEnv("SQL_DSN")
+	originalDB := model.DB
+	originalLogDB := model.LOG_DB
 	defer func() {
+		model.DB = originalDB
+		model.LOG_DB = originalLogDB
 		common.IsMasterNode = originalIsMasterNode
 		common.SQLitePath = originalSQLitePath
 		common.SetDatabaseTypes(originalMainDatabaseType, originalLogDatabaseType)
