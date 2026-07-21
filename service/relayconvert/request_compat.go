@@ -1,34 +1,33 @@
 package relayconvert
 
 import (
+	"context"
 	"github.com/QuantumNous/new-api/dto"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	claudemessages "github.com/QuantumNous/new-api/service/relayconvert/internal/claude_messages"
 	geminichat "github.com/QuantumNous/new-api/service/relayconvert/internal/gemini_chat"
 	oaichat "github.com/QuantumNous/new-api/service/relayconvert/internal/oai_chat"
 	oairesponses "github.com/QuantumNous/new-api/service/relayconvert/internal/oai_responses"
 	sharedgemini "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/gemini"
-	"github.com/QuantumNous/new-api/setting/model_setting"
-	"context"
 )
 
-func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
+func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
 	return claudemessages.ClaudeMessagesRequestToOpenAIChat(claudeRequest, info)
 }
 
-func OpenAIChatRequestToClaudeMessages(c context.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
-	return oaichat.OpenAIChatRequestToClaudeMessages(c, textRequest)
+func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
+	return oaichat.OpenAIChatRequestToClaudeMessages(c, info, textRequest)
 }
 
-func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
+func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
 	return geminichat.GeminiGenerateContentRequestToOpenAIChat(geminiRequest, info)
 }
 
-func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*dto.GeminiChatRequest, error) {
+func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
 	return oaichat.OpenAIChatRequestToGeminiGenerateContent(c, textRequest, info)
 }
 
-func ApplyGeminiThinkingConfig(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) {
+func ApplyGeminiThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, oaiRequest ...dto.GeneralOpenAIRequest) {
 	sharedgemini.ApplyThinkingConfig(geminiRequest, info, oaiRequest...)
 }
 
@@ -40,18 +39,10 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 	return oairesponses.ResponsesRequestToChatCompletionsRequest(req)
 }
 
-func OpenAIResponsesRequestToClaudeMessages(c context.Context, req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
-	return oairesponses.OpenAIResponsesRequestToClaudeMessages(c, req)
+func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
+	return oairesponses.OpenAIResponsesRequestToClaudeMessages(c, info, req)
 }
 
-func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIResponsesRequest, info *relaycommon.RelayInfo) (*dto.GeminiChatRequest, error) {
+func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIResponsesRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
 	return oairesponses.OpenAIResponsesRequestToGeminiChat(c, req, info)
-}
-
-func ShouldChatCompletionsUseResponsesPolicy(policy model_setting.ChatCompletionsToResponsesPolicy, channelID int, channelType int, model string) bool {
-	return oaichat.ShouldChatCompletionsUseResponsesPolicy(policy, channelID, channelType, model)
-}
-
-func ShouldChatCompletionsUseResponsesGlobal(channelID int, channelType int, model string) bool {
-	return oaichat.ShouldChatCompletionsUseResponsesGlobal(channelID, channelType, model)
 }

@@ -4,24 +4,23 @@ import (
 	"fmt"
 	"strings"
 
+	"context"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
-	"github.com/QuantumNous/new-api/setting/model_setting"
-	"context"
 )
 
-func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, _ *relaycommon.RelayInfo, request any) (any, error) {
+func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, request any) (any, error) {
 	responsesRequest, err := OpenAIResponsesRequestFromAny(request)
 	if err != nil {
 		return nil, err
 	}
-	return OpenAIResponsesRequestToClaudeMessages(c, responsesRequest)
+	return OpenAIResponsesRequestToClaudeMessages(c, info, responsesRequest)
 }
 
-func OpenAIResponsesRequestToClaudeMessages(c context.Context, req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
+func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -42,8 +41,9 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, req *dto.OpenAIRe
 		claudeRequest.MaxTokens = common.GetPointer(*req.MaxOutputTokens)
 	}
 	if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens == 0 {
-		defaultMaxTokens := uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(req.Model))
-		claudeRequest.MaxTokens = &defaultMaxTokens
+		if defaultMaxTokens := uint(convmeta.OptionsOf(info).Claude.DefaultMaxTokensFor(req.Model)); defaultMaxTokens > 0 {
+			claudeRequest.MaxTokens = &defaultMaxTokens
+		}
 	}
 
 	functions, err := RequestFunctionDeclarations(req.Tools)

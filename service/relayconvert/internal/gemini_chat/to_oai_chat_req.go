@@ -6,18 +6,17 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/service/relayconvert/internal/jsonutil"
-	relaymeta "github.com/QuantumNous/new-api/service/relayconvert/internal/meta"
 )
 
-func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
+func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
 	modelName := ""
 	isStream := false
 	if info != nil {
-		isStream = info.IsStream
+		isStream = info.GetIsStream()
 	}
-	modelName = relaymeta.RelayInfoUpstreamModelName(info)
+	modelName = convmeta.UpstreamModelName(info)
 	openaiRequest := &dto.GeneralOpenAIRequest{
 		Model:  modelName,
 		Stream: common.GetPointer(isStream),

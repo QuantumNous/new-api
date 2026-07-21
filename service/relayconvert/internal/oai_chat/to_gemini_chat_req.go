@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"strings"
 
+	"context"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
-	relaymeta "github.com/QuantumNous/new-api/service/relayconvert/internal/meta"
 	sharedgemini "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/gemini"
-	"github.com/QuantumNous/new-api/setting/model_setting"
-	"context"
 )
 
-func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*dto.GeminiChatRequest, error) {
+func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
+	opts := convmeta.OptionsOf(info)
 	geminiRequest := dto.GeminiChatRequest{
 		Contents: make([]dto.GeminiChatContent, 0, len(textRequest.Messages)),
 		GenerationConfig: dto.GeminiChatGenerationConfig{
@@ -34,11 +33,11 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 	}
 
 	upstreamModelName := textRequest.Model
-	if modelName := relaymeta.RelayInfoUpstreamModelName(info); modelName != "" {
+	if modelName := convmeta.UpstreamModelName(info); modelName != "" {
 		upstreamModelName = modelName
 	}
 
-	if model_setting.IsGeminiModelSupportImagine(upstreamModelName) {
+	if opts.Gemini.SupportsImagineModel(upstreamModelName) {
 		geminiRequest.GenerationConfig.ResponseModalities = []string{
 			"TEXT",
 			"IMAGE",
@@ -156,7 +155,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 	for _, category := range sharedgemini.SafetySettingCategories {
 		safetySettings = append(safetySettings, dto.GeminiChatSafetySettings{
 			Category:  category,
-			Threshold: model_setting.GetGeminiSafetySetting(category),
+			Threshold: opts.Gemini.SafetySettingFor(category),
 		})
 	}
 	geminiRequest.SafetySettings = safetySettings
@@ -276,7 +275,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		content := dto.GeminiChatContent{
 			Role: message.Role,
 		}
-		shouldAttachThoughtSignature := (message.Role == "assistant" || message.Role == "model") && sharedgemini.ShouldAttachThoughtSignature()
+		shouldAttachThoughtSignature := (message.Role == "assistant" || message.Role == "model") && sharedgemini.ShouldAttachThoughtSignature(opts)
 		signatureAttached := false
 		if message.ToolCalls != nil {
 			for _, call := range message.ParseToolCalls() {
@@ -292,7 +291,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 						Arguments:    args,
 					},
 				}
-				if shouldAttachThoughtSignature && !signatureAttached && sharedgemini.AttachFunctionCallThoughtSignature(&toolCall) {
+				if shouldAttachThoughtSignature && !signatureAttached && sharedgemini.AttachFunctionCallThoughtSignature(opts, &toolCall) {
 					signatureAttached = true
 				}
 				parts = append(parts, toolCall)
@@ -346,7 +345,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 						},
 					}
 					if shouldAttachThoughtSignature {
-						sharedgemini.AttachThoughtSignatureBypass(&imgPart)
+						sharedgemini.AttachThoughtSignatureBypass(opts, &imgPart)
 					}
 					parts = append(parts, imgPart)
 					text = text[closeIdx+1:]
@@ -380,7 +379,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		}
 
 		if shouldAttachThoughtSignature && !signatureAttached && len(parts) > 0 {
-			sharedgemini.AttachFirstTextThoughtSignature(parts)
+			sharedgemini.AttachFirstTextThoughtSignature(opts, parts)
 		}
 
 		content.Parts = parts

@@ -7,17 +7,17 @@ import (
 	"strings"
 	"sync"
 
+	"context"
 	"github.com/QuantumNous/new-api/dto"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	claudemessages "github.com/QuantumNous/new-api/service/relayconvert/internal/claude_messages"
 	geminichat "github.com/QuantumNous/new-api/service/relayconvert/internal/gemini_chat"
 	oaichat "github.com/QuantumNous/new-api/service/relayconvert/internal/oai_chat"
 	oairesponses "github.com/QuantumNous/new-api/service/relayconvert/internal/oai_responses"
 	"github.com/QuantumNous/new-api/types"
-	"context"
 )
 
-type RequestConverterFunc func(c context.Context, info *relaycommon.RelayInfo, request any) (any, error)
+type RequestConverterFunc func(c context.Context, info convmeta.Meta, request any) (any, error)
 
 type RequestConverterQuality string
 
@@ -148,7 +148,7 @@ func LookupRequestConverter(converter string) (RequestConverterSpec, bool) {
 	return cloneRequestConverterSpec(spec), true
 }
 
-func ConvertRequest(c context.Context, info *relaycommon.RelayInfo, target types.RelayFormat, request any) (*RequestResult, error) {
+func ConvertRequest(c context.Context, info convmeta.Meta, target types.RelayFormat, request any) (*RequestResult, error) {
 	from, err := inferRequestRelayFormat(request)
 	if err != nil {
 		return nil, err
@@ -171,7 +171,7 @@ func ConvertRequest(c context.Context, info *relaycommon.RelayInfo, target types
 	return executeRequestSpec(c, info, from, target, request, spec)
 }
 
-func ConvertRequestVia(c context.Context, info *relaycommon.RelayInfo, request any, path ...types.RelayFormat) (*RequestResult, error) {
+func ConvertRequestVia(c context.Context, info convmeta.Meta, request any, path ...types.RelayFormat) (*RequestResult, error) {
 	from, err := inferRequestRelayFormat(request)
 	if err != nil {
 		return nil, err
@@ -211,7 +211,7 @@ func ConvertRequestVia(c context.Context, info *relaycommon.RelayInfo, request a
 	return executeRequestSteps(c, info, from, targets[len(targets)-1], request, "", "", steps)
 }
 
-func ConvertRequestByID(c context.Context, info *relaycommon.RelayInfo, converter string, request any) (*RequestResult, error) {
+func ConvertRequestByID(c context.Context, info convmeta.Meta, converter string, request any) (*RequestResult, error) {
 	from, err := inferRequestRelayFormat(request)
 	if err != nil {
 		return nil, err
@@ -227,7 +227,7 @@ func ConvertRequestByID(c context.Context, info *relaycommon.RelayInfo, converte
 	return executeRequestSpec(c, info, from, spec.To, request, spec)
 }
 
-func executeRequestSpec(c context.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, request any, spec RequestConverterSpec) (*RequestResult, error) {
+func executeRequestSpec(c context.Context, info convmeta.Meta, from types.RelayFormat, target types.RelayFormat, request any, spec RequestConverterSpec) (*RequestResult, error) {
 	steps, err := expandRequestConverterSteps(spec)
 	if err != nil {
 		return nil, err
@@ -235,7 +235,7 @@ func executeRequestSpec(c context.Context, info *relaycommon.RelayInfo, from typ
 	return executeRequestSteps(c, info, from, target, request, spec.ID, spec.Quality, steps)
 }
 
-func executeRequestSteps(c context.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, request any, converter string, quality RequestConverterQuality, specs []RequestConverterSpec) (*RequestResult, error) {
+func executeRequestSteps(c context.Context, info convmeta.Meta, from types.RelayFormat, target types.RelayFormat, request any, converter string, quality RequestConverterQuality, specs []RequestConverterSpec) (*RequestResult, error) {
 	current := request
 	steps := make([]RequestStep, 0, len(specs))
 	for _, spec := range specs {
@@ -303,7 +303,7 @@ func expandRequestConverterSteps(spec RequestConverterSpec) ([]RequestConverterS
 	return steps, nil
 }
 
-func executeRequestStep(c context.Context, info *relaycommon.RelayInfo, spec RequestConverterSpec, request any) (any, RequestStep, error) {
+func executeRequestStep(c context.Context, info convmeta.Meta, spec RequestConverterSpec, request any) (any, RequestStep, error) {
 	if spec.Convert == nil {
 		return nil, RequestStep{}, fmt.Errorf("request converter %q has no registered implementation", spec.ID)
 	}
@@ -379,7 +379,7 @@ func inferRequestRelayFormat(request any) (types.RelayFormat, error) {
 	if isNilRequest(request) {
 		return "", errors.New("request is nil")
 	}
-	format, ok := relaycommon.GuessRelayFormatFromRequest(request)
+	format, ok := convmeta.GuessRelayFormatFromRequest(request)
 	if !ok {
 		return "", fmt.Errorf("unsupported request type %T", request)
 	}
@@ -399,7 +399,7 @@ func isNilRequest(request any) bool {
 	}
 }
 
-func convertChatRequestToResponses(_ context.Context, _ *relaycommon.RelayInfo, request any) (any, error) {
+func convertChatRequestToResponses(_ context.Context, _ convmeta.Meta, request any) (any, error) {
 	chatRequest, ok := request.(*dto.GeneralOpenAIRequest)
 	if !ok {
 		if value, ok := request.(dto.GeneralOpenAIRequest); ok {
@@ -412,7 +412,7 @@ func convertChatRequestToResponses(_ context.Context, _ *relaycommon.RelayInfo, 
 	return oaichat.ChatCompletionsRequestToResponsesRequest(chatRequest)
 }
 
-func convertClaudeRequestToOpenAI(_ context.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+func convertClaudeRequestToOpenAI(_ context.Context, info convmeta.Meta, request any) (any, error) {
 	claudeRequest, ok := request.(*dto.ClaudeRequest)
 	if !ok {
 		if value, ok := request.(dto.ClaudeRequest); ok {
@@ -425,7 +425,7 @@ func convertClaudeRequestToOpenAI(_ context.Context, info *relaycommon.RelayInfo
 	return claudemessages.ClaudeMessagesRequestToOpenAIChat(*claudeRequest, info)
 }
 
-func convertOpenAIRequestToClaude(c context.Context, _ *relaycommon.RelayInfo, request any) (any, error) {
+func convertOpenAIRequestToClaude(c context.Context, info convmeta.Meta, request any) (any, error) {
 	openAIRequest, ok := request.(*dto.GeneralOpenAIRequest)
 	if !ok {
 		if value, ok := request.(dto.GeneralOpenAIRequest); ok {
@@ -435,10 +435,10 @@ func convertOpenAIRequestToClaude(c context.Context, _ *relaycommon.RelayInfo, r
 	if openAIRequest == nil {
 		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", request)
 	}
-	return oaichat.OpenAIChatRequestToClaudeMessages(c, *openAIRequest)
+	return oaichat.OpenAIChatRequestToClaudeMessages(c, info, *openAIRequest)
 }
 
-func convertGeminiRequestToOpenAI(_ context.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+func convertGeminiRequestToOpenAI(_ context.Context, info convmeta.Meta, request any) (any, error) {
 	geminiRequest, ok := request.(*dto.GeminiChatRequest)
 	if !ok {
 		if value, ok := request.(dto.GeminiChatRequest); ok {
@@ -451,7 +451,7 @@ func convertGeminiRequestToOpenAI(_ context.Context, info *relaycommon.RelayInfo
 	return geminichat.GeminiGenerateContentRequestToOpenAIChat(geminiRequest, info)
 }
 
-func convertOpenAIRequestToGemini(c context.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+func convertOpenAIRequestToGemini(c context.Context, info convmeta.Meta, request any) (any, error) {
 	openAIRequest, ok := request.(*dto.GeneralOpenAIRequest)
 	if !ok {
 		if value, ok := request.(dto.GeneralOpenAIRequest); ok {
@@ -464,15 +464,15 @@ func convertOpenAIRequestToGemini(c context.Context, info *relaycommon.RelayInfo
 	return oaichat.OpenAIChatRequestToGeminiGenerateContent(c, *openAIRequest, info)
 }
 
-func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, _ *relaycommon.RelayInfo, request any) (any, error) {
+func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, request any) (any, error) {
 	responsesRequest, err := oairesponses.OpenAIResponsesRequestFromAny(request)
 	if err != nil {
 		return nil, err
 	}
-	return oairesponses.OpenAIResponsesRequestToClaudeMessages(c, responsesRequest)
+	return oairesponses.OpenAIResponsesRequestToClaudeMessages(c, info, responsesRequest)
 }
 
-func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.Meta, request any) (any, error) {
 	responsesRequest, err := oairesponses.OpenAIResponsesRequestFromAny(request)
 	if err != nil {
 		return nil, err
@@ -485,7 +485,7 @@ func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info *relaycom
 	return oairesponses.OpenAIResponsesRequestToGeminiChat(c, &prepared, info)
 }
 
-func convertResponsesRequestToChat(_ context.Context, _ *relaycommon.RelayInfo, request any) (any, error) {
+func convertResponsesRequestToChat(_ context.Context, _ convmeta.Meta, request any) (any, error) {
 	responsesRequest, ok := request.(*dto.OpenAIResponsesRequest)
 	if !ok {
 		if value, ok := request.(dto.OpenAIResponsesRequest); ok {

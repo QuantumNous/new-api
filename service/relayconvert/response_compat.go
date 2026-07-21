@@ -2,7 +2,7 @@ package relayconvert
 
 import (
 	"github.com/QuantumNous/new-api/dto"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	claudemessages "github.com/QuantumNous/new-api/service/relayconvert/internal/claude_messages"
 	geminichat "github.com/QuantumNous/new-api/service/relayconvert/internal/gemini_chat"
 	oaichat "github.com/QuantumNous/new-api/service/relayconvert/internal/oai_chat"
@@ -20,11 +20,11 @@ func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (i
 	return oaichat.NormalizeCacheCreationSplit(totalTokens, tokens5m, tokens1h)
 }
 
-func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) *dto.ClaudeResponse {
+func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.ClaudeResponse {
 	return oaichat.ResponseOpenAI2Claude(openAIResponse, info)
 }
 
-func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) []*dto.ClaudeResponse {
+func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info convmeta.Meta) []*dto.ClaudeResponse {
 	return oaichat.StreamResponseOpenAI2Claude(openAIResponse, info)
 }
 
@@ -60,11 +60,11 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 	return claudemessages.FormatClaudeResponseInfo(claudeResponse, oaiResponse, claudeInfo)
 }
 
-func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) *dto.GeminiChatResponse {
+func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.GeminiChatResponse {
 	return oaichat.ResponseOpenAI2Gemini(openAIResponse, info)
 }
 
-func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) *dto.GeminiChatResponse {
+func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamResponse, info convmeta.Meta) *dto.GeminiChatResponse {
 	return oaichat.StreamResponseOpenAI2Gemini(openAIResponse, info)
 }
 

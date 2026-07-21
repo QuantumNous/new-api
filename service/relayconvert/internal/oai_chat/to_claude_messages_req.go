@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"context"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
-	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/QuantumNous/new-api/setting/reasoning"
-	"context"
+	"github.com/QuantumNous/new-api/service/relayconvert/reasoning"
 )
 
 const (
@@ -27,7 +27,8 @@ type openRouterRequestReasoning struct {
 	Exclude   bool   `json:"exclude,omitempty"`
 }
 
-func OpenAIChatRequestToClaudeMessages(c context.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
+func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
+	opts := convmeta.OptionsOf(info)
 	claudeTools := make([]any, 0, len(textRequest.Tools))
 
 	for _, tool := range textRequest.Tools {
@@ -123,8 +124,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, textRequest dto.Genera
 	}
 
 	if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens == 0 {
-		defaultMaxTokens := uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(textRequest.Model))
-		claudeRequest.MaxTokens = &defaultMaxTokens
+		if defaultMaxTokens := uint(opts.Claude.DefaultMaxTokensFor(textRequest.Model)); defaultMaxTokens > 0 {
+			claudeRequest.MaxTokens = &defaultMaxTokens
+		}
 	}
 
 	if baseModel, effortLevel, ok := reasoning.TrimEffortSuffix(textRequest.Model); ok && effortLevel != "" &&
@@ -146,7 +148,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, textRequest dto.Genera
 			claudeRequest.TopP = nil
 			claudeRequest.Temperature = common.GetPointer[float64](1.0)
 		}
-	} else if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
+	} else if opts.Claude.ThinkingAdapterEnabled &&
 		strings.HasSuffix(textRequest.Model, "-thinking") {
 
 		trimmedModel := strings.TrimSuffix(textRequest.Model, "-thinking")
@@ -164,12 +166,12 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, textRequest dto.Genera
 
 			claudeRequest.Thinking = &dto.Thinking{
 				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](int(float64(*claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)),
+				BudgetTokens: common.GetPointer[int](int(float64(*claudeRequest.MaxTokens) * opts.Claude.ThinkingAdapterBudgetTokensPercentage)),
 			}
 			claudeRequest.TopP = nil
 			claudeRequest.Temperature = common.GetPointer[float64](1.0)
 		}
-		if !model_setting.ShouldPreserveThinkingSuffix(textRequest.Model) {
+		if !opts.ShouldPreserveThinkingSuffix(textRequest.Model) {
 			claudeRequest.Model = trimmedModel
 		}
 	}

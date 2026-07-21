@@ -22,6 +22,9 @@ type Meta interface {
 	GetChannelType() int
 	GetIsStream() bool
 	GetReasoningEffort() string
+	// SetReasoningEffort records the effort level a converter derived from a
+	// model-name suffix so downstream billing/logging can see it.
+	SetReasoningEffort(effort string)
 	GetEstimatePromptTokens() int
 
 	// EnsureClaudeConvertInfo lazily creates and returns the mutable
@@ -83,14 +86,15 @@ type Values struct {
 
 var _ Meta = (*Values)(nil)
 
-func (v *Values) GetOriginModelName() string   { return v.OriginModelName }
-func (v *Values) GetUpstreamModelName() string { return v.UpstreamModelName }
-func (v *Values) HasChannelMeta() bool         { return v.ChannelMetaAttached }
-func (v *Values) GetChannelID() int            { return v.ChannelID }
-func (v *Values) GetChannelType() int          { return v.ChannelType }
-func (v *Values) GetIsStream() bool            { return v.IsStream }
-func (v *Values) GetReasoningEffort() string   { return v.ReasoningEffort }
-func (v *Values) GetEstimatePromptTokens() int { return v.EstimatePromptTokens }
+func (v *Values) GetOriginModelName() string       { return v.OriginModelName }
+func (v *Values) GetUpstreamModelName() string     { return v.UpstreamModelName }
+func (v *Values) HasChannelMeta() bool             { return v.ChannelMetaAttached }
+func (v *Values) GetChannelID() int                { return v.ChannelID }
+func (v *Values) GetChannelType() int              { return v.ChannelType }
+func (v *Values) GetIsStream() bool                { return v.IsStream }
+func (v *Values) GetReasoningEffort() string       { return v.ReasoningEffort }
+func (v *Values) SetReasoningEffort(effort string) { v.ReasoningEffort = effort }
+func (v *Values) GetEstimatePromptTokens() int     { return v.EstimatePromptTokens }
 
 func (v *Values) EnsureClaudeConvertInfo() *ClaudeConvertInfo {
 	if v.ClaudeConvertInfo == nil {
@@ -117,4 +121,29 @@ func (v *Values) ConvOptions() *Options {
 		v.Options = &Options{}
 	}
 	return v.Options
+}
+
+// UpstreamModelName / ChannelTypeOf are nil-safe accessors for optional Meta
+// values (converters are often called with a nil Meta in tests and compat
+// shims).
+func UpstreamModelName(m Meta) string {
+	if m == nil || !m.HasChannelMeta() {
+		return ""
+	}
+	return m.GetUpstreamModelName()
+}
+
+func ChannelTypeOf(m Meta) int {
+	if m == nil || !m.HasChannelMeta() {
+		return 0
+	}
+	return m.GetChannelType()
+}
+
+// OptionsOf returns m's conversion options, or empty defaults when m is nil.
+func OptionsOf(m Meta) *Options {
+	if m == nil {
+		return &Options{}
+	}
+	return m.ConvOptions()
 }

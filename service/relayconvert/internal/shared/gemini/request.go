@@ -6,10 +6,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	relaymeta "github.com/QuantumNous/new-api/service/relayconvert/internal/meta"
-	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/QuantumNous/new-api/setting/reasoning"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/service/relayconvert/reasoning"
 )
 
 var SupportedMimeTypes = map[string]bool{
@@ -51,27 +49,27 @@ const (
 	flash25LiteMaxBudget = 24576
 )
 
-func ShouldAttachThoughtSignature() bool {
-	return model_setting.GetGeminiSettings().FunctionCallThoughtSignatureEnabled
+func ShouldAttachThoughtSignature(opts *convmeta.Options) bool {
+	return opts != nil && opts.Gemini.FunctionCallThoughtSignatureEnabled
 }
 
-func AttachThoughtSignatureBypass(part *dto.GeminiPart) bool {
-	if part == nil || len(part.ThoughtSignature) > 0 || !ShouldAttachThoughtSignature() {
+func AttachThoughtSignatureBypass(opts *convmeta.Options, part *dto.GeminiPart) bool {
+	if part == nil || len(part.ThoughtSignature) > 0 || !ShouldAttachThoughtSignature(opts) {
 		return false
 	}
 	part.ThoughtSignature = []byte(strconv.Quote(ThoughtSignatureBypassValue))
 	return true
 }
 
-func AttachFunctionCallThoughtSignature(part *dto.GeminiPart) bool {
+func AttachFunctionCallThoughtSignature(opts *convmeta.Options, part *dto.GeminiPart) bool {
 	if part == nil || !HasFunctionCallContent(part.FunctionCall) {
 		return false
 	}
-	return AttachThoughtSignatureBypass(part)
+	return AttachThoughtSignatureBypass(opts, part)
 }
 
-func AttachFirstTextThoughtSignature(parts []dto.GeminiPart) bool {
-	if !ShouldAttachThoughtSignature() {
+func AttachFirstTextThoughtSignature(opts *convmeta.Options, parts []dto.GeminiPart) bool {
+	if !ShouldAttachThoughtSignature(opts) {
 		return false
 	}
 	for i := range parts {
@@ -83,12 +81,13 @@ func AttachFirstTextThoughtSignature(parts []dto.GeminiPart) bool {
 	return false
 }
 
-func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) {
-	if geminiRequest == nil || info == nil || !model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
+func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, oaiRequest ...dto.GeneralOpenAIRequest) {
+	opts := convmeta.OptionsOf(info)
+	if geminiRequest == nil || info == nil || !opts.Gemini.ThinkingAdapterEnabled {
 		return
 	}
 
-	modelName := relaymeta.RelayInfoUpstreamModelName(info)
+	modelName := convmeta.UpstreamModelName(info)
 	isNew25Pro := strings.HasPrefix(modelName, "gemini-2.5-pro") &&
 		!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-05-06") &&
 		!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-03-25")
@@ -126,7 +125,7 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info *relaycommon
 				IncludeThoughts: true,
 			}
 			if geminiRequest.GenerationConfig.MaxOutputTokens != nil && *geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
-				budgetTokens := model_setting.GetGeminiSettings().ThinkingAdapterBudgetTokensPercentage * float64(*geminiRequest.GenerationConfig.MaxOutputTokens)
+				budgetTokens := opts.Gemini.ThinkingAdapterBudgetTokensPercentage * float64(*geminiRequest.GenerationConfig.MaxOutputTokens)
 				clampedBudget := clampThinkingBudget(modelName, int(budgetTokens))
 				geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = common.GetPointer(clampedBudget)
 			} else if len(oaiRequest) > 0 {
@@ -144,7 +143,7 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info *relaycommon
 			IncludeThoughts: true,
 			ThinkingLevel:   level,
 		}
-		info.ReasoningEffort = level
+		info.SetReasoningEffort(level)
 	}
 }
 

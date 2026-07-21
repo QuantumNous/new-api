@@ -4,17 +4,15 @@ import (
 	"fmt"
 	"strings"
 
+	"context"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
-	relaymeta "github.com/QuantumNous/new-api/service/relayconvert/internal/meta"
 	sharedgemini "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/gemini"
-	"github.com/QuantumNous/new-api/setting/model_setting"
-	"context"
 )
 
-func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.Meta, request any) (any, error) {
 	responsesRequest, err := OpenAIResponsesRequestFromAny(request)
 	if err != nil {
 		return nil, err
@@ -27,7 +25,8 @@ func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info *relaycom
 	return OpenAIResponsesRequestToGeminiChat(c, &prepared, info)
 }
 
-func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIResponsesRequest, info *relaycommon.RelayInfo) (*dto.GeminiChatRequest, error) {
+func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIResponsesRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
+	opts := convmeta.OptionsOf(info)
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -51,10 +50,10 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 	}
 
 	upstreamModelName := req.Model
-	if modelName := relaymeta.RelayInfoUpstreamModelName(info); modelName != "" {
+	if modelName := convmeta.UpstreamModelName(info); modelName != "" {
 		upstreamModelName = modelName
 	}
-	if model_setting.IsGeminiModelSupportImagine(upstreamModelName) {
+	if opts.Gemini.SupportsImagineModel(upstreamModelName) {
 		geminiRequest.GenerationConfig.ResponseModalities = []string{"TEXT", "IMAGE"}
 	}
 	if err := applyResponsesTextToGemini(req.Text, geminiRequest); err != nil {
@@ -70,7 +69,7 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 	for _, category := range sharedgemini.SafetySettingCategories {
 		safetySettings = append(safetySettings, dto.GeminiChatSafetySettings{
 			Category:  category,
-			Threshold: model_setting.GetGeminiSafetySetting(category),
+			Threshold: opts.Gemini.SafetySettingFor(category),
 		})
 	}
 	geminiRequest.SafetySettings = safetySettings
@@ -126,7 +125,7 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 			if err != nil {
 				return nil, err
 			}
-			sharedgemini.AttachFunctionCallThoughtSignature(&part)
+			sharedgemini.AttachFunctionCallThoughtSignature(opts, &part)
 			if callID != "" {
 				callNames[callID] = part.FunctionCall.FunctionName
 			}

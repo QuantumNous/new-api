@@ -4,8 +4,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/QuantumNous/new-api/types"
 	"context"
+	"github.com/QuantumNous/new-api/types"
 )
 
 type MediaResolver struct {
