@@ -369,9 +369,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		preferCapacityHost := shouldPreferDifferentCapacityHost(c, relayInfo, newAPIError)
-		if shouldAvoidRetryHost(newAPIError) || preferCapacityHost {
-			preferDifferentRetryHost(c, retryParam, relayInfo, preferCapacityHost)
+		if shouldPreferDifferentRetryHostAcrossPriorities(c, relayInfo, newAPIError) {
+			preferDifferentRetryHost(c, retryParam, relayInfo, true)
 		}
 
 		// Bound total retry wall-clock so a request cannot spend minutes cycling
@@ -675,8 +674,8 @@ func shouldAvoidRetryHost(apiErr *types.NewAPIError) bool {
 	return service.ShouldObserveUpstreamHostFailure(apiErr)
 }
 
-func shouldPreferDifferentCapacityHost(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) bool {
-	return shouldUseUpstreamCapacityFallback(c, info, apiErr)
+func shouldPreferDifferentRetryHostAcrossPriorities(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) bool {
+	return shouldAvoidRetryHost(apiErr) || shouldUseUpstreamCapacityFallback(c, info, apiErr)
 }
 
 func isUpstreamRateLimitError(apiErr *types.NewAPIError) bool {
