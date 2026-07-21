@@ -149,6 +149,11 @@ const DEFAULT_CHANNEL_MONITOR_SETTINGS: ChannelMonitorSettings = {
   smart_schedule_min_samples: 5,
 }
 const CHANNEL_MONITOR_SORT_STORAGE_KEY = 'channel-monitor:channel-sort'
+const CHANNEL_MONITOR_PERFORMANCE_RANGE_STORAGE_KEY =
+  'channel-monitor:performance-range:v1'
+const DEFAULT_CHANNEL_MONITOR_PERFORMANCE_MINUTES = 15
+const MIN_CHANNEL_MONITOR_PERFORMANCE_MINUTES = 1
+const MAX_CHANNEL_MONITOR_PERFORMANCE_MINUTES = 1440
 const CHANNEL_MONITOR_SORT_OPTIONS: Array<{
   value: ChannelMonitorSortMode
   label: string
@@ -163,13 +168,6 @@ const CHANNEL_MONITOR_SORT_OPTIONS: Array<{
   { value: 'tps_desc', label: 'TPS：从高到低' },
   { value: 'tps_asc', label: 'TPS：从低到高' },
 ]
-const CHANNEL_MONITOR_PERFORMANCE_RANGE_OPTIONS = [
-  { value: '15', label: '近 15 分钟', shortLabel: '近15分钟' },
-  { value: '60', label: '近 1 小时', shortLabel: '近1小时' },
-  { value: '360', label: '近 6 小时', shortLabel: '近6小时' },
-  { value: '1440', label: '近 24 小时', shortLabel: '近24小时' },
-]
-
 export function ChannelMonitor() {
   const queryClient = useQueryClient()
   const [view, setView] = useState<MonitorView>('channels')
@@ -177,7 +175,24 @@ export function ChannelMonitor() {
     useState<ChannelUpstreamFilter>('all')
   const [search, setSearch] = useState('')
   const [performanceRangeMinutes, setPerformanceRangeMinutes] =
-    useState<ChannelMonitorPerformanceRangeMinutes>(15)
+    useState<ChannelMonitorPerformanceRangeMinutes>(() => {
+      try {
+        const storedMinutes = Number(
+          localStorage.getItem(CHANNEL_MONITOR_PERFORMANCE_RANGE_STORAGE_KEY)
+        )
+        if (
+          Number.isInteger(storedMinutes) &&
+          storedMinutes >= MIN_CHANNEL_MONITOR_PERFORMANCE_MINUTES &&
+          storedMinutes <= MAX_CHANNEL_MONITOR_PERFORMANCE_MINUTES
+        ) {
+          return storedMinutes
+        }
+      } catch {}
+      return DEFAULT_CHANNEL_MONITOR_PERFORMANCE_MINUTES
+    })
+  const [performanceRangeInput, setPerformanceRangeInput] = useState(() =>
+    String(performanceRangeMinutes)
+  )
   const [performanceModelFilter, setPerformanceModelFilter] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] =
@@ -309,10 +324,28 @@ export function ChannelMonitor() {
   const smartScheduleLabel = settings.smart_schedule_enabled
     ? `智能调度：每 ${settings.smart_schedule_interval_minutes} 分钟`
     : '智能调度：已关闭'
-  const performanceRangeLabel =
-    CHANNEL_MONITOR_PERFORMANCE_RANGE_OPTIONS.find(
-      (option) => option.value === String(performanceRangeMinutes)
-    )?.shortLabel ?? '近15分钟'
+  const performanceRangeLabel = `近${performanceRangeMinutes}分钟`
+  const parsedPerformanceRangeMinutes = Number(performanceRangeInput)
+  const isPerformanceRangeInputValid =
+    Number.isInteger(parsedPerformanceRangeMinutes) &&
+    parsedPerformanceRangeMinutes >= MIN_CHANNEL_MONITOR_PERFORMANCE_MINUTES &&
+    parsedPerformanceRangeMinutes <= MAX_CHANNEL_MONITOR_PERFORMANCE_MINUTES
+
+  const applyPerformanceRange = () => {
+    if (!isPerformanceRangeInputValid) {
+      toast.error('统计范围必须是 1 到 1440 之间的整数分钟')
+      setPerformanceRangeInput(String(performanceRangeMinutes))
+      return
+    }
+    if (parsedPerformanceRangeMinutes === performanceRangeMinutes) return
+    setPerformanceRangeMinutes(parsedPerformanceRangeMinutes)
+    try {
+      localStorage.setItem(
+        CHANNEL_MONITOR_PERFORMANCE_RANGE_STORAGE_KEY,
+        String(parsedPerformanceRangeMinutes)
+      )
+    } catch {}
+  }
 
   const groups = useMemo<GroupMonitorItem[]>(() => {
     const groupNames = new Set(Object.keys(groupRatios))
@@ -673,7 +706,7 @@ export function ChannelMonitor() {
               )}
 
               {view === 'models' && (
-                <div className='flex w-full gap-2 sm:w-auto'>
+                <div className='flex w-full sm:w-56'>
                   <Select
                     items={performanceModelOptions}
                     value={activePerformanceModel || null}
@@ -698,46 +731,30 @@ export function ChannelMonitor() {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                  <Select
-                    items={CHANNEL_MONITOR_PERFORMANCE_RANGE_OPTIONS}
-                    value={String(performanceRangeMinutes)}
-                    onValueChange={(value) => {
-                      switch (value) {
-                        case '15':
-                          setPerformanceRangeMinutes(15)
-                          break
-                        case '60':
-                          setPerformanceRangeMinutes(60)
-                          break
-                        case '360':
-                          setPerformanceRangeMinutes(360)
-                          break
-                        case '1440':
-                          setPerformanceRangeMinutes(1440)
-                          break
-                      }
-                    }}
-                  >
-                    <SelectTrigger
-                      className='w-36 shrink-0 sm:w-40'
-                      aria-label='性能统计时间范围'
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent alignItemWithTrigger={false}>
-                      <SelectGroup>
-                        {CHANNEL_MONITOR_PERFORMANCE_RANGE_OPTIONS.map(
-                          (option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          )
-                        )}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
                 </div>
               )}
+
+              <InputGroup className='w-full sm:w-36'>
+                <InputGroupAddon>近</InputGroupAddon>
+                <InputGroupInput
+                  type='number'
+                  min={MIN_CHANNEL_MONITOR_PERFORMANCE_MINUTES}
+                  max={MAX_CHANNEL_MONITOR_PERFORMANCE_MINUTES}
+                  step={1}
+                  value={performanceRangeInput}
+                  onChange={(event) =>
+                    setPerformanceRangeInput(event.target.value)
+                  }
+                  onBlur={applyPerformanceRange}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur()
+                  }}
+                  aria-label='性能与成功率统计范围（分钟）'
+                  aria-invalid={!isPerformanceRangeInputValid}
+                  className='min-w-0 text-right font-mono'
+                />
+                <InputGroupAddon align='inline-end'>分钟</InputGroupAddon>
+              </InputGroup>
 
               <InputGroup className='w-full sm:max-w-sm'>
                 <InputGroupAddon>

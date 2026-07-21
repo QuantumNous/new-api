@@ -78,7 +78,7 @@ func TestGetChannelMonitorPerformanceReturnsUsageLogMetrics(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
-	context.Request = httptest.NewRequest(http.MethodGet, "/api/channel_monitor/performance?minutes=15", nil)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/channel_monitor/performance?minutes=30", nil)
 
 	GetChannelMonitorPerformance(context)
 
@@ -86,7 +86,7 @@ func TestGetChannelMonitorPerformanceReturnsUsageLogMetrics(t *testing.T) {
 	var response channelMonitorPerformanceAPIResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	assert.True(t, response.Success)
-	assert.Equal(t, 15, response.Data.RangeMinutes)
+	assert.Equal(t, 30, response.Data.RangeMinutes)
 	require.Len(t, response.Data.Items, 1)
 	assert.Equal(t, 7, response.Data.Items[0].ChannelId)
 	require.NotNil(t, response.Data.Items[0].AverageFirstTokenMs)
@@ -107,7 +107,7 @@ func TestGetChannelMonitorPerformanceReturnsUsageLogMetrics(t *testing.T) {
 
 	detailRecorder := httptest.NewRecorder()
 	detailContext, _ := gin.CreateTestContext(detailRecorder)
-	detailContext.Request = httptest.NewRequest(http.MethodGet, "/api/channel_monitor/success/detail?minutes=15&channel_id=7&model_name=test-model", nil)
+	detailContext.Request = httptest.NewRequest(http.MethodGet, "/api/channel_monitor/success/detail?minutes=30&channel_id=7&model_name=test-model", nil)
 	GetChannelMonitorSuccessDetail(detailContext)
 
 	assert.Equal(t, http.StatusOK, detailRecorder.Code)
@@ -126,14 +126,18 @@ func TestGetChannelMonitorPerformanceReturnsUsageLogMetrics(t *testing.T) {
 	assert.Equal(t, 503, detailResponse.Data.Detail.FailureCategories[0].StatusCode)
 }
 
-func TestGetChannelMonitorPerformanceRejectsUnsupportedRange(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	recorder := httptest.NewRecorder()
-	context, _ := gin.CreateTestContext(recorder)
-	context.Request = httptest.NewRequest(http.MethodGet, "/api/channel_monitor/performance?minutes=30", nil)
+func TestGetChannelMonitorPerformanceRejectsInvalidRange(t *testing.T) {
+	for _, minutes := range []string{"0", "1441", "invalid"} {
+		t.Run(minutes, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(recorder)
+			context.Request = httptest.NewRequest(http.MethodGet, "/api/channel_monitor/performance?minutes="+minutes, nil)
 
-	GetChannelMonitorPerformance(context)
+			GetChannelMonitorPerformance(context)
 
-	assert.Equal(t, http.StatusBadRequest, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), "性能统计仅支持")
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), "性能与成功率统计范围必须在 1 到 1440 分钟之间")
+		})
+	}
 }

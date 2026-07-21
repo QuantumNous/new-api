@@ -183,7 +183,7 @@ export function ChannelMonitorModelPerformanceView(
               <TableHead>平均首字</TableHead>
               <TableHead>平均 TPS</TableHead>
               <TableHead title='按真实上游调用统计，包含重试过程中的失败'>
-                请求成功率
+                成功率
               </TableHead>
               <TableHead>有效样本</TableHead>
               <TableHead>最后请求</TableHead>

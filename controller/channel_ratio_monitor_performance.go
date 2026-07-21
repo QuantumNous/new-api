@@ -13,22 +13,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const defaultChannelMonitorPerformanceMinutes = 15
+const (
+	defaultChannelMonitorPerformanceMinutes = 15
+	minChannelMonitorPerformanceMinutes     = 1
+	maxChannelMonitorPerformanceMinutes     = 1440
+)
 
 func getChannelMonitorPerformanceMinutes(c *gin.Context) (int, bool) {
 	minutes := defaultChannelMonitorPerformanceMinutes
 	if rawMinutes := c.Query("minutes"); rawMinutes != "" {
 		parsedMinutes, err := strconv.Atoi(rawMinutes)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "性能统计时间范围无效"})
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "性能与成功率统计范围必须在 1 到 1440 分钟之间"})
 			return 0, false
 		}
 		minutes = parsedMinutes
 	}
-	switch minutes {
-	case 15, 60, 360, 1440:
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "性能统计仅支持 15 分钟、1 小时、6 小时或 24 小时"})
+	if minutes < minChannelMonitorPerformanceMinutes || minutes > maxChannelMonitorPerformanceMinutes {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "性能与成功率统计范围必须在 1 到 1440 分钟之间"})
 		return 0, false
 	}
 	return minutes, true

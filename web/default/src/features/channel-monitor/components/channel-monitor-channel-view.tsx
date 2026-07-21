@@ -286,7 +286,7 @@ export function ChannelMonitorChannelView(
               className='whitespace-normal'
               title='按真实上游调用统计，包含重试过程中的失败'
             >
-              请求成功率（{props.performanceRangeLabel}）
+              成功率（{props.performanceRangeLabel}）
             </TableHead>
             {props.smartScheduleEnabled ? (
               <TableHead>智能调度</TableHead>

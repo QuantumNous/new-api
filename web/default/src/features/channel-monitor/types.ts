@@ -217,7 +217,13 @@ export type ChannelMonitorOverview = {
   settings: ChannelMonitorSettings
 }
 
-export type ChannelMonitorPerformanceRangeMinutes = 15 | 60 | 360 | 1440
+export type ChannelMonitorPerformanceRangeMinutes = number
+
+export type ChannelMonitorSmartSchedulePerformanceRangeMinutes =
+  | 15
+  | 60
+  | 360
+  | 1440
 
 export type ChannelMonitorPerformanceMetric = {
   channel_id: number
@@ -343,7 +349,7 @@ export type ChannelMonitorSettings = {
   smart_schedule_strategy: ChannelMonitorSmartScheduleStrategy
   smart_schedule_stability_enabled: boolean
   smart_schedule_apply_mode: ChannelMonitorSmartScheduleApplyMode
-  smart_schedule_performance_minutes: ChannelMonitorPerformanceRangeMinutes
+  smart_schedule_performance_minutes: ChannelMonitorSmartSchedulePerformanceRangeMinutes
   smart_schedule_model: string
   smart_schedule_min_samples: number
   smart_schedule_force_reset_task_created?: boolean
