@@ -171,6 +171,41 @@ func TestSettleTestQuotaUsesTieredBilling(t *testing.T) {
 	require.Equal(t, "stream", result.MatchedTier)
 }
 
+func TestSettleTestQuotaAppliesCacheRatio(t *testing.T) {
+	quota, result := settleTestQuota(nil, types.PriceData{
+		ModelRatio:      2.5,
+		CompletionRatio: 6,
+		CacheRatio:      0.1,
+	}, &dto.Usage{
+		PromptTokens:     4440,
+		CompletionTokens: 13,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 3840,
+		},
+	})
+
+	require.Equal(t, 2655, quota)
+	require.Nil(t, result)
+}
+
+func TestSettleTestQuotaKeepsClaudeSemanticCachedTokensInPromptBase(t *testing.T) {
+	quota, result := settleTestQuota(nil, types.PriceData{
+		ModelRatio:      1,
+		CompletionRatio: 2,
+		CacheRatio:      0.1,
+	}, &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 200,
+		UsageSemantic:    "anthropic",
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 100,
+		},
+	})
+
+	require.Equal(t, 1410, quota)
+	require.Nil(t, result)
+}
+
 func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

@@ -542,8 +542,16 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 
 	quota := 0
 	if !priceData.UsePrice {
-		quota = usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
-		quota = int(math.Round(float64(quota) * priceData.ModelRatio))
+		isClaudeUsageSemantic := usage.UsageSemantic == "anthropic" ||
+			(info != nil && info.GetFinalRequestRelayFormat() == types.RelayFormatClaude)
+		promptTokens := float64(usage.PromptTokens)
+		cacheTokens := float64(usage.PromptTokensDetails.CachedTokens)
+		completionTokens := float64(usage.CompletionTokens)
+		quotaTokens := promptTokens + cacheTokens*priceData.CacheRatio + completionTokens*priceData.CompletionRatio
+		if !isClaudeUsageSemantic {
+			quotaTokens -= cacheTokens
+		}
+		quota = int(math.Round(quotaTokens * priceData.ModelRatio))
 		if priceData.ModelRatio != 0 && quota <= 0 {
 			quota = 1
 		}
