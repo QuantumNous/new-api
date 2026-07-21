@@ -11,10 +11,10 @@ import (
 	relaymeta "github.com/QuantumNous/new-api/service/relayconvert/internal/meta"
 	sharedgemini "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/gemini"
 	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/gin-gonic/gin"
+	"context"
 )
 
-func convertOpenAIResponsesRequestToGeminiChat(c *gin.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info *relaycommon.RelayInfo, request any) (any, error) {
 	responsesRequest, err := OpenAIResponsesRequestFromAny(request)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func convertOpenAIResponsesRequestToGeminiChat(c *gin.Context, info *relaycommon
 	return OpenAIResponsesRequestToGeminiChat(c, &prepared, info)
 }
 
-func OpenAIResponsesRequestToGeminiChat(c *gin.Context, req *dto.OpenAIResponsesRequest, info *relaycommon.RelayInfo) (*dto.GeminiChatRequest, error) {
+func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIResponsesRequest, info *relaycommon.RelayInfo) (*dto.GeminiChatRequest, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -188,7 +188,7 @@ func applyResponsesTextToGemini(raw []byte, geminiRequest *dto.GeminiChatRequest
 	return nil
 }
 
-func responsesInputContentToGeminiParts(c *gin.Context, content any) ([]dto.GeminiPart, error) {
+func responsesInputContentToGeminiParts(c context.Context, content any) ([]dto.GeminiPart, error) {
 	contentParts, err := ContentParts(content)
 	if err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ func responsesInputContentToGeminiParts(c *gin.Context, content any) ([]dto.Gemi
 	return parts, nil
 }
 
-func responsesContentPartToGeminiParts(c *gin.Context, part map[string]any) ([]dto.GeminiPart, error) {
+func responsesContentPartToGeminiParts(c context.Context, part map[string]any) ([]dto.GeminiPart, error) {
 	partType := strings.TrimSpace(common.Interface2String(part["type"]))
 	switch partType {
 	case "input_text", "output_text", "text":

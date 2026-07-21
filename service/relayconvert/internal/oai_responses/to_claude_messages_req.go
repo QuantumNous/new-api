@@ -10,10 +10,10 @@ import (
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
 	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/gin-gonic/gin"
+	"context"
 )
 
-func convertOpenAIResponsesRequestToClaudeMessages(c *gin.Context, _ *relaycommon.RelayInfo, request any) (any, error) {
+func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, _ *relaycommon.RelayInfo, request any) (any, error) {
 	responsesRequest, err := OpenAIResponsesRequestFromAny(request)
 	if err != nil {
 		return nil, err
@@ -21,7 +21,7 @@ func convertOpenAIResponsesRequestToClaudeMessages(c *gin.Context, _ *relaycommo
 	return OpenAIResponsesRequestToClaudeMessages(c, responsesRequest)
 }
 
-func OpenAIResponsesRequestToClaudeMessages(c *gin.Context, req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
+func OpenAIResponsesRequestToClaudeMessages(c context.Context, req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -175,7 +175,7 @@ func applyResponsesReasoningToClaude(req *dto.OpenAIResponsesRequest, claudeRequ
 	}
 }
 
-func responsesInputContentToClaudeMediaMessages(c *gin.Context, content any) ([]dto.ClaudeMediaMessage, error) {
+func responsesInputContentToClaudeMediaMessages(c context.Context, content any) ([]dto.ClaudeMediaMessage, error) {
 	contentParts, err := ContentParts(content)
 	if err != nil {
 		return nil, err

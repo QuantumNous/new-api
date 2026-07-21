@@ -5,11 +5,11 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/types"
-	"github.com/gin-gonic/gin"
+	"context"
 )
 
 type MediaResolver struct {
-	GetBase64Data        func(c *gin.Context, source types.FileSource, reason ...string) (string, string, error)
+	GetBase64Data        func(c context.Context, source types.FileSource, reason ...string) (string, string, error)
 	DecodeBase64FileData func(base64String string) (string, string, error)
 }
 
@@ -25,7 +25,7 @@ func SetMediaResolver(resolver MediaResolver) {
 	mediaResolver = resolver
 }
 
-func ResolveBase64Data(c *gin.Context, source types.FileSource, reason ...string) (string, string, error) {
+func ResolveBase64Data(c context.Context, source types.FileSource, reason ...string) (string, string, error) {
 	mediaResolverMu.RLock()
 	resolver := mediaResolver.GetBase64Data
 	mediaResolverMu.RUnlock()

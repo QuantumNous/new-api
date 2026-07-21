@@ -8,6 +8,7 @@ package relayconvert
 // before comparison so the snapshots are deterministic.
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -19,7 +20,6 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ var updateGolden = flag.Bool("update", false, "update golden files")
 func TestMain(m *testing.M) {
 	flag.Parse()
 	SetMediaResolver(MediaResolver{
-		GetBase64Data: func(c *gin.Context, source types.FileSource, reason ...string) (string, string, error) {
+		GetBase64Data: func(c context.Context, source types.FileSource, reason ...string) (string, string, error) {
 			return "aGVsbG8=", "image/png", nil
 		},
 		DecodeBase64FileData: func(base64String string) (string, string, error) {

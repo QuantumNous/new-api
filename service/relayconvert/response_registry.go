@@ -11,18 +11,18 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
-	"github.com/gin-gonic/gin"
+	"context"
 )
 
-type ResponseConverterFunc func(c *gin.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error)
+type ResponseConverterFunc func(c context.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error)
 
-type ResponseStreamConverterFunc func(c *gin.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error)
+type ResponseStreamConverterFunc func(c context.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error)
 
 type ResponseStreamStateFactory func(options ResponseStreamOptions) any
 
-type ResponseStreamChunkConverterFunc func(c *gin.Context, info *relaycommon.RelayInfo, response any, state any) ([]any, *dto.Usage, error)
+type ResponseStreamChunkConverterFunc func(c context.Context, info *relaycommon.RelayInfo, response any, state any) ([]any, *dto.Usage, error)
 
-type ResponseStreamFinalizerFunc func(c *gin.Context, info *relaycommon.RelayInfo, state any) ([]any, *dto.Usage, error)
+type ResponseStreamFinalizerFunc func(c context.Context, info *relaycommon.RelayInfo, state any) ([]any, *dto.Usage, error)
 
 type ResponseConverterQuality string
 
@@ -201,7 +201,7 @@ func LookupResponseConverter(converter string) (ResponseConverterSpec, bool) {
 	return cloneResponseConverterSpec(spec), true
 }
 
-func ConvertResponse(c *gin.Context, info *relaycommon.RelayInfo, target types.RelayFormat, response any) (*ResponseResult, error) {
+func ConvertResponse(c context.Context, info *relaycommon.RelayInfo, target types.RelayFormat, response any) (*ResponseResult, error) {
 	from, err := inferResponseRelayFormat(response)
 	if err != nil {
 		return nil, err
@@ -226,7 +226,7 @@ func ConvertResponse(c *gin.Context, info *relaycommon.RelayInfo, target types.R
 	return executeResponseSpec(c, info, from, target, response, spec)
 }
 
-func ConvertResponseByID(c *gin.Context, info *relaycommon.RelayInfo, converter string, response any) (*ResponseResult, error) {
+func ConvertResponseByID(c context.Context, info *relaycommon.RelayInfo, converter string, response any) (*ResponseResult, error) {
 	from, err := inferResponseRelayFormat(response)
 	if err != nil {
 		return nil, err
@@ -242,7 +242,7 @@ func ConvertResponseByID(c *gin.Context, info *relaycommon.RelayInfo, converter 
 	return executeResponseSpec(c, info, from, spec.To, response, spec)
 }
 
-func ConvertStreamResponse(c *gin.Context, info *relaycommon.RelayInfo, target types.RelayFormat, response any) (*ResponseResult, error) {
+func ConvertStreamResponse(c context.Context, info *relaycommon.RelayInfo, target types.RelayFormat, response any) (*ResponseResult, error) {
 	from, err := inferResponseRelayFormat(response)
 	if err != nil {
 		return nil, err
@@ -296,7 +296,7 @@ func NewResponseStreamStateByID(converter string, options ResponseStreamOptions)
 	return newResponseStreamStateFromSpec(spec.From, spec.To, options, spec)
 }
 
-func ConvertStreamResponseChunk(c *gin.Context, info *relaycommon.RelayInfo, state *ResponseStreamState, response any) ([]ResponseResult, error) {
+func ConvertStreamResponseChunk(c context.Context, info *relaycommon.RelayInfo, state *ResponseStreamState, response any) ([]ResponseResult, error) {
 	if state == nil {
 		return nil, errors.New("response stream state is required")
 	}
@@ -321,7 +321,7 @@ func ConvertStreamResponseChunk(c *gin.Context, info *relaycommon.RelayInfo, sta
 	return responseStreamResults(state, values, usage), nil
 }
 
-func FinalizeStreamResponse(c *gin.Context, info *relaycommon.RelayInfo, state *ResponseStreamState) ([]ResponseResult, error) {
+func FinalizeStreamResponse(c context.Context, info *relaycommon.RelayInfo, state *ResponseStreamState) ([]ResponseResult, error) {
 	if state == nil {
 		return nil, errors.New("response stream state is required")
 	}
@@ -408,7 +408,7 @@ func (s *ResponseStreamState) UsageText() string {
 	return ""
 }
 
-func executeResponseSpec(c *gin.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, response any, spec ResponseConverterSpec) (*ResponseResult, error) {
+func executeResponseSpec(c context.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, response any, spec ResponseConverterSpec) (*ResponseResult, error) {
 	steps, err := expandResponseConverterSteps(spec)
 	if err != nil {
 		return nil, err
@@ -416,7 +416,7 @@ func executeResponseSpec(c *gin.Context, info *relaycommon.RelayInfo, from types
 	return executeResponseSteps(c, info, from, target, response, spec.ID, spec.Quality, steps)
 }
 
-func executeResponseSteps(c *gin.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, response any, converter string, quality ResponseConverterQuality, specs []ResponseConverterSpec) (*ResponseResult, error) {
+func executeResponseSteps(c context.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, response any, converter string, quality ResponseConverterQuality, specs []ResponseConverterSpec) (*ResponseResult, error) {
 	current := response
 	var usage *dto.Usage
 	steps := make([]ResponseStep, 0, len(specs))
@@ -449,7 +449,7 @@ func executeResponseSteps(c *gin.Context, info *relaycommon.RelayInfo, from type
 	}, nil
 }
 
-func executeResponseStep(c *gin.Context, info *relaycommon.RelayInfo, spec ResponseConverterSpec, response any) (any, *dto.Usage, ResponseStep, error) {
+func executeResponseStep(c context.Context, info *relaycommon.RelayInfo, spec ResponseConverterSpec, response any) (any, *dto.Usage, ResponseStep, error) {
 	if spec.Convert == nil {
 		return nil, nil, ResponseStep{}, fmt.Errorf("response converter %q has no non-stream implementation", spec.ID)
 	}
@@ -465,7 +465,7 @@ func executeResponseStep(c *gin.Context, info *relaycommon.RelayInfo, spec Respo
 	}, nil
 }
 
-func executeStatelessStreamResponseSpec(c *gin.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, response any, spec ResponseConverterSpec) (*ResponseResult, error) {
+func executeStatelessStreamResponseSpec(c context.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, response any, spec ResponseConverterSpec) (*ResponseResult, error) {
 	steps, err := expandResponseConverterSteps(spec)
 	if err != nil {
 		return nil, err
@@ -531,7 +531,7 @@ func newResponseStreamStateFromSpec(from types.RelayFormat, target types.RelayFo
 	}, nil
 }
 
-func executeResponseStreamSteps(c *gin.Context, info *relaycommon.RelayInfo, state *ResponseStreamState, values []any, start int) ([]any, *dto.Usage, error) {
+func executeResponseStreamSteps(c context.Context, info *relaycommon.RelayInfo, state *ResponseStreamState, values []any, start int) ([]any, *dto.Usage, error) {
 	current := values
 	var usage *dto.Usage
 	for i := start; i < len(state.specs); i++ {
@@ -570,7 +570,7 @@ func prepareResponseStreamInfo(info *relaycommon.RelayInfo, spec ResponseConvert
 	info.SendResponseCount++
 }
 
-func executeResponseStreamStep(c *gin.Context, info *relaycommon.RelayInfo, spec ResponseConverterSpec, state any, response any) ([]any, *dto.Usage, error) {
+func executeResponseStreamStep(c context.Context, info *relaycommon.RelayInfo, spec ResponseConverterSpec, state any, response any) ([]any, *dto.Usage, error) {
 	if spec.ConvertStreamChunk != nil {
 		return spec.ConvertStreamChunk(c, info, response, state)
 	}
@@ -584,7 +584,7 @@ func executeResponseStreamStep(c *gin.Context, info *relaycommon.RelayInfo, spec
 	return streamValuesFromAny(value), usage, nil
 }
 
-func finalizeResponseStreamStep(c *gin.Context, info *relaycommon.RelayInfo, spec ResponseConverterSpec, state any) ([]any, *dto.Usage, error) {
+func finalizeResponseStreamStep(c context.Context, info *relaycommon.RelayInfo, spec ResponseConverterSpec, state any) ([]any, *dto.Usage, error) {
 	if spec.FinalizeStream == nil {
 		return nil, nil, nil
 	}
@@ -786,7 +786,7 @@ func usageFromClaudeResponse(resp *dto.ClaudeResponse) *dto.Usage {
 	return nil
 }
 
-func convertOAIChatResponseToOAIResponses(_ *gin.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertOAIChatResponseToOAIResponses(_ context.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	chatResponse, err := asOAIChatResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -798,7 +798,7 @@ func convertOAIChatResponseToOAIResponses(_ *gin.Context, _ *relaycommon.RelayIn
 	return ChatCompletionsResponseToResponsesResponse(chatResponse, id)
 }
 
-func convertOAIResponsesResponseToOAIChat(_ *gin.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertOAIResponsesResponseToOAIChat(_ context.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	responsesResponse, err := asOAIResponsesResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -822,7 +822,7 @@ func newOAIChatToOAIResponsesStreamState(options ResponseStreamOptions) any {
 	return state
 }
 
-func convertOAIChatStreamResponseToOAIResponses(_ *gin.Context, _ *relaycommon.RelayInfo, response any, state any) ([]any, *dto.Usage, error) {
+func convertOAIChatStreamResponseToOAIResponses(_ context.Context, _ *relaycommon.RelayInfo, response any, state any) ([]any, *dto.Usage, error) {
 	chatResponse, err := asOAIChatStreamResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -838,7 +838,7 @@ func convertOAIChatStreamResponseToOAIResponses(_ *gin.Context, _ *relaycommon.R
 	return streamValuesFromAny(events), streamState.Usage, nil
 }
 
-func finalizeOAIChatStreamResponseToOAIResponses(_ *gin.Context, _ *relaycommon.RelayInfo, state any) ([]any, *dto.Usage, error) {
+func finalizeOAIChatStreamResponseToOAIResponses(_ context.Context, _ *relaycommon.RelayInfo, state any) ([]any, *dto.Usage, error) {
 	streamState, ok := state.(*ChatToResponsesStreamState)
 	if !ok || streamState == nil {
 		return nil, nil, errors.New("OAI chat to OAI responses stream state is required")
@@ -856,7 +856,7 @@ func newOAIResponsesToOAIChatStreamState(options ResponseStreamOptions) any {
 	return state
 }
 
-func convertOAIResponsesStreamResponseToOAIChat(_ *gin.Context, _ *relaycommon.RelayInfo, response any, state any) ([]any, *dto.Usage, error) {
+func convertOAIResponsesStreamResponseToOAIChat(_ context.Context, _ *relaycommon.RelayInfo, response any, state any) ([]any, *dto.Usage, error) {
 	responsesResponse, err := asOAIResponsesStreamResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -872,7 +872,7 @@ func convertOAIResponsesStreamResponseToOAIChat(_ *gin.Context, _ *relaycommon.R
 	return streamValuesFromAny(chunks), streamState.Usage, nil
 }
 
-func finalizeOAIResponsesStreamResponseToOAIChat(_ *gin.Context, _ *relaycommon.RelayInfo, state any) ([]any, *dto.Usage, error) {
+func finalizeOAIResponsesStreamResponseToOAIChat(_ context.Context, _ *relaycommon.RelayInfo, state any) ([]any, *dto.Usage, error) {
 	streamState, ok := state.(*ResponsesToChatStreamState)
 	if !ok || streamState == nil {
 		return nil, nil, errors.New("OAI responses to OAI chat stream state is required")
@@ -881,7 +881,7 @@ func finalizeOAIResponsesStreamResponseToOAIChat(_ *gin.Context, _ *relaycommon.
 	return streamValuesFromAny(chunks), streamState.Usage, nil
 }
 
-func convertOAIChatResponseToClaudeMessages(_ *gin.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertOAIChatResponseToClaudeMessages(_ context.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	chatResponse, err := asOAIChatResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -889,7 +889,7 @@ func convertOAIChatResponseToClaudeMessages(_ *gin.Context, info *relaycommon.Re
 	return ResponseOpenAI2Claude(chatResponse, info), UsageFromChatUsage(&chatResponse.Usage), nil
 }
 
-func convertOAIChatStreamResponseToClaudeMessages(_ *gin.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertOAIChatStreamResponseToClaudeMessages(_ context.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	chatResponse, err := asOAIChatStreamResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -897,7 +897,7 @@ func convertOAIChatStreamResponseToClaudeMessages(_ *gin.Context, info *relaycom
 	return StreamResponseOpenAI2Claude(chatResponse, info), canonicalUsageFromResponse(chatResponse), nil
 }
 
-func convertOAIChatResponseToGeminiChat(_ *gin.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertOAIChatResponseToGeminiChat(_ context.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	chatResponse, err := asOAIChatResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -905,7 +905,7 @@ func convertOAIChatResponseToGeminiChat(_ *gin.Context, info *relaycommon.RelayI
 	return ResponseOpenAI2Gemini(chatResponse, info), UsageFromChatUsage(&chatResponse.Usage), nil
 }
 
-func convertOAIChatStreamResponseToGeminiChat(_ *gin.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertOAIChatStreamResponseToGeminiChat(_ context.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	chatResponse, err := asOAIChatStreamResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -913,7 +913,7 @@ func convertOAIChatStreamResponseToGeminiChat(_ *gin.Context, info *relaycommon.
 	return StreamResponseOpenAI2Gemini(chatResponse, info), canonicalUsageFromResponse(chatResponse), nil
 }
 
-func convertClaudeMessagesResponseToOAIChat(_ *gin.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertClaudeMessagesResponseToOAIChat(_ context.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	claudeResponse, err := asClaudeResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -926,7 +926,7 @@ func convertClaudeMessagesResponseToOAIChat(_ *gin.Context, _ *relaycommon.Relay
 	return openAIResponse, usage, nil
 }
 
-func convertClaudeMessagesStreamResponseToOAIChat(_ *gin.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertClaudeMessagesStreamResponseToOAIChat(_ context.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	claudeResponse, err := asClaudeResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -939,7 +939,7 @@ func convertClaudeMessagesStreamResponseToOAIChat(_ *gin.Context, _ *relaycommon
 	return openAIResponse, usage, nil
 }
 
-func convertGeminiChatResponseToOAIChat(_ *gin.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertGeminiChatResponseToOAIChat(_ context.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	geminiResponse, err := asGeminiChatResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -955,7 +955,7 @@ func convertGeminiChatResponseToOAIChat(_ *gin.Context, info *relaycommon.RelayI
 	return openAIResponse, usage, nil
 }
 
-func convertGeminiChatStreamResponseToOAIChat(_ *gin.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
+func convertGeminiChatStreamResponseToOAIChat(_ context.Context, info *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {
 	geminiResponse, err := asGeminiChatResponse(response)
 	if err != nil {
 		return nil, nil, err
