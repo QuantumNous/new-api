@@ -87,6 +87,26 @@ func TestAuthIdentityProviderSubjectComparisonIsCaseSensitive(t *testing.T) {
 	assert.Equal(t, second.Id, secondOwner.Id)
 }
 
+func TestCustomOAuthProviderKeysIsolateConfigurationIDs(t *testing.T) {
+	db := setupAuthIdentityTestDB(t)
+	first := createAuthIdentityTestUser(t, db, "custom-provider-first")
+	second := createAuthIdentityTestUser(t, db, "custom-provider-second")
+	firstKey, err := AuthIdentityProviderKeyForCustomOAuth(77)
+	require.NoError(t, err)
+	secondKey, err := AuthIdentityProviderKeyForCustomOAuth(78)
+	require.NoError(t, err)
+	assert.NotEqual(t, firstKey, secondKey)
+	require.NoError(t, EnsureAuthIdentity(first.Id, firstKey, "shared-custom-subject"))
+	require.NoError(t, EnsureAuthIdentity(second.Id, secondKey, "shared-custom-subject"))
+
+	firstOwner, err := GetUserByAuthIdentity(firstKey, "shared-custom-subject")
+	require.NoError(t, err)
+	secondOwner, err := GetUserByAuthIdentity(secondKey, "shared-custom-subject")
+	require.NoError(t, err)
+	assert.Equal(t, first.Id, firstOwner.Id)
+	assert.Equal(t, second.Id, secondOwner.Id)
+}
+
 func TestAuthIdentityRebindRollsBackWhenSubjectBelongsToAnotherUser(t *testing.T) {
 	db := setupAuthIdentityTestDB(t)
 	first := createAuthIdentityTestUser(t, db, "rebind-first")
@@ -352,4 +372,74 @@ func TestAuthIdentityConcurrentClaimPostgreSQL(t *testing.T) {
 		t.Skip("set TEST_POSTGRES_DSN to run the PostgreSQL auth identity concurrency test")
 	}
 	runExternalAuthIdentityConcurrencyTest(t, common.DatabaseTypePostgreSQL, dsn)
+}
+
+// TestAuthIdentityPostgreSQLConflictKeepsTransactionUsable proves that a unique
+// AuthIdentity conflict resolved via ON CONFLICT DO NOTHING returns the known
+// sentinel ErrAuthIdentityAlreadyBound without aborting the PostgreSQL
+// transaction, so later queries/writes in the same transaction still succeed.
+func TestAuthIdentityPostgreSQLConflictKeepsTransactionUsable(t *testing.T) {
+	dsn := os.Getenv("TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set TEST_POSTGRES_DSN to run the PostgreSQL auth identity transaction usability test")
+	}
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	if db.Migrator().HasTable(&User{}) || db.Migrator().HasTable(&AuthIdentity{}) {
+		require.NoError(t, sqlDB.Close())
+		t.Skip("refusing to run PostgreSQL auth identity transaction test because test tables already exist")
+	}
+	t.Cleanup(func() {
+		require.NoError(t, sqlDB.Close())
+	})
+	t.Cleanup(func() {
+		if db.Migrator().HasTable(&AuthIdentity{}) {
+			require.NoError(t, db.Migrator().DropTable(&AuthIdentity{}))
+		}
+		if db.Migrator().HasTable(&User{}) {
+			require.NoError(t, db.Migrator().DropTable(&User{}))
+		}
+	})
+
+	useInvitationConcurrencyDB(t, db, common.DatabaseTypePostgreSQL)
+	require.NoError(t, db.AutoMigrate(&User{}, &AuthIdentity{}))
+
+	owner := createAuthIdentityTestUser(t, db, "pg-tx-owner")
+	challenger := createAuthIdentityTestUser(t, db, "pg-tx-challenger")
+	const subject = "pg-tx-shared-subject"
+	require.NoError(t, EnsureAuthIdentity(owner.Id, AuthIdentityProviderGitHub, subject))
+
+	var postConflictOwnerID int
+	err = db.Transaction(func(tx *gorm.DB) error {
+		claimErr := CreateAuthIdentityWithTx(tx, challenger.Id, AuthIdentityProviderGitHub, subject)
+		if !errors.Is(claimErr, ErrAuthIdentityAlreadyBound) {
+			return fmt.Errorf("expected ErrAuthIdentityAlreadyBound, got %w", claimErr)
+		}
+		// Same transaction must remain usable after the sentinel conflict.
+		bound := &AuthIdentity{}
+		if takeErr := tx.Where(
+			"provider_key = ? AND provider_subject = ?",
+			AuthIdentityProviderGitHub,
+			hashAuthIdentitySubject(subject),
+		).Take(bound).Error; takeErr != nil {
+			return fmt.Errorf("post-conflict read failed (transaction aborted?): %w", takeErr)
+		}
+		postConflictOwnerID = bound.UserId
+		// A follow-up write in the same transaction must also succeed.
+		if saveErr := tx.Model(&User{}).
+			Where("id = ?", challenger.Id).
+			Update("display_name", "pg-tx-challenger-ok").Error; saveErr != nil {
+			return fmt.Errorf("post-conflict write failed (transaction aborted?): %w", saveErr)
+		}
+		return nil
+	})
+	require.NoError(t, err, "transaction must commit after AuthIdentity conflict sentinel")
+	assert.Equal(t, owner.Id, postConflictOwnerID)
+
+	var displayName string
+	require.NoError(t, db.Model(&User{}).Select("display_name").Where("id = ?", challenger.Id).Scan(&displayName).Error)
+	assert.Equal(t, "pg-tx-challenger-ok", displayName)
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,8 +22,10 @@ const (
 	AuthIdentityProviderLinuxDO  = "linuxdo"
 	AuthIdentityProviderWeChat   = "wechat"
 	AuthIdentityProviderTelegram = "telegram"
+	AuthIdentityProviderCustom   = "custom_oauth"
 
 	authIdentityBackfillBatchSize = 500
+	authIdentityCustomKeyPrefix   = AuthIdentityProviderCustom + ":"
 )
 
 var (
@@ -30,15 +33,16 @@ var (
 	ErrAuthIdentityProviderAlreadyBound = errors.New("user already has a different identity for this OAuth provider")
 )
 
-// AuthIdentity is the database authority for built-in OAuth account
-// ownership. Legacy provider ID columns on users remain populated for API
-// compatibility, while these composite unique indexes enforce ownership
-// atomically under concurrent registration and binding requests.
+// AuthIdentity is the database authority for external account ownership.
+// Legacy provider ID columns on users remain populated for API compatibility,
+// while these composite unique indexes enforce ownership atomically under
+// concurrent registration and binding requests.
 type AuthIdentity struct {
 	Id                  int64     `json:"id" gorm:"primaryKey"`
 	UserId              int       `json:"user_id" gorm:"not null;uniqueIndex:ux_auth_identity_user_provider,priority:1"`
 	ProviderKey         string    `json:"provider_key" gorm:"type:varchar(64);not null;uniqueIndex:ux_auth_identity_user_provider,priority:2;uniqueIndex:ux_auth_identity_provider_subject,priority:1"`
 	ProviderSubjectHash string    `json:"-" gorm:"column:provider_subject;type:char(64);not null;uniqueIndex:ux_auth_identity_provider_subject,priority:2"`
+	ProviderSubject     string    `json:"-" gorm:"column:provider_subject_value;type:varchar(256)"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }
@@ -49,10 +53,26 @@ func (AuthIdentity) TableName() string {
 
 func normalizeAuthIdentity(providerKey string, providerSubject string) (string, string, error) {
 	providerKey = strings.ToLower(strings.TrimSpace(providerKey))
-	if providerKey == "" || providerSubject == "" || len(providerKey) > 64 || len(providerSubject) > 256 {
+	if providerKey == "" || strings.TrimSpace(providerSubject) == "" || len(providerKey) > 64 || len(providerSubject) > 256 {
 		return "", "", errors.New("OAuth identity provider and subject are required")
 	}
 	return providerKey, providerSubject, nil
+}
+
+func AuthIdentityProviderKeyForCustomOAuth(providerId int) (string, error) {
+	if providerId <= 0 {
+		return "", errors.New("custom OAuth provider ID is required")
+	}
+	return authIdentityCustomKeyPrefix + strconv.Itoa(providerId), nil
+}
+
+func customOAuthProviderIdFromAuthIdentityKey(providerKey string) (int, bool) {
+	providerKey = strings.ToLower(strings.TrimSpace(providerKey))
+	if !strings.HasPrefix(providerKey, authIdentityCustomKeyPrefix) {
+		return 0, false
+	}
+	providerId, err := strconv.Atoi(strings.TrimPrefix(providerKey, authIdentityCustomKeyPrefix))
+	return providerId, err == nil && providerId > 0
 }
 
 func hashAuthIdentitySubject(providerSubject string) string {
@@ -61,7 +81,7 @@ func hashAuthIdentitySubject(providerSubject string) string {
 }
 
 func CreateAuthIdentityWithTx(tx *gorm.DB, userId int, providerKey string, providerSubject string) error {
-	if tx == nil || userId == 0 {
+	if tx == nil || userId <= 0 {
 		return errors.New("database transaction and user ID are required")
 	}
 	providerKey, providerSubject, err := normalizeAuthIdentity(providerKey, providerSubject)
@@ -73,6 +93,7 @@ func CreateAuthIdentityWithTx(tx *gorm.DB, userId int, providerKey string, provi
 		UserId:              userId,
 		ProviderKey:         providerKey,
 		ProviderSubjectHash: hashAuthIdentitySubject(providerSubject),
+		ProviderSubject:     providerSubject,
 	}
 	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(identity).Error; err != nil {
 		return err
@@ -81,10 +102,18 @@ func CreateAuthIdentityWithTx(tx *gorm.DB, userId int, providerKey string, provi
 	boundIdentity := &AuthIdentity{}
 	err = tx.Where("provider_key = ? AND provider_subject = ?", providerKey, identity.ProviderSubjectHash).Take(boundIdentity).Error
 	if err == nil {
-		if boundIdentity.UserId == userId {
+		if boundIdentity.ProviderSubject != "" && boundIdentity.ProviderSubject != providerSubject {
+			return errors.New("OAuth identity subject hash collision")
+		}
+		if boundIdentity.UserId != userId {
+			return ErrAuthIdentityAlreadyBound
+		}
+		if boundIdentity.ProviderSubject == providerSubject {
 			return nil
 		}
-		return ErrAuthIdentityAlreadyBound
+		return tx.Model(&AuthIdentity{}).
+			Where("id = ? AND provider_subject_value = ?", boundIdentity.Id, "").
+			Update("provider_subject_value", providerSubject).Error
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
@@ -102,7 +131,7 @@ func CreateAuthIdentityWithTx(tx *gorm.DB, userId int, providerKey string, provi
 }
 
 func SetAuthIdentityWithTx(tx *gorm.DB, userId int, providerKey string, providerSubject string) error {
-	if tx == nil || userId == 0 {
+	if tx == nil || userId <= 0 {
 		return errors.New("database transaction and user ID are required")
 	}
 	providerKey, providerSubject, err := normalizeAuthIdentity(providerKey, providerSubject)
@@ -116,7 +145,7 @@ func SetAuthIdentityWithTx(tx *gorm.DB, userId int, providerKey string, provider
 }
 
 func DeleteAuthIdentityWithTx(tx *gorm.DB, userId int, providerKey string) error {
-	if tx == nil || userId == 0 {
+	if tx == nil || userId <= 0 {
 		return errors.New("database transaction and user ID are required")
 	}
 	providerKey = strings.ToLower(strings.TrimSpace(providerKey))

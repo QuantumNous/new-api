@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"gorm.io/gorm"
 )
 
 type accessPolicyPayload struct {
@@ -126,11 +127,16 @@ func UpdateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 
 // DeleteCustomOAuthProvider deletes a custom OAuth provider by ID
 func DeleteCustomOAuthProvider(id int) error {
-	// First, delete all user bindings for this provider
-	if err := DB.Where("provider_id = ?", id).Delete(&UserOAuthBinding{}).Error; err != nil {
+	providerKey, err := AuthIdentityProviderKeyForCustomOAuth(id)
+	if err != nil {
 		return err
 	}
-	return DB.Delete(&CustomOAuthProvider{}, id).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("provider_key = ?", providerKey).Delete(&AuthIdentity{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&CustomOAuthProvider{}, id).Error
+	})
 }
 
 // IsSlugTaken checks if a slug is already taken by another provider

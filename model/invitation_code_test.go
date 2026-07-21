@@ -77,6 +77,34 @@ func TestConsumeInvitationCodeWithTxConsumesExactlyOnce(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvitationCodeUsed)
 }
 
+func TestInvitationCodeReferenceResolvesWithoutConsumingAndUsesExplicitIDAPI(t *testing.T) {
+	user := setupInvitationCodeTest(t)
+	codes, err := CreateInvitationCodes("oauth-reference", 1, user.Id, 0)
+	require.NoError(t, err)
+
+	codeID, err := ResolveInvitationCodeReference(strings.ToLower(codes[0]))
+	require.NoError(t, err)
+	assert.Positive(t, codeID)
+	unknownID, err := ResolveInvitationCodeReference("INV-NOT-FOUND")
+	require.NoError(t, err)
+	assert.Zero(t, unknownID)
+	oversizedID, err := ResolveInvitationCodeReference(strings.Repeat("A", common.InvitationCodeMaxLength+1))
+	require.NoError(t, err)
+	assert.Zero(t, oversizedID)
+
+	var before InvitationCode
+	require.NoError(t, DB.First(&before, codeID).Error)
+	assert.Equal(t, common.InvitationCodeStatusEnabled, before.Status)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		_, consumeErr := ConsumeInvitationCodeReferenceWithTx(tx, codeID, user.Id)
+		return consumeErr
+	}))
+	var after InvitationCode
+	require.NoError(t, DB.First(&after, codeID).Error)
+	assert.Equal(t, common.InvitationCodeStatusUsed, after.Status)
+	assert.Equal(t, user.Id, after.UsedUserId)
+}
+
 func TestConsumeInvitationCodeRollsBackWithRegistrationTransaction(t *testing.T) {
 	user := setupInvitationCodeTest(t)
 	codes, err := CreateInvitationCodes("rollback", 1, user.Id, 0)

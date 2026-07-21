@@ -12,9 +12,8 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +30,8 @@ func setupRegistrationMatrixDB(t *testing.T) *gorm.DB {
 	oldSettings := common.GetInvitationCodeSettings()
 	oldMainDatabaseType, oldLogDatabaseType := common.MainDatabaseType(), common.LogDatabaseType()
 	oldOptionMap := common.OptionMap
+	oldSessionSecret := common.SessionSecret
+	oldGinMode := gin.Mode()
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
@@ -46,11 +47,14 @@ func setupRegistrationMatrixDB(t *testing.T) *gorm.DB {
 		&model.Option{},
 		&model.Setup{},
 		&model.TwoFA{},
+		&model.UserSession{},
+		&model.AuthFlow{},
 	))
 	model.DB, model.LOG_DB = db, db
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	common.QuotaForNewUser = 0
+	common.SessionSecret = "registration-matrix-session-secret"
 	_, err = model.UpdateInvitationCodeSettings(false, []string{common.InvitationRegistrationMethodLinuxDO})
 	require.NoError(t, err)
 	if common.OptionMap == nil {
@@ -59,12 +63,14 @@ func setupRegistrationMatrixDB(t *testing.T) *gorm.DB {
 	gin.SetMode(gin.TestMode)
 
 	t.Cleanup(func() {
+		gin.SetMode(oldGinMode)
 		_, settingsErr := common.ApplyInvitationCodeSettings(oldSettings.Required, oldSettings.Methods)
 		require.NoError(t, settingsErr)
 		common.RedisEnabled = oldRedisEnabled
 		common.QuotaForNewUser = oldQuotaForNewUser
 		common.SetDatabaseTypes(oldMainDatabaseType, oldLogDatabaseType)
 		common.OptionMap = oldOptionMap
+		common.SessionSecret = oldSessionSecret
 		model.DB, model.LOG_DB = oldDB, oldLogDB
 		sqlDB, sqlErr := db.DB()
 		if sqlErr == nil {
@@ -86,6 +92,13 @@ func createMatrixInvitationCode(t *testing.T, name string, createdBy int) string
 	require.NoError(t, err)
 	require.Len(t, codes, 1)
 	return codes[0]
+}
+
+func matrixOAuthInvitationPayload(t *testing.T, rawCode string) oauthFlowPayload {
+	t.Helper()
+	codeID, err := model.ResolveInvitationCodeReference(rawCode)
+	require.NoError(t, err)
+	return oauthFlowPayload{InvitationSupplied: strings.TrimSpace(rawCode) != "", InvitationCodeID: codeID}
 }
 
 func requireMatrixInvitationEnabled(t *testing.T, db *gorm.DB, rawCode string) {
@@ -195,7 +208,7 @@ func TestOAuthRegistrationMatrixConsumesInvitationWithoutDefaultToken(t *testing
 					Username:       method + "-user",
 					DisplayName:    method + " user",
 				},
-				oauthRegistrationState{InvitationCode: invitationCode},
+				matrixOAuthInvitationPayload(t, invitationCode),
 			)
 			require.NoError(t, err)
 			require.NotZero(t, user.Id)
@@ -229,13 +242,13 @@ func TestCustomOAuthRegistrationConsumesInvitationCreatesBindingWithoutDefaultTo
 			Username:       "custom-user",
 			DisplayName:    "Custom User",
 		},
-		oauthRegistrationState{InvitationCode: invitationCode},
+		matrixOAuthInvitationPayload(t, invitationCode),
 	)
 	require.NoError(t, err)
 	require.NotZero(t, user.Id)
 
-	var binding model.UserOAuthBinding
-	require.NoError(t, db.Where("user_id = ? AND provider_id = ?", user.Id, providerConfig.Id).First(&binding).Error)
+	binding, err := model.GetUserOAuthBinding(user.Id, providerConfig.Id)
+	require.NoError(t, err)
 	assert.Equal(t, "custom-provider-user", binding.ProviderUserId)
 	requireMatrixInvitationUsedBy(t, db, invitationCode, user.Id)
 	requireNoMatrixDefaultToken(t, db, user.Id)
@@ -246,10 +259,10 @@ func TestCustomOAuthBindingFailureRollsBackUserAndInvitation(t *testing.T) {
 	setMatrixInvitationSettings(t, true, []string{common.InvitationRegistrationMethodCustomOAuth})
 	invitationCode := createMatrixInvitationCode(t, "custom-oauth-rollback", 1)
 	require.NoError(t, db.Exec(`
-		CREATE TRIGGER fail_matrix_oauth_binding
-		BEFORE INSERT ON user_oauth_bindings
+		CREATE TRIGGER fail_matrix_oauth_identity
+		BEFORE INSERT ON auth_identities
 		BEGIN
-			SELECT RAISE(FAIL, 'matrix binding failure');
+			SELECT RAISE(FAIL, 'matrix identity failure');
 		END;
 	`).Error)
 	provider := oauth.NewGenericOAuthProvider(&model.CustomOAuthProvider{
@@ -267,22 +280,103 @@ func TestCustomOAuthBindingFailureRollsBackUserAndInvitation(t *testing.T) {
 			Username:       "rollback-user",
 			DisplayName:    "Rollback User",
 		},
-		oauthRegistrationState{InvitationCode: invitationCode},
+		matrixOAuthInvitationPayload(t, invitationCode),
 	)
 	require.Error(t, err)
 	assert.Nil(t, user)
-	assert.ErrorContains(t, err, "matrix binding failure")
+	assert.ErrorContains(t, err, "matrix identity failure")
 
 	var userCount int64
 	require.NoError(t, db.Model(&model.User{}).Where("username = ?", "rollback-user").Count(&userCount).Error)
 	assert.Zero(t, userCount)
-	var bindingCount int64
-	require.NoError(t, db.Model(&model.UserOAuthBinding{}).Count(&bindingCount).Error)
-	assert.Zero(t, bindingCount)
+	var identityCount int64
+	require.NoError(t, db.Model(&model.AuthIdentity{}).Count(&identityCount).Error)
+	assert.Zero(t, identityCount)
 	requireMatrixInvitationEnabled(t, db, invitationCode)
 	var tokenCount int64
 	require.NoError(t, db.Model(&model.Token{}).Count(&tokenCount).Error)
 	assert.Zero(t, tokenCount)
+}
+
+func TestOAuthRegistrationRejectsUnsafeInvitationClaimsWithoutLeavingUsers(t *testing.T) {
+	db := setupRegistrationMatrixDB(t)
+	setMatrixInvitationSettings(t, true, []string{common.InvitationRegistrationMethodLinuxDO})
+	disabledCode := createMatrixInvitationCode(t, "oauth-disabled", 1)
+	require.NoError(t, db.Model(&model.InvitationCode{}).
+		Where("code_hash = ?", model.HashInvitationCode(disabledCode)).
+		Update("status", common.InvitationCodeStatusDisabled).Error)
+	expiredCode := createMatrixInvitationCode(t, "oauth-expired", 1)
+	require.NoError(t, db.Model(&model.InvitationCode{}).
+		Where("code_hash = ?", model.HashInvitationCode(expiredCode)).
+		Update("expired_time", common.GetTimestamp()-1).Error)
+
+	testCases := []struct {
+		name    string
+		payload oauthFlowPayload
+	}{
+		{name: "missing", payload: oauthFlowPayload{}},
+		{name: "unknown", payload: oauthFlowPayload{InvitationSupplied: true}},
+		{name: "disabled", payload: matrixOAuthInvitationPayload(t, disabledCode)},
+		{name: "expired", payload: matrixOAuthInvitationPayload(t, expiredCode)},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			username := "rejected-oauth-" + testCase.name
+			user, err := findOrCreateOAuthUser(
+				common.InvitationRegistrationMethodLinuxDO,
+				matrixBuiltInOAuthProvider{method: common.InvitationRegistrationMethodLinuxDO},
+				&oauth.OAuthUser{ProviderUserID: "subject-" + testCase.name, Username: username},
+				testCase.payload,
+			)
+			require.ErrorIs(t, err, service.ErrInvitationCodeRejected)
+			assert.Nil(t, user)
+			var count int64
+			require.NoError(t, db.Model(&model.User{}).Where("username = ?", username).Count(&count).Error)
+			assert.Zero(t, count)
+		})
+	}
+}
+
+func TestOAuthIdentityConflictRollsBackUserAndSecondInvitation(t *testing.T) {
+	db := setupRegistrationMatrixDB(t)
+	setMatrixInvitationSettings(t, true, []string{common.InvitationRegistrationMethodLinuxDO})
+	firstCode := createMatrixInvitationCode(t, "oauth-winner", 1)
+	secondCode := createMatrixInvitationCode(t, "oauth-loser", 1)
+	provider := matrixBuiltInOAuthProvider{method: common.InvitationRegistrationMethodLinuxDO}
+	providerSubject := "shared-oauth-registration-subject"
+
+	winner, err := findOrCreateOAuthUser(
+		common.InvitationRegistrationMethodLinuxDO,
+		provider,
+		&oauth.OAuthUser{ProviderUserID: providerSubject, Username: "oauth-winner"},
+		matrixOAuthInvitationPayload(t, firstCode),
+	)
+	require.NoError(t, err)
+	requireMatrixInvitationUsedBy(t, db, firstCode, winner.Id)
+
+	loser := &model.User{
+		Username: "oauth-race-loser", DisplayName: "OAuth Race Loser",
+		Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}
+	providerKey, err := oauthIdentityProviderKey(common.InvitationRegistrationMethodLinuxDO, provider)
+	require.NoError(t, err)
+	err = registerOAuthUser(
+		loser,
+		0,
+		common.InvitationRegistrationMethodLinuxDO,
+		matrixOAuthInvitationPayload(t, secondCode),
+		func(tx *gorm.DB, createdUser *model.User) error {
+			return model.CreateBuiltInAuthIdentityWithTx(tx, createdUser, providerKey, providerSubject)
+		},
+	)
+	require.ErrorIs(t, err, model.ErrAuthIdentityAlreadyBound)
+	var loserCount int64
+	require.NoError(t, db.Model(&model.User{}).Where("username = ?", loser.Username).Count(&loserCount).Error)
+	assert.Zero(t, loserCount)
+	requireMatrixInvitationEnabled(t, db, secondCode)
+	owner, err := model.GetUserByAuthIdentity(providerKey, providerSubject)
+	require.NoError(t, err)
+	assert.Equal(t, winner.Id, owner.Id)
 }
 
 func TestExistingWeChatUserBypassesInvitationAndRegistrationGate(t *testing.T) {
@@ -307,6 +401,7 @@ func TestExistingWeChatUserBypassesInvitationAndRegistrationGate(t *testing.T) {
 		Status:      common.UserStatusEnabled,
 	}
 	require.NoError(t, db.Create(existingUser).Error)
+	require.NoError(t, model.EnsureAuthIdentity(existingUser.Id, model.AuthIdentityProviderWeChat, wechatID))
 	invitationCode := createMatrixInvitationCode(t, "wechat-existing", existingUser.Id)
 	setMatrixInvitationSettings(t, true, []string{common.InvitationRegistrationMethodWeChat})
 
@@ -325,7 +420,6 @@ func TestExistingWeChatUserBypassesInvitationAndRegistrationGate(t *testing.T) {
 	common.WeChatServerToken = "matrix-wechat-token"
 
 	router := gin.New()
-	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("01234567890123456789012345678901"))))
 	router.POST("/wechat", WeChatAuth)
 	request := httptest.NewRequest(http.MethodPost, "/wechat", strings.NewReader(`{"code":"wechat-login-code"}`))
 	request.Header.Set("Content-Type", "application/json")
@@ -374,7 +468,6 @@ func TestWeChatNewUserConsumesInvitationWithoutDefaultToken(t *testing.T) {
 	constant.GenerateDefaultToken = true
 
 	router := gin.New()
-	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("01234567890123456789012345678901"))))
 	router.POST("/wechat", WeChatAuth)
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -416,7 +509,6 @@ func TestExistingPasswordLoginBypassesInvitationRequirement(t *testing.T) {
 	setMatrixInvitationSettings(t, true, []string{common.InvitationRegistrationMethodPassword})
 
 	router := gin.New()
-	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("01234567890123456789012345678901"))))
 	router.POST("/login", Login)
 	request := httptest.NewRequest(
 		http.MethodPost,

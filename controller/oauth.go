@@ -1,94 +1,67 @@
 package controller
 
 import (
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/gin-contrib/sessions"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-const oauthStateTTL = 10 * time.Minute
-
-var errOAuthStateInvalid = errors.New("invalid OAuth state")
-
-type oauthRegistrationState struct {
-	AffCode        string
-	InvitationCode string
-}
+const oauthAuthFlowTTL = 10 * time.Minute
 
 type oauthStateRequest struct {
-	AffCode        string `json:"aff"`
 	Provider       string `json:"provider"`
-	InvitationCode string `json:"invitation_code"`
+	Intent         string `json:"intent"`
+	Aff            string `json:"aff,omitempty"`
+	InvitationCode string `json:"invitation_code,omitempty"`
 }
 
-// providerParams returns map with Provider key for i18n templates
+type oauthFlowPayload struct {
+	AffiliateCode      string `json:"affiliate_code,omitempty"`
+	InvitationSupplied bool   `json:"invitation_supplied,omitempty"`
+	InvitationCodeID   int    `json:"invitation_code_id,omitempty"`
+}
+
 func providerParams(name string) map[string]any {
 	return map[string]any{"Provider": name}
 }
 
-func builtInOAuthIdentityProviderKey(providerName string, provider oauth.Provider) (string, bool) {
-	if _, custom := provider.(*oauth.GenericOAuthProvider); custom {
-		return "", false
+func oauthIdentityProviderKey(providerName string, provider oauth.Provider) (string, error) {
+	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
+		return model.AuthIdentityProviderKeyForCustomOAuth(genericProvider.GetProviderId())
 	}
 	providerKey := strings.ToLower(strings.TrimSpace(providerName))
-	return providerKey, providerKey != ""
+	switch providerKey {
+	case model.AuthIdentityProviderGitHub,
+		model.AuthIdentityProviderDiscord,
+		model.AuthIdentityProviderOIDC,
+		model.AuthIdentityProviderLinuxDO:
+		return providerKey, nil
+	default:
+		return "", errors.New("unsupported OAuth identity provider")
+	}
 }
 
 func findOAuthUserBySubject(providerName string, provider oauth.Provider, providerSubject string) (*model.User, error) {
-	if providerSubject == "" {
+	if strings.TrimSpace(providerSubject) == "" {
 		return nil, gorm.ErrRecordNotFound
 	}
-	if providerKey, builtIn := builtInOAuthIdentityProviderKey(providerName, provider); builtIn {
-		user, err := model.GetUserByAuthIdentity(providerKey, providerSubject)
-		if err == nil {
-			return user, nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
-		}
-		if !provider.IsUserIDTaken(providerSubject) {
-			return nil, gorm.ErrRecordNotFound
-		}
-		legacyUser := &model.User{}
-		if err := provider.FillUserByProviderID(legacyUser, providerSubject); err != nil {
-			return nil, err
-		}
-		if legacyUser.Id == 0 {
-			return nil, &OAuthUserDeletedError{}
-		}
-		if err := model.EnsureAuthIdentity(legacyUser.Id, providerKey, providerSubject); err != nil {
-			if errors.Is(err, model.ErrAuthIdentityAlreadyBound) {
-				return model.GetUserByAuthIdentity(providerKey, providerSubject)
-			}
-			return nil, err
-		}
-		return legacyUser, nil
-	}
-
-	if !provider.IsUserIDTaken(providerSubject) {
-		return nil, gorm.ErrRecordNotFound
-	}
-	user := &model.User{}
-	if err := provider.FillUserByProviderID(user, providerSubject); err != nil {
+	providerKey, err := oauthIdentityProviderKey(providerName, provider)
+	if err != nil {
 		return nil, err
 	}
-	if user.Id == 0 {
-		return nil, &OAuthUserDeletedError{}
-	}
-	return user, nil
+	return model.GetUserByAuthIdentity(providerKey, providerSubject)
 }
 
 func generateOAuthUsername(prefix string) (string, error) {
@@ -108,52 +81,67 @@ func generateOAuthUsername(prefix string) (string, error) {
 	return prefix + strings.ToLower(randomPart), nil
 }
 
-// GenerateOAuthCode generates a state code for OAuth CSRF protection
+// GenerateOAuthCode creates the one-time AuthFlow used as OAuth state.
 func GenerateOAuthCode(c *gin.Context) {
-	session := sessions.Default(c)
-	request, err := parseOAuthStateRequest(c)
-	if err != nil {
+	if _, present := c.Request.URL.Query()["invitation_code"]; present {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	providerName := strings.ToLower(strings.TrimSpace(request.Provider))
-	invitationCode := strings.TrimSpace(request.InvitationCode)
-	if providerName == "" {
+	var request oauthStateRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if utf8.RuneCountInString(invitationCode) > common.InvitationCodeMaxLength {
+	request.Provider = strings.ToLower(strings.TrimSpace(request.Provider))
+	request.Intent = strings.ToLower(strings.TrimSpace(request.Intent))
+	request.Aff = strings.TrimSpace(request.Aff)
+	if oauth.GetProvider(request.Provider) == nil ||
+		(request.Intent != model.AuthFlowIntentLogin && request.Intent != model.AuthFlowIntentBind) ||
+		len(request.Aff) > 32 ||
+		(request.Intent == model.AuthFlowIntentBind && request.Aff != "") {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	state, err := common.GenerateRandomCharsKey(48)
+
+	userID := 0
+	sessionID := ""
+	payload := oauthFlowPayload{AffiliateCode: request.Aff}
+	if request.Intent == model.AuthFlowIntentBind {
+		identity, ok := middleware.GetSessionAuthIdentity(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "绑定操作需要登录"})
+			return
+		}
+		userID = identity.UserID
+		sessionID = identity.SessionID
+	} else {
+		invitationCode := strings.TrimSpace(request.InvitationCode)
+		payload.InvitationSupplied = invitationCode != ""
+		if payload.InvitationSupplied {
+			invitationCodeID, err := model.ResolveInvitationCodeReference(invitationCode)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			payload.InvitationCodeID = invitationCodeID
+		}
+	}
+
+	payloadBytes, err := common.Marshal(payload)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	affCode := request.AffCode
-	createdAt := time.Now().UTC()
-	if err := model.CreateOAuthStateGrant(state, providerName, createdAt.Add(oauthStateTTL)); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	session.Delete("aff")
-	if affCode != "" {
-		session.Set("aff", affCode)
-	}
-	session.Delete("oauth_provider")
-	session.Delete("oauth_invitation_code")
-	session.Delete("oauth_invitation_created_at")
-	if providerName != "" {
-		session.Set("oauth_provider", providerName)
-	}
-	if invitationCode != "" {
-		session.Set("oauth_invitation_code", invitationCode)
-		session.Set("oauth_invitation_created_at", createdAt.Unix())
-	}
-	session.Set("oauth_state", state)
-	session.Set("oauth_state_created_at", createdAt.Unix())
-	err = session.Save()
+	expiresAt := time.Now().Add(oauthAuthFlowTTL)
+	state, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose:   model.AuthFlowPurposeOAuth,
+		Provider:  request.Provider,
+		Intent:    request.Intent,
+		UserId:    userID,
+		SessionId: sessionID,
+		Payload:   string(payloadBytes),
+		ExpiresAt: expiresAt,
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -161,37 +149,16 @@ func GenerateOAuthCode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    state,
+		"data": gin.H{
+			"flow_token": state,
+			"expires_at": expiresAt.Unix(),
+		},
 	})
 }
 
-func parseOAuthStateRequest(c *gin.Context) (oauthStateRequest, error) {
-	if _, present := c.Request.URL.Query()["invitation_code"]; present {
-		return oauthStateRequest{}, errors.New("invitation code must be sent in the request body")
-	}
-	if c.Request.Method == http.MethodGet {
-		// Keep the legacy, invitation-free GET flow for login/binding clients. An
-		// invitation code must travel in a POST body so it cannot be copied into
-		// browser history, reverse-proxy access logs, or referrer URLs.
-		return oauthStateRequest{
-			AffCode:  c.Query("aff"),
-			Provider: c.Query("provider"),
-		}, nil
-	}
-	if c.Request.Method != http.MethodPost {
-		return oauthStateRequest{}, errors.New("unsupported OAuth state request method")
-	}
-
-	request := oauthStateRequest{}
-	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
-		return oauthStateRequest{}, err
-	}
-	return request, nil
-}
-
-// HandleOAuth handles OAuth callback for all standard OAuth providers
+// HandleOAuth handles OAuth callbacks for built-in and custom providers.
 func HandleOAuth(c *gin.Context) {
-	providerName := c.Param("provider")
+	providerName := strings.ToLower(strings.TrimSpace(c.Param("provider")))
 	provider := oauth.GetProvider(providerName)
 	if provider == nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -201,64 +168,91 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	session := sessions.Default(c)
-
-	// 1. Validate and consume state (CSRF protection)
 	state := c.Query("state")
-	registrationState, err := takeOAuthRegistrationState(session, state, providerName, common.GetTimestamp())
-	if errors.Is(err, errOAuthStateInvalid) {
+	pendingFlow, err := model.GetAuthFlow(state, model.AuthFlowMatch{
+		Purpose:  model.AuthFlowPurposeOAuth,
+		Provider: providerName,
+	})
+	if err != nil {
+		if !errors.Is(err, model.ErrAuthFlowInvalid) &&
+			!errors.Is(err, model.ErrAuthFlowExpired) &&
+			!errors.Is(err, model.ErrAuthFlowConsumed) {
+			common.ApiError(c, err)
+			return
+		}
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
 		})
 		return
 	}
+
+	consumeMatch := model.AuthFlowMatch{
+		Purpose:  model.AuthFlowPurposeOAuth,
+		Provider: providerName,
+		Intent:   pendingFlow.Intent,
+	}
+	if pendingFlow.Intent == model.AuthFlowIntentBind {
+		identity, ok := middleware.GetSessionAuthIdentity(c)
+		if !ok || identity.UserID != pendingFlow.UserId || identity.SessionID != pendingFlow.SessionId {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
+			})
+			return
+		}
+		consumeMatch.UserId = identity.UserID
+		consumeMatch.SessionId = identity.SessionID
+	} else if pendingFlow.Intent != model.AuthFlowIntentLogin {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	flow, err := model.ConsumeAuthFlow(state, consumeMatch)
 	if err != nil {
-		common.ApiError(c, err)
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
 		return
 	}
-
-	// 2. Check if user is already logged in (bind flow)
-	username := session.Get("username")
-	if username != nil {
-		handleOAuthBind(c, provider)
-		return
-	}
-
-	// 3. Check if provider is enabled
 	if !provider.IsEnabled() {
 		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
 		return
 	}
 
-	// 4. Handle error from provider
-	errorCode := c.Query("error")
-	if errorCode != "" {
+	if errorCode := c.Query("error"); errorCode != "" {
 		errorDescription := c.Query("error_description")
+		if errorDescription == "" {
+			errorDescription = errorCode
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": errorDescription,
 		})
 		return
 	}
+	if flow.Intent == model.AuthFlowIntentBind {
+		handleOAuthBind(c, providerName, provider, flow)
+		return
+	}
 
-	// 5. Exchange code for token
 	code := c.Query("code")
 	token, err := provider.ExchangeToken(c.Request.Context(), code, c)
 	if err != nil {
 		handleOAuthError(c, err)
 		return
 	}
-
-	// 6. Get user info
 	oauthUser, err := provider.GetUserInfo(c.Request.Context(), token)
 	if err != nil {
 		handleOAuthError(c, err)
 		return
 	}
-
-	// 7. Find or create user
-	user, err := findOrCreateOAuthUser(providerName, provider, oauthUser, registrationState)
+	var payload oauthFlowPayload
+	if strings.TrimSpace(flow.Payload) != "" {
+		if err := common.UnmarshalJsonStr(flow.Payload, &payload); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	user, err := findOrCreateOAuthUser(providerName, provider, oauthUser, payload)
 	if err != nil {
 		if errors.Is(err, service.ErrInvitationCodeRejected) {
 			common.ApiErrorI18n(c, i18n.MsgInvitationInvalid)
@@ -285,170 +279,81 @@ func HandleOAuth(c *gin.Context) {
 		}
 		return
 	}
-
-	// 8. Check user status
 	if user.Status != common.UserStatusEnabled {
 		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
 		return
 	}
-
-	// 9. Setup login
 	setupLogin(user, c)
 }
 
-func takeOAuthRegistrationState(session sessions.Session, state string, providerName string, now int64) (oauthRegistrationState, error) {
-	storedState, ok := session.Get("oauth_state").(string)
-	if state == "" || !ok || subtle.ConstantTimeCompare([]byte(state), []byte(storedState)) != 1 {
-		return oauthRegistrationState{}, errOAuthStateInvalid
-	}
-	createdAt, validTimestamp := oauthStateCreatedAt(session.Get("oauth_state_created_at"))
-	if !validTimestamp || now < createdAt || now-createdAt > int64(oauthStateTTL/time.Second) {
-		clearOAuthRegistrationState(session)
-		if err := session.Save(); err != nil {
-			return oauthRegistrationState{}, err
-		}
-		return oauthRegistrationState{}, errOAuthStateInvalid
-	}
-
-	pending := oauthRegistrationState{}
-	if affCode, ok := session.Get("aff").(string); ok {
-		pending.AffCode = affCode
-	}
-	storedProvider, _ := session.Get("oauth_provider").(string)
-	normalizedProvider := strings.ToLower(strings.TrimSpace(providerName))
-	if normalizedProvider == "" || storedProvider == "" || storedProvider != normalizedProvider {
-		return oauthRegistrationState{}, errOAuthStateInvalid
-	}
-
-	if invitationCode, ok := session.Get("oauth_invitation_code").(string); ok && invitationCode != "" {
-		createdAt, validTimestamp := oauthInvitationCreatedAt(session.Get("oauth_invitation_created_at"))
-		if validTimestamp && now >= createdAt && now-createdAt <= int64(oauthStateTTL/time.Second) {
-			pending.InvitationCode = invitationCode
-		}
-	}
-	if err := model.ClaimOAuthStateGrant(state, normalizedProvider, time.Unix(now, 0)); err != nil {
-		if errors.Is(err, model.ErrOAuthStateGrantInvalid) {
-			return oauthRegistrationState{}, errOAuthStateInvalid
-		}
-		return oauthRegistrationState{}, err
-	}
-
-	clearOAuthRegistrationState(session)
-	if err := session.Save(); err != nil {
-		// The database grant has already been atomically consumed, so a stale
-		// client cookie cannot replay it even if clearing the cookie fails.
-		common.SysError("failed to clear consumed OAuth state from session: " + err.Error())
-	}
-	return pending, nil
-}
-
-func clearOAuthRegistrationState(session sessions.Session) {
-	session.Delete("oauth_state")
-	session.Delete("oauth_state_created_at")
-	session.Delete("oauth_provider")
-	session.Delete("oauth_invitation_code")
-	session.Delete("oauth_invitation_created_at")
-	session.Delete("aff")
-}
-
-func oauthStateCreatedAt(value any) (int64, bool) {
-	return oauthInvitationCreatedAt(value)
-}
-
-func oauthInvitationCreatedAt(value any) (int64, bool) {
-	switch timestamp := value.(type) {
-	case int64:
-		return timestamp, true
-	case int:
-		return int64(timestamp), true
-	case float64:
-		return int64(timestamp), true
-	default:
-		return 0, false
-	}
-}
-
-// handleOAuthBind handles binding OAuth account to existing user
-func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
-	if !provider.IsEnabled() {
-		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
-		return
-	}
-
-	// Exchange code for token
+func handleOAuthBind(c *gin.Context, providerName string, provider oauth.Provider, flow *model.AuthFlow) {
 	code := c.Query("code")
 	token, err := provider.ExchangeToken(c.Request.Context(), code, c)
 	if err != nil {
 		handleOAuthError(c, err)
 		return
 	}
-
-	// Get user info
 	oauthUser, err := provider.GetUserInfo(c.Request.Context(), token)
 	if err != nil {
 		handleOAuthError(c, err)
 		return
 	}
-
-	// Get current user from session
-	session := sessions.Default(c)
-	id := session.Get("id")
-	user := model.User{Id: id.(int)}
-	err = user.FillUserById()
-	if err != nil {
+	user := model.User{Id: flow.UserId}
+	if err := user.FillUserById(); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-
-	// Handle binding based on provider type. Built-in identities are claimed in
-	// the same database transaction as their legacy user-column update.
-	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
-		// Custom provider: use user_oauth_bindings table
-		if provider.IsUserIDTaken(oauthUser.ProviderUserID) {
-			common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
-			return
-		}
-		err = model.UpdateUserOAuthBinding(user.Id, genericProvider.GetProviderId(), oauthUser.ProviderUserID)
-	} else {
-		providerKey, _ := builtInOAuthIdentityProviderKey(c.Param("provider"), provider)
-		if owner, ownerErr := findOAuthUserBySubject(c.Param("provider"), provider, oauthUser.ProviderUserID); ownerErr == nil {
+	for _, providerSubject := range oauthIdentitySubjects(oauthUser) {
+		owner, ownerErr := findOAuthUserBySubject(providerName, provider, providerSubject)
+		if ownerErr == nil {
 			if owner.Id != user.Id {
 				common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
 				return
 			}
-		} else if !errors.Is(ownerErr, gorm.ErrRecordNotFound) {
+			continue
+		}
+		if !errors.Is(ownerErr, gorm.ErrRecordNotFound) {
 			common.ApiError(c, ownerErr)
 			return
 		}
-		if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok && strings.TrimSpace(legacyID) != "" {
-			if owner, ownerErr := findOAuthUserBySubject(c.Param("provider"), provider, legacyID); ownerErr == nil {
-				if owner.Id != user.Id {
-					common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
-					return
-				}
-			} else if !errors.Is(ownerErr, gorm.ErrRecordNotFound) {
-				common.ApiError(c, ownerErr)
-				return
-			}
+	}
+
+	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
+		err = model.UpdateUserOAuthBinding(user.Id, genericProvider.GetProviderId(), oauthUser.ProviderUserID)
+	} else {
+		providerKey, providerKeyErr := oauthIdentityProviderKey(providerName, provider)
+		if providerKeyErr != nil {
+			common.ApiError(c, providerKeyErr)
+			return
 		}
 		err = model.SetBuiltInAuthIdentity(&user, providerKey, oauthUser.ProviderUserID)
 	}
 	if err != nil {
-		if errors.Is(err, model.ErrAuthIdentityAlreadyBound) {
+		if errors.Is(err, model.ErrAuthIdentityAlreadyBound) || errors.Is(err, model.ErrAuthIdentityProviderAlreadyBound) {
 			common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
 			return
 		}
 		common.ApiError(c, err)
 		return
 	}
-
-	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
-		"action": "bind",
-	})
+	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{"action": "bind"})
 }
 
-// findOrCreateOAuthUser finds existing user or creates new user
-func findOrCreateOAuthUser(providerName string, provider oauth.Provider, oauthUser *oauth.OAuthUser, registrationState oauthRegistrationState) (*model.User, error) {
+func oauthIdentitySubjects(oauthUser *oauth.OAuthUser) []string {
+	if oauthUser == nil {
+		return nil
+	}
+	subjects := []string{oauthUser.ProviderUserID}
+	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok && strings.TrimSpace(legacyID) != "" && legacyID != oauthUser.ProviderUserID {
+		subjects = append(subjects, legacyID)
+	}
+	return subjects
+}
+
+func findOrCreateOAuthUser(providerName string, provider oauth.Provider, oauthUser *oauth.OAuthUser, payload oauthFlowPayload) (*model.User, error) {
+	if oauthUser == nil || strings.TrimSpace(oauthUser.ProviderUserID) == "" {
+		return nil, errors.New("OAuth provider returned an empty user identity")
+	}
 	user, err := findOAuthUserBySubject(providerName, provider, oauthUser.ProviderUserID)
 	if err == nil {
 		if user.Id == 0 || user.DeletedAt.Valid {
@@ -460,20 +365,26 @@ func findOrCreateOAuthUser(providerName string, provider oauth.Provider, oauthUs
 		return nil, err
 	}
 
-	// Try to find user with legacy ID (for GitHub migration from login to numeric ID)
-	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok && legacyID != "" {
+	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok && strings.TrimSpace(legacyID) != "" {
 		legacyUser, legacyErr := findOAuthUserBySubject(providerName, provider, legacyID)
 		if legacyErr == nil {
 			if legacyUser.Id == 0 || legacyUser.DeletedAt.Valid {
 				return nil, &OAuthUserDeletedError{}
 			}
-			if providerKey, builtIn := builtInOAuthIdentityProviderKey(providerName, provider); builtIn {
-				common.SysLog(fmt.Sprintf("[OAuth] Migrating user %d from legacy_id=%s to new_id=%s",
-					legacyUser.Id, legacyID, oauthUser.ProviderUserID))
+			if genericProvider, custom := provider.(*oauth.GenericOAuthProvider); custom {
+				if err := model.UpdateUserOAuthBinding(legacyUser.Id, genericProvider.GetProviderId(), oauthUser.ProviderUserID); err != nil {
+					return nil, err
+				}
+			} else {
+				providerKey, providerKeyErr := oauthIdentityProviderKey(providerName, provider)
+				if providerKeyErr != nil {
+					return nil, providerKeyErr
+				}
 				if err := model.SetBuiltInAuthIdentity(legacyUser, providerKey, oauthUser.ProviderUserID); err != nil {
 					return nil, err
 				}
 			}
+			common.SysLog(fmt.Sprintf("[OAuth] migrated legacy identity for provider %s and user %d", providerName, legacyUser.Id))
 			return legacyUser, nil
 		}
 		if !errors.Is(legacyErr, gorm.ErrRecordNotFound) {
@@ -481,28 +392,19 @@ func findOrCreateOAuthUser(providerName string, provider oauth.Provider, oauthUs
 		}
 	}
 
-	// User doesn't exist, create new user if registration is enabled
 	if !common.RegisterEnabled {
 		return nil, &OAuthRegistrationDisabledError{}
 	}
-
-	// Set up new user. The fallback name uses cryptographic randomness instead
-	// of MAX(id)+1, so concurrent registrations do not generate the same name.
 	user = &model.User{}
 	user.Username, err = generateOAuthUsername(provider.GetProviderPrefix())
 	if err != nil {
 		return nil, err
 	}
-
 	if oauthUser.Username != "" {
-		if exists, err := model.CheckUserExistOrDeleted(oauthUser.Username, ""); err == nil && !exists {
-			// 防止索引退化
-			if len(oauthUser.Username) <= model.UserNameMaxLength {
-				user.Username = oauthUser.Username
-			}
+		if exists, checkErr := model.CheckUserExistOrDeleted(oauthUser.Username, ""); checkErr == nil && !exists && len(oauthUser.Username) <= model.UserNameMaxLength {
+			user.Username = oauthUser.Username
 		}
 	}
-
 	if oauthUser.DisplayName != "" {
 		user.DisplayName = oauthUser.DisplayName
 	} else if oauthUser.Username != "" {
@@ -522,35 +424,22 @@ func findOrCreateOAuthUser(providerName string, provider oauth.Provider, oauthUs
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
-	// Handle affiliate code
-	inviterId := 0
-	if registrationState.AffCode != "" {
-		inviterId, _ = model.GetUserIdByAffCode(registrationState.AffCode)
+	inviterID := 0
+	if payload.AffiliateCode != "" {
+		inviterID, _ = model.GetUserIdByAffCode(payload.AffiliateCode)
 	}
-
-	registrationMethod := invitationMethodForOAuthProvider(providerName, provider)
-	registration := service.NewUserRegistration{
-		User:           user,
-		InviterID:      inviterId,
-		Method:         registrationMethod,
-		InvitationCode: registrationState.InvitationCode,
+	providerKey, err := oauthIdentityProviderKey(providerName, provider)
+	if err != nil {
+		return nil, err
 	}
-	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
-		registration.CreateRelated = func(tx *gorm.DB, createdUser *model.User) error {
-			binding := &model.UserOAuthBinding{
-				UserId:         createdUser.Id,
-				ProviderId:     genericProvider.GetProviderId(),
-				ProviderUserId: oauthUser.ProviderUserID,
-			}
-			return model.CreateUserOAuthBindingWithTx(tx, binding)
+	createRelated := func(tx *gorm.DB, createdUser *model.User) error {
+		if _, custom := provider.(*oauth.GenericOAuthProvider); custom {
+			return model.CreateAuthIdentityWithTx(tx, createdUser.Id, providerKey, oauthUser.ProviderUserID)
 		}
-	} else {
-		providerKey, _ := builtInOAuthIdentityProviderKey(providerName, provider)
-		registration.CreateRelated = func(tx *gorm.DB, createdUser *model.User) error {
-			return model.CreateBuiltInAuthIdentityWithTx(tx, createdUser, providerKey, oauthUser.ProviderUserID)
-		}
+		return model.CreateBuiltInAuthIdentityWithTx(tx, createdUser, providerKey, oauthUser.ProviderUserID)
 	}
-	if err := service.RegisterNewUser(registration); err != nil {
+	err = registerOAuthUser(user, inviterID, invitationMethodForOAuthProvider(providerName, provider), payload, createRelated)
+	if err != nil {
 		if errors.Is(err, model.ErrAuthIdentityAlreadyBound) {
 			winner, winnerErr := findOAuthUserBySubject(providerName, provider, oauthUser.ProviderUserID)
 			if winnerErr == nil && winner.Id != 0 && !winner.DeletedAt.Valid {
@@ -559,8 +448,50 @@ func findOrCreateOAuthUser(providerName string, provider oauth.Provider, oauthUs
 		}
 		return nil, err
 	}
-
 	return user, nil
+}
+
+func registerOAuthUser(user *model.User, inviterID int, method string, payload oauthFlowPayload, createRelated func(*gorm.DB, *model.User) error) error {
+	baseUser := *user
+	attemptUser := baseUser
+	err := model.WithInvitationCodeSettingsTransaction(func(tx *gorm.DB, settings common.InvitationCodeSettings) error {
+		attemptUser.InviterId = inviterID
+		if err := attemptUser.InsertWithTx(tx, inviterID); err != nil {
+			return err
+		}
+		if settings.Requires(method) {
+			if !payload.InvitationSupplied || payload.InvitationCodeID <= 0 {
+				return service.ErrInvitationCodeRejected
+			}
+			if _, err := model.ConsumeInvitationCodeReferenceWithTx(tx, payload.InvitationCodeID, attemptUser.Id); err != nil {
+				if isOAuthInvitationRejected(err) {
+					return service.ErrInvitationCodeRejected
+				}
+				return err
+			}
+		}
+		if createRelated != nil {
+			return createRelated(tx, &attemptUser)
+		}
+		return nil
+	})
+	if err != nil {
+		if model.IsSQLiteBusyError(err) || errors.Is(err, model.ErrInvitationCodeSettingsUnavailable) {
+			return fmt.Errorf("%w: %v", service.ErrRegistrationTemporarilyUnavailable, err)
+		}
+		return err
+	}
+	*user = attemptUser
+	user.FinishInsert(inviterID)
+	return nil
+}
+
+func isOAuthInvitationRejected(err error) bool {
+	return errors.Is(err, model.ErrInvitationCodeNotProvided) ||
+		errors.Is(err, model.ErrInvitationCodeInvalid) ||
+		errors.Is(err, model.ErrInvitationCodeUsed) ||
+		errors.Is(err, model.ErrInvitationCodeExpired) ||
+		errors.Is(err, model.ErrInvitationCodeDisabled)
 }
 
 func invitationMethodForOAuthProvider(providerName string, provider oauth.Provider) string {
@@ -581,7 +512,6 @@ func invitationMethodForOAuthProvider(providerName string, provider oauth.Provid
 	}
 }
 
-// Error types for OAuth
 type OAuthUserDeletedError struct{}
 
 func (e *OAuthUserDeletedError) Error() string {
@@ -600,7 +530,6 @@ func (e *OAuthEmailAlreadyTakenError) Error() string {
 	return "email is already in use"
 }
 
-// handleOAuthError handles OAuth errors and returns translated message
 func handleOAuthError(c *gin.Context, err error) {
 	switch e := err.(type) {
 	case *oauth.OAuthError:

@@ -16,8 +16,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -63,7 +61,6 @@ func TestTelegramLoginWithValidUnboundIdentityDoesNotCreateUser(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("telegram-registration-boundary-session"))))
 	engine.GET("/api/oauth/telegram/login", TelegramLogin)
 
 	query := signedTelegramLoginBoundaryQuery(

@@ -328,6 +328,8 @@ func migrateDB() error {
 		&Channel{},
 		&Token{},
 		&User{},
+		&UserSession{},
+		&AuthFlow{},
 		&PasskeyCredential{},
 		&Option{},
 		&Redemption{},
@@ -349,9 +351,7 @@ func migrateDB() error {
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
-		&UserOAuthBinding{},
 		&AuthIdentity{},
-		&OAuthStateGrant{},
 		&PerfMetric{},
 		&SystemInstance{},
 		&SystemTask{},
@@ -362,7 +362,10 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
-	if err := backfillBuiltInAuthIdentities(); err != nil {
+	if err := InitializeUserAuthVersions(); err != nil {
+		return err
+	}
+	if err := InitializeAuthIdentities(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
@@ -388,6 +391,8 @@ func migrateDBFast() error {
 		{&Channel{}, "Channel"},
 		{&Token{}, "Token"},
 		{&User{}, "User"},
+		{&UserSession{}, "UserSession"},
+		{&AuthFlow{}, "AuthFlow"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
 		{&Option{}, "Option"},
 		{&Redemption{}, "Redemption"},
@@ -409,9 +414,7 @@ func migrateDBFast() error {
 		{&UserSubscription{}, "UserSubscription"},
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
-		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&AuthIdentity{}, "AuthIdentity"},
-		{&OAuthStateGrant{}, "OAuthStateGrant"},
 		{&PerfMetric{}, "PerfMetric"},
 		{&SystemInstance{}, "SystemInstance"},
 		{&SystemTask{}, "SystemTask"},
@@ -440,7 +443,10 @@ func migrateDBFast() error {
 			return err
 		}
 	}
-	if err := backfillBuiltInAuthIdentities(); err != nil {
+	if err := InitializeUserAuthVersions(); err != nil {
+		return err
+	}
+	if err := InitializeAuthIdentities(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {

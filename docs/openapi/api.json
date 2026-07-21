@@ -37,9 +37,6 @@
       "name": "兑换码"
     },
     {
-      "name": "注册邀请码"
-    },
-    {
       "name": "日志"
     },
     {
@@ -59,6 +56,9 @@
     },
     {
       "name": "系统设置"
+    },
+    {
+      "name": "注册邀请码"
     }
   ],
   "paths": {
@@ -131,7 +131,7 @@
       "get": {
         "summary": "获取系统状态",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权 响应 data 可含 invitation_code_required（boolean）与 invitation_code_methods（string[]：password/github/discord/linuxdo/oidc/custom_oauth/wechat，不含 telegram）。",
         "tags": [
           "系统"
         ],
@@ -139,58 +139,7 @@
         "responses": {
           "200": {
             "description": "成功",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "success",
-                    "message",
-                    "data"
-                  ],
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "required": [
-                        "version",
-                        "invitation_code_required",
-                        "invitation_code_methods"
-                      ],
-                      "properties": {
-                        "version": {
-                          "type": "string"
-                        },
-                        "invitation_code_required": {
-                          "type": "boolean"
-                        },
-                        "invitation_code_methods": {
-                          "type": "array",
-                          "items": {
-                            "type": "string",
-                            "enum": [
-                              "password",
-                              "github",
-                              "discord",
-                              "linuxdo",
-                              "oidc",
-                              "custom_oauth",
-                              "wechat"
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "headers": {}
           }
         },
         "security": [
@@ -572,7 +521,7 @@
       "post": {
         "summary": "用户注册",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权 请求可含 invitation_code；响应为注册成功消息（不直接返回 AuthBundle/邀请码）。",
         "tags": [
           "用户登陆注册"
         ],
@@ -601,7 +550,7 @@
                   "invitation_code": {
                     "type": "string",
                     "maxLength": 128,
-                    "description": "管理员生成的注册邀请码；仅在对应注册方式启用邀请码要求时必填"
+                    "description": "可选。密码注册在 invitation_code_required 且 methods 含 password 时，新用户必须提供有效邀请码；关闭时保持兼容可省略。成功响应不返回邀请码；新用户事务包含用户创建、AuthIdentity 与邀请码核销。"
                   }
                 }
               }
@@ -628,7 +577,7 @@
       "post": {
         "summary": "用户登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -654,6 +603,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -670,7 +639,7 @@
       "post": {
         "summary": "两步验证登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（登录流程）",
+        "description": "🔓 无需鉴权（登录流程）。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -683,6 +652,10 @@
                 "properties": {
                   "code": {
                     "type": "string"
+                  },
+                  "flow_token": {
+                    "type": "string",
+                    "description": "密码校验成功后返回的一次性 2FA 登录流程令牌"
                   }
                 }
               }
@@ -693,6 +666,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -705,11 +698,125 @@
         ]
       }
     },
-    "/api/user/logout": {
-      "get": {
-        "summary": "用户登出",
+    "/api/user/auth/refresh": {
+      "post": {
+        "summary": "刷新面板登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "使用 HttpOnly Refresh Cookie 轮换刷新令牌并返回新的 AuthBundle；SESSION_COOKIE_SECURE=true 时要求同源或可信 Origin，false/未配置时保持本地 HTTP 兼容模式。已有内存会话时通过 X-Auth-Session 绑定预期 SID，Cookie 不匹配返回 409 AUTH_SESSION_MISMATCH 且不修改 Cookie。",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [
+          {
+            "name": "X-Auth-Session",
+            "in": "header",
+            "description": "可选的预期登录会话 SID；冷启动时可省略",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          },
+          "409": {
+            "description": "X-Auth-Session 与 Refresh Cookie 的 SID 不一致；不修改 Cookie 或会话",
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/user/auth/logout": {
+      "post": {
+        "summary": "撤销当前登录会话",
+        "deprecated": false,
+        "description": "撤销明确的 Bearer/X-Auth-Session 会话；仅当 HttpOnly Refresh Cookie 属于同一 SID 时才撤销并清除 Cookie，避免跨标签页误踢其他账号。SESSION_COOKIE_SECURE=true 时要求同源或可信 Origin，false/未配置时保持本地 HTTP 兼容模式。",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [
+          {
+            "name": "X-Auth-Session",
+            "in": "header",
+            "description": "可选的预期登录会话 SID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/user/sessions": {
+      "get": {
+        "summary": "查看登录会话",
+        "deprecated": false,
+        "description": "🔐 需要面板 Access Token；PAT 不能管理浏览器登录会话。只返回当前 user_auth_version 的有效会话，当前会话优先，最多 100 条。",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "返回当前鉴权版本的有效登录会话",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/user/sessions/{sid}": {
+      "delete": {
+        "summary": "撤销指定登录会话",
+        "deprecated": false,
+        "description": "🔐 需要面板 Access Token，可撤销当前会话",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/user/sessions/revoke-others": {
+      "post": {
+        "summary": "撤销其他登录会话",
+        "deprecated": false,
+        "description": "🔐 保留当前登录会话并撤销该用户的其他会话，包含列表不可见的旧 user_auth_version active 残留行",
         "tags": [
           "用户登陆注册"
         ],
@@ -722,10 +829,7 @@
         },
         "security": [
           {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+            "AccessToken1": []
           }
         ]
       }
@@ -784,7 +888,7 @@
       "post": {
         "summary": "完成Passkey登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -793,6 +897,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -809,7 +933,7 @@
       "get": {
         "summary": "GitHub OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -828,6 +952,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -844,7 +974,7 @@
       "get": {
         "summary": "Discord OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -863,6 +993,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -879,7 +1015,7 @@
       "get": {
         "summary": "OIDC登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -888,6 +1024,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -904,7 +1046,7 @@
       "get": {
         "summary": "LinuxDO OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -913,6 +1055,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -926,52 +1074,10 @@
       }
     },
     "/api/oauth/state": {
-      "get": {
-        "summary": "生成OAuth State（兼容GET）",
-        "deprecated": false,
-        "description": "🔓 无需鉴权。兼容既有的不含邀请码的登录或绑定流程：provider 必填，aff 可选。查询参数中只要出现 invitation_code（包括空值）就会被拒绝；需要携带邀请码时必须改用 POST JSON 请求体。服务端只持久化 state 的 SHA-256 摘要，并通过数据库条件删除原子消费；state 与当前会话及归一化后的 provider 绑定，10 分钟内有效且只能成功消费一次。",
-        "tags": [
-          "OAuth"
-        ],
-        "parameters": [
-          {
-            "name": "provider",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "OAuth provider slug；服务端会去除首尾空白并转换为小写，回调 provider 必须与其严格匹配。"
-          },
-          {
-            "name": "aff",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "可选的推广码。"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "state 生成结果；参数不合法时仍返回 HTTP 200，但 success=false 且不含 data。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OAuthStateResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": []
-      },
       "post": {
         "summary": "生成OAuth State",
         "deprecated": false,
-        "description": "🔓 无需鉴权。携带邀请码时必须使用此 JSON 请求体接口，查询参数中的 invitation_code 会被拒绝，以避免邀请码进入浏览器历史、反向代理访问日志或 Referer。provider 必填；邀请码仅在 OAuth 回调创建新用户时使用。服务端只持久化 state 的 SHA-256 摘要，并通过数据库条件删除原子消费；state 与当前会话及归一化后的 provider 绑定，10 分钟内有效且只能成功消费一次。",
+        "description": "创建一次性 OAuth AuthFlow。login 无需鉴权；bind 需要面板 Access Token 并绑定当前登录会话 login body 可含可选 invitation_code（仅新用户路径由服务端校验核销；创建 flow 本身不因缺失邀请码失败）。bind 不使用邀请码。query 中禁止 invitation_code。",
         "tags": [
           "OAuth"
         ],
@@ -981,31 +1087,86 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OAuthStateRequest"
+                "type": "object",
+                "required": [
+                  "provider",
+                  "intent"
+                ],
+                "properties": {
+                  "provider": {
+                    "type": "string"
+                  },
+                  "intent": {
+                    "type": "string",
+                    "enum": [
+                      "login",
+                      "bind"
+                    ]
+                  },
+                  "aff": {
+                    "type": "string",
+                    "description": "仅 login intent 可用的 affiliate code；bind 时必须为空"
+                  },
+                  "invitation_code": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "可选。仅 login intent 有效：trim 后非空时服务端解析为内部引用并写入 AuthFlow payload；空白应省略字段。bind intent 忽略/不得依赖该字段。缺失或仅在新用户注册时由服务端核销；已有用户免邀请码。禁止放入 query/state/redirect/callback。"
+                  }
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "state 生成结果；请求体或参数不合法时仍返回 HTTP 200，但 success=false 且不含 data。",
+            "description": "成功时 data 为 { flow_token, expires_at }（flow_token 作为 OAuth state 使用）。不含 invitation_code 或 invitation_code_id。",
+            "headers": {},
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OAuthStateResponse"
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "flow_token": {
+                          "type": "string",
+                          "description": "一次性 AuthFlow token，用作 OAuth state"
+                        },
+                        "expires_at": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "Unix 秒级过期时间"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
           }
         },
-        "security": []
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
       }
     },
     "/api/oauth/wechat": {
       "get": {
-        "summary": "微信OAuth登录（兼容GET）",
-        "deprecated": true,
-        "description": "🔓 无需鉴权。仅兼容不携带邀请码的既有登录；只接受查询参数 code。查询参数中只要出现 invitation_code（包括空值）就会拒绝请求。新客户端应使用 POST JSON。",
+        "summary": "微信OAuth登录",
+        "deprecated": false,
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。 GET/query 仅允许微信协议 code；invitation_code 出现在 query 将被拒绝。",
         "tags": [
           "OAuth"
         ],
@@ -1016,13 +1177,20 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "微信授权 code。禁止携带 invitation_code。"
           }
         ],
         "responses": {
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -1035,12 +1203,13 @@
         ]
       },
       "post": {
-        "summary": "微信OAuth登录",
+        "summary": "微信OAuth登录（JSON body）",
         "deprecated": false,
-        "description": "🔓 无需鉴权；code 和可选的新用户邀请码只能通过 JSON 请求体提交。查询参数中的 code 或 invitation_code 均会被拒绝。",
+        "description": "🔓 无需鉴权。通过 POST JSON 提交微信 code，并可在 body 中携带可选 invitation_code（仅新用户注册时由服务端事务校验并核销；已有用户免邀请码）。query 中不得出现 code 或 invitation_code。成功响应为 AuthBundle/登录结果，不含邀请码明文。新用户创建在同一事务中包含用户、AuthIdentity 认领与邀请码核销。",
         "tags": [
           "OAuth"
         ],
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -1053,11 +1222,12 @@
                 "properties": {
                   "code": {
                     "type": "string",
-                    "minLength": 1
+                    "description": "微信授权 code"
                   },
                   "invitation_code": {
                     "type": "string",
-                    "maxLength": 128
+                    "maxLength": 128,
+                    "description": "可选邀请码；trim 后为空应省略。仅新用户路径使用。"
                   }
                 }
               }
@@ -1066,20 +1236,46 @@
         },
         "responses": {
           "200": {
-            "description": "成功"
+            "description": "成功或业务失败（success=false）；成功时不含 invitation_code",
+            "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
-        }
+        },
+        "security": []
       }
     },
     "/api/oauth/wechat/bind": {
-      "get": {
+      "post": {
         "summary": "绑定微信",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔐 需要面板 Access Token",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "成功",
@@ -1088,42 +1284,43 @@
         },
         "security": [
           {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+            "AccessToken1": []
           }
         ]
       }
     },
     "/api/oauth/email/bind": {
-      "get": {
+      "post": {
         "summary": "绑定邮箱",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔐 需要面板 Access Token",
         "tags": [
           "OAuth"
         ],
-        "parameters": [
-          {
-            "name": "email",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "code",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "code"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "成功",
@@ -1132,10 +1329,7 @@
         },
         "security": [
           {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+            "AccessToken1": []
           }
         ]
       }
@@ -1144,7 +1338,7 @@
       "get": {
         "summary": "Telegram登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。 Telegram 登录/绑定不参与邀请码注册方式，请求与响应均无邀请码字段。",
         "tags": [
           "OAuth"
         ],
@@ -1153,6 +1347,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -1165,11 +1365,11 @@
         ]
       }
     },
-    "/api/oauth/telegram/bind": {
-      "get": {
-        "summary": "绑定Telegram",
+    "/api/oauth/telegram/bind/start": {
+      "post": {
+        "summary": "创建 Telegram 绑定流程",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔐 需要面板 Access Token；返回绑定 widget 使用的一次性 flow_token 与 callback_url",
         "tags": [
           "OAuth"
         ],
@@ -1182,12 +1382,36 @@
         },
         "security": [
           {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+            "AccessToken1": []
           }
         ]
+      }
+    },
+    "/api/oauth/telegram/bind/{flow_token}": {
+      "get": {
+        "summary": "完成 Telegram 绑定",
+        "deprecated": false,
+        "description": "Telegram widget 回调；通过一次性 flow_token 关联并重新校验创建该流程的登录会话。始终以 302 回到 /oauth/telegram：成功携带 telegram_bind=success，失败携带 telegram_bind=error、flow_token 和稳定 error_code（TELEGRAM_BIND_DISABLED、TELEGRAM_BIND_INVALID_REQUEST、TELEGRAM_BIND_FLOW_INVALID、TELEGRAM_BIND_SESSION_INVALID、TELEGRAM_BIND_ALREADY_BOUND、TELEGRAM_BIND_USER_DELETED、TELEGRAM_BIND_USER_DISABLED 或 TELEGRAM_BIND_INTERNAL_ERROR），不会透传底层错误文案。",
+        "tags": [
+          "OAuth"
+        ],
+        "parameters": [
+          {
+            "name": "flow_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "重定向到 /oauth/telegram 的绑定结果回调",
+            "headers": {}
+          }
+        },
+        "security": []
       }
     },
     "/api/user/self/groups": {
@@ -4013,226 +4237,6 @@
         ]
       }
     },
-    "/api/invitation/": {
-      "get": {
-        "summary": "获取注册邀请码",
-        "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "注册邀请码"
-        ],
-        "parameters": [
-          {
-            "name": "p",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "成功"
-          }
-        }
-      },
-      "post": {
-        "summary": "批量生成注册邀请码",
-        "description": "👨‍💼 需要管理员权限（Admin）。邀请码明文仅在本次响应中返回。",
-        "tags": [
-          "注册邀请码"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "name",
-                  "count"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "maxLength": 20
-                  },
-                  "count": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 100
-                  },
-                  "expired_time": {
-                    "type": "integer",
-                    "format": "int64",
-                    "description": "Unix 时间戳；0 表示永不过期"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功；data 为邀请码明文数组"
-          }
-        }
-      },
-      "put": {
-        "summary": "更新注册邀请码",
-        "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "注册邀请码"
-        ],
-        "parameters": [
-          {
-            "name": "status_only",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InvitationCode"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功"
-          }
-        }
-      }
-    },
-    "/api/invitation/search": {
-      "get": {
-        "summary": "搜索注册邀请码",
-        "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "注册邀请码"
-        ],
-        "parameters": [
-          {
-            "name": "keyword",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "enabled",
-                "disabled",
-                "used",
-                "expired"
-              ]
-            }
-          },
-          {
-            "name": "p",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "成功"
-          }
-        }
-      }
-    },
-    "/api/invitation/used": {
-      "delete": {
-        "summary": "删除所有已使用注册邀请码",
-        "description": "👨‍💼 需要管理员权限（Admin），使用软删除保留审计信息",
-        "tags": [
-          "注册邀请码"
-        ],
-        "responses": {
-          "200": {
-            "description": "成功；data 为删除数量"
-          }
-        }
-      }
-    },
-    "/api/invitation/{id}": {
-      "get": {
-        "summary": "获取指定注册邀请码",
-        "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "注册邀请码"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "成功"
-          }
-        }
-      },
-      "delete": {
-        "summary": "删除指定注册邀请码",
-        "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "注册邀请码"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "成功"
-          }
-        }
-      }
-    },
     "/api/log/": {
       "get": {
         "summary": "获取所有日志",
@@ -4275,18 +4279,30 @@
             "Combination1243": []
           }
         ]
-      },
-      "delete": {
-        "summary": "删除历史日志",
+      }
+    },
+    "/api/system-task/log-cleanup": {
+      "post": {
+        "summary": "创建日志清理任务",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👑 需要超级管理员权限（Root）。使用 target_timestamp 指定需清理的历史日志边界，并返回异步系统任务。",
         "tags": [
           "日志"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "target_timestamp",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "成功创建任务或返回参数错误",
             "headers": {}
           }
         },
@@ -5193,7 +5209,7 @@
       "get": {
         "summary": "获取系统选项",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。已退役的 theme.frontend 不在列表中返回。",
         "tags": [
           "系统设置"
         ],
@@ -5216,7 +5232,7 @@
       "put": {
         "summary": "更新系统选项",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。兼容期内 theme.frontend=default 可幂等写入，其他主题值会被拒绝。 邀请码配置键 InvitationCodeRequired / InvitationCodeMethods 必须通过 PUT /api/option/invitation-code 原子更新，通用本接口会拒绝。",
         "tags": [
           "系统设置"
         ],
@@ -5225,72 +5241,6 @@
           "200": {
             "description": "成功",
             "headers": {}
-          }
-        },
-        "security": [
-          {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
-          }
-        ]
-      }
-    },
-    "/api/option/invitation-code": {
-      "put": {
-        "summary": "原子更新邀请码配置",
-        "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）。required 与 methods 必须同时提供且不得为 null，并在同一事务中保存。required=true 时 methods 不得为空；required=false 时允许空数组。方法名会去除首尾空白、转换为小写、去重并按字典序排序，未知方法会被拒绝。InvitationCodeRequired 与 InvitationCodeMethods 不允许再通过通用选项更新接口单独修改。",
-        "tags": [
-          "系统设置"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InvitationCodeConfig"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "更新结果。成功时 data 返回实际生效的、已归一化的完整配置对；业务校验或持久化失败时 HTTP 状态仍为 200，但 success=false 且不含 data。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "success",
-                    "message"
-                  ],
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/InvitationCodeConfig"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "JSON 无法解析，或 required / methods 任一字段缺失或为 null。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
           }
         },
         "security": [
@@ -5306,31 +5256,6 @@
     "/api/option/rest_model_ratio": {
       "post": {
         "summary": "重置模型倍率",
-        "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
-        "tags": [
-          "系统设置"
-        ],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
-          }
-        ]
-      }
-    },
-    "/api/option/migrate_console_setting": {
-      "post": {
-        "summary": "迁移控制台设置",
         "deprecated": false,
         "description": "👑 需要超级管理员权限（Root）",
         "tags": [
@@ -5402,6 +5327,346 @@
           }
         ]
       }
+    },
+    "/api/invitation/": {
+      "get": {
+        "summary": "获取注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。返回分页列表；条目仅含 code_prefix 等脱敏字段，不含明文。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "页码"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "每页数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；data 为分页结构，items 为 InvitationCode 数组（无明文）",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "批量生成注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。创建成功时 data 为明文邀请码字符串数组，仅本次响应返回一次；客户端须自行妥善保存。列表/详情/更新/删除不会再次返回明文。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCodeCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 data 为 string[] 明文占位结果（示例值仅作格式说明，非真实邀请码）；失败时 success=false",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "description": "仅创建成功时存在的一次性明文邀请码列表",
+                      "items": {
+                        "type": "string",
+                        "description": "明文邀请码（一次性）",
+                        "example": "INV-PLACEHOLDER-EXAMPLE-NOT-REAL"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "更新注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。query status_only 非空时仅更新 status（1/2）；否则可更新 name/status/expired_time。已使用码不可更新。响应不含明文。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "status_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "任意非空值表示仅更新状态"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCodeUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 data 为脱敏 InvitationCode",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/invitation/search": {
+      "get": {
+        "summary": "搜索注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。结果仅含脱敏字段。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "enabled",
+                "disabled",
+                "used",
+                "expired"
+              ]
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；分页列表，无明文",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/invitation/used": {
+      "delete": {
+        "summary": "删除所有已使用注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。软删除保留审计信息；data 为删除数量。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功；data 为删除数量",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/invitation/{id}": {
+      "get": {
+        "summary": "获取指定注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。仅返回脱敏字段，不含明文。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；data 为 InvitationCode（无明文）",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "删除指定注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/option/invitation-code": {
+      "put": {
+        "summary": "原子更新邀请码配置",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。required 与 methods 必须同时提供且不得为 null，并在同一事务中保存。required=true 时 methods 不得为空；required=false 时允许空数组。方法名会去除首尾空白、转换为小写、去重并按字典序排序，未知方法会被拒绝。InvitationCodeRequired 与 InvitationCodeMethods 不允许再通过通用 PUT /api/option/ 单独修改。",
+        "tags": [
+          "系统设置"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCodeConfig"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 data 为归一化后的完整配置对；业务失败时 HTTP 仍可能为 200 且 success=false。",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/InvitationCodeConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON 无法解析，或 required / methods 任一字段缺失或为 null。",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -5418,92 +5683,30 @@
           "data": {}
         }
       },
-      "InvitationCodeConfig": {
-        "type": "object",
-        "description": "邀请码总开关与适用注册方式组成的不可分割配置对。响应中的 methods 已转换为小写、去重并按字典序排序。",
-        "required": [
-          "required",
-          "methods"
-        ],
-        "properties": {
-          "required": {
-            "type": "boolean",
-            "description": "是否对 methods 列出的新用户注册方式强制要求邀请码。为 true 时 methods 至少包含一项。"
-          },
-          "methods": {
-            "type": "array",
-            "description": "受邀请码开关约束的注册方式。请求值会被去除首尾空白、转换为小写、去重并排序；required=false 时可为空数组。",
-            "items": {
-              "type": "string",
-              "enum": [
-                "password",
-                "github",
-                "discord",
-                "linuxdo",
-                "oidc",
-                "custom_oauth",
-                "wechat"
-              ]
-            }
-          }
-        },
-        "example": {
-          "required": true,
-          "methods": [
-            "linuxdo",
-            "password"
-          ]
-        }
-      },
-      "OAuthStateRequest": {
-        "type": "object",
-        "required": [
-          "provider"
-        ],
-        "properties": {
-          "aff": {
-            "type": "string",
-            "description": "可选的推广码。"
-          },
-          "provider": {
-            "type": "string",
-            "minLength": 1,
-            "description": "OAuth provider slug；服务端会去除首尾空白并转换为小写，回调 provider 必须与其严格匹配。"
-          },
-          "invitation_code": {
-            "type": "string",
-            "maxLength": 128,
-            "description": "可选的邀请码，仅在回调创建新用户时使用；服务端会去除首尾空白。不得放入 GET 查询参数。"
-          }
-        },
-        "example": {
-          "aff": "AFF123",
-          "provider": "linuxdo",
-          "invitation_code": "INVITATION-CODE"
-        }
-      },
-      "OAuthStateResponse": {
+      "AuthSessionIssuanceError": {
         "type": "object",
         "required": [
           "success",
+          "code",
           "message"
         ],
         "properties": {
           "success": {
-            "type": "boolean"
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "AUTH_SESSION_LIMIT",
+              "AUTH_SESSION_ISSUANCE_LIMIT"
+            ]
           },
           "message": {
             "type": "string"
-          },
-          "data": {
-            "type": "string",
-            "description": "生成的 OAuth state，仅在 success=true 时存在。"
           }
-        },
-        "example": {
-          "success": true,
-          "message": "",
-          "data": "random-state"
         }
       },
       "PageInfo": {
@@ -5671,6 +5874,7 @@
       },
       "InvitationCode": {
         "type": "object",
+        "description": "注册邀请码列表/详情项。仅返回脱敏前缀，不包含完整明文或哈希。",
         "properties": {
           "id": {
             "type": "integer"
@@ -5680,7 +5884,7 @@
           },
           "code_prefix": {
             "type": "string",
-            "description": "邀请码安全前缀；完整邀请码不会再次返回"
+            "description": "邀请码安全前缀；完整明文不会出现在列表/详情/更新响应中"
           },
           "status": {
             "type": "integer",
@@ -5698,7 +5902,8 @@
               "disabled",
               "used",
               "expired"
-            ]
+            ],
+            "description": "派生状态（含过期判断）"
           },
           "created_by": {
             "type": "integer"
@@ -5722,35 +5927,148 @@
             "format": "int64"
           }
         }
+      },
+      "InvitationCodeConfig": {
+        "type": "object",
+        "description": "邀请码总开关与适用注册方式组成的不可分割配置对。响应中的 methods 已转换为小写、去重并按字典序排序。",
+        "required": [
+          "required",
+          "methods"
+        ],
+        "properties": {
+          "required": {
+            "type": "boolean",
+            "description": "是否对 methods 列出的新用户注册方式强制要求邀请码。为 true 时 methods 至少包含一项。"
+          },
+          "methods": {
+            "type": "array",
+            "description": "受邀请码开关约束的注册方式。请求值会被去除首尾空白、转换为小写、去重并排序；required=false 时可为空数组。不含 telegram。",
+            "items": {
+              "type": "string",
+              "enum": [
+                "password",
+                "github",
+                "discord",
+                "linuxdo",
+                "oidc",
+                "custom_oauth",
+                "wechat"
+              ]
+            }
+          }
+        }
+      },
+      "InvitationCodeCreateRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "count"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 20,
+            "description": "批次名称"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "生成数量"
+          },
+          "expired_time": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix 时间戳；0 表示永不过期"
+          }
+        }
+      },
+      "InvitationCodeUpdateRequest": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "status": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "description": "status_only 时仅允许 1=启用 或 2=停用；已使用码不可更新"
+          },
+          "expired_time": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix 时间戳；0 表示永不过期"
+          }
+        }
       }
     },
-    "responses": {},
+    "responses": {
+      "AuthSessionLimit": {
+        "description": "该用户的活跃登录 Session 已达上限",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthSessionIssuanceError"
+            }
+          }
+        }
+      },
+      "AuthSessionIssuanceLimit": {
+        "description": "该用户在统计窗口内创建的 Session 已达上限",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthSessionIssuanceError"
+            }
+          }
+        }
+      }
+    },
     "securitySchemes": {
       "SessionAuth1": {
         "type": "apiKey",
         "in": "cookie",
         "name": "session",
-        "description": "Session认证，通过登录接口获取"
+        "description": "已废弃：Gin session 不再用于面板鉴权"
       },
       "AccessToken1": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "Authorization",
-        "description": "Access Token认证，格式: Bearer {access_token}，通过 /api/user/token 接口生成"
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT or PAT",
+        "description": "面板短期 JWT 或 User.AccessToken PAT；不再要求 New-Api-User"
       },
       "NewApiUser1": {
         "type": "apiKey",
         "in": "header",
         "name": "New-Api-User",
-        "description": "用户ID请求头，必须与当前登录用户ID匹配，使用Session或AccessToken认证时必须提供"
+        "description": "已废弃且不再参与鉴权；PAT 客户端可以移除此请求头"
+      },
+      "RefreshCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "new_api_refresh",
+        "description": "仅 refresh/logout 使用的 HttpOnly、SameSite=Strict Cookie"
+      },
+      "SecurityProof": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Security-Proof",
+        "description": "绑定用户、登录会话和 scope 的短期二次验证 Proof"
       },
       "Combination222": {
         "group": [
           {
-            "id": 573666
-          },
-          {
-            "id": 573668
+            "id": 573667
           }
         ],
         "type": "combination"
@@ -5759,9 +6077,6 @@
         "group": [
           {
             "id": 573667
-          },
-          {
-            "id": 573668
           }
         ],
         "type": "combination"
@@ -5769,10 +6084,7 @@
       "Combination223": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5781,9 +6093,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5791,10 +6100,7 @@
       "Combination224": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5803,9 +6109,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5813,10 +6116,7 @@
       "Combination225": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5825,9 +6125,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5835,10 +6132,7 @@
       "Combination226": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5847,9 +6141,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5857,10 +6148,7 @@
       "Combination227": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5869,9 +6157,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5879,10 +6164,7 @@
       "Combination228": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5891,9 +6173,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5901,10 +6180,7 @@
       "Combination229": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5913,9 +6189,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5923,10 +6196,7 @@
       "Combination230": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5935,9 +6205,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5945,10 +6212,7 @@
       "Combination231": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5957,9 +6221,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5967,10 +6228,7 @@
       "Combination232": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5979,9 +6237,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5989,10 +6244,7 @@
       "Combination233": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6001,9 +6253,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6011,10 +6260,7 @@
       "Combination234": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6023,9 +6269,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6033,10 +6276,7 @@
       "Combination235": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6045,9 +6285,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6055,10 +6292,7 @@
       "Combination236": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6067,9 +6301,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6077,10 +6308,7 @@
       "Combination237": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6089,9 +6317,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6099,10 +6324,7 @@
       "Combination238": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6111,9 +6333,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6121,10 +6340,7 @@
       "Combination239": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6133,9 +6349,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6143,10 +6356,7 @@
       "Combination240": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6155,9 +6365,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6165,10 +6372,7 @@
       "Combination241": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6177,9 +6381,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6187,10 +6388,7 @@
       "Combination242": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6199,9 +6397,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6209,10 +6404,7 @@
       "Combination243": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6221,9 +6413,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6231,10 +6420,7 @@
       "Combination244": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6243,9 +6429,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6253,10 +6436,7 @@
       "Combination245": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6265,9 +6445,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6275,10 +6452,7 @@
       "Combination246": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6287,9 +6461,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6297,10 +6468,7 @@
       "Combination247": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6309,9 +6477,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6319,10 +6484,7 @@
       "Combination248": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6331,9 +6493,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6341,10 +6500,7 @@
       "Combination249": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6353,9 +6509,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6363,10 +6516,7 @@
       "Combination250": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6375,9 +6525,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6385,10 +6532,7 @@
       "Combination251": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6397,9 +6541,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6407,10 +6548,7 @@
       "Combination252": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6419,9 +6557,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6429,10 +6564,7 @@
       "Combination253": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6441,9 +6573,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6451,10 +6580,7 @@
       "Combination254": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6463,9 +6589,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6473,10 +6596,7 @@
       "Combination255": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6485,9 +6605,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6495,10 +6612,7 @@
       "Combination256": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6507,9 +6621,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6517,10 +6628,7 @@
       "Combination257": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6529,9 +6637,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6539,10 +6644,7 @@
       "Combination258": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6551,9 +6653,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6561,10 +6660,7 @@
       "Combination259": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6573,9 +6669,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6583,10 +6676,7 @@
       "Combination260": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6595,9 +6685,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6605,10 +6692,7 @@
       "Combination261": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6617,9 +6701,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6627,10 +6708,7 @@
       "Combination262": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6639,9 +6717,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6649,10 +6724,7 @@
       "Combination263": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6661,9 +6733,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6671,10 +6740,7 @@
       "Combination264": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6683,9 +6749,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6693,10 +6756,7 @@
       "Combination265": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6705,9 +6765,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6715,10 +6772,7 @@
       "Combination266": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6727,9 +6781,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6737,10 +6788,7 @@
       "Combination267": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6749,9 +6797,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6759,10 +6804,7 @@
       "Combination268": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6771,9 +6813,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6781,10 +6820,7 @@
       "Combination269": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6793,9 +6829,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6803,10 +6836,7 @@
       "Combination270": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6815,9 +6845,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6825,10 +6852,7 @@
       "Combination271": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6837,9 +6861,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6847,10 +6868,7 @@
       "Combination272": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6859,9 +6877,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6869,10 +6884,7 @@
       "Combination273": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6881,9 +6893,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6891,10 +6900,7 @@
       "Combination274": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6903,9 +6909,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6913,10 +6916,7 @@
       "Combination275": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6925,9 +6925,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6935,10 +6932,7 @@
       "Combination276": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6947,9 +6941,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6957,10 +6948,7 @@
       "Combination277": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6969,9 +6957,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6979,10 +6964,7 @@
       "Combination278": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6991,9 +6973,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7001,10 +6980,7 @@
       "Combination279": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7013,9 +6989,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7023,10 +6996,7 @@
       "Combination280": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7035,9 +7005,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7045,10 +7012,7 @@
       "Combination281": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7057,9 +7021,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7067,10 +7028,7 @@
       "Combination282": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7079,9 +7037,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7089,10 +7044,7 @@
       "Combination283": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7101,9 +7053,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7111,10 +7060,7 @@
       "Combination284": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7123,9 +7069,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7133,10 +7076,7 @@
       "Combination285": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7145,9 +7085,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7155,10 +7092,7 @@
       "Combination286": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7167,9 +7101,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7177,10 +7108,7 @@
       "Combination287": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7189,9 +7117,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7199,10 +7124,7 @@
       "Combination288": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7211,9 +7133,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7221,10 +7140,7 @@
       "Combination289": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7233,9 +7149,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7243,10 +7156,7 @@
       "Combination290": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7255,9 +7165,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7265,10 +7172,7 @@
       "Combination291": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7277,9 +7181,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7287,10 +7188,7 @@
       "Combination292": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7299,9 +7197,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7309,10 +7204,7 @@
       "Combination293": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7321,9 +7213,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7331,10 +7220,7 @@
       "Combination294": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7343,9 +7229,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7353,10 +7236,7 @@
       "Combination295": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7365,9 +7245,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7375,10 +7252,7 @@
       "Combination296": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7387,9 +7261,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7397,10 +7268,7 @@
       "Combination297": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7409,9 +7277,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7419,10 +7284,7 @@
       "Combination298": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7431,9 +7293,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7441,10 +7300,7 @@
       "Combination299": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7453,9 +7309,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7463,10 +7316,7 @@
       "Combination300": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7475,9 +7325,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7485,10 +7332,7 @@
       "Combination301": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7497,9 +7341,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7507,10 +7348,7 @@
       "Combination302": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7519,9 +7357,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7529,10 +7364,7 @@
       "Combination303": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7541,9 +7373,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7551,10 +7380,7 @@
       "Combination304": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7563,9 +7389,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7573,10 +7396,7 @@
       "Combination305": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7585,9 +7405,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7595,10 +7412,7 @@
       "Combination306": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7607,9 +7421,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7617,10 +7428,7 @@
       "Combination307": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7629,9 +7437,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7639,10 +7444,7 @@
       "Combination308": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7651,9 +7453,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7661,10 +7460,7 @@
       "Combination309": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7673,9 +7469,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7683,10 +7476,7 @@
       "Combination310": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7695,9 +7485,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7705,10 +7492,7 @@
       "Combination311": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7717,9 +7501,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7727,10 +7508,7 @@
       "Combination312": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7739,9 +7517,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7749,10 +7524,7 @@
       "Combination313": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7761,9 +7533,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7771,10 +7540,7 @@
       "Combination314": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7783,9 +7549,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7793,10 +7556,7 @@
       "Combination315": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7805,9 +7565,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7815,10 +7572,7 @@
       "Combination316": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7827,9 +7581,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7837,10 +7588,7 @@
       "Combination317": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7849,9 +7597,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7859,10 +7604,7 @@
       "Combination318": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7871,9 +7613,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7881,10 +7620,7 @@
       "Combination319": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7893,9 +7629,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7903,10 +7636,7 @@
       "Combination320": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7915,9 +7645,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7925,10 +7652,7 @@
       "Combination321": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7937,9 +7661,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7947,10 +7668,7 @@
       "Combination322": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7959,9 +7677,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7969,10 +7684,7 @@
       "Combination323": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7981,9 +7693,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7991,10 +7700,7 @@
       "Combination324": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8003,9 +7709,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8013,10 +7716,7 @@
       "Combination325": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8025,9 +7725,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8035,10 +7732,7 @@
       "Combination326": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8047,9 +7741,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8057,10 +7748,7 @@
       "Combination327": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8069,9 +7757,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8079,10 +7764,7 @@
       "Combination328": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8091,9 +7773,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8101,10 +7780,7 @@
       "Combination329": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8113,9 +7789,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8123,10 +7796,7 @@
       "Combination330": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8135,9 +7805,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8145,10 +7812,7 @@
       "Combination331": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8157,9 +7821,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8167,10 +7828,7 @@
       "Combination332": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8179,9 +7837,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8189,10 +7844,7 @@
       "Combination333": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8201,9 +7853,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8211,10 +7860,7 @@
       "Combination334": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8223,9 +7869,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8233,10 +7876,7 @@
       "Combination335": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8245,9 +7885,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8255,10 +7892,7 @@
       "Combination336": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8267,9 +7901,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8277,10 +7908,7 @@
       "Combination337": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8289,9 +7917,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8299,10 +7924,7 @@
       "Combination338": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8311,9 +7933,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8321,10 +7940,7 @@
       "Combination339": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8333,9 +7949,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8343,10 +7956,7 @@
       "Combination340": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8355,9 +7965,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8365,10 +7972,7 @@
       "Combination341": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8377,9 +7981,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -8387,10 +7988,7 @@
       "Combination342": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -8399,9 +7997,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"

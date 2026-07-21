@@ -228,6 +228,25 @@ func DeleteUsedInvitationCodes() (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+// ResolveInvitationCodeReference converts a raw invitation code into a
+// server-side reference without reserving or consuming it. Unknown and
+// malformed codes intentionally resolve to zero so OAuth flow creation does
+// not disclose whether a supplied code exists.
+func ResolveInvitationCodeReference(rawCode string) (int, error) {
+	if strings.TrimSpace(rawCode) == "" || utf8.RuneCountInString(rawCode) > common.InvitationCodeMaxLength {
+		return 0, nil
+	}
+	var code InvitationCode
+	err := DB.Select("id").Where("code_hash = ?", HashInvitationCode(rawCode)).First(&code).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return code.Id, nil
+}
+
 func ConsumeInvitationCodeWithTx(tx *gorm.DB, rawCode string, userID int) (*InvitationCode, error) {
 	if strings.TrimSpace(rawCode) == "" {
 		return nil, ErrInvitationCodeNotProvided
@@ -247,6 +266,27 @@ func ConsumeInvitationCodeWithTx(tx *gorm.DB, rawCode string, userID int) (*Invi
 	if err != nil {
 		return nil, err
 	}
+	return consumeInvitationCodeRecordWithTx(tx, code, userID)
+}
+
+// ConsumeInvitationCodeReferenceWithTx consumes a previously resolved
+// server-side invitation reference. It never accepts a raw or pre-hashed code.
+func ConsumeInvitationCodeReferenceWithTx(tx *gorm.DB, codeID int, userID int) (*InvitationCode, error) {
+	if tx == nil || codeID <= 0 || userID <= 0 {
+		return nil, ErrInvitationCodeInvalid
+	}
+	code := &InvitationCode{}
+	err := lockForUpdate(tx).Where("id = ?", codeID).First(code).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrInvitationCodeInvalid
+	}
+	if err != nil {
+		return nil, err
+	}
+	return consumeInvitationCodeRecordWithTx(tx, code, userID)
+}
+
+func consumeInvitationCodeRecordWithTx(tx *gorm.DB, code *InvitationCode, userID int) (*InvitationCode, error) {
 	switch code.Status {
 	case common.InvitationCodeStatusUsed:
 		return nil, ErrInvitationCodeUsed
