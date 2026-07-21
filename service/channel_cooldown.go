@@ -227,7 +227,7 @@ func CooldownChannelForUpstreamRateLimit(channelError types.ChannelError, err *t
 	}
 	reason := fmt.Sprintf("upstream_rate_limit status=%d upstream_status=%d code=%s type=%s error=%s", err.StatusCode, err.UpstreamStatusCode, err.GetErrorCode(), err.GetErrorType(), err.Error())
 	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, UpstreamRateLimitCooldownDuration, reason))
-	model.CooldownChannel(channelError.ChannelId, reason, UpstreamRateLimitCooldownDuration)
+	model.CooldownChannelWithoutFallback(channelError.ChannelId, reason, UpstreamRateLimitCooldownDuration)
 }
 
 // CooldownChannelForRetry records a retry-triggering channel failure so later

@@ -53,7 +53,7 @@ func TestRelayRetryHostPrefersResolvedAttemptHost(t *testing.T) {
 	assert.Equal(t, "configured.example", relayRetryHost(info))
 }
 
-func TestShouldPreferDifferentCapacityHostOnlyForStreamingResponses(t *testing.T) {
+func TestShouldPreferDifferentRetryHostAcrossPrioritiesForCapacityOnlyOnStreamingResponses(t *testing.T) {
 	upstream429 := types.NewErrorWithStatusCode(
 		errors.New("Upstream rate limit exceeded, please retry later"),
 		types.ErrorCodeBadResponseStatusCode,
@@ -62,13 +62,23 @@ func TestShouldPreferDifferentCapacityHostOnlyForStreamingResponses(t *testing.T
 	upstream429.UpstreamStatusCode = http.StatusTooManyRequests
 
 	streamingResponses := &relaycommon.RelayInfo{IsStream: true, RelayMode: relayconstant.RelayModeResponses}
-	assert.True(t, shouldPreferDifferentCapacityHost(newTestContext(), streamingResponses, upstream429))
+	assert.True(t, shouldPreferDifferentRetryHostAcrossPriorities(newTestContext(), streamingResponses, upstream429))
 
 	nonStreamingResponses := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeResponses}
-	assert.False(t, shouldPreferDifferentCapacityHost(newTestContext(), nonStreamingResponses, upstream429))
+	assert.False(t, shouldPreferDifferentRetryHostAcrossPriorities(newTestContext(), nonStreamingResponses, upstream429))
 
 	chatCompletions := &relaycommon.RelayInfo{IsStream: true, RelayMode: relayconstant.RelayModeChatCompletions}
-	assert.False(t, shouldPreferDifferentCapacityHost(newTestContext(), chatCompletions, upstream429))
+	assert.False(t, shouldPreferDifferentRetryHostAcrossPriorities(newTestContext(), chatCompletions, upstream429))
+}
+
+func TestShouldPreferDifferentRetryHostAcrossPrioritiesForTransportFailure(t *testing.T) {
+	transportErr := types.NewErrorWithStatusCode(
+		errors.New("net/http: timeout awaiting response headers"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusBadGateway,
+	)
+
+	assert.True(t, shouldPreferDifferentRetryHostAcrossPriorities(newTestContext(), nil, transportErr))
 }
 
 func TestPreferDifferentRetryHostRecordsSliceTimedOutHost(t *testing.T) {

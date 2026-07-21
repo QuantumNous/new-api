@@ -1390,6 +1390,43 @@ func TestGetChannelWithOptionsFiltersImageCapabilityWithoutMemoryCache(t *testin
 	assert.Equal(t, 108, selected.Id)
 }
 
+func TestGetChannelWithOptionsHonorsImageRoutingAuthorityGroupsWithoutMemoryCache(t *testing.T) {
+	setImageResolutionPricesForChannelSelectionTest(t)
+	setupChannelSelectionTestDB(t)
+
+	priority := int64(10)
+	weight := uint(100)
+	legacy := Channel{Id: 31, Type: 1, Key: "key-31", Status: common.ChannelStatusEnabled, Name: "legacy", Weight: &weight, Priority: &priority, Models: "gpt-image-2", Group: "group-b"}
+	fourK := Channel{Id: 108, Type: 1, Key: "key-108", Status: common.ChannelStatusEnabled, Name: "4k", Weight: &weight, Priority: &priority, Models: "gpt-image-2", Group: "group-a"}
+	fourK.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"4K"}, []string{"2880x2880"})})
+	require.NoError(t, DB.Create(&[]Channel{legacy, fourK}).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "group-a", Model: "gpt-image-2", ChannelId: 108, Enabled: true, Priority: &priority, Weight: weight},
+		{Group: "group-b", Model: "gpt-image-2", ChannelId: 31, Enabled: true, Priority: &priority, Weight: weight},
+	}).Error)
+	requirement := &dto.ImageSelectionRequirement{
+		Operation:   dto.ImageOperationGeneration,
+		Resolution:  "4K",
+		AspectRatio: "1:1",
+		Size:        "2880x2880",
+		Quality:     "low",
+	}
+
+	selected, err := GetChannelWithOptions("group-b", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement: requirement,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 31, selected.Id, "a standalone legacy group remains backwards compatible")
+
+	selected, err = GetChannelWithOptions("group-b", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement:            requirement,
+		ImageRoutingAuthorityGroups: []string{"group-a", "group-b"},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, selected, "an explicit route in another eligible group must close legacy fallback")
+}
+
 func verifiedImageRoutingProfile(model string, resolutions []string, sizes []string) *dto.ImageRoutingConfig {
 	combinations := make([]dto.ImageRoutingCombination, 0, len(resolutions))
 	for i, resolution := range resolutions {
@@ -1442,6 +1479,32 @@ func firstImageRoutingTestValue(values []string) string {
 		return ""
 	}
 	return values[0]
+}
+
+func TestGetRandomSatisfiedChannelDoesNotFallbackToStrictCoolingChannelWithMemoryCache(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	t.Cleanup(func() {
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(0)
+	channel := &Channel{Id: 17, Type: 1, Key: "key-17", Status: common.ChannelStatusEnabled, Name: "rate-limited", Weight: &weight, Priority: &priority, Models: "gpt-5.5", Group: "default"}
+	SetChannelCacheForTest(map[int]*Channel{17: channel}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17}},
+	})
+	CooldownChannelWithoutFallback(17, "upstream_rate_limit", time.Hour)
+
+	selected, err := GetRandomSatisfiedChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		AllowCoolingFallback: true,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, selected, "strict cooldown must not be bypassed when healthy channels are exhausted")
 }
 
 // TestCoolingFallbackDoesNotReuseExcludedChannelOnRetry is B1's safety property:
@@ -1571,4 +1634,25 @@ func TestGetChannelReturnsCoolingChannelWhenAllCandidatesCoolingWithoutMemoryCac
 	if selected == nil || selected.Id != 17 {
 		t.Fatalf("expected cooling fallback channel 17, got %#v", selected)
 	}
+}
+
+func TestGetChannelDoesNotFallbackToStrictCoolingChannelWithoutMemoryCache(t *testing.T) {
+	setupChannelSelectionTestDB(t)
+
+	priority := int64(10)
+	weight := uint(0)
+	channel := Channel{Id: 17, Type: 1, Key: "key-17", Status: common.ChannelStatusEnabled, Name: "rate-limited", Weight: &weight, Priority: &priority, Models: "gpt-5.5", Group: "default"}
+	require.NoError(t, DB.Create(&channel).Error)
+	ability := Ability{Group: "default", Model: "gpt-5.5", ChannelId: 17, Enabled: true, Priority: &priority, Weight: weight}
+	require.NoError(t, DB.Create(&ability).Error)
+
+	CooldownChannelWithoutFallback(17, "upstream_rate_limit", time.Hour)
+
+	selected, err := GetChannelWithOptions("default", "gpt-5.5", 0, ChannelSelectionOptions{
+		AllowCoolingFallback: true,
+		RequestPath:          "/v1/responses",
+		Path:                 "/v1/responses",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, selected, "strict cooldown must be enforced without the memory cache")
 }

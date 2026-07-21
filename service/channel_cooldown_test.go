@@ -146,6 +146,7 @@ func TestCooldownChannelForRetryUsesShortDurationFor5xx(t *testing.T) {
 	if remaining := time.Until(time.Unix(expires, 0)); remaining < 4*time.Minute || remaining > 6*time.Minute {
 		t.Fatalf("expected ~5m short cooldown, got %s", remaining)
 	}
+	assert.True(t, model.IsChannelCoolingFallbackAllowed(9001), "transient 5xx cooldown remains a last-resort fallback")
 }
 
 func TestCooldownChannelForRetryUsesTwoHoursForUpstream429(t *testing.T) {
@@ -168,6 +169,7 @@ func TestCooldownChannelForRetryUsesTwoHoursForUpstream429(t *testing.T) {
 	remaining := time.Until(time.Unix(expires, 0))
 	assert.Greater(t, remaining, 119*time.Minute)
 	assert.Less(t, remaining, 121*time.Minute)
+	assert.False(t, model.IsChannelCoolingFallbackAllowed(9004), "upstream 429 cooldown must never be bypassed as fallback")
 
 	CooldownChannelForRetry(*chErr, types.NewErrorWithStatusCode(
 		errors.New("temporary bad gateway"),
@@ -177,6 +179,7 @@ func TestCooldownChannelForRetryUsesTwoHoursForUpstream429(t *testing.T) {
 	_, expiresAfterShortCooldown, cooling := model.GetChannelCooldown(9004)
 	require.True(t, cooling)
 	assert.Equal(t, expires, expiresAfterShortCooldown, "a later short cooldown must not shorten the 429 isolation")
+	assert.False(t, model.IsChannelCoolingFallbackAllowed(9004), "a later transient failure must not weaken strict 429 isolation")
 }
 
 func TestIsUpstreamRateLimitErrorRequiresUpstreamProvenance(t *testing.T) {

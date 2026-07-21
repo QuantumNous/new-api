@@ -81,7 +81,7 @@ func ObserveStreamChannelQualityForRequest(c *gin.Context, relayInfo *relaycommo
 		}
 		reason := fmt.Sprintf("stream_capacity model=%s error=%s", modelName, snapshot.EndError)
 		common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", relayInfo.ChannelId, StreamCapacityCooldownDuration, reason))
-		model.CooldownChannel(relayInfo.ChannelId, reason, StreamCapacityCooldownDuration)
+		model.CooldownChannelWithoutFallback(relayInfo.ChannelId, reason, StreamCapacityCooldownDuration)
 		clearStreamChannelFailures(relayInfo.ChannelId, modelName)
 		return
 	}

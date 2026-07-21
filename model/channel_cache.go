@@ -39,7 +39,10 @@ func InitChannelCache() {
 	newChannel2advancedCustomConfig := make(map[int]*dto.AdvancedCustomConfig)
 	newChannel2ImageRoutingConfig := make(map[int]cachedImageRoutingConfig)
 	var channels []*Channel
-	DB.Find(&channels)
+	if err := DB.Find(&channels).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to sync channels from database: %v", err))
+		return
+	}
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
 		settings, err := channel.parseOtherSettings()
@@ -63,7 +66,10 @@ func InitChannelCache() {
 		}
 	}
 	var abilities []*Ability
-	DB.Find(&abilities)
+	if err := DB.Find(&abilities).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to sync channel abilities from database: %v", err))
+		return
+	}
 	groups := make(map[string]bool)
 	for _, ability := range abilities {
 		groups[ability.Group] = true
@@ -137,6 +143,11 @@ func SyncChannelCache(frequency int) {
 type ChannelSelectionOptions struct {
 	ExcludedChannelIDs map[int]struct{}
 	ImageRequirement   *dto.ImageSelectionRequirement
+	// ImageRoutingAuthorityGroups makes an explicit image-routing migration in
+	// any listed group authoritative for the model across the whole selection.
+	// Auto-group callers use this to prevent fallback into legacy channels in a
+	// different group after a verified route has been configured.
+	ImageRoutingAuthorityGroups []string
 	// AvoidChannelHosts is a soft exclusion used after a transport failure.
 	// The selected priority tier prefers a different host, while same-host
 	// channels remain a fallback so operator priority and availability stay intact.
@@ -202,10 +213,18 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
+	forceExplicitModelRouting := false
+	if options.ImageRequirement != nil {
+		forceExplicitModelRouting = imageRoutingAuthorityConfiguredForGroupsLocked(
+			options.ImageRoutingAuthorityGroups,
+			model,
+			requestPath,
+		)
+	}
 
 	// First, try to find channels with the exact model name.
 	channels := filterChannelsByRequestPathAndModel(group2model2channels[group][model], requestPath, model)
-	channels, err := filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
+	channels, err := filterChannelsByImageRequirement(channels, model, options.ImageRequirement, forceExplicitModelRouting)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +233,7 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
 		channels = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, model)
-		channels, err = filterChannelsByImageRequirement(channels, model, options.ImageRequirement)
+		channels, err = filterChannelsByImageRequirement(channels, model, options.ImageRequirement, forceExplicitModelRouting)
 		if err != nil {
 			return nil, err
 		}
@@ -238,8 +257,11 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 				return nil, nil
 			}
 		}
-		if IsChannelCoolingDown(channel.Id) && !options.AllowCoolingFallback {
-			return nil, nil
+		cooldown := getChannelCooldownState(channel.Id)
+		if cooldown.active {
+			if !options.AllowCoolingFallback || !cooldown.allowFallback {
+				return nil, nil
+			}
 		}
 		if shouldEnforceChannelHostCircuit(host, model, options.Path) && !options.AllowCoolingFallback {
 			return nil, nil
@@ -267,8 +289,11 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 				continue
 			}
 		}
-		if IsChannelCoolingDown(channel.Id) {
-			coolingChannels = append(coolingChannels, channel)
+		cooldown := getChannelCooldownState(channel.Id)
+		if cooldown.active {
+			if cooldown.allowFallback {
+				coolingChannels = append(coolingChannels, channel)
+			}
 			continue
 		}
 		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path}
@@ -516,25 +541,11 @@ func ChannelImageRoutingProfile(channel *Channel, model string) (*dto.ImageRouti
 }
 
 // Caller must hold channelSyncLock when using this helper.
-func filterChannelsByImageRequirement(channels []int, model string, requirement *dto.ImageSelectionRequirement) ([]int, error) {
+func filterChannelsByImageRequirement(channels []int, model string, requirement *dto.ImageSelectionRequirement, forceExplicitModelRouting bool) ([]int, error) {
 	if requirement == nil || len(channels) == 0 {
 		return channels, nil
 	}
-	explicitModelRouting := false
-	for _, channelID := range channels {
-		state, configured := channel2ImageRoutingConfig[channelID]
-		if !configured {
-			continue
-		}
-		if state.config == nil {
-			explicitModelRouting = true
-			break
-		}
-		if _, ok := state.config.ProfileForModel(model); ok {
-			explicitModelRouting = true
-			break
-		}
-	}
+	explicitModelRouting := forceExplicitModelRouting || imageRoutingConfiguredForChannelIDsLocked(channels, model)
 	filtered := make([]int, 0, len(channels))
 	resolvedRequirements := make([]dto.ImageSelectionRequirement, 0, len(channels))
 	for _, channelID := range channels {
@@ -561,6 +572,43 @@ func filterChannelsByImageRequirement(channels []int, model string, requirement 
 		return nil, err
 	}
 	return filtered, nil
+}
+
+// Caller must hold channelSyncLock when using these helpers.
+func imageRoutingAuthorityConfiguredForGroupsLocked(groups []string, model string, requestPath string) bool {
+	if len(groups) == 0 {
+		return false
+	}
+	models := []string{model}
+	if normalizedModel := ratio_setting.FormatMatchingModelName(model); normalizedModel != model {
+		models = append(models, normalizedModel)
+	}
+	for _, group := range groups {
+		for _, candidateModel := range models {
+			channels := filterChannelsByRequestPathAndModel(group2model2channels[group][candidateModel], requestPath, model)
+			if imageRoutingConfiguredForChannelIDsLocked(channels, model) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Caller must hold channelSyncLock when using this helper.
+func imageRoutingConfiguredForChannelIDsLocked(channelIDs []int, model string) bool {
+	for _, channelID := range channelIDs {
+		state, configured := channel2ImageRoutingConfig[channelID]
+		if !configured {
+			continue
+		}
+		if state.config == nil {
+			return true
+		}
+		if _, ok := state.config.ProfileForModel(model); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func imageRoutingProfileHasResolutionPrice(model string, profile *dto.ImageRoutingProfile, requirement dto.ImageSelectionRequirement) bool {

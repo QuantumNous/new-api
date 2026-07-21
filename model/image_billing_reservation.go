@@ -838,17 +838,10 @@ func reserveImageTaskWalletQuotaDBWithMode(taskID string, userID int, quota int,
 			}
 			legacyDebit = reservation.WalletLegacyDebit
 			if reservation.QuotaModeVersion < imageBillingReservationQuotaModeVersion {
-				var user User
-				if err := lockForUpdate(tx.Unscoped()).Select("id", "quota").Where("id = ?", userID).First(&user).Error; err != nil {
+				if err := normalizeImageReservationQuotaModeTx(tx, &reservation); err != nil {
 					return err
 				}
-				legacyDebit = inferImageReservationLegacyDebit(user.Quota, quota, legacyDebit)
-				if err := tx.Model(&ImageBillingReservation{}).Where("id = ?", reservation.ID).Updates(map[string]any{
-					"quota_mode_version":  imageBillingReservationQuotaModeVersion,
-					"wallet_legacy_debit": legacyDebit,
-				}).Error; err != nil {
-					return err
-				}
+				legacyDebit = reservation.WalletLegacyDebit
 			}
 			// The durable mode is authoritative on replay. A legacy debit may
 			// cross back into the normal range, so Redis can legitimately report
@@ -1020,17 +1013,10 @@ func reserveImageTaskTokenQuotaDBWithMode(taskID string, tokenID int, quota int,
 			}
 			legacyDebit = reservation.TokenLegacyDebit
 			if reservation.QuotaModeVersion < imageBillingReservationQuotaModeVersion {
-				var token Token
-				if err := lockForUpdate(tx.Unscoped()).Select("id", "remain_quota").Where("id = ?", tokenID).First(&token).Error; err != nil {
+				if err := normalizeImageReservationQuotaModeTx(tx, &reservation); err != nil {
 					return err
 				}
-				legacyDebit = inferImageReservationLegacyDebit(token.RemainQuota, quota, legacyDebit)
-				if err := tx.Model(&ImageBillingReservation{}).Where("id = ?", reservation.ID).Updates(map[string]any{
-					"quota_mode_version": imageBillingReservationQuotaModeVersion,
-					"token_legacy_debit": legacyDebit,
-				}).Error; err != nil {
-					return err
-				}
+				legacyDebit = reservation.TokenLegacyDebit
 			}
 			if expectedLegacyDebit != nil && !legacyDebit && *expectedLegacyDebit {
 				return errors.New("image token reservation cache mode conflicts with durable state")
