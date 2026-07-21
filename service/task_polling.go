@@ -693,8 +693,8 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		return
 	}
 	// 2. 回退到 token 重算
-	if taskResult.TotalTokens > 0 {
-		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
+	if taskResult.TotalTokens > 0 || taskResult.CompletionTokens > 0 {
+		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens, taskResult.CompletionTokens)
 		return
 	}
 	// 3. 无调整，保持预扣额度
