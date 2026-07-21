@@ -293,13 +293,6 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		doneChunk := chosenChoice.FinishReason != nil && *chosenChoice.FinishReason != ""
 		if doneChunk {
 			info.FinishReason = *chosenChoice.FinishReason
-			oaiUsage := openAIResponse.Usage
-			if oaiUsage == nil {
-				oaiUsage = info.ClaudeConvertInfo.Usage
-				// Some upstreams emit finish_reason first, then send a final usage-only chunk.
-				// Defer closing until usage is available so the final message_delta carries it.
-				return claudeResponses
-			}
 		}
 
 		var claudeResponse dto.ClaudeResponse
@@ -407,20 +400,23 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		}
 
 		if doneChunk || info.ClaudeConvertInfo.Done {
-			stopOpenBlocks()
 			oaiUsage := openAIResponse.Usage
 			if oaiUsage == nil {
 				oaiUsage = info.ClaudeConvertInfo.Usage
 			}
-			if oaiUsage != nil {
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Type:  "message_delta",
-					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
-					Delta: &dto.ClaudeMediaMessage{
-						StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(info.FinishReason)),
-					},
-				})
+			if oaiUsage == nil {
+				// Some upstreams emit finish_reason first, then send a final usage-only chunk.
+				// Defer closing until usage is available so the final message_delta carries it.
+				return claudeResponses
 			}
+			stopOpenBlocks()
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Type:  "message_delta",
+				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+				Delta: &dto.ClaudeMediaMessage{
+					StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(info.FinishReason)),
+				},
+			})
 			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 				Type: "message_stop",
 			})
