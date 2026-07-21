@@ -196,8 +196,11 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 				return nil, nil
 			}
 		}
-		if IsChannelCoolingDown(channel.Id) && !options.AllowCoolingFallback {
-			return nil, nil
+		cooldown := getChannelCooldownState(channel.Id)
+		if cooldown.active {
+			if !options.AllowCoolingFallback || !cooldown.allowFallback {
+				return nil, nil
+			}
 		}
 		if shouldEnforceChannelHostCircuit(host, model, options.Path) && !options.AllowCoolingFallback {
 			return nil, nil
@@ -225,8 +228,11 @@ func getRandomSatisfiedChannelWithOptions(group string, model string, retry int,
 				continue
 			}
 		}
-		if IsChannelCoolingDown(channel.Id) {
-			coolingChannels = append(coolingChannels, channel)
+		cooldown := getChannelCooldownState(channel.Id)
+		if cooldown.active {
+			if cooldown.allowFallback {
+				coolingChannels = append(coolingChannels, channel)
+			}
 			continue
 		}
 		key := ChannelHealthKey{ChannelID: channel.Id, Model: model, Path: options.Path}

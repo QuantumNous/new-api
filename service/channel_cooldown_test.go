@@ -179,6 +179,7 @@ func TestCooldownChannelForRetryUsesTwoHoursForUpstream429(t *testing.T) {
 	_, expiresAfterShortCooldown, cooling := model.GetChannelCooldown(9004)
 	require.True(t, cooling)
 	assert.Equal(t, expires, expiresAfterShortCooldown, "a later short cooldown must not shorten the 429 isolation")
+	assert.False(t, model.IsChannelCoolingFallbackAllowed(9004), "a later transient failure must not weaken strict 429 isolation")
 }
 
 func TestIsUpstreamRateLimitErrorRequiresUpstreamProvenance(t *testing.T) {
