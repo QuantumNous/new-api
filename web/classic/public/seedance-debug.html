@@ -267,11 +267,19 @@
     }
     .history-head h2 { margin: 0; font-size: 16px; }
     .history-count { color: var(--muted); font-size: 12px; }
-    .running-list { display: grid; gap: 10px; margin-bottom: 16px; }
+    .running-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
+      gap: 12px;
+      justify-content: start;
+      margin-bottom: 16px;
+    }
     .history-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      /* Avoid 1fr stretch: with few cards, minmax(..., 1fr) makes the first cell full-width. */
+      grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
       gap: 12px;
+      justify-content: start;
     }
     .hist-card {
       border: 1px solid rgba(255,255,255,.09);
