@@ -244,6 +244,18 @@ export interface UserWalletData {
   group: string
 }
 
+export interface UserInvitee {
+  id: number
+  display_name: string
+  created_at: number
+  is_new: boolean
+}
+
+export interface InviteeHistoryResponse {
+  items: UserInvitee[]
+  total: number
+}
+
 /**
  * Topup record status
  */
