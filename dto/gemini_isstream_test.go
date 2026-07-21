@@ -67,7 +67,7 @@ func TestGeminiChatRequest_IsStream(t *testing.T) {
 			c.Request, _ = http.NewRequest("POST", url, nil)
 
 			req := &GeminiChatRequest{}
-			assert.Equal(t, tt.expected, req.IsStream(c))
+			assert.Equal(t, tt.expected, req.IsStream(c.Request))
 		})
 	}
 }

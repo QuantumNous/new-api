@@ -36,11 +36,9 @@ var forbiddenPrefixes = []string{
 }
 
 // Known pre-existing couplings, removed phase by phase. Key: "dir|import".
-var allowedViolations = map[string]bool{
-	// Phase 2 removes dto's gin helper methods (IsStream(c) etc.) and logger reach.
-	"dto|github.com/gin-gonic/gin":   true,
-	"dto|" + modulePrefix + "logger": true,
-}
+// All initial violations have been cleared; keep the map so future
+// exemptions (if ever needed) are explicit and reviewed.
+var allowedViolations = map[string]bool{}
 
 func TestRelaykitBoundary(t *testing.T) {
 	root := repoRoot(t)

@@ -453,7 +453,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	isStream := false
 
 	if request != nil {
-		isStream = request.IsStream(c)
+		isStream = request.IsStream(c.Request)
 	}
 	c.Set(string(constant.ContextKeyIsStream), isStream)
 

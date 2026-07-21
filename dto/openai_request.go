@@ -3,13 +3,12 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
-
-	"github.com/gin-gonic/gin"
 )
 
 type ResponseFormat struct {
@@ -196,7 +195,7 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	return &tokenCountMeta
 }
 
-func (r *GeneralOpenAIRequest) IsStream(c *gin.Context) bool {
+func (r *GeneralOpenAIRequest) IsStream(c *http.Request) bool {
 	return lo.FromPtrOr(r.Stream, false)
 }
 
@@ -944,7 +943,7 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	}
 }
 
-func (r *OpenAIResponsesRequest) IsStream(c *gin.Context) bool {
+func (r *OpenAIResponsesRequest) IsStream(c *http.Request) bool {
 	return lo.FromPtrOr(r.Stream, false)
 }
 
