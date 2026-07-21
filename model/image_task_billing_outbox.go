@@ -1,7 +1,6 @@
 package model
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -816,36 +815,6 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 					return fmt.Errorf("image task %s billing token cache identity changed", taskID)
 				}
 			}
-			walletReservationCacheTagged := false
-			tokenReservationCacheTagged := false
-			if common.RedisEnabled && reservation.CacheReconciledAt == 0 {
-				if common.RDB == nil {
-					return errors.New("redis is enabled but unavailable")
-				}
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
-				var err error
-				if reservation.WalletReserved > 0 {
-					walletReservationCacheTagged, err = common.RDB.HExists(
-						ctx,
-						getUserCacheKey(reservation.UserID),
-						imageReservationCacheField(taskID),
-					).Result()
-					if err != nil {
-						return fmt.Errorf("inspect image wallet reservation cache: %w", err)
-					}
-				}
-				if reservation.TokenReserved > 0 {
-					tokenReservationCacheTagged, err = common.RDB.HExists(
-						ctx,
-						"token:"+common.GenerateHMAC(lockedTokenKey),
-						imageReservationCacheField(taskID),
-					).Result()
-					if err != nil {
-						return fmt.Errorf("inspect image token reservation cache: %w", err)
-					}
-				}
-			}
 			if err := rollbackPreparedImageTaskCache(
 				taskID,
 				lockedUserID,
@@ -889,7 +858,7 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 				tokenRefunded = reservation.TokenReserved
 			}
 			cacheReconciliationPending := reservation.CacheReconciledAt == 0
-			if walletRefunded > 0 && !walletReservationCacheTagged {
+			if walletRefunded > 0 && !cacheReconciliationPending {
 				outbox, err := EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
 					RequestID: "image-compensation:" + taskID,
 					Phase:     BillingAdjustmentPhaseImageCompensation,
@@ -902,7 +871,7 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 				}
 				cacheOutboxes = append(cacheOutboxes, outbox)
 			}
-			if tokenRefunded > 0 && !tokenReservationCacheTagged {
+			if tokenRefunded > 0 && !cacheReconciliationPending {
 				outbox, err := EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
 					RequestID: "image-compensation:" + taskID,
 					Phase:     BillingAdjustmentPhaseImageCompensation,
