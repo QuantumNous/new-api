@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -83,6 +84,37 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	return claudeErr
 }
 
+// upstreamQuotaErrPatterns 匹配上游 new-api 实例返回的各类余额/额度不足报错，
+// 这些报错会向最终用户暴露上游账户的余额明细。
+var upstreamQuotaErrPatterns = []*regexp.Regexp{
+	// 预扣费额度失败, 用户剩余额度: ¥0.230000, 需要预扣费额度: ¥0.290000
+	regexp.MustCompile(`预扣费额度失败, 用户剩余额度: [^,]+, 需要预扣费额度: [^\s(]+`),
+	// 用户额度不足, 剩余额度: ¥0.000000
+	regexp.MustCompile(`用户额度不足, 剩余额度: [^\s(]+`),
+	// token quota is not enough, token remain quota: ¥0.100000, need quota: ¥0.290000
+	regexp.MustCompile(`token quota is not enough, token remain quota: [^,]+, need quota: [^\s(]+`),
+	// 订阅额度不足或未配置订阅: subscription quota insufficient, need=290000 / no active subscription
+	regexp.MustCompile(`订阅额度不足或未配置订阅: (no active subscription|subscription quota insufficient(, need=\d+)?)`),
+}
+
+const upstreamQuotaErrReplacement = "预扣费额度失败, 可能是上游余额不足"
+
+// rewriteUpstreamPreConsumeError 将上游返回的余额/额度不足类报错统一改写为
+// "预扣费额度失败, 可能是上游余额不足"，隐藏上游账户的实际金额，request id 等其余内容原样保留。
+// 本地生成的同类报错（用户自身余额不足）不经过 RelayErrorHandler，不受影响。
+func rewriteUpstreamPreConsumeError(message string) string {
+	if !strings.Contains(message, "预扣费额度失败") &&
+		!strings.Contains(message, "用户额度不足") &&
+		!strings.Contains(message, "token quota is not enough") &&
+		!strings.Contains(message, "订阅额度不足") {
+		return message
+	}
+	for _, pattern := range upstreamQuotaErrPatterns {
+		message = pattern.ReplaceAllString(message, upstreamQuotaErrReplacement)
+	}
+	return message
+}
+
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 
@@ -116,6 +148,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		// General format error (OpenAI, Anthropic, Gemini, etc.)
 		oaiError := errResponse.TryToOpenAIError()
 		if oaiError != nil {
+			oaiError.Message = rewriteUpstreamPreConsumeError(oaiError.Message)
 			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
 			if showBodyWhenFail {
 				newApiErr.Err = buildErrWithBody(newApiErr.Error())
@@ -123,7 +156,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 			return
 		}
 	}
-	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	newApiErr = types.NewOpenAIError(errors.New(rewriteUpstreamPreConsumeError(errResponse.ToMessage())), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 	if showBodyWhenFail {
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
