@@ -670,6 +670,34 @@
         showAudioWatermark: false,
         showMingizSend: false,
       },
+      "sd2-431": {
+        label: "sd2-431（th12345ai 满血）",
+        family: "th12345ai",
+        hint: "th12345ai · POST /v1/video/generations · 对外模型 sd2-431 → 上游 videos_stable（按次）。参考图/视频/音频须公网 URL；支持多模态参考。",
+        createPath: "/v1/video/generations",
+        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        defaultDuration: 5,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: false,
+      },
+      "sd2-fast-431": {
+        label: "sd2-fast-431（th12345ai Fast）",
+        family: "th12345ai",
+        hint: "th12345ai · POST /v1/video/generations · 对外模型 sd2-fast-431 → 上游 videos_stable_fast（按次）。参考图/视频/音频须公网 URL；时长可选 10 / 15 秒。",
+        createPath: "/v1/video/generations",
+        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [10, 15],
+        defaultDuration: 10,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: false,
+      },
     };
 
     const SIZE_MAP = {
@@ -783,6 +811,13 @@
       const name = String(modelName || "");
       if (MODEL_PROFILES[name]) return name;
       const n = name.toLowerCase();
+      // th12345ai client models must be matched before generic sd2 → mingiz.
+      if (n.includes("sd2-fast-431") || n.includes("sd2fast-431") || n === "videos_stable_fast") {
+        return "sd2-fast-431";
+      }
+      if (n.includes("sd2-431") || n === "videos_stable") {
+        return "sd2-431";
+      }
       if (n.includes("doubao") && n.includes("seedance")) return "doubao-seedance-2-0-260128";
       if (n.includes("wstar") || n.includes("vyro")) return "wstar-seedance-2-fast";
       if (n.includes("mingiz") || /(^|[^a-z])sd2([^a-z]|$)/i.test(n) || n.includes("sd2-fast") || n.includes("sd2fast")) {
@@ -806,7 +841,7 @@
       const eps = item.supported_endpoint_types || [];
       if (eps.includes("openai-video")) return true;
       const blob = `${name} ${item.tags || ""} ${item.description || ""}`;
-      return /seedance|mingiz|wstar|vyro|(^|[^a-z0-9])sd2([^a-z0-9]|$)/i.test(blob);
+      return /seedance|mingiz|wstar|vyro|sd2-431|sd2-fast-431|videos_stable|(^|[^a-z0-9])sd2([^a-z0-9]|$)/i.test(blob);
     }
     function authHeaders(extra = {}) {
       return { Authorization: `Bearer ${token()}`, ...extra };
@@ -1557,6 +1592,30 @@
       return body;
     }
 
+    function buildTh12345aiBody(submitAssets) {
+      const body = {
+        model: activeModelName(),
+        prompt: promptText(),
+        duration: Number(els.duration.value),
+        ratio: els.aspectRatio.value,
+        resolution: els.resolution.value,
+      };
+      const images = [];
+      const videos = [];
+      const audios = [];
+      for (const asset of submitAssets) {
+        const url = asset.publicUrl;
+        if (!url) continue;
+        if (asset.kind === "video") videos.push(url);
+        else if (asset.kind === "audio") audios.push(url);
+        else images.push(url);
+      }
+      if (images.length) body.images = images;
+      if (videos.length) body.videos = videos;
+      if (audios.length) body.audios = audios;
+      return body;
+    }
+
     function buildRequestPlan() {
       const p = profile();
       const submitAssets = getSubmitAssets();
@@ -1566,6 +1625,9 @@
       }
       if (p.family === "doubao") {
         return { kind: "json", path: p.createPath, body: buildDoubaoBody(submitAssets), assets: submitAssets, preferMultipart: false };
+      }
+      if (p.family === "th12345ai") {
+        return { kind: "json", path: p.createPath, body: buildTh12345aiBody(submitAssets), assets: submitAssets, preferMultipart: false };
       }
       if (preferMultipart) {
         return {
@@ -1619,6 +1681,13 @@
       if (p.family === "doubao") {
         const seconds = Number(els.duration.value);
         if (!Number.isInteger(seconds) || seconds < 5 || seconds > 15) return "doubao 时长需为 5～15 秒。";
+      }
+      if (p.family === "th12345ai") {
+        const seconds = Number(els.duration.value);
+        const allowed = p.durations || [];
+        if (!allowed.includes(seconds)) {
+          return `${activeModelName()} 时长需为 ${allowed.join(" / ")} 秒。`;
+        }
       }
       return "";
     }
