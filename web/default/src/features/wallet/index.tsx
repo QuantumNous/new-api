@@ -18,14 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback } from 'react'
 import { getSelf } from '@/lib/api'
-import { WalletStatsCard } from './components/wallet-stats-card'
+import { InvitePromoDialog } from './components/dialogs/invite-promo-dialog'
 import { RechargePanel } from './components/recharge-panel'
 import { RedemptionCodeCard } from './components/redemption-code-card'
 import { ReferralCard } from './components/referral-card'
 import { TransactionHistory } from './components/transaction-history'
-import { InvitePromoDialog } from './components/dialogs/invite-promo-dialog'
-import { useClinkReturnConfirm } from './hooks/use-clink-return-confirm'
+import { WalletStatsCard } from './components/wallet-stats-card'
 import { useAffiliate, usePostTopupInvitePrompt } from './hooks'
+import { useClinkReturnConfirm } from './hooks/use-clink-return-confirm'
 import type { UserWalletData } from './types'
 
 export function Wallet() {
@@ -67,7 +67,11 @@ export function Wallet() {
         <WalletStatsCard user={user} loading={userLoading} />
 
         <div className='grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:items-start'>
-          <RechargePanel onSuccess={handleSuccess} onPaymentAttempted={invitePrompt.notifyPaymentInitiated} onPaymentSettled={invitePrompt.notifyTopupSettled} />
+          <RechargePanel
+            onSuccess={handleSuccess}
+            onPaymentAttempted={invitePrompt.notifyPaymentInitiated}
+            onPaymentSettled={invitePrompt.notifyTopupSettled}
+          />
 
           <div className='flex flex-col gap-5'>
             <RedemptionCodeCard onSuccess={handleSuccess} />
@@ -83,6 +87,7 @@ export function Wallet() {
         onOpenChange={invitePrompt.onOpenChange}
         affRatio={invitePrompt.affRatio}
         affiliateLink={affiliateLink}
+        preview={invitePrompt.isPreview}
       />
     </div>
   )

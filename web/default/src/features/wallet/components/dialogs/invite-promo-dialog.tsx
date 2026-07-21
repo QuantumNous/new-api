@@ -36,6 +36,7 @@ interface InvitePromoDialogProps {
   onOpenChange: (open: boolean) => void
   affRatio: number
   affiliateLink: string
+  preview?: boolean
 }
 
 export function InvitePromoDialog({
@@ -43,6 +44,7 @@ export function InvitePromoDialog({
   onOpenChange,
   affRatio,
   affiliateLink,
+  preview = false,
 }: InvitePromoDialogProps) {
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({
@@ -54,10 +56,10 @@ export function InvitePromoDialog({
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
-      void trackInvitePromoEvent('invite_popup_impression')
+      if (!preview) void trackInvitePromoEvent('invite_popup_impression')
     }
     wasOpenRef.current = open
-  }, [open])
+  }, [open, preview])
 
   useEffect(() => {
     if (!open) return

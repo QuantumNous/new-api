@@ -25,13 +25,21 @@ const PENDING_ATTEMPT_KEY = 'invite_promo_pending_attempt'
 
 export function usePostTopupInvitePrompt() {
   const { status } = useStatus()
-  const affRatio = (status as any)?.aff_ratio ?? 0
-  const [open, setOpen] = useState(false)
+  const affRatio =
+    (status as { aff_ratio?: number } | undefined)?.aff_ratio ?? 0
+  const [isPreview] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('invitePromoPreview') ===
+        '1'
+  )
+  const [open, setOpen] = useState(isPreview)
 
   const canShow = useCallback(() => {
     if (affRatio <= 0) return false
     const last = localStorage.getItem(INVITE_PROMO_LS_KEY)
-    if (last && Date.now() - Number(last) < INVITE_PROMO_COOLDOWN_MS) return false
+    if (last && Date.now() - Number(last) < INVITE_PROMO_COOLDOWN_MS)
+      return false
     return true
   }, [affRatio])
 
@@ -67,6 +75,7 @@ export function usePostTopupInvitePrompt() {
 
   return {
     open,
+    isPreview,
     onOpenChange: setOpen,
     affRatio,
     notifyPaymentInitiated,
