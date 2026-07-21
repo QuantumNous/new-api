@@ -1,0 +1,66 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "The answer is 42."
+          },
+          {
+            "functionCall": {
+              "name": "get_weather",
+              "args": {
+                "city": "Paris"
+              }
+            }
+          }
+        ]
+      },
+      "finishReason": "STOP",
+      "index": 0,
+      "safetyRatings": []
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 15,
+    "toolUsePromptTokenCount": 0,
+    "candidatesTokenCount": 5,
+    "totalTokenCount": 20,
+    "thoughtsTokenCount": 0,
+    "cachedContentTokenCount": 0,
+    "promptTokensDetails": null,
+    "toolUsePromptTokensDetails": null,
+    "candidatesTokensDetails": null,
+    "billing_usage": {
+      "source": "oai_chat",
+      "semantic": "openai",
+      "openai_usage": {
+        "prompt_tokens": 15,
+        "completion_tokens": 5,
+        "total_tokens": 20,
+        "usage_semantic": "openai",
+        "usage_source": "anthropic",
+        "prompt_tokens_details": {
+          "cached_tokens": 3,
+          "cached_creation_tokens": 2,
+          "cache_write_tokens": 2,
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0
+        },
+        "completion_tokens_details": {
+          "text_tokens": 0,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "reasoning_tokens": 0
+        },
+        "input_tokens": 15,
+        "output_tokens": 0,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 2,
+        "claude_cache_creation_1_h_tokens": 0
+      }
+    }
+  }
+}
