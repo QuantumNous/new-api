@@ -152,11 +152,12 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 				logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d, differentHostPass: %t", autoGroup, priorityRetry, differentHostPass)
 
 				channel, err = model.GetRandomSatisfiedChannelWithOptions(autoGroup, param.ModelName, priorityRetry, model.ChannelSelectionOptions{
-					ExcludedChannelIDs:       param.ExcludedChannelIDs,
-					ImageRequirement:         param.ImageRequirement,
-					AvoidChannelHosts:        param.AvoidChannelHosts,
-					PreferDifferentHost:      differentHostPass,
-					DeferAvoidedHostFallback: differentHostPass,
+					ExcludedChannelIDs:          param.ExcludedChannelIDs,
+					ImageRequirement:            param.ImageRequirement,
+					ImageRoutingAuthorityGroups: autoGroups,
+					AvoidChannelHosts:           param.AvoidChannelHosts,
+					PreferDifferentHost:         differentHostPass,
+					DeferAvoidedHostFallback:    differentHostPass,
 					// Raw path matches Advanced Custom routes; normalized path keys the
 					// bounded channel-health registry.
 					RequestPath: param.RequestPath,

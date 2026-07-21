@@ -22,6 +22,7 @@ func TestInitChannelCachePreservesLastKnownGoodCacheOnQueryFailure(t *testing.T)
 			oldChannels := channelsIDM
 			oldGroups := group2model2channels
 			oldAdvancedCustom := channel2advancedCustomConfig
+			oldImageRouting := channel2ImageRoutingConfig
 			channelSyncLock.RUnlock()
 
 			dsn := fmt.Sprintf("file:channel-cache-sync-%s-%d?mode=memory&cache=shared", failedTable, time.Now().UnixNano())
@@ -57,6 +58,7 @@ func TestInitChannelCachePreservesLastKnownGoodCacheOnQueryFailure(t *testing.T)
 				channelsIDM = oldChannels
 				group2model2channels = oldGroups
 				channel2advancedCustomConfig = oldAdvancedCustom
+				channel2ImageRoutingConfig = oldImageRouting
 				channelSyncLock.Unlock()
 			})
 

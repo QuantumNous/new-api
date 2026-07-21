@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -137,6 +138,17 @@ func getChannelWithOptions(group string, model string, retry int, options Channe
 		return nil, err
 	}
 	options.ImageRequirement = normalizedRequirement
+	forceExplicitModelRouting := false
+	if options.ImageRequirement != nil {
+		forceExplicitModelRouting, err = imageRoutingAuthorityConfiguredForGroupsDB(
+			options.ImageRoutingAuthorityGroups,
+			model,
+			options.RequestPath,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
 		Order("priority DESC").
@@ -148,7 +160,7 @@ func getChannelWithOptions(group string, model string, retry int, options Channe
 	// Advanced Custom (type 58) channels only serve the request paths their
 	// configured routes match; drop the rest before health/priority selection.
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, options.RequestPath, model)
-	abilities, err = filterAbilitiesByImageRequirement(abilities, model, options.ImageRequirement)
+	abilities, err = filterAbilitiesByImageRequirement(abilities, model, options.ImageRequirement, forceExplicitModelRouting)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +293,7 @@ func getChannelWithOptions(group string, model string, retry int, options Channe
 	return &channel, err
 }
 
-func filterAbilitiesByImageRequirement(abilities []Ability, model string, requirement *dto.ImageSelectionRequirement) ([]Ability, error) {
+func filterAbilitiesByImageRequirement(abilities []Ability, model string, requirement *dto.ImageSelectionRequirement, forceExplicitModelRouting bool) ([]Ability, error) {
 	if requirement == nil || len(abilities) == 0 {
 		return abilities, nil
 	}
@@ -302,9 +314,12 @@ func filterAbilitiesByImageRequirement(abilities []Ability, model string, requir
 		return nil, err
 	}
 	channelByID := make(map[int]*Channel, len(channels))
-	explicitModelRouting := false
+	explicitModelRouting := forceExplicitModelRouting
 	for i := range channels {
 		channelByID[channels[i].Id] = &channels[i]
+		if explicitModelRouting {
+			continue
+		}
 		state := imageRoutingConfigFromChannel(&channels[i])
 		if state.configured && state.config == nil {
 			explicitModelRouting = true
@@ -343,6 +358,51 @@ func filterAbilitiesByImageRequirement(abilities []Ability, model string, requir
 		return nil, err
 	}
 	return filtered, nil
+}
+
+func imageRoutingAuthorityConfiguredForGroupsDB(groups []string, model string, requestPath string) (bool, error) {
+	if len(groups) == 0 {
+		return false, nil
+	}
+	models := []string{model}
+	if normalizedModel := ratio_setting.FormatMatchingModelName(model); normalizedModel != model {
+		models = append(models, normalizedModel)
+	}
+	var abilities []Ability
+	if err := DB.Where(commonGroupCol+" IN ? AND model IN ? AND enabled = ?", groups, models, true).
+		Find(&abilities).Error; err != nil {
+		return false, err
+	}
+	abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+	if len(abilities) == 0 {
+		return false, nil
+	}
+	channelIDs := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+	var channels []Channel
+	if err := DB.Select("id", "settings").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return false, err
+	}
+	for i := range channels {
+		state := imageRoutingConfigFromChannel(&channels[i])
+		if !state.configured {
+			continue
+		}
+		if state.config == nil {
+			return true, nil
+		}
+		if _, ok := state.config.ProfileForModel(model); ok {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func effectiveAbilitySelectionWeights(abilities []Ability, model string, path string) []int {

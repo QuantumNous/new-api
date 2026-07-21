@@ -1390,6 +1390,43 @@ func TestGetChannelWithOptionsFiltersImageCapabilityWithoutMemoryCache(t *testin
 	assert.Equal(t, 108, selected.Id)
 }
 
+func TestGetChannelWithOptionsHonorsImageRoutingAuthorityGroupsWithoutMemoryCache(t *testing.T) {
+	setImageResolutionPricesForChannelSelectionTest(t)
+	setupChannelSelectionTestDB(t)
+
+	priority := int64(10)
+	weight := uint(100)
+	legacy := Channel{Id: 31, Type: 1, Key: "key-31", Status: common.ChannelStatusEnabled, Name: "legacy", Weight: &weight, Priority: &priority, Models: "gpt-image-2", Group: "group-b"}
+	fourK := Channel{Id: 108, Type: 1, Key: "key-108", Status: common.ChannelStatusEnabled, Name: "4k", Weight: &weight, Priority: &priority, Models: "gpt-image-2", Group: "group-a"}
+	fourK.SetOtherSettings(dto.ChannelOtherSettings{ImageRouting: verifiedImageRoutingProfile("gpt-image-2", []string{"4K"}, []string{"2880x2880"})})
+	require.NoError(t, DB.Create(&[]Channel{legacy, fourK}).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "group-a", Model: "gpt-image-2", ChannelId: 108, Enabled: true, Priority: &priority, Weight: weight},
+		{Group: "group-b", Model: "gpt-image-2", ChannelId: 31, Enabled: true, Priority: &priority, Weight: weight},
+	}).Error)
+	requirement := &dto.ImageSelectionRequirement{
+		Operation:   dto.ImageOperationGeneration,
+		Resolution:  "4K",
+		AspectRatio: "1:1",
+		Size:        "2880x2880",
+		Quality:     "low",
+	}
+
+	selected, err := GetChannelWithOptions("group-b", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement: requirement,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 31, selected.Id, "a standalone legacy group remains backwards compatible")
+
+	selected, err = GetChannelWithOptions("group-b", "gpt-image-2", 0, ChannelSelectionOptions{
+		ImageRequirement:            requirement,
+		ImageRoutingAuthorityGroups: []string{"group-a", "group-b"},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, selected, "an explicit route in another eligible group must close legacy fallback")
+}
+
 func verifiedImageRoutingProfile(model string, resolutions []string, sizes []string) *dto.ImageRoutingConfig {
 	combinations := make([]dto.ImageRoutingCombination, 0, len(resolutions))
 	for i, resolution := range resolutions {
