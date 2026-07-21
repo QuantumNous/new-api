@@ -72,7 +72,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	}
 
 	removedReasoningEncryptedContent := 0
-	if info.ApiType == appconstant.APITypeOpenAI {
+	if info.ApiType == appconstant.APITypeOpenAI && info.ChannelSetting.EnableThinkingSignatureFallback {
 		preparedInput, removed, err := service.PrepareOpenAIResponsesReasoningInput(c, request.Input)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())

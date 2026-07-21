@@ -264,6 +264,9 @@ func shouldRetryOpenAIReasoningSignatureInvalid(c *gin.Context, info *relaycommo
 	if info.ApiType != constant.APITypeOpenAI {
 		return false
 	}
+	if !info.ChannelSetting.EnableThinkingSignatureFallback {
+		return false
+	}
 	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
 		return false
 	}

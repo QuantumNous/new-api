@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -39,6 +40,9 @@ func TestShouldRetryOpenAIReasoningSignatureInvalid(t *testing.T) {
 		RelayMode: relayconstant.RelayModeResponses,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ApiType: constant.APITypeOpenAI,
+			ChannelSetting: dto.ChannelSettings{
+				EnableThinkingSignatureFallback: true,
+			},
 		},
 	}
 	ctx := newContext("controller-openai-responses")
@@ -53,10 +57,21 @@ func TestShouldRetryOpenAIReasoningSignatureInvalid(t *testing.T) {
 	}
 	assert.False(t, shouldRetryOpenAIReasoningSignatureInvalid(newContext("controller-codex"), nonOpenAI, invalidSignature))
 
+	disabledOpenAI := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiType: constant.APITypeOpenAI,
+		},
+	}
+	assert.False(t, shouldRetryOpenAIReasoningSignatureInvalid(newContext("controller-disabled-openai"), disabledOpenAI, invalidSignature))
+
 	openAIChat := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeChatCompletions,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ApiType: constant.APITypeOpenAI,
+			ChannelSetting: dto.ChannelSettings{
+				EnableThinkingSignatureFallback: true,
+			},
 		},
 	}
 	assert.False(t, shouldRetryOpenAIReasoningSignatureInvalid(newContext("controller-openai-chat"), openAIChat, invalidSignature))

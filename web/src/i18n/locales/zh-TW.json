@@ -5214,6 +5214,8 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Recover invalid reasoning signatures": "復原無效推理簽章",
+    "Remove reasoning encrypted_content and retry once when the upstream returns thinking_signature_invalid": "上游回傳 thinking_signature_invalid 時，刪除 reasoning.encrypted_content 並額外重試一次"
   }
 }

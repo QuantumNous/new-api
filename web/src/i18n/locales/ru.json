@@ -5214,6 +5214,8 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Recover invalid reasoning signatures": "Восстановление после недействительной подписи рассуждений",
+    "Remove reasoning encrypted_content and retry once when the upstream returns thinking_signature_invalid": "Удалять reasoning.encrypted_content и повторять запрос один раз, если вышестоящий сервис возвращает thinking_signature_invalid"
   }
 }
