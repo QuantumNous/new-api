@@ -675,10 +675,12 @@ func TestCompensatePermanentImageTaskFinalizationRefundsSurvivingPinnedLedger(t 
 
 	rawUser, err := cacheGetUserBase(user.Id)
 	require.NoError(t, err)
-	assert.Equal(t, 975, rawUser.Quota)
+	assert.Equal(t, 875, rawUser.Quota)
 	rawToken, err := cacheGetTokenByKey(token.Key)
 	require.NoError(t, err)
-	assert.Equal(t, 975, rawToken.RemainQuota)
+	assert.Equal(t, 875, rawToken.RemainQuota)
+	assert.True(t, redisServer.Exists(imageTaskUserQuotaInvalidationKey(user.Id)))
+	assert.True(t, redisServer.Exists(imageTaskTokenQuotaInvalidationKey(common.GenerateHMAC(token.Key))))
 	userPeerPinned, err := redisServer.SIsMember(imageTaskUserQuotaPinsKey(user.Id), peerTaskID)
 	require.NoError(t, err)
 	assert.True(t, userPeerPinned)
@@ -693,6 +695,72 @@ func TestCompensatePermanentImageTaskFinalizationRefundsSurvivingPinnedLedger(t 
 	assert.False(t, tokenCompensationPinned)
 	assert.False(t, redisServer.Exists("billing:image-task-cache:"+task.TaskID))
 	assert.True(t, redisServer.Exists("billing:image-task-cache:"+peerTaskID))
+
+	var storedUser User
+	require.NoError(t, DB.First(&storedUser, user.Id).Error)
+	assert.Equal(t, 1000, storedUser.Quota)
+	var storedToken Token
+	require.NoError(t, DB.First(&storedToken, token.Id).Error)
+	assert.Equal(t, 1000, storedToken.RemainQuota)
+	assert.Zero(t, storedToken.UsedQuota)
+}
+
+func TestCompensatePermanentImageTaskFinalizationDoesNotOvercreditMissingReservationTag(t *testing.T) {
+	truncateTables(t)
+	redisServer := useImageTaskTestRedis(t)
+	user, token, _, task := seedImageTaskBillingState(t, "missing-reservation-tag-compensation", 100)
+
+	cachedUser := *user
+	cachedUser.Quota = 1000
+	require.NoError(t, populateUserCache(cachedUser))
+	cachedToken := *token
+	cachedToken.RemainQuota = 1000
+	cachedToken.UsedQuota = 0
+	require.NoError(t, cacheSetToken(cachedToken))
+
+	require.NoError(t, DB.Create(&ImageBillingReservation{
+		TaskID:         task.TaskID,
+		UserID:         user.Id,
+		TokenID:        token.Id,
+		ExpectedQuota:  100,
+		FundingSource:  "wallet",
+		WalletReserved: 100,
+		TokenRequired:  true,
+		TokenReserved:  100,
+		Status:         ImageBillingReservationActive,
+	}).Error)
+	task.Status = TaskStatusFinalizing
+	task.PrivateData.BillingFinalStatus = TaskStatusSuccess
+	task.PrivateData.BillingActualQuota = common.MaxQuota + 1
+	require.NoError(t, DB.Model(task).Select("status", "private_data").Updates(task).Error)
+
+	const peerTaskID = "task_image_missing_reservation_tag_peer"
+	_, err := redisServer.SAdd(imageTaskUserQuotaPinsKey(user.Id), peerTaskID)
+	require.NoError(t, err)
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	_, err = redisServer.SAdd(imageTaskTokenQuotaPinsKey(tokenHMAC), peerTaskID)
+	require.NoError(t, err)
+
+	compensated, err := CompensatePermanentImageTaskFinalization(task.TaskID, "invalid billing state")
+	require.NoError(t, err)
+	require.NotNil(t, compensated)
+	assert.True(t, compensated.Applied)
+
+	rawUser, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, rawUser.Quota)
+	rawToken, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, rawToken.RemainQuota)
+	assert.Zero(t, rawToken.UsedQuota)
+	assert.True(t, redisServer.Exists(imageTaskUserQuotaInvalidationKey(user.Id)))
+	assert.True(t, redisServer.Exists(imageTaskTokenQuotaInvalidationKey(tokenHMAC)))
+	userPeerPinned, err := redisServer.SIsMember(imageTaskUserQuotaPinsKey(user.Id), peerTaskID)
+	require.NoError(t, err)
+	assert.True(t, userPeerPinned)
+	tokenPeerPinned, err := redisServer.SIsMember(imageTaskTokenQuotaPinsKey(tokenHMAC), peerTaskID)
+	require.NoError(t, err)
+	assert.True(t, tokenPeerPinned)
 
 	var storedUser User
 	require.NoError(t, DB.First(&storedUser, user.Id).Error)
