@@ -5266,6 +5266,6 @@
     "Require invitation codes": "Exiger des codes d'invitation",
     "Control access to new account registration.": "Contrôler l'accès à l'inscription de nouveaux comptes.",
     "Select at least one registration method": "Sélectionnez au moins un mode d'inscription",
-    "Expiration time must be in the future": "La date d'expiration doit être ultérieure"
+    "Expiration time must be in the future": "La date d'expiration doit être dans le futur"
   }
 }
