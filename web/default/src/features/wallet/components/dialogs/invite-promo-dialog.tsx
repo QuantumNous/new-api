@@ -29,7 +29,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { CopyButton } from '@/components/copy-button'
 import { getSignupGift, trackInvitePromoEvent } from '../../api'
 
 interface InvitePromoDialogProps {
@@ -126,51 +125,17 @@ export function InvitePromoDialog({
           <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
             {t('Your referral link')}
           </div>
-          <div className='flex items-center gap-2'>
-            <Input
-              value={affiliateLink}
-              readOnly
-              className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
-            />
-            <CopyButton
-              value={affiliateLink}
-              variant='outline'
-              className='bg-background size-9 shrink-0'
-              iconClassName='size-4'
-              tooltip={t('Copy referral link')}
-              aria-label={t('Copy referral link')}
-              onCopied={() => {
-                void trackInvitePromoEvent('invite_popup_copy')
-              }}
-            />
-          </div>
-        </div>
-
-        <div className='mt-2 grid grid-cols-2 gap-3'>
-          <Button
-            type='button'
-            variant='outline'
-            className='border-border text-foreground bg-background hover:bg-muted'
-            onClick={() => openShare('x')}
-          >
-            <span className='text-base font-semibold'>X</span>
-            {t('Share on X')}
-          </Button>
-          <Button
-            type='button'
-            variant='outline'
-            className='border-sky-500/45 bg-sky-500/10 text-sky-600 hover:bg-sky-500/15 hover:text-sky-600 dark:text-sky-300 dark:hover:text-sky-200'
-            onClick={() => openShare('telegram')}
-          >
-            <Send className='size-4' />
-            {t('Share on Telegram')}
-          </Button>
+          <Input
+            value={affiliateLink}
+            readOnly
+            className='border-muted bg-background/70 h-10 min-w-0 font-mono text-xs'
+          />
         </div>
 
         <Button
           type='button'
-          className='w-full border-0 text-white shadow-md shadow-amber-500/30 hover:brightness-105'
-          style={{ background: 'linear-gradient(135deg, #f59e0b, #ea580c)' }}
+          variant='outline'
+          className='border-border bg-background text-foreground hover:bg-muted w-full'
           onClick={handleCopy}
         >
           {isCopied ? (
@@ -180,6 +145,25 @@ export function InvitePromoDialog({
           )}
           {t('Copy referral link')}
         </Button>
+
+        <div className='mt-1 grid grid-cols-2 gap-3'>
+          <Button
+            type='button'
+            className='border-0 bg-zinc-950 text-white shadow-sm hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200'
+            onClick={() => openShare('x')}
+          >
+            <span className='text-base font-semibold'>X</span>
+            {t('Share on X')}
+          </Button>
+          <Button
+            type='button'
+            className='border-0 bg-[#229ED9] text-white shadow-sm hover:bg-[#1D8FC5]'
+            onClick={() => openShare('telegram')}
+          >
+            <Send className='size-4' />
+            {t('Share on Telegram')}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )
