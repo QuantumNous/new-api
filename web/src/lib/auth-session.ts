@@ -253,7 +253,7 @@ export function createRefreshRunner(
       return { kind: 'anonymous' }
     }
 
-    if (!response.status || response.status >= 500) {
+    if (!response.status || response.status >= 500 || response.status === 429) {
       runtime.markTransient()
       return {
         kind: 'transient_error',
