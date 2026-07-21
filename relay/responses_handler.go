@@ -107,9 +107,6 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 			}
-			// BodyStorage owns the returned bytes. Keep its original request body
-			// intact for later retries that may select a non-OpenAI API type.
-			jsonData = append([]byte(nil), jsonData...)
 			jsonData, err = sjson.SetRawBytes(jsonData, "input", request.Input)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())

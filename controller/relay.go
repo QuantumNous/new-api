@@ -234,9 +234,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		reasoningSignatureRetry := shouldRetryOpenAIReasoningSignatureInvalid(c, relayInfo, newAPIError)
 		if reasoningSignatureRetry {
-			if retryParam.GetRetry() >= retryLimit {
-				retryLimit++
-			}
+			retryLimit++
 			continue
 		}
 
