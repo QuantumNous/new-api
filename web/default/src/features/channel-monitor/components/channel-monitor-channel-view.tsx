@@ -59,6 +59,7 @@ import { formatMonitorRatio } from '../lib/format'
 import type {
   ChannelMonitorChannelPerformance,
   ChannelMonitorItem,
+  ChannelMonitorSuccessSummary,
 } from '../types'
 import { ChannelMonitorFetchStatus } from './channel-monitor-fetch-status'
 import {
@@ -66,6 +67,7 @@ import {
   ChannelMonitorTPSValue,
 } from './channel-monitor-performance-value'
 import { ChannelMonitorSmartScheduleCell } from './channel-monitor-smart-schedule-cell'
+import { ChannelMonitorSuccessRateValue } from './channel-monitor-success-rate-value'
 import { GroupRatioValue } from './group-ratio-value'
 import { RatioChangeBadge } from './ratio-change-badge'
 
@@ -74,6 +76,8 @@ type ChannelMonitorChannelViewProps = {
   groupRatios: Record<string, number>
   groupCoefficients: Record<string, number>
   performanceByChannel: Map<number, ChannelMonitorChannelPerformance>
+  successByChannel: Map<number, ChannelMonitorSuccessSummary>
+  successMetricsAvailable: boolean
   performanceRangeLabel: string
   performanceLoading: boolean
   performanceError: boolean
@@ -85,6 +89,7 @@ type ChannelMonitorChannelViewProps = {
   onEditGroups: (channel: ChannelMonitorItem) => void
   onConfigureUpstream: (channel: ChannelMonitorItem) => void
   onViewHistory: (channel: ChannelMonitorItem) => void
+  onOpenSuccessDetail: (channel: ChannelMonitorItem) => void
   onUpdateSmartSchedule: (
     channel: ChannelMonitorItem,
     excluded: boolean
@@ -254,19 +259,20 @@ export function ChannelMonitorChannelView(
       <Table
         className={cn(
           'table-fixed [&_td]:align-top [&_td]:py-3',
-          props.smartScheduleEnabled ? 'min-w-[1320px]' : 'min-w-[1080px]'
+          props.smartScheduleEnabled ? 'min-w-[1440px]' : 'min-w-[1200px]'
         )}
       >
         <colgroup>
-          <col className={props.smartScheduleEnabled ? 'w-[8%]' : 'w-[10%]'} />
-          <col className={props.smartScheduleEnabled ? 'w-[9%]' : 'w-[10%]'} />
-          <col className={props.smartScheduleEnabled ? 'w-[13%]' : 'w-[15%]'} />
-          <col className={props.smartScheduleEnabled ? 'w-[13%]' : 'w-[15%]'} />
-          <col className={props.smartScheduleEnabled ? 'w-[14%]' : 'w-[16%]'} />
-          <col className={props.smartScheduleEnabled ? 'w-[9%]' : 'w-[11%]'} />
-          {props.smartScheduleEnabled ? <col className='w-[17%]' /> : null}
-          <col className={props.smartScheduleEnabled ? 'w-[10%]' : 'w-[13%]'} />
           <col className={props.smartScheduleEnabled ? 'w-[7%]' : 'w-[10%]'} />
+          <col className={props.smartScheduleEnabled ? 'w-[8%]' : 'w-[9%]'} />
+          <col className={props.smartScheduleEnabled ? 'w-[12%]' : 'w-[14%]'} />
+          <col className={props.smartScheduleEnabled ? 'w-[12%]' : 'w-[14%]'} />
+          <col className={props.smartScheduleEnabled ? 'w-[13%]' : 'w-[15%]'} />
+          <col className={props.smartScheduleEnabled ? 'w-[9%]' : 'w-[10%]'} />
+          <col className={props.smartScheduleEnabled ? 'w-[9%]' : 'w-[10%]'} />
+          {props.smartScheduleEnabled ? <col className='w-[15%]' /> : null}
+          <col className={props.smartScheduleEnabled ? 'w-[8%]' : 'w-[10%]'} />
+          <col className={props.smartScheduleEnabled ? 'w-[7%]' : 'w-[8%]'} />
         </colgroup>
         <TableHeader>
           <TableRow className='[&_th]:text-left'>
@@ -276,6 +282,12 @@ export function ChannelMonitorChannelView(
             <TableHead>倍率更新状态</TableHead>
             <TableHead>关联分组</TableHead>
             <TableHead>性能（{props.performanceRangeLabel}）</TableHead>
+            <TableHead
+              className='whitespace-normal'
+              title='按真实上游调用统计，包含重试过程中的失败'
+            >
+              请求成功率（{props.performanceRangeLabel}）
+            </TableHead>
             {props.smartScheduleEnabled ? (
               <TableHead>智能调度</TableHead>
             ) : null}
@@ -286,6 +298,7 @@ export function ChannelMonitorChannelView(
         <TableBody>
           {props.channels.map((channel) => {
             const channelEnabled = channel.status === CHANNEL_STATUS.ENABLED
+            const successMetric = props.successByChannel.get(channel.id)
             const channelStatusLabel = channelEnabled
               ? '渠道已启用'
               : '渠道已停用'
@@ -415,6 +428,18 @@ export function ChannelMonitorChannelView(
                     performance={props.performanceByChannel.get(channel.id)}
                     loading={props.performanceLoading}
                     error={props.performanceError}
+                  />
+                </TableCell>
+                <TableCell className='whitespace-normal'>
+                  <ChannelMonitorSuccessRateValue
+                    rate={successMetric?.actual_success_rate}
+                    successCount={successMetric?.actual_success_count}
+                    sampleCount={successMetric?.actual_sample_count}
+                    available={props.successMetricsAvailable}
+                    loading={props.performanceLoading}
+                    error={props.performanceError}
+                    onClick={() => props.onOpenSuccessDetail(channel)}
+                    detailLabel={`查看 ${channel.name} 的成功率明细`}
                   />
                 </TableCell>
                 {props.smartScheduleEnabled ? (

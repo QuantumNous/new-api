@@ -86,6 +86,7 @@ import {
   ChannelMonitorSettingsDialog,
   type ChannelMonitorSettingsSection,
 } from './components/channel-monitor-settings-dialog'
+import { ChannelMonitorSuccessDetailDialog } from './components/channel-monitor-success-detail-dialog'
 import { ChannelMonitorTaskHistoryDialog } from './components/channel-monitor-task-history-dialog'
 import { ChannelRatioHistoryDialog } from './components/channel-ratio-history-dialog'
 import { EditChannelGroupsDialog } from './components/edit-channel-groups-dialog'
@@ -103,6 +104,10 @@ import type {
   ChannelMonitorPerformanceRangeMinutes,
   ChannelMonitorSettings,
   ChannelMonitorSortMode,
+  ChannelMonitorGroupSuccessMetric,
+  ChannelMonitorSuccessDetailTarget,
+  ChannelMonitorSuccessMetric,
+  ChannelMonitorSuccessSummary,
   ChannelMonitorUpstreamType,
   GroupMonitorItem,
 } from './types'
@@ -125,6 +130,8 @@ const EMPTY_CHANNEL_ORDER: number[] = []
 const EMPTY_GROUP_RATIOS: Record<string, number> = {}
 const EMPTY_GROUP_COEFFICIENTS: Record<string, number> = {}
 const EMPTY_PERFORMANCE_METRICS: ChannelMonitorPerformanceMetric[] = []
+const EMPTY_SUCCESS_METRICS: ChannelMonitorSuccessMetric[] = []
+const EMPTY_GROUP_SUCCESS_METRICS: ChannelMonitorGroupSuccessMetric[] = []
 const DEFAULT_CHANNEL_MONITOR_SETTINGS: ChannelMonitorSettings = {
   auto_update_interval_minutes: 0,
   auto_update_retry_count: 2,
@@ -176,6 +183,8 @@ export function ChannelMonitor() {
     useState<ChannelMonitorSettingsSection>('monitor')
   const [taskHistoryOpen, setTaskHistoryOpen] = useState(false)
   const [orderDialogOpen, setOrderDialogOpen] = useState(false)
+  const [successDetailTarget, setSuccessDetailTarget] =
+    useState<ChannelMonitorSuccessDetailTarget | null>(null)
   const [channelSortMode, setChannelSortMode] =
     useState<ChannelMonitorSortMode>(() => {
       const storedSortMode = localStorage.getItem(
@@ -280,6 +289,13 @@ export function ChannelMonitor() {
   const settings = overview?.settings ?? DEFAULT_CHANNEL_MONITOR_SETTINGS
   const performanceMetrics =
     performanceQuery.data?.data.items ?? EMPTY_PERFORMANCE_METRICS
+  const successMetrics =
+    performanceQuery.data?.data.success_items ?? EMPTY_SUCCESS_METRICS
+  const groupSuccessMetrics =
+    performanceQuery.data?.data.group_success_items ??
+    EMPTY_GROUP_SUCCESS_METRICS
+  const successMetricsAvailable =
+    performanceQuery.data?.data.success_metrics_available ?? false
   const dialogChannel =
     channels.find((channel) => channel.id === channelDialog?.channelId) ?? null
   const autoUpdateIntervalMinutes = settings.auto_update_interval_minutes
@@ -399,6 +415,43 @@ export function ChannelMonitor() {
     }
     return result
   }, [performanceMetrics])
+  const successByChannel = useMemo(() => {
+    const result = new Map<number, ChannelMonitorSuccessSummary>()
+    for (const metric of successMetrics) {
+      const summary = result.get(metric.channel_id) ?? {
+        actual_success_count: 0,
+        actual_failure_count: 0,
+        actual_sample_count: 0,
+        actual_success_rate: 0,
+        final_success_count: 0,
+        final_failure_count: 0,
+        final_sample_count: 0,
+        final_success_rate: 0,
+      }
+      summary.actual_success_count += metric.actual_success_count
+      summary.actual_failure_count += metric.actual_failure_count
+      summary.actual_sample_count =
+        summary.actual_success_count + summary.actual_failure_count
+      summary.actual_success_rate =
+        summary.actual_sample_count > 0
+          ? summary.actual_success_count / summary.actual_sample_count
+          : 0
+      summary.final_success_count += metric.final_success_count
+      summary.final_failure_count += metric.final_failure_count
+      summary.final_sample_count =
+        summary.final_success_count + summary.final_failure_count
+      summary.final_success_rate =
+        summary.final_sample_count > 0
+          ? summary.final_success_count / summary.final_sample_count
+          : 0
+      result.set(metric.channel_id, summary)
+    }
+    return result
+  }, [successMetrics])
+  const successByGroup = useMemo(
+    () => new Map(groupSuccessMetrics.map((metric) => [metric.group, metric])),
+    [groupSuccessMetrics]
+  )
   const filteredChannels = useMemo(
     () =>
       sortChannelMonitorItems(
@@ -411,10 +464,15 @@ export function ChannelMonitor() {
   )
   const performanceModelOptions = useMemo(
     () =>
-      [...new Set(performanceMetrics.map((metric) => metric.model_name))]
+      [
+        ...new Set([
+          ...performanceMetrics.map((metric) => metric.model_name),
+          ...successMetrics.map((metric) => metric.model_name),
+        ]),
+      ]
         .sort((first, second) => first.localeCompare(second))
         .map((modelName) => ({ value: modelName, label: modelName })),
-    [performanceMetrics]
+    [performanceMetrics, successMetrics]
   )
   const smartScheduleModelOptions = useMemo(() => {
     const models = new Set(
@@ -700,6 +758,8 @@ export function ChannelMonitor() {
               groupRatios={groupRatios}
               groupCoefficients={groupCoefficients}
               performanceByChannel={performanceByChannel}
+              successByChannel={successByChannel}
+              successMetricsAvailable={successMetricsAvailable}
               performanceRangeLabel={performanceRangeLabel}
               performanceLoading={performanceQuery.isLoading}
               performanceError={performanceQuery.isError}
@@ -736,6 +796,14 @@ export function ChannelMonitor() {
               onViewHistory={(channel) =>
                 setChannelDialog({ channelId: channel.id, type: 'history' })
               }
+              onOpenSuccessDetail={(channel) =>
+                setSuccessDetailTarget({
+                  scope: 'channel',
+                  mode: 'actual',
+                  channelId: channel.id,
+                  channelName: channel.name,
+                })
+              }
               onUpdateSmartSchedule={(channel, excluded) =>
                 smartScheduleConfigMutation.mutate({
                   channelId: channel.id,
@@ -769,6 +837,18 @@ export function ChannelMonitor() {
           <TabsContent value='groups'>
             <ChannelMonitorGroupView
               groups={filteredGroups}
+              successByGroup={successByGroup}
+              successMetricsAvailable={successMetricsAvailable}
+              successLoading={performanceQuery.isLoading}
+              successError={performanceQuery.isError}
+              successRangeLabel={performanceRangeLabel}
+              onOpenSuccessDetail={(group, mode) =>
+                setSuccessDetailTarget({
+                  scope: 'group',
+                  mode,
+                  groupName: group.name,
+                })
+              }
               onOpenScheduleSettings={() => {
                 setSettingsSection('schedule')
                 setSettingsOpen(true)
@@ -782,10 +862,21 @@ export function ChannelMonitor() {
               key={activePerformanceModel}
               channels={channels}
               metrics={performanceMetrics}
+              successMetrics={successMetrics}
+              successMetricsAvailable={successMetricsAvailable}
               selectedModel={activePerformanceModel}
               search={search}
               isLoading={performanceQuery.isLoading}
               isError={performanceQuery.isError}
+              onOpenSuccessDetail={(channel, modelName) =>
+                setSuccessDetailTarget({
+                  scope: 'channel',
+                  mode: 'actual',
+                  channelId: channel.id,
+                  channelName: channel.name,
+                  modelName,
+                })
+              }
             />
           </TabsContent>
         </Tabs>
@@ -949,6 +1040,18 @@ export function ChannelMonitor() {
           channelOrder={channelOrder}
           open
           onOpenChange={setOrderDialogOpen}
+        />
+      )}
+      {successDetailTarget && (
+        <ChannelMonitorSuccessDetailDialog
+          target={successDetailTarget}
+          channels={channels}
+          rangeMinutes={performanceRangeMinutes}
+          rangeLabel={performanceRangeLabel}
+          open
+          onOpenChange={(open) => {
+            if (!open) setSuccessDetailTarget(null)
+          }}
         />
       )}
     </>

@@ -63,6 +63,8 @@ func TestProcessChannelErrorPersistsRetryAttempt(t *testing.T) {
 	c.Set("channel_type", 1)
 	c.Set("use_channel", []string{"9"})
 	c.Set(common.RequestIdKey, "retry-request")
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "vip")
+	common.SetContextKey(c, constant.ContextKeyAutoGroup, "standard")
 
 	apiErr := types.NewOpenAIError(errors.New("temporary upstream failure"), types.ErrorCodeBadResponseStatusCode, http.StatusServiceUnavailable)
 	processChannelError(c, *types.NewChannelError(9, 1, "test-channel", false, "", false), apiErr, true)
@@ -71,5 +73,6 @@ func TestProcessChannelErrorPersistsRetryAttempt(t *testing.T) {
 	require.NoError(t, db.Find(&logs).Error)
 	require.Len(t, logs, 1)
 	assert.True(t, logs[0].IsRetryAttempt)
+	assert.Equal(t, "standard", logs[0].Group)
 	assert.Contains(t, logs[0].Content, "temporary upstream failure")
 }

@@ -188,63 +188,24 @@ func GetChannelMonitorPerformanceMetrics(ctx context.Context, startTimestamp int
 }
 
 // GetChannelMonitorStabilityMetrics measures upstream attempt stability from
-// successful consume logs and error logs. Retry-attempt errors are included so
-// a channel failure is still counted when a later fallback channel succeeds.
+// the shared channel-monitor success aggregation. Retry-attempt errors are
+// included so a channel failure is still counted when a later fallback channel
+// succeeds.
 func GetChannelMonitorStabilityMetrics(ctx context.Context, startTimestamp int64) ([]ChannelMonitorStabilityMetric, error) {
-	type stabilityRow struct {
-		ChannelId int
-		ModelName string
-		Type      int
-		Count     int64
-	}
-	var rows []stabilityRow
-	err := LOG_DB.WithContext(ctx).
-		Model(&Log{}).
-		Select("channel_id, model_name, type, COUNT(*) AS count").
-		Where("type IN ?", []int{LogTypeConsume, LogTypeError}).
-		Where("channel_id > ?", 0).
-		Where("created_at >= ?", startTimestamp).
-		Group("channel_id, model_name, type").
-		Scan(&rows).Error
+	channelMetrics, _, err := GetChannelMonitorSuccessMetrics(ctx, startTimestamp)
 	if err != nil {
 		return nil, err
 	}
-
-	type stabilityKey struct {
-		channelId int
-		modelName string
+	metrics := make([]ChannelMonitorStabilityMetric, 0, len(channelMetrics))
+	for _, metric := range channelMetrics {
+		metrics = append(metrics, ChannelMonitorStabilityMetric{
+			ChannelId:    metric.ChannelId,
+			ModelName:    metric.ModelName,
+			SuccessCount: metric.ActualSuccessCount,
+			FailureCount: metric.ActualFailureCount,
+			SampleCount:  metric.ActualSampleCount,
+			SuccessRate:  metric.ActualSuccessRate,
+		})
 	}
-	aggregates := make(map[stabilityKey]*ChannelMonitorStabilityMetric)
-	for _, row := range rows {
-		key := stabilityKey{channelId: row.ChannelId, modelName: row.ModelName}
-		metric := aggregates[key]
-		if metric == nil {
-			metric = &ChannelMonitorStabilityMetric{
-				ChannelId: row.ChannelId,
-				ModelName: row.ModelName,
-			}
-			aggregates[key] = metric
-		}
-		if row.Type == LogTypeConsume {
-			metric.SuccessCount += row.Count
-		} else {
-			metric.FailureCount += row.Count
-		}
-	}
-
-	metrics := make([]ChannelMonitorStabilityMetric, 0, len(aggregates))
-	for _, metric := range aggregates {
-		metric.SampleCount = metric.SuccessCount + metric.FailureCount
-		if metric.SampleCount > 0 {
-			metric.SuccessRate = float64(metric.SuccessCount) / float64(metric.SampleCount)
-		}
-		metrics = append(metrics, *metric)
-	}
-	sort.Slice(metrics, func(i int, j int) bool {
-		if metrics[i].ModelName == metrics[j].ModelName {
-			return metrics[i].ChannelId < metrics[j].ChannelId
-		}
-		return metrics[i].ModelName < metrics[j].ModelName
-	})
 	return metrics, nil
 }

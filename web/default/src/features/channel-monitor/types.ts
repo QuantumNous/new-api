@@ -232,10 +232,79 @@ export type ChannelMonitorPerformanceMetric = {
   last_used_time: number
 }
 
+export type ChannelMonitorSuccessSummary = {
+  actual_success_count: number
+  actual_failure_count: number
+  actual_sample_count: number
+  actual_success_rate: number
+  final_success_count: number
+  final_failure_count: number
+  final_sample_count: number
+  final_success_rate: number
+}
+
+export type ChannelMonitorSuccessMetric = ChannelMonitorSuccessSummary & {
+  channel_id: number
+  model_name: string
+}
+
+export type ChannelMonitorGroupSuccessMetric = ChannelMonitorSuccessSummary & {
+  group: string
+}
+
+export type ChannelMonitorChannelSuccessMetric =
+  ChannelMonitorSuccessSummary & {
+    channel_id: number
+  }
+
+export type ChannelMonitorFailureCategory = {
+  channel_id: number
+  status_code: number
+  error_type: string
+  error_code: string
+  sample_content: string
+  actual_count: number
+  final_count: number
+  last_occurred_at: number
+}
+
+export type ChannelMonitorSuccessDetail = {
+  summary: ChannelMonitorSuccessSummary
+  channel_items: ChannelMonitorChannelSuccessMetric[]
+  failure_categories: ChannelMonitorFailureCategory[]
+}
+
+export type ChannelMonitorSuccessDetailResult = {
+  range_minutes: ChannelMonitorPerformanceRangeMinutes
+  generated_at: number
+  success_metrics_available: boolean
+  scope: 'channel' | 'group' | ''
+  detail: ChannelMonitorSuccessDetail
+}
+
+export type ChannelMonitorSuccessMode = 'actual' | 'final'
+
+export type ChannelMonitorSuccessDetailTarget =
+  | {
+      scope: 'channel'
+      mode: 'actual'
+      channelId: number
+      channelName: string
+      modelName?: string
+    }
+  | {
+      scope: 'group'
+      mode: ChannelMonitorSuccessMode
+      groupName: string
+    }
+
 export type ChannelMonitorPerformanceResult = {
   range_minutes: ChannelMonitorPerformanceRangeMinutes
   generated_at: number
   items: ChannelMonitorPerformanceMetric[]
+  success_metrics_available: boolean
+  success_items: ChannelMonitorSuccessMetric[]
+  group_success_items: ChannelMonitorGroupSuccessMetric[]
 }
 
 export type ChannelMonitorChannelPerformance = {

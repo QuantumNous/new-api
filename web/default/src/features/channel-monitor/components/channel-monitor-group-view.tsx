@@ -55,10 +55,23 @@ import { CHANNEL_STATUS } from '@/features/channels/constants'
 import { cn } from '@/lib/utils'
 
 import { formatMonitorRatio, getChannelGroupTargetRatio } from '../lib/format'
-import type { GroupMonitorItem } from '../types'
+import type {
+  ChannelMonitorGroupSuccessMetric,
+  GroupMonitorItem,
+} from '../types'
+import { ChannelMonitorSuccessRateValue } from './channel-monitor-success-rate-value'
 
 type ChannelMonitorGroupViewProps = {
   groups: GroupMonitorItem[]
+  successByGroup: Map<string, ChannelMonitorGroupSuccessMetric>
+  successMetricsAvailable: boolean
+  successLoading: boolean
+  successError: boolean
+  successRangeLabel: string
+  onOpenSuccessDetail: (
+    group: GroupMonitorItem,
+    mode: 'actual' | 'final'
+  ) => void
   onOpenScheduleSettings: () => void
   onEditGroup: (group: GroupMonitorItem) => void
   onSyncGroup: (group: GroupMonitorItem) => void
@@ -140,11 +153,23 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
       </Alert>
 
       <div className='overflow-hidden rounded-lg border'>
-        <Table>
+        <Table className='min-w-[1160px]'>
           <TableHeader>
             <TableRow>
               <TableHead>分组</TableHead>
               <TableHead>分组倍率</TableHead>
+              <TableHead
+                className='whitespace-normal'
+                title='成功调用数除以全部真实上游调用数，包含重试过程'
+              >
+                真实调用成功率（{props.successRangeLabel}）
+              </TableHead>
+              <TableHead
+                className='whitespace-normal'
+                title='排除重试过程中的中间失败，只统计最终返回结果'
+              >
+                最终结果成功率（{props.successRangeLabel}）
+              </TableHead>
               <TableHead>关联渠道与成本倍率</TableHead>
               <TableHead className='w-24 text-right'>操作</TableHead>
             </TableRow>
@@ -152,6 +177,7 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
           <TableBody>
             {groupsWithSortedChannels.map((groupEntry) => {
               const group = groupEntry.group
+              const successMetric = props.successByGroup.get(group.name)
               const enabledChannelCount = group.channels.filter(
                 (channel) => channel.status === CHANNEL_STATUS.ENABLED
               ).length
@@ -202,6 +228,30 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
                         系数 × {formatMonitorRatio(group.coefficient)}
                       </span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <ChannelMonitorSuccessRateValue
+                      rate={successMetric?.actual_success_rate}
+                      successCount={successMetric?.actual_success_count}
+                      sampleCount={successMetric?.actual_sample_count}
+                      available={props.successMetricsAvailable}
+                      loading={props.successLoading}
+                      error={props.successError}
+                      onClick={() => props.onOpenSuccessDetail(group, 'actual')}
+                      detailLabel={`查看 ${group.name} 分组的真实调用成功率明细`}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <ChannelMonitorSuccessRateValue
+                      rate={successMetric?.final_success_rate}
+                      successCount={successMetric?.final_success_count}
+                      sampleCount={successMetric?.final_sample_count}
+                      available={props.successMetricsAvailable}
+                      loading={props.successLoading}
+                      error={props.successError}
+                      onClick={() => props.onOpenSuccessDetail(group, 'final')}
+                      detailLabel={`查看 ${group.name} 分组的最终结果成功率明细`}
+                    />
                   </TableCell>
                   <TableCell className='min-w-72 whitespace-normal'>
                     {group.channels.length === 0 ? (

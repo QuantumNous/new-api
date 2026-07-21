@@ -44,21 +44,26 @@ import { formatMonitorRatio } from '../lib/format'
 import type {
   ChannelMonitorItem,
   ChannelMonitorPerformanceMetric,
+  ChannelMonitorSuccessMetric,
 } from '../types'
 import {
   ChannelMonitorFirstTokenValue,
   ChannelMonitorTPSValue,
 } from './channel-monitor-performance-value'
+import { ChannelMonitorSuccessRateValue } from './channel-monitor-success-rate-value'
 
 const PERFORMANCE_PAGE_SIZE = 20
 
 type ChannelMonitorModelPerformanceViewProps = {
   channels: ChannelMonitorItem[]
   metrics: ChannelMonitorPerformanceMetric[]
+  successMetrics: ChannelMonitorSuccessMetric[]
+  successMetricsAvailable: boolean
   selectedModel: string
   search: string
   isLoading: boolean
   isError: boolean
+  onOpenSuccessDetail: (channel: ChannelMonitorItem, modelName: string) => void
 }
 
 export function ChannelMonitorModelPerformanceView(
@@ -68,6 +73,11 @@ export function ChannelMonitorModelPerformanceView(
   const rows = useMemo(() => {
     const metricByChannel = new Map(
       props.metrics
+        .filter((metric) => metric.model_name === props.selectedModel)
+        .map((metric) => [metric.channel_id, metric])
+    )
+    const successMetricByChannel = new Map(
+      props.successMetrics
         .filter((metric) => metric.model_name === props.selectedModel)
         .map((metric) => [metric.channel_id, metric])
     )
@@ -108,8 +118,15 @@ export function ChannelMonitorModelPerformanceView(
       .map((channel) => ({
         channel,
         metric: metricByChannel.get(channel.id) ?? null,
+        successMetric: successMetricByChannel.get(channel.id) ?? null,
       }))
-  }, [props.channels, props.metrics, props.search, props.selectedModel])
+  }, [
+    props.channels,
+    props.metrics,
+    props.search,
+    props.selectedModel,
+    props.successMetrics,
+  ])
 
   if (props.isLoading) {
     return <Skeleton className='h-96 w-full rounded-lg' />
@@ -157,7 +174,7 @@ export function ChannelMonitorModelPerformanceView(
   return (
     <div className='flex flex-col gap-3'>
       <div className='overflow-hidden rounded-lg border'>
-        <Table className='min-w-[980px]'>
+        <Table className='min-w-[1100px]'>
           <TableHeader>
             <TableRow>
               <TableHead className='w-14 text-center'>排名</TableHead>
@@ -165,6 +182,9 @@ export function ChannelMonitorModelPerformanceView(
               <TableHead>成本倍率</TableHead>
               <TableHead>平均首字</TableHead>
               <TableHead>平均 TPS</TableHead>
+              <TableHead title='按真实上游调用统计，包含重试过程中的失败'>
+                请求成功率
+              </TableHead>
               <TableHead>有效样本</TableHead>
               <TableHead>最后请求</TableHead>
             </TableRow>
@@ -179,7 +199,7 @@ export function ChannelMonitorModelPerformanceView(
               return (
                 <TableRow key={`${props.selectedModel}:${row.channel.id}`}>
                   <TableCell className='text-muted-foreground text-center font-mono text-xs'>
-                    {row.metric
+                    {row.metric || row.successMetric
                       ? (currentPage - 1) * PERFORMANCE_PAGE_SIZE + rowIndex + 1
                       : '-'}
                   </TableCell>
@@ -217,6 +237,23 @@ export function ChannelMonitorModelPerformanceView(
                   <TableCell>
                     <ChannelMonitorTPSValue
                       value={row.metric?.average_tps ?? null}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <ChannelMonitorSuccessRateValue
+                      rate={row.successMetric?.actual_success_rate}
+                      successCount={row.successMetric?.actual_success_count}
+                      sampleCount={row.successMetric?.actual_sample_count}
+                      available={props.successMetricsAvailable}
+                      loading={props.isLoading}
+                      error={props.isError}
+                      onClick={() =>
+                        props.onOpenSuccessDetail(
+                          row.channel,
+                          props.selectedModel
+                        )
+                      }
+                      detailLabel={`查看 ${row.channel.name} 的 ${props.selectedModel} 成功率明细`}
                     />
                   </TableCell>
                   <TableCell>

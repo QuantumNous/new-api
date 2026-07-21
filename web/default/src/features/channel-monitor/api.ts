@@ -28,6 +28,7 @@ import type {
   ChannelMonitorPerformanceResult,
   ChannelMonitorSettings,
   ChannelMonitorSmartScheduleConfig,
+  ChannelMonitorSuccessDetailResult,
   ChannelMonitorTaskRunResult,
   ChannelMonitorTaskPage,
   ChannelMonitorTaskKind,
@@ -72,6 +73,28 @@ export async function getChannelMonitorPerformance(
   >(
     '/api/channel_monitor/performance',
     channelMonitorRequestConfig({ params: { minutes } })
+  )
+  return ensureChannelMonitorSuccess(response.data)
+}
+
+export async function getChannelMonitorSuccessDetail(request: {
+  minutes: ChannelMonitorPerformanceRangeMinutes
+  channelId?: number
+  modelName?: string
+  groupName?: string
+}) {
+  const response = await api.get<
+    ChannelMonitorApiResponse<ChannelMonitorSuccessDetailResult>
+  >(
+    '/api/channel_monitor/success/detail',
+    channelMonitorRequestConfig({
+      params: {
+        minutes: request.minutes,
+        channel_id: request.channelId,
+        model_name: request.modelName,
+        group: request.groupName,
+      },
+    })
   )
   return ensureChannelMonitorSuccess(response.data)
 }
