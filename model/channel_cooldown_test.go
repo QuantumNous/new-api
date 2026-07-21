@@ -82,3 +82,17 @@ func TestExpiredStrictCooldownDoesNotBlockLongerFallbackEligibleCooldown(t *test
 	require.True(t, state.active)
 	assert.True(t, state.allowFallback)
 }
+
+func TestGetChannelCooldownReportsActiveStrictReason(t *testing.T) {
+	clearChannelCooldownsForTest()
+	t.Cleanup(clearChannelCooldownsForTest)
+
+	startedAt := time.Now()
+	CooldownChannel(17, "stream_unstable", time.Hour)
+	CooldownChannelWithoutFallback(17, "stream_capacity", 15*time.Minute)
+
+	reason, expires, cooling := GetChannelCooldown(17)
+	require.True(t, cooling)
+	assert.Equal(t, "stream_capacity", reason)
+	assert.WithinDuration(t, startedAt.Add(15*time.Minute), time.Unix(expires, 0), time.Second)
+}
