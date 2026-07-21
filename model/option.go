@@ -204,20 +204,69 @@ func SyncOptions(frequency int) {
 	}
 }
 
-func UpdateOption(key string, value string) error {
-	// Save to database first
-	option := Option{
-		Key: key,
+// legacyConfigOptionAliases maps legacy option keys to the ConfigManager keys
+// that deserialize into the same shared in-memory map (registered in
+// setting/ratio_setting/group_ratio.go). The two keys are persisted as
+// independent rows in the options table, and each row fully reloads the shared
+// map when processed by loadOptionsFromDatabase. If the rows drift apart,
+// whichever row happens to be processed last wins on every sync/restart and
+// edits made through the other key are silently lost (#5933). Updating either
+// key must therefore persist both rows with the same value.
+var legacyConfigOptionAliases = map[string]string{
+	"GroupRatio":      "group_ratio_setting.group_ratio",
+	"GroupGroupRatio": "group_ratio_setting.group_group_ratio",
+}
+
+func aliasedOptionKey(key string) (string, bool) {
+	if modern, ok := legacyConfigOptionAliases[key]; ok {
+		return modern, true
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+	for legacy, modern := range legacyConfigOptionAliases {
+		if modern == key {
+			return legacy, true
+		}
+	}
+	return "", false
+}
+
+func UpdateOption(key string, value string) error {
+	keys := []string{key}
+	if alias, ok := aliasedOptionKey(key); ok {
+		keys = append(keys, alias)
+	}
+	// Save to database first, atomically across aliased keys so the rows
+	// cannot diverge if one of the writes fails.
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		for _, k := range keys {
+			option := Option{
+				Key: k,
+			}
+			// https://gorm.io/docs/update.html#Save-All-Fields
+			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
+				return err
+			}
+			option.Value = value
+			// Save is a combination function.
+			// If save value does not contain primary key, it will execute Create,
+			// otherwise it will execute Update (with all fields).
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	// Update OptionMap. Refresh every aliased key even if one fails so the
+	// in-memory views stay consistent with the rows already persisted above.
+	var updateErr error
+	for _, k := range keys {
+		if err := updateOptionMap(k, value); err != nil && updateErr == nil {
+			updateErr = err
+		}
+	}
+	return updateErr
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
