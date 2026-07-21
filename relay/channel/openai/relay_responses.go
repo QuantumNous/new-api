@@ -69,6 +69,31 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	return &usage, nil
 }
 
+func responsesStreamOpenAIErrorStatusCode(oaiErr *types.OpenAIError) int {
+	if oaiErr == nil {
+		return http.StatusInternalServerError
+	}
+	errType := strings.ToLower(oaiErr.Type)
+	errCode := strings.ToLower(fmt.Sprintf("%v", oaiErr.Code))
+	if errType == "invalid_request_error" || strings.Contains(errCode, "context_length") || strings.Contains(errCode, "invalid_request") {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
+}
+
+func responsesStreamErrorFromOpenAIError(oaiErr *types.OpenAIError) *types.NewAPIError {
+	if oaiErr == nil {
+		return nil
+	}
+	if oaiErr.Type == "" {
+		oaiErr.Type = "upstream_error"
+	}
+	if oaiErr.Message == "" {
+		return nil
+	}
+	return types.WithOpenAIError(*oaiErr, responsesStreamOpenAIErrorStatusCode(oaiErr), types.ErrOptionWithSkipRetry())
+}
+
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid response or response body")
@@ -79,8 +104,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	var streamErr *types.NewAPIError
+	var pendingStreamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if streamErr != nil {
+			sr.Stop(streamErr)
+			return
+		}
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
@@ -129,8 +160,36 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					}
 				}
 			}
+		case "error":
+			if pendingErr := responsesStreamErrorFromOpenAIError(dto.GetOpenAIError(streamResponse.Error)); pendingErr != nil {
+				pendingStreamErr = pendingErr
+				sr.Error(pendingErr)
+			}
+		case "response.error", "response.failed":
+			if streamResponse.Response != nil {
+				if extractedErr := responsesStreamErrorFromOpenAIError(streamResponse.Response.GetOpenAIError()); extractedErr != nil {
+					streamErr = extractedErr
+					sr.Stop(streamErr)
+					return
+				}
+			}
+			if pendingStreamErr != nil {
+				streamErr = pendingStreamErr
+				sr.Stop(streamErr)
+				return
+			}
+			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResponse.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+			sr.Stop(streamErr)
+			return
 		}
 	})
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	if pendingStreamErr != nil {
+		return nil, pendingStreamErr
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
