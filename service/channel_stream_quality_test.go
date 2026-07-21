@@ -51,6 +51,7 @@ func TestObserveStreamChannelQualityImmediatelyIsolatesAccountConcurrencyFailure
 	remaining := time.Until(time.Unix(expires, 0))
 	assert.Greater(t, remaining, 14*time.Minute)
 	assert.Less(t, remaining, 16*time.Minute)
+	assert.False(t, model.IsChannelCoolingFallbackAllowed(17), "account concurrency cooldown must never be bypassed as fallback")
 
 	boundChannel, found, err := cache.Get(cacheKeySuffix)
 	require.NoError(t, err)
