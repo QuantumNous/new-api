@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { TestTubeIcon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
@@ -88,6 +90,11 @@ export function ChannelsPrimaryButtons() {
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
+  const canOperate = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.OPERATE
   )
 
   const handleTagModeToggle = (checked: boolean) => {
@@ -169,6 +176,30 @@ export function ChannelsPrimaryButtons() {
               {t('No permission to perform this action')}
             </TooltipContent>
           )}
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger render={<span className='inline-flex' />}>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => {
+                if (!canOperate) return
+                setOpen('batch-test-channels')
+              }}
+              disabled={!canOperate}
+              aria-label='批量测试渠道'
+            >
+              <HugeiconsIcon icon={TestTubeIcon} data-icon='inline-start' />
+              <span className='max-sm:hidden'>批量测试</span>
+              <span className='sr-only sm:hidden'>批量测试</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {canOperate
+              ? '选择渠道和已定价模型进行批量连通性测试'
+              : '没有渠道操作权限'}
+          </TooltipContent>
         </Tooltip>
 
         {/* More Actions */}
