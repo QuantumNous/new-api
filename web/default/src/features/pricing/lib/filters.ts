@@ -115,6 +115,20 @@ function getModelPrice(model: PricingModel, selectedGroup?: string): number {
   return basePrice * displayGroupRatio
 }
 
+function compareLatestModels(a: PricingModel, b: PricingModel): number {
+  const aParts = (a.model_name || '').match(/\d+(?:\.\d+)?/g) || []
+  const bParts = (b.model_name || '').match(/\d+(?:\.\d+)?/g) || []
+  const length = Math.max(aParts.length, bParts.length)
+
+  for (let index = 0; index < length; index += 1) {
+    const aPart = Number(aParts[index] || -1)
+    const bPart = Number(bParts[index] || -1)
+    if (aPart !== bPart) return bPart - aPart
+  }
+
+  return (a.model_name || '').localeCompare(b.model_name || '')
+}
+
 /**
  * Sort models by specified option
  */
@@ -126,6 +140,9 @@ export function sortModels(
   const sorted = [...models]
 
   switch (sortBy) {
+    case SORT_OPTIONS.LATEST:
+      sorted.sort(compareLatestModels)
+      break
     case SORT_OPTIONS.NAME:
       sorted.sort((a, b) =>
         (a.model_name || '').localeCompare(b.model_name || '')

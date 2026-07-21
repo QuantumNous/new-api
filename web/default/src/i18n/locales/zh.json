@@ -2809,6 +2809,7 @@
     "MySQL is production ready. Ensure automated backups and a dedicated user with the minimal required privileges are configured.": "MySQL 已准备好投入生产环境。请确保配置了自动备份以及具有最低所需权限的专用用户。",
     "N/A": "不适用",
     "Name": "名称",
+    "Latest": "最新",
     "Name *": "名称 *",
     "Name for this redemption code (1-20 characters)": "此兑换码的名称（1-20 个字符）",
     "Name is available": "名称可用",
