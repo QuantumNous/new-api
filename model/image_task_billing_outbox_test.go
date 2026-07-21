@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/stretchr/testify/assert"
@@ -439,6 +440,7 @@ func TestCompensatePermanentImageTaskFinalizationRefundsActiveReservation(t *tes
 
 func TestCompensatePermanentImageTaskFinalizationRefundsLegacyActiveReservation(t *testing.T) {
 	truncateTables(t)
+	redisServer := useImageTaskTestRedis(t)
 	user, token, _, task := seedImageTaskBillingState(t, "legacy-permanent-compensation", 100)
 	legacyBalance := common.MaxQuota + 100_000
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", legacyBalance-100).Error)
@@ -446,6 +448,36 @@ func TestCompensatePermanentImageTaskFinalizationRefundsLegacyActiveReservation(
 		"remain_quota": legacyBalance - 100,
 		"used_quota":   100,
 	}).Error)
+	user.Quota = legacyBalance
+	token.RemainQuota = legacyBalance
+	token.UsedQuota = 0
+	require.NoError(t, populateUserCache(*user))
+	require.NoError(t, cacheSetToken(*token))
+	redisServer.SetTTL(getUserCacheKey(user.Id), time.Minute)
+	tokenHMAC := common.GenerateHMAC(token.Key)
+	redisServer.SetTTL("token:"+tokenHMAC, time.Minute)
+	applied, legacyDebit, err := applyImageReservationCacheDebitWithMode(
+		getUserCacheKey(user.Id),
+		imageTaskUserQuotaPinsKey(user.Id),
+		"Quota",
+		"",
+		task.TaskID,
+		100,
+	)
+	require.NoError(t, err)
+	require.True(t, applied)
+	require.True(t, legacyDebit)
+	applied, legacyDebit, err = applyImageReservationCacheDebitWithMode(
+		"token:"+tokenHMAC,
+		imageTaskTokenQuotaPinsKey(tokenHMAC),
+		constant.TokenFiledRemainQuota,
+		"UnlimitedQuota",
+		task.TaskID,
+		100,
+	)
+	require.NoError(t, err)
+	require.True(t, applied)
+	require.True(t, legacyDebit)
 	require.NoError(t, DB.Create(&ImageBillingReservation{
 		TaskID:            task.TaskID,
 		UserID:            user.Id,
@@ -457,6 +489,7 @@ func TestCompensatePermanentImageTaskFinalizationRefundsLegacyActiveReservation(
 		TokenRequired:     true,
 		TokenReserved:     100,
 		TokenLegacyDebit:  true,
+		QuotaModeVersion:  imageBillingReservationQuotaModeVersion,
 		Status:            ImageBillingReservationActive,
 	}).Error)
 	task.Status = TaskStatusFinalizing
@@ -478,9 +511,20 @@ func TestCompensatePermanentImageTaskFinalizationRefundsLegacyActiveReservation(
 	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&reservation).Error)
 	assert.Equal(t, ImageBillingReservationRefunded, reservation.Status)
 	assert.Zero(t, reservation.WalletReserved)
-	assert.False(t, reservation.WalletLegacyDebit)
+	assert.True(t, reservation.WalletLegacyDebit)
 	assert.Zero(t, reservation.TokenReserved)
-	assert.False(t, reservation.TokenLegacyDebit)
+	assert.True(t, reservation.TokenLegacyDebit)
+	assert.Zero(t, reservation.CacheReconciledAt)
+
+	recovered, err := RecoverStaleImageBillingReservations(common.GetTimestamp(), 10, "retry permanent compensation cache reconciliation")
+	require.NoError(t, err)
+	assert.Zero(t, recovered)
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&reservation).Error)
+	assert.Positive(t, reservation.CacheReconciledAt)
+	assert.Empty(t, redisServer.HGet(getUserCacheKey(user.Id), imageReservationCacheField(task.TaskID)))
+	assert.Empty(t, redisServer.HGet("token:"+tokenHMAC, imageReservationCacheField(task.TaskID)))
+	assert.False(t, redisServer.Exists(imageTaskUserQuotaPinsKey(user.Id)))
+	assert.False(t, redisServer.Exists(imageTaskTokenQuotaPinsKey(tokenHMAC)))
 }
 
 func TestCompensatePermanentImageTaskFinalizationRecoversLegacyCacheWithoutMarkerMode(t *testing.T) {
