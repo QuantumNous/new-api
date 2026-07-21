@@ -445,16 +445,26 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 				}
 			}
 
-			newUsedQuota, err := checkedImageQuotaAdd(user.UsedQuota, actualQuota)
-			if err != nil {
-				return fmt.Errorf("record user used quota for image task %s: %w", task.TaskID, err)
-			}
 			if user.RequestCount == math.MaxInt {
 				return fmt.Errorf("record user request count for image task %s: integer adjustment is out of range", task.TaskID)
 			}
 			userUpdates := map[string]any{
-				"used_quota":    newUsedQuota,
 				"request_count": user.RequestCount + 1,
+			}
+			if actualQuota != 0 {
+				allowLegacyGrowth := false
+				if user.UsedQuota > common.MaxQuota {
+					legacyStorageSupported, inspectErr := quotaColumnSupportsLegacyValues(tx, &User{}, "used_quota")
+					if inspectErr != nil {
+						return fmt.Errorf("inspect user used quota storage for image task %s: %w", task.TaskID, inspectErr)
+					}
+					allowLegacyGrowth = legacyStorageSupported
+				}
+				newUsedQuota, err := checkedImageQuotaAdd(user.UsedQuota, actualQuota, allowLegacyGrowth)
+				if err != nil {
+					return fmt.Errorf("record user used quota for image task %s: %w", task.TaskID, err)
+				}
+				userUpdates["used_quota"] = newUsedQuota
 			}
 			if !isSubscription && delta != 0 {
 				newQuota, err := checkedImageReservationQuotaAdd(user.Quota, -delta, task.PrivateData.WalletLegacyDebit)
@@ -473,7 +483,7 @@ func finalizeImageTaskWithCache(taskID string, cache imageTaskCacheCoordinator) 
 					if err != nil {
 						return fmt.Errorf("adjust token remaining quota for image task %s: %w", task.TaskID, err)
 					}
-					newTokenUsedQuota, err := checkedImageQuotaAdd(token.UsedQuota, tokenDelta)
+					newTokenUsedQuota, err := checkedImageQuotaAdd(token.UsedQuota, tokenDelta, false)
 					if err != nil {
 						return fmt.Errorf("adjust token used quota for image task %s: %w", task.TaskID, err)
 					}
@@ -1404,13 +1414,17 @@ return 1
 	return nil
 }
 
-func checkedImageQuotaAdd(current int, delta int) (int, error) {
+func checkedImageQuotaAdd(current int, delta int, allowLegacyGrowth bool) (int, error) {
 	value, err := checkedInt64Add(int64(current), int64(delta))
 	if err != nil {
 		return 0, errors.New("quota adjustment is out of range")
 	}
-	if current < common.MinQuota || current > common.MaxQuota ||
-		value < int64(common.MinQuota) || value > int64(common.MaxQuota) {
+	if current >= common.MinQuota && current <= common.MaxQuota &&
+		value >= int64(common.MinQuota) && value <= int64(common.MaxQuota) {
+		return int(value), nil
+	}
+	if !allowLegacyGrowth || delta <= 0 || current <= common.MaxQuota ||
+		int64(current) > int64(common.MaxLegacyQuota) || value > int64(common.MaxLegacyQuota) {
 		return 0, errors.New("quota adjustment is out of range")
 	}
 	return int(value), nil
