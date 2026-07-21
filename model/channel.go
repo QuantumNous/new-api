@@ -866,8 +866,32 @@ func UpdateChannelUsedQuota(id int, quota int) {
 	updateChannelUsedQuota(id, quota)
 }
 
+func DecreaseChannelUsedQuota(id int, quota int) {
+	if id <= 0 || quota <= 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeChannelUsedQuota, id, -quota)
+		return
+	}
+	err := DB.Model(&Channel{}).Where("id = ?", id).Update(
+		"used_quota",
+		gorm.Expr("CASE WHEN used_quota < ? THEN 0 ELSE used_quota - ? END", quota, quota),
+	).Error
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to decrease channel used quota: channel_id=%d, delta_quota=%d, error=%v", id, quota, err))
+	}
+}
+
 func updateChannelUsedQuota(id int, quota int) {
-	err := DB.Model(&Channel{}).Where("id = ?", id).Update("used_quota", gorm.Expr("used_quota + ?", quota)).Error
+	var expr clause.Expr
+	if quota < 0 {
+		refund := -quota
+		expr = gorm.Expr("CASE WHEN used_quota < ? THEN 0 ELSE used_quota - ? END", refund, refund)
+	} else {
+		expr = gorm.Expr("used_quota + ?", quota)
+	}
+	err := DB.Model(&Channel{}).Where("id = ?", id).Update("used_quota", expr).Error
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to update channel used quota: channel_id=%d, delta_quota=%d, error=%v", id, quota, err))
 	}
