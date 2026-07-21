@@ -18,12 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   SORT_OPTIONS,
+  PROMOTED_MODEL_ORDER,
   FILTER_ALL,
   QUOTA_TYPES,
   QUOTA_TYPE_VALUES,
   ENDPOINT_TYPES,
 } from '../constants'
 import type { PricingModel } from '../types'
+
+const promotedModelRanks = new Map<string, number>(
+  PROMOTED_MODEL_ORDER.map((modelName, index) => [modelName, index])
+)
 
 // ----------------------------------------------------------------------------
 // Filter Utilities
@@ -119,6 +124,19 @@ export function sortModels(
   const sorted = [...models]
 
   switch (sortBy) {
+    case SORT_OPTIONS.RECOMMENDED:
+      sorted.sort((a, b) => {
+        const aRank =
+          promotedModelRanks.get(a.model_name) ?? PROMOTED_MODEL_ORDER.length
+        const bRank =
+          promotedModelRanks.get(b.model_name) ?? PROMOTED_MODEL_ORDER.length
+
+        return (
+          aRank - bRank ||
+          (a.model_name || '').localeCompare(b.model_name || '')
+        )
+      })
+      break
     case SORT_OPTIONS.NAME:
       sorted.sort((a, b) =>
         (a.model_name || '').localeCompare(b.model_name || '')

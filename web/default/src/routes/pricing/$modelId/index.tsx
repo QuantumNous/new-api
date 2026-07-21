@@ -20,12 +20,13 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
 import { ModelDetails } from '@/features/pricing/components/model-details'
+import { SORT_OPTION_VALUES } from '@/features/pricing/constants'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
 
 const modelDetailsSearchSchema = z.object({
   search: z.string().optional(),
-  sort: z.string().optional(),
+  sort: z.enum(SORT_OPTION_VALUES).optional().catch(undefined),
   vendor: z.string().optional(),
   group: z.string().optional(),
   quotaType: z.string().optional(),
