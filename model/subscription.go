@@ -273,7 +273,8 @@ type UserSubscription struct {
 	// Downgrade target group on expiry (snapshot from plan; empty = revert to PrevUserGroup)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
-	// Whether wallet fallback is allowed after this subscription's quota is exhausted (snapshot from plan)
+	// Whether wallet fallback is allowed after this subscription's quota is exhausted (snapshot from plan).
+	// Keep field stable across usage/reset updates; write only touched columns.
 	AllowWalletOverflow bool `json:"allow_wallet_overflow"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
@@ -1272,16 +1273,29 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	}
 	if !advanced {
 		if sub.NextResetTime == 0 && next > 0 {
-			sub.NextResetTime = next
 			sub.LastResetTime = base.Unix()
-			return tx.Save(sub).Error
+			sub.NextResetTime = next
+			return tx.Model(&UserSubscription{}).
+				Where("id = ?", sub.Id).
+				Updates(map[string]interface{}{
+					"last_reset_time": sub.LastResetTime,
+					"next_reset_time": sub.NextResetTime,
+					"updated_at":      common.GetTimestamp(),
+				}).Error
 		}
 		return nil
 	}
 	sub.AmountUsed = 0
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
-	return tx.Save(sub).Error
+	return tx.Model(&UserSubscription{}).
+		Where("id = ?", sub.Id).
+		Updates(map[string]interface{}{
+			"amount_used":      sub.AmountUsed,
+			"last_reset_time":  sub.LastResetTime,
+			"next_reset_time":  sub.NextResetTime,
+			"updated_at":       common.GetTimestamp(),
+		}).Error
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
@@ -1370,7 +1384,12 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				return err
 			}
 			sub.AmountUsed += amount
-			if err := tx.Save(&sub).Error; err != nil {
+			if err := tx.Model(&UserSubscription{}).
+				Where("id = ?", sub.Id).
+				Updates(map[string]interface{}{
+					"amount_used": sub.AmountUsed,
+					"updated_at":  common.GetTimestamp(),
+				}).Error; err != nil {
 				return err
 			}
 			returnValue.UserSubscriptionId = sub.Id
@@ -1518,7 +1537,11 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
 			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
 		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return tx.Model(&UserSubscription{}).
+			Where("id = ?", sub.Id).
+			Updates(map[string]interface{}{
+				"amount_used": newUsed,
+				"updated_at":  common.GetTimestamp(),
+			}).Error
 	})
 }
