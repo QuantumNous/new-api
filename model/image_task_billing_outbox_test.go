@@ -514,7 +514,7 @@ func TestCompensatePermanentImageTaskFinalizationRefundsLegacyActiveReservation(
 	assert.True(t, reservation.WalletLegacyDebit)
 	assert.Zero(t, reservation.TokenReserved)
 	assert.True(t, reservation.TokenLegacyDebit)
-	assert.Zero(t, reservation.CacheReconciledAt)
+	assert.Positive(t, reservation.CacheReconciledAt)
 
 	recovered, err := RecoverStaleImageBillingReservations(common.GetTimestamp(), 10, "retry permanent compensation cache reconciliation")
 	require.NoError(t, err)
@@ -525,6 +525,12 @@ func TestCompensatePermanentImageTaskFinalizationRefundsLegacyActiveReservation(
 	assert.Empty(t, redisServer.HGet("token:"+tokenHMAC, imageReservationCacheField(task.TaskID)))
 	assert.False(t, redisServer.Exists(imageTaskUserQuotaPinsKey(user.Id)))
 	assert.False(t, redisServer.Exists(imageTaskTokenQuotaPinsKey(tokenHMAC)))
+	cachedUser, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance, cachedUser.Quota)
+	cachedToken, err := GetTokenByKey(token.Key, false)
+	require.NoError(t, err)
+	assert.Equal(t, legacyBalance, cachedToken.RemainQuota)
 }
 
 func TestCompensatePermanentImageTaskFinalizationRecoversLegacyCacheWithoutMarkerMode(t *testing.T) {

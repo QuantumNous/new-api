@@ -760,6 +760,7 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 	var result ImageTaskFinalizationResult
 	var walletRefunded, tokenRefunded int
 	var cacheOutboxes []*BillingAdjustmentOutbox
+	var refundedReservation *ImageBillingReservation
 	compensate := func() error {
 		err := DB.Transaction(func(tx *gorm.DB) error {
 			var task Task
@@ -856,7 +857,8 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 				}
 				tokenRefunded = reservation.TokenReserved
 			}
-			if walletRefunded > 0 {
+			cacheReconciliationPending := reservation.CacheReconciledAt == 0
+			if walletRefunded > 0 && !cacheReconciliationPending {
 				outbox, err := EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
 					RequestID: "image-compensation:" + taskID,
 					Phase:     BillingAdjustmentPhaseImageCompensation,
@@ -869,7 +871,7 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 				}
 				cacheOutboxes = append(cacheOutboxes, outbox)
 			}
-			if tokenRefunded > 0 {
+			if tokenRefunded > 0 && !cacheReconciliationPending {
 				outbox, err := EnqueueBillingAdjustmentTx(tx, BillingAdjustmentSpec{
 					RequestID: "image-compensation:" + taskID,
 					Phase:     BillingAdjustmentPhaseImageCompensation,
@@ -888,14 +890,26 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 				Updates(map[string]any{
 					"status":                ImageBillingReservationRefunded,
 					"wallet_reserved":       0,
-					"wallet_legacy_debit":   false,
+					"wallet_legacy_debit":   reservation.WalletLegacyDebit,
 					"token_reserved":        0,
-					"token_legacy_debit":    false,
+					"token_legacy_debit":    reservation.TokenLegacyDebit,
+					"quota_mode_version":    imageBillingReservationQuotaModeVersion,
 					"subscription_reserved": 0,
 					"failure_reason":        reason,
 					"updated_at":            now,
 				}).Error; err != nil {
 				return err
+			}
+			if cacheReconciliationPending {
+				reservation.Status = ImageBillingReservationRefunded
+				reservation.WalletReserved = 0
+				reservation.TokenReserved = 0
+				reservation.SubscriptionReserved = 0
+				reservation.QuotaModeVersion = imageBillingReservationQuotaModeVersion
+				reservation.FailureReason = reason
+				reservation.UpdatedAt = now
+				refunded := reservation
+				refundedReservation = &refunded
 			}
 			task.Status = TaskStatusFailure
 			task.Quota = 0
@@ -941,6 +955,11 @@ func CompensatePermanentImageTaskFinalization(taskID string, reason string) (*Im
 		})
 		if err != nil {
 			return err
+		}
+		if refundedReservation != nil {
+			if err := reconcileRefundedImageBillingReservationCache(refundedReservation, lockedTokenKey); err != nil {
+				common.SysLog(fmt.Sprintf("image compensation reservation cache reconciliation queued: task_id=%s err=%v", taskID, err))
+			}
 		}
 		for _, outbox := range cacheOutboxes {
 			if err := applyBillingAdjustmentCache(outbox, lockedTokenKey); err != nil {
