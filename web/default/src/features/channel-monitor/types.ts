@@ -377,6 +377,13 @@ export type ChannelMonitorGroupRatioSyncResult = {
   ratio: number
 }
 
+export type ChannelMonitorGroupChannelsUpdateResult = {
+  group: string
+  channel_ids: number[]
+  added_channel_ids: number[]
+  removed_channel_ids: number[]
+}
+
 export type ChannelMonitorTaskStatus =
   | 'pending'
   | 'running'

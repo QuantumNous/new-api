@@ -91,6 +91,7 @@ import { ChannelMonitorTaskHistoryDialog } from './components/channel-monitor-ta
 import { ChannelRatioHistoryDialog } from './components/channel-ratio-history-dialog'
 import { EditChannelGroupsDialog } from './components/edit-channel-groups-dialog'
 import { EditChannelRatioDialog } from './components/edit-channel-ratio-dialog'
+import { EditGroupChannelsDialog } from './components/edit-group-channels-dialog'
 import { EditGroupRatioDialog } from './components/edit-group-ratio-dialog'
 import { SyncGroupRatioDialog } from './components/sync-group-ratio-dialog'
 import { UpstreamConfigDialog } from './components/upstream-config-dialog'
@@ -211,6 +212,8 @@ export function ChannelMonitor() {
   const [editingGroup, setEditingGroup] = useState<GroupMonitorItem | null>(
     null
   )
+  const [editingGroupChannels, setEditingGroupChannels] =
+    useState<GroupMonitorItem | null>(null)
   const [syncingGroup, setSyncingGroup] = useState<GroupMonitorItem | null>(
     null
   )
@@ -853,6 +856,7 @@ export function ChannelMonitor() {
                 setSettingsSection('schedule')
                 setSettingsOpen(true)
               }}
+              onEditChannels={setEditingGroupChannels}
               onEditGroup={setEditingGroup}
               onSyncGroup={setSyncingGroup}
             />
@@ -1003,6 +1007,17 @@ export function ChannelMonitor() {
           open
           onOpenChange={(open) => {
             if (!open) setEditingGroup(null)
+          }}
+        />
+      )}
+      {editingGroupChannels && (
+        <EditGroupChannelsDialog
+          key={editingGroupChannels.name}
+          group={editingGroupChannels}
+          channels={channels}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditingGroupChannels(null)
           }}
         />
       )}

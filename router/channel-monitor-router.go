@@ -30,6 +30,7 @@ func registerChannelMonitorRoutes(apiRouter *gin.RouterGroup) {
 		monitorRoute.POST("/channel/:id/upstream/balance/fetch", controller.FetchChannelMonitorUpstreamBalance)
 		monitorRoute.POST("/channel/:id/upstream/group/apply", controller.ApplyChannelMonitorUpstreamGroup)
 		monitorRoute.PUT("/group", controller.UpdateChannelMonitorGroupRatio)
+		monitorRoute.PUT("/group/channels", controller.UpdateChannelMonitorGroupChannels)
 		monitorRoute.PUT("/group/sync", controller.SyncChannelMonitorGroupRatio)
 	}
 }

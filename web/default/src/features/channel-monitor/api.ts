@@ -22,6 +22,7 @@ import type {
   ChannelMonitorApplyGroupResult,
   ChannelMonitorApiResponse,
   ChannelMonitorFetchResult,
+  ChannelMonitorGroupChannelsUpdateResult,
   ChannelMonitorGroupRatioSyncResult,
   ChannelMonitorOverview,
   ChannelMonitorPerformanceRangeMinutes,
@@ -197,6 +198,23 @@ export async function updateChannelMonitorGroupRatio(request: {
   const response = await api.put(
     '/api/channel_monitor/group',
     request,
+    channelMonitorRequestConfig()
+  )
+  return ensureChannelMonitorSuccess(response.data)
+}
+
+export async function updateChannelMonitorGroupChannels(request: {
+  group: string
+  channelIds: number[]
+}) {
+  const response = await api.put<
+    ChannelMonitorApiResponse<ChannelMonitorGroupChannelsUpdateResult>
+  >(
+    '/api/channel_monitor/group/channels',
+    {
+      group: request.group,
+      channel_ids: request.channelIds,
+    },
     channelMonitorRequestConfig()
   )
   return ensureChannelMonitorSuccess(response.data)

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Edit02Icon,
+  LinkSquare01Icon,
   Refresh01Icon,
   Settings02Icon,
 } from '@hugeicons/core-free-icons'
@@ -73,6 +74,7 @@ type ChannelMonitorGroupViewProps = {
     mode: 'actual' | 'final'
   ) => void
   onOpenScheduleSettings: () => void
+  onEditChannels: (group: GroupMonitorItem) => void
   onEditGroup: (group: GroupMonitorItem) => void
   onSyncGroup: (group: GroupMonitorItem) => void
 }
@@ -171,7 +173,7 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
                 最终结果成功率（{props.successRangeLabel}）
               </TableHead>
               <TableHead>关联渠道与成本倍率</TableHead>
-              <TableHead className='w-24 text-right'>操作</TableHead>
+              <TableHead className='w-28 text-right'>操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -297,6 +299,21 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
                   </TableCell>
                   <TableCell>
                     <div className='flex justify-end gap-0.5'>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant='ghost'
+                              size='icon-sm'
+                              onClick={() => props.onEditChannels(group)}
+                              aria-label='管理关联渠道'
+                            >
+                              <HugeiconsIcon icon={LinkSquare01Icon} />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>管理关联渠道</TooltipContent>
+                      </Tooltip>
                       <Tooltip>
                         <TooltipTrigger
                           render={

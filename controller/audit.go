@@ -58,6 +58,7 @@ var channelMonitorAuditContentTemplates = map[string]string{
 	"channel.monitor_smart_schedule_config_update": "已更新渠道 ${id} 的智能调度设置",
 	"channel.monitor_group_ratio_sync":             "已根据成本倍率 ${cost_ratio}（上游倍率 ${upstream_ratio} × 换算系数 ${conversion_factor}）和分组系数 ${coefficient}，将分组 ${group} 的倍率更新为 ${ratio}",
 	"channel.monitor_group_ratio_update":           "已将分组 ${group} 的倍率更新为 ${ratio}",
+	"channel.monitor_group_channels_update":        "已更新分组 ${group} 的关联渠道（新增 ${added_count} 个，移除 ${removed_count} 个）",
 	"channel.monitor_ratio_update":                 "已将渠道 ${id} 的倍率更新为 ${ratio}",
 	"channel.monitor_ratio_update_run":             "已启动上游倍率更新任务 ${task_id}",
 	"channel.monitor_upstream_config_update":       "已更新渠道 ${id} 的上游配置（${upstream_type_label}，成本换算：${cost_conversion}，换算系数 ${conversion_factor}）",
