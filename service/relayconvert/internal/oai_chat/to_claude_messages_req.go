@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"context"
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/service/relayconvert/reasoning"
 )
 
@@ -65,7 +65,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			}
 
 			var userLocationMap map[string]interface{}
-			if err := common.Unmarshal(textRequest.WebSearchOptions.UserLocation, &userLocationMap); err == nil {
+			if err := kitutil.Unmarshal(textRequest.WebSearchOptions.UserLocation, &userLocationMap); err == nil {
 				if approximateData, ok := userLocationMap["approximate"].(map[string]interface{}); ok {
 					if timezone, ok := approximateData["timezone"].(string); ok && timezone != "" {
 						anthropicUserLocation.Timezone = timezone
@@ -104,16 +104,16 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		Tools:         claudeTools,
 	}
 	if maxTokens := textRequest.GetMaxTokens(); maxTokens > 0 {
-		claudeRequest.MaxTokens = common.GetPointer(maxTokens)
+		claudeRequest.MaxTokens = kitutil.GetPointer(maxTokens)
 	}
 	if textRequest.TopP != nil {
-		claudeRequest.TopP = common.GetPointer(*textRequest.TopP)
+		claudeRequest.TopP = kitutil.GetPointer(*textRequest.TopP)
 	}
 	if textRequest.TopK != nil {
-		claudeRequest.TopK = common.GetPointer(*textRequest.TopK)
+		claudeRequest.TopK = kitutil.GetPointer(*textRequest.TopK)
 	}
 	if textRequest.IsStream(nil) {
-		claudeRequest.Stream = common.GetPointer(true)
+		claudeRequest.Stream = kitutil.GetPointer(true)
 	}
 
 	if textRequest.ToolChoice != nil || textRequest.ParallelTooCalls != nil {
@@ -146,7 +146,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			claudeRequest.TopK = nil
 		} else {
 			claudeRequest.TopP = nil
-			claudeRequest.Temperature = common.GetPointer[float64](1.0)
+			claudeRequest.Temperature = kitutil.GetPointer[float64](1.0)
 		}
 	} else if opts.Claude.ThinkingAdapterEnabled &&
 		strings.HasSuffix(textRequest.Model, "-thinking") {
@@ -161,15 +161,15 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			claudeRequest.TopK = nil
 		} else {
 			if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens < 1280 {
-				claudeRequest.MaxTokens = common.GetPointer[uint](1280)
+				claudeRequest.MaxTokens = kitutil.GetPointer[uint](1280)
 			}
 
 			claudeRequest.Thinking = &dto.Thinking{
 				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](int(float64(*claudeRequest.MaxTokens) * opts.Claude.ThinkingAdapterBudgetTokensPercentage)),
+				BudgetTokens: kitutil.GetPointer[int](int(float64(*claudeRequest.MaxTokens) * opts.Claude.ThinkingAdapterBudgetTokensPercentage)),
 			}
 			claudeRequest.TopP = nil
-			claudeRequest.Temperature = common.GetPointer[float64](1.0)
+			claudeRequest.Temperature = kitutil.GetPointer[float64](1.0)
 		}
 		if !opts.ShouldPreserveThinkingSuffix(textRequest.Model) {
 			claudeRequest.Model = trimmedModel
@@ -181,24 +181,24 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		case "low":
 			claudeRequest.Thinking = &dto.Thinking{
 				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](1280),
+				BudgetTokens: kitutil.GetPointer[int](1280),
 			}
 		case "medium":
 			claudeRequest.Thinking = &dto.Thinking{
 				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](2048),
+				BudgetTokens: kitutil.GetPointer[int](2048),
 			}
 		case "high":
 			claudeRequest.Thinking = &dto.Thinking{
 				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](4096),
+				BudgetTokens: kitutil.GetPointer[int](4096),
 			}
 		}
 	}
 
 	if textRequest.Reasoning != nil {
 		var reasoningConfig openRouterRequestReasoning
-		if err := common.Unmarshal(textRequest.Reasoning, &reasoningConfig); err != nil {
+		if err := kitutil.Unmarshal(textRequest.Reasoning, &reasoningConfig); err != nil {
 			return nil, err
 		}
 
@@ -265,7 +265,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 				if text := message.StringContent(); text != "" {
 					systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
 						Type: "text",
-						Text: common.GetPointer[string](text),
+						Text: kitutil.GetPointer[string](text),
 					})
 				}
 			} else {
@@ -273,7 +273,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 					if ctx.Type == "text" && ctx.Text != "" {
 						systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
 							Type: "text",
-							Text: common.GetPointer[string](ctx.Text),
+							Text: kitutil.GetPointer[string](ctx.Text),
 						})
 					}
 				}
@@ -289,7 +289,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 					Content: []dto.ClaudeMediaMessage{
 						{
 							Type: "text",
-							Text: common.GetPointer[string]("..."),
+							Text: kitutil.GetPointer[string]("..."),
 						},
 					},
 				}
@@ -307,7 +307,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 					lastClaudeMessage.Content = []dto.ClaudeMediaMessage{
 						{
 							Type: "text",
-							Text: common.GetPointer[string](content),
+							Text: kitutil.GetPointer[string](content),
 						},
 					}
 				}
@@ -342,7 +342,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 					if mediaMessage.Text != "" {
 						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
 							Type: "text",
-							Text: common.GetPointer[string](mediaMessage.Text),
+							Text: kitutil.GetPointer[string](mediaMessage.Text),
 						})
 					}
 				default:
@@ -376,8 +376,8 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 				for _, toolCall := range message.ParseToolCalls() {
 					inputObj := make(map[string]any)
 					if args := toolCall.Function.Arguments; args != "" {
-						if err := common.Unmarshal([]byte(args), &inputObj); err != nil {
-							common.SysLog("tool call function arguments is not a map[string]any: " + fmt.Sprintf("%v", toolCall.Function.Arguments))
+						if err := kitutil.Unmarshal([]byte(args), &inputObj); err != nil {
+							kitutil.LogInfo("tool call function arguments is not a map[string]any: " + fmt.Sprintf("%v", toolCall.Function.Arguments))
 						}
 					}
 					claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{

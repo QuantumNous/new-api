@@ -3,17 +3,17 @@ package oaichat
 import (
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/samber/lo"
 )
 
 func generateStopBlock(index int) *dto.ClaudeResponse {
 	return &dto.ClaudeResponse{
 		Type:  "content_block_stop",
-		Index: common.GetPointer[int](index),
+		Index: kitutil.GetPointer[int](index),
 	}
 }
 
@@ -195,7 +195,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 					Type:  "content_block_start",
 					ContentBlock: &dto.ClaudeMediaMessage{
 						Type:     "thinking",
-						Thinking: common.GetPointer[string](""),
+						Thinking: kitutil.GetPointer[string](""),
 					},
 				})
 				idx2 := idx
@@ -218,7 +218,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 					Type:  "content_block_start",
 					ContentBlock: &dto.ClaudeMediaMessage{
 						Type: "text",
-						Text: common.GetPointer[string](""),
+						Text: kitutil.GetPointer[string](""),
 					},
 				})
 				idx2 := idx
@@ -227,7 +227,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 					Type:  "content_block_delta",
 					Delta: &dto.ClaudeMediaMessage{
 						Type: "text_delta",
-						Text: common.GetPointer[string](content),
+						Text: kitutil.GetPointer[string](content),
 					},
 				})
 				state.LastMessagesType = convmeta.LastMessageTypeText
@@ -247,7 +247,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 					Type:  "message_delta",
 					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
 					Delta: &dto.ClaudeMediaMessage{
-						StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
+						StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
 					},
 				})
 			}
@@ -275,7 +275,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				Type:  "message_delta",
 				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
 				Delta: &dto.ClaudeMediaMessage{
-					StopReason: common.GetPointer[string](stopReason),
+					StopReason: kitutil.GetPointer[string](stopReason),
 				},
 			})
 			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
@@ -364,7 +364,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 							Type:  "content_block_start",
 							ContentBlock: &dto.ClaudeMediaMessage{
 								Type:     "thinking",
-								Thinking: common.GetPointer[string](""),
+								Thinking: kitutil.GetPointer[string](""),
 							},
 						})
 					}
@@ -382,14 +382,14 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 							Type:  "content_block_start",
 							ContentBlock: &dto.ClaudeMediaMessage{
 								Type: "text",
-								Text: common.GetPointer[string](""),
+								Text: kitutil.GetPointer[string](""),
 							},
 						})
 					}
 					state.LastMessagesType = convmeta.LastMessageTypeText
 					claudeResponse.Delta = &dto.ClaudeMediaMessage{
 						Type: "text_delta",
-						Text: common.GetPointer[string](textContent),
+						Text: kitutil.GetPointer[string](textContent),
 					}
 				}
 			} else {
@@ -397,7 +397,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			}
 		}
 
-		claudeResponse.Index = common.GetPointer[int](state.Index)
+		claudeResponse.Index = kitutil.GetPointer[int](state.Index)
 		if !isEmpty && claudeResponse.Delta != nil {
 			claudeResponses = append(claudeResponses, &claudeResponse)
 		}
@@ -413,7 +413,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 					Type:  "message_delta",
 					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
 					Delta: &dto.ClaudeMediaMessage{
-						StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
+						StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
 					},
 				})
 			}
@@ -455,7 +455,7 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 			mapParams := map[string]interface{}{}
 			if strings.TrimSpace(toolUse.Function.Arguments) != "" {
 				var parsed map[string]interface{}
-				if err := common.Unmarshal([]byte(toolUse.Function.Arguments), &parsed); err == nil && parsed != nil {
+				if err := kitutil.Unmarshal([]byte(toolUse.Function.Arguments), &parsed); err == nil && parsed != nil {
 					mapParams = parsed
 				}
 			}

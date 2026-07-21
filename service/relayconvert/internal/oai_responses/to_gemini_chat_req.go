@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"context"
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedgemini "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/gemini"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -43,10 +43,10 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 		},
 	}
 	if req.TopP != nil && *req.TopP > 0 {
-		geminiRequest.GenerationConfig.TopP = common.GetPointer(*req.TopP)
+		geminiRequest.GenerationConfig.TopP = kitutil.GetPointer(*req.TopP)
 	}
 	if req.MaxOutputTokens != nil && *req.MaxOutputTokens > 0 {
-		geminiRequest.GenerationConfig.MaxOutputTokens = common.GetPointer(*req.MaxOutputTokens)
+		geminiRequest.GenerationConfig.MaxOutputTokens = kitutil.GetPointer(*req.MaxOutputTokens)
 	}
 
 	upstreamModelName := req.Model
@@ -118,7 +118,7 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 	}
 	callNames := make(map[string]string)
 	for _, item := range inputItems {
-		itemType := strings.TrimSpace(common.Interface2String(item["type"]))
+		itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 		switch itemType {
 		case ResponsesInputTypeFunctionCall:
 			part, callID, err := responsesFunctionCallItemToGeminiPart(item)
@@ -180,7 +180,7 @@ func applyResponsesTextToGemini(raw []byte, geminiRequest *dto.GeminiChatRequest
 	}
 
 	var jsonSchema dto.FormatJsonSchema
-	if err := common.Unmarshal(responseFormat.JsonSchema, &jsonSchema); err != nil {
+	if err := kitutil.Unmarshal(responseFormat.JsonSchema, &jsonSchema); err != nil {
 		return nil
 	}
 	geminiRequest.GenerationConfig.ResponseSchema = sharedgemini.RemoveAdditionalProperties(jsonSchema.Schema, 0)
@@ -205,10 +205,10 @@ func responsesInputContentToGeminiParts(c context.Context, content any) ([]dto.G
 }
 
 func responsesContentPartToGeminiParts(c context.Context, part map[string]any) ([]dto.GeminiPart, error) {
-	partType := strings.TrimSpace(common.Interface2String(part["type"]))
+	partType := strings.TrimSpace(kitutil.Interface2String(part["type"]))
 	switch partType {
 	case "input_text", "output_text", "text":
-		text := common.Interface2String(part["text"])
+		text := kitutil.Interface2String(part["text"])
 		if text == "" {
 			return nil, nil
 		}
@@ -239,7 +239,7 @@ func responsesContentPartToGeminiParts(c context.Context, part map[string]any) (
 }
 
 func responsesFunctionCallItemToGeminiPart(item map[string]any) (dto.GeminiPart, string, error) {
-	name := strings.TrimSpace(common.Interface2String(item["name"]))
+	name := strings.TrimSpace(kitutil.Interface2String(item["name"]))
 	if name == "" {
 		return dto.GeminiPart{}, "", fmt.Errorf("function_call item is missing name")
 	}
@@ -254,7 +254,7 @@ func responsesFunctionCallItemToGeminiPart(item map[string]any) (dto.GeminiPart,
 
 func responsesFunctionOutputItemToGeminiPart(item map[string]any, callNames map[string]string) dto.GeminiPart {
 	callID := CallID(item)
-	name := strings.TrimSpace(common.Interface2String(item["name"]))
+	name := strings.TrimSpace(kitutil.Interface2String(item["name"]))
 	if name == "" {
 		name = callNames[callID]
 	}
@@ -290,7 +290,7 @@ func appendGeminiContentPart(req *dto.GeminiChatRequest, role string, part dto.G
 }
 
 func responsesGeminiRole(item map[string]any) string {
-	switch strings.TrimSpace(common.Interface2String(item["role"])) {
+	switch strings.TrimSpace(kitutil.Interface2String(item["role"])) {
 	case "assistant":
 		return "model"
 	case "system", "developer":

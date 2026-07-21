@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"context"
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -793,7 +793,7 @@ func convertOAIChatResponseToOAIResponses(_ context.Context, _ convmeta.Meta, re
 	}
 	id := strings.TrimSpace(chatResponse.Id)
 	if id == "" {
-		id = fmt.Sprintf("resp_%s", common.GetUUID())
+		id = fmt.Sprintf("resp_%s", kitutil.GetUUID())
 	}
 	return ChatCompletionsResponseToResponsesResponse(chatResponse, id)
 }
@@ -805,7 +805,7 @@ func convertOAIResponsesResponseToOAIChat(_ context.Context, _ convmeta.Meta, re
 	}
 	id := strings.TrimSpace(responsesResponse.ID)
 	if id == "" {
-		id = fmt.Sprintf("chatcmpl-%s", common.GetUUID())
+		id = fmt.Sprintf("chatcmpl-%s", kitutil.GetUUID())
 	}
 	return ResponsesResponseToChatCompletionsResponse(responsesResponse, id)
 }
@@ -813,7 +813,7 @@ func convertOAIResponsesResponseToOAIChat(_ context.Context, _ convmeta.Meta, re
 func newOAIChatToOAIResponsesStreamState(options ResponseStreamOptions) any {
 	id := strings.TrimSpace(options.ID)
 	if id == "" {
-		id = fmt.Sprintf("resp_%s", common.GetUUID())
+		id = fmt.Sprintf("resp_%s", kitutil.GetUUID())
 	}
 	state := NewChatToResponsesStreamState(id, strings.TrimSpace(options.Model))
 	if options.Created != 0 {
@@ -945,7 +945,7 @@ func convertGeminiChatResponseToOAIChat(_ context.Context, info convmeta.Meta, r
 		return nil, nil, err
 	}
 	usage := UsageFromGeminiMetadata(geminiResponse.GetUsageMetadata(), fallbackPromptTokens(info))
-	openAIResponse := ResponseGeminiChat2OpenAI(fmt.Sprintf("chatcmpl-%s", common.GetUUID()), common.GetTimestamp(), geminiResponse)
+	openAIResponse := ResponseGeminiChat2OpenAI(fmt.Sprintf("chatcmpl-%s", kitutil.GetUUID()), kitutil.GetTimestamp(), geminiResponse)
 	if info != nil && info.HasChannelMeta() {
 		openAIResponse.Model = info.GetUpstreamModelName()
 	}
@@ -963,8 +963,8 @@ func convertGeminiChatStreamResponseToOAIChat(_ context.Context, info convmeta.M
 	openAIResponse, _ := StreamResponseGeminiChat2OpenAI(geminiResponse)
 	usage := UsageFromGeminiMetadata(geminiResponse.GetUsageMetadata(), fallbackPromptTokens(info))
 	if openAIResponse != nil {
-		openAIResponse.Id = fmt.Sprintf("chatcmpl-%s", common.GetUUID())
-		openAIResponse.Created = common.GetTimestamp()
+		openAIResponse.Id = fmt.Sprintf("chatcmpl-%s", kitutil.GetUUID())
+		openAIResponse.Created = kitutil.GetTimestamp()
 		if info != nil && info.HasChannelMeta() {
 			openAIResponse.Model = info.GetUpstreamModelName()
 		}

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
@@ -283,12 +283,12 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 }
 
 func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
-	argsBytes, err := common.Marshal(item.FunctionCall.Arguments)
+	argsBytes, err := kitutil.Marshal(item.FunctionCall.Arguments)
 	if err != nil {
 		return nil
 	}
 	return &dto.ToolCallResponse{
-		ID:   fmt.Sprintf("call_%s", common.GetUUID()),
+		ID:   fmt.Sprintf("call_%s", kitutil.GetUUID()),
 		Type: "function",
 		Function: dto.FunctionResponse{
 			Arguments: string(argsBytes),

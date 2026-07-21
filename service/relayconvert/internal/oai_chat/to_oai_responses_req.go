@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/samber/lo"
 )
 
@@ -16,7 +16,7 @@ func normalizeChatImageURLToString(v any) any {
 	case string:
 		return vv
 	case map[string]any:
-		if url := common.Interface2String(vv["url"]); url != "" {
+		if url := kitutil.Interface2String(vv["url"]); url != "" {
 			return url
 		}
 		return v
@@ -46,7 +46,7 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 
 	if reqFormat.Type == "json_schema" && len(reqFormat.JsonSchema) > 0 {
 		var chatSchema map[string]any
-		if err := common.Unmarshal(reqFormat.JsonSchema, &chatSchema); err == nil {
+		if err := kitutil.Unmarshal(reqFormat.JsonSchema, &chatSchema); err == nil {
 			for key, value := range chatSchema {
 				if key == "type" {
 					continue
@@ -67,7 +67,7 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 		}
 	}
 
-	textRaw, _ := common.Marshal(map[string]any{
+	textRaw, _ := kitutil.Marshal(map[string]any{
 		"format": format,
 	})
 	return textRaw
@@ -102,7 +102,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 			} else if msg.IsStringContent() {
 				output = msg.StringContent()
 			} else {
-				if b, err := common.Marshal(msg.Content); err == nil {
+				if b, err := kitutil.Marshal(msg.Content); err == nil {
 					output = string(b)
 				} else {
 					output = fmt.Sprintf("%v", msg.Content)
@@ -274,7 +274,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		}
 	}
 
-	inputRaw, err := common.Marshal(inputItems)
+	inputRaw, err := kitutil.Marshal(inputItems)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +282,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	var instructionsRaw json.RawMessage
 	if len(instructionsParts) > 0 {
 		instructions := strings.Join(instructionsParts, "\n\n")
-		instructionsRaw, _ = common.Marshal(instructions)
+		instructionsRaw, _ = kitutil.Marshal(instructions)
 	}
 
 	var toolsRaw json.RawMessage
@@ -300,8 +300,8 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 			default:
 				// Best-effort: keep original tool shape for unknown types.
 				var m map[string]any
-				if b, err := common.Marshal(tool); err == nil {
-					_ = common.Unmarshal(b, &m)
+				if b, err := kitutil.Marshal(tool); err == nil {
+					_ = kitutil.Unmarshal(b, &m)
 				}
 				if len(m) == 0 {
 					m = map[string]any{"type": tool.Type}
@@ -309,50 +309,50 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 				tools = append(tools, m)
 			}
 		}
-		toolsRaw, _ = common.Marshal(tools)
+		toolsRaw, _ = kitutil.Marshal(tools)
 	}
 
 	var toolChoiceRaw json.RawMessage
 	if req.ToolChoice != nil {
 		switch v := req.ToolChoice.(type) {
 		case string:
-			toolChoiceRaw, _ = common.Marshal(v)
+			toolChoiceRaw, _ = kitutil.Marshal(v)
 		default:
 			var m map[string]any
-			if b, err := common.Marshal(v); err == nil {
-				_ = common.Unmarshal(b, &m)
+			if b, err := kitutil.Marshal(v); err == nil {
+				_ = kitutil.Unmarshal(b, &m)
 			}
 			if m == nil {
-				toolChoiceRaw, _ = common.Marshal(v)
+				toolChoiceRaw, _ = kitutil.Marshal(v)
 			} else if t, _ := m["type"].(string); t == "function" {
 				// Chat: {"type":"function","function":{"name":"..."}}
 				// Responses: {"type":"function","name":"..."}
 				if name, ok := m["name"].(string); ok && name != "" {
-					toolChoiceRaw, _ = common.Marshal(map[string]any{
+					toolChoiceRaw, _ = kitutil.Marshal(map[string]any{
 						"type": "function",
 						"name": name,
 					})
 				} else if fn, ok := m["function"].(map[string]any); ok {
 					if name, ok := fn["name"].(string); ok && name != "" {
-						toolChoiceRaw, _ = common.Marshal(map[string]any{
+						toolChoiceRaw, _ = kitutil.Marshal(map[string]any{
 							"type": "function",
 							"name": name,
 						})
 					} else {
-						toolChoiceRaw, _ = common.Marshal(v)
+						toolChoiceRaw, _ = kitutil.Marshal(v)
 					}
 				} else {
-					toolChoiceRaw, _ = common.Marshal(v)
+					toolChoiceRaw, _ = kitutil.Marshal(v)
 				}
 			} else {
-				toolChoiceRaw, _ = common.Marshal(v)
+				toolChoiceRaw, _ = kitutil.Marshal(v)
 			}
 		}
 	}
 
 	var parallelToolCallsRaw json.RawMessage
 	if req.ParallelTooCalls != nil {
-		parallelToolCallsRaw, _ = common.Marshal(*req.ParallelTooCalls)
+		parallelToolCallsRaw, _ = kitutil.Marshal(*req.ParallelTooCalls)
 	}
 
 	textRaw := convertChatResponseFormatToResponsesText(req.ResponseFormat)
@@ -369,7 +369,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 
 	var topP *float64
 	if req.TopP != nil {
-		topP = common.GetPointer(lo.FromPtr(req.TopP))
+		topP = kitutil.GetPointer(lo.FromPtr(req.TopP))
 	}
 
 	out := &dto.OpenAIResponsesRequest{

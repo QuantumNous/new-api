@@ -3,7 +3,7 @@ package dto
 import (
 	"encoding/json"
 
-	"github.com/QuantumNous/new-api/common"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -41,7 +41,7 @@ type GeneralErrorResponse struct {
 func (e GeneralErrorResponse) TryToOpenAIError() *types.OpenAIError {
 	var openAIError types.OpenAIError
 	if len(e.Error) > 0 {
-		err := common.Unmarshal(e.Error, &openAIError)
+		err := kitutil.Unmarshal(e.Error, &openAIError)
 		if err == nil && openAIError.Message != "" {
 			return &openAIError
 		}
@@ -51,16 +51,16 @@ func (e GeneralErrorResponse) TryToOpenAIError() *types.OpenAIError {
 
 func (e GeneralErrorResponse) ToMessage() string {
 	if len(e.Error) > 0 {
-		switch common.GetJsonType(e.Error) {
+		switch kitutil.GetJsonType(e.Error) {
 		case "object":
 			var openAIError types.OpenAIError
-			err := common.Unmarshal(e.Error, &openAIError)
+			err := kitutil.Unmarshal(e.Error, &openAIError)
 			if err == nil && openAIError.Message != "" {
 				return openAIError.Message
 			}
 		case "string":
 			var msg string
-			err := common.Unmarshal(e.Error, &msg)
+			err := kitutil.Unmarshal(e.Error, &msg)
 			if err == nil && msg != "" {
 				return msg
 			}

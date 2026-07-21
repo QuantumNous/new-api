@@ -28,6 +28,7 @@ import (
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -60,6 +61,10 @@ func main() {
 	if common.DebugEnabled {
 		common.SysLog("running in debug mode")
 	}
+
+	// Route conversion-kit diagnostics into the host logger.
+	kitutil.SetLogging(common.SysLog, common.SysError)
+	kitutil.Debug.Store(common.DebugEnabled)
 
 	defer func() {
 		err := model.CloseDB()

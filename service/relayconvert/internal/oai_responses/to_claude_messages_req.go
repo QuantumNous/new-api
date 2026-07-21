@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"context"
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -38,7 +38,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		Stream:      req.Stream,
 	}
 	if req.MaxOutputTokens != nil && *req.MaxOutputTokens > 0 {
-		claudeRequest.MaxTokens = common.GetPointer(*req.MaxOutputTokens)
+		claudeRequest.MaxTokens = kitutil.GetPointer(*req.MaxOutputTokens)
 	}
 	if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens == 0 {
 		if defaultMaxTokens := uint(convmeta.OptionsOf(info).Claude.DefaultMaxTokensFor(req.Model)); defaultMaxTokens > 0 {
@@ -72,7 +72,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		if strings.TrimSpace(instructions) != "" {
 			systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
 				Type: "text",
-				Text: common.GetPointer(instructions),
+				Text: kitutil.GetPointer(instructions),
 			})
 		}
 	}
@@ -82,7 +82,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		return nil, err
 	}
 	for _, item := range inputItems {
-		itemType := strings.TrimSpace(common.Interface2String(item["type"]))
+		itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 		switch itemType {
 		case ResponsesInputTypeFunctionCall:
 			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, "arguments"))
@@ -104,7 +104,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 				parts = []dto.ClaudeMediaMessage{
 					{
 						Type: "text",
-						Text: common.GetPointer("..."),
+						Text: kitutil.GetPointer("..."),
 					},
 				}
 			}
@@ -160,17 +160,17 @@ func applyResponsesReasoningToClaude(req *dto.OpenAIResponsesRequest, claudeRequ
 	case "low":
 		claudeRequest.Thinking = &dto.Thinking{
 			Type:         "enabled",
-			BudgetTokens: common.GetPointer(1280),
+			BudgetTokens: kitutil.GetPointer(1280),
 		}
 	case "medium":
 		claudeRequest.Thinking = &dto.Thinking{
 			Type:         "enabled",
-			BudgetTokens: common.GetPointer(2048),
+			BudgetTokens: kitutil.GetPointer(2048),
 		}
 	case "high":
 		claudeRequest.Thinking = &dto.Thinking{
 			Type:         "enabled",
-			BudgetTokens: common.GetPointer(4096),
+			BudgetTokens: kitutil.GetPointer(4096),
 		}
 	}
 }
@@ -183,14 +183,14 @@ func responsesInputContentToClaudeMediaMessages(c context.Context, content any) 
 
 	parts := make([]dto.ClaudeMediaMessage, 0, len(contentParts))
 	for _, contentPart := range contentParts {
-		partType := strings.TrimSpace(common.Interface2String(contentPart["type"]))
+		partType := strings.TrimSpace(kitutil.Interface2String(contentPart["type"]))
 		switch partType {
 		case "input_text", "output_text", "text":
-			text := common.Interface2String(contentPart["text"])
+			text := kitutil.Interface2String(contentPart["text"])
 			if text != "" {
 				parts = append(parts, dto.ClaudeMediaMessage{
 					Type: "text",
-					Text: common.GetPointer(text),
+					Text: kitutil.GetPointer(text),
 				})
 			}
 		case "input_image", "input_file", "input_audio", "input_video":
@@ -224,7 +224,7 @@ func responsesFunctionCallItemToClaudeToolUse(item map[string]any, inputKey stri
 	return dto.ClaudeMediaMessage{
 		Type:  "tool_use",
 		Id:    CallID(item),
-		Name:  strings.TrimSpace(common.Interface2String(item["name"])),
+		Name:  strings.TrimSpace(kitutil.Interface2String(item["name"])),
 		Input: ObjectValue(item[inputKey], inputKey),
 	}
 }
@@ -285,17 +285,17 @@ func claudeMessageContentParts(content any) []dto.ClaudeMediaMessage {
 		return []dto.ClaudeMediaMessage{
 			{
 				Type: "text",
-				Text: common.GetPointer(typed),
+				Text: kitutil.GetPointer(typed),
 			},
 		}
 	default:
-		parts, _ := common.Any2Type[[]dto.ClaudeMediaMessage](content)
+		parts, _ := kitutil.Any2Type[[]dto.ClaudeMediaMessage](content)
 		return parts
 	}
 }
 
 func responsesClaudeRole(item map[string]any) string {
-	switch strings.TrimSpace(common.Interface2String(item["role"])) {
+	switch strings.TrimSpace(kitutil.Interface2String(item["role"])) {
 	case "assistant":
 		return "assistant"
 	case "system", "developer":
@@ -315,7 +315,7 @@ func ensureClaudeMessagesStartWithUser(messages []dto.ClaudeMessage) []dto.Claud
 			Content: []dto.ClaudeMediaMessage{
 				{
 					Type: "text",
-					Text: common.GetPointer("..."),
+					Text: kitutil.GetPointer("..."),
 				},
 			},
 		},

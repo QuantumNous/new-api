@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 const (
@@ -165,7 +165,7 @@ func responseStatusString(resp *dto.OpenAIResponsesResponse) string {
 		return ""
 	}
 	var status string
-	_ = common.Unmarshal(resp.Status, &status)
+	_ = kitutil.Unmarshal(resp.Status, &status)
 	return strings.TrimSpace(status)
 }
 
@@ -194,7 +194,7 @@ func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID stri
 }
 
 func chatArgumentsRawMessage(arguments string) []byte {
-	raw, err := common.Marshal(arguments)
+	raw, err := kitutil.Marshal(arguments)
 	if err != nil {
 		return []byte(`""`)
 	}
@@ -212,7 +212,7 @@ func chatCreatedAt(created any) int {
 	case float32:
 		return int(v)
 	case string:
-		if parsed := common.String2Int(v); parsed != 0 {
+		if parsed := kitutil.String2Int(v); parsed != 0 {
 			return parsed
 		}
 	}

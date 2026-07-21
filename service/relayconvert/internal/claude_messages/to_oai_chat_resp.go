@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -50,7 +50,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 			}
 			if claudeResponse.ContentBlock.Type == "tool_use" {
 				tools = append(tools, dto.ToolCallResponse{
-					Index: common.GetPointer(fcIdx),
+					Index: kitutil.GetPointer(fcIdx),
 					ID:    claudeResponse.ContentBlock.Id,
 					Type:  "function",
 					Function: dto.FunctionResponse{
@@ -69,7 +69,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 			case "input_json_delta":
 				tools = append(tools, dto.ToolCallResponse{
 					Type:  "function",
-					Index: common.GetPointer(fcIdx),
+					Index: kitutil.GetPointer(fcIdx),
 					Function: dto.FunctionResponse{
 						Arguments: *claudeResponse.Delta.PartialJson,
 					},
@@ -105,9 +105,9 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextResponse {
 	choices := make([]dto.OpenAITextResponseChoice, 0)
 	fullTextResponse := dto.OpenAITextResponse{
-		Id:      fmt.Sprintf("chatcmpl-%s", common.GetUUID()),
+		Id:      fmt.Sprintf("chatcmpl-%s", kitutil.GetUUID()),
 		Object:  "chat.completion",
-		Created: common.GetTimestamp(),
+		Created: kitutil.GetTimestamp(),
 	}
 	var responseText string
 	var responseThinking string
@@ -124,7 +124,7 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 	for _, message := range claudeResponse.Content {
 		switch message.Type {
 		case "tool_use":
-			args, _ := common.Marshal(message.Input)
+			args, _ := kitutil.Marshal(message.Input)
 			tools = append(tools, dto.ToolCallResponse{
 				ID:   message.Id,
 				Type: "function",

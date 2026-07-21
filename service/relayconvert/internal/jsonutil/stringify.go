@@ -3,11 +3,11 @@ package jsonutil
 import (
 	"fmt"
 
-	"github.com/QuantumNous/new-api/common"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 func ToJSONString(v interface{}) string {
-	bytes, err := common.Marshal(v)
+	bytes, err := kitutil.Marshal(v)
 	if err != nil {
 		return fmt.Sprintf("%v", v)
 	}

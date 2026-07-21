@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -84,7 +84,7 @@ func (c *ClaudeMediaMessage) GetStringContent() string {
 }
 
 func (c *ClaudeMediaMessage) GetJsonRowString() string {
-	jsonContent, _ := common.Marshal(c)
+	jsonContent, _ := kitutil.Marshal(c)
 	return string(jsonContent)
 }
 
@@ -93,7 +93,7 @@ func (c *ClaudeMediaMessage) SetContent(content any) {
 }
 
 func (c *ClaudeMediaMessage) ParseMediaContent() []ClaudeMediaMessage {
-	mediaContent, _ := common.Any2Type[[]ClaudeMediaMessage](c.Content)
+	mediaContent, _ := kitutil.Any2Type[[]ClaudeMediaMessage](c.Content)
 	return mediaContent
 }
 
@@ -103,7 +103,7 @@ func (m *ClaudeMediaMessage) ToFileSource() types.FileSource {
 	}
 	data := m.Source.Url
 	if data == "" {
-		data = common.Interface2String(m.Source.Data)
+		data = kitutil.Interface2String(m.Source.Data)
 	}
 	if data == "" {
 		return nil
@@ -166,7 +166,7 @@ func (c *ClaudeMessage) SetContent(content any) {
 }
 
 func (c *ClaudeMessage) ParseContent() ([]ClaudeMediaMessage, error) {
-	return common.Any2Type[[]ClaudeMediaMessage](c.Content)
+	return kitutil.Any2Type[[]ClaudeMediaMessage](c.Content)
 }
 
 type Tool struct {
@@ -307,12 +307,12 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 					texts = append(texts, media.Name)
 				}
 				if media.Input != nil {
-					b, _ := common.Marshal(media.Input)
+					b, _ := kitutil.Marshal(media.Input)
 					texts = append(texts, string(b))
 				}
 			case "tool_result":
 				if media.Content != nil {
-					b, _ := common.Marshal(media.Content)
+					b, _ := kitutil.Marshal(media.Content)
 					texts = append(texts, string(b))
 				}
 			}
@@ -333,7 +333,7 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 					texts = append(texts, t.Description)
 				}
 				if t.InputSchema != nil {
-					b, _ := common.Marshal(t.InputSchema)
+					b, _ := kitutil.Marshal(t.InputSchema)
 					texts = append(texts, string(b))
 				}
 			}
@@ -345,7 +345,7 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 					texts = append(texts, t.Name)
 				}
 				if t.UserLocation != nil {
-					b, _ := common.Marshal(t.UserLocation)
+					b, _ := kitutil.Marshal(t.UserLocation)
 					texts = append(texts, string(b))
 				}
 			}
@@ -478,7 +478,7 @@ func (c *ClaudeRequest) SetStringSystem(system string) {
 }
 
 func (c *ClaudeRequest) ParseSystem() []ClaudeMediaMessage {
-	mediaContent, _ := common.Any2Type[[]ClaudeMediaMessage](c.System)
+	mediaContent, _ := kitutil.Any2Type[[]ClaudeMediaMessage](c.System)
 	return mediaContent
 }
 

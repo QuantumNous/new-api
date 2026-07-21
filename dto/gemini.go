@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -28,7 +28,7 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 		SystemInstructionSnake *GeminiChatContent `json:"system_instruction,omitempty"`
 	}
 
-	if err := common.Unmarshal(data, &aux); err != nil {
+	if err := kitutil.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
@@ -129,15 +129,15 @@ func (r *GeminiChatRequest) GetTools() []GeminiChatTool {
 	var tools []GeminiChatTool
 	if strings.HasPrefix(string(r.Tools), "[") {
 		// is array
-		if err := common.Unmarshal(r.Tools, &tools); err != nil {
-			common.SysError("error_unmarshalling_tools: " + err.Error())
+		if err := kitutil.Unmarshal(r.Tools, &tools); err != nil {
+			kitutil.LogError("error_unmarshalling_tools: " + err.Error())
 			return nil
 		}
 	} else if strings.HasPrefix(string(r.Tools), "{") {
 		// is object
 		singleTool := GeminiChatTool{}
-		if err := common.Unmarshal(r.Tools, &singleTool); err != nil {
-			common.SysError("error_unmarshalling_single_tool: " + err.Error())
+		if err := kitutil.Unmarshal(r.Tools, &singleTool); err != nil {
+			kitutil.LogError("error_unmarshalling_single_tool: " + err.Error())
 			return nil
 		}
 		tools = []GeminiChatTool{singleTool}
@@ -152,9 +152,9 @@ func (r *GeminiChatRequest) SetTools(tools []GeminiChatTool) {
 	}
 
 	// Marshal the tools to JSON
-	data, err := common.Marshal(tools)
+	data, err := kitutil.Marshal(tools)
 	if err != nil {
-		common.SysError("error_marshalling_tools: " + err.Error())
+		kitutil.LogError("error_marshalling_tools: " + err.Error())
 		return
 	}
 	r.Tools = data
@@ -177,7 +177,7 @@ func (c *GeminiThinkingConfig) UnmarshalJSON(data []byte) error {
 		ThinkingLevelSnake   string `json:"thinking_level,omitempty"`
 	}
 
-	if err := common.Unmarshal(data, &aux); err != nil {
+	if err := kitutil.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
@@ -222,7 +222,7 @@ func (g *GeminiInlineData) UnmarshalJSON(data []byte) error {
 		MimeTypeSnake string `json:"mime_type"`
 	}
 
-	if err := common.Unmarshal(data, &aux); err != nil {
+	if err := kitutil.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
@@ -291,7 +291,7 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 		InlineDataSnake *GeminiInlineData `json:"inline_data,omitempty"` // snake_case variant
 	}
 
-	if err := common.Unmarshal(data, &aux); err != nil {
+	if err := kitutil.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
@@ -374,7 +374,7 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 		ImageConfigSnake                json.RawMessage       `json:"image_config,omitempty"`
 	}
 
-	if err := common.Unmarshal(data, &aux); err != nil {
+	if err := kitutil.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
@@ -474,7 +474,7 @@ func (r *GeminiChatResponse) UnmarshalJSON(data []byte) error {
 		PromptFeedback *GeminiChatPromptFeedback `json:"promptFeedback,omitempty"`
 		UsageMetadata  *GeminiUsageMetadata      `json:"usageMetadata"`
 	}
-	if err := common.Unmarshal(data, &aux); err != nil {
+	if err := kitutil.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 	r.Candidates = aux.Candidates

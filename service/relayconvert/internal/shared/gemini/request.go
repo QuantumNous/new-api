@@ -4,9 +4,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/service/relayconvert/reasoning"
 )
 
@@ -98,7 +98,7 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 			if budgetTokens, err := strconv.Atoi(parts[1]); err == nil {
 				clampedBudget := clampThinkingBudget(modelName, budgetTokens)
 				geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-					ThinkingBudget:  common.GetPointer(clampedBudget),
+					ThinkingBudget:  kitutil.GetPointer(clampedBudget),
 					IncludeThoughts: true,
 				}
 			}
@@ -127,15 +127,15 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 			if geminiRequest.GenerationConfig.MaxOutputTokens != nil && *geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
 				budgetTokens := opts.Gemini.ThinkingAdapterBudgetTokensPercentage * float64(*geminiRequest.GenerationConfig.MaxOutputTokens)
 				clampedBudget := clampThinkingBudget(modelName, int(budgetTokens))
-				geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = common.GetPointer(clampedBudget)
+				geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = kitutil.GetPointer(clampedBudget)
 			} else if len(oaiRequest) > 0 {
-				geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = common.GetPointer(clampThinkingBudgetByEffort(modelName, oaiRequest[0].ReasoningEffort))
+				geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = kitutil.GetPointer(clampThinkingBudgetByEffort(modelName, oaiRequest[0].ReasoningEffort))
 			}
 		}
 	} else if strings.HasSuffix(modelName, "-nothinking") {
 		if !isNew25Pro {
 			geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-				ThinkingBudget: common.GetPointer(0),
+				ThinkingBudget: kitutil.GetPointer(0),
 			}
 		}
 	} else if _, level, ok := reasoning.TrimEffortSuffix(modelName); ok && level != "" {

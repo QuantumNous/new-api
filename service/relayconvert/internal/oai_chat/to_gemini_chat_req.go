@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"context"
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedgemini "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/gemini"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
@@ -23,13 +23,13 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 	}
 
 	if textRequest.TopP != nil && *textRequest.TopP > 0 {
-		geminiRequest.GenerationConfig.TopP = common.GetPointer(*textRequest.TopP)
+		geminiRequest.GenerationConfig.TopP = kitutil.GetPointer(*textRequest.TopP)
 	}
 	if maxTokens := textRequest.GetMaxTokens(); maxTokens > 0 {
-		geminiRequest.GenerationConfig.MaxOutputTokens = common.GetPointer(maxTokens)
+		geminiRequest.GenerationConfig.MaxOutputTokens = kitutil.GetPointer(maxTokens)
 	}
 	if textRequest.Seed != nil && *textRequest.Seed != 0 {
-		geminiRequest.GenerationConfig.Seed = common.GetPointer(int64(*textRequest.Seed))
+		geminiRequest.GenerationConfig.Seed = kitutil.GetPointer(int64(*textRequest.Seed))
 	}
 
 	upstreamModelName := textRequest.Model
@@ -53,7 +53,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 	adaptorWithExtraBody := false
 	if len(textRequest.ExtraBody) > 0 {
 		var extraBody map[string]interface{}
-		if err := common.Unmarshal(textRequest.ExtraBody, &extraBody); err != nil {
+		if err := kitutil.Unmarshal(textRequest.ExtraBody, &extraBody); err != nil {
 			return nil, fmt.Errorf("invalid extra body: %w", err)
 		}
 
@@ -75,7 +75,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 						switch v := thinkingBudget.(type) {
 						case float64:
 							budgetInt := int(v)
-							tempThinkingConfig.ThinkingBudget = common.GetPointer(budgetInt)
+							tempThinkingConfig.ThinkingBudget = kitutil.GetPointer(budgetInt)
 							tempThinkingConfig.IncludeThoughts = budgetInt > 0
 							hasThinkingConfig = true
 						default:
@@ -137,7 +137,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 				}
 
 				if len(geminiImageConfig) > 0 {
-					imageConfigBytes, err := common.Marshal(geminiImageConfig)
+					imageConfigBytes, err := kitutil.Marshal(geminiImageConfig)
 					if err != nil {
 						return nil, fmt.Errorf("failed to marshal image_config: %w", err)
 					}
@@ -221,7 +221,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 
 		if len(textRequest.ResponseFormat.JsonSchema) > 0 {
 			var jsonSchema dto.FormatJsonSchema
-			if err := common.Unmarshal(textRequest.ResponseFormat.JsonSchema, &jsonSchema); err == nil {
+			if err := kitutil.Unmarshal(textRequest.ResponseFormat.JsonSchema, &jsonSchema); err == nil {
 				cleanedSchema := sharedgemini.RemoveAdditionalProperties(jsonSchema.Schema, 0)
 				geminiRequest.GenerationConfig.ResponseSchema = cleanedSchema
 			}
@@ -251,9 +251,9 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 			var contentMap map[string]interface{}
 			contentStr := message.StringContent()
 
-			if err := common.Unmarshal([]byte(contentStr), &contentMap); err != nil {
+			if err := kitutil.Unmarshal([]byte(contentStr), &contentMap); err != nil {
 				var contentSlice []interface{}
-				if err := common.Unmarshal([]byte(contentStr), &contentSlice); err == nil {
+				if err := kitutil.Unmarshal([]byte(contentStr), &contentSlice); err == nil {
 					contentMap = map[string]interface{}{"result": contentSlice}
 				} else {
 					contentMap = map[string]interface{}{"content": contentStr}
@@ -281,7 +281,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 			for _, call := range message.ParseToolCalls() {
 				args := map[string]interface{}{}
 				if call.Function.Arguments != "" {
-					if common.Unmarshal([]byte(call.Function.Arguments), &args) != nil {
+					if kitutil.Unmarshal([]byte(call.Function.Arguments), &args) != nil {
 						return nil, fmt.Errorf("invalid arguments for function %s, args: %s", call.Function.Name, call.Function.Arguments)
 					}
 				}

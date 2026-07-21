@@ -1,9 +1,9 @@
 package oaichat
 
 import (
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 // ResponseOpenAI2Gemini 将 OpenAI 响应转换为 Gemini 格式
@@ -66,7 +66,7 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta
 		for _, toolCall := range toolCalls {
 			var args map[string]interface{}
 			if toolCall.Function.Arguments != "" {
-				if err := common.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+				if err := kitutil.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 					args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
 				}
 			} else {
@@ -168,7 +168,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 				// 解析参数
 				var args map[string]interface{}
 				if toolCall.Function.Arguments != "" {
-					if err := common.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+					if err := kitutil.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 						args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
 					}
 				} else {

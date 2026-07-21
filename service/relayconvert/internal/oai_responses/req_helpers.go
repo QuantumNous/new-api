@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -31,7 +31,7 @@ func responsesInputItems(raw []byte) ([]map[string]any, error) {
 		return nil, nil
 	}
 
-	switch common.GetJsonType(raw) {
+	switch kitutil.GetJsonType(raw) {
 	case "string":
 		input, err := responsesJSONString(raw)
 		if err != nil {
@@ -45,12 +45,12 @@ func responsesInputItems(raw []byte) ([]map[string]any, error) {
 		}, nil
 	case "array":
 		var items []map[string]any
-		if err := common.Unmarshal(raw, &items); err != nil {
+		if err := kitutil.Unmarshal(raw, &items); err != nil {
 			return nil, fmt.Errorf("invalid input array: %w", err)
 		}
 		return items, nil
 	default:
-		return nil, fmt.Errorf("unsupported responses input type %q", common.GetJsonType(raw))
+		return nil, fmt.Errorf("unsupported responses input type %q", kitutil.GetJsonType(raw))
 	}
 }
 
@@ -75,7 +75,7 @@ func responsesContentParts(content any) ([]map[string]any, error) {
 			case map[string]any:
 				parts = append(parts, part)
 			default:
-				raw, err := common.Marshal(part)
+				raw, err := kitutil.Marshal(part)
 				if err != nil {
 					return nil, err
 				}
@@ -84,7 +84,7 @@ func responsesContentParts(content any) ([]map[string]any, error) {
 		}
 		return parts, nil
 	default:
-		raw, err := common.Marshal(typed)
+		raw, err := kitutil.Marshal(typed)
 		if err != nil {
 			return nil, err
 		}
@@ -102,22 +102,22 @@ func responsesRequestFunctionDeclarations(raw []byte) ([]dto.FunctionRequest, er
 	}
 
 	var tools []map[string]any
-	if err := common.Unmarshal(raw, &tools); err != nil {
+	if err := kitutil.Unmarshal(raw, &tools); err != nil {
 		return nil, fmt.Errorf("invalid tools: %w", err)
 	}
 
 	functions := make([]dto.FunctionRequest, 0, len(tools))
 	for _, tool := range tools {
-		if strings.TrimSpace(common.Interface2String(tool["type"])) != "function" {
+		if strings.TrimSpace(kitutil.Interface2String(tool["type"])) != "function" {
 			continue
 		}
-		name := strings.TrimSpace(common.Interface2String(tool["name"]))
+		name := strings.TrimSpace(kitutil.Interface2String(tool["name"]))
 		if name == "" {
 			continue
 		}
 		functions = append(functions, dto.FunctionRequest{
 			Name:        name,
-			Description: common.Interface2String(tool["description"]),
+			Description: kitutil.Interface2String(tool["description"]),
 			Parameters:  tool["parameters"],
 		})
 	}
@@ -147,11 +147,11 @@ func responsesObjectValue(value any, fallbackKey string) map[string]any {
 		return typed
 	case string:
 		var object map[string]any
-		if err := common.Unmarshal([]byte(typed), &object); err == nil {
+		if err := kitutil.Unmarshal([]byte(typed), &object); err == nil {
 			return object
 		}
 		var array []any
-		if err := common.Unmarshal([]byte(typed), &array); err == nil {
+		if err := kitutil.Unmarshal([]byte(typed), &array); err == nil {
 			return map[string]any{fallbackKey: array}
 		}
 		return map[string]any{fallbackKey: typed}
@@ -174,11 +174,11 @@ func responsesGeminiResponseMap(value any) map[string]interface{} {
 		return typed
 	case string:
 		var object map[string]interface{}
-		if err := common.Unmarshal([]byte(typed), &object); err == nil {
+		if err := kitutil.Unmarshal([]byte(typed), &object); err == nil {
 			return object
 		}
 		var array []interface{}
-		if err := common.Unmarshal([]byte(typed), &array); err == nil {
+		if err := kitutil.Unmarshal([]byte(typed), &array); err == nil {
 			return map[string]interface{}{"result": array}
 		}
 		return map[string]interface{}{"content": typed}
@@ -194,11 +194,11 @@ func GeminiResponseMap(value any) map[string]interface{} {
 }
 
 func responsesParallelToolCalls(raw []byte) *bool {
-	if !rawJSONPresent(raw) || common.GetJsonType(raw) != "boolean" {
+	if !rawJSONPresent(raw) || kitutil.GetJsonType(raw) != "boolean" {
 		return nil
 	}
 	var parallelToolCalls bool
-	if err := common.Unmarshal(raw, &parallelToolCalls); err != nil {
+	if err := kitutil.Unmarshal(raw, &parallelToolCalls); err != nil {
 		return nil
 	}
 	return &parallelToolCalls
@@ -209,7 +209,7 @@ func ParallelToolCalls(raw []byte) *bool {
 }
 
 func ContentPartToFileSource(part map[string]any) types.FileSource {
-	partType := strings.TrimSpace(common.Interface2String(part["type"]))
+	partType := strings.TrimSpace(kitutil.Interface2String(part["type"]))
 	var data string
 	var mimeType string
 
@@ -222,7 +222,7 @@ func ContentPartToFileSource(part map[string]any) types.FileSource {
 		data, mimeType = responsesPartDataAndMime(part, "input_audio", "data", "url")
 		if mimeType == "" {
 			if payload, ok := part["input_audio"].(map[string]any); ok {
-				if format := strings.TrimSpace(common.Interface2String(payload["format"])); format != "" {
+				if format := strings.TrimSpace(kitutil.Interface2String(payload["format"])); format != "" {
 					mimeType = "audio/" + format
 				}
 			}
@@ -237,7 +237,7 @@ func ContentPartToFileSource(part map[string]any) types.FileSource {
 }
 
 func responsesPartDataAndMime(part map[string]any, keys ...string) (string, string) {
-	mimeType := strings.TrimSpace(common.Interface2String(part["mime_type"]))
+	mimeType := strings.TrimSpace(kitutil.Interface2String(part["mime_type"]))
 	for _, key := range keys {
 		value, ok := part[key]
 		if !ok {
@@ -250,10 +250,10 @@ func responsesPartDataAndMime(part map[string]any, keys ...string) (string, stri
 			}
 		case map[string]any:
 			if mimeType == "" {
-				mimeType = strings.TrimSpace(common.Interface2String(typed["mime_type"]))
+				mimeType = strings.TrimSpace(kitutil.Interface2String(typed["mime_type"]))
 			}
 			for _, nestedKey := range []string{"url", "file_data", "file_url", "data"} {
-				if data := strings.TrimSpace(common.Interface2String(typed[nestedKey])); data != "" {
+				if data := strings.TrimSpace(kitutil.Interface2String(typed[nestedKey])); data != "" {
 					return data, mimeType
 				}
 			}

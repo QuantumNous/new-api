@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 const (
@@ -29,22 +29,22 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 		Temperature: claudeRequest.Temperature,
 	}
 	if claudeRequest.MaxTokens != nil {
-		openAIRequest.MaxTokens = common.GetPointer(*claudeRequest.MaxTokens)
+		openAIRequest.MaxTokens = kitutil.GetPointer(*claudeRequest.MaxTokens)
 	}
 	if claudeRequest.TopP != nil {
-		openAIRequest.TopP = common.GetPointer(*claudeRequest.TopP)
+		openAIRequest.TopP = kitutil.GetPointer(*claudeRequest.TopP)
 	}
 	if claudeRequest.TopK != nil {
-		openAIRequest.TopK = common.GetPointer(*claudeRequest.TopK)
+		openAIRequest.TopK = kitutil.GetPointer(*claudeRequest.TopK)
 	}
 	if claudeRequest.Stream != nil {
-		openAIRequest.Stream = common.GetPointer(*claudeRequest.Stream)
+		openAIRequest.Stream = kitutil.GetPointer(*claudeRequest.Stream)
 	}
 
 	isOpenRouter := convmeta.ChannelTypeOf(info) == constant.ChannelTypeOpenRouter
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
-			effortBytes, _ := common.Marshal(effort)
+			effortBytes, _ := kitutil.Marshal(effort)
 			openAIRequest.Verbosity = effortBytes
 		}
 		if claudeRequest.Thinking != nil {
@@ -59,7 +59,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 					Enabled: true,
 				}
 			}
-			reasoningJSON, err := common.Marshal(reasoningConfig)
+			reasoningJSON, err := kitutil.Marshal(reasoningConfig)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
 			}
@@ -79,7 +79,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 		openAIRequest.Stop = claudeRequest.StopSequences
 	}
 
-	tools, _ := common.Any2Type[[]dto.Tool](claudeRequest.Tools)
+	tools, _ := kitutil.Any2Type[[]dto.Tool](claudeRequest.Tools)
 	openAITools := make([]dto.ToolCallRequest, 0)
 	for _, claudeTool := range tools {
 		openAITool := dto.ToolCallRequest{
@@ -188,7 +188,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
 					} else {
 						mediaContents := mediaMsg.ParseMediaContent()
-						encodedJSON, _ := common.Marshal(mediaContents)
+						encodedJSON, _ := kitutil.Marshal(mediaContents)
 						oaiToolMessage.SetStringContent(string(encodedJSON))
 					}
 					openAIMessages = append(openAIMessages, oaiToolMessage)
@@ -212,7 +212,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 }
 
 func requestToJSONString(v interface{}) string {
-	b, err := common.Marshal(v)
+	b, err := kitutil.Marshal(v)
 	if err != nil {
 		return "{}"
 	}

@@ -3,8 +3,8 @@ package oairesponses
 import (
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 const (
@@ -34,18 +34,18 @@ func PrepareOpenAIResponsesRequest(request dto.OpenAIResponsesRequest) (dto.Open
 }
 
 func filterGeminiResponsesTools(raw []byte) ([]byte, error) {
-	if !geminiRawJSONPresent(raw) || common.GetJsonType(raw) != "array" {
+	if !geminiRawJSONPresent(raw) || kitutil.GetJsonType(raw) != "array" {
 		return raw, nil
 	}
 
 	var tools []map[string]any
-	if err := common.Unmarshal(raw, &tools); err != nil {
+	if err := kitutil.Unmarshal(raw, &tools); err != nil {
 		return nil, err
 	}
 
 	filtered := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
-		if strings.TrimSpace(common.Interface2String(tool["type"])) != "function" {
+		if strings.TrimSpace(kitutil.Interface2String(tool["type"])) != "function" {
 			continue
 		}
 		filtered = append(filtered, tool)
@@ -53,49 +53,49 @@ func filterGeminiResponsesTools(raw []byte) ([]byte, error) {
 	if len(filtered) == 0 {
 		return nil, nil
 	}
-	return common.Marshal(filtered)
+	return kitutil.Marshal(filtered)
 }
 
 func filterGeminiResponsesInput(raw []byte) ([]byte, error) {
-	if !geminiRawJSONPresent(raw) || common.GetJsonType(raw) != "array" {
+	if !geminiRawJSONPresent(raw) || kitutil.GetJsonType(raw) != "array" {
 		return raw, nil
 	}
 
 	var items []map[string]any
-	if err := common.Unmarshal(raw, &items); err != nil {
+	if err := kitutil.Unmarshal(raw, &items); err != nil {
 		return nil, err
 	}
 
 	skippedCustomCallIDs := make(map[string]struct{})
 	for _, item := range items {
-		if strings.TrimSpace(common.Interface2String(item["type"])) != geminiResponsesInputTypeCustomToolCall {
+		if strings.TrimSpace(kitutil.Interface2String(item["type"])) != geminiResponsesInputTypeCustomToolCall {
 			continue
 		}
-		if callID := strings.TrimSpace(common.Interface2String(item["call_id"])); callID != "" {
+		if callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"])); callID != "" {
 			skippedCustomCallIDs[callID] = struct{}{}
 		}
 	}
 
 	filtered := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		itemType := strings.TrimSpace(common.Interface2String(item["type"]))
+		itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 		switch itemType {
 		case geminiResponsesInputTypeCustomToolCall, geminiResponsesInputTypeCustomToolCallOutput:
 			continue
 		case geminiResponsesInputTypeFunctionCallOutput:
-			if _, ok := skippedCustomCallIDs[strings.TrimSpace(common.Interface2String(item["call_id"]))]; ok {
+			if _, ok := skippedCustomCallIDs[strings.TrimSpace(kitutil.Interface2String(item["call_id"]))]; ok {
 				continue
 			}
 		}
 		filtered = append(filtered, item)
 	}
 
-	return common.Marshal(filtered)
+	return kitutil.Marshal(filtered)
 }
 
 func geminiRawJSONPresent(raw []byte) bool {
 	if len(raw) == 0 {
 		return false
 	}
-	return common.GetJsonType(raw) != "null"
+	return kitutil.GetJsonType(raw) != "null"
 }

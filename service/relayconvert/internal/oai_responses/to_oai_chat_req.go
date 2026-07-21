@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 const (
@@ -79,17 +79,17 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 		out.ReasoningEffort = req.Reasoning.Effort
 	}
 	if req.ServiceTier != "" {
-		out.ServiceTier, _ = common.Marshal(req.ServiceTier)
+		out.ServiceTier, _ = kitutil.Marshal(req.ServiceTier)
 	}
-	if len(req.ParallelToolCalls) > 0 && common.GetJsonType(req.ParallelToolCalls) == "boolean" {
+	if len(req.ParallelToolCalls) > 0 && kitutil.GetJsonType(req.ParallelToolCalls) == "boolean" {
 		var parallelToolCalls bool
-		if err := common.Unmarshal(req.ParallelToolCalls, &parallelToolCalls); err == nil {
+		if err := kitutil.Unmarshal(req.ParallelToolCalls, &parallelToolCalls); err == nil {
 			out.ParallelTooCalls = &parallelToolCalls
 		}
 	}
-	if len(req.PromptCacheKey) > 0 && common.GetJsonType(req.PromptCacheKey) == "string" {
+	if len(req.PromptCacheKey) > 0 && kitutil.GetJsonType(req.PromptCacheKey) == "string" {
 		var promptCacheKey string
-		if err := common.Unmarshal(req.PromptCacheKey, &promptCacheKey); err == nil {
+		if err := kitutil.Unmarshal(req.PromptCacheKey, &promptCacheKey); err == nil {
 			out.PromptCacheKey = promptCacheKey
 		}
 	}
@@ -137,7 +137,7 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 		return messages, nil
 	}
 
-	switch common.GetJsonType(req.Input) {
+	switch kitutil.GetJsonType(req.Input) {
 	case "string":
 		input, err := responsesJSONString(req.Input)
 		if err != nil {
@@ -147,7 +147,7 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 		return messages, nil
 	case "array":
 		var items []map[string]any
-		if err := common.Unmarshal(req.Input, &items); err != nil {
+		if err := kitutil.Unmarshal(req.Input, &items); err != nil {
 			return nil, fmt.Errorf("invalid input array: %w", err)
 		}
 		for _, item := range items {
@@ -159,12 +159,12 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 		}
 		return messages, nil
 	default:
-		return nil, fmt.Errorf("unsupported responses input type %q", common.GetJsonType(req.Input))
+		return nil, fmt.Errorf("unsupported responses input type %q", kitutil.GetJsonType(req.Input))
 	}
 }
 
 func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message) ([]dto.Message, error) {
-	itemType := strings.TrimSpace(common.Interface2String(item["type"]))
+	itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 	switch itemType {
 	case responsesInputTypeFunctionCall:
 		toolCall, err := responsesFunctionCallItemToChatToolCall(item)
@@ -179,12 +179,12 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 		}
 		return appendToolCallToLastAssistant(messages, toolCall), nil
 	case responsesInputTypeFunctionCallOutput:
-		callID := strings.TrimSpace(common.Interface2String(item["call_id"]))
+		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
 		content := responseToolOutputToChatContent(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), nil
 	}
 
-	role := strings.TrimSpace(common.Interface2String(item["role"]))
+	role := strings.TrimSpace(kitutil.Interface2String(item["role"]))
 	if role == "" {
 		role = "user"
 	}
@@ -229,10 +229,10 @@ func responsesContentPartsToChatContent(parts []any) (any, error) {
 			continue
 		}
 
-		partType := strings.TrimSpace(common.Interface2String(part["type"]))
+		partType := strings.TrimSpace(kitutil.Interface2String(part["type"]))
 		switch partType {
 		case "input_text", "output_text", "text":
-			text := common.Interface2String(part["text"])
+			text := kitutil.Interface2String(part["text"])
 			textOnly.WriteString(text)
 			chatParts = append(chatParts, map[string]any{
 				"type": dto.ContentTypeText,
@@ -275,7 +275,7 @@ func responsesContentPartsToChatContent(parts []any) (any, error) {
 }
 
 func responsesFunctionCallItemToChatToolCall(item map[string]any) (dto.ToolCallRequest, error) {
-	name := strings.TrimSpace(common.Interface2String(item["name"]))
+	name := strings.TrimSpace(kitutil.Interface2String(item["name"]))
 	if name == "" {
 		return dto.ToolCallRequest{}, errors.New("function_call item is missing name")
 	}
@@ -290,7 +290,7 @@ func responsesFunctionCallItemToChatToolCall(item map[string]any) (dto.ToolCallR
 }
 
 func responsesCustomToolCallItemToChatToolCall(item map[string]any) (dto.ToolCallRequest, error) {
-	raw, err := common.Marshal(item)
+	raw, err := kitutil.Marshal(item)
 	if err != nil {
 		return dto.ToolCallRequest{}, err
 	}
@@ -299,7 +299,7 @@ func responsesCustomToolCallItemToChatToolCall(item map[string]any) (dto.ToolCal
 		Type:   dto.CustomType,
 		Custom: raw,
 		Function: dto.FunctionRequest{
-			Name:      strings.TrimSpace(common.Interface2String(item["name"])),
+			Name:      strings.TrimSpace(kitutil.Interface2String(item["name"])),
 			Arguments: responsesArgumentsString(item["input"]),
 		},
 	}, nil
@@ -313,7 +313,7 @@ func appendToolCallToLastAssistant(messages []dto.Message, toolCall dto.ToolCall
 	idx := len(messages) - 1
 	toolCalls := messages[idx].ParseToolCalls()
 	toolCalls = append(toolCalls, toolCall)
-	toolCallsRaw, _ := common.Marshal(toolCalls)
+	toolCallsRaw, _ := kitutil.Marshal(toolCalls)
 	messages[idx].ToolCalls = toolCallsRaw
 	return messages
 }
@@ -324,26 +324,26 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 	}
 
 	var tools []map[string]any
-	if err := common.Unmarshal(raw, &tools); err != nil {
+	if err := kitutil.Unmarshal(raw, &tools); err != nil {
 		return nil, fmt.Errorf("invalid tools: %w", err)
 	}
 
 	out := make([]dto.ToolCallRequest, 0, len(tools))
 	for _, tool := range tools {
-		toolType := strings.TrimSpace(common.Interface2String(tool["type"]))
+		toolType := strings.TrimSpace(kitutil.Interface2String(tool["type"]))
 		if toolType == "function" {
 			out = append(out, dto.ToolCallRequest{
 				Type: "function",
 				Function: dto.FunctionRequest{
-					Name:        strings.TrimSpace(common.Interface2String(tool["name"])),
-					Description: common.Interface2String(tool["description"]),
+					Name:        strings.TrimSpace(kitutil.Interface2String(tool["name"])),
+					Description: kitutil.Interface2String(tool["description"]),
 					Parameters:  tool["parameters"],
 				},
 			})
 			continue
 		}
 
-		rawTool, err := common.Marshal(tool)
+		rawTool, err := kitutil.Marshal(tool)
 		if err != nil {
 			return nil, err
 		}
@@ -359,20 +359,20 @@ func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
 	if !rawJSONPresent(raw) {
 		return nil, nil
 	}
-	if common.GetJsonType(raw) == "string" {
+	if kitutil.GetJsonType(raw) == "string" {
 		var choice string
-		if err := common.Unmarshal(raw, &choice); err != nil {
+		if err := kitutil.Unmarshal(raw, &choice); err != nil {
 			return nil, fmt.Errorf("invalid tool_choice: %w", err)
 		}
 		return choice, nil
 	}
 
 	var choice map[string]any
-	if err := common.Unmarshal(raw, &choice); err != nil {
+	if err := kitutil.Unmarshal(raw, &choice); err != nil {
 		return nil, fmt.Errorf("invalid tool_choice: %w", err)
 	}
-	if common.Interface2String(choice["type"]) == "function" {
-		name := strings.TrimSpace(common.Interface2String(choice["name"]))
+	if kitutil.Interface2String(choice["type"]) == "function" {
+		name := strings.TrimSpace(kitutil.Interface2String(choice["name"]))
 		if name != "" {
 			return map[string]any{
 				"type": "function",
@@ -395,7 +395,7 @@ func responsesRequestTextToChatResponseFormat(raw json.RawMessage) (*dto.Respons
 	}
 
 	var textConfig map[string]any
-	if err := common.Unmarshal(raw, &textConfig); err != nil {
+	if err := kitutil.Unmarshal(raw, &textConfig); err != nil {
 		return nil, fmt.Errorf("invalid text config: %w", err)
 	}
 	format, ok := textConfig["format"].(map[string]any)
@@ -403,14 +403,14 @@ func responsesRequestTextToChatResponseFormat(raw json.RawMessage) (*dto.Respons
 		return nil, nil
 	}
 
-	formatType := strings.TrimSpace(common.Interface2String(format["type"]))
+	formatType := strings.TrimSpace(kitutil.Interface2String(format["type"]))
 	if formatType == "" {
 		return nil, nil
 	}
 
 	out := &dto.ResponseFormat{Type: formatType}
 	if formatType == "json_schema" {
-		schemaRaw, err := common.Marshal(format)
+		schemaRaw, err := kitutil.Marshal(format)
 		if err != nil {
 			return nil, err
 		}
@@ -458,13 +458,13 @@ func responsesFilePartToChatFile(part map[string]any) any {
 func responsesVideoPartToChatVideoURL(part map[string]any) any {
 	if videoURL, ok := part["video_url"]; ok {
 		if videoURLMap, ok := videoURL.(map[string]any); ok {
-			if url := common.Interface2String(videoURLMap["url"]); url != "" {
+			if url := kitutil.Interface2String(videoURLMap["url"]); url != "" {
 				return url
 			}
 		}
 		return videoURL
 	}
-	if url := common.Interface2String(part["url"]); url != "" {
+	if url := kitutil.Interface2String(part["url"]); url != "" {
 		return url
 	}
 	return responsesPartPayload(part, "video_url")
@@ -485,11 +485,11 @@ func responsesPartPayload(part map[string]any, key string) any {
 }
 
 func responsesCallID(item map[string]any) string {
-	callID := strings.TrimSpace(common.Interface2String(item["call_id"]))
+	callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
 	if callID != "" {
 		return callID
 	}
-	return strings.TrimSpace(common.Interface2String(item["id"]))
+	return strings.TrimSpace(kitutil.Interface2String(item["id"]))
 }
 
 func CallID(item map[string]any) string {
@@ -503,9 +503,9 @@ func responsesArgumentsString(value any) string {
 	case string:
 		return v
 	default:
-		raw, err := common.Marshal(v)
+		raw, err := kitutil.Marshal(v)
 		if err != nil {
-			return common.Interface2String(v)
+			return kitutil.Interface2String(v)
 		}
 		return string(raw)
 	}
@@ -518,7 +518,7 @@ func responseToolOutputToChatContent(value any) any {
 	case string:
 		return v
 	default:
-		raw, err := common.Marshal(v)
+		raw, err := kitutil.Marshal(v)
 		if err != nil {
 			return fmt.Sprintf("%v", v)
 		}
@@ -527,11 +527,11 @@ func responseToolOutputToChatContent(value any) any {
 }
 
 func responsesJSONString(raw json.RawMessage) (string, error) {
-	if common.GetJsonType(raw) != "string" {
+	if kitutil.GetJsonType(raw) != "string" {
 		return string(raw), nil
 	}
 	var value string
-	if err := common.Unmarshal(raw, &value); err != nil {
+	if err := kitutil.Unmarshal(raw, &value); err != nil {
 		return "", err
 	}
 	return value, nil
@@ -541,7 +541,7 @@ func rawJSONPresent(raw json.RawMessage) bool {
 	if len(raw) == 0 {
 		return false
 	}
-	return common.GetJsonType(raw) != "null"
+	return kitutil.GetJsonType(raw) != "null"
 }
 
 func JSONString(raw json.RawMessage) (string, error) {

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 type ResponsesToChatStreamState struct {
@@ -143,7 +143,7 @@ func (s *ResponsesToChatStreamState) ensureStart() []dto.ChatCompletionsStreamRe
 	s.sentStart = true
 	return []dto.ChatCompletionsStreamResponse{s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{
 		Role:    "assistant",
-		Content: common.GetPointer(""),
+		Content: kitutil.GetPointer(""),
 	}, nil)}
 }
 
@@ -642,7 +642,7 @@ func (a *ResponsesBufferedAccumulator) BuildOutput() []dto.ResponsesOutput {
 		if tool == nil {
 			continue
 		}
-		argsRaw, _ := common.Marshal(tool.Arguments.String())
+		argsRaw, _ := kitutil.Marshal(tool.Arguments.String())
 		out = append(out, dto.ResponsesOutput{
 			Type:      responsesOutputTypeFunctionCall,
 			ID:        tool.ItemID,

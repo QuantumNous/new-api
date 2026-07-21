@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 type OpenAIError struct {
@@ -156,7 +156,7 @@ func (e *NewAPIError) MaskSensitiveError() string {
 	if e.errorCode == ErrorCodeCountTokenFailed {
 		return errStr
 	}
-	return common.MaskSensitiveInfo(errStr)
+	return kitutil.MaskSensitiveInfo(errStr)
 }
 
 func (e *NewAPIError) MaskSensitiveErrorWithStatusCode() string {
@@ -202,7 +202,7 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 		}
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
-		result.Message = common.MaskSensitiveInfo(result.Message)
+		result.Message = kitutil.MaskSensitiveInfo(result.Message)
 	}
 	if result.Message == "" {
 		result.Message = string(e.errorType)
@@ -231,7 +231,7 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 		}
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
-		result.Message = common.MaskSensitiveInfo(result.Message)
+		result.Message = kitutil.MaskSensitiveInfo(result.Message)
 	}
 	if result.Message == "" {
 		result.Message = string(e.errorType)
@@ -386,7 +386,7 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 
 func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
-		e.recordErrorLog = common.GetPointer(false)
+		e.recordErrorLog = kitutil.GetPointer(false)
 	}
 }
 
@@ -398,7 +398,7 @@ func ErrOptionWithStatusCode(statusCode int) NewAPIErrorOptions {
 
 func ErrOptionWithHideErrMsg(replaceStr string) NewAPIErrorOptions {
 	return func(e *NewAPIError) {
-		if common.DebugEnabled {
+		if kitutil.Debug.Load() {
 			fmt.Printf("ErrOptionWithHideErrMsg: %s, origin error: %s", replaceStr, e.Err)
 		}
 		e.Err = errors.New(replaceStr)

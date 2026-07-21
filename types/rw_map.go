@@ -3,7 +3,7 @@ package types
 import (
 	"sync"
 
-	"github.com/QuantumNous/new-api/common"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 type RWMap[K comparable, V any] struct {
@@ -15,13 +15,13 @@ func (m *RWMap[K, V]) UnmarshalJSON(b []byte) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.data = make(map[K]V)
-	return common.Unmarshal(b, &m.data)
+	return kitutil.Unmarshal(b, &m.data)
 }
 
 func (m *RWMap[K, V]) MarshalJSON() ([]byte, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	return common.Marshal(m.data)
+	return kitutil.Marshal(m.data)
 }
 
 func NewRWMap[K comparable, V any]() *RWMap[K, V] {
@@ -78,7 +78,7 @@ func LoadFromJsonString[K comparable, V any](m *RWMap[K, V], jsonStr string) err
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.data = make(map[K]V)
-	return common.Unmarshal([]byte(jsonStr), &m.data)
+	return kitutil.Unmarshal([]byte(jsonStr), &m.data)
 }
 
 // LoadFromJsonStringWithCallback loads a JSON string into the RWMap and calls the callback on success.
@@ -86,7 +86,7 @@ func LoadFromJsonStringWithCallback[K comparable, V any](m *RWMap[K, V], jsonStr
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.data = make(map[K]V)
-	err := common.Unmarshal([]byte(jsonStr), &m.data)
+	err := kitutil.Unmarshal([]byte(jsonStr), &m.data)
 	if err == nil && onSuccess != nil {
 		onSuccess()
 	}

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 const (
@@ -233,7 +233,7 @@ func responseStatusString(resp *dto.OpenAIResponsesResponse) string {
 		return ""
 	}
 	var status string
-	_ = common.Unmarshal(resp.Status, &status)
+	_ = kitutil.Unmarshal(resp.Status, &status)
 	return strings.TrimSpace(status)
 }
 

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/service/relayconvert/internal/jsonutil"
+	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
 )
 
 func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
@@ -19,7 +19,7 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 	modelName = convmeta.UpstreamModelName(info)
 	openaiRequest := &dto.GeneralOpenAIRequest{
 		Model:  modelName,
-		Stream: common.GetPointer(isStream),
+		Stream: kitutil.GetPointer(isStream),
 	}
 
 	var messages []dto.Message
@@ -96,19 +96,19 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 		openaiRequest.Temperature = geminiRequest.GenerationConfig.Temperature
 	}
 	if geminiRequest.GenerationConfig.TopP != nil && *geminiRequest.GenerationConfig.TopP > 0 {
-		openaiRequest.TopP = common.GetPointer(*geminiRequest.GenerationConfig.TopP)
+		openaiRequest.TopP = kitutil.GetPointer(*geminiRequest.GenerationConfig.TopP)
 	}
 	if geminiRequest.GenerationConfig.TopK != nil && *geminiRequest.GenerationConfig.TopK > 0 {
-		openaiRequest.TopK = common.GetPointer(int(*geminiRequest.GenerationConfig.TopK))
+		openaiRequest.TopK = kitutil.GetPointer(int(*geminiRequest.GenerationConfig.TopK))
 	}
 	if geminiRequest.GenerationConfig.MaxOutputTokens != nil && *geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
-		openaiRequest.MaxTokens = common.GetPointer(*geminiRequest.GenerationConfig.MaxOutputTokens)
+		openaiRequest.MaxTokens = kitutil.GetPointer(*geminiRequest.GenerationConfig.MaxOutputTokens)
 	}
 	if len(geminiRequest.GenerationConfig.StopSequences) > 0 {
 		openaiRequest.Stop = geminiRequest.GenerationConfig.StopSequences[:min(len(geminiRequest.GenerationConfig.StopSequences), 4)]
 	}
 	if geminiRequest.GenerationConfig.CandidateCount != nil && *geminiRequest.GenerationConfig.CandidateCount > 0 {
-		openaiRequest.N = common.GetPointer(*geminiRequest.GenerationConfig.CandidateCount)
+		openaiRequest.N = kitutil.GetPointer(*geminiRequest.GenerationConfig.CandidateCount)
 	}
 
 	if len(geminiRequest.GetTools()) > 0 {
@@ -117,9 +117,9 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 			if tool.FunctionDeclarations == nil {
 				continue
 			}
-			functionDeclarations, err := common.Any2Type[[]dto.FunctionRequest](tool.FunctionDeclarations)
+			functionDeclarations, err := kitutil.Any2Type[[]dto.FunctionRequest](tool.FunctionDeclarations)
 			if err != nil {
-				common.SysError(fmt.Sprintf("failed to parse gemini function declarations: %v (type=%T)", err, tool.FunctionDeclarations))
+				kitutil.LogError(fmt.Sprintf("failed to parse gemini function declarations: %v (type=%T)", err, tool.FunctionDeclarations))
 				continue
 			}
 			for _, function := range functionDeclarations {
