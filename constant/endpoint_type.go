@@ -1,6 +1,6 @@
 package constant
 
-import "github.com/QuantumNous/new-api/types"
+import "github.com/QuantumNous/new-api/relaykit/types"
 
 // EndpointType moved to types with the conversion kit; aliases keep host
 // code compiling unchanged.

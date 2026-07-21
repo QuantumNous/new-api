@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	kitutil "github.com/QuantumNous/new-api/service/relayconvert/kitutil"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"strconv"
 	"strings"
 	"unsafe"
