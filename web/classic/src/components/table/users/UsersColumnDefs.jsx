@@ -78,23 +78,46 @@ const renderUsername = (text, record) => {
   if (!remark) {
     return <span>{text}</span>;
   }
+  const riskMatch = remark.match(/\[GPT_TRIAL_BLOCKED:([^\]]+)\]/);
+  const riskReason = riskMatch?.[1];
+  const cleanRemark = remark
+    .replace(/\s*\[GPT_TRIAL_BLOCKED:[^\]]+\]/g, '')
+    .trim();
   const maxLen = 10;
   const displayRemark =
-    remark.length > maxLen ? remark.slice(0, maxLen) + '…' : remark;
+    cleanRemark.length > maxLen
+      ? cleanRemark.slice(0, maxLen) + '…'
+      : cleanRemark;
   return (
     <Space spacing={2}>
       <span>{text}</span>
-      <Tooltip content={remark} position='top' showArrow>
-        <Tag color='white' shape='circle' className='!text-xs'>
-          <div className='flex items-center gap-1'>
-            <div
-              className='w-2 h-2 flex-shrink-0 rounded-full'
-              style={{ backgroundColor: '#10b981' }}
-            />
+      {riskReason ? (
+        <Tooltip content={`${remark}`} position='top' showArrow>
+          <Tag color='red' shape='circle' className='!text-xs'>
+            GPT试用拦截
+          </Tag>
+        </Tooltip>
+      ) : null}
+      {cleanRemark ? (
+        <Tooltip content={cleanRemark} position='top' showArrow>
+          <Tag color='white' shape='circle' className='!text-xs'>
+            <div className='flex items-center gap-1'>
+              <div
+                className='w-2 h-2 flex-shrink-0 rounded-full'
+                style={{ backgroundColor: '#10b981' }}
+              />
+              {displayRemark}
+            </div>
+          </Tag>
+        </Tooltip>
+      ) : null}
+      {!riskReason && !cleanRemark ? (
+        <Tooltip content={remark} position='top' showArrow>
+          <Tag color='white' shape='circle' className='!text-xs'>
             {displayRemark}
-          </div>
-        </Tag>
-      </Tooltip>
+          </Tag>
+        </Tooltip>
+      ) : null}
     </Space>
   );
 };
