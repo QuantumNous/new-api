@@ -233,6 +233,13 @@ export interface LogOtherData {
   subscription_consumed?: number
   subscription_remain?: number
   subscription_total?: number
+  // Inspect: request/response capture fields (backend: middleware.HeaderCapture)
+  request_headers?: Record<string, string>
+  request_body?: string
+  response_headers?: Record<string, string>
+  response_body?: string
+  provider_request_body?: string
+  provider_response_body?: string
 }
 
 /**

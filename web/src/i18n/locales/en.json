@@ -5214,6 +5214,14 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Inspect": "Inspect",
+    "Request Headers": "Request Headers",
+    "Response Headers": "Response Headers",
+    "inspect.request_body": "Request Body",
+    "inspect.response_body": "Response Body",
+    "inspect.provider_request_body": "Provider Request Body",
+    "inspect.provider_response_body": "Provider Response Body",
+    "inspect.file_reference": "Stored on disk"
   }
 }

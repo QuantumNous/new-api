@@ -49,6 +49,7 @@ import {
   UserCog,
   Info,
   LogIn,
+  Eye,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -1227,6 +1228,39 @@ export function DetailsDialog(props: DetailsDialogProps) {
             })}
           </DetailSection>
         )}
+        {/* Inspect: request/response headers and bodies (admin-only). */}
+        {props.isAdmin && hasInspectData(other) && (
+          <DetailSection
+            icon={<Eye className='size-3.5' aria-hidden='true' />}
+            iconTone='chart-3'
+            label={t('Inspect')}
+          >
+            {other.request_headers && (
+              <InspectHeaderBlock
+                headers={other.request_headers}
+                label={t('Request Headers')}
+              />
+            )}
+            {other.request_body && (
+              <InspectBodyBlock body={other.request_body} labelKey='inspect.request_body' t={t} />
+            )}
+            {other.response_headers && (
+              <InspectHeaderBlock
+                headers={other.response_headers}
+                label={t('Response Headers')}
+              />
+            )}
+            {other.response_body && (
+              <InspectBodyBlock body={other.response_body} labelKey='inspect.response_body' t={t} />
+            )}
+            {other.provider_request_body && (
+              <InspectBodyBlock body={other.provider_request_body} labelKey='inspect.provider_request_body' t={t} />
+            )}
+            {other.provider_response_body && (
+              <InspectBodyBlock body={other.provider_response_body} labelKey='inspect.provider_response_body' t={t} />
+            )}
+          </DetailSection>
+        )}
 
         {/* Content */}
         {details && (
@@ -1260,4 +1294,101 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
 function isDisplayableType(type: number): boolean {
   return [0, 2, 5, 6].includes(type)
+}
+
+// --- Inspect helpers ---
+
+function isFileRef(value: string | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('file:')
+}
+
+function hasInspectData(other: LogOtherData): boolean {
+  return !!(
+    other.request_headers || other.request_body ||
+    other.response_headers || other.response_body ||
+    other.provider_request_body || other.provider_response_body
+  )
+}
+
+function formatJsonInline(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
+
+function InspectHeaderBlock(props: {
+  headers: Record<string, string>
+  label: string
+}) {
+  const { headers, label } = props
+  if (Object.keys(headers).length === 0) return null
+  return (
+    <div className='space-y-1'>
+      <Label className='text-[11px] font-semibold'>{label}</Label>
+      <div className='bg-background/60 max-h-40 overflow-y-auto rounded border'>
+        {Object.entries(headers).map(([k, v]) => (
+          <div
+            key={k}
+            className='flex min-w-0 gap-2 border-b px-2 py-0.5 text-[11px] leading-relaxed last:border-b-0'
+          >
+            <span className='shrink-0 font-mono font-medium text-muted-foreground'>
+              {k}:
+            </span>
+            <span className='min-w-0 font-mono break-all'>{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function InspectBodyBlock(props: {
+  body: string
+  labelKey: string
+  t: TFunction
+}) {
+  const { body, labelKey, t } = props
+  const [copied, copy] = useCopyToClipboard()
+  const isFile = isFileRef(body)
+
+  return (
+    <div className='space-y-1'>
+      <Label className='text-[11px] font-semibold'>{t(labelKey)}</Label>
+      <div className='bg-background/60 relative min-w-0 overflow-hidden rounded border'>
+        <Button
+          variant='ghost'
+          size='sm'
+          className='absolute top-1 right-1 h-5 w-5 p-0'
+          onClick={() => copy(body)}
+          title={t('Copy to clipboard')}
+          aria-label={t('Copy to clipboard')}
+        >
+          {copied ? (
+            <Check className='size-3 text-green-600' />
+          ) : (
+            <Copy className='size-3' />
+          )}
+        </Button>
+        {isFile ? (
+          <p className='min-w-0 p-2 pr-7 font-mono text-[11px] leading-relaxed break-all text-muted-foreground'>
+            {t('inspect.file_reference')}{': '}{body.slice(5)}
+          </p>
+        ) : (
+          <pre className='max-h-48 overflow-y-auto p-2 pr-7 font-mono text-[11px] leading-relaxed wrap-break-word whitespace-pre-wrap'>
+            {formatJsonInline(body)}
+          </pre>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function formatJsonInline(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
 }
