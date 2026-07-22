@@ -202,13 +202,25 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
-		// Capture provider-format response body for non-streaming responses.
-		// Read the full body, store it, then reset so DoResponse can read it again.
-		if common.StoreProviderResponseBodyEnabled && !info.IsStream && httpResp.Body != nil {
-			if providerRespBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
-				httpResp.Body.Close()
-				httpResp.Body = io.NopCloser(bytes.NewReader(providerRespBytes))
-				c.Set(common.ContextKeyProviderResponseBody, string(providerRespBytes))
+		// Capture provider-format response body.
+		// Non-streaming: read full body, store, reset for DoResponse.
+		// Streaming: wrap body with TeeReader to buffer as data flows through.
+		if common.StoreProviderResponseBodyEnabled && httpResp.Body != nil {
+			if !info.IsStream {
+				if providerRespBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+					httpResp.Body.Close()
+					httpResp.Body = io.NopCloser(bytes.NewReader(providerRespBytes))
+					c.Set(common.ContextKeyProviderResponseBody, string(providerRespBytes))
+				}
+			} else {
+				var buf bytes.Buffer
+				httpResp.Body = &streamCaptureReadCloser{
+					Reader: io.TeeReader(httpResp.Body, &buf),
+					Closer: httpResp.Body,
+					onClose: func() {
+						c.Set(common.ContextKeyProviderResponseBody, buf.String())
+					},
+				}
 			}
 		}
 		if httpResp.StatusCode != http.StatusOK {
@@ -235,4 +247,19 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}
 	return nil
+}
+
+// streamCaptureReadCloser wraps a reader to capture all data flowing through
+// it. When the stream is fully consumed and Close() is called, onClose fires
+// with the accumulated data. This enables capturing streaming (SSE) provider
+// responses without blocking the forward path.
+type streamCaptureReadCloser struct {
+	io.Reader
+	io.Closer
+	onClose func()
+}
+
+func (s *streamCaptureReadCloser) Close() error {
+	s.onClose()
+	return s.Closer.Close()
 }

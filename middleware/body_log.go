@@ -90,11 +90,8 @@ func HeaderCapture() gin.HandlerFunc {
 		}
 
 		// --- Response body ---
-		if wrapper != nil {
-			respContentType := c.Writer.Header().Get("Content-Type")
-			if !strings.Contains(respContentType, "text/event-stream") && wrapper.buf.Len() > 0 {
-				c.Set(common.ContextKeyResponseBody, wrapper.buf.String())
-			}
+		if wrapper != nil && wrapper.buf.Len() > 0 {
+			c.Set(common.ContextKeyResponseBody, wrapper.buf.String())
 		}
 	}
 }

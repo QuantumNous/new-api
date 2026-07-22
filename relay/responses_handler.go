@@ -134,11 +134,20 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
-		if !info.IsStream && common.StoreProviderResponseBodyEnabled && httpResp.Body != nil {
-			if pBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
-				httpResp.Body.Close()
-				httpResp.Body = io.NopCloser(bytes.NewReader(pBytes))
-				c.Set(common.ContextKeyProviderResponseBody, string(pBytes))
+		if common.StoreProviderResponseBodyEnabled && httpResp.Body != nil {
+			if !info.IsStream {
+				if pBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+					httpResp.Body.Close()
+					httpResp.Body = io.NopCloser(bytes.NewReader(pBytes))
+					c.Set(common.ContextKeyProviderResponseBody, string(pBytes))
+				}
+			} else {
+				var buf bytes.Buffer
+				httpResp.Body = &streamCaptureReadCloser{
+					Reader:  io.TeeReader(httpResp.Body, &buf),
+					Closer:  httpResp.Body,
+					onClose: func() { c.Set(common.ContextKeyProviderResponseBody, buf.String()) },
+				}
 			}
 		}
 

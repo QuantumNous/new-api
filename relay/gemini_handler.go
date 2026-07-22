@@ -187,11 +187,20 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
-		if common.StoreProviderResponseBodyEnabled && !info.IsStream && httpResp.Body != nil {
-			if pBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
-				httpResp.Body.Close()
-				httpResp.Body = io.NopCloser(bytes.NewReader(pBytes))
-				c.Set(common.ContextKeyProviderResponseBody, string(pBytes))
+		if common.StoreProviderResponseBodyEnabled && httpResp.Body != nil {
+			if !info.IsStream {
+				if pBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+					httpResp.Body.Close()
+					httpResp.Body = io.NopCloser(bytes.NewReader(pBytes))
+					c.Set(common.ContextKeyProviderResponseBody, string(pBytes))
+				}
+			} else {
+				var buf bytes.Buffer
+				httpResp.Body = &streamCaptureReadCloser{
+					Reader:  io.TeeReader(httpResp.Body, &buf),
+					Closer:  httpResp.Body,
+					onClose: func() { c.Set(common.ContextKeyProviderResponseBody, buf.String()) },
+				}
 			}
 		}
 		if httpResp.StatusCode != http.StatusOK {
