@@ -92,6 +92,34 @@ var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
 
+// StoreRequestBodyEnabled controls whether raw request bodies are captured and
+// stored in the consume log's Other JSON. Defaults to false to avoid ballooning
+// the logs table. Bodies are stored as the "request_body" key under Other.
+var StoreRequestBodyEnabled = false
+
+// StoreResponseBodyEnabled controls whether raw response bodies are captured and
+// stored in the consume log's Other JSON. Only non-streaming responses are
+// captured. Defaults to false.
+var StoreResponseBodyEnabled = false
+
+// StoreRequestHeadersEnabled controls whether request headers are captured.
+// The Authorization header is always redacted. Defaults to false.
+var StoreRequestHeadersEnabled = false
+
+// StoreResponseHeadersEnabled controls whether response headers are captured.
+// Defaults to false.
+var StoreResponseHeadersEnabled = false
+
+// StoreProviderRequestBodyEnabled captures the request body AFTER format conversion
+// (i.e., the actual JSON sent to the upstream provider). Stored as "provider_request_body"
+// in the consume log's Other JSON. Defaults to false.
+var StoreProviderRequestBodyEnabled = false
+
+// StoreProviderResponseBodyEnabled captures the raw response body FROM the upstream provider
+// BEFORE format conversion back to user format. Only non-streaming. Stored as
+// "provider_response_body" in Other JSON. Defaults to false.
+var StoreProviderResponseBodyEnabled = false
+
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
@@ -173,6 +201,16 @@ var CohereSafetySetting string
 const (
 	RequestIdKey         = "X-Oneapi-Request-Id"
 	UpstreamRequestIdKey = "X-Upstream-Request-Id"
+)
+
+// Context keys for request/response body capture (see middleware/body_log.go).
+const (
+	ContextKeyRequestBody         = "captured_request_body"
+	ContextKeyResponseBody        = "captured_response_body"
+	ContextKeyRequestHdrs         = "captured_request_headers"
+	ContextKeyResponseHdrs        = "captured_response_headers"
+	ContextKeyProviderRequestBody  = "captured_provider_request_body"
+	ContextKeyProviderResponseBody = "captured_provider_response_body"
 )
 
 const (

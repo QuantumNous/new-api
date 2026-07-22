@@ -349,6 +349,24 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
+
+	// Capture request/response bodies from context if the feature is enabled.
+	// The middleware (middleware.HeaderCapture) stores them in
+	// common.ContextKeyRequestBody / common.ContextKeyResponseBody /
+	// common.ContextKeyRequestHdrs / common.ContextKeyResponseHdrs.
+	// Large bodies (> BodyFileThreshold) are written to disk to avoid
+	// bloating the logs table; small bodies are stored inline.
+	if params.Other == nil {
+		params.Other = make(map[string]interface{})
+	}
+	b := bodyCapture{ctx: c, requestId: requestId, other: params.Other}
+	b.storeIfEnabled(common.StoreRequestBodyEnabled, common.ContextKeyRequestBody, "request_body")
+	b.storeIfEnabled(common.StoreResponseBodyEnabled, common.ContextKeyResponseBody, "response_body")
+	b.storeIfEnabled(common.StoreRequestHeadersEnabled, common.ContextKeyRequestHdrs, "request_headers")
+	b.storeIfEnabled(common.StoreResponseHeadersEnabled, common.ContextKeyResponseHdrs, "response_headers")
+	b.storeIfEnabled(common.StoreProviderRequestBodyEnabled, common.ContextKeyProviderRequestBody, "provider_request_body")
+	b.storeIfEnabled(common.StoreProviderResponseBodyEnabled, common.ContextKeyProviderResponseBody, "provider_response_body")
+
 	otherStr := common.MapToJsonStr(params.Other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
@@ -400,6 +418,36 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			ChannelID: params.ChannelId,
 			NodeName:  common.NodeName,
 		})
+	}
+}
+
+// bodyCapture is a thin helper to reduce repetition when reading captured
+// body/header strings from gin.Context and storing them (either inline or on
+// disk) in the consume log's Other map.
+type bodyCapture struct {
+	ctx       *gin.Context
+	requestId string
+	other     map[string]interface{}
+}
+
+func (b *bodyCapture) storeIfEnabled(enabled bool, ctxKey string, otherKey string) {
+	if !enabled {
+		return
+	}
+	val, exists := b.ctx.Get(ctxKey)
+	if !exists {
+		return
+	}
+	switch v := val.(type) {
+	case string:
+		if v == "" {
+			return
+		}
+		b.other[otherKey] = common.StoreBodyOrInline(b.requestId, otherKey, v)
+	case map[string]string:
+		if len(v) > 0 {
+			b.other[otherKey] = v
+		}
 	}
 }
 

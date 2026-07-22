@@ -98,6 +98,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+		if common.StoreProviderResponseBodyEnabled && !info.IsStream && httpResp.Body != nil {
+			if pBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+				httpResp.Body.Close()
+				httpResp.Body = io.NopCloser(bytes.NewReader(pBytes))
+				c.Set(common.ContextKeyProviderResponseBody, string(pBytes))
+			}
+		}
 		if httpResp.StatusCode != http.StatusOK {
 			if httpResp.StatusCode == http.StatusCreated && info.ApiType == constant.APITypeReplicate {
 				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.

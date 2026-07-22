@@ -48,6 +48,12 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap["StoreRequestBodyEnabled"] = strconv.FormatBool(common.StoreRequestBodyEnabled)
+	common.OptionMap["StoreResponseBodyEnabled"] = strconv.FormatBool(common.StoreResponseBodyEnabled)
+	common.OptionMap["StoreRequestHeadersEnabled"] = strconv.FormatBool(common.StoreRequestHeadersEnabled)
+	common.OptionMap["StoreResponseHeadersEnabled"] = strconv.FormatBool(common.StoreResponseHeadersEnabled)
+	common.OptionMap["StoreProviderRequestBodyEnabled"] = strconv.FormatBool(common.StoreProviderRequestBodyEnabled)
+	common.OptionMap["StoreProviderResponseBodyEnabled"] = strconv.FormatBool(common.StoreProviderResponseBodyEnabled)
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -314,6 +320,18 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
+		case "StoreRequestBodyEnabled":
+			common.StoreRequestBodyEnabled = boolValue
+		case "StoreResponseBodyEnabled":
+			common.StoreResponseBodyEnabled = boolValue
+		case "StoreRequestHeadersEnabled":
+			common.StoreRequestHeadersEnabled = boolValue
+		case "StoreResponseHeadersEnabled":
+			common.StoreResponseHeadersEnabled = boolValue
+		case "StoreProviderRequestBodyEnabled":
+			common.StoreProviderRequestBodyEnabled = boolValue
+		case "StoreProviderResponseBodyEnabled":
+			common.StoreProviderResponseBodyEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
 			// true -> USD, false -> TOKENS

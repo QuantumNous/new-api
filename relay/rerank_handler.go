@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -87,6 +88,13 @@ func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
+		if common.StoreProviderResponseBodyEnabled && httpResp.Body != nil {
+			if pBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+				httpResp.Body.Close()
+				httpResp.Body = io.NopCloser(bytes.NewReader(pBytes))
+				c.Set(common.ContextKeyProviderResponseBody, string(pBytes))
+			}
+		}
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码

@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -175,6 +176,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 		logger.LogDebug(c, "text request body: %s", jsonData)
 
+		// Capture provider-format request body (after conversion, param override, etc.)
+		if common.StoreProviderRequestBodyEnabled {
+			c.Set(common.ContextKeyProviderRequestBody, string(jsonData))
+		}
+
 		body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -196,6 +202,15 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+		// Capture provider-format response body for non-streaming responses.
+		// Read the full body, store it, then reset so DoResponse can read it again.
+		if common.StoreProviderResponseBodyEnabled && !info.IsStream && httpResp.Body != nil {
+			if providerRespBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+				httpResp.Body.Close()
+				httpResp.Body = io.NopCloser(bytes.NewReader(providerRespBytes))
+				c.Set(common.ContextKeyProviderResponseBody, string(providerRespBytes))
+			}
+		}
 		if httpResp.StatusCode != http.StatusOK {
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码

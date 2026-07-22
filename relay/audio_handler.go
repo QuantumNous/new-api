@@ -1,8 +1,10 @@
 package relay
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
@@ -53,6 +55,14 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
+		// Capture provider response for non-streaming.
+		if common.StoreProviderResponseBodyEnabled && httpResp.Body != nil {
+			if providerRespBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+				httpResp.Body.Close()
+				httpResp.Body = io.NopCloser(bytes.NewReader(providerRespBytes))
+				c.Set(common.ContextKeyProviderResponseBody, string(providerRespBytes))
+			}
+		}
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码

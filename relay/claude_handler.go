@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -207,6 +208,13 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+		if common.StoreProviderResponseBodyEnabled && !info.IsStream && httpResp.Body != nil {
+			if pBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+				httpResp.Body.Close()
+				httpResp.Body = io.NopCloser(bytes.NewReader(pBytes))
+				c.Set(common.ContextKeyProviderResponseBody, string(pBytes))
+			}
+		}
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码

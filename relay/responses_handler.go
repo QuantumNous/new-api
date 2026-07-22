@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -133,6 +134,13 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
+		if !info.IsStream && common.StoreProviderResponseBodyEnabled && httpResp.Body != nil {
+			if pBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil {
+				httpResp.Body.Close()
+				httpResp.Body = io.NopCloser(bytes.NewReader(pBytes))
+				c.Set(common.ContextKeyProviderResponseBody, string(pBytes))
+			}
+		}
 
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
