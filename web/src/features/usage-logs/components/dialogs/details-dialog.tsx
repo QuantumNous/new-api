@@ -1302,7 +1302,8 @@ function isFileRef(value: string | undefined): boolean {
   return typeof value === 'string' && value.startsWith('file:')
 }
 
-function hasInspectData(other: LogOtherData): boolean {
+function hasInspectData(other: LogOtherData | null): boolean {
+  if (!other) return false
   return !!(
     other.request_headers || other.request_body ||
     other.response_headers || other.response_body ||
