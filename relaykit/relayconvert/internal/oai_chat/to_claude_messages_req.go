@@ -124,8 +124,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 	}
 
 	if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens == 0 {
-		if defaultMaxTokens := uint(opts.Claude.DefaultMaxTokensFor(textRequest.Model)); defaultMaxTokens > 0 {
-			claudeRequest.MaxTokens = &defaultMaxTokens
+		if defaultMaxTokens, configured := opts.Claude.DefaultMaxTokensFor(textRequest.Model); configured {
+			value := uint(defaultMaxTokens)
+			claudeRequest.MaxTokens = &value
 		}
 	}
 

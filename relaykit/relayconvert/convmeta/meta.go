@@ -86,28 +86,87 @@ type Values struct {
 
 var _ Meta = (*Values)(nil)
 
-func (v *Values) GetOriginModelName() string       { return v.OriginModelName }
-func (v *Values) GetUpstreamModelName() string     { return v.UpstreamModelName }
-func (v *Values) HasChannelMeta() bool             { return v.ChannelMetaAttached }
-func (v *Values) GetChannelID() int                { return v.ChannelID }
-func (v *Values) GetChannelType() int              { return v.ChannelType }
-func (v *Values) GetIsStream() bool                { return v.IsStream }
-func (v *Values) GetReasoningEffort() string       { return v.ReasoningEffort }
-func (v *Values) SetReasoningEffort(effort string) { v.ReasoningEffort = effort }
-func (v *Values) GetEstimatePromptTokens() int     { return v.EstimatePromptTokens }
+func (v *Values) GetOriginModelName() string {
+	if v == nil {
+		return ""
+	}
+	return v.OriginModelName
+}
+
+func (v *Values) GetUpstreamModelName() string {
+	if v == nil {
+		return ""
+	}
+	return v.UpstreamModelName
+}
+
+func (v *Values) HasChannelMeta() bool {
+	return v != nil && v.ChannelMetaAttached
+}
+
+func (v *Values) GetChannelID() int {
+	if v == nil {
+		return 0
+	}
+	return v.ChannelID
+}
+
+func (v *Values) GetChannelType() int {
+	if v == nil {
+		return 0
+	}
+	return v.ChannelType
+}
+
+func (v *Values) GetIsStream() bool {
+	return v != nil && v.IsStream
+}
+
+func (v *Values) GetReasoningEffort() string {
+	if v == nil {
+		return ""
+	}
+	return v.ReasoningEffort
+}
+
+func (v *Values) SetReasoningEffort(effort string) {
+	if v != nil {
+		v.ReasoningEffort = effort
+	}
+}
+
+func (v *Values) GetEstimatePromptTokens() int {
+	if v == nil {
+		return 0
+	}
+	return v.EstimatePromptTokens
+}
 
 func (v *Values) EnsureClaudeConvertInfo() *ClaudeConvertInfo {
+	if v == nil {
+		return &ClaudeConvertInfo{LastMessagesType: LastMessageTypeNone}
+	}
 	if v.ClaudeConvertInfo == nil {
 		v.ClaudeConvertInfo = &ClaudeConvertInfo{LastMessagesType: LastMessageTypeNone}
 	}
 	return v.ClaudeConvertInfo
 }
 
-func (v *Values) GetSendResponseCount() int { return v.SendResponseCount }
-func (v *Values) IncrSendResponseCount()    { v.SendResponseCount++ }
+func (v *Values) GetSendResponseCount() int {
+	if v == nil {
+		return 0
+	}
+	return v.SendResponseCount
+}
+
+func (v *Values) IncrSendResponseCount() {
+	if v != nil {
+		v.SendResponseCount++
+	}
+}
 
 func (v *Values) AppendRequestConversion(format types.RelayFormat) {
-	if format == "" {
+	if v == nil || format == "" {
 		return
 	}
 	if n := len(v.ConversionChain); n > 0 && v.ConversionChain[n-1] == format {
@@ -117,6 +176,9 @@ func (v *Values) AppendRequestConversion(format types.RelayFormat) {
 }
 
 func (v *Values) ConvOptions() *Options {
+	if v == nil {
+		return &Options{}
+	}
 	if v.Options == nil {
 		v.Options = &Options{}
 	}

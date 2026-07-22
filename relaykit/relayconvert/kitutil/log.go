@@ -7,14 +7,15 @@ import (
 )
 
 // Kit packages log rare data-shape anomalies through these hooks. The host
-// redirects them into its logging system at startup (new-api points them at
-// common.SysLog/SysError); standalone relaykit users get stderr defaults.
+// redirects them into its logging system at startup; standalone relaykit users
+// get stderr defaults.
 
 type LogFunc func(message string)
 
 var (
-	logInfo  atomic.Pointer[LogFunc]
-	logError atomic.Pointer[LogFunc]
+	logInfo        atomic.Pointer[LogFunc]
+	logError       atomic.Pointer[LogFunc]
+	logSystemError atomic.Pointer[LogFunc]
 )
 
 func SetLogging(info LogFunc, errorFn LogFunc) {
@@ -23,6 +24,13 @@ func SetLogging(info LogFunc, errorFn LogFunc) {
 	}
 	if errorFn != nil {
 		logError.Store(&errorFn)
+	}
+}
+
+// SetSystemErrorLogging configures the hook for internal converter failures.
+func SetSystemErrorLogging(errorFn LogFunc) {
+	if errorFn != nil {
+		logSystemError.Store(&errorFn)
 	}
 }
 
@@ -40,6 +48,16 @@ func LogError(message string) {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "[relaykit] ERROR %s\n", message)
+}
+
+// LogSystemError reports an internal converter failure through its dedicated
+// hook, keeping it distinct from malformed request-data diagnostics.
+func LogSystemError(message string) {
+	if fn := logSystemError.Load(); fn != nil {
+		(*fn)(message)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[relaykit] SYSTEM ERROR %s\n", message)
 }
 
 // Debug reports whether verbose kit diagnostics are enabled. The host sets

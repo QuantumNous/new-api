@@ -47,6 +47,10 @@ var indexPage []byte
 
 func main() {
 	startTime := time.Now()
+	kitutil.SetLogging(common.SysLog, func(message string) {
+		logger.LogError(nil, message)
+	})
+	kitutil.SetSystemErrorLogging(common.SysError)
 
 	err := InitResources()
 	if err != nil {
@@ -62,8 +66,6 @@ func main() {
 		common.SysLog("running in debug mode")
 	}
 
-	// Route conversion-kit diagnostics into the host logger.
-	kitutil.SetLogging(common.SysLog, common.SysError)
 	kitutil.Debug.Store(common.DebugEnabled)
 
 	defer func() {

@@ -50,11 +50,11 @@ type GeminiOptions struct {
 	SafetySetting func(category string) string
 }
 
-func (o *ClaudeOptions) DefaultMaxTokensFor(modelName string) int {
+func (o *ClaudeOptions) DefaultMaxTokensFor(modelName string) (int, bool) {
 	if o == nil || o.DefaultMaxTokens == nil {
-		return 0
+		return 0, false
 	}
-	return o.DefaultMaxTokens(modelName)
+	return o.DefaultMaxTokens(modelName), true
 }
 
 func (o *GeminiOptions) SupportsImagineModel(modelName string) bool {

@@ -41,8 +41,9 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		claudeRequest.MaxTokens = kitutil.GetPointer(*req.MaxOutputTokens)
 	}
 	if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens == 0 {
-		if defaultMaxTokens := uint(convmeta.OptionsOf(info).Claude.DefaultMaxTokensFor(req.Model)); defaultMaxTokens > 0 {
-			claudeRequest.MaxTokens = &defaultMaxTokens
+		if defaultMaxTokens, configured := convmeta.OptionsOf(info).Claude.DefaultMaxTokensFor(req.Model); configured {
+			value := uint(defaultMaxTokens)
+			claudeRequest.MaxTokens = &value
 		}
 	}
 

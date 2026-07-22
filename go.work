@@ -1,6 +1,0 @@
-go 1.25.1
-
-use (
-	.
-	./relaykit
-)

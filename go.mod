@@ -163,4 +163,6 @@ require (
 	modernc.org/sqlite v1.40.1 // indirect
 )
 
-require github.com/QuantumNous/new-api/relaykit v0.0.0-20260721064016-355a5f76b1d8
+require github.com/QuantumNous/new-api/relaykit v0.0.0
+
+replace github.com/QuantumNous/new-api/relaykit => ./relaykit

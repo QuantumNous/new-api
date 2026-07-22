@@ -655,10 +655,16 @@ func GenRelayInfoResponsesCompaction(c *gin.Context, request *dto.OpenAIResponse
 //}
 
 func (info *RelayInfo) SetEstimatePromptTokens(promptTokens int) {
+	if info == nil {
+		return
+	}
 	info.estimatePromptTokens = promptTokens
 }
 
 func (info *RelayInfo) GetEstimatePromptTokens() int {
+	if info == nil {
+		return 0
+	}
 	return info.estimatePromptTokens
 }
 
@@ -669,37 +675,60 @@ func (info *RelayInfo) GetEstimatePromptTokens() int {
 
 var _ convmeta.Meta = (*RelayInfo)(nil)
 
-func (info *RelayInfo) GetOriginModelName() string { return info.OriginModelName }
+func (info *RelayInfo) GetOriginModelName() string {
+	if info == nil {
+		return ""
+	}
+	return info.OriginModelName
+}
 
 func (info *RelayInfo) GetUpstreamModelName() string {
-	if info.ChannelMeta == nil {
+	if info == nil || info.ChannelMeta == nil {
 		return ""
 	}
 	return info.UpstreamModelName
 }
 
-func (info *RelayInfo) HasChannelMeta() bool { return info.ChannelMeta != nil }
+func (info *RelayInfo) HasChannelMeta() bool { return info != nil && info.ChannelMeta != nil }
 
 func (info *RelayInfo) GetChannelID() int {
-	if info.ChannelMeta == nil {
+	if info == nil || info.ChannelMeta == nil {
 		return 0
 	}
 	return info.ChannelId
 }
 
 func (info *RelayInfo) GetChannelType() int {
-	if info.ChannelMeta == nil {
+	if info == nil || info.ChannelMeta == nil {
 		return 0
 	}
 	return info.ChannelType
 }
 
-func (info *RelayInfo) GetIsStream() bool          { return info.IsStream }
-func (info *RelayInfo) GetReasoningEffort() string { return info.ReasoningEffort }
+func (info *RelayInfo) GetIsStream() bool {
+	return info != nil && info.IsStream
+}
 
-func (info *RelayInfo) SetReasoningEffort(effort string) { info.ReasoningEffort = effort }
+func (info *RelayInfo) GetReasoningEffort() string {
+	if info == nil {
+		return ""
+	}
+	return info.ReasoningEffort
+}
+
+func (info *RelayInfo) SetReasoningEffort(effort string) {
+	if info == nil {
+		return
+	}
+	info.ReasoningEffort = effort
+}
 
 func (info *RelayInfo) EnsureClaudeConvertInfo() *convmeta.ClaudeConvertInfo {
+	if info == nil {
+		return &convmeta.ClaudeConvertInfo{
+			LastMessagesType: convmeta.LastMessageTypeNone,
+		}
+	}
 	if info.ClaudeConvertInfo == nil {
 		info.ClaudeConvertInfo = &convmeta.ClaudeConvertInfo{
 			LastMessagesType: convmeta.LastMessageTypeNone,
@@ -708,33 +737,49 @@ func (info *RelayInfo) EnsureClaudeConvertInfo() *convmeta.ClaudeConvertInfo {
 	return info.ClaudeConvertInfo
 }
 
-func (info *RelayInfo) GetSendResponseCount() int { return info.SendResponseCount }
-func (info *RelayInfo) IncrSendResponseCount()    { info.SendResponseCount++ }
+func (info *RelayInfo) GetSendResponseCount() int {
+	if info == nil {
+		return 0
+	}
+	return info.SendResponseCount
+}
+
+func (info *RelayInfo) IncrSendResponseCount() {
+	if info == nil {
+		return
+	}
+	info.SendResponseCount++
+}
 
 // ConvOptions snapshots host settings for the converters. Rebuilt on each
 // call site's first use; cached so one relay session sees one snapshot.
 func (info *RelayInfo) ConvOptions() *convmeta.Options {
-	if info.convOptions == nil {
-		claudeSettings := model_setting.GetClaudeSettings()
-		geminiSettings := model_setting.GetGeminiSettings()
-		info.convOptions = &convmeta.Options{
-			Claude: convmeta.ClaudeOptions{
-				ThinkingAdapterEnabled:                claudeSettings.ThinkingAdapterEnabled,
-				ThinkingAdapterBudgetTokensPercentage: claudeSettings.ThinkingAdapterBudgetTokensPercentage,
-				DefaultMaxTokens:                      claudeSettings.GetDefaultMaxTokens,
-			},
-			Gemini: convmeta.GeminiOptions{
-				ThinkingAdapterEnabled:                geminiSettings.ThinkingAdapterEnabled,
-				ThinkingAdapterBudgetTokensPercentage: geminiSettings.ThinkingAdapterBudgetTokensPercentage,
-				FunctionCallThoughtSignatureEnabled:   geminiSettings.FunctionCallThoughtSignatureEnabled,
-				SupportsImagine:                       model_setting.IsGeminiModelSupportImagine,
-				SafetySetting:                         model_setting.GetGeminiSafetySetting,
-			},
-			OpenRouterDialect:      info.GetChannelType() == constant.ChannelTypeOpenRouter,
-			PreserveThinkingSuffix: model_setting.ShouldPreserveThinkingSuffix,
-		}
+	if info != nil && info.convOptions != nil {
+		return info.convOptions
 	}
-	return info.convOptions
+
+	claudeSettings := model_setting.GetClaudeSettings()
+	geminiSettings := model_setting.GetGeminiSettings()
+	options := &convmeta.Options{
+		Claude: convmeta.ClaudeOptions{
+			ThinkingAdapterEnabled:                claudeSettings.ThinkingAdapterEnabled,
+			ThinkingAdapterBudgetTokensPercentage: claudeSettings.ThinkingAdapterBudgetTokensPercentage,
+			DefaultMaxTokens:                      claudeSettings.GetDefaultMaxTokens,
+		},
+		Gemini: convmeta.GeminiOptions{
+			ThinkingAdapterEnabled:                geminiSettings.ThinkingAdapterEnabled,
+			ThinkingAdapterBudgetTokensPercentage: geminiSettings.ThinkingAdapterBudgetTokensPercentage,
+			FunctionCallThoughtSignatureEnabled:   geminiSettings.FunctionCallThoughtSignatureEnabled,
+			SupportsImagine:                       model_setting.IsGeminiModelSupportImagine,
+			SafetySetting:                         model_setting.GetGeminiSafetySetting,
+		},
+		OpenRouterDialect:      info != nil && info.GetChannelType() == constant.ChannelTypeOpenRouter,
+		PreserveThinkingSuffix: model_setting.ShouldPreserveThinkingSuffix,
+	}
+	if info != nil {
+		info.convOptions = options
+	}
+	return options
 }
 
 func (info *RelayInfo) SetFirstResponseTime() {
