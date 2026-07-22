@@ -1,0 +1,11 @@
+{
+  "slug": "demo-skill-cases",
+  "testcases": [
+    {
+      "id": 1,
+      "question": "Show a minimal example.",
+      "answer": "# Example\n\nThis is a sample answer rendered as Markdown.",
+      "sortOrder": 0
+    }
+  ]
+}

@@ -7,12 +7,14 @@
     "author": "Skill Team",
     "origin": "Clawhub",
     "originUrl": "https://clawhub.ai/skills/demo-skill",
+    "license": "MIT",
     "tags": ["Developer Tools", "Agent"],
     "verified": true,
     "recommended": false,
     "sort": 10,
     "zip": "./packages/demo-skill.zip",
-    "icon": "./icons/demo-skill.png"
+    "icon": "./icons/demo-skill.png",
+    "testcases": "./testcases/demo-skill.json"
   },
   {
     "id": "code-review",

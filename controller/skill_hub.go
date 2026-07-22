@@ -90,7 +90,7 @@ type skillHubExportManifestItem struct {
 	Zip         string                    `json:"zip"`
 	Icon        string                    `json:"icon,omitempty"`
 	Evaluation  *model.SkillHubEvaluation `json:"evaluation,omitempty"`
-	Testcases   *model.SkillHubTestcases  `json:"testcases,omitempty"`
+	Testcases   string                    `json:"testcases,omitempty"`
 }
 
 func ListSkillHubSkills(c *gin.Context) {
@@ -632,12 +632,18 @@ func AdminBatchExportSkillHubSkills(c *gin.Context) {
 			skillHubExportError(c, fmt.Errorf("failed to export skill %s testcases: %w", skill.SkillID, parseErr))
 			return
 		}
+		testcasesPath, writeErr := addSkillHubExportTestcases(archive, skill.SkillID, testcases)
+		if writeErr != nil {
+			_ = archive.Close()
+			skillHubExportError(c, fmt.Errorf("failed to export skill %s testcases: %w", skill.SkillID, writeErr))
+			return
+		}
 		item := skillHubExportManifestItem{
 			ID: skill.SkillID, Name: skill.Name, Description: skill.Description,
 			Version: skill.Version, Author: skill.Author, Origin: skill.Origin, OriginURL: skill.OriginURL, License: skill.License,
 			Tags:     model.StringListFromJSON(skill.Tags),
 			Verified: skill.Verified, Recommended: skill.Recommended, Sort: skill.Sort,
-			Zip: "./" + zipPath, Evaluation: evaluation, Testcases: testcases,
+			Zip: "./" + zipPath, Evaluation: evaluation, Testcases: testcasesPath,
 		}
 		if strings.TrimSpace(skill.Icon) != "" {
 			reader, ext, openErr := service.OpenSkillHubIconObject(skill.Icon)
@@ -722,6 +728,25 @@ func addSkillHubExportZip(archive *zip.Writer, name string, objectKey string) er
 		return err
 	}
 	return copySkillHubExportFile(archive, name, reader)
+}
+
+func addSkillHubExportTestcases(archive *zip.Writer, skillID string, testcases *model.SkillHubTestcases) (string, error) {
+	if testcases == nil {
+		return "", nil
+	}
+	data, err := common.Marshal(testcases)
+	if err != nil {
+		return "", err
+	}
+	testcasesPath := "testcases/" + skillID + ".json"
+	writer, err := archive.Create(testcasesPath)
+	if err != nil {
+		return "", err
+	}
+	if _, err := writer.Write(data); err != nil {
+		return "", err
+	}
+	return "./" + testcasesPath, nil
 }
 
 func copySkillHubExportFile(archive *zip.Writer, name string, reader io.ReadCloser) error {

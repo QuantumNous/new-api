@@ -177,6 +177,14 @@ Skill 名称必填，去除首尾空白后最多 100 个 Unicode 字符；后台
 
 客户端用 Markdown 渲染 `skillMarkdown` 和案例回答，但不启用原始 HTML，并限制链接和图片协议，防止脚本或本地文件 URL 被执行或打开。
 
+## 批量导入与导出
+
+批量上传脚本的 manifest 使用本地文件路径引用 Zip、图标和案例文件。`testcases` 字段应填写本地 `.json` 文件路径；脚本会按 manifest 所在目录解析相对路径，在联网前完成 2 MB 大小限制和案例结构校验，再将解析后的对象提交给管理接口。管理接口本身仍使用 `SkillHubTestcases` JSON 对象，不接受本地路径或远程 URL。
+
+批量上传时，manifest 的 `sort` 为 `0` 或省略时，请求会写入 `1000000`，使未显式排序的批量导入项默认位于列表后部；其他整数保持不变。该转换只属于批量上传脚本，管理接口和后台表单仍按提交值保存。
+
+后台批量导出的 ZIP 包包含 `manifest.json`、`packages/`、可选的 `icons/`，以及可选的 `testcases/`。每个有案例的 Skill 会生成 `testcases/<skill-id>.json`，manifest 通过相对路径引用该文件，因此导出包解压后可直接交给批量上传脚本重新导入。
+
 ## 举报通知
 
 管理员在系统设置的 SMTP 区域配置 `SkillHubReportEmail`（Skill 举报接收邮箱）后，技能详情会开放举报入口。举报接口要求登录，并按用户限制为每小时 5 次；描述必填，最多 1000 个字符。
@@ -401,6 +409,8 @@ GET /api/skill-hub/tags/skills?tag_ids=1,2&p=1&page_size=20
 | `PUT /api/admin/skill-hub/reports/:id`             | 管理员 | 使用 `revision` 乐观锁更新处理状态和处理备注                       |
 | `GET /api/admin/skill-hub/skills`                  | 管理员 | 分页搜索后台 Skill 列表，支持 `keyword`、`p`、`page_size`         |
 | `POST /api/admin/skill-hub/skills`                 | 管理员 | 新建 Skill                                                        |
+| `POST /api/admin/skill-hub/skills/batch-delete`    | 管理员 | 批量删除 1 至 200 个 Skill 及其关联 OSS 对象                      |
+| `POST /api/admin/skill-hub/skills/batch-export`    | 管理员 | 导出可再次批量导入的 ZIP，包含包、图标、案例文件和 manifest       |
 | `GET /api/admin/skill-hub/skills/:id`              | 管理员 | 获取后台 Skill 详情                                               |
 | `PUT /api/admin/skill-hub/skills/:id`              | 管理员 | 更新 Skill，保存成功后清理被替换的旧 OSS 对象                     |
 | `DELETE /api/admin/skill-hub/skills/:id`           | 管理员 | 删除 Skill，并 best-effort 删除关联 OSS 对象                      |

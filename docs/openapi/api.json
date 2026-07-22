@@ -5677,7 +5677,7 @@
     "/api/admin/skill-hub/skills/batch-export": {
       "post": {
         "summary": "批量导出技能",
-        "description": "需要管理员权限。将真实技能 ZIP、图标文件和 manifest.json 打包为可再次批量导入的 ZIP。一次可导出 1 至 200 个技能。",
+        "description": "需要管理员权限。将真实技能 ZIP、图标文件、独立 testcases JSON 文件和 manifest.json 打包为可再次批量导入的 ZIP；manifest 通过相对路径引用案例文件。一次可导出 1 至 200 个技能。",
         "tags": [
           "技能广场管理"
         ],

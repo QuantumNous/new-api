@@ -23,14 +23,17 @@ const fsp = require("node:fs/promises");
 const http = require("node:http");
 const https = require("node:https");
 const path = require("node:path");
+const { TextDecoder } = require("node:util");
 const { URL } = require("node:url");
 
 const ZIP_MAX_BYTES = 50 * 1024 * 1024;
 const ICON_MAX_BYTES = 1024 * 1024;
+const TESTCASES_MAX_BYTES = 2 * 1024 * 1024;
 const SKILL_NAME_MAX_CHARACTERS = 100;
-const SKILL_ID_PATTERN = /^[a-z][a-z-]{0,127}$/;
+const SKILL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const VALID_MODES = new Set(["skip", "update", "fail"]);
 const EVALUATION_DIMENSIONS = ["safety", "access", "frontier", "economy"];
+const DEFAULT_UPLOAD_SORT = 1_000_000;
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -232,19 +235,33 @@ async function readManifest(manifestPath) {
       : Array.isArray(parsed.skills)
         ? parsed.skills
         : [parsed];
-    return items.map((item, index) => normalizeEntry(item, index + 1, baseDir));
+    const entries = [];
+    for (let index = 0; index < items.length; index += 1) {
+      entries.push(await normalizeEntry(items[index], index + 1, baseDir));
+    }
+    return entries;
   }
 
-  return text
+  const items = text
     .split(/\r?\n/)
     .map((line, lineIndex) => ({ line: line.trim(), lineIndex: lineIndex + 1 }))
-    .filter((item) => item.line !== "")
-    .map((item, index) =>
-      normalizeEntry(JSON.parse(item.line), index + 1, baseDir, item.lineIndex),
+    .filter((item) => item.line !== "");
+  const entries = [];
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    entries.push(
+      await normalizeEntry(
+        JSON.parse(item.line),
+        index + 1,
+        baseDir,
+        item.lineIndex,
+      ),
     );
+  }
+  return entries;
 }
 
-function normalizeEntry(raw, index, baseDir, sourceLine) {
+async function normalizeEntry(raw, index, baseDir, sourceLine) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return {
       index,
@@ -260,13 +277,55 @@ function normalizeEntry(raw, index, baseDir, sourceLine) {
     raw.packagePath,
   );
   const iconValue = firstString(raw.icon, raw.iconPath);
+  const rawTestcases = Object.prototype.hasOwnProperty.call(raw, "testcases")
+    ? raw.testcases
+    : raw.testcasesPath;
   let tags = [];
-  let tagError = null;
+  let verified = false;
+  let recommended = false;
+  let sort = 0;
+  let evaluation = null;
+  const entryErrors = [];
   try {
     tags = normalizeTags(raw.tags);
   } catch (error) {
     tags = [];
-    tagError = error;
+    entryErrors.push(error.message || String(error));
+  }
+  try {
+    verified = normalizeBoolean(raw.verified, "verified");
+  } catch (error) {
+    entryErrors.push(error.message || String(error));
+  }
+  try {
+    recommended = normalizeBoolean(raw.recommended, "recommended");
+  } catch (error) {
+    entryErrors.push(error.message || String(error));
+  }
+  try {
+    sort = normalizeSort(raw.sort);
+  } catch (error) {
+    entryErrors.push(error.message || String(error));
+  }
+  try {
+    evaluation = normalizeEvaluation(raw.evaluation ?? null);
+  } catch (error) {
+    entryErrors.push(error.message || String(error));
+  }
+
+  let testcasesPath = "";
+  if (
+    rawTestcases !== undefined &&
+    rawTestcases !== null &&
+    rawTestcases !== ""
+  ) {
+    if (typeof rawTestcases !== "string") {
+      entryErrors.push("testcases must be a local JSON file path or null");
+    } else if (isHTTPURLReference(rawTestcases)) {
+      entryErrors.push("testcases must be a local JSON file path, not a URL");
+    } else {
+      testcasesPath = resolveManifestPath(baseDir, rawTestcases);
+    }
   }
 
   const entry = {
@@ -281,21 +340,22 @@ function normalizeEntry(raw, index, baseDir, sourceLine) {
     origin: cleanString(raw.origin || raw.sourceName),
     originUrl: cleanString(raw.originUrl || raw.sourceProjectUrl),
     license: cleanString(raw.license),
-    evaluation: raw.evaluation ?? null,
-    testcases: raw.testcases ?? null,
+    evaluation,
+    testcases: null,
+    testcasesPath,
     tags,
-    verified: Boolean(raw.verified),
-    recommended: Boolean(raw.recommended),
-    sort: normalizeSort(raw.sort),
+    verified,
+    recommended,
+    sort,
     published: true,
     zipPath: zipValue ? resolveManifestPath(baseDir, zipValue) : "",
     iconPath: iconValue ? resolveManifestPath(baseDir, iconValue) : "",
-    errors: [],
+    errors: entryErrors,
   };
 
   if (!entry.id) entry.errors.push("id is required");
   if (entry.id && !SKILL_ID_PATTERN.test(entry.id)) {
-    entry.errors.push("id must match /^[a-z][a-z-]{0,127}$/");
+    entry.errors.push("id must match /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/");
   }
   if (!entry.name) {
     entry.errors.push("name is required");
@@ -322,48 +382,51 @@ function normalizeEntry(raw, index, baseDir, sourceLine) {
   if (Array.from(entry.license).length > 128) {
     entry.errors.push("license must be 128 characters or fewer");
   }
-  const evaluationError = validateEvaluation(entry.evaluation);
-  if (evaluationError) entry.errors.push(evaluationError);
-  if (
-    entry.testcases !== null &&
-    (!entry.testcases ||
-      typeof entry.testcases !== "object" ||
-      Array.isArray(entry.testcases))
-  ) {
-    entry.errors.push("testcases must be an object or null");
-  }
-  if (tagError) {
-    entry.errors.push(tagError.message || String(tagError));
-  }
   if (!zipValue) entry.errors.push("zip is required");
-  if (zipValue && isHttpURL(zipValue)) {
+  if (zipValue && isHTTPURLReference(zipValue)) {
     entry.errors.push("zip must be a local file path, not a URL");
   }
-  if (iconValue && isHttpURL(iconValue)) {
+  if (iconValue && isHTTPURLReference(iconValue)) {
     entry.errors.push(
       "icon must be a local file path; omit icon or set it to an empty string to clear it during update",
     );
+  }
+  if (entry.testcasesPath) {
+    try {
+      entry.testcases = await readTestcasesFile(entry.testcasesPath);
+    } catch (error) {
+      entry.errors.push(error.message || String(error));
+    }
   }
 
   return entry;
 }
 
-function validateEvaluation(evaluation) {
-  if (evaluation === null) return "";
-  if (!evaluation || typeof evaluation !== "object" || Array.isArray(evaluation)) {
-    return "evaluation must be an object or null";
+function normalizeEvaluation(evaluation) {
+  if (evaluation === null) return null;
+  if (
+    !evaluation ||
+    typeof evaluation !== "object" ||
+    Array.isArray(evaluation)
+  ) {
+    throw new Error("evaluation must be an object or null");
   }
   if (
     !evaluation.dimensions ||
     typeof evaluation.dimensions !== "object" ||
     Array.isArray(evaluation.dimensions)
   ) {
-    return "evaluation.dimensions must be an object";
+    throw new Error("evaluation.dimensions must be an object");
   }
+  const dimensions = {};
   for (const key of EVALUATION_DIMENSIONS) {
     const dimension = evaluation.dimensions[key];
-    if (!dimension || typeof dimension !== "object" || Array.isArray(dimension)) {
-      return `evaluation.dimensions.${key} is required`;
+    if (
+      !dimension ||
+      typeof dimension !== "object" ||
+      Array.isArray(dimension)
+    ) {
+      throw new Error(`evaluation.dimensions.${key} is required`);
     }
     if (
       typeof dimension.score !== "number" ||
@@ -371,19 +434,156 @@ function validateEvaluation(evaluation) {
       dimension.score < 0 ||
       dimension.score > 5
     ) {
-      return `evaluation.dimensions.${key}.score must be between 0 and 5`;
+      throw new Error(
+        `evaluation.dimensions.${key}.score must be between 0 and 5`,
+      );
     }
+    const review = normalizeOptionalString(
+      dimension.review,
+      `evaluation.dimensions.${key}.review`,
+    );
+    if (Array.from(review).length > 4000) {
+      throw new Error(
+        `evaluation.dimensions.${key}.review must be 4000 characters or fewer`,
+      );
+    }
+    dimensions[key] = { score: dimension.score, review };
   }
   if (
     evaluation.overallScore !== undefined &&
+    evaluation.overallScore !== null &&
     (typeof evaluation.overallScore !== "number" ||
       !Number.isFinite(evaluation.overallScore) ||
       evaluation.overallScore < 0 ||
       evaluation.overallScore > 5)
   ) {
-    return "evaluation.overallScore must be between 0 and 5";
+    throw new Error("evaluation.overallScore must be between 0 and 5");
   }
-  return "";
+  const overallRating = normalizeOptionalString(
+    evaluation.overallRating,
+    "evaluation.overallRating",
+  );
+  if (Array.from(overallRating).length > 80) {
+    throw new Error("evaluation.overallRating must be 80 characters or fewer");
+  }
+  const overallReview = normalizeOptionalString(
+    evaluation.overallReview,
+    "evaluation.overallReview",
+  );
+  if (Array.from(overallReview).length > 8000) {
+    throw new Error(
+      "evaluation.overallReview must be 8000 characters or fewer",
+    );
+  }
+  return {
+    overallScore: evaluation.overallScore ?? null,
+    overallRating,
+    overallReview,
+    dimensions,
+  };
+}
+
+async function readTestcasesFile(filePath) {
+  if (path.extname(filePath).toLowerCase() !== ".json") {
+    throw new Error(`testcases file extension must be .json: ${filePath}`);
+  }
+  let stat;
+  try {
+    stat = await fsp.stat(filePath);
+  } catch {
+    throw new Error(`testcases file does not exist: ${filePath}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`testcases path is not a file: ${filePath}`);
+  }
+  if (stat.size <= 0) {
+    throw new Error(`testcases file is empty: ${filePath}`);
+  }
+  if (stat.size > TESTCASES_MAX_BYTES) {
+    throw new Error(
+      `testcases file is too large: ${filePath} (${stat.size} bytes)`,
+    );
+  }
+  const data = await fsp.readFile(filePath);
+  if (data.byteLength > TESTCASES_MAX_BYTES) {
+    throw new Error(
+      `testcases file is too large: ${filePath} (${data.byteLength} bytes)`,
+    );
+  }
+  let content;
+  try {
+    content = new TextDecoder("utf-8", { fatal: true })
+      .decode(data)
+      .replace(/^\uFEFF/, "");
+  } catch {
+    throw new Error(`testcases file must use UTF-8 encoding: ${filePath}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    throw new Error(
+      `testcases file contains invalid JSON: ${filePath}: ${error.message || error}`,
+    );
+  }
+  return normalizeTestcases(parsed);
+}
+
+function normalizeTestcases(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("testcases JSON must be an object");
+  }
+  if (typeof value.slug !== "string") {
+    throw new Error("testcases.slug must be a string");
+  }
+  const slug = value.slug.trim();
+  if (Array.from(slug).length > 256) {
+    throw new Error("testcases.slug must be 256 characters or fewer");
+  }
+  if (!Array.isArray(value.testcases)) {
+    throw new Error("testcases.testcases must be an array");
+  }
+  if (value.testcases.length > 50) {
+    throw new Error("testcases must contain 50 cases or fewer");
+  }
+  const testcases = value.testcases.map((item, index) => {
+    const label = `testcases.testcases[${index}]`;
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`${label} must be an object`);
+    }
+    if (!Number.isSafeInteger(item.id)) {
+      throw new Error(`${label}.id must be a safe integer`);
+    }
+    if (!Number.isSafeInteger(item.sortOrder)) {
+      throw new Error(`${label}.sortOrder must be a safe integer`);
+    }
+    if (typeof item.question !== "string" || !item.question.trim()) {
+      throw new Error(`${label}.question is required`);
+    }
+    if (typeof item.answer !== "string" || !item.answer.trim()) {
+      throw new Error(`${label}.answer is required`);
+    }
+    const question = item.question.trim();
+    const answer = item.answer.trim();
+    if (Array.from(question).length > 10000) {
+      throw new Error(`${label}.question must be 10000 characters or fewer`);
+    }
+    if (Array.from(answer).length > 250000) {
+      throw new Error(`${label}.answer must be 250000 characters or fewer`);
+    }
+    return {
+      id: item.id,
+      question,
+      answer,
+      sortOrder: item.sortOrder,
+    };
+  });
+  const normalized = { slug, testcases };
+  const encodedSize = Buffer.byteLength(JSON.stringify(normalized), "utf8");
+  if (encodedSize > TESTCASES_MAX_BYTES) {
+    throw new Error("testcases JSON must be 2 MB or smaller");
+  }
+  return normalized;
 }
 
 function validateEntries(entries) {
@@ -493,8 +693,11 @@ async function processEntry(entry, options) {
     id: entry.id,
     status: "",
     action: "",
+    sort: entry.sort,
+    uploadSort: resolveUploadSort(entry.sort),
     zipPath: entry.zipPath,
     iconPath: entry.iconPath || "",
+    testcases: compactTestcases(entry),
   };
 
   try {
@@ -562,7 +765,7 @@ async function processEntry(entry, options) {
         action,
         zip: compactUpload(zipUpload.result),
         icon: iconUpload ? compactUpload(iconUpload.result) : undefined,
-        skill: response.data,
+        skill: compactSkillResponse(response.data),
       };
     } catch (error) {
       await cleanupTickets(uploadTickets, options);
@@ -651,7 +854,7 @@ function buildSkillPayload(entry, zipUpload, iconUpload) {
     verified: entry.verified,
     recommended: entry.recommended,
     published: true,
-    sort: entry.sort,
+    sort: resolveUploadSort(entry.sort),
     evaluation: entry.evaluation,
     testcases: entry.testcases,
     source: {
@@ -822,20 +1025,27 @@ async function runWithConcurrency(entries, options, worker) {
 
 function normalizeTags(value) {
   if (value === undefined || value === null || value === "") return [];
-  const rawValues = Array.isArray(value)
-    ? value
-    : String(value).split(/[,\uFF0C\r\n]/);
+  if (!Array.isArray(value) && typeof value !== "string") {
+    throw new Error("tags must be an array of names or a delimited string");
+  }
+  const rawValues = Array.isArray(value) ? value : value.split(/[,\uFF0C\r\n]/);
   const tags = [];
   const seen = new Set();
 
   for (const raw of rawValues) {
-    if (typeof raw === "number") {
-      throw new Error("tags must be names, not numeric IDs");
+    if (typeof raw !== "string") {
+      throw new Error("tags must contain string names, not IDs or objects");
     }
-    const tag = String(raw || "").trim();
+    const tag = raw.trim();
     if (!tag) continue;
     if (/^\d+$/.test(tag)) {
       throw new Error(`tag "${tag}" looks like an ID; tags must be names`);
+    }
+    if (Array.from(tag).length > 40) {
+      throw new Error(`tag "${tag}" must be 40 characters or fewer`);
+    }
+    if (/[\\/]/.test(tag)) {
+      throw new Error(`tag "${tag}" cannot contain slashes`);
     }
     const key = tag.toLowerCase();
     if (seen.has(key)) continue;
@@ -848,9 +1058,30 @@ function normalizeTags(value) {
 
 function normalizeSort(value) {
   if (value === undefined || value === null || value === "") return 0;
-  const number = Number(value);
-  if (!Number.isFinite(number)) return 0;
-  return Math.trunc(number);
+  if (!Number.isSafeInteger(value)) {
+    throw new Error("sort must be a safe integer");
+  }
+  return value;
+}
+
+function resolveUploadSort(value) {
+  return value === 0 ? DEFAULT_UPLOAD_SORT : value;
+}
+
+function normalizeBoolean(value, name) {
+  if (value === undefined || value === null) return false;
+  if (typeof value !== "boolean") {
+    throw new Error(`${name} must be a boolean`);
+  }
+  return value;
+}
+
+function normalizeOptionalString(value, name) {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string") {
+    throw new Error(`${name} must be a string`);
+  }
+  return value.trim();
 }
 
 function resolveManifestPath(baseDir, value) {
@@ -887,6 +1118,15 @@ function isHttpURL(value) {
   }
 }
 
+function isHTTPURLReference(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function formatAuthorization(token) {
   const value = String(token || "").trim();
   return `Bearer ${value.replace(/^bearer\s+/i, "")}`;
@@ -906,6 +1146,25 @@ function compactUpload(upload) {
     size: upload.size,
     checksum: upload.checksum,
   };
+}
+
+function compactTestcases(entry) {
+  if (!entry.testcases || !entry.testcasesPath) return undefined;
+  return {
+    path: entry.testcasesPath,
+    slug: entry.testcases.slug,
+    count: entry.testcases.testcases.length,
+  };
+}
+
+function compactSkillResponse(skill) {
+  if (!skill || typeof skill !== "object" || Array.isArray(skill)) return skill;
+  const {
+    skillMarkdown: _skillMarkdown,
+    testcases: _testcases,
+    ...summary
+  } = skill;
+  return summary;
 }
 
 function createReport(options, manifestPath, entries) {
@@ -969,7 +1228,20 @@ Options:
 `);
 }
 
-main().catch((error) => {
-  console.error(error.message || error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  buildSkillPayload,
+  normalizeEntry,
+  normalizeEvaluation,
+  normalizeSort,
+  normalizeTestcases,
+  readManifest,
+  readTestcasesFile,
+  resolveUploadSort,
+};
