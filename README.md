@@ -62,6 +62,36 @@
 
 ---
 
+## APIMaster Operations Notes
+
+### 2026-07-22 Affiliate Commission Ratio Snapshot
+
+APIMaster fork note. Affiliate commission settlement now freezes the commission ratio on the invitee at registration time, while preserving historical behavior for existing users.
+
+- `users.aff_ratio_override`: inviter-level nullable override percentage.
+  - `NULL`: inherit global `AffRatio`.
+  - `0`: explicitly disable commission for future invitees.
+  - `1-100`: override percentage for future invitees.
+- `users.aff_ratio_snapshot`: invitee-level nullable frozen percentage.
+  - no inviter: `NULL`.
+  - inviter override exists: freeze that override.
+  - otherwise: freeze the current global `AffRatio`.
+
+Settlement reads the invitee snapshot first. `snapshot > 0` pays commission by the frozen ratio, `snapshot == 0` pays no commission and writes no `AffLog`, and historical `snapshot == NULL` invitees keep the old global-`AffRatio` fallback. This means old users keep their previous behavior, while newly registered invitees keep the ratio that applied at registration.
+
+Admin users can edit `aff_ratio_override` from the user edit drawer. `aff_ratio_snapshot` is displayed read-only for audit. `/api/status` keeps returning global `aff_ratio` and now also returns `effective_aff_ratio` for frontend referral copy.
+
+This change does not touch reseller logic, including `reseller_model_rule`, `is_reseller`, `reseller_user_id`, or reseller accounting.
+
+Deployment record:
+
+- NewAPI commit: `698d9da feat: snapshot affiliate commission ratios`.
+- Workspace pointer commit: `5d96cd2 chore: bump new-api affiliate ratio snapshot`.
+- Production deploy: root `/opt/scripts/go-live.sh` on `master-prod`.
+- Validation: targeted controller/model tests passed; production smoke test passed with `16 PASS / 0 FAIL`.
+
+---
+
 ## 🤝 Trusted Partners
 
 <p align="center">
