@@ -21,11 +21,13 @@ import type { SetupFormValues, SetupResponse } from './types'
 
 export async function getSetupStatus(): Promise<SetupResponse> {
   const res = await api.get('/api/setup', {
+    timeout: 5000,
+    skipErrorHandler: true,
     // We want fresh status on every visit.
     params: {
       t: Date.now(),
     },
-  })
+  } as Record<string, unknown>)
   return res.data
 }
 

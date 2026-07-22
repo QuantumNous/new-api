@@ -24,6 +24,26 @@ import type { HomePageContentResult } from '../types'
 
 const STORAGE_KEY = 'home_page_content'
 
+function getCachedContent(): string {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+function setCachedContent(content: string): void {
+  try {
+    if (content) {
+      localStorage.setItem(STORAGE_KEY, content)
+    } else {
+      localStorage.removeItem(STORAGE_KEY)
+    }
+  } catch {
+    /* empty */
+  }
+}
+
 /**
  * Hook to load and manage custom home page content
  * Supports both Markdown/HTML content and iframe URLs
@@ -37,9 +57,10 @@ export function useHomePageContent(): HomePageContentResult {
 
     const loadContent = async () => {
       // Load from localStorage first for immediate display
-      const cached = localStorage.getItem(STORAGE_KEY)
+      const cached = getCachedContent()
       if (cached && mounted) {
         setContent(cached)
+        setIsLoaded(true)
       }
 
       try {
@@ -50,11 +71,11 @@ export function useHomePageContent(): HomePageContentResult {
 
         if (success && data) {
           setContent(data)
-          localStorage.setItem(STORAGE_KEY, data)
+          setCachedContent(data)
         } else {
           // Clear content if API returns empty
           setContent('')
-          localStorage.removeItem(STORAGE_KEY)
+          setCachedContent('')
         }
       } catch (error) {
         if (!mounted) return

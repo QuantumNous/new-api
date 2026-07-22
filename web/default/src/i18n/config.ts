@@ -19,39 +19,36 @@ For commercial licensing, please contact support@quantumnous.com
 import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
-import de from './locales/de.json'
 import en from './locales/en.json'
-import es from './locales/es.json'
-import fr from './locales/fr.json'
-import id from './locales/id.json'
-import it from './locales/it.json'
-import ja from './locales/ja.json'
-import ko from './locales/ko.json'
-import pl from './locales/pl.json'
-import pt from './locales/pt.json'
-import ru from './locales/ru.json'
-import tr from './locales/tr.json'
-import vi from './locales/vi.json'
 import zh from './locales/zh.json'
-import zhTW from './locales/zh-TW.json'
 
-export const resources = {
+const resources = {
   en,
   zh,
-  'zh-TW': zhTW,
-  de,
-  fr,
-  id,
-  it,
-  ja,
-  ko,
-  pl,
-  pt,
-  ru,
-  tr,
-  vi,
-  es,
 } as const
+
+type LocaleModule = {
+  default: {
+    translation: Record<string, string>
+    [key: string]: unknown
+  }
+}
+
+const localeLoaders: Record<string, () => Promise<LocaleModule>> = {
+  'zh-TW': () => import('./locales/zh-TW.json'),
+  de: () => import('./locales/de.json'),
+  es: () => import('./locales/es.json'),
+  fr: () => import('./locales/fr.json'),
+  id: () => import('./locales/id.json'),
+  it: () => import('./locales/it.json'),
+  ja: () => import('./locales/ja.json'),
+  ko: () => import('./locales/ko.json'),
+  pl: () => import('./locales/pl.json'),
+  pt: () => import('./locales/pt.json'),
+  ru: () => import('./locales/ru.json'),
+  tr: () => import('./locales/tr.json'),
+  vi: () => import('./locales/vi.json'),
+}
 
 const APIMASTER_STORAGE_KEY = 'apimaster-locale'
 const PANEL_LOCALE_MANUAL_KEY = 'panel-locale-manual-at'
@@ -93,10 +90,39 @@ function resolveInitialLng(): string | undefined {
 
 const apimasterLng = resolveInitialLng()
 
+function normalizeLanguage(code: string): string {
+  if (code === 'zh-TW' || code.startsWith('zh-Hant')) return 'zh-TW'
+  if (code.startsWith('zh')) return 'zh'
+  return code.split('-')[0]
+}
+
+async function ensureLanguageLoaded(code: string): Promise<string> {
+  const lng = normalizeLanguage(code)
+  if (i18n.hasResourceBundle(lng, 'translation')) return lng
+
+  const loader = localeLoaders[lng]
+  if (!loader) return 'en'
+
+  const locale = await loader()
+  i18n.addResourceBundle(
+    lng,
+    'translation',
+    locale.default.translation,
+    true,
+    true
+  )
+  return lng
+}
+
+async function changeToLanguage(code: string): Promise<void> {
+  const loadedLng = await ensureLanguageLoaded(code)
+  await i18n.changeLanguage(loadedLng)
+}
+
 function syncApimasterLocale() {
   const lng = resolveInitialLng()
   if (lng && i18n.resolvedLanguage !== lng && i18n.language !== lng) {
-    void i18n.changeLanguage(lng)
+    void changeToLanguage(lng).catch(() => undefined)
   }
 }
 
@@ -122,13 +148,13 @@ function applyApimasterLocale(locale: unknown) {
   }
 
   if (i18n.resolvedLanguage !== lng && i18n.language !== lng) {
-    void i18n.changeLanguage(lng)
+    void changeToLanguage(lng).catch(() => undefined)
   }
 }
 
 /** User-initiated language change inside the panel — keep apimaster-locale in sync. */
 export async function setPanelLanguage(code: string) {
-  const lng = code.trim()
+  const lng = normalizeLanguage(code.trim())
   if (!lng) return
 
   const apimasterLocale = PANEL_TO_APIMASTER_LOCALE[lng] ?? lng
@@ -139,10 +165,10 @@ export async function setPanelLanguage(code: string) {
     // localStorage not available
   }
 
-  await i18n.changeLanguage(lng)
+  await changeToLanguage(lng)
 }
 
-i18n
+void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
@@ -161,6 +187,17 @@ i18n
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
     },
+  })
+  .then(async () => {
+    const preferredLng = normalizeLanguage(
+      apimasterLng || i18n.resolvedLanguage || i18n.language || 'en'
+    )
+    await changeToLanguage(preferredLng)
+  })
+  .catch(() => {
+    if (i18n.resolvedLanguage !== 'en') {
+      void i18n.changeLanguage('en')
+    }
   })
 
 if (typeof window !== 'undefined') {

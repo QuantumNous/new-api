@@ -29,6 +29,7 @@ import { ThemeCustomizationProvider } from '@/context/theme-customization-provid
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Toaster } from '@/components/ui/sonner'
 import { NavigationProgress } from '@/components/navigation-progress'
+import { Spinner } from '@/components/ui/spinner'
 import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
 import { getSetupStatus } from '@/features/setup/api'
@@ -57,6 +58,14 @@ function RootComponent() {
         </>
       )}
     </ThemeCustomizationProvider>
+  )
+}
+
+function InitializationPending() {
+  return (
+    <main className='bg-background grid min-h-svh place-items-center'>
+      <Spinner className='text-muted-foreground size-6' />
+    </main>
   )
 }
 
@@ -125,6 +134,9 @@ export const Route = createRootRouteWithContext<{
     // 用户认证状态完全依赖 localStorage 缓存
     // 如果用户有有效 session 但 localStorage 被清空，会被重定向到登录页重新登录
   },
+  pendingComponent: InitializationPending,
+  pendingMs: 200,
+  pendingMinMs: 300,
   component: RootComponent,
   notFoundComponent: NotFoundError,
   errorComponent: GeneralError,

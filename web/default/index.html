@@ -14,9 +14,47 @@
     />
 
     <meta name="theme-color" content="#fff" />
+    <style>
+      #app-startup {
+        min-height: 100vh;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        background: #fff;
+      }
+
+      #app-startup::after {
+        width: 24px;
+        height: 24px;
+        content: '';
+        border: 2px solid #d4d4d8;
+        border-top-color: #18181b;
+        border-radius: 50%;
+        animation: app-startup-spin 0.8s linear infinite;
+      }
+
+      @keyframes app-startup-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        #app-startup {
+          background: #09090b;
+        }
+
+        #app-startup::after {
+          border-color: #3f3f46;
+          border-top-color: #fafafa;
+        }
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-startup" role="status" aria-label="Loading"></div>
+    </div>
   </body>
 </html>
