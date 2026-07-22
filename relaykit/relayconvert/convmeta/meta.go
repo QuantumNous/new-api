@@ -12,6 +12,9 @@ import (
 // Meta is the only view of the relay session that format converters may use.
 // It is satisfied by *relaycommon.RelayInfo on the host side; other embedders
 // (tests, external relaykit users) can use *Values.
+// Implementations backed by pointer types must make every method safe on a nil
+// receiver: a typed-nil pointer stored in Meta is still a non-nil interface,
+// and relaykit deliberately does not use reflection to detect that case.
 type Meta interface {
 	GetOriginModelName() string
 	GetUpstreamModelName() string
@@ -28,8 +31,9 @@ type Meta interface {
 	GetEstimatePromptTokens() int
 
 	// EnsureClaudeConvertInfo lazily creates and returns the mutable
-	// OpenAI→Claude stream conversion state. The same instance must be
-	// returned for the lifetime of one streaming session.
+	// OpenAI→Claude stream conversion state. For non-nil receivers, the same
+	// instance must be returned for the lifetime of one streaming session; a
+	// nil receiver may return a temporary initialized state.
 	EnsureClaudeConvertInfo() *ClaudeConvertInfo
 
 	// GetSendResponseCount / IncrSendResponseCount expose the shared
