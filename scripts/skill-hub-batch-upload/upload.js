@@ -27,9 +27,10 @@ const { URL } = require("node:url");
 
 const ZIP_MAX_BYTES = 50 * 1024 * 1024;
 const ICON_MAX_BYTES = 1024 * 1024;
-const SKILL_NAME_MAX_CHARACTERS = 40;
+const SKILL_NAME_MAX_CHARACTERS = 100;
 const SKILL_ID_PATTERN = /^[a-z][a-z-]{0,127}$/;
 const VALID_MODES = new Set(["skip", "update", "fail"]);
+const EVALUATION_DIMENSIONS = ["safety", "access", "frontier", "economy"];
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -321,14 +322,8 @@ function normalizeEntry(raw, index, baseDir, sourceLine) {
   if (Array.from(entry.license).length > 128) {
     entry.errors.push("license must be 128 characters or fewer");
   }
-  if (
-    entry.evaluation !== null &&
-    (!entry.evaluation ||
-      typeof entry.evaluation !== "object" ||
-      Array.isArray(entry.evaluation))
-  ) {
-    entry.errors.push("evaluation must be an object or null");
-  }
+  const evaluationError = validateEvaluation(entry.evaluation);
+  if (evaluationError) entry.errors.push(evaluationError);
   if (
     entry.testcases !== null &&
     (!entry.testcases ||
@@ -351,6 +346,44 @@ function normalizeEntry(raw, index, baseDir, sourceLine) {
   }
 
   return entry;
+}
+
+function validateEvaluation(evaluation) {
+  if (evaluation === null) return "";
+  if (!evaluation || typeof evaluation !== "object" || Array.isArray(evaluation)) {
+    return "evaluation must be an object or null";
+  }
+  if (
+    !evaluation.dimensions ||
+    typeof evaluation.dimensions !== "object" ||
+    Array.isArray(evaluation.dimensions)
+  ) {
+    return "evaluation.dimensions must be an object";
+  }
+  for (const key of EVALUATION_DIMENSIONS) {
+    const dimension = evaluation.dimensions[key];
+    if (!dimension || typeof dimension !== "object" || Array.isArray(dimension)) {
+      return `evaluation.dimensions.${key} is required`;
+    }
+    if (
+      typeof dimension.score !== "number" ||
+      !Number.isFinite(dimension.score) ||
+      dimension.score < 0 ||
+      dimension.score > 5
+    ) {
+      return `evaluation.dimensions.${key}.score must be between 0 and 5`;
+    }
+  }
+  if (
+    evaluation.overallScore !== undefined &&
+    (typeof evaluation.overallScore !== "number" ||
+      !Number.isFinite(evaluation.overallScore) ||
+      evaluation.overallScore < 0 ||
+      evaluation.overallScore > 5)
+  ) {
+    return "evaluation.overallScore must be between 0 and 5";
+  }
+  return "";
 }
 
 function validateEntries(entries) {

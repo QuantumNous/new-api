@@ -8387,7 +8387,8 @@
           },
           "name": {
             "type": "string",
-            "description": "技能名称"
+            "description": "技能名称，最多 100 个字符",
+            "maxLength": 100
           },
           "description": {
             "type": "string",
@@ -8490,7 +8491,7 @@
             "type": "number",
             "minimum": 0,
             "maximum": 5,
-            "description": "可选；为空时客户端取五维平均值"
+            "description": "可选；范围为 0 到 5，为空时客户端取四维平均值"
           },
           "overallRating": {
             "type": "string",
@@ -8503,26 +8504,22 @@
           "dimensions": {
             "type": "object",
             "required": [
-              "trust",
-              "reliability",
-              "adaptability",
-              "convention",
-              "effectiveness"
+              "safety",
+              "access",
+              "frontier",
+              "economy"
             ],
             "properties": {
-              "trust": {
+              "safety": {
                 "$ref": "#/components/schemas/SkillHubEvaluationDimension"
               },
-              "reliability": {
+              "access": {
                 "$ref": "#/components/schemas/SkillHubEvaluationDimension"
               },
-              "adaptability": {
+              "frontier": {
                 "$ref": "#/components/schemas/SkillHubEvaluationDimension"
               },
-              "convention": {
-                "$ref": "#/components/schemas/SkillHubEvaluationDimension"
-              },
-              "effectiveness": {
+              "economy": {
                 "$ref": "#/components/schemas/SkillHubEvaluationDimension"
               }
             }
@@ -8716,7 +8713,8 @@
           },
           "name": {
             "type": "string",
-            "description": "技能名称"
+            "description": "技能名称，最多 100 个字符",
+            "maxLength": 100
           },
           "description": {
             "type": "string",

@@ -21,6 +21,7 @@ const (
 	skillHubKeywordMaxRunes  = 128
 	skillHubReviewMaxRunes   = 4000
 	skillHubOverallMaxRunes  = 8000
+	skillHubNameMaxRunes     = 100
 	skillHubTestcaseMax      = 50
 	skillHubTestcasesMaxLen  = 2 << 20
 	SkillHubMarkdownMaxBytes = 256000
@@ -92,11 +93,10 @@ type SkillHubEvaluationDimension struct {
 }
 
 type SkillHubEvaluationDimensions struct {
-	Trust         SkillHubEvaluationDimension `json:"trust"`
-	Reliability   SkillHubEvaluationDimension `json:"reliability"`
-	Adaptability  SkillHubEvaluationDimension `json:"adaptability"`
-	Convention    SkillHubEvaluationDimension `json:"convention"`
-	Effectiveness SkillHubEvaluationDimension `json:"effectiveness"`
+	Safety   SkillHubEvaluationDimension `json:"safety"`
+	Access   SkillHubEvaluationDimension `json:"access"`
+	Frontier SkillHubEvaluationDimension `json:"frontier"`
+	Economy  SkillHubEvaluationDimension `json:"economy"`
 }
 
 type SkillHubEvaluation struct {
@@ -234,6 +234,9 @@ func ValidateSkillHubSkill(s *SkillHubSkill) error {
 	}
 	if s.Name == "" {
 		return errors.New("skill name is required")
+	}
+	if len([]rune(s.Name)) > skillHubNameMaxRunes {
+		return errors.New("skill name must be 100 characters or fewer")
 	}
 	if s.Version == "" {
 		return errors.New("skill version is required")
@@ -1010,9 +1013,31 @@ func SkillHubEvaluationFromJSON(value string) (*SkillHubEvaluation, error) {
 		return nil, err
 	}
 	if err := ValidateSkillHubEvaluation(&result); err != nil {
+		// Legacy five-dimension evaluations have no reliable semantic mapping to
+		// the new four dimensions. Treat only that known legacy shape as absent so
+		// public/admin detail pages remain usable and administrators can re-enter
+		// the report. New writes remain strict through SkillHubEvaluationToJSON.
+		if isLegacySkillHubEvaluationJSON(value) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &result, nil
+}
+
+func isLegacySkillHubEvaluationJSON(value string) bool {
+	var raw struct {
+		Dimensions map[string]any `json:"dimensions"`
+	}
+	if err := common.Unmarshal([]byte(value), &raw); err != nil || raw.Dimensions == nil {
+		return false
+	}
+	for _, key := range []string{"trust", "reliability", "adaptability", "convention", "effectiveness"} {
+		if _, ok := raw.Dimensions[key]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func ValidateSkillHubEvaluation(value *SkillHubEvaluation) error {
@@ -1036,11 +1061,10 @@ func ValidateSkillHubEvaluation(value *SkillHubEvaluation) error {
 		name      string
 		dimension *SkillHubEvaluationDimension
 	}{
-		{name: "trust", dimension: &value.Dimensions.Trust},
-		{name: "reliability", dimension: &value.Dimensions.Reliability},
-		{name: "adaptability", dimension: &value.Dimensions.Adaptability},
-		{name: "convention", dimension: &value.Dimensions.Convention},
-		{name: "effectiveness", dimension: &value.Dimensions.Effectiveness},
+		{name: "safety", dimension: &value.Dimensions.Safety},
+		{name: "access", dimension: &value.Dimensions.Access},
+		{name: "frontier", dimension: &value.Dimensions.Frontier},
+		{name: "economy", dimension: &value.Dimensions.Economy},
 	}
 	for _, item := range dimensions {
 		if item.dimension.Score == nil {

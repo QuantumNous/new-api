@@ -242,6 +242,10 @@ export function SkillHub() {
       toast.error(t('Please enter Skill ID, name, and version'))
       return
     }
+    if (Array.from(form.name.trim()).length > 100) {
+      toast.error('Skill 名称最多 100 个字符')
+      return
+    }
     if (!isAllowedZipUrl(form.sourceUrl)) {
       toast.error(
         t(
@@ -794,11 +798,21 @@ export function SkillHub() {
                         onChange={(event) => update('id', event.target.value)}
                       />
                     </Field>
-                    <Field label={t('Name')}>
+                    <Field label={`${t('Name')}（最多 100 个字符）`}>
                       <Input
                         value={form.name}
-                        onChange={(event) => update('name', event.target.value)}
+                        onChange={(event) =>
+                          update(
+                            'name',
+                            Array.from(event.target.value)
+                              .slice(0, 100)
+                              .join('')
+                          )
+                        }
                       />
+                      <p className='text-muted-foreground mt-1 text-right text-xs'>
+                        {Array.from(form.name).length} / 100
+                      </p>
                     </Field>
                   </div>
                   <Field label={t('Description')}>
@@ -934,9 +948,7 @@ export function SkillHub() {
 
                 <FormSection
                   title={t('Evaluation report')}
-                  description={t(
-                    'Configure the fixed five dimensions. Overall score may be left empty to use the average.'
-                  )}
+                  description='四个固定维度的分数范围均为 0–5 分（可输入小数）；综合评分留空时取四维平均值。'
                 >
                   <SwitchField
                     label={t('Enable evaluation report')}
@@ -948,7 +960,7 @@ export function SkillHub() {
                   {form.evaluation && (
                     <div className='grid gap-4'>
                       <div className='grid gap-3 md:grid-cols-2'>
-                        <Field label={t('Overall score')}>
+                        <Field label='综合评分（可选，0–5 分）'>
                           <Input
                             type='number'
                             min='0'
@@ -963,6 +975,10 @@ export function SkillHub() {
                               })
                             }
                           />
+                          <p className='text-muted-foreground mt-1 text-xs'>
+                            允许范围：0 ≤ 综合评分 ≤
+                            5；留空时自动计算四维平均分。
+                          </p>
                         </Field>
                         <Field label={t('Overall rating')}>
                           <Input
@@ -995,7 +1011,7 @@ export function SkillHub() {
                           key={dimension.key}
                           className='grid gap-3 rounded-md border p-3 md:grid-cols-[160px_minmax(0,1fr)]'
                         >
-                          <Field label={t(dimension.label)}>
+                          <Field label={dimension.label}>
                             <Input
                               type='number'
                               min='0'
@@ -1012,6 +1028,9 @@ export function SkillHub() {
                                 )
                               }
                             />
+                            <p className='text-muted-foreground mt-1 text-xs'>
+                              允许范围：0 ≤ 分数 ≤ 5
+                            </p>
                           </Field>
                           <Field label={t('Dimension review')}>
                             <Textarea
@@ -1223,11 +1242,10 @@ const EVALUATION_DIMENSIONS: Array<{
   key: keyof SkillHubEvaluationForm['dimensions']
   label: string
 }> = [
-  { key: 'trust', label: 'Trust' },
-  { key: 'reliability', label: 'Reliability' },
-  { key: 'adaptability', label: 'Adaptability' },
-  { key: 'convention', label: 'Convention' },
-  { key: 'effectiveness', label: 'Effectiveness' },
+  { key: 'safety', label: 'S · Safety 安全检测（0–5 分）' },
+  { key: 'access', label: 'A · Access 权限控制（0–5 分）' },
+  { key: 'frontier', label: 'F · Frontier 能力先进性（0–5 分）' },
+  { key: 'economy', label: 'E · Economy Token 效率（0–5 分）' },
 ]
 
 function createEmptyEvaluation(): SkillHubEvaluationForm {
@@ -1237,11 +1255,10 @@ function createEmptyEvaluation(): SkillHubEvaluationForm {
     overallRating: '',
     overallReview: '',
     dimensions: {
-      trust: dimension(),
-      reliability: dimension(),
-      adaptability: dimension(),
-      convention: dimension(),
-      effectiveness: dimension(),
+      safety: dimension(),
+      access: dimension(),
+      frontier: dimension(),
+      economy: dimension(),
     },
   }
 }
@@ -1252,13 +1269,13 @@ function validateEvaluationForm(evaluation: SkillHubEvaluationForm | null) {
     const raw = evaluation.dimensions[dimension.key].score.trim()
     const score = Number(raw)
     if (!raw || !Number.isFinite(score) || score < 0 || score > 5) {
-      return 'Each evaluation score must be between 0 and 5'
+      return '四个维度的分数都必须在 0 到 5 之间'
     }
   }
   if (evaluation.overallScore.trim()) {
     const score = Number(evaluation.overallScore)
     if (!Number.isFinite(score) || score < 0 || score > 5) {
-      return 'Overall score must be between 0 and 5'
+      return '综合评分必须在 0 到 5 之间'
     }
   }
   return ''

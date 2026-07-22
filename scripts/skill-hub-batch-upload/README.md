@@ -14,12 +14,12 @@
 ### 数据规则
 
 - `id` 必须匹配 `^[a-z][a-z-]{0,127}$`：以小写英文字母开头，后续只允许小写英文字母和短横线，最长 128 个字符
-- `name` 必填，最多 40 个字符；脚本会在 dry-run 和正式上传前校验
+- `name` 必填，最多 100 个字符；脚本会在 dry-run 和正式上传前校验
 - `zip` 必填，必须是本地 `.zip` 文件；脚本会先检查文件是否存在，最大 50 MB
 - `icon` 可选；填写时必须是本地 `.png`、`.jpg`、`.jpeg` 或 `.webp` 文件，最大 1 MB；使用 `--mode update` 时，省略 `icon` 或设为 `""` 会清空远端已有图标
 - `tags` 传标签名，不是标签 ID，例如 `["开发工具", "Agent"]`
 - `origin` 和 `originUrl` 为可选来源信息，例如来源 `"Clawhub"` 和对应的源项目 URL；`origin` 最多 64 个字符，`originUrl` 必须是 HTTP/HTTPS 绝对地址且最多 2048 个字符
-- `license` 可选，最多 128 个字符；`evaluation` 和 `testcases` 可选，直接使用详情接口的 JSON 结构。案例 `slug` 不要求与 Skill ID 一致
+- `license` 可选，最多 128 个字符；`evaluation` 和 `testcases` 可选，直接使用详情接口的 JSON 结构。评测固定使用 `safety`、`access`、`frontier`、`economy` 四维，每项及可选综合评分的范围均为 `0` 到 `5`；案例 `slug` 不要求与 Skill ID 一致
 - 所有导入的 Skill 都会强制保存为 `published: true`
 - manifest 中的相对路径按 manifest 文件所在目录解析
 
@@ -69,6 +69,15 @@ $env:SKILL_HUB_ADMIN_USER_ID = "1"
     "verified": true,
     "recommended": false,
     "sort": 0,
+    "evaluation": {
+      "overallRating": "优秀",
+      "dimensions": {
+        "safety": { "score": 4.8, "review": "未发现已知高风险行为。" },
+        "access": { "score": 4.5, "review": "权限范围合理。" },
+        "frontier": { "score": 4.4, "review": "能力与工具调用方式较先进。" },
+        "economy": { "score": 4.0, "review": "Token 消耗控制良好。" }
+      }
+    },
     "zip": "./packages/demo-skill.zip",
     "icon": "./icons/demo-skill.png"
   }
@@ -148,12 +157,12 @@ This keeps authorization, temporary OSS object handling, file header validation,
 ### Data Rules
 
 - `id` must match `^[a-z][a-z-]{0,127}$`: start with a lowercase letter, then lowercase letters or hyphens only, up to 128 characters total
-- `name` is required and must contain no more than 40 characters. The script validates it before both dry-runs and uploads
+- `name` is required and must contain no more than 100 characters. The script validates it before both dry-runs and uploads
 - `zip` is required. It must be a local `.zip` file. The script checks that it exists before upload. Maximum size: 50 MB
 - `icon` is optional. When provided, it must be a local `.png`, `.jpg`, `.jpeg`, or `.webp` file with a maximum size of 1 MB. In `--mode update`, omitting `icon` or setting it to `""` clears the existing remote icon
 - `tags` are tag names, not tag IDs, for example `["Developer Tools", "Agent"]`
 - `origin` and `originUrl` are optional source metadata, for example `"Clawhub"` and the original project URL. `origin` is limited to 64 characters; `originUrl` must be an absolute HTTP/HTTPS URL with at most 2048 characters
-- `license` is optional with a limit of 128 characters. Optional `evaluation` and `testcases` use the same inline JSON shapes returned by the detail API; testcase `slug` does not need to match the skill ID
+- `license` is optional with a limit of 128 characters. Optional `evaluation` and `testcases` use the same inline JSON shapes returned by the detail API. Evaluation uses the fixed `safety`, `access`, `frontier`, and `economy` dimensions; every dimension and the optional overall score must be between `0` and `5`. Testcase `slug` does not need to match the skill ID
 - All imported skills are forced to `published: true`
 - Relative paths in the manifest are resolved from the manifest file directory
 

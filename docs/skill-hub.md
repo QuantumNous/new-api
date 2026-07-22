@@ -141,19 +141,23 @@ OSS Bucket 需要允许管理后台域名执行 `PUT` 和 `OPTIONS`，允许 `Co
 4. 点击图标区域的上传按钮，选择 `png`、`jpg`、`jpeg` 或 `webp` 图片。
 5. 上传成功后，系统自动回填图标 URL。
 6. 从已有标签里选择 Skill 标签。
-7. 可选填写固定五维评测，或上传效果预览案例 JSON。
+7. 可选填写固定四维评测，或上传效果预览案例 JSON。
 8. 保存 Skill，确认无误后发布；保存直传 Zip 后可在后台预览提取出的 `SKILL.md`。
+
+Skill 名称必填，去除首尾空白后最多 100 个 Unicode 字符；后台表单和批量上传脚本会先行提示，最终以服务端校验为准。
 
 ## 详情、评测与案例
 
 技能列表接口只返回摘要字段，不加载较大的 `SKILL.md`、评测和案例数据。公开与管理详情接口会额外返回：
 
 - `skillMarkdown`：从 Zip 安全读取的 `SKILL.md` 原文。
-- `evaluation`：可选评测报告。五个固定维度为 `trust`、`reliability`、`adaptability`、`convention`、`effectiveness`，每个维度必须提供 `0` 到 `5` 的分数，评价可为空。
-- `evaluation.overallScore`：可选综合评分；为空时客户端取五维平均值。
+- `evaluation`：可选评测报告。四个固定维度为 `safety`（安全检测）、`access`（权限控制）、`frontier`（能力先进性）、`economy`（Token 效率），每个维度必须提供闭区间 `0` 到 `5` 的分数，评价可为空。
+- `evaluation.overallScore`：可选综合评分，范围同样为 `0` 到 `5`；为空时客户端取四维平均值。
 - `evaluation.overallRating` 与 `evaluation.overallReview`：可选综合评级和综合评价；评级为空时客户端按综合评分生成展示文案。
 - `testcases`：可选效果预览案例。整个 JSON 最大 2 MB，最多 50 个案例；`slug` 只要求是字符串，不要求与 Skill ID 一致。
 - `reportingEnabled`：是否已配置举报接收邮箱。
+
+旧版 `trust`、`reliability`、`adaptability`、`convention`、`effectiveness` 五维 JSON 不会自动映射到新四维，因为两套指标没有可靠的一一对应关系。读取旧格式时接口会暂时按“无评测”返回，避免详情页报错；管理员需要在后台按新四维重新录入已有评测。这只是 JSON 数据格式变更，不新增数据库列。
 
 案例文件结构如下，桌面端按 `sortOrder` 稳定排序并切换展示：
 
@@ -438,11 +442,10 @@ GET /api/skill-hub/tags/skills?tag_ids=1,2&p=1&page_size=20
     "overallRating": "优秀",
     "overallReview": "综合表现稳定。",
     "dimensions": {
-      "trust": { "score": 4.2, "review": "来源和行为边界清晰。" },
-      "reliability": { "score": 4.1, "review": "" },
-      "adaptability": { "score": 3.9, "review": "" },
-      "convention": { "score": 4.0, "review": "" },
-      "effectiveness": { "score": 4.3, "review": "" }
+      "safety": { "score": 4.8, "review": "未发现已知高风险行为。" },
+      "access": { "score": 4.5, "review": "权限用途清晰且范围合理。" },
+      "frontier": { "score": 4.4, "review": "模型和工具调用方式较先进。" },
+      "economy": { "score": 4.0, "review": "Token 消耗控制良好。" }
     }
   },
   "testcases": {

@@ -380,11 +380,10 @@ function evaluationToForm(
     overallRating: evaluation.overallRating || '',
     overallReview: evaluation.overallReview || '',
     dimensions: {
-      trust: dimension('trust'),
-      reliability: dimension('reliability'),
-      adaptability: dimension('adaptability'),
-      convention: dimension('convention'),
-      effectiveness: dimension('effectiveness'),
+      safety: dimension('safety'),
+      access: dimension('access'),
+      frontier: dimension('frontier'),
+      economy: dimension('economy'),
     },
   }
 }
@@ -401,11 +400,10 @@ function evaluationToPayload(evaluation: SkillHubForm['evaluation']) {
     overallRating: evaluation.overallRating.trim(),
     overallReview: evaluation.overallReview.trim(),
     dimensions: {
-      trust: dimension('trust'),
-      reliability: dimension('reliability'),
-      adaptability: dimension('adaptability'),
-      convention: dimension('convention'),
-      effectiveness: dimension('effectiveness'),
+      safety: dimension('safety'),
+      access: dimension('access'),
+      frontier: dimension('frontier'),
+      economy: dimension('economy'),
     },
   }
 }

@@ -55,11 +55,10 @@ export type SkillHubEvaluation = {
   overallRating?: string
   overallReview?: string
   dimensions: {
-    trust: SkillHubEvaluationDimension
-    reliability: SkillHubEvaluationDimension
-    adaptability: SkillHubEvaluationDimension
-    convention: SkillHubEvaluationDimension
-    effectiveness: SkillHubEvaluationDimension
+    safety: SkillHubEvaluationDimension
+    access: SkillHubEvaluationDimension
+    frontier: SkillHubEvaluationDimension
+    economy: SkillHubEvaluationDimension
   }
 }
 
@@ -209,11 +208,10 @@ export type SkillHubEvaluationForm = {
   overallRating: string
   overallReview: string
   dimensions: {
-    trust: SkillHubEvaluationDimensionForm
-    reliability: SkillHubEvaluationDimensionForm
-    adaptability: SkillHubEvaluationDimensionForm
-    convention: SkillHubEvaluationDimensionForm
-    effectiveness: SkillHubEvaluationDimensionForm
+    safety: SkillHubEvaluationDimensionForm
+    access: SkillHubEvaluationDimensionForm
+    frontier: SkillHubEvaluationDimensionForm
+    economy: SkillHubEvaluationDimensionForm
   }
 }
 

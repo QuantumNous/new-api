@@ -17,11 +17,10 @@ func TestSkillHubEvaluationAndTestcasesRoundTrip(t *testing.T) {
 		OverallRating: "优秀",
 		OverallReview: "综合表现稳定",
 		Dimensions: SkillHubEvaluationDimensions{
-			Trust:         SkillHubEvaluationDimension{Score: score(4.2), Review: "可信"},
-			Reliability:   SkillHubEvaluationDimension{Score: score(4.1)},
-			Adaptability:  SkillHubEvaluationDimension{Score: score(3.9)},
-			Convention:    SkillHubEvaluationDimension{Score: score(4.0)},
-			Effectiveness: SkillHubEvaluationDimension{Score: score(4.3)},
+			Safety:   SkillHubEvaluationDimension{Score: score(4.8), Review: "未发现已知高风险行为"},
+			Access:   SkillHubEvaluationDimension{Score: score(4.5)},
+			Frontier: SkillHubEvaluationDimension{Score: score(4.4)},
+			Economy:  SkillHubEvaluationDimension{Score: score(4.0)},
 		},
 	}
 	evaluationJSON, err := SkillHubEvaluationToJSON(evaluation)
@@ -32,7 +31,7 @@ func TestSkillHubEvaluationAndTestcasesRoundTrip(t *testing.T) {
 	if err != nil || roundTripEvaluation == nil {
 		t.Fatalf("SkillHubEvaluationFromJSON() = %#v, %v", roundTripEvaluation, err)
 	}
-	if roundTripEvaluation.OverallScore != nil || *roundTripEvaluation.Dimensions.Trust.Score != 4.2 {
+	if roundTripEvaluation.OverallScore != nil || *roundTripEvaluation.Dimensions.Safety.Score != 4.8 {
 		t.Fatalf("evaluation round trip = %#v", roundTripEvaluation)
 	}
 
@@ -54,11 +53,34 @@ func TestValidateSkillHubEvaluationRequiresAllFixedDimensions(t *testing.T) {
 	score := 4.0
 	evaluation := &SkillHubEvaluation{
 		Dimensions: SkillHubEvaluationDimensions{
-			Trust: SkillHubEvaluationDimension{Score: &score},
+			Safety: SkillHubEvaluationDimension{Score: &score},
 		},
 	}
 	if err := ValidateSkillHubEvaluation(evaluation); err == nil {
 		t.Fatal("ValidateSkillHubEvaluation() returned nil for incomplete dimensions")
+	}
+}
+
+func TestSkillHubEvaluationSuppressesLegacyFiveDimensionSchema(t *testing.T) {
+	legacy := `{"dimensions":{"trust":{"score":4.2},"reliability":{"score":4.1},"adaptability":{"score":3.9},"convention":{"score":4},"effectiveness":{"score":4.3}}}`
+	evaluation, err := SkillHubEvaluationFromJSON(legacy)
+	if err != nil || evaluation != nil {
+		t.Fatalf("SkillHubEvaluationFromJSON() = %#v, %v; want nil, nil for legacy schema", evaluation, err)
+	}
+}
+
+func TestValidateSkillHubEvaluationRejectsScoreOutsideVisibleRange(t *testing.T) {
+	score := func(value float64) *float64 { return &value }
+	evaluation := &SkillHubEvaluation{
+		Dimensions: SkillHubEvaluationDimensions{
+			Safety:   SkillHubEvaluationDimension{Score: score(5.1)},
+			Access:   SkillHubEvaluationDimension{Score: score(4.5)},
+			Frontier: SkillHubEvaluationDimension{Score: score(4.4)},
+			Economy:  SkillHubEvaluationDimension{Score: score(4.0)},
+		},
+	}
+	if err := ValidateSkillHubEvaluation(evaluation); err == nil {
+		t.Fatal("ValidateSkillHubEvaluation() accepted a score above 5")
 	}
 }
 
@@ -207,6 +229,23 @@ func TestValidateSkillHubSkillAcceptsZipSource(t *testing.T) {
 	}
 	if err := ValidateSkillHubSkill(skill); err != nil {
 		t.Fatalf("ValidateSkillHubSkill() error = %v", err)
+	}
+}
+
+func TestValidateSkillHubSkillNameLength(t *testing.T) {
+	base := SkillHubSkill{
+		SkillID: "name-length-skill", Version: "1.0.0",
+		SourceType: "zip", SourceURL: "https://cdn.example.com/skill.zip",
+	}
+	valid := base
+	valid.Name = strings.Repeat("技", 100)
+	if err := ValidateSkillHubSkill(&valid); err != nil {
+		t.Fatalf("ValidateSkillHubSkill(100 rune name) error = %v", err)
+	}
+	invalid := base
+	invalid.Name = strings.Repeat("技", 101)
+	if err := ValidateSkillHubSkill(&invalid); err == nil || err.Error() != "skill name must be 100 characters or fewer" {
+		t.Fatalf("ValidateSkillHubSkill(101 rune name) error = %v, want name length error", err)
 	}
 }
 

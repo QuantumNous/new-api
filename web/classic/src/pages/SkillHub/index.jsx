@@ -57,11 +57,10 @@ const createDefaultForm = () => ({
 });
 
 const evaluationDimensions = [
-  { key: 'trust', label: 'T · Trust 可信度' },
-  { key: 'reliability', label: 'R · Reliability 可靠性' },
-  { key: 'adaptability', label: 'A · Adaptability 适应性' },
-  { key: 'convention', label: 'C · Convention 规范性' },
-  { key: 'effectiveness', label: 'E · Effectiveness 有效性' },
+  { key: 'safety', label: 'S · Safety 安全检测（0–5 分）' },
+  { key: 'access', label: 'A · Access 权限控制（0–5 分）' },
+  { key: 'frontier', label: 'F · Frontier 能力先进性（0–5 分）' },
+  { key: 'economy', label: 'E · Economy Token 效率（0–5 分）' },
 ];
 
 const createEmptyEvaluation = () => {
@@ -71,11 +70,10 @@ const createEmptyEvaluation = () => {
     overallRating: '',
     overallReview: '',
     dimensions: {
-      trust: dimension(),
-      reliability: dimension(),
-      adaptability: dimension(),
-      convention: dimension(),
-      effectiveness: dimension(),
+      safety: dimension(),
+      access: dimension(),
+      frontier: dimension(),
+      economy: dimension(),
     },
   };
 };
@@ -318,11 +316,10 @@ const evaluationToForm = (evaluation) => {
     overallRating: evaluation.overallRating || '',
     overallReview: evaluation.overallReview || '',
     dimensions: {
-      trust: dimension('trust'),
-      reliability: dimension('reliability'),
-      adaptability: dimension('adaptability'),
-      convention: dimension('convention'),
-      effectiveness: dimension('effectiveness'),
+      safety: dimension('safety'),
+      access: dimension('access'),
+      frontier: dimension('frontier'),
+      economy: dimension('economy'),
     },
   };
 };
@@ -339,11 +336,10 @@ const evaluationToPayload = (evaluation) => {
     overallRating: evaluation.overallRating.trim(),
     overallReview: evaluation.overallReview.trim(),
     dimensions: {
-      trust: dimension('trust'),
-      reliability: dimension('reliability'),
-      adaptability: dimension('adaptability'),
-      convention: dimension('convention'),
-      effectiveness: dimension('effectiveness'),
+      safety: dimension('safety'),
+      access: dimension('access'),
+      frontier: dimension('frontier'),
+      economy: dimension('economy'),
     },
   };
 };
@@ -354,7 +350,7 @@ const validateEvaluation = (evaluation) => {
     const raw = evaluation.dimensions[dimension.key].score.trim();
     const score = Number(raw);
     if (!raw || !Number.isFinite(score) || score < 0 || score > 5) {
-      return '五个维度的分数都必须在 0 到 5 之间';
+      return '四个维度的分数都必须在 0 到 5 之间';
     }
   }
   if (evaluation.overallScore.trim()) {
@@ -743,6 +739,10 @@ const SkillHub = () => {
   const handleSave = async () => {
     if (!form.id.trim() || !form.name.trim() || !form.version.trim()) {
       showError('请填写 Skill ID、名称和版本');
+      return;
+    }
+    if (Array.from(form.name.trim()).length > 100) {
+      showError('Skill 名称最多 100 个字符');
       return;
     }
     if (!form.sourceUrl.trim()) {
@@ -1177,11 +1177,19 @@ const SkillHub = () => {
                     onChange={(value) => updateForm('id', value)}
                   />
                 </Field>
-                <Field label='名称'>
+                <Field label='名称（最多 100 个字符）'>
                   <Input
                     value={form.name}
-                    onChange={(value) => updateForm('name', value)}
+                    onChange={(value) =>
+                      updateForm(
+                        'name',
+                        Array.from(value).slice(0, 100).join(''),
+                      )
+                    }
                   />
+                  <div className='mt-1 text-right text-xs text-semi-color-text-2'>
+                    {Array.from(form.name).length} / 100
+                  </div>
                 </Field>
                 <Field label='版本'>
                   <Input
@@ -1301,7 +1309,7 @@ const SkillHub = () => {
 
               <Section
                 title='评测报告'
-                description='五个维度固定为 0–5 分；综合评分留空时由前端取五维平均值。'
+                description='四个固定维度的分数范围均为 0–5 分（可输入小数）；综合评分留空时取四维平均值。'
               >
                 <div className='md:col-span-2'>
                   <Checkbox
@@ -1317,7 +1325,7 @@ const SkillHub = () => {
                 </div>
                 {form.evaluation && (
                   <>
-                    <Field label='综合评分（可选）'>
+                    <Field label='综合评分（可选，0–5 分）'>
                       <Input
                         type='number'
                         min={0}
@@ -1332,6 +1340,9 @@ const SkillHub = () => {
                           })
                         }
                       />
+                      <div className='mt-1 text-xs text-semi-color-text-2'>
+                        允许范围：0 ≤ 综合评分 ≤ 5；留空时自动计算四维平均分。
+                      </div>
                     </Field>
                     <Field label='综合评级（可选）'>
                       <Input
@@ -1383,6 +1394,9 @@ const SkillHub = () => {
                               )
                             }
                           />
+                          <div className='mt-1 text-xs text-semi-color-text-2'>
+                            允许范围：0 ≤ 分数 ≤ 5
+                          </div>
                         </Field>
                         <Field label='维度评价'>
                           <TextArea
