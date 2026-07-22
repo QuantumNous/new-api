@@ -17,7 +17,15 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const UserNameMaxLength = 20
+const (
+	UserNameMaxLength  = 20
+	affCodeLength      = 8
+	affCodeMaxAttempts = 10
+)
+
+var affCodeGenerator = func() string {
+	return common.GetRandomString(affCodeLength)
+}
 
 var userSortColumns = map[string]string{
 	"id":            "id",
@@ -473,6 +481,73 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 	return user.Id, err
 }
 
+func generateAvailableAffCode(db *gorm.DB) (string, error) {
+	for range affCodeMaxAttempts {
+		affCode := affCodeGenerator()
+		if affCode == "" {
+			continue
+		}
+
+		var existing User
+		result := db.Unscoped().
+			Select("id").
+			Where("aff_code = ?", affCode).
+			Limit(1).
+			Find(&existing)
+		if result.Error != nil {
+			return "", result.Error
+		}
+		if result.RowsAffected == 0 {
+			return affCode, nil
+		}
+	}
+
+	return "", errors.New("failed to find an available affiliate code")
+}
+
+// PrepareAffCode selects a currently unused code before a write transaction
+// starts. The unique index remains the final guard for a concurrent collision.
+func (user *User) PrepareAffCode() error {
+	affCode, err := generateAvailableAffCode(DB)
+	if err != nil {
+		return err
+	}
+	user.AffCode = affCode
+	return nil
+}
+
+// EnsureAffCode assigns a code to a legacy user that does not already have one.
+func (user *User) EnsureAffCode() error {
+	if user.AffCode != "" {
+		return nil
+	}
+
+	affCode, err := generateAvailableAffCode(DB)
+	if err != nil {
+		return err
+	}
+
+	result := DB.Model(&User{}).
+		Where("id = ? AND (aff_code = ? OR aff_code IS NULL)", user.Id, "").
+		Update("aff_code", affCode)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		user.AffCode = affCode
+		return nil
+	}
+
+	// Another request assigned the code first. The conditional update is already
+	// complete, so this read cannot cause a SQLite lock upgrade.
+	var current User
+	if err := DB.Select("aff_code").First(&current, user.Id).Error; err != nil {
+		return err
+	}
+	user.AffCode = current.AffCode
+	return nil
+}
+
 func DeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")
@@ -589,13 +664,15 @@ func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) er
 }
 
 func (user *User) Insert(inviterId int) error {
+	if err := user.PrepareAffCode(); err != nil {
+		return err
+	}
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
 			if err := user.prepareForInsert(tx); err != nil {
 				return err
 			}
 			user.Quota = common.QuotaForNewUser
-			user.AffCode = common.GetRandomString(4)
 
 			// 初始化用户设置，包括默认的边栏配置
 			if user.Setting == "" {
@@ -659,7 +736,6 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 		user.Quota = common.QuotaForNewUser
-		user.AffCode = common.GetRandomString(4)
 
 		// 初始化用户设置
 		if user.Setting == "" {
@@ -667,6 +743,9 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			user.SetSetting(defaultSetting)
 		}
 
+		if user.AffCode == "" {
+			return errors.New("affiliate code is not prepared")
+		}
 		return tx.Create(user).Error
 	})
 }
