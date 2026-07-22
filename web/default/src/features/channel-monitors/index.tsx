@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SectionPageLayout } from '@/components/layout'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -98,6 +99,8 @@ function monitorPayload(
     timeout_seconds: monitor.timeout_seconds,
     enabled: monitor.enabled,
     visible: monitor.visible,
+    manual_availability_7d: monitor.manual_availability_7d,
+    manual_availability_30d: monitor.manual_availability_30d,
     ...changes,
   }
 }
@@ -361,15 +364,25 @@ export function ChannelMonitors() {
                             <MonitorStatusBadge status={monitor.status} />
                           </TableCell>
                           <TableCell>
-                            <div className='flex items-center gap-3'>
-                              <span>
+                            <div className='flex flex-col gap-1'>
+                              <span className='flex items-center gap-1.5'>
                                 {formatMonitorAvailability(
                                   monitor.availability_7d
                                 )}
+                                {monitor.manual_availability_7d != null && (
+                                  <Badge variant='outline'>
+                                    {t('Manual override')}
+                                  </Badge>
+                                )}
                               </span>
-                              <span className='text-muted-foreground'>
+                              <span className='text-muted-foreground flex items-center gap-1.5'>
                                 {formatMonitorAvailability(
                                   monitor.availability_30d
+                                )}
+                                {monitor.manual_availability_30d != null && (
+                                  <Badge variant='outline'>
+                                    {t('Manual override')}
+                                  </Badge>
                                 )}
                               </span>
                             </div>

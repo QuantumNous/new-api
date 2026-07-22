@@ -69,3 +69,34 @@ func TestClaimDueChannelMonitorsOnlyClaimsOncePerLease(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, second)
 }
+
+func TestUpdateChannelMonitorAvailabilityOverrides(t *testing.T) {
+	truncateTables(t)
+
+	manual7d := 99.5
+	manual30d := 98.25
+	monitor := &ChannelMonitor{
+		Name:                  "Manual availability",
+		ApiURL:                "https://example.com/v1",
+		ApiKeyEncrypted:       "encrypted",
+		TestModel:             "gpt-test",
+		IntervalSeconds:       60,
+		TimeoutSeconds:        15,
+		Enabled:               true,
+		Visible:               true,
+		ManualAvailability7d:  &manual7d,
+		ManualAvailability30d: &manual30d,
+	}
+	require.NoError(t, CreateChannelMonitor(monitor))
+
+	manual7d = 97.75
+	monitor.ManualAvailability7d = &manual7d
+	monitor.ManualAvailability30d = nil
+	require.NoError(t, UpdateChannelMonitor(monitor))
+
+	updated, err := GetChannelMonitorByID(monitor.Id)
+	require.NoError(t, err)
+	require.NotNil(t, updated.ManualAvailability7d)
+	assert.Equal(t, 97.75, *updated.ManualAvailability7d)
+	assert.Nil(t, updated.ManualAvailability30d)
+}

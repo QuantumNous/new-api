@@ -65,6 +65,7 @@ import { formatMonitorTime } from '../lib/format'
 import {
   channelMonitorFormDefaults,
   channelMonitorFormSchema,
+  parseManualAvailability,
   type ChannelMonitorFormInput,
   type ChannelMonitorFormValues,
 } from '../lib/schema'
@@ -105,6 +106,14 @@ function buildFormDefaults(
     timeout_seconds: monitor.timeout_seconds,
     enabled: monitor.enabled,
     visible: monitor.visible,
+    manual_availability_7d:
+      monitor.manual_availability_7d == null
+        ? ''
+        : String(monitor.manual_availability_7d),
+    manual_availability_30d:
+      monitor.manual_availability_30d == null
+        ? ''
+        : String(monitor.manual_availability_30d),
   }
 }
 
@@ -136,6 +145,12 @@ export function ChannelMonitorSheet(props: ChannelMonitorSheetProps) {
         api_url: input.values.api_url.trim(),
         api_key: input.values.api_key.trim(),
         test_model: input.values.test_model.trim(),
+        manual_availability_7d: parseManualAvailability(
+          input.values.manual_availability_7d
+        ),
+        manual_availability_30d: parseManualAvailability(
+          input.values.manual_availability_30d
+        ),
       }
       const saved = props.monitor
         ? await updateChannelMonitor(props.monitor.id, payload)
@@ -345,6 +360,68 @@ export function ChannelMonitorSheet(props: ChannelMonitorSheetProps) {
                           </InputGroupAddon>
                         </InputGroup>
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='manual_availability_7d'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Manual 7-day availability')}</FormLabel>
+                      <FormControl>
+                        <InputGroup>
+                          <InputGroupInput
+                            type='number'
+                            min={0}
+                            max={100}
+                            step={0.01}
+                            value={field.value}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                          <InputGroupAddon align='inline-end'>
+                            <InputGroupText>%</InputGroupText>
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </FormControl>
+                      <FormDescription>
+                        {t('Leave blank to use automatic statistics')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='manual_availability_30d'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Manual 30-day availability')}</FormLabel>
+                      <FormControl>
+                        <InputGroup>
+                          <InputGroupInput
+                            type='number'
+                            min={0}
+                            max={100}
+                            step={0.01}
+                            value={field.value}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                          <InputGroupAddon align='inline-end'>
+                            <InputGroupText>%</InputGroupText>
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </FormControl>
+                      <FormDescription>
+                        {t('Leave blank to use automatic statistics')}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,28 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestChannelMonitorAvailabilityOverrideValidation(t *testing.T) {
+	valid := 99.95
+	require.NoError(t, validateChannelMonitorAvailabilityOverride(&valid))
+	require.NoError(t, validateChannelMonitorAvailabilityOverride(nil))
+
+	for _, invalid := range []float64{-0.01, 100.01, math.NaN(), math.Inf(1)} {
+		t.Run("invalid", func(t *testing.T) {
+			require.Error(t, validateChannelMonitorAvailabilityOverride(&invalid))
+		})
+	}
+}
+
+func TestResolveChannelMonitorAvailabilityPrefersManualValue(t *testing.T) {
+	calculated := 80.0
+	manual := 99.5
+
+	resolved := resolveChannelMonitorAvailability(&calculated, &manual)
+	require.NotNil(t, resolved)
+	assert.Equal(t, manual, *resolved)
+	assert.Equal(t, &calculated, resolveChannelMonitorAvailability(&calculated, nil))
+}
 
 func TestChannelMonitorAPIKeyEncryptionRoundTrip(t *testing.T) {
 	originalSecret := common.CryptoSecret

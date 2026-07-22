@@ -46,6 +46,8 @@ export type ChannelMonitor = {
   next_check_at: number | null
   availability_7d: number | null
   availability_30d: number | null
+  manual_availability_7d: number | null
+  manual_availability_30d: number | null
   recent_results: ChannelMonitorResult[]
   created_at: number
   updated_at: number
@@ -76,6 +78,8 @@ export type ChannelMonitorPayload = {
   timeout_seconds: number
   enabled: boolean
   visible: boolean
+  manual_availability_7d: number | null
+  manual_availability_30d: number | null
 }
 
 export type ChannelMonitorRunResponse = {

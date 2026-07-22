@@ -44,6 +44,7 @@ import {
   getMinTopupAmount,
   calculatePresetPricing,
 } from '../lib'
+import { DEFAULT_REDEMPTION_PURCHASE_LINK } from '../constants'
 import type {
   PaymentMethod,
   PresetAmount,
@@ -139,6 +140,8 @@ export function RechargeFormCard({
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
+  const redemptionPurchaseLink =
+    topupLink || DEFAULT_REDEMPTION_PURCHASE_LINK
 
   if (loading) {
     return (
@@ -529,16 +532,16 @@ export function RechargeFormCard({
               {t('Redeem')}
             </Button>
           </div>
-          {topupLink && (
+          {redemptionPurchaseLink && (
             <p className='text-muted-foreground text-xs'>
               {t('Need a redemption code?')}{' '}
               <a
-                href={topupLink}
+                href={redemptionPurchaseLink}
                 target='_blank'
                 rel='noopener noreferrer'
                 className='inline-flex items-center gap-1 underline-offset-4 hover:underline'
               >
-                {t('Get one here')}
+                {t('Buy redemption code')}
                 <ExternalLink className='h-3 w-3' />
               </a>
             </p>

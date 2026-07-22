@@ -19,6 +19,23 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { z } from 'zod'
 
+const manualAvailabilitySchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value === '' || Number.isFinite(Number(value)),
+    'Enter a number'
+  )
+  .refine(
+    (value) => value === '' || (Number(value) >= 0 && Number(value) <= 100),
+    'Availability must be between 0 and 100'
+  )
+
+export function parseManualAvailability(value: string): number | null {
+  const trimmed = value.trim()
+  return trimmed === '' ? null : Number(trimmed)
+}
+
 export const channelMonitorFormSchema = z.object({
   name: z.string().trim().min(1, 'Monitor name is required').max(100),
   api_url: z
@@ -43,6 +60,8 @@ export const channelMonitorFormSchema = z.object({
     .max(120, 'Request timeout cannot exceed 120 seconds'),
   enabled: z.boolean(),
   visible: z.boolean(),
+  manual_availability_7d: manualAvailabilitySchema,
+  manual_availability_30d: manualAvailabilitySchema,
 })
 
 export type ChannelMonitorFormInput = z.input<typeof channelMonitorFormSchema>
@@ -57,4 +76,6 @@ export const channelMonitorFormDefaults: ChannelMonitorFormInput = {
   timeout_seconds: 15,
   enabled: true,
   visible: true,
+  manual_availability_7d: '',
+  manual_availability_30d: '',
 }

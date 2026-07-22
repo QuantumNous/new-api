@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -37,15 +38,17 @@ const (
 )
 
 type ChannelMonitorInput struct {
-	Name            string
-	ApiURL          string
-	ApiKey          string
-	TestModel       string
-	IntervalSeconds int
-	TimeoutSeconds  int
-	Enabled         bool
-	Visible         bool
-	CreatedBy       int
+	Name                  string
+	ApiURL                string
+	ApiKey                string
+	TestModel             string
+	IntervalSeconds       int
+	TimeoutSeconds        int
+	Enabled               bool
+	Visible               bool
+	ManualAvailability7d  *float64
+	ManualAvailability30d *float64
+	CreatedBy             int
 }
 
 type ChannelMonitorView struct {
@@ -55,6 +58,24 @@ type ChannelMonitorView struct {
 	Availability7d  *float64
 	Availability30d *float64
 	RecentResults   []*model.ChannelMonitorHistory
+}
+
+func validateChannelMonitorAvailabilityOverride(value *float64) error {
+	if value == nil {
+		return nil
+	}
+	if math.IsNaN(*value) || math.IsInf(*value, 0) || *value < 0 || *value > 100 {
+		return errors.New("availability override must be between 0 and 100")
+	}
+	return nil
+}
+
+func resolveChannelMonitorAvailability(calculated, manual *float64) *float64 {
+	if manual == nil {
+		return calculated
+	}
+	value := *manual
+	return &value
 }
 
 func normalizeChannelMonitorInput(input ChannelMonitorInput, requireAPIKey bool) (ChannelMonitorInput, error) {
@@ -87,6 +108,12 @@ func normalizeChannelMonitorInput(input ChannelMonitorInput, requireAPIKey bool)
 	}
 	if input.TimeoutSeconds < channelMonitorMinTimeout || input.TimeoutSeconds > channelMonitorMaxTimeout {
 		return input, fmt.Errorf("request timeout must be between %d and %d seconds", channelMonitorMinTimeout, channelMonitorMaxTimeout)
+	}
+	if err := validateChannelMonitorAvailabilityOverride(input.ManualAvailability7d); err != nil {
+		return input, err
+	}
+	if err := validateChannelMonitorAvailabilityOverride(input.ManualAvailability30d); err != nil {
+		return input, err
 	}
 	return input, nil
 }
@@ -167,15 +194,17 @@ func CreateChannelMonitor(input ChannelMonitorInput) (*model.ChannelMonitor, err
 	}
 	now := common.GetTimestamp()
 	monitor := &model.ChannelMonitor{
-		Name:            normalized.Name,
-		ApiURL:          normalized.ApiURL,
-		ApiKeyEncrypted: encryptedKey,
-		TestModel:       normalized.TestModel,
-		IntervalSeconds: normalized.IntervalSeconds,
-		TimeoutSeconds:  normalized.TimeoutSeconds,
-		Enabled:         normalized.Enabled,
-		Visible:         normalized.Visible,
-		CreatedBy:       normalized.CreatedBy,
+		Name:                  normalized.Name,
+		ApiURL:                normalized.ApiURL,
+		ApiKeyEncrypted:       encryptedKey,
+		TestModel:             normalized.TestModel,
+		IntervalSeconds:       normalized.IntervalSeconds,
+		TimeoutSeconds:        normalized.TimeoutSeconds,
+		Enabled:               normalized.Enabled,
+		Visible:               normalized.Visible,
+		ManualAvailability7d:  normalized.ManualAvailability7d,
+		ManualAvailability30d: normalized.ManualAvailability30d,
+		CreatedBy:             normalized.CreatedBy,
 	}
 	if monitor.Enabled {
 		monitor.NextCheckAt = &now
@@ -208,6 +237,8 @@ func UpdateChannelMonitor(id int, input ChannelMonitorInput) (*model.ChannelMoni
 	monitor.TimeoutSeconds = normalized.TimeoutSeconds
 	monitor.Enabled = normalized.Enabled
 	monitor.Visible = normalized.Visible
+	monitor.ManualAvailability7d = normalized.ManualAvailability7d
+	monitor.ManualAvailability30d = normalized.ManualAvailability30d
 	now := common.GetTimestamp()
 	if monitor.Enabled {
 		monitor.NextCheckAt = &now
@@ -271,6 +302,8 @@ func buildChannelMonitorView(monitor *model.ChannelMonitor) (*ChannelMonitorView
 	if err != nil {
 		return nil, err
 	}
+	view.Availability7d = resolveChannelMonitorAvailability(view.Availability7d, monitor.ManualAvailability7d)
+	view.Availability30d = resolveChannelMonitorAvailability(view.Availability30d, monitor.ManualAvailability30d)
 	view.RecentResults, err = model.ListChannelMonitorHistory(monitor.Id, 30)
 	if err != nil {
 		return nil, err
