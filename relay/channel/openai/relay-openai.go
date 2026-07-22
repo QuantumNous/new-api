@@ -238,7 +238,12 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		completionTokens := simpleResponse.Usage.CompletionTokens
 		if completionTokens == 0 {
 			for _, choice := range simpleResponse.Choices {
-				ctkm := service.CountTextToken(choice.Message.StringContent()+choice.Message.GetReasoningContent(), info.UpstreamModelName)
+				textContent := choice.Message.StringContent() + choice.Message.GetReasoningContent()
+				// Count tool call name/arguments too, otherwise completion tokens are undercounted when upstream omits usage for tool-calling responses.
+				for _, tool := range choice.Message.ParseToolCalls() {
+					textContent += tool.Function.Name + tool.Function.Arguments
+				}
+				ctkm := service.CountTextToken(textContent, info.UpstreamModelName)
 				completionTokens += ctkm
 			}
 		}
