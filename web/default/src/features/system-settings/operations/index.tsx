@@ -49,6 +49,7 @@ const defaultOperationsSettings: OperationsSettings = {
   SMTPToken: '',
   SMTPSSLEnabled: false,
   SMTPForceAuthLogin: false,
+  SkillHubReportEmail: '',
   AliyunSmsAccessKeyId: '',
   AliyunSmsAccessKeySecret: '',
   AliyunSmsSignName: '',

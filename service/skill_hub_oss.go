@@ -1,6 +1,7 @@
 package service
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -381,6 +383,11 @@ func promoteSkillHubZipObject(skill *model.SkillHubSkill, result *SkillHubPromot
 	if err != nil {
 		return err
 	}
+	markdown, err := readSkillHubMarkdownFromZipObject(bucket, objectKey)
+	if err != nil {
+		return err
+	}
+	skill.SkillMarkdown = markdown
 	if _, err := bucket.CopyObject(objectKey, finalObject, oss.ForbidOverWrite(true)); err != nil {
 		return err
 	}
@@ -389,6 +396,108 @@ func promoteSkillHubZipObject(skill *model.SkillHubSkill, result *SkillHubPromot
 	result.TempSourceRef = objectKey
 	result.FinalSourceRef = finalObject
 	return nil
+}
+
+func readSkillHubMarkdownFromZipObject(bucket *oss.Bucket, objectKey string) (string, error) {
+	reader, err := bucket.GetObject(objectKey)
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+
+	tempFile, err := os.CreateTemp("", "skill-hub-package-*.zip")
+	if err != nil {
+		return "", err
+	}
+	tempPath := tempFile.Name()
+	defer func() {
+		_ = tempFile.Close()
+		_ = os.Remove(tempPath)
+	}()
+
+	written, err := io.Copy(tempFile, io.LimitReader(reader, SkillHubZipMaxBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if written > SkillHubZipMaxBytes {
+		return "", fmt.Errorf("skill hub upload must be <= %d MB", SkillHubZipMaxBytes>>20)
+	}
+	if err := tempFile.Close(); err != nil {
+		return "", err
+	}
+
+	return readSkillHubMarkdownFromZipPath(tempPath)
+}
+
+func readSkillHubMarkdownFromZipPath(zipPath string) (string, error) {
+	archive, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return "", errors.New("uploaded file is not a valid zip archive")
+	}
+	defer archive.Close()
+
+	var candidate *zip.File
+	for _, file := range archive.File {
+		parts, err := safeSkillHubZipEntryParts(file.Name)
+		if err != nil {
+			return "", err
+		}
+		if file.FileInfo().IsDir() || len(parts) == 0 || !strings.EqualFold(parts[len(parts)-1], "SKILL.md") {
+			continue
+		}
+		if len(parts) > 2 {
+			continue
+		}
+		if file.Mode()&os.ModeSymlink != 0 || !file.Mode().IsRegular() {
+			return "", errors.New("SKILL.md must be a regular file")
+		}
+		if candidate != nil {
+			return "", errors.New("skill package contains multiple SKILL.md files")
+		}
+		candidate = file
+	}
+	if candidate == nil {
+		return "", errors.New("skill package must contain SKILL.md at the root or in one top-level directory")
+	}
+	if candidate.UncompressedSize64 > uint64(model.SkillHubMarkdownMaxBytes) {
+		return "", errors.New("SKILL.md must be 256000 bytes or fewer")
+	}
+	contentReader, err := candidate.Open()
+	if err != nil {
+		return "", err
+	}
+	defer contentReader.Close()
+	content, err := io.ReadAll(io.LimitReader(contentReader, int64(model.SkillHubMarkdownMaxBytes)+1))
+	if err != nil {
+		return "", err
+	}
+	if len(content) > model.SkillHubMarkdownMaxBytes {
+		return "", errors.New("SKILL.md must be 256000 bytes or fewer")
+	}
+	content = bytes.TrimPrefix(content, []byte{0xef, 0xbb, 0xbf})
+	if !utf8.Valid(content) {
+		return "", errors.New("SKILL.md must use UTF-8 encoding")
+	}
+	if strings.TrimSpace(string(content)) == "" {
+		return "", errors.New("SKILL.md must not be empty")
+	}
+	return string(content), nil
+}
+
+func safeSkillHubZipEntryParts(name string) ([]string, error) {
+	if name == "" || strings.Contains(name, "\\") || strings.HasPrefix(name, "/") {
+		return nil, errors.New("skill package contains an unsafe path")
+	}
+	if len(name) >= 2 && name[1] == ':' {
+		return nil, errors.New("skill package contains an unsafe path")
+	}
+	parts := strings.Split(strings.TrimSuffix(name, "/"), "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return nil, errors.New("skill package contains an unsafe path")
+		}
+	}
+	return parts, nil
 }
 
 func promoteSkillHubIconObject(skill *model.SkillHubSkill, result *SkillHubPromoteResult) error {

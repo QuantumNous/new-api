@@ -1,11 +1,81 @@
 package service
 
 import (
+	"archive/zip"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
 )
+
+func TestReadSkillHubMarkdownFromZipPath(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		entries map[string]string
+		want    string
+		wantErr bool
+	}{
+		{name: "root", entries: map[string]string{"SKILL.md": "# Root\n"}, want: "# Root\n"},
+		{name: "one top-level directory", entries: map[string]string{"demo/SKILL.md": "# Demo"}, want: "# Demo"},
+		{name: "rejects traversal in any entry", entries: map[string]string{"SKILL.md": "# Demo", "../escape.txt": "bad"}, wantErr: true},
+		{name: "rejects multiple candidates", entries: map[string]string{"SKILL.md": "# Root", "demo/SKILL.md": "# Demo"}, wantErr: true},
+		{name: "rejects deeply nested skill file", entries: map[string]string{"demo/nested/SKILL.md": "# Demo"}, wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			zipPath := writeSkillHubTestZip(t, test.entries)
+			got, err := readSkillHubMarkdownFromZipPath(zipPath)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("readSkillHubMarkdownFromZipPath() = %q, want error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("readSkillHubMarkdownFromZipPath() error = %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("readSkillHubMarkdownFromZipPath() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestReadSkillHubMarkdownFromZipPathEnforcesUncompressedLimit(t *testing.T) {
+	zipPath := writeSkillHubTestZip(t, map[string]string{
+		"SKILL.md": strings.Repeat("x", model.SkillHubMarkdownMaxBytes+1),
+	})
+	if _, err := readSkillHubMarkdownFromZipPath(zipPath); err == nil {
+		t.Fatal("readSkillHubMarkdownFromZipPath() returned nil error for oversized SKILL.md")
+	}
+}
+
+func writeSkillHubTestZip(t *testing.T, entries map[string]string) string {
+	t.Helper()
+	zipPath := filepath.Join(t.TempDir(), "skill.zip")
+	file, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatalf("create zip: %v", err)
+	}
+	archive := zip.NewWriter(file)
+	for name, content := range entries {
+		writer, createErr := archive.Create(name)
+		if createErr != nil {
+			t.Fatalf("create zip entry %q: %v", name, createErr)
+		}
+		if _, writeErr := writer.Write([]byte(content)); writeErr != nil {
+			t.Fatalf("write zip entry %q: %v", name, writeErr)
+		}
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatalf("close zip: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close zip file: %v", err)
+	}
+	return zipPath
+}
 
 func TestSkillHubOSSConfigObjectKey(t *testing.T) {
 	cfg := skillHubOSSConfig{Prefix: "uploads/skills"}

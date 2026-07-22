@@ -203,3 +203,61 @@ func SearchRateLimit() func(c *gin.Context) {
 	}
 	return userRateLimitFactory(common.SearchRateLimitNum, common.SearchRateLimitDuration, "SR")
 }
+
+// SkillHubReportRateLimit limits authenticated users to five report submissions
+// per hour. The report endpoint also has a database idempotency key, so network
+// retries do not produce duplicate records or duplicate notification sends.
+func SkillHubReportRateLimit() func(c *gin.Context) {
+	const maxReports = 5
+	const durationSeconds int64 = 3600
+	if !common.RedisEnabled {
+		return userRateLimitFactory(maxReports, durationSeconds, "SHR")
+	}
+	return func(c *gin.Context) {
+		userID := c.GetInt("id")
+		if userID == 0 {
+			c.Status(http.StatusUnauthorized)
+			c.Abort()
+			return
+		}
+
+		// Use one Lua script so concurrent app instances cannot all pass an
+		// LLEN-then-LPUSH race. A sequence key makes members unique even when
+		// multiple requests arrive in the same millisecond.
+		const script = `
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local maximum = tonumber(ARGV[3])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - window)
+if redis.call('ZCARD', KEYS[1]) >= maximum then
+  redis.call('EXPIRE', KEYS[1], math.ceil(window / 1000))
+  return 0
+end
+local sequence = redis.call('INCR', KEYS[2])
+redis.call('EXPIRE', KEYS[2], math.ceil(window / 1000))
+redis.call('ZADD', KEYS[1], now, tostring(now) .. '-' .. tostring(sequence))
+redis.call('EXPIRE', KEYS[1], math.ceil(window / 1000))
+return 1`
+		key := fmt.Sprintf("rateLimit:SHR:v2:user:%d", userID)
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+		allowed, err := common.RDB.Eval(
+			ctx,
+			script,
+			[]string{key, key + ":sequence"},
+			time.Now().UnixMilli(),
+			durationSeconds*1000,
+			maxReports,
+		).Int()
+		if err != nil {
+			common.SysError(fmt.Sprintf("skill hub report rate limit failed: %v", err))
+			c.Status(http.StatusInternalServerError)
+			c.Abort()
+			return
+		}
+		if allowed != 1 {
+			c.Status(http.StatusTooManyRequests)
+			c.Abort()
+		}
+	}
+}

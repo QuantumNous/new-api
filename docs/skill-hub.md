@@ -56,6 +56,7 @@ SKILL_HUB_ALLOW_LOCAL_HTTP=true
 - `SKILL_HUB_OSS_UPLOAD_URL_EXPIRES_SECONDS` 为空时默认 `3600` 秒，最大不超过 `86400` 秒；这是后台直传 OSS 的 PUT signed URL 与上传票据有效期。
 - `SKILL_HUB_OSS_UPLOAD_TICKET_SECRET` 可选；为空时使用 OSS AccessKeySecret 对上传票据签名。
 - Zip 包直传初始化只接受 `.zip` 文件；完成确认时会从 OSS 读取对象并校验 Zip 文件头。
+- 保存直传 Zip 时，服务端只读取根目录或唯一一级目录下的 `SKILL.md`，不解压文件到磁盘。Zip 最大 50 MB，`SKILL.md` 最大 256000 字节且必须是非空 UTF-8 普通文件；绝对路径、反斜杠、盘符、`.`、`..`、符号链接、多份候选文件和更深层候选文件均会被拒绝。
 
 ## 图标 OSS 配置
 
@@ -135,15 +136,55 @@ OSS Bucket 需要允许管理后台域名执行 `PUT` 和 `OPTIONS`，允许 `Co
 ## 技能管理使用流程
 
 1. 在管理后台打开 `技能广场管理` -> `技能管理`。
-2. 新建或编辑 Skill，先填写 Skill ID；可填写来源（例如 `Clawhub`）和源项目地址。
+2. 新建或编辑 Skill，先填写 Skill ID；可填写来源（例如 `Clawhub`）、源项目地址和许可证。
 3. 上传 Skill Zip 包，系统会写入 `source.type=zip` 和下载 URL。
 4. 点击图标区域的上传按钮，选择 `png`、`jpg`、`jpeg` 或 `webp` 图片。
 5. 上传成功后，系统自动回填图标 URL。
 6. 从已有标签里选择 Skill 标签。
-7. 保存 Skill，确认无误后发布。
+7. 可选填写固定五维评测，或上传效果预览案例 JSON。
+8. 保存 Skill，确认无误后发布；保存直传 Zip 后可在后台预览提取出的 `SKILL.md`。
 
-技能列表按 `sort` 字段指定顺序展示：非 `0` 的排序值越小越靠前，例如 `1、2、3`
-会按填写顺序排列；`sort=0` 视为未指定排序，排在已指定排序的 Skill 后面，再按更新时间倒序兜底。
+## 详情、评测与案例
+
+技能列表接口只返回摘要字段，不加载较大的 `SKILL.md`、评测和案例数据。公开与管理详情接口会额外返回：
+
+- `skillMarkdown`：从 Zip 安全读取的 `SKILL.md` 原文。
+- `evaluation`：可选评测报告。五个固定维度为 `trust`、`reliability`、`adaptability`、`convention`、`effectiveness`，每个维度必须提供 `0` 到 `5` 的分数，评价可为空。
+- `evaluation.overallScore`：可选综合评分；为空时客户端取五维平均值。
+- `evaluation.overallRating` 与 `evaluation.overallReview`：可选综合评级和综合评价；评级为空时客户端按综合评分生成展示文案。
+- `testcases`：可选效果预览案例。整个 JSON 最大 2 MB，最多 50 个案例；`slug` 只要求是字符串，不要求与 Skill ID 一致。
+- `reportingEnabled`：是否已配置举报接收邮箱。
+
+案例文件结构如下，桌面端按 `sortOrder` 稳定排序并切换展示：
+
+```json
+{
+  "slug": "any-string",
+  "testcases": [
+    {
+      "id": 8,
+      "question": "用户问题",
+      "answer": "# Markdown 回答",
+      "sortOrder": 0
+    }
+  ]
+}
+```
+
+客户端用 Markdown 渲染 `skillMarkdown` 和案例回答，但不启用原始 HTML，并限制链接和图片协议，防止脚本或本地文件 URL 被执行或打开。
+
+## 举报通知
+
+管理员在系统设置的 SMTP 区域配置 `SkillHubReportEmail`（Skill 举报接收邮箱）后，技能详情会开放举报入口。举报接口要求登录，并按用户限制为每小时 5 次；描述必填，最多 1000 个字符。
+
+客户端为每次举报生成 `requestId`，网络失败重试时复用同一个值。数据库以 `user_id + request_id` 唯一约束去重，邮件发送用条件更新抢占通知权，确保并发请求最多只有一个发送者。已通知的重复请求直接返回原记录；SMTP 失败会保留记录并允许同请求重试。
+
+举报邮件不会包含用户填写的正文、用户名、用户邮箱或用户提供的链接，只发送举报编号、Skill 元数据、数字用户 ID、提交时间，以及根据系统 `ServerAddress` 生成的固定 `/skill-hub/reports?report=:id` 后台入口。管理员必须登录后台后才能读取举报正文，避免攻击者利用受信任的系统发件人向管理员投递钓鱼内容。
+
+管理员举报管理页支持按状态和关键词分页查询、查看纯文本正文、填写处理备注，以及标记为 `pending`、`resolved` 或 `dismissed`。正文不渲染 HTML、Markdown 或自动链接。处理接口要求提交当前 `revision`，数据库以 `id + revision` 条件更新；两个管理员同时处理时只有一个请求成功，另一个请求必须刷新最新记录后重试。
+
+技能列表优先按 `sort` 字段升序展示，排序值越小越靠前（包括 `sort=0`）；`sort`
+相同时再按更新时间倒序排列，更新时间仍相同时按内部 ID 倒序兜底。
 
 connector 会通过公开 Skill Hub 接口拿到 `icon` 字段，并在 Skill 列表和已安装列表中展示图标。没有图标时，connector 会回退显示首字母。
 
@@ -351,6 +392,9 @@ GET /api/skill-hub/tags/skills?tag_ids=1,2&p=1&page_size=20
 | `POST /api/admin/skill-hub/direct-upload/init`     | 管理员 | 初始化 Skill Zip 包或图标 OSS 直传，返回 PUT signed URL           |
 | `POST /api/admin/skill-hub/direct-upload/complete` | 管理员 | 完成直传确认，校验 OSS 对象并返回 URL、object、checksum           |
 | `POST /api/admin/skill-hub/direct-upload/discard`  | 管理员 | 丢弃未保存上传，删除对应 OSS 对象                                 |
+| `GET /api/admin/skill-hub/reports`                 | 管理员 | 分页查询举报，支持 `keyword`、`status`、`p`、`page_size`          |
+| `GET /api/admin/skill-hub/reports/:id`             | 管理员 | 获取举报详情及当前处理版本                                        |
+| `PUT /api/admin/skill-hub/reports/:id`             | 管理员 | 使用 `revision` 乐观锁更新处理状态和处理备注                       |
 | `GET /api/admin/skill-hub/skills`                  | 管理员 | 分页搜索后台 Skill 列表，支持 `keyword`、`p`、`page_size`         |
 | `POST /api/admin/skill-hub/skills`                 | 管理员 | 新建 Skill                                                        |
 | `GET /api/admin/skill-hub/skills/:id`              | 管理员 | 获取后台 Skill 详情                                               |
@@ -366,6 +410,7 @@ GET /api/skill-hub/tags/skills?tag_ids=1,2&p=1&page_size=20
 | `GET /api/skill-hub/tags`                          | 公开   | connector 拉取已发布 Skill 使用中的标签列表                       |
 | `GET /api/skill-hub/tags/skills`                   | 公开   | 按 `tag_ids` 查询已发布 Skill；不传标签时返回全部，支持 `keyword` |
 | `GET /api/skill-hub/skills/:id`                    | 公开   | connector 拉取 Skill 详情                                         |
+| `POST /api/skill-hub/skills/:id/reports`           | 用户   | 幂等提交举报并通知配置的管理员邮箱；每用户每小时最多 5 次          |
 | `GET /api/skill-hub/skills/:id/download`           | 公开   | 跳转到 Zip 包短期 signed URL                                      |
 | `GET /api/skill-hub/favorites`                     | 用户   | 获取当前账号收藏且仍存在、已发布的技能，支持搜索和标签筛选        |
 | `PUT /api/skill-hub/favorites/:id`                 | 用户   | 幂等收藏指定技能                                                  |
@@ -383,11 +428,29 @@ GET /api/skill-hub/tags/skills?tag_ids=1,2&p=1&page_size=20
   "version": "1.0.0",
   "origin": "Clawhub",
   "originUrl": "https://clawhub.ai/skills/demo-skill",
+  "license": "MIT License",
   "icon": "https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com/skill-hub/icons/demo.png",
   "tags": ["开发工具", "自动化"],
   "verified": true,
   "published": false,
   "sort": 0,
+  "evaluation": {
+    "overallRating": "优秀",
+    "overallReview": "综合表现稳定。",
+    "dimensions": {
+      "trust": { "score": 4.2, "review": "来源和行为边界清晰。" },
+      "reliability": { "score": 4.1, "review": "" },
+      "adaptability": { "score": 3.9, "review": "" },
+      "convention": { "score": 4.0, "review": "" },
+      "effectiveness": { "score": 4.3, "review": "" }
+    }
+  },
+  "testcases": {
+    "slug": "does-not-need-to-match",
+    "testcases": [
+      { "id": 8, "question": "用户问题", "answer": "# Markdown 回答", "sortOrder": 0 }
+    ]
+  },
   "source": {
     "type": "zip",
     "url": "https://example.com/demo-skill.zip",

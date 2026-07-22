@@ -62,7 +62,7 @@ func SearchFavoriteSkillHubSkills(userID int, tagIDs []int, keyword string, offs
 	favoriteSkillIDs := DB.Model(&SkillHubFavorite{}).
 		Select("skill_id").
 		Where("user_id = ?", userID)
-	db := DB.Model(&SkillHubSkill{}).
+	db := skillHubSummaryQuery(DB.Model(&SkillHubSkill{})).
 		Where("skill_hub_skills.status = ?", SkillHubStatusPublished).
 		Where("skill_hub_skills.id IN (?)", favoriteSkillIDs)
 

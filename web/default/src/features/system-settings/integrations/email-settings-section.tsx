@@ -53,6 +53,11 @@ const createEmailSchema = (t: (key: string) => string) =>
     SMTPToken: z.string(),
     SMTPSSLEnabled: z.boolean(),
     SMTPForceAuthLogin: z.boolean(),
+    SkillHubReportEmail: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+    }, t('Enter a valid email or leave blank')),
   })
 
 type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
@@ -84,6 +89,7 @@ export function EmailSettingsSection({
       SMTPToken: values.SMTPToken.trim(),
       SMTPSSLEnabled: values.SMTPSSLEnabled,
       SMTPForceAuthLogin: values.SMTPForceAuthLogin,
+      SkillHubReportEmail: values.SkillHubReportEmail.trim(),
     }
 
     const initial = {
@@ -94,6 +100,7 @@ export function EmailSettingsSection({
       SMTPToken: defaultValues.SMTPToken.trim(),
       SMTPSSLEnabled: defaultValues.SMTPSSLEnabled,
       SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
+      SkillHubReportEmail: defaultValues.SkillHubReportEmail.trim(),
     }
 
     const updates: Array<{ key: string; value: string | boolean }> = []
@@ -129,6 +136,13 @@ export function EmailSettingsSection({
       updates.push({
         key: 'SMTPForceAuthLogin',
         value: sanitized.SMTPForceAuthLogin,
+      })
+    }
+
+    if (sanitized.SkillHubReportEmail !== initial.SkillHubReportEmail) {
+      updates.push({
+        key: 'SkillHubReportEmail',
+        value: sanitized.SkillHubReportEmail,
       })
     }
 
@@ -279,6 +293,31 @@ export function EmailSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t('Display name and email used in outgoing messages')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='SkillHubReportEmail'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Skill report recipient')}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete='off'
+                    type='email'
+                    placeholder={t('security@example.com')}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Receives notification emails when users report a Skill Hub entry'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

@@ -18,18 +18,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-const fs = require('node:fs');
-const fsp = require('node:fs/promises');
-const http = require('node:http');
-const https = require('node:https');
-const path = require('node:path');
-const { URL } = require('node:url');
+const fs = require("node:fs");
+const fsp = require("node:fs/promises");
+const http = require("node:http");
+const https = require("node:https");
+const path = require("node:path");
+const { URL } = require("node:url");
 
 const ZIP_MAX_BYTES = 50 * 1024 * 1024;
 const ICON_MAX_BYTES = 1024 * 1024;
 const SKILL_NAME_MAX_CHARACTERS = 40;
 const SKILL_ID_PATTERN = /^[a-z][a-z-]{0,127}$/;
-const VALID_MODES = new Set(['skip', 'update', 'fail']);
+const VALID_MODES = new Set(["skip", "update", "fail"]);
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -57,7 +57,7 @@ async function main() {
   }
 
   console.log(
-    `Loaded ${entries.length} skills from ${manifestPath}. Mode=${options.mode}, dryRun=${options.dryRun}`
+    `Loaded ${entries.length} skills from ${manifestPath}. Mode=${options.mode}, dryRun=${options.dryRun}`,
   );
   if (entries.length === 0) {
     report.finishedAt = new Date().toISOString();
@@ -66,24 +66,30 @@ async function main() {
     return;
   }
 
-  const results = await runWithConcurrency(entries, options, async (entry, index) => {
-    const ordinal = `${index + 1}/${entries.length}`;
-    console.log(`[${ordinal}] ${entry.id}: checking`);
-    const result = await processEntry(entry, options);
-    console.log(`[${ordinal}] ${entry.id}: ${result.status}${result.action ? ` (${result.action})` : ''}`);
-    return result;
-  });
+  const results = await runWithConcurrency(
+    entries,
+    options,
+    async (entry, index) => {
+      const ordinal = `${index + 1}/${entries.length}`;
+      console.log(`[${ordinal}] ${entry.id}: checking`);
+      const result = await processEntry(entry, options);
+      console.log(
+        `[${ordinal}] ${entry.id}: ${result.status}${result.action ? ` (${result.action})` : ""}`,
+      );
+      return result;
+    },
+  );
 
   report.items = results;
   report.finishedAt = new Date().toISOString();
   report.summary = summarizeResults(results);
   await writeReport(options.report, report);
 
-  const failed = results.filter((item) => item.status === 'failed').length;
-  const succeeded = results.filter((item) => item.status === 'success').length;
-  const skipped = results.filter((item) => item.status === 'skipped').length;
+  const failed = results.filter((item) => item.status === "failed").length;
+  const succeeded = results.filter((item) => item.status === "success").length;
+  const skipped = results.filter((item) => item.status === "skipped").length;
   console.log(
-    `Done. success=${succeeded}, skipped=${skipped}, failed=${failed}, report=${options.report}`
+    `Done. success=${succeeded}, skipped=${skipped}, failed=${failed}, report=${options.report}`,
   );
   if (failed > 0) {
     process.exitCode = 1;
@@ -92,23 +98,33 @@ async function main() {
 
 function parseArgs(argv) {
   const options = {
-    baseUrl: process.env.SKILL_HUB_BASE_URL || process.env.NEW_API_BASE_URL || '',
-    token: process.env.SKILL_HUB_ADMIN_TOKEN || process.env.NEW_API_ADMIN_TOKEN || '',
-    cookie: process.env.SKILL_HUB_SESSION_COOKIE || process.env.NEW_API_SESSION_COOKIE || '',
-    userId: process.env.SKILL_HUB_ADMIN_USER_ID || process.env.NEW_API_ADMIN_USER_ID || '',
-    manifest: '',
-    mode: 'skip',
+    baseUrl:
+      process.env.SKILL_HUB_BASE_URL || process.env.NEW_API_BASE_URL || "",
+    token:
+      process.env.SKILL_HUB_ADMIN_TOKEN ||
+      process.env.NEW_API_ADMIN_TOKEN ||
+      "",
+    cookie:
+      process.env.SKILL_HUB_SESSION_COOKIE ||
+      process.env.NEW_API_SESSION_COOKIE ||
+      "",
+    userId:
+      process.env.SKILL_HUB_ADMIN_USER_ID ||
+      process.env.NEW_API_ADMIN_USER_ID ||
+      "",
+    manifest: "",
+    mode: "skip",
     concurrency: 2,
     dryRun: false,
     stopOnError: false,
-    report: '',
+    report: "",
     timeoutMs: 10 * 60 * 1000,
     help: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (!arg.startsWith('--')) {
+    if (!arg.startsWith("--")) {
       throw new Error(`Unexpected argument: ${arg}`);
     }
     const [name, inlineValue] = arg.slice(2).split(/=(.*)/s, 2);
@@ -122,42 +138,42 @@ function parseArgs(argv) {
     };
 
     switch (name) {
-      case 'base-url':
+      case "base-url":
         options.baseUrl = readValue();
         break;
-      case 'token':
+      case "token":
         options.token = readValue();
         break;
-      case 'cookie':
-      case 'session-cookie':
+      case "cookie":
+      case "session-cookie":
         options.cookie = readValue();
         break;
-      case 'user-id':
+      case "user-id":
         options.userId = readValue();
         break;
-      case 'manifest':
+      case "manifest":
         options.manifest = readValue();
         break;
-      case 'mode':
+      case "mode":
         options.mode = readValue();
         break;
-      case 'concurrency':
+      case "concurrency":
         options.concurrency = Number(readValue());
         break;
-      case 'report':
+      case "report":
         options.report = readValue();
         break;
-      case 'timeout-ms':
+      case "timeout-ms":
         options.timeoutMs = Number(readValue());
         break;
-      case 'dry-run':
+      case "dry-run":
         options.dryRun = true;
         break;
-      case 'stop-on-error':
+      case "stop-on-error":
         options.stopOnError = true;
         break;
-      case 'help':
-      case 'h':
+      case "help":
+      case "h":
         options.help = true;
         break;
       default:
@@ -170,59 +186,78 @@ function parseArgs(argv) {
 
 function normalizeOptions(options) {
   if (!options.manifest) {
-    throw new Error('--manifest is required');
+    throw new Error("--manifest is required");
   }
   if (!options.baseUrl) {
-    throw new Error('--base-url is required, or set SKILL_HUB_BASE_URL');
+    throw new Error("--base-url is required, or set SKILL_HUB_BASE_URL");
   }
   if (!options.token && !options.cookie) {
-    throw new Error('--token or --cookie is required, or set SKILL_HUB_ADMIN_TOKEN / SKILL_HUB_SESSION_COOKIE');
+    throw new Error(
+      "--token or --cookie is required, or set SKILL_HUB_ADMIN_TOKEN / SKILL_HUB_SESSION_COOKIE",
+    );
   }
   if (!options.userId) {
-    throw new Error('--user-id is required, or set SKILL_HUB_ADMIN_USER_ID');
+    throw new Error("--user-id is required, or set SKILL_HUB_ADMIN_USER_ID");
   }
   if (!VALID_MODES.has(options.mode)) {
-    throw new Error('--mode must be one of: skip, update, fail');
+    throw new Error("--mode must be one of: skip, update, fail");
   }
-  if (!Number.isInteger(options.concurrency) || options.concurrency <= 0 || options.concurrency > 10) {
-    throw new Error('--concurrency must be an integer between 1 and 10');
+  if (
+    !Number.isInteger(options.concurrency) ||
+    options.concurrency <= 0 ||
+    options.concurrency > 10
+  ) {
+    throw new Error("--concurrency must be an integer between 1 and 10");
   }
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) {
-    throw new Error('--timeout-ms must be a positive number');
+    throw new Error("--timeout-ms must be a positive number");
   }
-  options.baseUrl = options.baseUrl.replace(/\/+$/, '');
-  options.report = path.resolve(options.report || 'skill-hub-batch-upload-report.json');
+  options.baseUrl = options.baseUrl.replace(/\/+$/, "");
+  options.report = path.resolve(
+    options.report || "skill-hub-batch-upload-report.json",
+  );
 }
 
 async function readManifest(manifestPath) {
   const baseDir = path.dirname(manifestPath);
-  const content = await fsp.readFile(manifestPath, 'utf8');
-  const text = content.replace(/^\uFEFF/, '').trim();
+  const content = await fsp.readFile(manifestPath, "utf8");
+  const text = content.replace(/^\uFEFF/, "").trim();
   if (!text) return [];
 
-  if (text.startsWith('[') || text.startsWith('{')) {
+  if (text.startsWith("[") || text.startsWith("{")) {
     const parsed = JSON.parse(text);
-    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed.skills) ? parsed.skills : [parsed];
+    const items = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed.skills)
+        ? parsed.skills
+        : [parsed];
     return items.map((item, index) => normalizeEntry(item, index + 1, baseDir));
   }
 
   return text
     .split(/\r?\n/)
     .map((line, lineIndex) => ({ line: line.trim(), lineIndex: lineIndex + 1 }))
-    .filter((item) => item.line !== '')
-    .map((item, index) => normalizeEntry(JSON.parse(item.line), index + 1, baseDir, item.lineIndex));
+    .filter((item) => item.line !== "")
+    .map((item, index) =>
+      normalizeEntry(JSON.parse(item.line), index + 1, baseDir, item.lineIndex),
+    );
 }
 
 function normalizeEntry(raw, index, baseDir, sourceLine) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return {
       index,
       sourceLine,
-      errors: ['entry must be an object'],
+      errors: ["entry must be an object"],
     };
   }
 
-  const zipValue = firstString(raw.zip, raw.zipPath, raw.package, raw.packagePath);
+  const zipValue = firstString(
+    raw.zip,
+    raw.zipPath,
+    raw.package,
+    raw.packagePath,
+  );
   const iconValue = firstString(raw.icon, raw.iconPath);
   let tags = [];
   let tagError = null;
@@ -240,48 +275,79 @@ function normalizeEntry(raw, index, baseDir, sourceLine) {
     id: cleanString(raw.id || raw.skillId),
     name: cleanString(raw.name),
     description: cleanString(raw.description),
-    version: cleanString(raw.version) || '1.0.0',
+    version: cleanString(raw.version) || "1.0.0",
     author: cleanString(raw.author),
     origin: cleanString(raw.origin || raw.sourceName),
     originUrl: cleanString(raw.originUrl || raw.sourceProjectUrl),
+    license: cleanString(raw.license),
+    evaluation: raw.evaluation ?? null,
+    testcases: raw.testcases ?? null,
     tags,
     verified: Boolean(raw.verified),
     recommended: Boolean(raw.recommended),
     sort: normalizeSort(raw.sort),
     published: true,
-    zipPath: zipValue ? resolveManifestPath(baseDir, zipValue) : '',
-    iconPath: iconValue ? resolveManifestPath(baseDir, iconValue) : '',
+    zipPath: zipValue ? resolveManifestPath(baseDir, zipValue) : "",
+    iconPath: iconValue ? resolveManifestPath(baseDir, iconValue) : "",
     errors: [],
   };
 
-  if (!entry.id) entry.errors.push('id is required');
+  if (!entry.id) entry.errors.push("id is required");
   if (entry.id && !SKILL_ID_PATTERN.test(entry.id)) {
-    entry.errors.push('id must match /^[a-z][a-z-]{0,127}$/');
+    entry.errors.push("id must match /^[a-z][a-z-]{0,127}$/");
   }
   if (!entry.name) {
-    entry.errors.push('name is required');
+    entry.errors.push("name is required");
   } else {
     const nameLength = Array.from(entry.name).length;
     if (nameLength > SKILL_NAME_MAX_CHARACTERS) {
-      entry.errors.push(`name must be ${SKILL_NAME_MAX_CHARACTERS} characters or fewer; got ${nameLength}`);
+      entry.errors.push(
+        `name must be ${SKILL_NAME_MAX_CHARACTERS} characters or fewer; got ${nameLength}`,
+      );
     }
   }
-  if (!entry.version) entry.errors.push('version is required');
+  if (!entry.version) entry.errors.push("version is required");
   if (Array.from(entry.origin).length > 64) {
-    entry.errors.push('origin must be 64 characters or fewer');
+    entry.errors.push("origin must be 64 characters or fewer");
   }
-  if (entry.originUrl.length > 2048 || (entry.originUrl && !isHttpURL(entry.originUrl))) {
-    entry.errors.push('originUrl must be an absolute HTTP or HTTPS URL with at most 2048 characters');
+  if (
+    entry.originUrl.length > 2048 ||
+    (entry.originUrl && !isHttpURL(entry.originUrl))
+  ) {
+    entry.errors.push(
+      "originUrl must be an absolute HTTP or HTTPS URL with at most 2048 characters",
+    );
+  }
+  if (Array.from(entry.license).length > 128) {
+    entry.errors.push("license must be 128 characters or fewer");
+  }
+  if (
+    entry.evaluation !== null &&
+    (!entry.evaluation ||
+      typeof entry.evaluation !== "object" ||
+      Array.isArray(entry.evaluation))
+  ) {
+    entry.errors.push("evaluation must be an object or null");
+  }
+  if (
+    entry.testcases !== null &&
+    (!entry.testcases ||
+      typeof entry.testcases !== "object" ||
+      Array.isArray(entry.testcases))
+  ) {
+    entry.errors.push("testcases must be an object or null");
   }
   if (tagError) {
     entry.errors.push(tagError.message || String(tagError));
   }
-  if (!zipValue) entry.errors.push('zip is required');
+  if (!zipValue) entry.errors.push("zip is required");
   if (zipValue && isHttpURL(zipValue)) {
-    entry.errors.push('zip must be a local file path, not a URL');
+    entry.errors.push("zip must be a local file path, not a URL");
   }
   if (iconValue && isHttpURL(iconValue)) {
-    entry.errors.push('icon must be a local file path; omit icon or set it to an empty string to clear it during update');
+    entry.errors.push(
+      "icon must be a local file path; omit icon or set it to an empty string to clear it during update",
+    );
   }
 
   return entry;
@@ -308,9 +374,15 @@ function validateEntries(entries) {
       }
     }
 
-    validateFile(entry, 'zip', ZIP_MAX_BYTES, ['.zip'], errors);
+    validateFile(entry, "zip", ZIP_MAX_BYTES, [".zip"], errors);
     if (entry.iconPath) {
-      validateFile(entry, 'icon', ICON_MAX_BYTES, ['.png', '.jpg', '.jpeg', '.webp'], errors);
+      validateFile(
+        entry,
+        "icon",
+        ICON_MAX_BYTES,
+        [".png", ".jpg", ".jpeg", ".webp"],
+        errors,
+      );
     }
   }
 
@@ -322,8 +394,8 @@ function groupValidationErrors(validationErrors) {
   for (const error of validationErrors) {
     if (!byIndex.has(error.index)) {
       byIndex.set(error.index, {
-        status: 'failed',
-        id: error.id || '',
+        status: "failed",
+        id: error.id || "",
         index: error.index,
         errors: [],
       });
@@ -332,26 +404,38 @@ function groupValidationErrors(validationErrors) {
   }
   return Array.from(byIndex.values()).map((item) => ({
     ...item,
-    error: item.errors.join('; '),
+    error: item.errors.join("; "),
   }));
 }
 
 function validateFile(entry, kind, maxBytes, extensions, errors) {
-  const filePath = kind === 'zip' ? entry.zipPath : entry.iconPath;
+  const filePath = kind === "zip" ? entry.zipPath : entry.iconPath;
   if (!filePath) return;
 
   let stat;
   try {
     stat = fs.statSync(filePath);
   } catch {
-    errors.push({ index: entry.index, id: entry.id, message: `${kind} file does not exist: ${filePath}` });
+    errors.push({
+      index: entry.index,
+      id: entry.id,
+      message: `${kind} file does not exist: ${filePath}`,
+    });
     return;
   }
   if (!stat.isFile()) {
-    errors.push({ index: entry.index, id: entry.id, message: `${kind} path is not a file: ${filePath}` });
+    errors.push({
+      index: entry.index,
+      id: entry.id,
+      message: `${kind} path is not a file: ${filePath}`,
+    });
   }
   if (stat.size <= 0) {
-    errors.push({ index: entry.index, id: entry.id, message: `${kind} file is empty: ${filePath}` });
+    errors.push({
+      index: entry.index,
+      id: entry.id,
+      message: `${kind} file is empty: ${filePath}`,
+    });
   }
   if (stat.size > maxBytes) {
     errors.push({
@@ -365,7 +449,7 @@ function validateFile(entry, kind, maxBytes, extensions, errors) {
     errors.push({
       index: entry.index,
       id: entry.id,
-      message: `${kind} file extension must be one of ${extensions.join(', ')}: ${filePath}`,
+      message: `${kind} file extension must be one of ${extensions.join(", ")}: ${filePath}`,
     });
   }
 }
@@ -374,60 +458,74 @@ async function processEntry(entry, options) {
   const item = {
     index: entry.index,
     id: entry.id,
-    status: '',
-    action: '',
+    status: "",
+    action: "",
     zipPath: entry.zipPath,
-    iconPath: entry.iconPath || '',
+    iconPath: entry.iconPath || "",
   };
 
   try {
     const existing = await getExistingSkill(entry.id, options);
-    if (existing && options.mode === 'skip') {
+    if (existing && options.mode === "skip") {
       return {
         ...item,
-        status: 'skipped',
-        action: 'exists',
-        message: 'skill already exists',
+        status: "skipped",
+        action: "exists",
+        message: "skill already exists",
       };
     }
-    if (existing && options.mode === 'fail') {
+    if (existing && options.mode === "fail") {
       return {
         ...item,
-        status: 'failed',
-        action: 'exists',
-        error: 'skill already exists',
+        status: "failed",
+        action: "exists",
+        error: "skill already exists",
       };
     }
 
-    const action = existing ? 'update' : 'create';
+    const action = existing ? "update" : "create";
     if (options.dryRun) {
       return {
         ...item,
-        status: 'skipped',
+        status: "skipped",
         action: `dry-run-${action}`,
-        message: 'validated without uploading',
+        message: "validated without uploading",
       };
     }
 
     const uploadTickets = [];
     try {
-      const zipUpload = await uploadLocalObject(entry, 'zip', options);
+      const zipUpload = await uploadLocalObject(entry, "zip", options);
       uploadTickets.push(zipUpload.ticket);
 
       let iconUpload = null;
       if (entry.iconPath) {
-        iconUpload = await uploadLocalObject(entry, 'icon', options);
+        iconUpload = await uploadLocalObject(entry, "icon", options);
         uploadTickets.push(iconUpload.ticket);
       }
 
-      const payload = buildSkillPayload(entry, zipUpload.result, iconUpload && iconUpload.result);
+      const payload = buildSkillPayload(
+        entry,
+        zipUpload.result,
+        iconUpload && iconUpload.result,
+      );
       const response = existing
-        ? await apiJSON(options, 'PUT', `/api/admin/skill-hub/skills/${encodeURIComponent(entry.id)}`, payload)
-        : await apiJSON(options, 'POST', '/api/admin/skill-hub/skills', payload);
+        ? await apiJSON(
+            options,
+            "PUT",
+            `/api/admin/skill-hub/skills/${encodeURIComponent(entry.id)}`,
+            payload,
+          )
+        : await apiJSON(
+            options,
+            "POST",
+            "/api/admin/skill-hub/skills",
+            payload,
+          );
 
       return {
         ...item,
-        status: 'success',
+        status: "success",
         action,
         zip: compactUpload(zipUpload.result),
         icon: iconUpload ? compactUpload(iconUpload.result) : undefined,
@@ -443,7 +541,7 @@ async function processEntry(entry, options) {
     }
     return {
       ...item,
-      status: 'failed',
+      status: "failed",
       error: error.message || String(error),
     };
   }
@@ -452,39 +550,49 @@ async function processEntry(entry, options) {
 async function getExistingSkill(id, options) {
   const response = await apiJSON(
     options,
-    'GET',
+    "GET",
     `/api/admin/skill-hub/skills/${encodeURIComponent(id)}`,
     undefined,
-    { allowBusinessError: true }
+    { allowBusinessError: true },
   );
   if (response.success) {
     return response.data || null;
   }
-  const message = String(response.message || '').toLowerCase();
-  if (message.includes('record not found') || message.includes('not found')) {
+  const message = String(response.message || "").toLowerCase();
+  if (message.includes("record not found") || message.includes("not found")) {
     return null;
   }
   throw new Error(response.message || `failed to check skill ${id}`);
 }
 
 async function uploadLocalObject(entry, kind, options) {
-  const filePath = kind === 'zip' ? entry.zipPath : entry.iconPath;
+  const filePath = kind === "zip" ? entry.zipPath : entry.iconPath;
   const stat = fs.statSync(filePath);
-  const init = await apiJSON(options, 'POST', '/api/admin/skill-hub/direct-upload/init', {
-    kind,
-    skillId: entry.id,
-    version: kind === 'zip' ? entry.version : '',
-    fileName: path.basename(filePath),
-    size: stat.size,
-  });
+  const init = await apiJSON(
+    options,
+    "POST",
+    "/api/admin/skill-hub/direct-upload/init",
+    {
+      kind,
+      skillId: entry.id,
+      version: kind === "zip" ? entry.version : "",
+      fileName: path.basename(filePath),
+      size: stat.size,
+    },
+  );
 
   const upload = init.data;
   const ticket = upload.uploadTicket;
   try {
     await putFile(upload, filePath, stat.size, options.timeoutMs);
-    const completed = await apiJSON(options, 'POST', '/api/admin/skill-hub/direct-upload/complete', {
-      uploadTicket: ticket,
-    });
+    const completed = await apiJSON(
+      options,
+      "POST",
+      "/api/admin/skill-hub/direct-upload/complete",
+      {
+        uploadTicket: ticket,
+      },
+    );
     return {
       ticket,
       result: completed.data,
@@ -504,14 +612,17 @@ function buildSkillPayload(entry, zipUpload, iconUpload) {
     author: entry.author,
     origin: entry.origin,
     originUrl: entry.originUrl,
-    icon: iconUpload ? iconUpload.url : '',
+    license: entry.license,
+    icon: iconUpload ? iconUpload.url : "",
     tags: entry.tags,
     verified: entry.verified,
     recommended: entry.recommended,
     published: true,
     sort: entry.sort,
+    evaluation: entry.evaluation,
+    testcases: entry.testcases,
     source: {
-      type: 'zip',
+      type: "zip",
       url: zipUpload.url,
       ref: zipUpload.object,
       checksum: zipUpload.checksum,
@@ -528,19 +639,26 @@ async function cleanupTickets(tickets, options) {
 async function discardUpload(ticket, options) {
   if (!ticket) return;
   try {
-    await apiJSON(options, 'POST', '/api/admin/skill-hub/direct-upload/discard', {
-      uploadTicket: ticket,
-    });
+    await apiJSON(
+      options,
+      "POST",
+      "/api/admin/skill-hub/direct-upload/discard",
+      {
+        uploadTicket: ticket,
+      },
+    );
   } catch (error) {
-    console.warn(`Failed to discard temporary upload: ${error.message || error}`);
+    console.warn(
+      `Failed to discard temporary upload: ${error.message || error}`,
+    );
   }
 }
 
 async function apiJSON(options, method, pathname, body, requestOptions = {}) {
   const url = new URL(pathname, options.baseUrl);
   const headers = {
-    Accept: 'application/json',
-    'New-Api-User': String(options.userId),
+    Accept: "application/json",
+    "New-Api-User": String(options.userId),
   };
   if (options.token) {
     headers.Authorization = formatAuthorization(options.token);
@@ -553,7 +671,7 @@ async function apiJSON(options, method, pathname, body, requestOptions = {}) {
     headers,
   };
   if (body !== undefined) {
-    headers['Content-Type'] = 'application/json';
+    headers["Content-Type"] = "application/json";
     init.body = JSON.stringify(body);
   }
 
@@ -563,12 +681,21 @@ async function apiJSON(options, method, pathname, body, requestOptions = {}) {
   try {
     parsed = text ? JSON.parse(text) : {};
   } catch (error) {
-    throw new Error(`Invalid JSON from ${method} ${url.pathname}: ${text.slice(0, 200)}`);
+    throw new Error(
+      `Invalid JSON from ${method} ${url.pathname}: ${text.slice(0, 200)}`,
+    );
   }
   if (!response.ok) {
-    throw new Error(parsed.message || `${method} ${url.pathname} failed with HTTP ${response.status}`);
+    throw new Error(
+      parsed.message ||
+        `${method} ${url.pathname} failed with HTTP ${response.status}`,
+    );
   }
-  if (parsed && parsed.success === false && !requestOptions.allowBusinessError) {
+  if (
+    parsed &&
+    parsed.success === false &&
+    !requestOptions.allowBusinessError
+  ) {
     throw new Error(parsed.message || `${method} ${url.pathname} failed`);
   }
   return parsed;
@@ -590,35 +717,39 @@ async function fetchWithTimeout(url, init, timeoutMs) {
 function putFile(upload, filePath, size, timeoutMs) {
   return new Promise((resolve, reject) => {
     const url = new URL(upload.uploadUrl);
-    const client = url.protocol === 'https:' ? https : http;
+    const client = url.protocol === "https:" ? https : http;
     const headers = {
       ...(upload.uploadHeaders || {}),
-      'Content-Length': String(size),
+      "Content-Length": String(size),
     };
     const request = client.request(
       url,
       {
-        method: upload.uploadMethod || 'PUT',
+        method: upload.uploadMethod || "PUT",
         headers,
       },
       (response) => {
         const chunks = [];
-        response.on('data', (chunk) => chunks.push(chunk));
-        response.on('end', () => {
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => {
           if (response.statusCode >= 200 && response.statusCode < 300) {
             resolve();
             return;
           }
-          const body = Buffer.concat(chunks).toString('utf8').slice(0, 500);
-          reject(new Error(`OSS upload failed with HTTP ${response.statusCode}: ${body}`));
+          const body = Buffer.concat(chunks).toString("utf8").slice(0, 500);
+          reject(
+            new Error(
+              `OSS upload failed with HTTP ${response.statusCode}: ${body}`,
+            ),
+          );
         });
-      }
+      },
     );
     request.setTimeout(timeoutMs, () => {
-      request.destroy(new Error('OSS upload timed out'));
+      request.destroy(new Error("OSS upload timed out"));
     });
-    request.on('error', reject);
-    fs.createReadStream(filePath).on('error', reject).pipe(request);
+    request.on("error", reject);
+    fs.createReadStream(filePath).on("error", reject).pipe(request);
   });
 }
 
@@ -638,7 +769,7 @@ async function runWithConcurrency(entries, options, worker) {
         results[index] = {
           index: entries[index].index,
           id: entries[index].id,
-          status: 'failed',
+          status: "failed",
           error: error.message || String(error),
         };
         if (options.stopOnError) {
@@ -648,22 +779,27 @@ async function runWithConcurrency(entries, options, worker) {
     }
   }
 
-  const workers = Array.from({ length: Math.min(options.concurrency, entries.length) }, runWorker);
+  const workers = Array.from(
+    { length: Math.min(options.concurrency, entries.length) },
+    runWorker,
+  );
   await Promise.all(workers);
   return results.filter(Boolean);
 }
 
 function normalizeTags(value) {
-  if (value === undefined || value === null || value === '') return [];
-  const rawValues = Array.isArray(value) ? value : String(value).split(/[,\uFF0C\r\n]/);
+  if (value === undefined || value === null || value === "") return [];
+  const rawValues = Array.isArray(value)
+    ? value
+    : String(value).split(/[,\uFF0C\r\n]/);
   const tags = [];
   const seen = new Set();
 
   for (const raw of rawValues) {
-    if (typeof raw === 'number') {
-      throw new Error('tags must be names, not numeric IDs');
+    if (typeof raw === "number") {
+      throw new Error("tags must be names, not numeric IDs");
     }
-    const tag = String(raw || '').trim();
+    const tag = String(raw || "").trim();
     if (!tag) continue;
     if (/^\d+$/.test(tag)) {
       throw new Error(`tag "${tag}" looks like an ID; tags must be names`);
@@ -678,7 +814,7 @@ function normalizeTags(value) {
 }
 
 function normalizeSort(value) {
-  if (value === undefined || value === null || value === '') return 0;
+  if (value === undefined || value === null || value === "") return 0;
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
   return Math.trunc(number);
@@ -686,29 +822,29 @@ function normalizeSort(value) {
 
 function resolveManifestPath(baseDir, value) {
   const filePath = cleanString(value);
-  if (!filePath) return '';
+  if (!filePath) return "";
   return path.isAbsolute(filePath) ? filePath : path.resolve(baseDir, filePath);
 }
 
 function firstString(...values) {
   for (const value of values) {
-    if (value !== undefined && value !== null && String(value).trim() !== '') {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
       return String(value).trim();
     }
   }
-  return '';
+  return "";
 }
 
 function cleanString(value) {
-  if (value === undefined || value === null) return '';
+  if (value === undefined || value === null) return "";
   return String(value).trim();
 }
 
 function isHttpURL(value) {
   try {
-    const url = new URL(String(value || '').trim());
+    const url = new URL(String(value || "").trim());
     return (
-      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      (url.protocol === "http:" || url.protocol === "https:") &&
       Boolean(url.host) &&
       !url.username &&
       !url.password
@@ -719,12 +855,14 @@ function isHttpURL(value) {
 }
 
 function formatAuthorization(token) {
-  const value = String(token || '').trim();
-  return `Bearer ${value.replace(/^bearer\s+/i, '')}`;
+  const value = String(token || "").trim();
+  return `Bearer ${value.replace(/^bearer\s+/i, "")}`;
 }
 
 function formatCookie(cookie) {
-  return String(cookie || '').trim().replace(/^cookie:\s*/i, '');
+  return String(cookie || "")
+    .trim()
+    .replace(/^cookie:\s*/i, "");
 }
 
 function compactUpload(upload) {
@@ -740,9 +878,9 @@ function compactUpload(upload) {
 function createReport(options, manifestPath, entries) {
   return {
     startedAt: new Date().toISOString(),
-    finishedAt: '',
+    finishedAt: "",
     baseUrl: options.baseUrl,
-    authMode: options.cookie ? 'cookie' : 'token',
+    authMode: options.cookie ? "cookie" : "token",
     manifest: manifestPath,
     mode: options.mode,
     dryRun: options.dryRun,
@@ -760,16 +898,20 @@ function summarizeResults(items) {
     failed: 0,
   };
   for (const item of items) {
-    if (item.status === 'success') summary.success += 1;
-    if (item.status === 'skipped') summary.skipped += 1;
-    if (item.status === 'failed') summary.failed += 1;
+    if (item.status === "success") summary.success += 1;
+    if (item.status === "skipped") summary.skipped += 1;
+    if (item.status === "failed") summary.failed += 1;
   }
   return summary;
 }
 
 async function writeReport(reportPath, report) {
   await fsp.mkdir(path.dirname(reportPath), { recursive: true });
-  await fsp.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  await fsp.writeFile(
+    reportPath,
+    `${JSON.stringify(report, null, 2)}\n`,
+    "utf8",
+  );
 }
 
 function printHelp() {
@@ -798,4 +940,3 @@ main().catch((error) => {
   console.error(error.message || error);
   process.exitCode = 1;
 });
-

@@ -39,6 +39,7 @@ func SetApiRouter(router *gin.Engine) {
 			skillHubRoute.GET("/skills/recommend", middleware.TryUserAuth(), controller.ListRecommendedSkillHubSkills)
 			skillHubRoute.GET("/skills/:id/download", controller.DownloadSkillHubSkill)
 			skillHubRoute.GET("/skills/:id", middleware.TryUserAuth(), controller.GetSkillHubSkill)
+			skillHubRoute.POST("/skills/:id/reports", middleware.UserAuth(), middleware.SkillHubReportRateLimit(), controller.ReportSkillHubSkill)
 
 			skillHubFavoriteRoute := skillHubRoute.Group("/favorites")
 			skillHubFavoriteRoute.Use(middleware.UserAuth())
@@ -246,6 +247,9 @@ func SetApiRouter(router *gin.Engine) {
 			adminSkillHubRoute.GET("/tags/skills", controller.AdminListSkillHubSkillsByTags)
 			adminSkillHubRoute.POST("/tags", controller.AdminCreateSkillHubTag)
 			adminSkillHubRoute.DELETE("/tags/:name", controller.AdminDeleteSkillHubTag)
+			adminSkillHubRoute.GET("/reports", controller.AdminListSkillHubReports)
+			adminSkillHubRoute.GET("/reports/:id", controller.AdminGetSkillHubReport)
+			adminSkillHubRoute.PUT("/reports/:id", controller.AdminUpdateSkillHubReport)
 			adminSkillHubRoute.GET("/skills", controller.AdminListSkillHubSkills)
 			adminSkillHubRoute.POST("/skills", controller.AdminCreateSkillHubSkill)
 			adminSkillHubRoute.POST("/skills/batch-delete", controller.AdminBatchDeleteSkillHubSkills)

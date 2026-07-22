@@ -262,12 +262,65 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SkillHubSkillApiResponse"
+                  "$ref": "#/components/schemas/SkillHubSkillDetailApiResponse"
                 }
               }
             }
           }
         }
+      }
+    },
+    "/api/skill-hub/skills/{id}/reports": {
+      "post": {
+        "summary": "举报技能",
+        "deprecated": false,
+        "description": "🔒 需要用户登录；同一用户按 requestId 幂等去重，每用户每小时最多 5 次；管理员须先配置 SkillHubReportEmail",
+        "tags": [
+          "技能广场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "技能 ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "举报已记录且通知处理完成或正在处理",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubReportApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
       }
     },
     "/api/skill-hub/skills/{id}/download": {
@@ -468,6 +521,57 @@
             "NewApiUser": []
           }
         ]
+      }
+    },
+    "/api/admin/skill-hub/reports": {
+      "get": {
+        "summary": "管理员分页查询 Skill 举报",
+        "description": "需要管理员权限；支持关键词和处理状态筛选，举报正文只应作为不受信任纯文本展示",
+        "tags": ["技能广场管理"],
+        "parameters": [
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["pending", "resolved", "dismissed"] } },
+          { "name": "p", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer", "minimum": 1 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SkillHubAdminReportListApiResponse" } } }
+          }
+        },
+        "security": [{ "SessionAuth": [], "NewApiUser": [] }, { "AccessToken": [], "NewApiUser": [] }]
+      }
+    },
+    "/api/admin/skill-hub/reports/{id}": {
+      "get": {
+        "summary": "管理员获取 Skill 举报详情",
+        "tags": ["技能广场管理"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SkillHubAdminReportApiResponse" } } }
+          }
+        },
+        "security": [{ "SessionAuth": [], "NewApiUser": [] }, { "AccessToken": [], "NewApiUser": [] }]
+      },
+      "put": {
+        "summary": "管理员更新 Skill 举报处理结果",
+        "description": "使用 revision 乐观锁；并发更新冲突时应刷新后重试",
+        "tags": ["技能广场管理"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SkillHubAdminReportUpdateRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SkillHubAdminReportApiResponse" } } }
+          }
+        },
+        "security": [{ "SessionAuth": [], "NewApiUser": [] }, { "AccessToken": [], "NewApiUser": [] }]
       }
     },
     "/api/admin/skill-hub/tags": {
@@ -793,7 +897,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SkillHubSkillApiResponse"
+                  "$ref": "#/components/schemas/SkillHubSkillDetailApiResponse"
                 }
               }
             }
@@ -913,7 +1017,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SkillHubSkillApiResponse"
+                  "$ref": "#/components/schemas/SkillHubSkillDetailApiResponse"
                 }
               }
             }
@@ -965,7 +1069,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SkillHubSkillApiResponse"
+                  "$ref": "#/components/schemas/SkillHubSkillDetailApiResponse"
                 }
               }
             }
@@ -1319,6 +1423,11 @@
             "format": "uri",
             "maxLength": 2048
           },
+          "license": {
+            "type": "string",
+            "description": "许可证名称或 SPDX 表达式",
+            "maxLength": 128
+          },
           "icon": {
             "type": "string",
             "description": "图标 URL",
@@ -1357,7 +1466,7 @@
           },
           "sort": {
             "type": "integer",
-            "description": "排序权重，越大越靠前；公开接口不返回有效值"
+            "description": "技能列表优先按该字段升序排列，值越小越靠前，同值时按更新时间倒序；公开接口不返回有效值"
           },
           "updatedAt": {
             "type": "string",
@@ -1368,6 +1477,145 @@
             "$ref": "#/components/schemas/SkillHubSource"
           }
         }
+      },
+      "SkillHubEvaluationDimension": {
+        "type": "object",
+        "required": [
+          "score"
+        ],
+        "properties": {
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "review": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        }
+      },
+      "SkillHubEvaluation": {
+        "type": "object",
+        "required": [
+          "dimensions"
+        ],
+        "properties": {
+          "overallScore": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5,
+            "description": "可选；为空时客户端取五维平均值"
+          },
+          "overallRating": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "overallReview": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "dimensions": {
+            "type": "object",
+            "required": [
+              "trust",
+              "reliability",
+              "adaptability",
+              "convention",
+              "effectiveness"
+            ],
+            "properties": {
+              "trust": {
+                "$ref": "#/components/schemas/SkillHubEvaluationDimension"
+              },
+              "reliability": {
+                "$ref": "#/components/schemas/SkillHubEvaluationDimension"
+              },
+              "adaptability": {
+                "$ref": "#/components/schemas/SkillHubEvaluationDimension"
+              },
+              "convention": {
+                "$ref": "#/components/schemas/SkillHubEvaluationDimension"
+              },
+              "effectiveness": {
+                "$ref": "#/components/schemas/SkillHubEvaluationDimension"
+              }
+            }
+          }
+        }
+      },
+      "SkillHubTestcase": {
+        "type": "object",
+        "required": [
+          "id",
+          "question",
+          "answer",
+          "sortOrder"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "answer": {
+            "type": "string",
+            "maxLength": 250000
+          },
+          "sortOrder": {
+            "type": "integer"
+          }
+        }
+      },
+      "SkillHubTestcases": {
+        "type": "object",
+        "required": [
+          "slug",
+          "testcases"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "不要求与 Skill ID 一致",
+            "maxLength": 256
+          },
+          "testcases": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/SkillHubTestcase"
+            }
+          }
+        }
+      },
+      "SkillHubSkillDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SkillHubSkill"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "skillMarkdown": {
+                "type": "string",
+                "maxLength": 256000
+              },
+              "evaluation": {
+                "$ref": "#/components/schemas/SkillHubEvaluation"
+              },
+              "testcases": {
+                "$ref": "#/components/schemas/SkillHubTestcases"
+              },
+              "reportingEnabled": {
+                "type": "boolean",
+                "description": "管理员是否配置了 SkillHubReportEmail"
+              }
+            }
+          }
+        ]
       },
       "SkillHubListData": {
         "type": "object",
@@ -1504,6 +1752,11 @@
             "format": "uri",
             "maxLength": 2048
           },
+          "license": {
+            "type": "string",
+            "description": "许可证名称或 SPDX 表达式",
+            "maxLength": 128
+          },
           "icon": {
             "type": "string",
             "description": "图标 URL",
@@ -1538,7 +1791,13 @@
           },
           "sort": {
             "type": "integer",
-            "description": "排序权重，越大越靠前"
+            "description": "技能列表优先按该字段升序排列，值越小越靠前，同值时按更新时间倒序"
+          },
+          "evaluation": {
+            "$ref": "#/components/schemas/SkillHubEvaluation"
+          },
+          "testcases": {
+            "$ref": "#/components/schemas/SkillHubTestcases"
           },
           "source": {
             "$ref": "#/components/schemas/SkillHubSource"
@@ -1593,6 +1852,126 @@
           },
           "data": {
             "$ref": "#/components/schemas/SkillHubSkill"
+          }
+        }
+      },
+      "SkillHubSkillDetailApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SkillHubSkillDetail"
+          }
+        }
+      },
+      "SkillHubAdminReport": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "reporterUserId": { "type": "integer" },
+          "reporterUsername": { "type": "string" },
+          "reporterEmail": { "type": "string" },
+          "skillInternalId": { "type": "integer" },
+          "skillId": { "type": "string" },
+          "skillName": { "type": "string" },
+          "skillVersion": { "type": "string" },
+          "description": { "type": "string", "description": "不受信任的用户输入；禁止作为 HTML、Markdown 或链接渲染" },
+          "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"] },
+          "adminNote": { "type": "string", "maxLength": 2000 },
+          "handledBy": { "type": "integer" },
+          "handledTime": { "type": "integer", "format": "int64" },
+          "revision": { "type": "integer", "minimum": 1 },
+          "notificationStatus": { "type": "string", "enum": ["pending", "sending", "notified", "failed"] },
+          "createdTime": { "type": "integer", "format": "int64" },
+          "updatedTime": { "type": "integer", "format": "int64" }
+        }
+      },
+      "SkillHubAdminReportUpdateRequest": {
+        "type": "object",
+        "required": ["status", "revision"],
+        "properties": {
+          "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"] },
+          "adminNote": { "type": "string", "maxLength": 2000 },
+          "revision": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "SkillHubAdminReportApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/SkillHubAdminReport" }
+        }
+      },
+      "SkillHubAdminReportListApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/SkillHubAdminReport" } },
+              "total": { "type": "integer", "format": "int64" }
+            }
+          }
+        }
+      },
+      "SkillHubReportRequest": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "description"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,128}$",
+            "description": "客户端幂等请求 ID；失败重试必须复用"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "SkillHubReportResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "recorded": {
+            "type": "boolean"
+          },
+          "notificationStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "sending",
+              "notified",
+              "failed"
+            ]
+          }
+        }
+      },
+      "SkillHubReportApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SkillHubReportResult"
           }
         }
       },

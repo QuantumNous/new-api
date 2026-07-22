@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
+  SkillHubAdminReportListResponse,
+  SkillHubAdminReportResponse,
   SkillHubDirectUploadInitResponse,
   SkillHubForm,
   SkillHubListResponse,
@@ -25,8 +27,38 @@ import type {
   SkillHubSkillResponse,
   SkillHubTagListResponse,
   SkillHubTagResponse,
+  SkillHubReportStatus,
   SkillHubUploadResponse,
 } from './types'
+
+export async function listAdminSkillHubReports(params?: {
+  keyword?: string
+  status?: SkillHubReportStatus | ''
+  p?: number
+  page_size?: number
+}): Promise<SkillHubAdminReportListResponse> {
+  const res = await api.get('/api/admin/skill-hub/reports', { params })
+  return res.data
+}
+
+export async function getAdminSkillHubReport(
+  id: number
+): Promise<SkillHubAdminReportResponse> {
+  const res = await api.get(`/api/admin/skill-hub/reports/${id}`)
+  return res.data
+}
+
+export async function updateAdminSkillHubReport(
+  id: number,
+  input: {
+    status: SkillHubReportStatus
+    adminNote: string
+    revision: number
+  }
+): Promise<SkillHubAdminReportResponse> {
+  const res = await api.put(`/api/admin/skill-hub/reports/${id}`, input)
+  return res.data
+}
 
 export async function listAdminSkillHubSkills(params?: {
   keyword?: string
@@ -52,6 +84,15 @@ export async function listRecommendedSkillHubSkills(params?: {
   page_size?: number
 }): Promise<SkillHubListResponse> {
   const res = await api.get('/api/skill-hub/skills/recommend', { params })
+  return res.data
+}
+
+export async function getAdminSkillHubSkill(
+  id: string
+): Promise<SkillHubSkillResponse> {
+  const res = await api.get(
+    `/api/admin/skill-hub/skills/${encodeURIComponent(id)}`
+  )
   return res.data
 }
 
@@ -279,6 +320,7 @@ export function skillToForm(skill?: SkillHubSkill): SkillHubForm {
     author: skill?.author || '',
     origin: skill?.origin || '',
     originUrl: skill?.originUrl || '',
+    license: skill?.license || '',
     icon: skill?.icon || '',
     tags: cleanList(skill?.tags),
     verified: Boolean(skill?.verified),
@@ -289,6 +331,9 @@ export function skillToForm(skill?: SkillHubSkill): SkillHubForm {
     sourceUrl: skill?.source?.url || '',
     sourceRef: skill?.source?.ref || '',
     sourceChecksum: skill?.source?.checksum || '',
+    skillMarkdown: skill?.skillMarkdown || '',
+    evaluation: evaluationToForm(skill?.evaluation),
+    testcases: skill?.testcases || null,
   }
 }
 
@@ -301,17 +346,66 @@ function formToPayload(form: SkillHubForm) {
     author: form.author.trim(),
     origin: form.origin.trim(),
     originUrl: form.originUrl.trim(),
+    license: form.license.trim(),
     icon: form.icon.trim(),
     tags: cleanList(form.tags),
     verified: form.verified,
     recommended: form.recommended,
     published: form.published,
     sort: Number(form.sort) || 0,
+    evaluation: evaluationToPayload(form.evaluation),
+    testcases: form.testcases,
     source: {
       type: 'zip',
       url: form.sourceUrl.trim(),
       ref: form.sourceRef.trim(),
       checksum: form.sourceChecksum.trim(),
+    },
+  }
+}
+
+function evaluationToForm(
+  evaluation?: SkillHubSkill['evaluation']
+): SkillHubForm['evaluation'] {
+  if (!evaluation) return null
+  const dimension = (key: keyof typeof evaluation.dimensions) => ({
+    score: String(evaluation.dimensions[key].score),
+    review: evaluation.dimensions[key].review || '',
+  })
+  return {
+    overallScore:
+      evaluation.overallScore === undefined
+        ? ''
+        : String(evaluation.overallScore),
+    overallRating: evaluation.overallRating || '',
+    overallReview: evaluation.overallReview || '',
+    dimensions: {
+      trust: dimension('trust'),
+      reliability: dimension('reliability'),
+      adaptability: dimension('adaptability'),
+      convention: dimension('convention'),
+      effectiveness: dimension('effectiveness'),
+    },
+  }
+}
+
+function evaluationToPayload(evaluation: SkillHubForm['evaluation']) {
+  if (!evaluation) return null
+  const dimension = (key: keyof typeof evaluation.dimensions) => ({
+    score: Number(evaluation.dimensions[key].score),
+    review: evaluation.dimensions[key].review.trim(),
+  })
+  const overallScore = evaluation.overallScore.trim()
+  return {
+    overallScore: overallScore ? Number(overallScore) : undefined,
+    overallRating: evaluation.overallRating.trim(),
+    overallReview: evaluation.overallReview.trim(),
+    dimensions: {
+      trust: dimension('trust'),
+      reliability: dimension('reliability'),
+      adaptability: dimension('adaptability'),
+      convention: dimension('convention'),
+      effectiveness: dimension('effectiveness'),
     },
   }
 }

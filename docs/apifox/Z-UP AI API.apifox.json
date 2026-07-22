@@ -49971,7 +49971,7 @@
                 },
                 "sort": {
                   "type": "integer",
-                  "description": "排序权重，越大越靠前；公开接口不返回有效值"
+                  "description": "技能列表优先按该字段升序排列，值越小越靠前，同值时按更新时间倒序；公开接口不返回有效值"
                 },
                 "updatedAt": {
                   "type": "string",
@@ -50227,7 +50227,7 @@
                 },
                 "sort": {
                   "type": "integer",
-                  "description": "排序权重，越大越靠前"
+                  "description": "技能列表优先按该字段升序排列，值越小越靠前，同值时按更新时间倒序"
                 },
                 "source": {
                   "$ref": "#/definitions/288594274"

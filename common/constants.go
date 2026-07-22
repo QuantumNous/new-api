@@ -125,6 +125,7 @@ var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
+var SkillHubReportEmail = ""
 
 var AliyunSmsAccessKeyId = ""
 var AliyunSmsAccessKeySecret = ""

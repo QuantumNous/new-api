@@ -297,6 +297,7 @@ func migrateDB() error {
 		&SkillHubTag{},
 		&SkillHubSkillTag{},
 		&SkillHubFavorite{},
+		&SkillHubReport{},
 		&ClientRelease{},
 	}
 	if !common.UsingSQLite {
@@ -369,6 +370,7 @@ func migrateDBFast() error {
 		{&SkillHubTag{}, "SkillHubTag"},
 		{&SkillHubSkillTag{}, "SkillHubSkillTag"},
 		{&SkillHubFavorite{}, "SkillHubFavorite"},
+		{&SkillHubReport{}, "SkillHubReport"},
 		{&ClientRelease{}, "ClientRelease"},
 	}
 	if !common.UsingSQLite {

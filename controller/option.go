@@ -166,6 +166,13 @@ func UpdateOption(c *gin.Context) {
 		}
 	}
 	switch option.Key {
+	case "SkillHubReportEmail":
+		value := strings.TrimSpace(option.Value.(string))
+		if value != "" && common.Validate.Var(value, "email") != nil {
+			common.ApiErrorMsg(c, "举报接收邮箱格式不正确")
+			return
+		}
+		option.Value = value
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && common.GitHubClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

@@ -28,7 +28,9 @@ import {
   Check,
   Download,
   FileArchive,
+  FileJson,
   ImageIcon,
+  Loader2,
   Plus,
   RefreshCw,
   Save,
@@ -57,6 +59,7 @@ import {
   batchExportSkillHubSkills,
   deleteSkillHubSkill,
   discardSkillHubUpload,
+  getAdminSkillHubSkill,
   listAdminSkillHubSkillsByTags,
   listAdminSkillHubTags,
   listAdminSkillHubSkills,
@@ -66,7 +69,13 @@ import {
   updateSkillHubSkill,
   uploadSkillHubZip,
 } from './api'
-import type { SkillHubForm, SkillHubSkill, SkillHubTag } from './types'
+import type {
+  SkillHubEvaluationForm,
+  SkillHubForm,
+  SkillHubSkill,
+  SkillHubTag,
+  SkillHubTestcases,
+} from './types'
 
 export function SkillHub() {
   const { t } = useTranslation()
@@ -81,10 +90,13 @@ export function SkillHub() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [iconUploading, setIconUploading] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [keyword, setKeyword] = useState('')
   const [recommendedOnly, setRecommendedOnly] = useState(false)
   const zipInputRef = useRef<HTMLInputElement | null>(null)
   const iconInputRef = useRef<HTMLInputElement | null>(null)
+  const testcasesInputRef = useRef<HTMLInputElement | null>(null)
+  const detailRequestIdRef = useRef(0)
   const pendingZipUploadRef = useRef<{
     ticket: string
     object: string
@@ -173,14 +185,36 @@ export function SkillHub() {
     }
   }, [])
 
-  function selectSkill(skill: SkillHubSkill) {
+  async function selectSkill(skill: SkillHubSkill) {
     discardPendingUploads()
+    const requestId = detailRequestIdRef.current + 1
+    detailRequestIdRef.current = requestId
     setSelectedId(skill.id)
     setForm(skillToForm(skill))
+    setDetailLoading(true)
+    try {
+      const payload = await getAdminSkillHubSkill(skill.id)
+      if (detailRequestIdRef.current !== requestId) return
+      if (!payload.success || !payload.data) {
+        throw new Error(payload.message || t('Failed to load skill details'))
+      }
+      setForm(skillToForm(payload.data))
+    } catch (error) {
+      if (detailRequestIdRef.current !== requestId) return
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to load skill details')
+      )
+    } finally {
+      if (detailRequestIdRef.current === requestId) setDetailLoading(false)
+    }
   }
 
   function createDraft() {
     discardPendingUploads()
+    detailRequestIdRef.current += 1
+    setDetailLoading(false)
     setSelectedId('')
     setForm(skillToForm())
   }
@@ -218,6 +252,15 @@ export function SkillHub() {
     }
     if (!isAllowedOriginUrl(form.originUrl)) {
       toast.error(t('Source project URL must use HTTP or HTTPS'))
+      return
+    }
+    if (form.license.trim().length > 128) {
+      toast.error(t('License must be 128 characters or fewer'))
+      return
+    }
+    const evaluationError = validateEvaluationForm(form.evaluation)
+    if (evaluationError) {
+      toast.error(t(evaluationError))
       return
     }
     setSaving(true)
@@ -307,6 +350,29 @@ export function SkillHub() {
       if (iconInputRef.current) {
         iconInputRef.current.value = ''
       }
+    }
+  }
+
+  async function uploadTestcases(file?: File) {
+    if (!file) return
+    try {
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error(t('Test cases JSON must be 2 MB or smaller'))
+      }
+      const parsed = JSON.parse(await file.text()) as unknown
+      const testcases = parseSkillHubTestcases(parsed)
+      update('testcases', testcases)
+      toast.success(
+        t('{{count}} test cases loaded', { count: testcases.testcases.length })
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to read test cases JSON')
+      )
+    } finally {
+      if (testcasesInputRef.current) testcasesInputRef.current.value = ''
     }
   }
 
@@ -415,6 +481,28 @@ export function SkillHub() {
     value: SkillHubForm[K]
   ) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function updateEvaluation(next: SkillHubEvaluationForm | null) {
+    update('evaluation', next)
+  }
+
+  function updateEvaluationDimension(
+    key: keyof SkillHubEvaluationForm['dimensions'],
+    field: 'score' | 'review',
+    value: string
+  ) {
+    if (!form.evaluation) return
+    updateEvaluation({
+      ...form.evaluation,
+      dimensions: {
+        ...form.evaluation.dimensions,
+        [key]: {
+          ...form.evaluation.dimensions[key],
+          [field]: value,
+        },
+      },
+    })
   }
 
   function discardPendingUploads() {
@@ -618,7 +706,7 @@ export function SkillHub() {
                         <button
                           type='button'
                           className='min-w-0 flex-1 text-left'
-                          onClick={() => selectSkill(skill)}
+                          onClick={() => void selectSkill(skill)}
                         >
                           <div className='flex items-start justify-between gap-3'>
                             <div className='min-w-0'>
@@ -684,7 +772,15 @@ export function SkillHub() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className='grid gap-4'>
+              {detailLoading && (
+                <div className='text-muted-foreground mb-4 flex items-center gap-2 text-sm'>
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                  {t('Loading skill details...')}
+                </div>
+              )}
+              <div
+                className={`grid gap-4 ${detailLoading ? 'pointer-events-none opacity-60' : ''}`}
+              >
                 <FormSection
                   title={t('Basic info')}
                   description={t(
@@ -740,6 +836,16 @@ export function SkillHub() {
                         placeholder='https://...'
                         onChange={(event) =>
                           update('originUrl', event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label={t('License')}>
+                      <Input
+                        value={form.license}
+                        maxLength={128}
+                        placeholder='MIT License'
+                        onChange={(event) =>
+                          update('license', event.target.value)
                         }
                       />
                     </Field>
@@ -805,6 +911,180 @@ export function SkillHub() {
                       />
                     </Field>
                   </div>
+                </FormSection>
+
+                <FormSection
+                  title='SKILL.md'
+                  description={t(
+                    'Extracted securely from the uploaded package when the skill is saved.'
+                  )}
+                >
+                  {form.skillMarkdown ? (
+                    <pre className='bg-muted max-h-72 overflow-auto rounded-md border p-3 text-xs leading-5 whitespace-pre-wrap'>
+                      {form.skillMarkdown}
+                    </pre>
+                  ) : (
+                    <div className='text-muted-foreground rounded-md border border-dashed p-3 text-sm'>
+                      {t(
+                        'No SKILL.md snapshot yet. Upload a package and save the skill.'
+                      )}
+                    </div>
+                  )}
+                </FormSection>
+
+                <FormSection
+                  title={t('Evaluation report')}
+                  description={t(
+                    'Configure the fixed five dimensions. Overall score may be left empty to use the average.'
+                  )}
+                >
+                  <SwitchField
+                    label={t('Enable evaluation report')}
+                    checked={Boolean(form.evaluation)}
+                    onChange={(checked) =>
+                      updateEvaluation(checked ? createEmptyEvaluation() : null)
+                    }
+                  />
+                  {form.evaluation && (
+                    <div className='grid gap-4'>
+                      <div className='grid gap-3 md:grid-cols-2'>
+                        <Field label={t('Overall score')}>
+                          <Input
+                            type='number'
+                            min='0'
+                            max='5'
+                            step='0.1'
+                            value={form.evaluation.overallScore}
+                            placeholder={evaluationAverage(form.evaluation)}
+                            onChange={(event) =>
+                              updateEvaluation({
+                                ...form.evaluation!,
+                                overallScore: event.target.value,
+                              })
+                            }
+                          />
+                        </Field>
+                        <Field label={t('Overall rating')}>
+                          <Input
+                            value={form.evaluation.overallRating}
+                            maxLength={80}
+                            placeholder={t('Automatically derived when empty')}
+                            onChange={(event) =>
+                              updateEvaluation({
+                                ...form.evaluation!,
+                                overallRating: event.target.value,
+                              })
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <Field label={t('Overall review')}>
+                        <Textarea
+                          value={form.evaluation.overallReview}
+                          maxLength={8000}
+                          onChange={(event) =>
+                            updateEvaluation({
+                              ...form.evaluation!,
+                              overallReview: event.target.value,
+                            })
+                          }
+                        />
+                      </Field>
+                      {EVALUATION_DIMENSIONS.map((dimension) => (
+                        <div
+                          key={dimension.key}
+                          className='grid gap-3 rounded-md border p-3 md:grid-cols-[160px_minmax(0,1fr)]'
+                        >
+                          <Field label={t(dimension.label)}>
+                            <Input
+                              type='number'
+                              min='0'
+                              max='5'
+                              step='0.1'
+                              value={
+                                form.evaluation!.dimensions[dimension.key].score
+                              }
+                              onChange={(event) =>
+                                updateEvaluationDimension(
+                                  dimension.key,
+                                  'score',
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </Field>
+                          <Field label={t('Dimension review')}>
+                            <Textarea
+                              value={
+                                form.evaluation!.dimensions[dimension.key]
+                                  .review
+                              }
+                              maxLength={4000}
+                              onChange={(event) =>
+                                updateEvaluationDimension(
+                                  dimension.key,
+                                  'review',
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </Field>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </FormSection>
+
+                <FormSection
+                  title={t('Effect preview cases')}
+                  description={t(
+                    'Upload the JSON payload used by the desktop client. The slug is preserved without matching the skill ID.'
+                  )}
+                >
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <input
+                      ref={testcasesInputRef}
+                      type='file'
+                      accept='.json,application/json'
+                      className='hidden'
+                      onChange={(event) =>
+                        void uploadTestcases(event.target.files?.[0])
+                      }
+                    />
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={() => testcasesInputRef.current?.click()}
+                    >
+                      <FileJson className='h-4 w-4' />
+                      {t('Upload JSON')}
+                    </Button>
+                    {form.testcases && (
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        onClick={() => update('testcases', null)}
+                      >
+                        {t('Clear cases')}
+                      </Button>
+                    )}
+                    <span className='text-muted-foreground text-xs'>
+                      {form.testcases
+                        ? t('{{count}} cases loaded', {
+                            count: form.testcases.testcases.length,
+                          })
+                        : t('No cases uploaded')}
+                    </span>
+                  </div>
+                  {form.testcases && (
+                    <div className='bg-muted rounded-md border p-3 text-xs'>
+                      <div>slug: {form.testcases.slug || t('(empty)')}</div>
+                      <div className='mt-1 line-clamp-2'>
+                        {form.testcases.testcases[0]?.question ||
+                          t('No cases in this file')}
+                      </div>
+                    </div>
+                  )}
                 </FormSection>
 
                 <FormSection
@@ -921,7 +1201,9 @@ export function SkillHub() {
                     )}
                   </div>
                   <Button
-                    disabled={saving || uploading || iconUploading}
+                    disabled={
+                      saving || uploading || iconUploading || detailLoading
+                    }
                     onClick={saveSkill}
                   >
                     <Save className='h-4 w-4' />
@@ -935,6 +1217,107 @@ export function SkillHub() {
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )
+}
+
+const EVALUATION_DIMENSIONS: Array<{
+  key: keyof SkillHubEvaluationForm['dimensions']
+  label: string
+}> = [
+  { key: 'trust', label: 'Trust' },
+  { key: 'reliability', label: 'Reliability' },
+  { key: 'adaptability', label: 'Adaptability' },
+  { key: 'convention', label: 'Convention' },
+  { key: 'effectiveness', label: 'Effectiveness' },
+]
+
+function createEmptyEvaluation(): SkillHubEvaluationForm {
+  const dimension = () => ({ score: '', review: '' })
+  return {
+    overallScore: '',
+    overallRating: '',
+    overallReview: '',
+    dimensions: {
+      trust: dimension(),
+      reliability: dimension(),
+      adaptability: dimension(),
+      convention: dimension(),
+      effectiveness: dimension(),
+    },
+  }
+}
+
+function validateEvaluationForm(evaluation: SkillHubEvaluationForm | null) {
+  if (!evaluation) return ''
+  for (const dimension of EVALUATION_DIMENSIONS) {
+    const raw = evaluation.dimensions[dimension.key].score.trim()
+    const score = Number(raw)
+    if (!raw || !Number.isFinite(score) || score < 0 || score > 5) {
+      return 'Each evaluation score must be between 0 and 5'
+    }
+  }
+  if (evaluation.overallScore.trim()) {
+    const score = Number(evaluation.overallScore)
+    if (!Number.isFinite(score) || score < 0 || score > 5) {
+      return 'Overall score must be between 0 and 5'
+    }
+  }
+  return ''
+}
+
+function evaluationAverage(evaluation: SkillHubEvaluationForm) {
+  const scores = EVALUATION_DIMENSIONS.map(({ key }) =>
+    Number(evaluation.dimensions[key].score)
+  )
+  if (scores.some((score) => !Number.isFinite(score))) return 'Auto'
+  return (
+    scores.reduce((sum, score) => sum + score, 0) / scores.length
+  ).toFixed(1)
+}
+
+function parseSkillHubTestcases(value: unknown): SkillHubTestcases {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Test cases JSON must be an object')
+  }
+  const record = value as Record<string, unknown>
+  if (typeof record.slug !== 'string') {
+    throw new Error('Test cases JSON slug must be a string')
+  }
+  if (!Array.isArray(record.testcases)) {
+    throw new Error('Test cases JSON must contain a testcases array')
+  }
+  if (record.testcases.length > 50) {
+    throw new Error('Test cases JSON must contain 50 cases or fewer')
+  }
+  return {
+    slug: record.slug,
+    testcases: record.testcases.map((item, index) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new Error(`Test case ${index + 1} must be an object`)
+      }
+      const testcase = item as Record<string, unknown>
+      if (
+        typeof testcase.id !== 'number' ||
+        !Number.isSafeInteger(testcase.id) ||
+        typeof testcase.question !== 'string' ||
+        !testcase.question.trim() ||
+        typeof testcase.answer !== 'string' ||
+        !testcase.answer.trim() ||
+        typeof testcase.sortOrder !== 'number' ||
+        !Number.isSafeInteger(testcase.sortOrder)
+      ) {
+        throw new Error(`Test case ${index + 1} has invalid fields`)
+      }
+      if (testcase.question.length > 10000 || testcase.answer.length > 250000) {
+        throw new Error(`Test case ${index + 1} is too large`)
+      }
+      return {
+        id: testcase.id,
+        question: testcase.question.trim(),
+        answer: testcase.answer.trim(),
+        sortOrder: testcase.sortOrder,
+      }
+    }),
+  }
 }
 
 function isAllowedZipUrl(value: string) {

@@ -305,6 +305,7 @@ export type OperationsSettings = {
   SMTPToken: string
   SMTPSSLEnabled: boolean
   SMTPForceAuthLogin: boolean
+  SkillHubReportEmail: string
   AliyunSmsAccessKeyId: string
   AliyunSmsAccessKeySecret: string
   AliyunSmsSignName: string

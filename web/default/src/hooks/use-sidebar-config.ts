@@ -114,6 +114,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/models/deployments': { section: 'admin', module: 'models' },
   '/skill-hub': { section: 'admin', module: 'skillHub' },
   '/skill-hub/tags': { section: 'admin', module: 'skillHub' },
+  '/skill-hub/reports': { section: 'admin', module: 'skillHub' },
   '/client-releases': { section: 'admin', module: 'clientRelease' },
   '/users': { section: 'admin', module: 'user' },
   '/redemption-codes': { section: 'admin', module: 'redemption' },

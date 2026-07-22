@@ -1,13 +1,201 @@
 package model
 
 import (
+	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+func TestSkillHubEvaluationAndTestcasesRoundTrip(t *testing.T) {
+	score := func(value float64) *float64 { return &value }
+	evaluation := &SkillHubEvaluation{
+		OverallRating: "优秀",
+		OverallReview: "综合表现稳定",
+		Dimensions: SkillHubEvaluationDimensions{
+			Trust:         SkillHubEvaluationDimension{Score: score(4.2), Review: "可信"},
+			Reliability:   SkillHubEvaluationDimension{Score: score(4.1)},
+			Adaptability:  SkillHubEvaluationDimension{Score: score(3.9)},
+			Convention:    SkillHubEvaluationDimension{Score: score(4.0)},
+			Effectiveness: SkillHubEvaluationDimension{Score: score(4.3)},
+		},
+	}
+	evaluationJSON, err := SkillHubEvaluationToJSON(evaluation)
+	if err != nil {
+		t.Fatalf("SkillHubEvaluationToJSON() error = %v", err)
+	}
+	roundTripEvaluation, err := SkillHubEvaluationFromJSON(evaluationJSON)
+	if err != nil || roundTripEvaluation == nil {
+		t.Fatalf("SkillHubEvaluationFromJSON() = %#v, %v", roundTripEvaluation, err)
+	}
+	if roundTripEvaluation.OverallScore != nil || *roundTripEvaluation.Dimensions.Trust.Score != 4.2 {
+		t.Fatalf("evaluation round trip = %#v", roundTripEvaluation)
+	}
+
+	testcases := &SkillHubTestcases{
+		Slug:      "does-not-need-to-match-skill-id",
+		Testcases: []SkillHubTestcase{{ID: 8, Question: "问题", Answer: "# 回答", SortOrder: 0}},
+	}
+	testcasesJSON, err := SkillHubTestcasesToJSON(testcases)
+	if err != nil {
+		t.Fatalf("SkillHubTestcasesToJSON() error = %v", err)
+	}
+	roundTripTestcases, err := SkillHubTestcasesFromJSON(testcasesJSON)
+	if err != nil || roundTripTestcases == nil || roundTripTestcases.Slug != testcases.Slug {
+		t.Fatalf("SkillHubTestcasesFromJSON() = %#v, %v", roundTripTestcases, err)
+	}
+}
+
+func TestValidateSkillHubEvaluationRequiresAllFixedDimensions(t *testing.T) {
+	score := 4.0
+	evaluation := &SkillHubEvaluation{
+		Dimensions: SkillHubEvaluationDimensions{
+			Trust: SkillHubEvaluationDimension{Score: &score},
+		},
+	}
+	if err := ValidateSkillHubEvaluation(evaluation); err == nil {
+		t.Fatal("ValidateSkillHubEvaluation() returned nil for incomplete dimensions")
+	}
+}
+
+func TestSkillHubReportIdempotencyAndNotificationClaim(t *testing.T) {
+	setupSkillHubTestDB(t)
+	skill := &SkillHubSkill{
+		SkillID: "reported-skill", Name: "Reported Skill", Version: "1.0.0",
+		SourceType: "zip", SourceURL: "https://example.com/reported.zip",
+	}
+	if err := skill.Insert(); err != nil {
+		t.Fatalf("insert skill: %v", err)
+	}
+	if err := DB.Create(&User{Id: 42, Username: "reporter", Email: "reporter@example.com"}).Error; err != nil {
+		t.Fatalf("insert reporter: %v", err)
+	}
+
+	const workers = 8
+	reports := make([]*SkillHubReport, workers)
+	created := make([]bool, workers)
+	errorsByWorker := make([]error, workers)
+	var wait sync.WaitGroup
+	wait.Add(workers)
+	for index := 0; index < workers; index++ {
+		go func(index int) {
+			defer wait.Done()
+			reports[index], created[index], errorsByWorker[index] = CreateOrGetSkillHubReport(
+				42,
+				"report-request-0001",
+				skill,
+				"发现不安全的提示内容",
+			)
+		}(index)
+	}
+	wait.Wait()
+
+	createdCount := 0
+	var reportID int
+	for index := range reports {
+		if errorsByWorker[index] != nil {
+			t.Fatalf("worker %d error = %v", index, errorsByWorker[index])
+		}
+		if reports[index] == nil {
+			t.Fatalf("worker %d returned nil report", index)
+		}
+		if reportID == 0 {
+			reportID = reports[index].Id
+		} else if reports[index].Id != reportID {
+			t.Fatalf("worker %d report id = %d, want %d", index, reports[index].Id, reportID)
+		}
+		if created[index] {
+			createdCount++
+		}
+	}
+	if createdCount != 1 {
+		t.Fatalf("created count = %d, want 1", createdCount)
+	}
+
+	wins := make([]bool, workers)
+	wait.Add(workers)
+	for index := 0; index < workers; index++ {
+		go func(index int) {
+			defer wait.Done()
+			wins[index], errorsByWorker[index] = ClaimSkillHubReportNotification(reportID)
+		}(index)
+	}
+	wait.Wait()
+	winCount := 0
+	for index, won := range wins {
+		if errorsByWorker[index] != nil {
+			t.Fatalf("claim worker %d error = %v", index, errorsByWorker[index])
+		}
+		if won {
+			winCount++
+		}
+	}
+	if winCount != 1 {
+		t.Fatalf("notification claim wins = %d, want 1", winCount)
+	}
+	if err := FinishSkillHubReportNotification(reportID, SkillHubReportNotificationFailed, "temporary SMTP failure"); err != nil {
+		t.Fatalf("finish failed notification: %v", err)
+	}
+	if won, err := ClaimSkillHubReportNotification(reportID); err != nil || !won {
+		t.Fatalf("retry failed notification claim = %v, %v; want true", won, err)
+	}
+
+	resolutionErrors := make([]error, 2)
+	resolutionResults := make([]*SkillHubAdminReport, 2)
+	wait.Add(2)
+	for index, status := range []string{SkillHubReportStatusResolved, SkillHubReportStatusDismissed} {
+		go func(index int, status string) {
+			defer wait.Done()
+			resolutionResults[index], resolutionErrors[index] = UpdateSkillHubReportResolution(
+				reportID,
+				1,
+				status,
+				"reviewed by administrator",
+				100+index,
+			)
+		}(index, status)
+	}
+	wait.Wait()
+	resolutionWins := 0
+	resolutionConflicts := 0
+	for index := range resolutionErrors {
+		switch {
+		case resolutionErrors[index] == nil:
+			resolutionWins++
+			if resolutionResults[index] == nil || resolutionResults[index].Revision != 2 {
+				t.Fatalf("resolution worker %d result = %#v, want revision 2", index, resolutionResults[index])
+			}
+		case errors.Is(resolutionErrors[index], ErrSkillHubReportConflict):
+			resolutionConflicts++
+		default:
+			t.Fatalf("resolution worker %d error = %v", index, resolutionErrors[index])
+		}
+	}
+	if resolutionWins != 1 || resolutionConflicts != 1 {
+		t.Fatalf("resolution wins/conflicts = %d/%d, want 1/1", resolutionWins, resolutionConflicts)
+	}
+	latest, err := GetSkillHubAdminReport(reportID)
+	if err != nil {
+		t.Fatalf("get admin report: %v", err)
+	}
+	if latest.ReporterUsername != "reporter" || latest.ReporterEmail != "reporter@example.com" {
+		t.Fatalf("reporter = %q/%q, want reporter/reporter@example.com", latest.ReporterUsername, latest.ReporterEmail)
+	}
+	items, total, err := SearchSkillHubReports("reported", latest.Status, 0, 20)
+	if err != nil {
+		t.Fatalf("search reports: %v", err)
+	}
+	if total != 1 || len(items) != 1 || items[0].Id != reportID {
+		t.Fatalf("search result = total %d items %#v, want report %d", total, items, reportID)
+	}
+	if _, _, err := SearchSkillHubReports("", "", 0, -1); err == nil {
+		t.Fatal("search reports accepted an invalid negative page size")
+	}
+}
 
 func TestValidateSkillHubSkillAcceptsZipSource(t *testing.T) {
 	skill := &SkillHubSkill{
@@ -297,14 +485,36 @@ func TestSearchSkillHubSkillsUsesConfiguredSortOrder(t *testing.T) {
 
 	fixtures := []*SkillHubSkill{
 		{
-			SkillID:    "unsorted-skill",
-			Name:       "Unsorted Skill",
+			SkillID:    "zero-sort-skill",
+			Name:       "Zero Sort Skill",
 			Version:    "1.0.0",
 			Tags:       StringListToJSON([]string{"ordered"}),
 			Sort:       0,
 			Status:     SkillHubStatusPublished,
 			SourceType: "zip",
-			SourceURL:  "https://cdn.example.com/unsorted.zip",
+			SourceURL:  "https://cdn.example.com/zero-sort.zip",
+		},
+		{
+			SkillID:    "newer-first-skill",
+			Name:       "Newer First Skill",
+			Origin:     "Clawhub",
+			OriginURL:  "https://clawhub.ai/skills/newer-first-skill",
+			Version:    "1.0.0",
+			Tags:       StringListToJSON([]string{"ordered"}),
+			Sort:       1,
+			Status:     SkillHubStatusPublished,
+			SourceType: "zip",
+			SourceURL:  "https://cdn.example.com/newer-first.zip",
+		},
+		{
+			SkillID:    "older-first-skill",
+			Name:       "Older First Skill",
+			Version:    "1.0.0",
+			Tags:       StringListToJSON([]string{"ordered"}),
+			Sort:       1,
+			Status:     SkillHubStatusPublished,
+			SourceType: "zip",
+			SourceURL:  "https://cdn.example.com/older-first.zip",
 		},
 		{
 			SkillID:    "second-skill",
@@ -316,55 +526,53 @@ func TestSearchSkillHubSkillsUsesConfiguredSortOrder(t *testing.T) {
 			SourceType: "zip",
 			SourceURL:  "https://cdn.example.com/second.zip",
 		},
-		{
-			SkillID:    "first-skill",
-			Name:       "First Skill",
-			Origin:     "Clawhub",
-			OriginURL:  "https://clawhub.ai/skills/first-skill",
-			Version:    "1.0.0",
-			Tags:       StringListToJSON([]string{"ordered"}),
-			Sort:       1,
-			Status:     SkillHubStatusPublished,
-			SourceType: "zip",
-			SourceURL:  "https://cdn.example.com/first.zip",
-		},
 	}
 	for _, skill := range fixtures {
 		if err := skill.Insert(); err != nil {
 			t.Fatalf("insert %s: %v", skill.SkillID, err)
 		}
 	}
+	if err := DB.Model(&SkillHubSkill{}).
+		Where("skill_id = ?", "newer-first-skill").
+		UpdateColumn("updated_time", 200).Error; err != nil {
+		t.Fatalf("set newer skill timestamp: %v", err)
+	}
+	if err := DB.Model(&SkillHubSkill{}).
+		Where("skill_id = ?", "older-first-skill").
+		UpdateColumn("updated_time", 100).Error; err != nil {
+		t.Fatalf("set older skill timestamp: %v", err)
+	}
 
 	skills, total, err := SearchSkillHubSkills("", true, 0, 10)
 	if err != nil {
 		t.Fatalf("SearchSkillHubSkills() error = %v", err)
 	}
-	if total != 3 {
-		t.Fatalf("total = %d, want 3", total)
+	if total != 4 {
+		t.Fatalf("total = %d, want 4", total)
 	}
-	assertSkillHubSkillIDs(t, skills, []string{"first-skill", "second-skill", "unsorted-skill"})
+	assertSkillHubSkillIDs(t, skills, []string{"zero-sort-skill", "newer-first-skill", "older-first-skill", "second-skill"})
 
 	tag := mustGetSkillHubTagByName(t, "ordered")
 	taggedSkills, taggedTotal, err := SearchSkillHubSkillsByTagIDs([]int{tag.Id}, "", true, 0, 10)
 	if err != nil {
 		t.Fatalf("SearchSkillHubSkillsByTagIDs() error = %v", err)
 	}
-	if taggedTotal != 3 {
-		t.Fatalf("taggedTotal = %d, want 3", taggedTotal)
+	if taggedTotal != 4 {
+		t.Fatalf("taggedTotal = %d, want 4", taggedTotal)
 	}
-	assertSkillHubSkillIDs(t, taggedSkills, []string{"first-skill", "second-skill", "unsorted-skill"})
+	assertSkillHubSkillIDs(t, taggedSkills, []string{"zero-sort-skill", "newer-first-skill", "older-first-skill", "second-skill"})
 
 	originSkills, originTotal, err := SearchSkillHubSkills("Clawhub", true, 0, 10)
 	if err != nil || originTotal != 1 {
 		t.Fatalf("SearchSkillHubSkills(origin) skills = %#v, total = %d, error = %v", originSkills, originTotal, err)
 	}
-	assertSkillHubSkillIDs(t, originSkills, []string{"first-skill"})
+	assertSkillHubSkillIDs(t, originSkills, []string{"newer-first-skill"})
 
 	taggedOriginSkills, taggedOriginTotal, err := SearchSkillHubSkillsByTagIDs([]int{tag.Id}, "clawhub.ai", true, 0, 10)
 	if err != nil || taggedOriginTotal != 1 {
 		t.Fatalf("SearchSkillHubSkillsByTagIDs(origin) skills = %#v, total = %d, error = %v", taggedOriginSkills, taggedOriginTotal, err)
 	}
-	assertSkillHubSkillIDs(t, taggedOriginSkills, []string{"first-skill"})
+	assertSkillHubSkillIDs(t, taggedOriginSkills, []string{"newer-first-skill"})
 }
 
 func TestValidateSkillHubTag(t *testing.T) {
@@ -668,7 +876,12 @@ func setupSkillHubTestDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite memory db: %v", err)
 	}
-	if err := db.AutoMigrate(&SkillHubSkill{}, &SkillHubTag{}, &SkillHubSkillTag{}, &SkillHubFavorite{}); err != nil {
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("open sqlite connection: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&User{}, &SkillHubSkill{}, &SkillHubTag{}, &SkillHubSkillTag{}, &SkillHubFavorite{}, &SkillHubReport{}); err != nil {
 		t.Fatalf("migrate skill hub tables: %v", err)
 	}
 	DB = db

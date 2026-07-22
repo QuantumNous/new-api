@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -15,16 +16,21 @@ import (
 )
 
 const (
-	SkillHubStatusDraft     = 0
-	SkillHubStatusPublished = 1
-	skillHubKeywordMaxRunes = 128
+	SkillHubStatusDraft      = 0
+	SkillHubStatusPublished  = 1
+	skillHubKeywordMaxRunes  = 128
+	skillHubReviewMaxRunes   = 4000
+	skillHubOverallMaxRunes  = 8000
+	skillHubTestcaseMax      = 50
+	skillHubTestcasesMaxLen  = 2 << 20
+	SkillHubMarkdownMaxBytes = 256000
 )
 
 var skillHubIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 const (
-	skillHubSkillOrder          = "CASE WHEN sort = 0 THEN 1 ELSE 0 END ASC, sort ASC, updated_time DESC, id DESC"
-	skillHubQualifiedSkillOrder = "CASE WHEN skill_hub_skills.sort = 0 THEN 1 ELSE 0 END ASC, skill_hub_skills.sort ASC, skill_hub_skills.updated_time DESC, skill_hub_skills.id DESC"
+	skillHubSkillOrder          = "sort ASC, updated_time DESC, id DESC"
+	skillHubQualifiedSkillOrder = "skill_hub_skills.sort ASC, skill_hub_skills.updated_time DESC, skill_hub_skills.id DESC"
 )
 
 type SkillHubSkill struct {
@@ -36,6 +42,7 @@ type SkillHubSkill struct {
 	Author              string         `json:"author,omitempty" gorm:"size:128"`
 	Origin              string         `json:"origin,omitempty" gorm:"size:64"`
 	OriginURL           string         `json:"originUrl,omitempty" gorm:"type:text"`
+	License             string         `json:"license,omitempty" gorm:"size:128"`
 	Icon                string         `json:"icon,omitempty" gorm:"type:text"`
 	Tags                string         `json:"-" gorm:"type:text"`
 	Verified            bool           `json:"verified" gorm:"default:false"`
@@ -52,6 +59,9 @@ type SkillHubSkill struct {
 	SourceURL           string         `json:"-" gorm:"type:text"`
 	SourceRef           string         `json:"-" gorm:"type:text"`
 	SourceChecksum      string         `json:"-" gorm:"size:128"`
+	SkillMarkdown       string         `json:"-" gorm:"type:text"`
+	EvaluationJSON      string         `json:"-" gorm:"type:text"`
+	TestcasesJSON       string         `json:"-" gorm:"type:text"`
 	Changelog           string         `json:"changelog,omitempty" gorm:"type:text"`
 	CreatedTime         int64          `json:"createdTime" gorm:"bigint"`
 	UpdatedTime         int64          `json:"updatedTime" gorm:"bigint"`
@@ -76,6 +86,38 @@ type SkillHubSource struct {
 	Checksum string `json:"checksum,omitempty"`
 }
 
+type SkillHubEvaluationDimension struct {
+	Score  *float64 `json:"score"`
+	Review string   `json:"review,omitempty"`
+}
+
+type SkillHubEvaluationDimensions struct {
+	Trust         SkillHubEvaluationDimension `json:"trust"`
+	Reliability   SkillHubEvaluationDimension `json:"reliability"`
+	Adaptability  SkillHubEvaluationDimension `json:"adaptability"`
+	Convention    SkillHubEvaluationDimension `json:"convention"`
+	Effectiveness SkillHubEvaluationDimension `json:"effectiveness"`
+}
+
+type SkillHubEvaluation struct {
+	OverallScore  *float64                     `json:"overallScore,omitempty"`
+	OverallRating string                       `json:"overallRating,omitempty"`
+	OverallReview string                       `json:"overallReview,omitempty"`
+	Dimensions    SkillHubEvaluationDimensions `json:"dimensions"`
+}
+
+type SkillHubTestcase struct {
+	ID        int64  `json:"id"`
+	Question  string `json:"question"`
+	Answer    string `json:"answer"`
+	SortOrder int    `json:"sortOrder"`
+}
+
+type SkillHubTestcases struct {
+	Slug      string             `json:"slug"`
+	Testcases []SkillHubTestcase `json:"testcases"`
+}
+
 type SkillHubSkillResponse struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
@@ -84,6 +126,7 @@ type SkillHubSkillResponse struct {
 	Author      string         `json:"author,omitempty"`
 	Origin      string         `json:"origin,omitempty"`
 	OriginURL   string         `json:"originUrl,omitempty"`
+	License     string         `json:"license,omitempty"`
 	Icon        string         `json:"icon,omitempty"`
 	Tags        []string       `json:"tags,omitempty"`
 	Verified    bool           `json:"verified"`
@@ -94,6 +137,14 @@ type SkillHubSkillResponse struct {
 	Favorited   bool           `json:"favorited,omitempty"`
 	UpdatedAt   string         `json:"updatedAt,omitempty"`
 	Source      SkillHubSource `json:"source,omitempty"`
+}
+
+type SkillHubSkillDetailResponse struct {
+	SkillHubSkillResponse
+	SkillMarkdown    string              `json:"skillMarkdown,omitempty"`
+	Evaluation       *SkillHubEvaluation `json:"evaluation,omitempty"`
+	Testcases        *SkillHubTestcases  `json:"testcases,omitempty"`
+	ReportingEnabled bool                `json:"reportingEnabled"`
 }
 
 type SkillHubListResponse struct {
@@ -137,6 +188,7 @@ func (s *SkillHubSkill) BeforeSave(tx *gorm.DB) error {
 	s.Version = strings.TrimSpace(s.Version)
 	s.Origin = strings.TrimSpace(s.Origin)
 	s.OriginURL = strings.TrimSpace(s.OriginURL)
+	s.License = strings.TrimSpace(s.License)
 	s.Icon = strings.TrimSpace(s.Icon)
 	s.ManifestEntry = strings.TrimSpace(s.ManifestEntry)
 	if s.ManifestEntry == "" {
@@ -192,6 +244,9 @@ func ValidateSkillHubSkill(s *SkillHubSkill) error {
 	if len(s.OriginURL) > 2048 {
 		return errors.New("skill origin url must be 2048 characters or fewer")
 	}
+	if len([]rune(s.License)) > 128 {
+		return errors.New("skill license must be 128 characters or fewer")
+	}
 	if !isAllowedSkillHubOriginURL(s.OriginURL) {
 		return errors.New("skill origin url must be an absolute http or https url")
 	}
@@ -208,6 +263,15 @@ func ValidateSkillHubSkill(s *SkillHubSkill) error {
 	}
 	if !isAllowedSkillHubIconURL(s.Icon) {
 		return errors.New("skill icon must be uploaded to the configured OSS icon bucket")
+	}
+	if len(s.SkillMarkdown) > SkillHubMarkdownMaxBytes {
+		return errors.New("skill markdown is too large")
+	}
+	if _, err := SkillHubEvaluationFromJSON(s.EvaluationJSON); err != nil {
+		return err
+	}
+	if _, err := SkillHubTestcasesFromJSON(s.TestcasesJSON); err != nil {
+		return err
 	}
 	return nil
 }
@@ -418,7 +482,7 @@ func IsSkillHubSkillIDDuplicated(id int, skillID string) (bool, error) {
 }
 
 func SearchSkillHubSkills(keyword string, admin bool, offset int, limit int, recommendedOnly ...bool) ([]*SkillHubSkill, int64, error) {
-	db := DB.Model(&SkillHubSkill{})
+	db := skillHubSummaryQuery(DB.Model(&SkillHubSkill{}))
 	if !admin {
 		db = db.Where("status = ?", SkillHubStatusPublished)
 	}
@@ -453,7 +517,7 @@ func SearchRecommendedSkillHubSkills(limit int) ([]*SkillHubSkill, int64, error)
 	if limit <= 0 {
 		return []*SkillHubSkill{}, 0, nil
 	}
-	db := DB.Model(&SkillHubSkill{}).
+	db := skillHubSummaryQuery(DB.Model(&SkillHubSkill{})).
 		Where("status = ? AND recommended = ?", SkillHubStatusPublished, true)
 
 	var total int64
@@ -490,7 +554,7 @@ func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offs
 		return []*SkillHubSkill{}, 0, nil
 	}
 
-	db := skillHubSkillsByTagIDsQuery(DB, cleanTagIDs)
+	db := skillHubSummaryQuery(skillHubSkillsByTagIDsQuery(DB, cleanTagIDs))
 	if !admin {
 		db = db.Where("status = ?", SkillHubStatusPublished)
 	}
@@ -532,6 +596,10 @@ func skillHubSkillsByTagIDsQuery(db *gorm.DB, tagIDs []int) *gorm.DB {
 		Where("tag_id IN ?", tagIDs)
 	return db.Model(&SkillHubSkill{}).
 		Where("skill_hub_skills.id IN (?)", taggedSkillIDs)
+}
+
+func skillHubSummaryQuery(db *gorm.DB) *gorm.DB {
+	return db.Omit("SkillMarkdown", "EvaluationJSON", "TestcasesJSON")
 }
 
 func SkillHubSkillsToResponses(skills []*SkillHubSkill, admin bool) []SkillHubSkillResponse {
@@ -876,6 +944,7 @@ func (s *SkillHubSkill) ToResponse(admin bool) SkillHubSkillResponse {
 		Author:      s.Author,
 		Origin:      s.Origin,
 		OriginURL:   s.OriginURL,
+		License:     s.License,
 		Icon:        s.Icon,
 		Tags:        stringListFromJSON(s.Tags),
 		Verified:    s.Verified,
@@ -898,6 +967,163 @@ func (s *SkillHubSkill) ToResponse(admin bool) SkillHubSkillResponse {
 		response.Source.Ref = ""
 	}
 	return response
+}
+
+func (s *SkillHubSkill) ToDetailResponse(admin bool, reportingEnabled bool) (SkillHubSkillDetailResponse, error) {
+	evaluation, err := SkillHubEvaluationFromJSON(s.EvaluationJSON)
+	if err != nil {
+		return SkillHubSkillDetailResponse{}, err
+	}
+	testcases, err := SkillHubTestcasesFromJSON(s.TestcasesJSON)
+	if err != nil {
+		return SkillHubSkillDetailResponse{}, err
+	}
+	return SkillHubSkillDetailResponse{
+		SkillHubSkillResponse: s.ToResponse(admin),
+		SkillMarkdown:         s.SkillMarkdown,
+		Evaluation:            evaluation,
+		Testcases:             testcases,
+		ReportingEnabled:      reportingEnabled,
+	}, nil
+}
+
+func SkillHubEvaluationToJSON(value *SkillHubEvaluation) (string, error) {
+	if value == nil {
+		return "", nil
+	}
+	if err := ValidateSkillHubEvaluation(value); err != nil {
+		return "", err
+	}
+	data, err := common.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func SkillHubEvaluationFromJSON(value string) (*SkillHubEvaluation, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, nil
+	}
+	var result SkillHubEvaluation
+	if err := common.Unmarshal([]byte(value), &result); err != nil {
+		return nil, err
+	}
+	if err := ValidateSkillHubEvaluation(&result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func ValidateSkillHubEvaluation(value *SkillHubEvaluation) error {
+	if value == nil {
+		return nil
+	}
+	value.OverallRating = strings.TrimSpace(value.OverallRating)
+	value.OverallReview = strings.TrimSpace(value.OverallReview)
+	if len([]rune(value.OverallRating)) > 80 {
+		return errors.New("skill evaluation overall rating must be 80 characters or fewer")
+	}
+	if len([]rune(value.OverallReview)) > skillHubOverallMaxRunes {
+		return errors.New("skill evaluation overall review is too long")
+	}
+	if value.OverallScore != nil {
+		if err := validateSkillHubScore(*value.OverallScore, "overall"); err != nil {
+			return err
+		}
+	}
+	dimensions := []struct {
+		name      string
+		dimension *SkillHubEvaluationDimension
+	}{
+		{name: "trust", dimension: &value.Dimensions.Trust},
+		{name: "reliability", dimension: &value.Dimensions.Reliability},
+		{name: "adaptability", dimension: &value.Dimensions.Adaptability},
+		{name: "convention", dimension: &value.Dimensions.Convention},
+		{name: "effectiveness", dimension: &value.Dimensions.Effectiveness},
+	}
+	for _, item := range dimensions {
+		if item.dimension.Score == nil {
+			return errors.New("skill evaluation " + item.name + " score is required")
+		}
+		if err := validateSkillHubScore(*item.dimension.Score, item.name); err != nil {
+			return err
+		}
+		item.dimension.Review = strings.TrimSpace(item.dimension.Review)
+		if len([]rune(item.dimension.Review)) > skillHubReviewMaxRunes {
+			return errors.New("skill evaluation " + item.name + " review is too long")
+		}
+	}
+	return nil
+}
+
+func validateSkillHubScore(score float64, name string) error {
+	if math.IsNaN(score) || math.IsInf(score, 0) || score < 0 || score > 5 {
+		return errors.New("skill evaluation " + name + " score must be between 0 and 5")
+	}
+	return nil
+}
+
+func SkillHubTestcasesToJSON(value *SkillHubTestcases) (string, error) {
+	if value == nil {
+		return "", nil
+	}
+	if err := ValidateSkillHubTestcases(value); err != nil {
+		return "", err
+	}
+	data, err := common.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	if len(data) > skillHubTestcasesMaxLen {
+		return "", errors.New("skill testcases JSON is too large")
+	}
+	return string(data), nil
+}
+
+func SkillHubTestcasesFromJSON(value string) (*SkillHubTestcases, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, nil
+	}
+	if len(value) > skillHubTestcasesMaxLen {
+		return nil, errors.New("skill testcases JSON is too large")
+	}
+	var result SkillHubTestcases
+	if err := common.Unmarshal([]byte(value), &result); err != nil {
+		return nil, err
+	}
+	if err := ValidateSkillHubTestcases(&result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func ValidateSkillHubTestcases(value *SkillHubTestcases) error {
+	if value == nil {
+		return nil
+	}
+	value.Slug = strings.TrimSpace(value.Slug)
+	if len([]rune(value.Slug)) > 256 {
+		return errors.New("skill testcases slug must be 256 characters or fewer")
+	}
+	if len(value.Testcases) > skillHubTestcaseMax {
+		return errors.New("skill testcases must contain 50 cases or fewer")
+	}
+	for index := range value.Testcases {
+		testcase := &value.Testcases[index]
+		testcase.Question = strings.TrimSpace(testcase.Question)
+		testcase.Answer = strings.TrimSpace(testcase.Answer)
+		if testcase.Question == "" || testcase.Answer == "" {
+			return errors.New("skill testcase question and answer are required")
+		}
+		if len([]rune(testcase.Question)) > 10000 {
+			return errors.New("skill testcase question is too long")
+		}
+		if len([]rune(testcase.Answer)) > 250000 {
+			return errors.New("skill testcase answer is too long")
+		}
+	}
+	return nil
 }
 
 func StringListToJSON(values []string) string {

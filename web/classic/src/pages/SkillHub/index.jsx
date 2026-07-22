@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image as ImageIcon } from 'lucide-react';
+import { FileJson, Image as ImageIcon } from 'lucide-react';
 import {
   Button,
   Card,
@@ -41,6 +41,7 @@ const createDefaultForm = () => ({
   author: '',
   origin: '',
   originUrl: '',
+  license: '',
   icon: '',
   tags: [],
   verified: false,
@@ -50,7 +51,34 @@ const createDefaultForm = () => ({
   sourceUrl: '',
   sourceRef: '',
   sourceChecksum: '',
+  skillMarkdown: '',
+  evaluation: null,
+  testcases: null,
 });
+
+const evaluationDimensions = [
+  { key: 'trust', label: 'T · Trust 可信度' },
+  { key: 'reliability', label: 'R · Reliability 可靠性' },
+  { key: 'adaptability', label: 'A · Adaptability 适应性' },
+  { key: 'convention', label: 'C · Convention 规范性' },
+  { key: 'effectiveness', label: 'E · Effectiveness 有效性' },
+];
+
+const createEmptyEvaluation = () => {
+  const dimension = () => ({ score: '', review: '' });
+  return {
+    overallScore: '',
+    overallRating: '',
+    overallReview: '',
+    dimensions: {
+      trust: dimension(),
+      reliability: dimension(),
+      adaptability: dimension(),
+      convention: dimension(),
+      effectiveness: dimension(),
+    },
+  };
+};
 
 const normalizeTags = (value) => {
   const values = Array.isArray(value)
@@ -236,6 +264,7 @@ const skillToForm = (skill) => ({
   author: skill?.author || '',
   origin: skill?.origin || '',
   originUrl: skill?.originUrl || '',
+  license: skill?.license || '',
   icon: skill?.icon || '',
   tags: normalizeTags(skill?.tags),
   verified: Boolean(skill?.verified),
@@ -245,6 +274,9 @@ const skillToForm = (skill) => ({
   sourceUrl: skill?.source?.url || '',
   sourceRef: skill?.source?.ref || '',
   sourceChecksum: skill?.source?.checksum || '',
+  skillMarkdown: skill?.skillMarkdown || '',
+  evaluation: evaluationToForm(skill?.evaluation),
+  testcases: skill?.testcases || null,
 });
 
 const formToPayload = (form) => ({
@@ -255,12 +287,15 @@ const formToPayload = (form) => ({
   author: form.author.trim(),
   origin: form.origin.trim(),
   originUrl: form.originUrl.trim(),
+  license: form.license.trim(),
   icon: form.icon.trim(),
   tags: normalizeTags(form.tags),
   verified: form.verified,
   recommended: form.recommended,
   published: form.published,
   sort: Number(form.sort) || 0,
+  evaluation: evaluationToPayload(form.evaluation),
+  testcases: form.testcases,
   source: {
     type: 'zip',
     url: form.sourceUrl.trim(),
@@ -268,6 +303,117 @@ const formToPayload = (form) => ({
     checksum: form.sourceChecksum.trim(),
   },
 });
+
+const evaluationToForm = (evaluation) => {
+  if (!evaluation) return null;
+  const dimension = (key) => ({
+    score: String(evaluation.dimensions[key].score),
+    review: evaluation.dimensions[key].review || '',
+  });
+  return {
+    overallScore:
+      evaluation.overallScore === undefined
+        ? ''
+        : String(evaluation.overallScore),
+    overallRating: evaluation.overallRating || '',
+    overallReview: evaluation.overallReview || '',
+    dimensions: {
+      trust: dimension('trust'),
+      reliability: dimension('reliability'),
+      adaptability: dimension('adaptability'),
+      convention: dimension('convention'),
+      effectiveness: dimension('effectiveness'),
+    },
+  };
+};
+
+const evaluationToPayload = (evaluation) => {
+  if (!evaluation) return null;
+  const dimension = (key) => ({
+    score: Number(evaluation.dimensions[key].score),
+    review: evaluation.dimensions[key].review.trim(),
+  });
+  const overallScore = evaluation.overallScore.trim();
+  return {
+    overallScore: overallScore ? Number(overallScore) : undefined,
+    overallRating: evaluation.overallRating.trim(),
+    overallReview: evaluation.overallReview.trim(),
+    dimensions: {
+      trust: dimension('trust'),
+      reliability: dimension('reliability'),
+      adaptability: dimension('adaptability'),
+      convention: dimension('convention'),
+      effectiveness: dimension('effectiveness'),
+    },
+  };
+};
+
+const validateEvaluation = (evaluation) => {
+  if (!evaluation) return '';
+  for (const dimension of evaluationDimensions) {
+    const raw = evaluation.dimensions[dimension.key].score.trim();
+    const score = Number(raw);
+    if (!raw || !Number.isFinite(score) || score < 0 || score > 5) {
+      return '五个维度的分数都必须在 0 到 5 之间';
+    }
+  }
+  if (evaluation.overallScore.trim()) {
+    const score = Number(evaluation.overallScore);
+    if (!Number.isFinite(score) || score < 0 || score > 5) {
+      return '综合评分必须在 0 到 5 之间';
+    }
+  }
+  return '';
+};
+
+const evaluationAverage = (evaluation) => {
+  const scores = evaluationDimensions.map(({ key }) =>
+    Number(evaluation.dimensions[key].score),
+  );
+  if (scores.some((score) => !Number.isFinite(score))) return '自动计算';
+  return (
+    scores.reduce((sum, score) => sum + score, 0) / scores.length
+  ).toFixed(1);
+};
+
+const parseSkillHubTestcases = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('案例 JSON 必须是对象');
+  }
+  if (typeof value.slug !== 'string') {
+    throw new Error('案例 JSON 的 slug 必须是字符串');
+  }
+  if (!Array.isArray(value.testcases) || value.testcases.length > 50) {
+    throw new Error('testcases 必须是数组且最多包含 50 个案例');
+  }
+  return {
+    slug: value.slug,
+    testcases: value.testcases.map((testcase, index) => {
+      if (
+        !testcase ||
+        typeof testcase !== 'object' ||
+        Array.isArray(testcase) ||
+        !Number.isSafeInteger(testcase.id) ||
+        typeof testcase.question !== 'string' ||
+        !testcase.question.trim() ||
+        typeof testcase.answer !== 'string' ||
+        !testcase.answer.trim() ||
+        !Number.isSafeInteger(testcase.sortOrder)
+      ) {
+        throw new Error(`第 ${index + 1} 个案例字段不合法`);
+      }
+      if (testcase.question.length > 10000 || testcase.answer.length > 250000) {
+        throw new Error(`第 ${index + 1} 个案例内容过大`);
+      }
+      return {
+        id: testcase.id,
+        question: testcase.question.trim(),
+        answer: testcase.answer.trim(),
+        sortOrder: testcase.sortOrder,
+      };
+    }),
+  };
+};
 
 const Field = ({ label, children }) => (
   <label className='flex min-w-0 flex-col gap-1 text-sm text-semi-color-text-1'>
@@ -399,10 +545,13 @@ const SkillHub = () => {
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [iconUploading, setIconUploading] = useState(false);
   const zipInputRef = useRef(null);
   const iconInputRef = useRef(null);
+  const testcasesInputRef = useRef(null);
+  const detailRequestIdRef = useRef(0);
   const pendingZipUploadRef = useRef(null);
   const pendingIconUploadRef = useRef(null);
 
@@ -487,12 +636,6 @@ const SkillHub = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (selectedSkill) {
-      setForm(skillToForm(selectedSkill));
-    }
-  }, [selectedSkill]);
-
   const discardPendingUploads = () => {
     const pendingZip = pendingZipUploadRef.current;
     const pendingIcon = pendingIconUploadRef.current;
@@ -549,14 +692,39 @@ const SkillHub = () => {
 
   const handleNew = () => {
     discardPendingUploads();
+    detailRequestIdRef.current += 1;
+    setDetailLoading(false);
     setSelectedId('');
     setForm(createDefaultForm());
   };
 
-  const selectSkill = (skill) => {
+  const selectSkill = async (skill) => {
     discardPendingUploads();
+    const requestId = detailRequestIdRef.current + 1;
+    detailRequestIdRef.current = requestId;
     setSelectedId(skill.id);
     setForm(skillToForm(skill));
+    setDetailLoading(true);
+    try {
+      const res = await API.get(
+        `/api/admin/skill-hub/skills/${encodeURIComponent(skill.id)}`,
+      );
+      if (detailRequestIdRef.current !== requestId) return;
+      const { success, data, message } = res.data;
+      if (!success || !data) {
+        showError(message || 'Skill 详情加载失败');
+        return;
+      }
+      setForm(skillToForm(data));
+    } catch (error) {
+      if (detailRequestIdRef.current === requestId) {
+        showError(error.message || 'Skill 详情加载失败');
+      }
+    } finally {
+      if (detailRequestIdRef.current === requestId) {
+        setDetailLoading(false);
+      }
+    }
   };
 
   const applyTagFilter = (tagId) => {
@@ -591,6 +759,15 @@ const SkillHub = () => {
       showError('源地址必须使用 HTTP 或 HTTPS');
       return;
     }
+    if (form.license.trim().length > 128) {
+      showError('许可证最多 128 个字符');
+      return;
+    }
+    const evaluationError = validateEvaluation(form.evaluation);
+    if (evaluationError) {
+      showError(evaluationError);
+      return;
+    }
     setSaving(true);
     try {
       const payload = formToPayload(form);
@@ -609,11 +786,51 @@ const SkillHub = () => {
       showSuccess('保存成功');
       if (data) {
         settlePendingUploads(data);
+        setForm(skillToForm(data));
       }
       setSelectedId(data?.id || payload.id);
       await loadSkills();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateEvaluation = (value) => {
+    updateForm('evaluation', value);
+  };
+
+  const updateEvaluationDimension = (key, field, value) => {
+    setForm((current) => ({
+      ...current,
+      evaluation: {
+        ...current.evaluation,
+        dimensions: {
+          ...current.evaluation.dimensions,
+          [key]: {
+            ...current.evaluation.dimensions[key],
+            [field]: value,
+          },
+        },
+      },
+    }));
+  };
+
+  const uploadTestcases = async (file) => {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showError('案例 JSON 最大 2MB');
+      return;
+    }
+    try {
+      const parsed = parseSkillHubTestcases(JSON.parse(await file.text()));
+      updateForm('testcases', parsed);
+      showSuccess(`已载入 ${parsed.testcases.length} 个案例`);
+    } catch (error) {
+      showError(error.message || '案例 JSON 解析失败');
+    } finally {
+      if (testcasesInputRef.current) {
+        testcasesInputRef.current.value = '';
+      }
     }
   };
 
@@ -944,7 +1161,11 @@ const SkillHub = () => {
           </Card>
 
           <Card>
-            <div className='flex flex-col gap-4'>
+            <div
+              className={`flex flex-col gap-4 ${
+                detailLoading ? 'pointer-events-none opacity-60' : ''
+              }`}
+            >
               <Section
                 title='基础信息'
                 description='控制 Skill 在目录卡片中的展示内容。'
@@ -989,6 +1210,14 @@ const SkillHub = () => {
                     maxLength={2048}
                     placeholder='https://...'
                     onChange={(value) => updateForm('originUrl', value)}
+                  />
+                </Field>
+                <Field label='许可证'>
+                  <Input
+                    value={form.license}
+                    maxLength={128}
+                    placeholder='MIT License'
+                    onChange={(value) => updateForm('license', value)}
                   />
                 </Field>
                 <Field label='排序'>
@@ -1053,6 +1282,171 @@ const SkillHub = () => {
                       onChange={(value) => updateForm('description', value)}
                     />
                   </Field>
+                </div>
+              </Section>
+
+              <Section
+                title='SKILL.md'
+                description='从 ZIP 根目录或唯一一级目录中安全读取；请重新上传 ZIP 来更新。'
+              >
+                <div className='md:col-span-2'>
+                  <TextArea
+                    value={form.skillMarkdown}
+                    readOnly
+                    autosize={{ minRows: 6, maxRows: 16 }}
+                    placeholder='保存 ZIP 后将在这里显示 SKILL.md'
+                  />
+                </div>
+              </Section>
+
+              <Section
+                title='评测报告'
+                description='五个维度固定为 0–5 分；综合评分留空时由前端取五维平均值。'
+              >
+                <div className='md:col-span-2'>
+                  <Checkbox
+                    checked={Boolean(form.evaluation)}
+                    onChange={(event) =>
+                      updateEvaluation(
+                        event.target.checked ? createEmptyEvaluation() : null,
+                      )
+                    }
+                  >
+                    提供评测报告
+                  </Checkbox>
+                </div>
+                {form.evaluation && (
+                  <>
+                    <Field label='综合评分（可选）'>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={5}
+                        step={0.1}
+                        value={form.evaluation.overallScore}
+                        placeholder={`自动：${evaluationAverage(form.evaluation)}`}
+                        onChange={(value) =>
+                          updateEvaluation({
+                            ...form.evaluation,
+                            overallScore: value,
+                          })
+                        }
+                      />
+                    </Field>
+                    <Field label='综合评级（可选）'>
+                      <Input
+                        value={form.evaluation.overallRating}
+                        maxLength={128}
+                        placeholder='留空时按综合评分自动生成'
+                        onChange={(value) =>
+                          updateEvaluation({
+                            ...form.evaluation,
+                            overallRating: value,
+                          })
+                        }
+                      />
+                    </Field>
+                    <div className='md:col-span-2'>
+                      <Field label='综合评价（可选）'>
+                        <TextArea
+                          value={form.evaluation.overallReview}
+                          maxLength={8000}
+                          autosize={{ minRows: 2, maxRows: 8 }}
+                          onChange={(value) =>
+                            updateEvaluation({
+                              ...form.evaluation,
+                              overallReview: value,
+                            })
+                          }
+                        />
+                      </Field>
+                    </div>
+                    {evaluationDimensions.map((dimension) => (
+                      <div
+                        key={dimension.key}
+                        className='md:col-span-2 grid grid-cols-1 gap-3 rounded border border-semi-color-border p-3 md:grid-cols-[180px_minmax(0,1fr)]'
+                      >
+                        <Field label={dimension.label}>
+                          <Input
+                            type='number'
+                            min={0}
+                            max={5}
+                            step={0.1}
+                            value={
+                              form.evaluation.dimensions[dimension.key].score
+                            }
+                            onChange={(value) =>
+                              updateEvaluationDimension(
+                                dimension.key,
+                                'score',
+                                value,
+                              )
+                            }
+                          />
+                        </Field>
+                        <Field label='维度评价'>
+                          <TextArea
+                            value={
+                              form.evaluation.dimensions[dimension.key].review
+                            }
+                            maxLength={4000}
+                            autosize={{ minRows: 2, maxRows: 6 }}
+                            onChange={(value) =>
+                              updateEvaluationDimension(
+                                dimension.key,
+                                'review',
+                                value,
+                              )
+                            }
+                          />
+                        </Field>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </Section>
+
+              <Section
+                title='效果预览案例'
+                description='上传 JSON 文件。仅校验结构和大小，不要求 slug 与 Skill ID 一致。'
+              >
+                <div className='md:col-span-2'>
+                  <Space wrap>
+                    <input
+                      ref={testcasesInputRef}
+                      type='file'
+                      accept='.json,application/json'
+                      className='hidden'
+                      onChange={(event) =>
+                        uploadTestcases(event.target.files?.[0])
+                      }
+                    />
+                    <Button
+                      icon={<FileJson size={16} />}
+                      onClick={() => testcasesInputRef.current?.click()}
+                    >
+                      上传 JSON
+                    </Button>
+                    {form.testcases && (
+                      <Button onClick={() => updateForm('testcases', null)}>
+                        清空案例
+                      </Button>
+                    )}
+                    <Typography.Text type='tertiary'>
+                      {form.testcases
+                        ? `已载入 ${form.testcases.testcases.length} 个案例`
+                        : '未上传案例'}
+                    </Typography.Text>
+                  </Space>
+                  {form.testcases && (
+                    <div className='mt-3 rounded border border-semi-color-border bg-semi-color-fill-0 p-3 text-xs'>
+                      <div>slug: {form.testcases.slug || '（空）'}</div>
+                      <div className='mt-1 line-clamp-2'>
+                        {form.testcases.testcases[0]?.question ||
+                          '文件中没有案例'}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Section>
 
@@ -1155,7 +1549,7 @@ const SkillHub = () => {
                 <Button
                   type='primary'
                   loading={saving}
-                  disabled={uploading || iconUploading}
+                  disabled={uploading || iconUploading || detailLoading}
                   onClick={handleSave}
                 >
                   保存

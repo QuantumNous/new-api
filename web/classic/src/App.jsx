@@ -53,6 +53,7 @@ import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import SkillHub from './pages/SkillHub';
 import SkillHubTags from './pages/SkillHubTags';
+import SkillHubReports from './pages/SkillHubReports';
 import ClientReleases from './pages/ClientReleases';
 import Playground from './pages/Playground';
 import ImagePlayground from './pages/ImagePlayground';
@@ -173,6 +174,14 @@ function App() {
           }
         />
         <Route
+          path='/console/skill-hub/reports'
+          element={
+            <AdminRoute>
+              <SkillHubReports />
+            </AdminRoute>
+          }
+        />
+        <Route
           path='/console/client-releases'
           element={
             <AdminRoute>
@@ -187,6 +196,15 @@ function App() {
         <Route
           path='/skill-hub/tags'
           element={<Navigate to='/console/skill-hub/tags' replace />}
+        />
+        <Route
+          path='/skill-hub/reports'
+          element={
+            <Navigate
+              to={`/console/skill-hub/reports${location.search}`}
+              replace
+            />
+          }
         />
         <Route
           path='/console/subscription'

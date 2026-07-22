@@ -70,6 +70,7 @@ const SystemSetting = () => {
     SMTPAccount: '',
     SMTPFrom: '',
     SMTPToken: '',
+    SkillHubReportEmail: '',
     AliyunSmsAccessKeyId: '',
     AliyunSmsAccessKeySecret: '',
     AliyunSmsSignName: '',
@@ -329,6 +330,12 @@ const SystemSetting = () => {
   const submitSMTP = async () => {
     const options = [];
 
+    const reportEmail = inputs.SkillHubReportEmail.trim();
+    if (reportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reportEmail)) {
+      showError(t('请输入有效的 Skill 举报接收邮箱'));
+      return;
+    }
+
     if (originInputs['SMTPServer'] !== inputs.SMTPServer) {
       options.push({ key: 'SMTPServer', value: inputs.SMTPServer });
     }
@@ -349,6 +356,9 @@ const SystemSetting = () => {
       inputs.SMTPToken !== ''
     ) {
       options.push({ key: 'SMTPToken', value: inputs.SMTPToken });
+    }
+    if (originInputs['SkillHubReportEmail'] !== reportEmail) {
+      options.push({ key: 'SkillHubReportEmail', value: reportEmail });
     }
 
     if (options.length > 0) {
@@ -1407,6 +1417,18 @@ const SystemSetting = () => {
                       >
                         {t('强制使用 AUTH LOGIN')}
                       </Form.Checkbox>
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='SkillHubReportEmail'
+                        label={t('Skill 举报接收邮箱')}
+                        placeholder={t('留空时前台不开放举报入口')}
+                      />
                     </Col>
                   </Row>
                   <Button onClick={submitSMTP}>{t('保存 SMTP 设置')}</Button>

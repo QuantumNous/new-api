@@ -136,7 +136,7 @@ export function useSidebarData(): SidebarData {
             title: t('Skill Hub'),
             icon: Puzzle,
             activeUrls: ['/skill-hub'],
-            configUrls: ['/skill-hub', '/skill-hub/tags'],
+            configUrls: ['/skill-hub', '/skill-hub/tags', '/skill-hub/reports'],
             items: [
               {
                 title: t('Skills'),
@@ -145,6 +145,10 @@ export function useSidebarData(): SidebarData {
               {
                 title: t('Tags'),
                 url: '/skill-hub/tags',
+              },
+              {
+                title: t('Reports'),
+                url: '/skill-hub/reports',
               },
             ],
           },

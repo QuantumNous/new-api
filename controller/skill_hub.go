@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,21 +22,35 @@ import (
 )
 
 type skillHubSkillRequest struct {
-	ID          string               `json:"id"`
-	Name        string               `json:"name"`
-	Description string               `json:"description"`
-	Version     string               `json:"version"`
-	Author      string               `json:"author"`
-	Origin      string               `json:"origin"`
-	OriginURL   string               `json:"originUrl"`
-	Icon        string               `json:"icon"`
-	Tags        []string             `json:"tags"`
-	Verified    bool                 `json:"verified"`
-	Recommended bool                 `json:"recommended"`
-	Published   bool                 `json:"published"`
-	Status      *int                 `json:"status"`
-	Sort        int                  `json:"sort"`
-	Source      model.SkillHubSource `json:"source"`
+	ID          string                    `json:"id"`
+	Name        string                    `json:"name"`
+	Description string                    `json:"description"`
+	Version     string                    `json:"version"`
+	Author      string                    `json:"author"`
+	Origin      string                    `json:"origin"`
+	OriginURL   string                    `json:"originUrl"`
+	License     string                    `json:"license"`
+	Icon        string                    `json:"icon"`
+	Tags        []string                  `json:"tags"`
+	Verified    bool                      `json:"verified"`
+	Recommended bool                      `json:"recommended"`
+	Published   bool                      `json:"published"`
+	Status      *int                      `json:"status"`
+	Sort        int                       `json:"sort"`
+	Evaluation  *model.SkillHubEvaluation `json:"evaluation"`
+	Testcases   *model.SkillHubTestcases  `json:"testcases"`
+	Source      model.SkillHubSource      `json:"source"`
+}
+
+type skillHubReportRequest struct {
+	RequestID   string `json:"requestId"`
+	Description string `json:"description"`
+}
+
+type skillHubReportResolutionRequest struct {
+	Status    string `json:"status"`
+	AdminNote string `json:"adminNote"`
+	Revision  int    `json:"revision"`
 }
 
 type skillHubTagRequest struct {
@@ -60,19 +75,22 @@ type skillHubBatchRequest struct {
 }
 
 type skillHubExportManifestItem struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Version     string   `json:"version"`
-	Author      string   `json:"author,omitempty"`
-	Origin      string   `json:"origin,omitempty"`
-	OriginURL   string   `json:"originUrl,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Verified    bool     `json:"verified"`
-	Recommended bool     `json:"recommended"`
-	Sort        int      `json:"sort"`
-	Zip         string   `json:"zip"`
-	Icon        string   `json:"icon,omitempty"`
+	ID          string                    `json:"id"`
+	Name        string                    `json:"name"`
+	Description string                    `json:"description,omitempty"`
+	Version     string                    `json:"version"`
+	Author      string                    `json:"author,omitempty"`
+	Origin      string                    `json:"origin,omitempty"`
+	OriginURL   string                    `json:"originUrl,omitempty"`
+	License     string                    `json:"license,omitempty"`
+	Tags        []string                  `json:"tags,omitempty"`
+	Verified    bool                      `json:"verified"`
+	Recommended bool                      `json:"recommended"`
+	Sort        int                       `json:"sort"`
+	Zip         string                    `json:"zip"`
+	Icon        string                    `json:"icon,omitempty"`
+	Evaluation  *model.SkillHubEvaluation `json:"evaluation,omitempty"`
+	Testcases   *model.SkillHubTestcases  `json:"testcases,omitempty"`
 }
 
 func ListSkillHubSkills(c *gin.Context) {
@@ -130,7 +148,175 @@ func GetSkillHubSkill(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, responses[0])
+	detail, err := skill.ToDetailResponse(false, strings.TrimSpace(common.SkillHubReportEmail) != "")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	detail.SkillHubSkillResponse = responses[0]
+	common.ApiSuccess(c, detail)
+}
+
+func ReportSkillHubSkill(c *gin.Context) {
+	if strings.TrimSpace(common.SkillHubReportEmail) == "" {
+		common.ApiErrorMsg(c, "skill reporting is not configured")
+		return
+	}
+	// The payload only contains a short idempotency key and a 1,000-character
+	// description. Bound the body before JSON decoding to avoid large allocation
+	// attacks against this public authenticated endpoint.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var request skillHubReportRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil || skill.Status != model.SkillHubStatusPublished {
+		common.ApiErrorMsg(c, "skill not found")
+		return
+	}
+	userID := c.GetInt("id")
+	report, created, err := model.CreateOrGetSkillHubReport(userID, request.RequestID, skill, request.Description)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !created && (report.SkillID != skill.SkillID || report.Description != strings.TrimSpace(request.Description)) {
+		common.ApiErrorMsg(c, "skill report request id was already used")
+		return
+	}
+
+	claimed, err := model.ClaimSkillHubReportNotification(report.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if claimed {
+		report.NotificationStatus = model.SkillHubReportNotificationSending
+		subject, content := buildSkillHubReportEmail(report)
+		if sendErr := common.SendEmail(subject, strings.TrimSpace(common.SkillHubReportEmail), content); sendErr != nil {
+			if finishErr := model.FinishSkillHubReportNotification(report.Id, model.SkillHubReportNotificationFailed, sendErr.Error()); finishErr != nil {
+				common.ApiError(c, finishErr)
+				return
+			}
+			common.ApiErrorMsg(c, "skill report was recorded but notification failed; retry with the same request id")
+			return
+		} else if finishErr := model.FinishSkillHubReportNotification(report.Id, model.SkillHubReportNotificationNotified, ""); finishErr != nil {
+			common.ApiError(c, finishErr)
+			return
+		} else {
+			report.NotificationStatus = model.SkillHubReportNotificationNotified
+		}
+	}
+	common.ApiSuccess(c, gin.H{
+		"id":                 report.Id,
+		"recorded":           true,
+		"notificationStatus": report.NotificationStatus,
+	})
+}
+
+func buildSkillHubReportEmail(report *model.SkillHubReport) (string, string) {
+	escape := func(value string) string { return html.EscapeString(strings.TrimSpace(value)) }
+	subject := fmt.Sprintf("[%s] 新的 Skill 举报 #%d", common.SystemName, report.Id)
+	managementURL := skillHubReportManagementURL(report.Id)
+	managementAction := "<p>请登录管理后台的 Skill Hub 举报管理页查看并处理。</p>"
+	if managementURL != "" {
+		managementAction = fmt.Sprintf(
+			"<p><a href=\"%s\" rel=\"noopener noreferrer\">打开 Skill Hub 举报管理页</a></p>",
+			escape(managementURL),
+		)
+	}
+	content := fmt.Sprintf(
+		"<h2>收到新的 Skill 举报</h2><div style=\"padding:12px;border:1px solid #f0c36d;background:#fff8e6\"><strong>安全提示：</strong>邮件不会展示任何用户提交的举报正文，也不会包含用户提供的链接。请仅通过下方固定后台入口查看内容。</div><p><strong>举报编号：</strong>%d</p><p><strong>Skill：</strong>%s (%s)</p><p><strong>版本：</strong>%s</p><p><strong>举报用户 ID：</strong>%d</p><p><strong>提交时间：</strong>%s</p>%s",
+		report.Id,
+		escape(report.SkillName),
+		escape(report.SkillID),
+		escape(report.SkillVersion),
+		report.UserID,
+		time.Unix(report.CreatedTime, 0).UTC().Format(time.RFC3339),
+		managementAction,
+	)
+	return subject, content
+}
+
+func skillHubReportManagementURL(reportID int) string {
+	base := strings.TrimSpace(system_setting.ServerAddress)
+	parsed, err := url.Parse(base)
+	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/skill-hub/reports"
+	parsed.RawPath = ""
+	parsed.RawQuery = url.Values{"report": []string{strconv.Itoa(reportID)}}.Encode()
+	parsed.Fragment = ""
+	return parsed.String()
+}
+
+func AdminListSkillHubReports(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	items, total, err := model.SearchSkillHubReports(
+		c.Query("keyword"),
+		strings.TrimSpace(c.Query("status")),
+		pageInfo.GetStartIdx(),
+		pageInfo.GetPageSize(),
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubAdminReportList{Items: items, Total: total})
+}
+
+func AdminGetSkillHubReport(c *gin.Context) {
+	reportID, err := strconv.Atoi(c.Param("id"))
+	if err != nil || reportID <= 0 {
+		common.ApiErrorMsg(c, "invalid skill report id")
+		return
+	}
+	report, err := model.GetSkillHubAdminReport(reportID)
+	if err != nil {
+		if errors.Is(err, model.ErrSkillHubReportNotFound) {
+			common.ApiErrorMsg(c, "skill report not found")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, report)
+}
+
+func AdminUpdateSkillHubReport(c *gin.Context) {
+	reportID, err := strconv.Atoi(c.Param("id"))
+	if err != nil || reportID <= 0 {
+		common.ApiErrorMsg(c, "invalid skill report id")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var request skillHubReportResolutionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	report, err := model.UpdateSkillHubReportResolution(
+		reportID,
+		request.Revision,
+		request.Status,
+		request.AdminNote,
+		c.GetInt("id"),
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, model.ErrSkillHubReportNotFound):
+			common.ApiErrorMsg(c, "skill report not found")
+		case errors.Is(err, model.ErrSkillHubReportConflict):
+			common.ApiErrorMsg(c, "skill report was updated by another administrator; refresh and try again")
+		default:
+			common.ApiError(c, err)
+		}
+		return
+	}
+	common.ApiSuccess(c, report)
 }
 
 func ListFavoriteSkillHubSkills(c *gin.Context) {
@@ -233,7 +419,12 @@ func AdminGetSkillHubSkill(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, skill.ToResponse(true))
+	detail, err := skill.ToDetailResponse(true, strings.TrimSpace(common.SkillHubReportEmail) != "")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, detail)
 }
 
 func AdminInitSkillHubDirectUpload(c *gin.Context) {
@@ -292,7 +483,11 @@ func AdminCreateSkillHubSkill(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	skill := skillHubRequestToModel(request, nil)
+	skill, err := skillHubRequestToModel(request, nil)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	duplicated, err := model.IsSkillHubSkillIDDuplicated(0, skill.SkillID)
 	if err != nil {
 		common.ApiError(c, err)
@@ -313,7 +508,12 @@ func AdminCreateSkillHubSkill(c *gin.Context) {
 		return
 	}
 	cleanupPromotedSkillHubTempObjects(promotion)
-	common.ApiSuccess(c, skill.ToResponse(true))
+	detail, err := skill.ToDetailResponse(true, strings.TrimSpace(common.SkillHubReportEmail) != "")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, detail)
 }
 
 func AdminUpdateSkillHubSkill(c *gin.Context) {
@@ -327,7 +527,11 @@ func AdminUpdateSkillHubSkill(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	skill = skillHubRequestToModel(request, skill)
+	skill, err = skillHubRequestToModel(request, skill)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if skill.SkillID == "" {
 		skill.SkillID = c.Param("id")
 	}
@@ -353,7 +557,12 @@ func AdminUpdateSkillHubSkill(c *gin.Context) {
 	}
 	cleanupPromotedSkillHubTempObjects(promotion)
 	cleanupSkillHubObjectsIfChanged(oldSourceRef, oldIcon, skill.SourceRef, skill.Icon)
-	common.ApiSuccess(c, skill.ToResponse(true))
+	detail, err := skill.ToDetailResponse(true, strings.TrimSpace(common.SkillHubReportEmail) != "")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, detail)
 }
 
 func AdminDeleteSkillHubSkill(c *gin.Context) {
@@ -411,12 +620,24 @@ func AdminBatchExportSkillHubSkills(c *gin.Context) {
 			skillHubExportError(c, fmt.Errorf("failed to export skill %s package: %w", skill.SkillID, err))
 			return
 		}
+		evaluation, parseErr := model.SkillHubEvaluationFromJSON(skill.EvaluationJSON)
+		if parseErr != nil {
+			_ = archive.Close()
+			skillHubExportError(c, fmt.Errorf("failed to export skill %s evaluation: %w", skill.SkillID, parseErr))
+			return
+		}
+		testcases, parseErr := model.SkillHubTestcasesFromJSON(skill.TestcasesJSON)
+		if parseErr != nil {
+			_ = archive.Close()
+			skillHubExportError(c, fmt.Errorf("failed to export skill %s testcases: %w", skill.SkillID, parseErr))
+			return
+		}
 		item := skillHubExportManifestItem{
 			ID: skill.SkillID, Name: skill.Name, Description: skill.Description,
-			Version: skill.Version, Author: skill.Author, Origin: skill.Origin, OriginURL: skill.OriginURL,
+			Version: skill.Version, Author: skill.Author, Origin: skill.Origin, OriginURL: skill.OriginURL, License: skill.License,
 			Tags:     model.StringListFromJSON(skill.Tags),
 			Verified: skill.Verified, Recommended: skill.Recommended, Sort: skill.Sort,
-			Zip: "./" + zipPath,
+			Zip: "./" + zipPath, Evaluation: evaluation, Testcases: testcases,
 		}
 		if strings.TrimSpace(skill.Icon) != "" {
 			reader, ext, openErr := service.OpenSkillHubIconObject(skill.Icon)
@@ -691,7 +912,7 @@ func updateSkillHubPublishStatus(c *gin.Context, status int) {
 	common.ApiSuccess(c, skill.ToResponse(true))
 }
 
-func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillHubSkill) *model.SkillHubSkill {
+func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillHubSkill) (*model.SkillHubSkill, error) {
 	skill := &model.SkillHubSkill{}
 	if existing != nil {
 		copy := *existing
@@ -706,6 +927,7 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	skill.Author = strings.TrimSpace(request.Author)
 	skill.Origin = strings.TrimSpace(request.Origin)
 	skill.OriginURL = strings.TrimSpace(request.OriginURL)
+	skill.License = strings.TrimSpace(request.License)
 	skill.Icon = strings.TrimSpace(request.Icon)
 	skill.Tags = model.StringListToJSON(request.Tags)
 	skill.Verified = request.Verified
@@ -726,10 +948,24 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	skill.ManifestTools = ""
 	skill.SourceType = "zip"
 	skill.SourceURL = strings.TrimSpace(request.Source.URL)
-	skill.SourceRef = strings.TrimSpace(request.Source.Ref)
+	nextSourceRef := strings.TrimSpace(request.Source.Ref)
+	if existing != nil && nextSourceRef != existing.SourceRef {
+		skill.SkillMarkdown = ""
+	}
+	skill.SourceRef = nextSourceRef
 	skill.SourceChecksum = strings.TrimSpace(request.Source.Checksum)
+	evaluationJSON, err := model.SkillHubEvaluationToJSON(request.Evaluation)
+	if err != nil {
+		return nil, err
+	}
+	testcasesJSON, err := model.SkillHubTestcasesToJSON(request.Testcases)
+	if err != nil {
+		return nil, err
+	}
+	skill.EvaluationJSON = evaluationJSON
+	skill.TestcasesJSON = testcasesJSON
 	skill.Changelog = ""
-	return skill
+	return skill, nil
 }
 
 func skillHubDownloadURL(c *gin.Context, skillID string) string {
