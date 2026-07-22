@@ -26,7 +26,7 @@ import {
 
 const defaultSiteSettings: SiteSettings = {
   Notice: '',
-  SystemName: 'New API',
+  SystemName: 'Nanoapple',
   Logo: '',
   Footer: '',
   About: '',
