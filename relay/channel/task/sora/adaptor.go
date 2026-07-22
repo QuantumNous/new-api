@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/task/facepass"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -69,12 +70,18 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+	facePass    bool
+	faceOpts    facepass.Options
+	proxy       string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
 	a.apiKey = info.ApiKey
+	a.facePass = openaiFacePassEnabled(info.ChannelOtherSettings)
+	a.faceOpts = openaiFaceOptsFromSettings(info.ChannelOtherSettings)
+	a.proxy = strings.TrimSpace(info.ChannelSetting.Proxy)
 }
 
 func validateRemixRequest(c *gin.Context) *dto.TaskError {
@@ -162,6 +169,19 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
 			syncVideoDurationFields(bodyMap)
+			if a.facePass {
+				inURLs := facepass.CollectImageURLs(bodyMap, openaiImageURLBodyKeys)
+				common.SysLog(fmt.Sprintf("[openai_face_pass] json facePass=%v singleEye=%v size=%d image_urls=%d: %s",
+					a.facePass, a.faceOpts.SingleEye, a.faceOpts.Size, len(inURLs), strings.Join(inURLs, " | ")))
+				if len(inURLs) > 0 {
+					if err := applyOpenaiFacePassJSON(bodyMap, a.proxy, a.faceOpts); err != nil {
+						return nil, errors.Wrap(err, "openai_face_pass_failed")
+					}
+				}
+			} else if hasJSONImages(bodyMap) {
+				inURLs := facepass.CollectImageURLs(bodyMap, openaiImageURLBodyKeys)
+				common.SysLog(fmt.Sprintf("[openai_face_pass] skipped; upstream will use: %s", strings.Join(inURLs, " | ")))
+			}
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}
@@ -174,6 +194,20 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err != nil {
 			return bytes.NewReader(cachedBody), nil
 		}
+
+		if a.facePass && multipartHasImages(formData) {
+			reader, newCT, err := applyOpenaiFacePassMultipart(formData, a.proxy, a.faceOpts, info.UpstreamModelName)
+			if err != nil {
+				return nil, errors.Wrap(err, "openai_face_pass_failed")
+			}
+			if reader != nil {
+				// Keep seconds/duration sync on the rebuilt form values already copied;
+				// also ensure duration/seconds aliases if present in original form.
+				c.Request.Header.Set("Content-Type", newCT)
+				return reader, nil
+			}
+		}
+
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)
 		writer.WriteField("model", info.UpstreamModelName)

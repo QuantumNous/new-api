@@ -104,6 +104,9 @@ export interface ChannelOtherSettings {
   megabyai_face_pass?: boolean
   megabyai_face_single_eye?: boolean
   megabyai_face_size?: number
+  openai_face_pass?: boolean
+  openai_face_single_eye?: boolean
+  openai_face_size?: number
   upstream_model_update_check_enabled?: boolean
   upstream_model_update_auto_sync_enabled?: boolean
   upstream_model_update_ignored_models?: string[]

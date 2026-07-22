@@ -4484,6 +4484,13 @@
     "Channel whose Base URL points to 83zi (e.g. http://s.83zi.com) and Key is that site sk-": "渠道 Base URL 指向 83zi（如 http://s.83zi.com），Key 为该站 sk-",
     "Refresh asset status on GET": "GET 时回源刷新素材状态",
     "When enabled, GET /api/seedance/assets/{id} refreshes status from the gateway": "启用后，GET /api/seedance/assets/{id} 会从网关刷新状态",
-    "Save Seedance asset settings": "保存 Seedance 素材设置"
+    "Save Seedance asset settings": "保存 Seedance 素材设置",
+    "Face pass": "过人脸",
+    "Single-eye mask": "单眼遮挡",
+    "Mask size": "遮挡尺寸",
+    "On: mask one eye per face (API default). Off: mask both eyes (singleEye=0).": "开启时每张脸只遮一只眼（图床默认）；关闭则为双眼遮挡（singleEye=0）。",
+    "Mask box size 1–10: ~2 for eyes, 10 ≈ full face. Default 5.": "遮挡框大小 1–10：约 2=眼睛，10≈整张脸。默认 5。",
+    "When enabled, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for MegaByAI.": "开启后参考图会先压缩（最长边≤1600）并转为 WebP，再经 face.83zi.com 处理后提交上游。默认开启。",
+    "When enabled and the request has images, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for OpenAI/Sora video; turn off for full official models.": "参考图过人脸（有图时生效；满血/官方模型可关闭）。开启后参考图会先压缩（最长边≤1600）并转为 WebP，再经 face.83zi.com 处理后提交上游。默认开启。"
   }
 }

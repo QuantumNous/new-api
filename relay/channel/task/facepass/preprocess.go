@@ -1,4 +1,4 @@
-package megabyai
+package facepass
 
 import (
 	"bytes"
@@ -16,9 +16,9 @@ import (
 const maxLongEdge = 1600
 const webpQuality = 80
 
-// preprocessToWebP decodes image bytes, downscales so the longest edge is at most
+// PreprocessToWebP decodes image bytes, downscales so the longest edge is at most
 // maxLongEdge (never upscales), and encodes lossy WebP (~quality 80).
-func preprocessToWebP(src []byte) ([]byte, error) {
+func PreprocessToWebP(src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return nil, fmt.Errorf("empty image data")
 	}
@@ -26,7 +26,7 @@ func preprocessToWebP(src []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode image: %w", err)
 	}
-	img = resizeMaxLongEdge(img, maxLongEdge)
+	img = ResizeMaxLongEdge(img, maxLongEdge)
 
 	var buf bytes.Buffer
 	if err := gowebp.Encode(&buf, img, &gowebp.Options{
@@ -39,7 +39,8 @@ func preprocessToWebP(src []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func resizeMaxLongEdge(img image.Image, maxEdge int) image.Image {
+// ResizeMaxLongEdge scales down so the longest edge is at most maxEdge; never upscales.
+func ResizeMaxLongEdge(img image.Image, maxEdge int) image.Image {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
 	if w <= 0 || h <= 0 {

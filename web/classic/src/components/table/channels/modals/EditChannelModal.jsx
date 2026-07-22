@@ -230,6 +230,9 @@ const EditChannelModal = (props) => {
     megabyai_face_pass: true,
     megabyai_face_single_eye: true,
     megabyai_face_size: 5,
+    openai_face_pass: true,
+    openai_face_single_eye: true,
+    openai_face_size: 5,
     upstream_model_update_check_enabled: false,
     upstream_model_update_auto_sync_enabled: false,
     upstream_model_update_last_check_time: 0,
@@ -1020,6 +1023,16 @@ const EditChannelModal = (props) => {
                 ? Math.floor(sizeNum)
                 : 5;
           }
+          data.openai_face_pass = parsedSettings.openai_face_pass !== false;
+          data.openai_face_single_eye =
+            parsedSettings.openai_face_single_eye !== false;
+          {
+            const sizeNum = Number(parsedSettings.openai_face_size);
+            data.openai_face_size =
+              Number.isFinite(sizeNum) && sizeNum >= 1 && sizeNum <= 10
+                ? Math.floor(sizeNum)
+                : 5;
+          }
           data.upstream_model_update_check_enabled =
             parsedSettings.upstream_model_update_check_enabled === true;
           data.upstream_model_update_auto_sync_enabled =
@@ -1054,6 +1067,9 @@ const EditChannelModal = (props) => {
           data.megabyai_face_pass = true;
           data.megabyai_face_single_eye = true;
           data.megabyai_face_size = 5;
+          data.openai_face_pass = true;
+          data.openai_face_single_eye = true;
+          data.openai_face_size = 5;
           data.upstream_model_update_check_enabled = false;
           data.upstream_model_update_auto_sync_enabled = false;
           data.upstream_model_update_last_check_time = 0;
@@ -1076,6 +1092,9 @@ const EditChannelModal = (props) => {
         data.megabyai_face_pass = true;
         data.megabyai_face_single_eye = true;
         data.megabyai_face_size = 5;
+        data.openai_face_pass = true;
+        data.openai_face_single_eye = true;
+        data.openai_face_size = 5;
         data.upstream_model_update_check_enabled = false;
         data.upstream_model_update_auto_sync_enabled = false;
         data.upstream_model_update_last_check_time = 0;
@@ -1958,6 +1977,30 @@ const EditChannelModal = (props) => {
       }
     }
 
+    // type === 1 (OpenAI) / 55 (Sora): face-pass (default on) + mask params
+    if (localInputs.type === 1 || localInputs.type === 55) {
+      settings.openai_face_pass = localInputs.openai_face_pass !== false;
+      settings.openai_face_single_eye =
+        localInputs.openai_face_single_eye !== false;
+      {
+        const sizeNum = Number(localInputs.openai_face_size);
+        settings.openai_face_size =
+          Number.isFinite(sizeNum) && sizeNum >= 1 && sizeNum <= 10
+            ? Math.floor(sizeNum)
+            : 5;
+      }
+    } else {
+      if ('openai_face_pass' in settings) {
+        delete settings.openai_face_pass;
+      }
+      if ('openai_face_single_eye' in settings) {
+        delete settings.openai_face_single_eye;
+      }
+      if ('openai_face_size' in settings) {
+        delete settings.openai_face_size;
+      }
+    }
+
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
     settings.upstream_model_update_auto_sync_enabled =
@@ -2007,6 +2050,9 @@ const EditChannelModal = (props) => {
     delete localInputs.megabyai_face_pass;
     delete localInputs.megabyai_face_single_eye;
     delete localInputs.megabyai_face_size;
+    delete localInputs.openai_face_pass;
+    delete localInputs.openai_face_single_eye;
+    delete localInputs.openai_face_size;
     delete localInputs.upstream_model_update_check_enabled;
     delete localInputs.upstream_model_update_auto_sync_enabled;
     delete localInputs.upstream_model_update_last_check_time;
@@ -2875,6 +2921,71 @@ const EditChannelModal = (props) => {
                                 Number(inputs.megabyai_face_size) >= 1 &&
                                 Number(inputs.megabyai_face_size) <= 10
                                   ? Number(inputs.megabyai_face_size)
+                                  : 5
+                              }
+                              style={{ width: '100%' }}
+                            />
+                          </>
+                        )}
+                      </>
+                    )}
+
+                    {(inputs.type === 1 || inputs.type === 55) && (
+                      <>
+                        <Form.Switch
+                          field='openai_face_pass'
+                          label={t('过人脸')}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'openai_face_pass',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            '参考图过人脸（有图时生效；满血/官方模型可关闭）。开启后参考图会先压缩（最长边≤1600）并转为 WebP，再经 face.83zi.com 处理后提交上游。默认开启。',
+                          )}
+                          initValue={inputs.openai_face_pass !== false}
+                        />
+                        {inputs.openai_face_pass !== false && (
+                          <>
+                            <Form.Switch
+                              field='openai_face_single_eye'
+                              label={t('单眼遮挡')}
+                              checkedText={t('开')}
+                              uncheckedText={t('关')}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'openai_face_single_eye',
+                                  value,
+                                )
+                              }
+                              extraText={t(
+                                '开启时每张脸只遮一只眼（图床默认）；关闭则为双眼遮挡（singleEye=0）。',
+                              )}
+                              initValue={
+                                inputs.openai_face_single_eye !== false
+                              }
+                            />
+                            <Form.InputNumber
+                              field='openai_face_size'
+                              label={t('遮挡尺寸')}
+                              min={1}
+                              max={10}
+                              onNumberChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'openai_face_size',
+                                  value,
+                                )
+                              }
+                              extraText={t(
+                                '遮挡框大小 1–10：约 2=眼睛，10≈整张脸。默认 5。',
+                              )}
+                              initValue={
+                                Number(inputs.openai_face_size) >= 1 &&
+                                Number(inputs.openai_face_size) <= 10
+                                  ? Number(inputs.openai_face_size)
                                   : 5
                               }
                               style={{ width: '100%' }}

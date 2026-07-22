@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/task/facepass"
 	_ "golang.org/x/image/webp"
 )
 
@@ -57,7 +58,7 @@ func TestResizeMaxLongEdgeDownscales(t *testing.T) {
 			img.Set(x, y, color.RGBA{R: 200, G: 100, B: 50, A: 255})
 		}
 	}
-	out := resizeMaxLongEdge(img, 1600)
+	out := facepass.ResizeMaxLongEdge(img, 1600)
 	b := out.Bounds()
 	if b.Dx() != 1600 || b.Dy() != 900 {
 		t.Fatalf("got %dx%d, want 1600x900", b.Dx(), b.Dy())
@@ -66,7 +67,7 @@ func TestResizeMaxLongEdgeDownscales(t *testing.T) {
 
 func TestResizeMaxLongEdgeNoUpscale(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 800, 600))
-	out := resizeMaxLongEdge(img, 1600)
+	out := facepass.ResizeMaxLongEdge(img, 1600)
 	if out.Bounds().Dx() != 800 || out.Bounds().Dy() != 600 {
 		t.Fatalf("should not upscale, got %v", out.Bounds())
 	}
@@ -78,7 +79,7 @@ func TestPreprocessToWebP(t *testing.T) {
 	if err := png.Encode(&pngBuf, img); err != nil {
 		t.Fatal(err)
 	}
-	webpBytes, err := preprocessToWebP(pngBuf.Bytes())
+	webpBytes, err := facepass.PreprocessToWebP(pngBuf.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4479,6 +4479,13 @@
     "Channel whose Base URL points to 83zi (e.g. http://s.83zi.com) and Key is that site sk-": "Channel whose Base URL points to 83zi (e.g. http://s.83zi.com) and Key is that site sk-",
     "Refresh asset status on GET": "Refresh asset status on GET",
     "When enabled, GET /api/seedance/assets/{id} refreshes status from the gateway": "When enabled, GET /api/seedance/assets/{id} refreshes status from the gateway",
-    "Save Seedance asset settings": "Save Seedance asset settings"
+    "Save Seedance asset settings": "Save Seedance asset settings",
+    "Face pass": "Face pass",
+    "Single-eye mask": "Single-eye mask",
+    "Mask size": "Mask size",
+    "On: mask one eye per face (API default). Off: mask both eyes (singleEye=0).": "On: mask one eye per face (API default). Off: mask both eyes (singleEye=0).",
+    "Mask box size 1–10: ~2 for eyes, 10 ≈ full face. Default 5.": "Mask box size 1–10: ~2 for eyes, 10 ≈ full face. Default 5.",
+    "When enabled, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for MegaByAI.": "When enabled, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for MegaByAI.",
+    "When enabled and the request has images, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for OpenAI/Sora video; turn off for full official models.": "When enabled and the request has images, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for OpenAI/Sora video; turn off for full official models."
   }
 }

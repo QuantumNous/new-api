@@ -80,6 +80,9 @@ export const channelFormSchema = z.object({
   megabyai_face_pass: z.boolean().optional(), // megabyai: face-pass (default on)
   megabyai_face_single_eye: z.boolean().optional(), // megabyai: single-eye mask (default on)
   megabyai_face_size: z.number().int().min(1).max(10).optional(), // megabyai: mask size 1-10 (default 5)
+  openai_face_pass: z.boolean().optional(), // OpenAI/Sora: face-pass (default on)
+  openai_face_single_eye: z.boolean().optional(), // OpenAI/Sora: single-eye mask (default on)
+  openai_face_size: z.number().int().min(1).max(10).optional(), // OpenAI/Sora: mask size 1-10 (default 5)
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -142,6 +145,9 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   megabyai_face_pass: true,
   megabyai_face_single_eye: true,
   megabyai_face_size: 5,
+  openai_face_pass: true,
+  openai_face_single_eye: true,
+  openai_face_size: 5,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -200,6 +206,9 @@ export function transformChannelToFormDefaults(
   let megabyaiFacePass = true
   let megabyaiFaceSingleEye = true
   let megabyaiFaceSize = 5
+  let openaiFacePass = true
+  let openaiFaceSingleEye = true
+  let openaiFaceSize = 5
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -230,6 +239,15 @@ export function transformChannelToFormDefaults(
       {
         const sizeNum = Number(parsed.megabyai_face_size)
         megabyaiFaceSize =
+          Number.isFinite(sizeNum) && sizeNum >= 1 && sizeNum <= 10
+            ? Math.floor(sizeNum)
+            : 5
+      }
+      openaiFacePass = parsed.openai_face_pass !== false
+      openaiFaceSingleEye = parsed.openai_face_single_eye !== false
+      {
+        const sizeNum = Number(parsed.openai_face_size)
+        openaiFaceSize =
           Number.isFinite(sizeNum) && sizeNum >= 1 && sizeNum <= 10
             ? Math.floor(sizeNum)
             : 5
@@ -292,6 +310,9 @@ export function transformChannelToFormDefaults(
     megabyai_face_pass: megabyaiFacePass,
     megabyai_face_single_eye: megabyaiFaceSingleEye,
     megabyai_face_size: megabyaiFaceSize,
+    openai_face_pass: openaiFacePass,
+    openai_face_single_eye: openaiFaceSingleEye,
+    openai_face_size: openaiFaceSize,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -427,6 +448,30 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
     if ('megabyai_face_size' in settingsObj) {
       delete settingsObj.megabyai_face_size
+    }
+  }
+
+  // OpenAI (type 1) / Sora (type 55): face-pass (default on) + mask params
+  if (formData.type === 1 || formData.type === 55) {
+    settingsObj.openai_face_pass = formData.openai_face_pass !== false
+    settingsObj.openai_face_single_eye =
+      formData.openai_face_single_eye !== false
+    {
+      const sizeNum = Number(formData.openai_face_size)
+      settingsObj.openai_face_size =
+        Number.isFinite(sizeNum) && sizeNum >= 1 && sizeNum <= 10
+          ? Math.floor(sizeNum)
+          : 5
+    }
+  } else {
+    if ('openai_face_pass' in settingsObj) {
+      delete settingsObj.openai_face_pass
+    }
+    if ('openai_face_single_eye' in settingsObj) {
+      delete settingsObj.openai_face_single_eye
+    }
+    if ('openai_face_size' in settingsObj) {
+      delete settingsObj.openai_face_size
     }
   }
 

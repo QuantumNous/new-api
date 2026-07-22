@@ -1756,7 +1756,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "構文的に有効な JSON 応答を強制",
@@ -4466,6 +4466,13 @@
     "operation and charging behavior": "operation and charging behavior",
     "，": ", ",
     "，and ": ", and ",
-    "、": ", "
+    "、": ", ",
+    "Face pass": "Face pass",
+    "Single-eye mask": "Single-eye mask",
+    "Mask size": "Mask size",
+    "On: mask one eye per face (API default). Off: mask both eyes (singleEye=0).": "On: mask one eye per face (API default). Off: mask both eyes (singleEye=0).",
+    "Mask box size 1–10: ~2 for eyes, 10 ≈ full face. Default 5.": "Mask box size 1–10: ~2 for eyes, 10 ≈ full face. Default 5.",
+    "When enabled, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for MegaByAI.": "When enabled, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for MegaByAI.",
+    "When enabled and the request has images, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for OpenAI/Sora video; turn off for full official models.": "When enabled and the request has images, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for OpenAI/Sora video; turn off for full official models."
   }
 }

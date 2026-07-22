@@ -706,6 +706,18 @@ export function ChannelMutateDrawer({
         form.setValue('megabyai_face_size', 5)
       }
     }
+
+    if (currentType === 1 || currentType === 55) {
+      if (form.getValues('openai_face_pass') === undefined) {
+        form.setValue('openai_face_pass', true)
+      }
+      if (form.getValues('openai_face_single_eye') === undefined) {
+        form.setValue('openai_face_single_eye', true)
+      }
+      if (form.getValues('openai_face_size') === undefined) {
+        form.setValue('openai_face_size', 5)
+      }
+    }
   }, [currentType, isEditing, form])
 
   useEffect(() => {
@@ -1913,6 +1925,94 @@ export function ChannelMutateDrawer({
                         <FormField
                           control={form.control}
                           name='megabyai_face_size'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Mask size')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={1}
+                                  max={10}
+                                  placeholder='5'
+                                  value={field.value ?? 5}
+                                  onChange={(e) => {
+                                    const n = Number(e.target.value)
+                                    field.onChange(
+                                      Number.isFinite(n) ? n : 5
+                                    )
+                                  }}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Mask box size 1–10: ~2 for eyes, 10 ≈ full face. Default 5.'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+
+                {/* OpenAI / Sora face-pass */}
+                {(currentType === 1 || currentType === 55) && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='openai_face_pass'
+                      render={({ field }) => (
+                        <FormItem className='flex items-center justify-between gap-3 rounded-lg border px-4 py-3'>
+                          <div className='space-y-0.5'>
+                            <FormLabel className='text-sm'>
+                              {t('Face pass')}
+                            </FormLabel>
+                            <FormDescription>
+                              {t(
+                                'When enabled and the request has images, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for OpenAI/Sora video; turn off for full official models.'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value !== false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch('openai_face_pass') !== false && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name='openai_face_single_eye'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-lg border px-4 py-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Single-eye mask')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'On: mask one eye per face (API default). Off: mask both eyes (singleEye=0).'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value !== false}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='openai_face_size'
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>{t('Mask size')}</FormLabel>

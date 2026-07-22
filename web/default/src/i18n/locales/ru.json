@@ -1756,7 +1756,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Принудительно возвращать синтаксически корректный JSON",
@@ -4466,6 +4466,13 @@
     "operation and charging behavior": "operation and charging behavior",
     "，": ", ",
     "，and ": ", and ",
-    "、": ", "
+    "、": ", ",
+    "Face pass": "Face pass",
+    "Single-eye mask": "Single-eye mask",
+    "Mask size": "Mask size",
+    "On: mask one eye per face (API default). Off: mask both eyes (singleEye=0).": "On: mask one eye per face (API default). Off: mask both eyes (singleEye=0).",
+    "Mask box size 1–10: ~2 for eyes, 10 ≈ full face. Default 5.": "Mask box size 1–10: ~2 for eyes, 10 ≈ full face. Default 5.",
+    "When enabled, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for MegaByAI.": "When enabled, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for MegaByAI.",
+    "When enabled and the request has images, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for OpenAI/Sora video; turn off for full official models.": "When enabled and the request has images, reference images are resized (max long edge 1600), converted to WebP, processed by face.83zi.com, then sent upstream. Default on for OpenAI/Sora video; turn off for full official models."
   }
 }

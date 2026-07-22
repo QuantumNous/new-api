@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/task/facepass"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -57,7 +58,7 @@ type TaskAdaptor struct {
 	apiKey      string
 	baseURL     string
 	facePass    bool
-	faceOpts    facePassOptions
+	faceOpts    facepass.Options
 	proxy       string
 }
 
@@ -110,7 +111,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 		inURLs := collectImageURLs(bodyMap)
 		common.SysLog(fmt.Sprintf("[megabyai_face_pass] json facePass=%v singleEye=%v size=%d image_urls=%d: %s",
-			a.facePass, a.faceOpts.singleEye, a.faceOpts.size, len(inURLs), strings.Join(inURLs, " | ")))
+			a.facePass, a.faceOpts.SingleEye, a.faceOpts.Size, len(inURLs), strings.Join(inURLs, " | ")))
 		if a.facePass {
 			if err := applyFacePass(bodyMap, nil, a.proxy, a.faceOpts); err != nil {
 				return nil, errors.Wrap(err, "megabyai_face_pass_failed")
@@ -141,7 +142,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 		inURLs := collectImageURLs(bodyMap)
 		common.SysLog(fmt.Sprintf("[megabyai_face_pass] multipart facePass=%v singleEye=%v size=%d image_urls=%d: %s",
-			a.facePass, a.faceOpts.singleEye, a.faceOpts.size, len(inURLs), strings.Join(inURLs, " | ")))
+			a.facePass, a.faceOpts.SingleEye, a.faceOpts.Size, len(inURLs), strings.Join(inURLs, " | ")))
 		if a.facePass {
 			blobs, err := collectMultipartImageBlobs(formData)
 			if err != nil {

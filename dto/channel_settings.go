@@ -45,6 +45,9 @@ type ChannelOtherSettings struct {
 	MegabyaiFacePass                      *bool         `json:"megabyai_face_pass,omitempty"`                        // megabyai：参考图过人脸（nil/true=开，false=关）
 	MegabyaiFaceSingleEye                 *bool         `json:"megabyai_face_single_eye,omitempty"`                   // megabyai：单眼遮挡（nil/true=开，false=双眼）
 	MegabyaiFaceSize                      *int          `json:"megabyai_face_size,omitempty"`                        // megabyai：遮挡尺寸 1–10（nil=5）
+	OpenaiFacePass                        *bool         `json:"openai_face_pass,omitempty"`                          // OpenAI/Sora 视频：参考图过人脸（nil/true=开，false=关）
+	OpenaiFaceSingleEye                   *bool         `json:"openai_face_single_eye,omitempty"`                     // OpenAI/Sora：单眼遮挡（nil/true=开，false=双眼）
+	OpenaiFaceSize                        *int          `json:"openai_face_size,omitempty"`                          // OpenAI/Sora：遮挡尺寸 1–10（nil=5）
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
