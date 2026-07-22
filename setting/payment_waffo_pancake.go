@@ -1,16 +1,15 @@
 package setting
 
+// Waffo Pancake hosted checkout configuration. Gateway is enabled once
+// MerchantID + PrivateKey + ProductID are populated (no separate Enabled
+// flag, matching Stripe / Creem). StoreID + ProductID are operator-bound
+// via SaveWaffoPancakeConfig.
 var (
-	WaffoPancakeEnabled          bool
-	WaffoPancakeSandbox          bool
-	WaffoPancakeMerchantID       string
-	WaffoPancakePrivateKey       string
-	WaffoPancakeWebhookPublicKey string
-	WaffoPancakeWebhookTestKey   string
-	WaffoPancakeStoreID          string
-	WaffoPancakeProductID        string
-	WaffoPancakeReturnURL        string
-	WaffoPancakeCurrency         string  = "USD"
-	WaffoPancakeUnitPrice        float64 = 1.0
-	WaffoPancakeMinTopUp         int     = 1
+	WaffoPancakeMerchantID string
+	WaffoPancakePrivateKey string
+	WaffoPancakeReturnURL  string
+	WaffoPancakeUnitPrice  float64 = 1.0
+	WaffoPancakeMinTopUp   int     = 1
+	WaffoPancakeStoreID    string
+	WaffoPancakeProductID  string
 )

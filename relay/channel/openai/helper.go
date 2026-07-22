@@ -1,7 +1,7 @@
 package openai
 
 import (
-	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -11,6 +11,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
@@ -42,7 +43,14 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	if streamResponse.Usage != nil {
 		info.ClaudeConvertInfo.Usage = streamResponse.Usage
 	}
-	claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
+	result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
+	if err != nil {
+		return err
+	}
+	claudeResponses, ok := result.Value.([]*dto.ClaudeResponse)
+	if !ok {
+		return fmt.Errorf("expected Claude stream responses, got %T", result.Value)
+	}
 	for _, resp := range claudeResponses {
 		helper.ClaudeData(c, *resp)
 	}
@@ -56,7 +64,14 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 		return err
 	}
 
-	geminiResponse := service.StreamResponseOpenAI2Gemini(&streamResponse, info)
+	result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatGemini, &streamResponse)
+	if err != nil {
+		return err
+	}
+	geminiResponse, ok := result.Value.(*dto.GeminiChatResponse)
+	if !ok {
+		return fmt.Errorf("expected Gemini stream response, got %T", result.Value)
+	}
 
 	// 如果返回 nil，表示没有实际内容，跳过发送
 	if geminiResponse == nil {
@@ -92,78 +107,28 @@ func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, res
 	return nil
 }
 
-func processTokens(relayMode int, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
-	streamResp := "[" + strings.Join(streamItems, ",") + "]"
-
+func processTokenData(relayMode int, data string, responseTextBuilder *strings.Builder, toolCount *int) error {
 	switch relayMode {
 	case relayconstant.RelayModeChatCompletions:
-		return processChatCompletions(streamResp, streamItems, responseTextBuilder, toolCount)
+		var streamResponse dto.ChatCompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			return err
+		}
+		return ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount)
 	case relayconstant.RelayModeCompletions:
-		return processCompletions(streamResp, streamItems, responseTextBuilder)
+		var streamResponse dto.CompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			return err
+		}
+		processCompletionsStreamResponse(streamResponse, responseTextBuilder)
 	}
 	return nil
 }
 
-func processChatCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
-	var streamResponses []dto.ChatCompletionsStreamResponse
-	if err := json.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
-		// 一次性解析失败，逐个解析
-		common.SysLog("error unmarshalling stream response: " + err.Error())
-		for _, item := range streamItems {
-			var streamResponse dto.ChatCompletionsStreamResponse
-			if err := json.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
-				return err
-			}
-			if err := ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount); err != nil {
-				common.SysLog("error processing stream response: " + err.Error())
-			}
-		}
-		return nil
+func processCompletionsStreamResponse(streamResponse dto.CompletionsStreamResponse, responseTextBuilder *strings.Builder) {
+	for _, choice := range streamResponse.Choices {
+		responseTextBuilder.WriteString(choice.Text)
 	}
-
-	// 批量处理所有响应
-	for _, streamResponse := range streamResponses {
-		for _, choice := range streamResponse.Choices {
-			responseTextBuilder.WriteString(choice.Delta.GetContentString())
-			responseTextBuilder.WriteString(choice.Delta.GetReasoningContent())
-			if choice.Delta.ToolCalls != nil {
-				if len(choice.Delta.ToolCalls) > *toolCount {
-					*toolCount = len(choice.Delta.ToolCalls)
-				}
-				for _, tool := range choice.Delta.ToolCalls {
-					responseTextBuilder.WriteString(tool.Function.Name)
-					responseTextBuilder.WriteString(tool.Function.Arguments)
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func processCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder) error {
-	var streamResponses []dto.CompletionsStreamResponse
-	if err := json.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
-		// 一次性解析失败，逐个解析
-		common.SysLog("error unmarshalling stream response: " + err.Error())
-		for _, item := range streamItems {
-			var streamResponse dto.CompletionsStreamResponse
-			if err := json.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
-				continue
-			}
-			for _, choice := range streamResponse.Choices {
-				responseTextBuilder.WriteString(choice.Text)
-			}
-		}
-		return nil
-	}
-
-	// 批量处理所有响应
-	for _, streamResponse := range streamResponses {
-		for _, choice := range streamResponse.Choices {
-			responseTextBuilder.WriteString(choice.Text)
-		}
-	}
-	return nil
 }
 
 func handleLastResponse(lastStreamData string, responseId *string, createAt *int64,
@@ -216,7 +181,16 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 
 		info.ClaudeConvertInfo.Usage = usage
 
-		claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
+		result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
+		if err != nil {
+			common.SysLog("error converting Claude stream response: " + err.Error())
+			return
+		}
+		claudeResponses, ok := result.Value.([]*dto.ClaudeResponse)
+		if !ok {
+			common.SysLog(fmt.Sprintf("expected Claude stream responses, got %T", result.Value))
+			return
+		}
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
@@ -234,7 +208,16 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		// 而包含最后一段文本输出的响应（倒数第二个）的 finishReason 为 null
 		// 暂不知是否有程序会不兼容。
 
-		geminiResponse := service.StreamResponseOpenAI2Gemini(&streamResponse, info)
+		result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatGemini, &streamResponse)
+		if err != nil {
+			common.SysLog("error converting Gemini stream response: " + err.Error())
+			return
+		}
+		geminiResponse, ok := result.Value.(*dto.GeminiChatResponse)
+		if !ok {
+			common.SysLog(fmt.Sprintf("expected Gemini stream response, got %T", result.Value))
+			return
+		}
 
 		// openai 流响应开头的空数据
 		if geminiResponse == nil {
@@ -257,5 +240,5 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 	if data == "" {
 		return
 	}
-	helper.ResponseChunkData(c, streamResponse, data)
+	_ = helper.ResponseChunkData(c, streamResponse, data)
 }

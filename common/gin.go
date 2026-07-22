@@ -110,11 +110,29 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	if err != nil {
 		return err
 	}
+	contentType := c.Request.Header.Get("Content-Type")
+
+	// disk-backed JSON: stream-decode directly from the file to avoid
+	// materializing the entire payload back into a transient []byte
+	// (diskStorage.Bytes() would ReadFull the whole file into the heap).
+	if storage.IsDisk() && strings.HasPrefix(contentType, "application/json") {
+		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+			return seekErr
+		}
+		if err := DecodeJson(storage, v); err != nil {
+			return err
+		}
+		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+			return seekErr
+		}
+		c.Request.Body = io.NopCloser(storage)
+		return nil
+	}
+
 	requestBody, err := storage.Bytes()
 	if err != nil {
 		return err
 	}
-	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
 		err = Unmarshal(requestBody, v)
 	} else if strings.Contains(contentType, gin.MIMEPOSTForm) {

@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"strings"
 	"time"
@@ -48,14 +47,14 @@ func hasCustomModelRatio(modelName string, currentRatio float64) bool {
 	return currentRatio != defaultRatio
 }
 
-func calculateAudioQuota(info QuotaInfo) int {
+func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
 	if info.UsePrice {
 		modelPrice := decimal.NewFromFloat(info.ModelPrice)
 		quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		groupRatio := decimal.NewFromFloat(info.GroupRatio)
 
 		quota := modelPrice.Mul(quotaPerUnit).Mul(groupRatio)
-		return int(quota.IntPart())
+		return common.QuotaFromDecimalChecked(quota)
 	}
 
 	completionRatio := decimal.NewFromFloat(ratio_setting.GetCompletionRatio(info.ModelName))
@@ -84,7 +83,7 @@ func calculateAudioQuota(info QuotaInfo) int {
 		quota = decimal.NewFromInt(1)
 	}
 
-	return int(quota.Round(0).IntPart())
+	return common.QuotaFromDecimalChecked(quota)
 }
 
 func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage) error {
@@ -112,7 +111,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
 	if exists {
 		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
-		log.Printf("final group ratio: %f", groupRatio)
+		logger.LogDebug(ctx, "final group ratio: %f", groupRatio)
 		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
@@ -137,7 +136,8 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		GroupRatio: actualGroupRatio,
 	}
 
-	quota := calculateAudioQuota(quotaInfo)
+	quota, clamp := calculateAudioQuota(quotaInfo)
+	noteQuotaClamp(relayInfo, clamp)
 
 	if userQuota < quota {
 		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
@@ -200,7 +200,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		GroupRatio: groupRatio,
 	}
 
-	quota := calculateAudioQuota(quotaInfo)
+	quota, clamp := calculateAudioQuota(quotaInfo)
+	noteQuotaClamp(relayInfo, clamp)
 	if tieredOk {
 		quota = tieredQuota
 	}
@@ -240,6 +241,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.InputTokens,
@@ -321,7 +323,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		GroupRatio: groupRatio,
 	}
 
-	quota := calculateAudioQuota(quotaInfo)
+	quota, clamp := calculateAudioQuota(quotaInfo)
+	noteQuotaClamp(relayInfo, clamp)
 	if tieredOk {
 		quota = tieredQuota
 	}
@@ -361,6 +364,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.PromptTokens,
@@ -466,7 +470,7 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 		}
 		if quotaTooLow {
 			prompt := "您的额度即将用尽"
-			topUpLink := PaymentReturnURL("/console/topup")
+			topUpLink := PaymentReturnURL("/wallet")
 
 			// 根据通知方式生成不同的内容格式
 			var content string
@@ -520,7 +524,7 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		}
 
 		prompt := "您的订阅额度即将用尽"
-		topUpLink := PaymentReturnURL("/console/topup")
+		topUpLink := PaymentReturnURL("/wallet")
 
 		var content string
 		var values []interface{}

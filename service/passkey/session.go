@@ -1,50 +1,61 @@
 package passkey
 
 import (
-	"encoding/json"
 	"errors"
+	"time"
 
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+
 	webauthn "github.com/go-webauthn/webauthn/webauthn"
 )
 
 var errSessionNotFound = errors.New("Passkey 会话不存在或已过期")
 
-func SaveSessionData(c *gin.Context, key string, data *webauthn.SessionData) error {
-	session := sessions.Default(c)
-	if data == nil {
-		session.Delete(key)
-		return session.Save()
-	}
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	session.Set(key, string(payload))
-	return session.Save()
+const passkeyFlowTTL = 5 * time.Minute
+
+type flowPayload struct {
+	SessionData webauthn.SessionData `json:"session_data"`
+	Scope       string               `json:"scope,omitempty"`
 }
 
-func PopSessionData(c *gin.Context, key string) (*webauthn.SessionData, error) {
-	session := sessions.Default(c)
-	raw := session.Get(key)
-	if raw == nil {
-		return nil, errSessionNotFound
+func CreateSessionDataFlow(purpose string, userID int, sessionID, scope string, data *webauthn.SessionData) (string, int64, error) {
+	if data == nil {
+		return "", 0, errors.New("Passkey 会话数据不能为空")
 	}
-	session.Delete(key)
-	_ = session.Save()
-	var data webauthn.SessionData
-	switch value := raw.(type) {
-	case string:
-		if err := json.Unmarshal([]byte(value), &data); err != nil {
-			return nil, err
-		}
-	case []byte:
-		if err := json.Unmarshal(value, &data); err != nil {
-			return nil, err
-		}
-	default:
-		return nil, errors.New("Passkey 会话格式无效")
+	payload, err := common.Marshal(flowPayload{SessionData: *data, Scope: scope})
+	if err != nil {
+		return "", 0, err
 	}
-	return &data, nil
+	expiresAt := time.Now().Add(passkeyFlowTTL)
+	token, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose:   purpose,
+		UserId:    userID,
+		SessionId: sessionID,
+		Payload:   string(payload),
+		ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	return token, expiresAt.Unix(), nil
+}
+
+func PopSessionDataFlow(token, purpose string, userID int, sessionID string) (*webauthn.SessionData, string, error) {
+	flow, err := model.ConsumeAuthFlow(token, model.AuthFlowMatch{
+		Purpose:   purpose,
+		UserId:    userID,
+		SessionId: sessionID,
+	})
+	if err != nil {
+		if errors.Is(err, model.ErrAuthFlowInvalid) || errors.Is(err, model.ErrAuthFlowExpired) || errors.Is(err, model.ErrAuthFlowConsumed) {
+			return nil, "", errSessionNotFound
+		}
+		return nil, "", err
+	}
+	var payload flowPayload
+	if err := common.UnmarshalJsonStr(flow.Payload, &payload); err != nil {
+		return nil, "", err
+	}
+	return &payload.SessionData, payload.Scope, nil
 }

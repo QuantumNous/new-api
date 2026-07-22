@@ -14,19 +14,20 @@ import (
 
 type AwsClaudeRequest struct {
 	// AnthropicVersion should be "bedrock-2023-05-31"
-	AnthropicVersion string              `json:"anthropic_version"`
-	AnthropicBeta    json.RawMessage     `json:"anthropic_beta,omitempty"`
-	System           any                 `json:"system,omitempty"`
-	Messages         []dto.ClaudeMessage `json:"messages"`
-	MaxTokens        uint                `json:"max_tokens,omitempty"`
-	Temperature      *float64            `json:"temperature,omitempty"`
-	TopP             float64             `json:"top_p,omitempty"`
-	TopK             int                 `json:"top_k,omitempty"`
-	StopSequences    []string            `json:"stop_sequences,omitempty"`
-	Tools            any                 `json:"tools,omitempty"`
-	ToolChoice       any                 `json:"tool_choice,omitempty"`
-	Thinking         *dto.Thinking       `json:"thinking,omitempty"`
-	OutputConfig     json.RawMessage     `json:"output_config,omitempty"`
+	AnthropicVersion  string              `json:"anthropic_version"`
+	AnthropicBeta     json.RawMessage     `json:"anthropic_beta,omitempty"`
+	System            any                 `json:"system,omitempty"`
+	Messages          []dto.ClaudeMessage `json:"messages"`
+	MaxTokens         *uint               `json:"max_tokens,omitempty"`
+	Temperature       *float64            `json:"temperature,omitempty"`
+	TopP              *float64            `json:"top_p,omitempty"`
+	TopK              *int                `json:"top_k,omitempty"`
+	StopSequences     []string            `json:"stop_sequences,omitempty"`
+	Tools             any                 `json:"tools,omitempty"`
+	ToolChoice        any                 `json:"tool_choice,omitempty"`
+	ContextManagement json.RawMessage     `json:"context_management,omitempty"`
+	Thinking          *dto.Thinking       `json:"thinking,omitempty"`
+	OutputConfig      json.RawMessage     `json:"output_config,omitempty"`
 	//Metadata         json.RawMessage     `json:"metadata,omitempty"`
 }
 

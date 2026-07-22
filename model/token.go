@@ -98,28 +98,35 @@ func sanitizeLikePattern(input string) (string, error) {
 	input = strings.ReplaceAll(input, "!", "!!")
 	input = strings.ReplaceAll(input, `_`, `!_`)
 
-	// 2. 连续的 % 直接拒绝
-	if strings.Contains(input, "%%") {
-		return "", errors.New("搜索模式中不允许包含连续的 % 通配符")
-	}
-
-	// 3. 统计 % 数量，不得超过 2
-	count := strings.Count(input, "%")
-	if count > 2 {
-		return "", errors.New("搜索模式中最多允许包含 2 个 % 通配符")
-	}
-
-	// 4. 含 % 时，去掉 % 后关键词长度必须 >= 2
-	if count > 0 {
-		stripped := strings.ReplaceAll(input, "%", "")
-		if len(stripped) < 2 {
-			return "", errors.New("使用模糊搜索时，关键词长度至少为 2 个字符")
-		}
-		return input, nil
+	if err := validateLikePattern(input); err != nil {
+		return "", err
 	}
 
 	// 5. 无 % 时，精确全匹配
 	return input, nil
+}
+
+func validateLikePattern(input string) error {
+	// 1. 连续的 % 直接拒绝
+	if strings.Contains(input, "%%") {
+		return errors.New("搜索模式中不允许包含连续的 % 通配符")
+	}
+
+	// 2. 统计 % 数量，不得超过 2
+	count := strings.Count(input, "%")
+	if count > 2 {
+		return errors.New("搜索模式中最多允许包含 2 个 % 通配符")
+	}
+
+	// 3. 含 % 时，去掉 % 后关键词长度必须 >= 2
+	if count > 0 {
+		stripped := strings.ReplaceAll(input, "%", "")
+		if len(stripped) < 2 {
+			return errors.New("使用模糊搜索时，关键词长度至少为 2 个字符")
+		}
+	}
+
+	return nil
 }
 
 const searchHardLimit = 100
@@ -497,6 +504,13 @@ func InvalidateUserTokensCache(userId int) error {
 		Where("user_id = ?", userId).
 		Find(&tokens).Error; err != nil {
 		return err
+	}
+	return invalidateTokensCache(tokens)
+}
+
+func invalidateTokensCache(tokens []Token) error {
+	if !common.RedisEnabled {
+		return nil
 	}
 	var firstErr error
 	for _, t := range tokens {

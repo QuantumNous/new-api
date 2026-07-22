@@ -25,6 +25,23 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// applyUpstreamContentLength populates req.ContentLength when the upstream
+// body is wrapped in a BodyStorage (see relay/common/outbound_body.go).
+//
+// net/http.NewRequest only auto-detects ContentLength for *bytes.Reader,
+// *bytes.Buffer and *strings.Reader. When the body is a type-erased io.Reader
+// (which is the case for ReaderOnly(BodyStorage)), the Content-Length header
+// would otherwise be omitted, forcing chunked transfer encoding and breaking
+// some upstreams that require an explicit Content-Length.
+func applyUpstreamContentLength(req *http.Request, info *common.RelayInfo) {
+	if info == nil {
+		return
+	}
+	if info.UpstreamRequestBodySize > 0 && req.ContentLength <= 0 {
+		req.ContentLength = info.UpstreamRequestBodySize
+	}
+}
+
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
 	if info.RelayMode == constant.RelayModeAudioTranscription || info.RelayMode == constant.RelayModeAudioTranslation {
 		// multipart/form-data
@@ -292,13 +309,12 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
-	if common2.DebugEnabled {
-		println("fullRequestURL:", fullRequestURL)
-	}
+	logger.LogDebug(c, "fullRequestURL: %s", common.SanitizeURLForLog(fullRequestURL))
 	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
+	applyUpstreamContentLength(req, info)
 	headers := req.Header
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
@@ -323,13 +339,12 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
-	if common2.DebugEnabled {
-		println("fullRequestURL:", fullRequestURL)
-	}
+	logger.LogDebug(c, "fullRequestURL: %s", common.SanitizeURLForLog(fullRequestURL))
 	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
+	applyUpstreamContentLength(req, info)
 	// set form data
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	headers := req.Header
@@ -373,7 +388,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {
-		return nil, fmt.Errorf("dial failed to %s: %w", fullRequestURL, err)
+		return nil, fmt.Errorf("dial failed to %s: %w", common.SanitizeURLForLog(fullRequestURL), err)
 	}
 	// send request body
 	//all, err := io.ReadAll(requestBody)
@@ -381,20 +396,18 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	return targetConn, nil
 }
 
-func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.CancelFunc {
+func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) (context.CancelFunc, <-chan struct{}) {
 	pingerCtx, stopPinger := context.WithCancel(context.Background())
+	done := make(chan struct{})
 
 	gopool.Go(func() {
+		defer close(done)
 		defer func() {
 			// 增加panic恢复处理
 			if r := recover(); r != nil {
-				if common2.DebugEnabled {
-					println("SSE ping goroutine panic recovered:", fmt.Sprintf("%v", r))
-				}
+				logger.LogDebug(c, "SSE ping goroutine panic recovered: %v", r)
 			}
-			if common2.DebugEnabled {
-				println("SSE ping goroutine stopped.")
-			}
+			logger.LogDebug(c, "SSE ping goroutine stopped")
 		}()
 
 		if pingInterval <= 0 {
@@ -405,15 +418,11 @@ func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.Canc
 		// 确保在任何情况下都清理ticker
 		defer func() {
 			ticker.Stop()
-			if common2.DebugEnabled {
-				println("SSE ping ticker stopped")
-			}
+			logger.LogDebug(c, "SSE ping ticker stopped")
 		}()
 
 		var pingMutex sync.Mutex
-		if common2.DebugEnabled {
-			println("SSE ping goroutine started")
-		}
+		logger.LogDebug(c, "SSE ping goroutine started")
 
 		// 增加超时控制，防止goroutine长时间运行
 		maxPingDuration := 120 * time.Minute // 最大ping持续时间
@@ -425,9 +434,7 @@ func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.Canc
 			// 发送 ping 数据
 			case <-ticker.C:
 				if err := sendPingData(c, &pingMutex); err != nil {
-					if common2.DebugEnabled {
-						println("SSE ping error, stopping goroutine:", err.Error())
-					}
+					logger.LogDebug(c, "SSE ping error, stopping goroutine: %s", err.Error())
 					return
 				}
 			// 收到退出信号
@@ -438,46 +445,30 @@ func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.Canc
 				return
 			// 超时保护，防止goroutine无限运行
 			case <-pingTimeout.C:
-				if common2.DebugEnabled {
-					println("SSE ping goroutine timeout, stopping")
-				}
+				logger.LogDebug(c, "SSE ping goroutine timeout, stopping")
 				return
 			}
 		}
 	})
 
-	return stopPinger
+	return stopPinger, done
 }
 
 func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
-	// 增加超时控制，防止锁死等待
-	done := make(chan error, 1)
-	go func() {
-		mutex.Lock()
-		defer mutex.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
-		err := helper.PingData(c)
-		if err != nil {
-			logger.LogError(c, "SSE ping error: "+err.Error())
-			done <- err
-			return
-		}
-
-		if common2.DebugEnabled {
-			println("SSE ping data sent.")
-		}
-		done <- nil
-	}()
-
-	// 设置发送ping数据的超时时间
-	select {
-	case err := <-done:
+	// Bound the write so a slow client cannot block this goroutine forever;
+	// doRequest's defer waits for the pinger to exit before returning.
+	helper.ExtendWriteDeadline(c)
+	err := helper.PingData(c)
+	if err != nil {
+		logger.LogError(c, "SSE ping error: "+err.Error())
 		return err
-	case <-time.After(10 * time.Second):
-		return errors.New("SSE ping data send timeout")
-	case <-c.Request.Context().Done():
-		return errors.New("request context cancelled during ping")
 	}
+
+	logger.LogDebug(c, "SSE ping data sent")
+	return nil
 }
 
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
@@ -487,7 +478,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	var client *http.Client
 	var err error
 	if info.ChannelSetting.Proxy != "" {
-		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
+		client, err = service.GetHttpClientWithProxy(info.ChannelSetting.Proxy)
 		if err != nil {
 			return nil, fmt.Errorf("new proxy http client failed: %w", err)
 		}
@@ -496,20 +487,20 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 
 	var stopPinger context.CancelFunc
+	var pingerDone <-chan struct{}
 	if info.IsStream {
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
 		generalSettings := operation_setting.GetGeneralSetting()
 		if generalSettings.PingIntervalEnabled && !info.DisablePing {
 			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
-			stopPinger = startPingKeepAlive(c, pingInterval)
+			stopPinger, pingerDone = startPingKeepAlive(c, pingInterval)
 			// 使用defer确保在任何情况下都能停止ping goroutine
 			defer func() {
 				if stopPinger != nil {
 					stopPinger()
-					if common2.DebugEnabled {
-						println("SSE ping goroutine stopped by defer")
-					}
+					<-pingerDone
+					logger.LogDebug(c, "SSE ping goroutine stopped by defer")
 				}
 			}()
 		}
@@ -542,6 +533,7 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
+	applyUpstreamContentLength(req, info)
 	req.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(requestBody), nil
 	}

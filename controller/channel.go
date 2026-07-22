@@ -12,11 +12,13 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
-	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/authz"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -87,6 +89,12 @@ func buildChannelListQuery(group string, statusFilter int, typeFilter int) *gorm
 		query = query.Where("type = ?", typeFilter)
 	}
 	return query
+}
+
+func GetChannelOps(c *gin.Context) {
+	common.ApiSuccess(c, gin.H{
+		"retry_times": common.RetryTimes,
+	})
 }
 
 func GetAllChannels(c *gin.Context) {
@@ -194,22 +202,29 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 		headers = GetAuthHeader(key)
 	}
 
-	headerOverride := channel.GetHeaderOverride()
-	for k, v := range headerOverride {
-		if relaychannel.IsHeaderPassthroughRuleKey(k) {
-			continue
-		}
-		str, ok := v.(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid header override for key %s", k)
-		}
-		if strings.Contains(str, "{api_key}") {
-			str = strings.ReplaceAll(str, "{api_key}", key)
-		}
-		headers.Set(k, str)
+	if err := applyFetchModelsHeaderOverrides(channel, key, headers); err != nil {
+		return nil, err
+	}
+	return headers, nil
+}
+
+func applyFetchModelsHeaderOverrides(channel *model.Channel, key string, headers http.Header) error {
+	info := &relaycommon.RelayInfo{
+		IsChannelTest: true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:          key,
+			HeadersOverride: channel.GetHeaderOverride(),
+		},
+	}
+	overrides, err := relaychannel.ResolveHeaderOverride(info, nil)
+	if err != nil {
+		return err
+	}
+	for name, value := range overrides {
+		headers.Set(name, value)
 	}
 
-	return headers, nil
+	return nil
 }
 
 func FetchUpstreamModels(c *gin.Context) {
@@ -404,7 +419,6 @@ func GetChannel(c *gin.Context) {
 // GetChannelKey 获取渠道密钥（需要通过安全验证中间件）
 // 此函数依赖 SecureVerificationRequired 中间件，确保用户已通过安全验证
 func GetChannelKey(c *gin.Context) {
-	userId := c.GetInt("id")
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		common.ApiError(c, fmt.Errorf("渠道ID格式错误: %v", err))
@@ -423,8 +437,11 @@ func GetChannelKey(c *gin.Context) {
 		return
 	}
 
-	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("查看渠道密钥信息 (渠道ID: %d)", channelId))
+	// 记录操作审计日志（高危：查看渠道密钥）
+	recordManageAudit(c, "channel.key_view", map[string]interface{}{
+		"id":   channelId,
+		"name": channel.Name,
+	})
 
 	// 返回渠道密钥
 	c.JSON(http.StatusOK, gin.H{
@@ -455,6 +472,10 @@ func validateTwoFactorAuth(twoFA *model.TwoFA, code string) bool {
 
 // validateChannel 通用的渠道校验函数
 func validateChannel(channel *model.Channel, isAdd bool) error {
+	if channel == nil {
+		return fmt.Errorf("channel cannot be empty")
+	}
+
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
@@ -462,7 +483,7 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 
 	// 如果是添加操作，检查 channel 和 key 是否为空
 	if isAdd {
-		if channel == nil || channel.Key == "" {
+		if channel.Key == "" {
 			return fmt.Errorf("channel cannot be empty")
 		}
 
@@ -676,7 +697,11 @@ func AddChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	service.ResetProxyClientCache()
+	recordManageAudit(c, "channel.create", map[string]interface{}{
+		"name":  addChannelRequest.Channel.Name,
+		"type":  addChannelRequest.Channel.Type,
+		"count": len(channels),
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -686,6 +711,15 @@ func AddChannel(c *gin.Context) {
 
 func DeleteChannel(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
+	channelName := ""
+	channelProxy := ""
+	channelLookupFailed := false
+	if existing, err := model.GetChannelById(id, false); err == nil && existing != nil {
+		channelName = existing.Name
+		channelProxy = existing.GetSetting().Proxy
+	} else {
+		channelLookupFailed = true
+	}
 	channel := model.Channel{Id: id}
 	err := channel.Delete()
 	if err != nil {
@@ -693,6 +727,15 @@ func DeleteChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	if channelLookupFailed {
+		service.ResetProxyClientCache()
+	} else {
+		service.InvalidateProxyClient(channelProxy)
+	}
+	recordManageAudit(c, "channel.delete", map[string]interface{}{
+		"id":   id,
+		"name": channelName,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -707,6 +750,12 @@ func DeleteDisabledChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	if rows > 0 {
+		service.ResetProxyClientCache()
+	}
+	recordManageAudit(c, "channel.delete_disabled", map[string]interface{}{
+		"count": rows,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -743,6 +792,9 @@ func DisableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	recordManageAudit(c, "channel.tag_disable", map[string]interface{}{
+		"tag": channelTag.Tag,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -766,6 +818,9 @@ func EnableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	recordManageAudit(c, "channel.tag_enable", map[string]interface{}{
+		"tag": channelTag.Tag,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -788,6 +843,11 @@ func EditTagChannels(c *gin.Context) {
 			"success": false,
 			"message": "tag不能为空",
 		})
+		return
+	}
+	if (channelTag.ParamOverride != nil || channelTag.HeaderOverride != nil) &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
 		return
 	}
 	if channelTag.ParamOverride != nil {
@@ -818,6 +878,9 @@ func EditTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	recordManageAudit(c, "channel.tag_edit", map[string]interface{}{
+		"tag": channelTag.Tag,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -840,16 +903,22 @@ func DeleteChannelBatch(c *gin.Context) {
 		})
 		return
 	}
-	err = model.BatchDeleteChannels(channelBatch.Ids)
+	deletedCount, err := model.BatchDeleteChannels(channelBatch.Ids)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	model.InitChannelCache()
+	if deletedCount > 0 {
+		service.ResetProxyClientCache()
+	}
+	recordManageAudit(c, "channel.delete_batch", map[string]interface{}{
+		"count": deletedCount,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    len(channelBatch.Ids),
+		"data":    deletedCount,
 	})
 	return
 }
@@ -860,13 +929,36 @@ type PatchChannel struct {
 	KeyMode      *string `json:"key_mode"` // 多key模式下密钥覆盖或者追加
 }
 
+type ChannelStatusRequest struct {
+	Status int `json:"status"`
+}
+
+type ChannelStatusBatchRequest struct {
+	Ids    []int `json:"ids"`
+	Status int   `json:"status"`
+}
+
 func UpdateChannel(c *gin.Context) {
 	channel := PatchChannel{}
-	err := c.ShouldBindJSON(&channel)
+	rawBody, err := c.GetRawData()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	if err := common.Unmarshal(rawBody, &channel); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var requestData map[string]any
+	if err := common.Unmarshal(rawBody, &requestData); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if _, ok := requestData["status"]; ok {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	clearChannelReadOnlyFields(&channel, requestData)
 
 	// 使用统一的校验函数
 	if err := validateChannel(&channel.Channel, false); err != nil {
@@ -885,9 +977,22 @@ func UpdateChannel(c *gin.Context) {
 		})
 		return
 	}
+	originProxy := originChannel.GetSetting().Proxy
+	proxyChanged := false
+	if _, settingProvided := requestData["setting"]; settingProvided {
+		newProxy, _ := service.NormalizeProxyURL(channel.GetSetting().Proxy)
+		normalizedOriginProxy, originProxyErr := service.NormalizeProxyURL(originProxy)
+		proxyChanged = originProxyErr != nil || normalizedOriginProxy != newProxy
+	}
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+
+	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+		return
+	}
 
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
@@ -980,7 +1085,31 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
-	service.ResetProxyClientCache()
+	if proxyChanged {
+		service.InvalidateProxyClient(originProxy)
+	}
+	// 记录变更的字段名（语言无关的字段标识），密钥仅记录"已更换"绝不记录内容。
+	changedFields := make([]string, 0)
+	if channel.Models != originChannel.Models {
+		changedFields = append(changedFields, "models")
+	}
+	if channel.Group != originChannel.Group {
+		changedFields = append(changedFields, "group")
+	}
+	if channel.Type != originChannel.Type {
+		changedFields = append(changedFields, "type")
+	}
+	if !equalStringPtr(channel.BaseURL, originChannel.BaseURL) {
+		changedFields = append(changedFields, "base_url")
+	}
+	if channel.Key != "" && channel.Key != originChannel.Key {
+		changedFields = append(changedFields, "key")
+	}
+	recordManageAudit(c, "channel.update", map[string]interface{}{
+		"id":             channel.Id,
+		"name":           channel.Name,
+		"changed_fields": changedFields,
+	})
 	channel.Key = ""
 	clearChannelInfo(&channel.Channel)
 	c.JSON(http.StatusOK, gin.H{
@@ -991,12 +1120,155 @@ func UpdateChannel(c *gin.Context) {
 	return
 }
 
-func FetchModels(c *gin.Context) {
-	var req struct {
-		BaseURL string `json:"base_url"`
-		Type    int    `json:"type"`
-		Key     string `json:"key"`
+func UpdateChannelStatus(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
 	}
+	req := ChannelStatusRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil || !isManageableChannelStatus(req.Status) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	changed := model.UpdateChannelStatus(id, "", req.Status, "manual operation")
+	if changed {
+		model.InitChannelCache()
+	}
+	recordManageAudit(c, "channel.status_update", map[string]interface{}{
+		"id":      id,
+		"status":  req.Status,
+		"changed": changed,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    changed,
+	})
+}
+
+func BatchUpdateChannelStatus(c *gin.Context) {
+	req := ChannelStatusBatchRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 || !isManageableChannelStatus(req.Status) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	changedCount := 0
+	for _, id := range req.Ids {
+		if model.UpdateChannelStatus(id, "", req.Status, "manual batch operation") {
+			changedCount++
+		}
+	}
+	if changedCount > 0 {
+		model.InitChannelCache()
+	}
+	recordManageAudit(c, "channel.status_update_batch", map[string]interface{}{
+		"count":  changedCount,
+		"total":  len(req.Ids),
+		"status": req.Status,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    changedCount,
+	})
+}
+
+func isManageableChannelStatus(status int) bool {
+	return status == common.ChannelStatusEnabled || status == common.ChannelStatusManuallyDisabled
+}
+
+// equalStringPtr 比较两个 *string 是否相等（均为 nil 视为相等）。
+func equalStringPtr(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+type fetchModelsRequest struct {
+	ChannelID      int     `json:"channel_id"`
+	BaseURL        *string `json:"base_url"`
+	Type           int     `json:"type"`
+	Key            string  `json:"key"`
+	AdvancedCustom *string `json:"advanced_custom"`
+	HeaderOverride *string `json:"header_override"`
+	Proxy          *string `json:"proxy"`
+}
+
+func buildAdvancedCustomModelPreviewChannel(req fetchModelsRequest) (*model.Channel, error) {
+	var channel *model.Channel
+	if req.ChannelID > 0 {
+		savedChannel, err := model.GetChannelById(req.ChannelID, true)
+		if err != nil {
+			return nil, err
+		}
+		if savedChannel.Type != constant.ChannelTypeAdvancedCustom {
+			return nil, fmt.Errorf("channel %d is not an advanced custom channel", req.ChannelID)
+		}
+		channel = savedChannel
+	} else {
+		key := strings.TrimSpace(req.Key)
+		if key != "" {
+			key = strings.Split(key, "\n")[0]
+		}
+		channel = &model.Channel{
+			Type: req.Type,
+			Key:  key,
+		}
+	}
+
+	if channel.Type != constant.ChannelTypeAdvancedCustom {
+		return nil, fmt.Errorf("channel type must be advanced custom")
+	}
+	if req.BaseURL != nil {
+		baseURL := strings.TrimSpace(*req.BaseURL)
+		channel.BaseURL = &baseURL
+	}
+
+	settings := channel.GetOtherSettings()
+	if req.AdvancedCustom != nil {
+		rawConfig := strings.TrimSpace(*req.AdvancedCustom)
+		if rawConfig == "" {
+			return nil, fmt.Errorf("advanced_custom is required")
+		}
+		var config dto.AdvancedCustomConfig
+		if err := common.UnmarshalJsonStr(rawConfig, &config); err != nil {
+			return nil, err
+		}
+		settings.AdvancedCustom = &config
+	} else if req.ChannelID <= 0 {
+		return nil, fmt.Errorf("advanced_custom is required")
+	}
+	channel.SetOtherSettings(settings)
+
+	if req.HeaderOverride != nil {
+		rawHeaderOverride := strings.TrimSpace(*req.HeaderOverride)
+		if rawHeaderOverride != "" {
+			var headerOverride map[string]any
+			if err := common.UnmarshalJsonStr(rawHeaderOverride, &headerOverride); err != nil {
+				return nil, fmt.Errorf("header_override must be a JSON object: %w", err)
+			}
+		}
+		channel.HeaderOverride = &rawHeaderOverride
+	}
+	if req.Proxy != nil {
+		channelSettings := channel.GetSetting()
+		channelSettings.Proxy = strings.TrimSpace(*req.Proxy)
+		channel.SetSetting(channelSettings)
+	}
+
+	if err := validateChannel(channel, false); err != nil {
+		return nil, err
+	}
+	return channel, nil
+}
+
+func FetchModels(c *gin.Context) {
+	var req fetchModelsRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -1006,107 +1278,48 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	baseURL := req.BaseURL
-	if baseURL == "" {
-		baseURL = constant.ChannelBaseURLs[req.Type]
-	}
-
-	// remove line breaks and extra spaces.
-	key := strings.TrimSpace(req.Key)
-	key = strings.Split(key, "\n")[0]
-
-	if req.Type == constant.ChannelTypeOllama {
-		models, err := ollama.FetchOllamaModels(baseURL, key)
+	var channel *model.Channel
+	if req.Type == constant.ChannelTypeAdvancedCustom || req.ChannelID > 0 {
+		var err error
+		channel, err = buildAdvancedCustomModelPreviewChannel(req)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": fmt.Sprintf("获取Ollama模型失败: %s", err.Error()),
+				"message": err.Error(),
 			})
 			return
 		}
-
-		names := make([]string, 0, len(models))
-		for _, modelInfo := range models {
-			names = append(names, modelInfo.Name)
+	} else {
+		baseURL := ""
+		if req.BaseURL != nil {
+			baseURL = strings.TrimSpace(*req.BaseURL)
+		}
+		if baseURL == "" {
+			baseURL = constant.ChannelBaseURLs[req.Type]
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data":    names,
-		})
-		return
-	}
-
-	if req.Type == constant.ChannelTypeGemini {
-		models, err := gemini.FetchGeminiModels(baseURL, key, "")
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("获取Gemini模型失败: %s", err.Error()),
-			})
-			return
+		key := strings.TrimSpace(req.Key)
+		if req.Type != constant.ChannelTypeCodex {
+			key = strings.Split(key, "\n")[0]
 		}
+		channel = &model.Channel{
+			Type:    req.Type,
+			Key:     key,
+			BaseURL: &baseURL,
+		}
+	}
 
+	models, err := fetchChannelUpstreamModelIDs(channel)
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data":    models,
-		})
-		return
-	}
-
-	client := &http.Client{}
-	url := fmt.Sprintf("%s/v1/models", baseURL)
-
-	request, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": fmt.Sprintf("获取模型列表失败: %s", err.Error()),
 		})
 		return
 	}
-
-	request.Header.Set("Authorization", "Bearer "+key)
-
-	response, err := client.Do(request)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	//check status code
-	if response.StatusCode != http.StatusOK {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Failed to fetch models",
-		})
-		return
-	}
-	defer response.Body.Close()
-
-	var result struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-
-	var models []string
-	for _, model := range result.Data {
-		models = append(models, model.ID)
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
+		"message": "",
 		"data":    models,
 	})
 }
@@ -1127,6 +1340,9 @@ func BatchSetChannelTag(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	recordManageAudit(c, "channel.tag_batch_set", map[string]interface{}{
+		"count": len(channelBatch.Ids),
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -1217,13 +1433,24 @@ func CopyChannel(c *gin.Context) {
 		clone.UsedQuota = 0
 	}
 
+	if err := clone.ValidateSettings(); err != nil {
+		common.SysError("failed to validate cloned channel: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Failed to copy channel: invalid channel settings"})
+		return
+	}
+
 	// insert
-	if err := model.BatchInsertChannels([]model.Channel{clone}); err != nil {
+	if err := clone.Insert(); err != nil {
 		common.SysError("failed to clone channel: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "复制渠道失败，请稍后重试"})
 		return
 	}
 	model.InitChannelCache()
+	recordManageAudit(c, "channel.copy", map[string]interface{}{
+		"sourceId": id,
+		"id":       clone.Id,
+		"name":     clone.Name,
+	})
 	// success
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{"id": clone.Id}})
 }
@@ -1283,6 +1510,21 @@ func ManageMultiKeys(c *gin.Context) {
 			"message": "该渠道不是多密钥模式",
 		})
 		return
+	}
+	if multiKeyActionRequiresSensitiveWrite(request.Action) &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+		return
+	}
+
+	// get_key_status 为只读查询，不记录审计；其余为修改操作，记录审计并跳过中间件兜底。
+	if request.Action == "get_key_status" {
+		markAuditLogged(c)
+	} else {
+		recordManageAudit(c, "channel.multi_key_manage", map[string]interface{}{
+			"action": request.Action,
+			"id":     channel.Id,
+		})
 	}
 
 	lock := model.GetChannelPollingLock(channel.Id)
@@ -1716,6 +1958,10 @@ func ManageMultiKeys(c *gin.Context) {
 		})
 		return
 	}
+}
+
+func multiKeyActionRequiresSensitiveWrite(action string) bool {
+	return action == "delete_key" || action == "delete_disabled_keys"
 }
 
 // OllamaPullModel 拉取 Ollama 模型

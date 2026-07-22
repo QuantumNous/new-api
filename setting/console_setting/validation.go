@@ -17,7 +17,7 @@ var (
 		"blue": true, "green": true, "cyan": true, "purple": true, "pink": true,
 		"red": true, "orange": true, "amber": true, "yellow": true, "lime": true,
 		"light-green": true, "teal": true, "light-blue": true, "indigo": true,
-		"violet": true, "grey": true,
+		"violet": true, "grey": true, "slate": true,
 	}
 	slugRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 )

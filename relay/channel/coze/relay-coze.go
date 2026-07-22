@@ -98,7 +98,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 }
 
 func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := helper.NewStreamScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
 	helper.SetEventStreamHeaders(c)
 	id := helper.GetResponseID(c)
@@ -282,7 +282,7 @@ func doRequest(req *http.Request, info *relaycommon.RelayInfo) (*http.Response, 
 	var client *http.Client
 	var err error // 声明 err 变量
 	if info.ChannelSetting.Proxy != "" {
-		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
+		client, err = service.GetHttpClientWithProxy(info.ChannelSetting.Proxy)
 		if err != nil {
 			return nil, fmt.Errorf("new proxy http client failed: %w", err)
 		}

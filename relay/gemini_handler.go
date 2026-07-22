@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,10 +10,10 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -85,7 +84,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 		if request.GenerationConfig.ThinkingConfig == nil {
-			gemini.ThinkingAdaptor(request, info)
+			relayconvert.ApplyGeminiThinkingConfig(request, info)
 		}
 	}
 
@@ -163,9 +162,16 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 
-		logger.LogDebug(c, "Gemini request body: "+string(jsonData))
+		logger.LogDebug(c, "Gemini request body: %s", jsonData)
 
-		requestBody = bytes.NewReader(jsonData)
+		body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		defer closer.Close()
+		jsonData = nil
+		info.UpstreamRequestBodySize = size
+		requestBody = body
 	}
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
@@ -262,8 +268,15 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 			return newAPIErrorFromParamOverride(err)
 		}
 	}
-	logger.LogDebug(c, "Gemini embedding request body: "+string(jsonData))
-	requestBody = bytes.NewReader(jsonData)
+	logger.LogDebug(c, "Gemini embedding request body: %s", jsonData)
+	body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	defer closer.Close()
+	jsonData = nil
+	info.UpstreamRequestBodySize = size
+	requestBody = body
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {

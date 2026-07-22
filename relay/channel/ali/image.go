@@ -54,6 +54,12 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 		}
 	}
 
+	// Parameters may come from Extra["parameters"], bypassing the standard
+	// top-level n validation; enforce the same bound before it becomes a
+	// billing multiplier.
+	if imageRequest.Parameters.N < 0 || imageRequest.Parameters.N > dto.MaxImageN {
+		return nil, fmt.Errorf("parameters.n must be an integer between 1 and %d", dto.MaxImageN)
+	}
 	if imageRequest.Parameters.N != 0 {
 		info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
 	}
@@ -229,7 +235,7 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 	time.Sleep(time.Duration(5) * time.Second)
 
 	for {
-		logger.LogDebug(c, fmt.Sprintf("asyncTaskWait step %d/%d, wait %d seconds", step, maxStep, waitSeconds))
+		logger.LogDebug(c, "asyncTaskWait step %d/%d, wait %d seconds", step, maxStep, waitSeconds)
 		step++
 		rsp, err, body := updateTask(info, taskID)
 		responseBody = body
@@ -320,11 +326,10 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 		}
 	}
 
-	//logger.LogDebug(c, "ali_async_task_result: "+string(originRespBody))
 	if a.IsSyncImageModel {
-		logger.LogDebug(c, "ali_sync_image_result: "+string(originRespBody))
+		logger.LogDebug(c, "ali_sync_image_result: %s", originRespBody)
 	} else {
-		logger.LogDebug(c, "ali_async_image_result: "+string(originRespBody))
+		logger.LogDebug(c, "ali_async_image_result: %s", originRespBody)
 	}
 
 	imageResponses := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)

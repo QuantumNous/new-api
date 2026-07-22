@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"path/filepath"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	constant2 "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
@@ -111,7 +111,7 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 
 	width := config.Width
 	height := config.Height
-	log.Printf("format: %s, width: %d, height: %d", format, width, height)
+	logger.LogDebug(c, "image token input: format=%s, width=%d, height=%d", format, width, height)
 
 	if isPatchBased {
 		// 32x32 patch-based calculation with 1536 cap and model multiplier
@@ -171,9 +171,7 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 	tilesH := (finalH + 512 - 1) / 512
 	tiles := tilesW * tilesH
 
-	if common.DebugEnabled {
-		log.Printf("scaled to: %dx%d, tiles: %d", finalW, finalH, tiles)
-	}
+	logger.LogDebug(c, "image token scaled size: width=%d, height=%d, tiles=%d", finalW, finalH, tiles)
 
 	return tiles*tileTokens + baseTokens, nil
 }
@@ -210,8 +208,13 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 			if err != nil {
 				return 0, fmt.Errorf("error getting audio duration: %v", err)
 			}
-			// 一分钟 1000 token，与 $price / minute 对齐
-			totalAudioToken += int(math.Round(math.Ceil(duration) / 60.0 * 1000))
+			// duration 来自用户上传文件的元数据，可被伪造成天文数字或负数。
+			// 负值会让 token 估算变成负数（低估预扣费），先钳到 0 再转换。
+			if duration < 0 {
+				duration = 0
+			}
+			// 一分钟 1000 token，与 $price / minute 对齐。
+			totalAudioToken += common.QuotaRound(math.Ceil(duration) / 60.0 * 1000)
 		}
 		return totalAudioToken, nil
 	}
@@ -379,7 +382,8 @@ func CountAudioTokenInput(audioBase64 string, audioFormat string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(duration / 60 * 100 / 0.06), nil
+	// duration 来自用户提供的音频元数据，饱和转换防止 int 回绕
+	return common.QuotaFromFloat(duration / 60 * 100 / 0.06), nil
 }
 
 func CountAudioTokenOutput(audioBase64 string, audioFormat string) (int, error) {
@@ -390,7 +394,8 @@ func CountAudioTokenOutput(audioBase64 string, audioFormat string) (int, error) 
 	if err != nil {
 		return 0, err
 	}
-	return int(duration / 60 * 200 / 0.24), nil
+	// duration 来自上游返回的音频元数据，饱和转换防止 int 回绕
+	return common.QuotaFromFloat(duration / 60 * 200 / 0.24), nil
 }
 
 // CountTextToken 统计文本的token数量，仅OpenAI模型使用tokenizer，其余模型使用估算
