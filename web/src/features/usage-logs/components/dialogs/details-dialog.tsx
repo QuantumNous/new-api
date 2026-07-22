@@ -51,6 +51,7 @@ import {
   LogIn,
   Eye,
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -60,6 +61,7 @@ import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Label } from '@/components/ui/label'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { api } from '@/lib/api'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -1354,6 +1356,43 @@ function InspectBodyBlock(props: {
 }) {
   const { body, labelKey, t, copyToClipboard, isCopied } = props
   const isFile = isFileRef(body)
+  const [fileContent, setFileContent] = useState<string | null>(null)
+  const [fileLoading, setFileLoading] = useState(false)
+  const [fileError, setFileError] = useState(false)
+
+  useEffect(() => {
+    if (!isFile) return
+    let cancelled = false
+    setFileLoading(true)
+    setFileError(false)
+    const filePath = body.slice(5) // remove "file:" prefix
+    api.get(`/api/log/body/${filePath}`)
+      .then((res) => {
+        if (!cancelled && res.data) {
+          setFileContent(typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFileError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setFileLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [body, isFile])
+
+  let displayContent: string
+  if (!isFile) {
+    displayContent = formatJsonInline(body)
+  } else if (fileLoading) {
+    displayContent = ''
+  } else if (fileError) {
+    displayContent = t('Failed to load body file')
+  } else if (fileContent) {
+    displayContent = formatJsonInline(fileContent)
+  } else {
+    displayContent = ''
+  }
 
   return (
     <div className='space-y-1'>
@@ -1363,7 +1402,7 @@ function InspectBodyBlock(props: {
           variant='ghost'
           size='sm'
           className='absolute top-1 right-1 h-5 w-5 p-0'
-          onClick={() => copyToClipboard(body)}
+          onClick={() => copyToClipboard(fileContent ?? body)}
           title={t('Copy to clipboard')}
           aria-label={t('Copy to clipboard')}
         >
@@ -1373,13 +1412,16 @@ function InspectBodyBlock(props: {
             <Copy className='size-3' />
           )}
         </Button>
-        {isFile ? (
-          <p className='min-w-0 p-2 pr-7 font-mono text-[11px] leading-relaxed break-all text-muted-foreground'>
+        {isFile && (
+          <p className='text-muted-foreground px-2 pt-2 pb-0 font-mono text-[10px]'>
             {t('inspect.file_reference')}{': '}{body.slice(5)}
           </p>
+        )}
+        {fileLoading ? (
+          <p className='text-muted-foreground p-2 font-mono text-[11px]'>Loading...</p>
         ) : (
           <pre className='max-h-48 overflow-y-auto p-2 pr-7 font-mono text-[11px] leading-relaxed wrap-break-word whitespace-pre-wrap'>
-            {formatJsonInline(body)}
+            {displayContent}
           </pre>
         )}
       </div>
