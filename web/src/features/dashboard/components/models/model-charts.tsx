@@ -26,10 +26,12 @@ import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import {
   DEFAULT_TIME_GRANULARITY,
+  METRIC_MODE_OPTIONS,
   MODEL_ANALYTICS_CHART_OPTIONS,
 } from '@/features/dashboard/constants'
 import { processChartData } from '@/features/dashboard/lib'
 import type {
+  MetricMode,
   ModelAnalyticsChartTab,
   QuotaDataItem,
 } from '@/features/dashboard/types'
@@ -41,12 +43,24 @@ let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
 > | null = null
 
-type ChartSpecKey = 'spec_model_line' | 'spec_pie' | 'spec_rank_bar'
+type ChartSpecKey =
+  | 'spec_model_line'
+  | 'spec_pie'
+  | 'spec_rank_bar'
+  | 'spec_model_token_line'
+  | 'spec_token_pie'
+  | 'spec_token_rank_bar'
 
-const CHART_SPEC_KEYS: Record<ModelAnalyticsChartTab, ChartSpecKey> = {
+const COUNT_CHART_SPEC_KEYS: Record<ModelAnalyticsChartTab, ChartSpecKey> = {
   trend: 'spec_model_line',
   proportion: 'spec_pie',
   top: 'spec_rank_bar',
+}
+
+const TOKEN_CHART_SPEC_KEYS: Record<ModelAnalyticsChartTab, ChartSpecKey> = {
+  trend: 'spec_model_token_line',
+  proportion: 'spec_token_pie',
+  top: 'spec_token_rank_bar',
 }
 
 interface ModelChartsProps {
@@ -54,6 +68,8 @@ interface ModelChartsProps {
   loading?: boolean
   timeGranularity?: TimeGranularity
   defaultChartTab?: ModelAnalyticsChartTab
+  metricMode?: MetricMode
+  onMetricModeChange?: (mode: MetricMode) => void
 }
 
 export function ModelCharts(props: ModelChartsProps) {
@@ -72,6 +88,7 @@ export function ModelCharts(props: ModelChartsProps) {
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
+  const metricMode = props.metricMode ?? 'count'
 
   useEffect(() => {
     if (props.defaultChartTab) setActiveTab(props.defaultChartTab)
@@ -107,10 +124,19 @@ export function ModelCharts(props: ModelChartsProps) {
     [props.data, props.loading, timeGranularity, t, chartRadius]
   )
 
-  const spec = chartData[CHART_SPEC_KEYS[activeTab]]
+  const specKeys =
+    metricMode === 'tokens' ? TOKEN_CHART_SPEC_KEYS : COUNT_CHART_SPEC_KEYS
+  const spec = chartData[specKeys[activeTab]]
   const specType = typeof spec?.type === 'string' ? spec.type : activeTab
+
+  const totalDisplay =
+    metricMode === 'tokens'
+      ? chartData.totalTokensDisplay
+      : chartData.totalCountDisplay
+
   const chartKey = [
     activeTab,
+    metricMode,
     specType,
     props.loading ? 'loading' : 'ready',
     props.data.length,
@@ -129,25 +155,44 @@ export function ModelCharts(props: ModelChartsProps) {
             {t('Model Call Analytics')}
           </div>
           <span className='text-muted-foreground text-xs'>
-            {t('Total:')} {chartData.totalCountDisplay}
+            {t('Total:')} {totalDisplay}
           </span>
         </div>
 
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
-          {MODEL_ANALYTICS_CHART_OPTIONS.map((tab) => (
-            <button
-              key={tab.value}
-              type='button'
-              onClick={() => setActiveTab(tab.value)}
-              className={`shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
-                activeTab === tab.value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t(tab.labelKey)}
-            </button>
-          ))}
+        <div className='flex flex-wrap items-center gap-1.5 sm:gap-2'>
+          <div className='bg-muted/60 inline-flex h-7 overflow-x-auto rounded-lg border p-0.5 sm:h-8'>
+            {METRIC_MODE_OPTIONS.map((mode) => (
+              <button
+                key={mode.value}
+                type='button'
+                onClick={() => props.onMetricModeChange?.(mode.value)}
+                className={`shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
+                  metricMode === mode.value
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t(mode.labelKey)}
+              </button>
+            ))}
+          </div>
+
+          <div className='bg-muted/60 inline-flex h-7 overflow-x-auto rounded-lg border p-0.5 sm:h-8'>
+            {MODEL_ANALYTICS_CHART_OPTIONS.map((tab) => (
+              <button
+                key={tab.value}
+                type='button'
+                onClick={() => setActiveTab(tab.value)}
+                className={`shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
+                  activeTab === tab.value
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t(tab.labelKey)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

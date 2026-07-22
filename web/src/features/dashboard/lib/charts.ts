@@ -207,8 +207,61 @@ export function processChartData(
           text: tt('Call Count Ranking'),
         },
       },
+      spec_model_token_line: {
+        type: 'area',
+        data: [{ id: 'tokenLineData', values: [] }],
+        xField: 'Time',
+        yField: 'Tokens',
+        seriesField: 'Model',
+        legends: { visible: true, selectMode: 'single' },
+        title: {
+          visible: true,
+          text: tt('Token Trend'),
+        },
+      },
+      spec_token_pie: {
+        type: 'pie',
+        data: [{ id: 'tokenPieData', values: [] }],
+        outerRadius: 0.8,
+        innerRadius: 0.5,
+        padAngle: 0.6,
+        valueField: 'value',
+        categoryField: 'type',
+        title: {
+          visible: true,
+          text: tt('Token Distribution'),
+          subtext: tt('No data available'),
+        },
+        legends: { visible: false },
+        label: { visible: false },
+        tooltip: { mark: { content: [] } },
+      },
+      spec_token_rank_bar: {
+        type: 'bar',
+        data: [{ id: 'tokenRankData', values: [] }],
+        xField: 'Model',
+        yField: 'Tokens',
+        seriesField: 'Model',
+        legends: { visible: true, selectMode: 'single' },
+        title: {
+          visible: true,
+          text: tt('Token Ranking'),
+        },
+      },
+      spec_daily_overview: {
+        type: 'common',
+        data: [],
+        series: [],
+        axes: [],
+        title: {
+          visible: true,
+          text: tt('Daily Overview'),
+          subtext: tt('No data available'),
+        },
+      },
       totalQuotaDisplay: formatQuotaTotal(0),
       totalCountDisplay: formatInt(0),
+      totalTokensDisplay: formatInt(0),
     }
   }
 
@@ -301,6 +354,10 @@ export function processChartData(
   )
   const totalQuotaRaw = Array.from(modelTotalsMap.values()).reduce(
     (sum, x) => sum + (Number(x.quota) || 0),
+    0
+  )
+  const totalTokens = Array.from(modelTotalsMap.values()).reduce(
+    (sum, x) => sum + (Number(x.tokens) || 0),
     0
   )
 
@@ -449,6 +506,123 @@ export function processChartData(
   } else {
     rankValues = allRankValues
   }
+
+  // =============== Token-based data arrays ===============
+
+  // Token pie values: model token consumption proportion
+  const tokenPieValues = Array.from(modelTotalsMap.entries())
+    .map(([model, stats]) => ({
+      type: model,
+      value: Number(stats.tokens) || 0,
+    }))
+    .sort((a, b) => b.value - a.value)
+
+  // Token trend: top models by token volume + "Other" bucket
+  const rankedTokenTrendModels = Array.from(modelTotalsMap.entries())
+    .map(([model, stats]) => ({
+      Model: model,
+      Tokens: Number(stats.tokens) || 0,
+    }))
+    .sort((a, b) => b.Tokens - a.Tokens)
+  const topTokenTrendModels = rankedTokenTrendModels
+    .slice(0, MAX_TREND_MODELS)
+    .map((item) => item.Model)
+  const otherTokenTrendModels = rankedTokenTrendModels
+    .slice(MAX_TREND_MODELS)
+    .map((item) => item.Model)
+
+  const tokenModelLineValues: Array<{
+    Time: string
+    Model: string
+    Tokens: number
+  }> = []
+  chartTimes.forEach((time) => {
+    const timeData = topTokenTrendModels.map((model) => {
+      const stats = timeModelMap.get(time)?.get(model)
+      return {
+        Time: time,
+        Model: model,
+        Tokens: Number(stats?.tokens) || 0,
+      }
+    })
+    if (otherTokenTrendModels.length > 0) {
+      const otherTokens = otherTokenTrendModels.reduce((sum, model) => {
+        const stats = timeModelMap.get(time)?.get(model)
+        return sum + (Number(stats?.tokens) || 0)
+      }, 0)
+      timeData.push({
+        Time: time,
+        Model: otherLabel,
+        Tokens: otherTokens,
+      })
+    }
+    tokenModelLineValues.push(...timeData)
+  })
+  tokenModelLineValues.sort((a, b) => a.Time.localeCompare(b.Time))
+
+  // Token rank bar: top models by token consumption
+  const allTokenRankValues = Array.from(modelTotalsMap.entries())
+    .map(([model, stats]) => ({
+      Model: model,
+      Tokens: Number(stats.tokens) || 0,
+    }))
+    .sort((a, b) => b.Tokens - a.Tokens)
+
+  let tokenRankValues: typeof allTokenRankValues
+  if (allTokenRankValues.length > MAX_RANK_MODELS) {
+    const topModels = allTokenRankValues.slice(0, MAX_RANK_MODELS)
+    const otherTokens = allTokenRankValues
+      .slice(MAX_RANK_MODELS)
+      .reduce((sum, item) => sum + item.Tokens, 0)
+    tokenRankValues = [
+      ...topModels,
+      { Model: otherLabel, Tokens: otherTokens },
+    ]
+  } else {
+    tokenRankValues = allTokenRankValues
+  }
+
+  // Daily overview: combined Count + Tokens per model per time point
+  const MAX_OVERVIEW_MODELS = 15
+  const rankedOverviewModels = Array.from(modelTotalsMap.entries())
+    .sort((a, b) => (b[1].count + b[1].tokens) - (a[1].count + a[1].tokens))
+  const topOverviewModels = new Set(
+    rankedOverviewModels.slice(0, MAX_OVERVIEW_MODELS).map(([m]) => m)
+  )
+  const otherOverviewModels = rankedOverviewModels
+    .slice(MAX_OVERVIEW_MODELS)
+    .map(([m]) => m)
+
+  const overviewValues: Array<{
+    Time: string
+    Model: string
+    Count: number
+    Tokens: number
+  }> = []
+  chartTimes.forEach((time) => {
+    const modelMap = timeModelMap.get(time)
+    const buckets = new Map<string, { Count: number; Tokens: number }>()
+    sortedModels.forEach((model) => {
+      const stats = modelMap?.get(model)
+      const count = Number(stats?.count) || 0
+      const tokens = Number(stats?.tokens) || 0
+      const key = topOverviewModels.has(model) ? model : otherLabel
+      const prev = buckets.get(key) || { Count: 0, Tokens: 0 }
+      buckets.set(key, {
+        Count: prev.Count + count,
+        Tokens: prev.Tokens + tokens,
+      })
+    })
+    for (const [model, vals] of buckets) {
+      overviewValues.push({
+        Time: time,
+        Model: model,
+        Count: vals.Count,
+        Tokens: vals.Tokens,
+      })
+    }
+  })
+  overviewValues.sort((a, b) => a.Time.localeCompare(b.Time))
 
   return {
     spec_pie: {
@@ -683,8 +857,237 @@ export function processChartData(
       background: { fill: 'transparent' },
       animation: true,
     },
+    spec_model_token_line: {
+      type: 'area',
+      data: [{ id: 'tokenLineData', values: tokenModelLineValues }],
+      xField: 'Time',
+      yField: 'Tokens',
+      seriesField: 'Model',
+      stack: false,
+      legends: { visible: true, selectMode: 'single' },
+      color: modelColor,
+      title: {
+        visible: true,
+        text: tt('Token Trend'),
+      },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.Tokens) || 0),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                Number(datum?.Tokens) || 0,
+            },
+          ],
+          updateContent: (
+            array: Array<{
+              key: string
+              value: string | number
+            }>
+          ) => {
+            const modelItems = array.filter(
+              (item) => !isOtherTooltipKey(item.key)
+            )
+            const otherItems = array.filter((item) =>
+              isOtherTooltipKey(item.key)
+            )
+            modelItems.sort(
+              (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
+            )
+            const items = [...modelItems, ...otherItems]
+
+            let sum = 0
+            for (let i = 0; i < items.length; i++) {
+              const v = Number(items[i].value) || 0
+              sum += v
+              items[i].value = formatInt(v)
+            }
+            items.unshift({
+              key: tt('Total:'),
+              value: formatInt(sum),
+            })
+            return items
+          },
+        },
+      },
+      area: {
+        style: {
+          fillOpacity: 0.08,
+          curveType: 'monotone',
+        },
+      },
+      line: {
+        style: {
+          lineWidth: 2,
+          curveType: 'monotone',
+        },
+      },
+      point: { visible: false },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_token_pie: {
+      type: 'pie',
+      data: [{ id: 'tokenPieData', values: tokenPieValues }],
+      outerRadius: 0.8,
+      innerRadius: 0.5,
+      padAngle: 0.6,
+      valueField: 'value',
+      categoryField: 'type',
+      pie: {
+        style:
+          chartCornerRadius == null ? {} : { cornerRadius: chartCornerRadius },
+        state: {
+          hover: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
+          selected: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
+        },
+      },
+      title: {
+        visible: true,
+        text: tt('Token Distribution'),
+      },
+      legends: { visible: true, orient: 'left' },
+      label: { visible: true },
+      color: modelColor,
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.type,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.value) || 0),
+            },
+          ],
+        },
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_token_rank_bar: {
+      type: 'bar',
+      data: [{ id: 'tokenRankData', values: tokenRankValues }],
+      xField: 'Model',
+      yField: 'Tokens',
+      seriesField: 'Model',
+      legends: { visible: true, selectMode: 'single' },
+      color: modelColor,
+      title: {
+        visible: true,
+        text: tt('Token Ranking'),
+      },
+      bar: {
+        state: {
+          hover: { stroke: '#000', lineWidth: 1 },
+        },
+      },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.Tokens) || 0),
+            },
+          ],
+        },
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_daily_overview: {
+      type: 'common',
+      data: [{ id: 'overviewData', values: overviewValues }],
+      series: [
+        {
+          type: 'bar',
+          dataIndex: 0,
+          xField: 'Time',
+          yField: 'Count',
+          seriesField: 'Model',
+          stack: false,
+          bar: {
+            state: {
+              hover: { stroke: '#000', lineWidth: 1 },
+            },
+          },
+          tooltip: {
+            mark: {
+              content: [
+                {
+                  key: (datum: Record<string, unknown>) => datum?.Model,
+                  value: (datum: Record<string, unknown>) =>
+                    formatInt(Number(datum?.Count) || 0),
+                },
+              ],
+            },
+          },
+        },
+        {
+          type: 'line',
+          dataIndex: 0,
+          xField: 'Time',
+          yField: 'Tokens',
+          seriesField: 'Model',
+          line: {
+            style: {
+              lineWidth: 2,
+              curveType: 'monotone',
+            },
+          },
+          point: { visible: false },
+          tooltip: {
+            mark: {
+              content: [
+                {
+                  key: (datum: Record<string, unknown>) => datum?.Model,
+                  value: (datum: Record<string, unknown>) =>
+                    formatInt(Number(datum?.Tokens) || 0),
+                },
+              ],
+            },
+          },
+        },
+      ],
+      axes: [
+        {
+          orient: 'bottom',
+          type: 'band',
+          label: { visible: true },
+        },
+        {
+          orient: 'left',
+          type: 'linear',
+          title: { visible: true, text: tt('Call Count') },
+          label: { visible: true },
+        },
+        {
+          orient: 'right',
+          type: 'linear',
+          title: { visible: true, text: tt('Token Consumption') },
+          label: { visible: true },
+        },
+      ],
+      color: modelColor,
+      legends: { visible: true, selectMode: 'single' },
+      title: {
+        visible: true,
+        text: tt('Daily Overview'),
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
     totalQuotaDisplay: formatQuotaTotal(totalQuotaRaw),
     totalCountDisplay: formatInt(totalTimes),
+    totalTokensDisplay: formatInt(totalTokens),
   }
 }
 

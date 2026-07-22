@@ -83,6 +83,7 @@ export function LogStatCards(props: LogStatCardsProps) {
     setError(false)
     onDataUpdate?.([], true)
 
+    const isAllTime = !filters?.start_timestamp && !filters?.end_timestamp
     const timeRange = computeTimeRange(
       getDefaultDays(filters?.time_granularity),
       filters?.start_timestamp,
@@ -91,7 +92,10 @@ export function LogStatCards(props: LogStatCardsProps) {
     const timeDiff = (timeRange.end_timestamp - timeRange.start_timestamp) / 60
     setTimeRangeMinutes(timeDiff)
 
-    void getUserQuotaDates(buildQueryParams(timeRange, filters), isAdmin)
+    void getUserQuotaDates(
+      buildQueryParams(timeRange, { ...filters, all_time: isAllTime }),
+      isAdmin
+    )
       .then((res) => {
         if (abortController.signal.aborted) return
         const data = res?.data || []

@@ -54,6 +54,7 @@ import {
 import type {
   DashboardChartPreferences,
   DashboardFilters,
+  MetricMode,
   QuotaDataItem,
   UserChartsFilters,
 } from './types'
@@ -86,6 +87,24 @@ const LazyLogStatCards = lazy(() =>
 const LazyModelCharts = lazy(() =>
   import('./components/models/model-charts').then((m) => ({
     default: m.ModelCharts,
+  }))
+)
+
+const LazyChannelCharts = lazy(() =>
+  import('./components/models/channel-charts').then((m) => ({
+    default: m.ChannelCharts,
+  }))
+)
+
+const LazyPerformanceRanking = lazy(() =>
+  import('./components/models/performance-ranking').then((m) => ({
+    default: m.PerformanceRanking,
+  }))
+)
+
+const LazyPerformanceTrends = lazy(() =>
+  import('./components/models/performance-trends').then((m) => ({
+    default: m.PerformanceTrends,
   }))
 )
 
@@ -362,6 +381,20 @@ export function Dashboard() {
                   </Suspense>
                 </FadeIn>
               )}
+              {isAdmin && (
+                <FadeIn delay={0.07}>
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyPerformanceRanking />
+                  </Suspense>
+                </FadeIn>
+              )}
+              {isAdmin && (
+                <FadeIn delay={0.09}>
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyPerformanceTrends />
+                  </Suspense>
+                </FadeIn>
+              )}
               <FadeIn delay={0.1}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyConsumptionDistributionChart
@@ -382,12 +415,26 @@ export function Dashboard() {
                     data={modelData}
                     loading={dataLoading}
                     defaultChartTab={chartPreferences.modelAnalyticsChart}
+                    metricMode={chartPreferences.metricMode}
+                    onMetricModeChange={(mode) =>
+                      handleChartPreferencesChange({
+                        ...chartPreferences,
+                        metricMode: mode,
+                      })
+                    }
                     timeGranularity={
                       modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
                     }
                   />
                 </Suspense>
               </FadeIn>
+              {isAdmin && (
+                <FadeIn delay={0.2}>
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyChannelCharts filters={modelFilters} />
+                  </Suspense>
+                </FadeIn>
+              )}
             </>
           )}
           {activeSection === 'users' && (

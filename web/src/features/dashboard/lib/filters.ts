@@ -29,6 +29,7 @@ import type {
   ConsumptionDistributionChartType,
   DashboardChartPreferences,
   DashboardFilters,
+  MetricMode,
   ModelAnalyticsChartTab,
 } from '@/features/dashboard/types'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
@@ -53,6 +54,10 @@ function isModelAnalyticsChartTab(
   value: unknown
 ): value is ModelAnalyticsChartTab {
   return value === 'trend' || value === 'proportion' || value === 'top'
+}
+
+function isMetricMode(value: unknown): value is MetricMode {
+  return value === 'count' || value === 'tokens'
 }
 
 function isTimeRangePresetDays(value: unknown): value is number {
@@ -113,6 +118,9 @@ export function getSavedChartPreferences(): DashboardChartPreferences {
       modelAnalyticsChart: isModelAnalyticsChartTab(parsed.modelAnalyticsChart)
         ? parsed.modelAnalyticsChart
         : fallbackPreferences.modelAnalyticsChart,
+      metricMode: isMetricMode(parsed.metricMode)
+        ? parsed.metricMode
+        : fallbackPreferences.metricMode,
       defaultTimeRangeDays: isTimeRangePresetDays(parsed.defaultTimeRangeDays)
         ? parsed.defaultTimeRangeDays
         : fallbackPreferences.defaultTimeRangeDays,
@@ -154,16 +162,31 @@ export function buildDefaultDashboardFilters(
 
 export function buildQueryParams(
   timeRange: { start_timestamp: number; end_timestamp: number },
-  filters?: { time_granularity?: TimeGranularity; username?: string }
+  filters?: {
+    time_granularity?: TimeGranularity
+    username?: string
+    all_time?: boolean
+  }
 ): {
   start_timestamp: number
   end_timestamp: number
   default_time: string
   username?: string
+  all_time?: string
 } {
-  return {
+  const params: {
+    start_timestamp: number
+    end_timestamp: number
+    default_time: string
+    username?: string
+    all_time?: string
+  } = {
     ...timeRange,
     default_time: getSavedGranularity(filters?.time_granularity),
     ...(filters?.username && { username: filters.username }),
   }
+  if (filters?.all_time) {
+    params.all_time = 'true'
+  }
+  return params
 }

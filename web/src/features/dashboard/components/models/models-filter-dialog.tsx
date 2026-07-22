@@ -64,7 +64,9 @@ interface ModelsFilterProps {
 // Quick-range presets imply a sensible granularity (matching the app's
 // range<->granularity pairing), so picking "7 Days" requests daily buckets
 // instead of leaving the granularity on its previous value (e.g. hourly).
+// days=-1 means "All Time" (no date range).
 function granularityForRangeDays(days: number): TimeGranularity {
+  if (days === -1) return 'day'
   if (days <= 1) return 'hour'
   if (days >= 29) return 'week'
   return 'day'
@@ -72,12 +74,13 @@ function granularityForRangeDays(days: number): TimeGranularity {
 
 // Highlights the matching quick-range button when the applied range spans an
 // exact preset; custom ranges leave every quick button unselected.
+// Returns -1 when All Time is selected (no start/end timestamps).
 function detectQuickRangeDays(
   filters: DashboardFilters | undefined
 ): number | null {
   const start = filters?.start_timestamp
   const end = filters?.end_timestamp
-  if (!start || !end) return null
+  if (!start || !end) return -1
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000)
   return TIME_RANGE_PRESETS.some((preset) => preset.days === days) ? days : null
 }
@@ -134,12 +137,18 @@ export function ModelsFilter(props: ModelsFilterProps) {
 
   const handleReset = () => {
     const days = props.preferences.defaultTimeRangeDays
-    const { start, end } = getRollingDateRange(days)
-    setFilters({
+    const newFilters = {
       ...buildDefaultDashboardFilters(props.preferences),
-      start_timestamp: start,
-      end_timestamp: end,
-    })
+    }
+    if (days !== -1) {
+      const { start, end } = getRollingDateRange(days)
+      newFilters.start_timestamp = start
+      newFilters.end_timestamp = end
+    } else {
+      newFilters.start_timestamp = undefined
+      newFilters.end_timestamp = undefined
+    }
+    setFilters(newFilters)
     setSelectedRange(days)
     props.onReset()
     setOpen(false)
@@ -155,6 +164,18 @@ export function ModelsFilter(props: ModelsFilterProps) {
   }
 
   const handleQuickRange = (days: number) => {
+    if (days === -1) {
+      // All Time: clear date range, backend handles unbounded query
+      setFilters((prev) => ({
+        ...prev,
+        start_timestamp: undefined,
+        end_timestamp: undefined,
+        time_granularity: granularityForRangeDays(days),
+      }))
+      setSelectedRange(days)
+      return
+    }
+
     const { start, end } = getRollingDateRange(days)
 
     setFilters((prev) => ({

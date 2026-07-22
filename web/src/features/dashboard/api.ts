@@ -40,6 +40,7 @@ export async function getUserQuotaDates(
     end_timestamp: number
     default_time?: string
     username?: string
+    all_time?: string
   },
   isAdmin = false
 ) {
@@ -58,6 +59,7 @@ export async function getUserQuotaDates(
 export async function getUserQuotaDataByUsers(params: {
   start_timestamp: number
   end_timestamp: number
+  all_time?: string
 }) {
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
     '/api/data/users',
@@ -81,6 +83,19 @@ export async function getFlowQuotaDates(
     data?: FlowQuotaDataItem[]
     message?: string
   }>(endpoint, { params })
+  return res.data
+}
+
+// Get channel quota data within a time range
+export async function getChannelQuotaDates(params: {
+  start_timestamp: number
+  end_timestamp: number
+  all_time?: string
+}) {
+  const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
+    '/api/data/channel',
+    { params }
+  )
   return res.data
 }
 

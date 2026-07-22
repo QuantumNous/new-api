@@ -181,3 +181,13 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
 }
+
+func GetQuotaDataGroupByChannel(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	var quotaDatas []*QuotaData
+	err = DB.Table("quota_data").
+		Select("channel_id, model_name, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime).
+		Group("channel_id, model_name, created_at").
+		Find(&quotaDatas).Error
+	return quotaDatas, err
+}
