@@ -55,6 +55,7 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  AffiliateRewardsEnabled: z.boolean(),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -236,6 +237,32 @@ export function QuotaSettingsSection({
                 </FormItem>
               )}
             />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='AffiliateRewardsEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Enable Invitation Rewards')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When disabled, users will not see the invitation rewards panel.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
 
             <SettingsFormGridItem span='full'>
               <FormField
