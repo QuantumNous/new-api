@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -215,8 +214,9 @@ func ConfirmClinkPay(c *gin.Context) {
 		return
 	}
 
-	if session.AmountTotal > 0 && !service.ClinkAmountsMatch(topUp.Money, session.AmountTotal) {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Clink confirm amount mismatch user_id=%d trade_no=%s expected=%.2f actual=%.2f", userID, tradeNo, topUp.Money, session.AmountTotal))
+	paidAmount := service.ClinkAmountForValidation(session.AmountSubtotal, session.AmountTotal, session.OriginalCurrency, session.PaymentCurrency)
+	if !service.ClinkAmountsMatch(topUp.Money, paidAmount) {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Clink confirm amount mismatch user_id=%d trade_no=%s expected=%.2f actual=%.2f original_currency=%s payment_currency=%s", userID, tradeNo, topUp.Money, paidAmount, session.OriginalCurrency, session.PaymentCurrency))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
 		return
 	}
@@ -261,45 +261,54 @@ func ClinkWebhook(c *gin.Context) {
 		return
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Clink webhook received client_ip=%s body=%s", c.ClientIP(), string(bodyBytes)))
+	var eventMeta struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+	}
+	_ = common.Unmarshal(bodyBytes, &eventMeta)
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Clink webhook received event_id=%s event_type=%s client_ip=%s payload_bytes=%d", eventMeta.ID, eventMeta.Type, c.ClientIP(), len(bodyBytes)))
 
 	if err := handleClinkWebhook(c, bodyBytes); err != nil {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Clink webhook handling issue client_ip=%s error=%q body=%s", c.ClientIP(), err.Error(), string(bodyBytes)))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Clink webhook handling failed event_id=%s event_type=%s client_ip=%s error=%q", eventMeta.ID, eventMeta.Type, c.ClientIP(), err.Error()))
+		c.String(http.StatusInternalServerError, "webhook processing failed")
+		return
 	}
 	c.String(http.StatusOK, "OK")
 }
 
 func handleClinkWebhook(c *gin.Context, bodyBytes []byte) error {
 	var event service.ClinkWebhookEvent
-	if err := json.Unmarshal(bodyBytes, &event); err != nil {
+	if err := common.Unmarshal(bodyBytes, &event); err != nil {
 		return fmt.Errorf("invalid clink webhook json: %w", err)
 	}
 
 	switch event.Type {
 	case "order.succeeded":
 		var order service.ClinkOrderWebhookData
-		if err := json.Unmarshal(event.Data, &order); err != nil {
+		if err := service.DecodeClinkWebhookData(event.Data, &order); err != nil {
 			return fmt.Errorf("invalid clink order payload: %w", err)
 		}
 		if strings.ToLower(strings.TrimSpace(order.Status)) != "success" {
 			return nil
 		}
-		return completeClinkTopUp(c, order.MerchantReferenceID, order.AmountTotal)
+		paidAmount := service.ClinkAmountForValidation(order.AmountSubtotal, order.AmountTotal, order.OriginalCurrency, order.PaymentCurrency)
+		return completeClinkTopUp(c, order.MerchantReferenceID, paidAmount)
 	case "order.failed":
 		var order service.ClinkOrderWebhookData
-		if err := json.Unmarshal(event.Data, &order); err != nil {
+		if err := service.DecodeClinkWebhookData(event.Data, &order); err != nil {
 			return fmt.Errorf("invalid clink order payload: %w", err)
 		}
 		return markClinkTopUpFailed(order.MerchantReferenceID)
 	case "session.complete":
 		var session service.ClinkSessionWebhookData
-		if err := json.Unmarshal(event.Data, &session); err != nil {
+		if err := service.DecodeClinkWebhookData(event.Data, &session); err != nil {
 			return fmt.Errorf("invalid clink session payload: %w", err)
 		}
 		if strings.ToLower(strings.TrimSpace(session.PaymentStatus)) != "paid" {
 			return nil
 		}
-		return completeClinkTopUp(c, session.MerchantReferenceID, session.AmountTotal)
+		paidAmount := service.ClinkAmountForValidation(session.AmountSubtotal, session.AmountTotal, session.OriginalCurrency, session.PaymentCurrency)
+		return completeClinkTopUp(c, session.MerchantReferenceID, paidAmount)
 	default:
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Clink webhook ignored event_type=%s", event.Type))
 		return nil
@@ -316,7 +325,7 @@ func completeClinkTopUp(c *gin.Context, tradeNo string, paidAmount float64) erro
 	if topUp == nil {
 		return fmt.Errorf("topup not found trade_no=%s", tradeNo)
 	}
-	if paidAmount > 0 && !service.ClinkAmountsMatch(topUp.Money, paidAmount) {
+	if !service.ClinkAmountsMatch(topUp.Money, paidAmount) {
 		return fmt.Errorf("amount mismatch expected=%.2f actual=%.2f trade_no=%s", topUp.Money, paidAmount, tradeNo)
 	}
 

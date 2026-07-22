@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 )
 
@@ -59,7 +60,10 @@ type ClinkCheckoutSessionDetail struct {
 	SessionID           string            `json:"sessionId"`
 	Status              string            `json:"status"`
 	PaymentStatus       string            `json:"paymentStatus"`
+	AmountSubtotal      float64           `json:"amountSubtotal"`
 	AmountTotal         float64           `json:"amountTotal"`
+	OriginalCurrency    string            `json:"originalCurrency"`
+	PaymentCurrency     string            `json:"paymentCurrency"`
 	MerchantReferenceID string            `json:"merchantReferenceId"`
 	Metadata            map[string]string `json:"metadata"`
 }
@@ -74,7 +78,7 @@ type ClinkWebhookEvent struct {
 	ID      string          `json:"id"`
 	Type    string          `json:"type"`
 	Object  string          `json:"object"`
-	Created string          `json:"created"`
+	Created json.RawMessage `json:"created"`
 	Data    json.RawMessage `json:"data"`
 }
 
@@ -82,6 +86,7 @@ type ClinkOrderWebhookData struct {
 	OrderID             string  `json:"orderId"`
 	MerchantReferenceID string  `json:"merchantReferenceId"`
 	Status              string  `json:"status"`
+	AmountSubtotal      float64 `json:"amountSubtotal"`
 	AmountTotal         float64 `json:"amountTotal"`
 	OriginalCurrency    string  `json:"originalCurrency"`
 	PaymentCurrency     string  `json:"paymentCurrency"`
@@ -92,8 +97,10 @@ type ClinkSessionWebhookData struct {
 	MerchantReferenceID string  `json:"merchantReferenceId"`
 	Status              string  `json:"status"`
 	PaymentStatus       string  `json:"paymentStatus"`
+	AmountSubtotal      float64 `json:"amountSubtotal"`
 	AmountTotal         float64 `json:"amountTotal"`
 	OriginalCurrency    string  `json:"originalCurrency"`
+	PaymentCurrency     string  `json:"paymentCurrency"`
 }
 
 func ClinkSecretKey() string {
@@ -144,7 +151,7 @@ func CreateClinkCheckoutSession(ctx context.Context, req *ClinkCheckoutCreateReq
 		}}
 	}
 
-	body, err := json.Marshal(req)
+	body, err := common.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshal clink checkout request: %w", err)
 	}
@@ -226,19 +233,19 @@ func GetClinkCheckoutSession(ctx context.Context, sessionID string) (*ClinkCheck
 
 func decodeClinkAPIEnvelope(respBody []byte, target any) error {
 	var envelope clinkAPIEnvelope
-	if err := json.Unmarshal(respBody, &envelope); err != nil {
+	if err := common.Unmarshal(respBody, &envelope); err != nil {
 		return fmt.Errorf("decode clink envelope: %w", err)
 	}
 	if envelope.Code != 0 && envelope.Code != http.StatusOK {
 		return fmt.Errorf("clink api rejected: %s", envelope.Msg)
 	}
 	if len(envelope.Data) > 0 {
-		if err := json.Unmarshal(envelope.Data, target); err != nil {
+		if err := common.Unmarshal(envelope.Data, target); err != nil {
 			return fmt.Errorf("decode clink data: %w", err)
 		}
 		return nil
 	}
-	if err := json.Unmarshal(respBody, target); err != nil {
+	if err := common.Unmarshal(respBody, target); err != nil {
 		return fmt.Errorf("decode clink response: %w", err)
 	}
 	return nil
@@ -277,6 +284,41 @@ func computeClinkWebhookSignature(secret, timestamp, payload string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(timestamp + "." + payload))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// DecodeClinkWebhookData accepts both the documented data payload and the
+// data.object wrapper currently emitted by Clink in production.
+func DecodeClinkWebhookData(data json.RawMessage, target any) error {
+	if len(data) == 0 {
+		return fmt.Errorf("missing clink webhook data")
+	}
+
+	var envelope struct {
+		Object json.RawMessage `json:"object"`
+	}
+	if err := common.Unmarshal(data, &envelope); err != nil {
+		return err
+	}
+	payload := data
+	if object := bytes.TrimSpace(envelope.Object); len(object) > 0 && object[0] == '{' {
+		payload = object
+	}
+	return common.Unmarshal(payload, target)
+}
+
+// ClinkAmountForValidation returns an amount expressed in the original
+// checkout currency. For localized payments Clink reports amountTotal in the
+// payment currency and amountSubtotal in the original currency.
+func ClinkAmountForValidation(amountSubtotal, amountTotal float64, originalCurrency, paymentCurrency string) float64 {
+	originalCurrency = strings.TrimSpace(originalCurrency)
+	paymentCurrency = strings.TrimSpace(paymentCurrency)
+	if amountSubtotal > 0 && originalCurrency != "" && paymentCurrency != "" && !strings.EqualFold(originalCurrency, paymentCurrency) {
+		return amountSubtotal
+	}
+	if amountTotal > 0 {
+		return amountTotal
+	}
+	return amountSubtotal
 }
 
 func ClinkAmountsMatch(expected, actual float64) bool {
