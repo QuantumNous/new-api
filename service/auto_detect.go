@@ -485,6 +485,12 @@ func RunChannelDetectionNow(ch *model.Channel, targetModel string) {
 // extractAPIFormat reads api_format from channel.Setting JSON.
 // Returns "openai-compatible" if absent or unrecognized.
 func extractAPIFormat(setting *string) string {
+	switch ExtractClientExclusive(setting) {
+	case ClientExclusiveClaudeCode:
+		return "claude-cli"
+	case ClientExclusiveCodex:
+		return "codex-cli"
+	}
 	if setting == nil || *setting == "" {
 		return "openai-compatible"
 	}
@@ -495,7 +501,7 @@ func extractAPIFormat(setting *string) string {
 		return "openai-compatible"
 	}
 	switch s.APIFormat {
-	case "openai-compatible", "openai", "anthropic", "gemini":
+	case "openai-compatible", "openai", "anthropic", "gemini", "claude-cli", "codex-cli":
 		return s.APIFormat
 	}
 	return "openai-compatible"
