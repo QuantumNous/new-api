@@ -51,6 +51,12 @@ For commercial licensing, please contact support@quantumnous.com
     scrollbar-gutter: stable;
   }
 
+  .json-code-editor-textarea::placeholder {
+    color: var(--muted-foreground);
+    opacity: 1;
+    -webkit-text-fill-color: var(--muted-foreground);
+  }
+
   .json-code-editor-textarea,
   .json-code-editor-highlight,
   .json-code-editor-lines {

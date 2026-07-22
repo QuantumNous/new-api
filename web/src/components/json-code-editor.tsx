@@ -47,6 +47,7 @@ export type JsonCodeEditorProps = Omit<ComponentProps<'div'>, 'onChange'> & {
   onChange: (value: string) => void
   disabled?: boolean
   heightClassName?: string
+  placeholder?: string
 }
 
 export function JsonCodeEditor({
@@ -54,6 +55,7 @@ export function JsonCodeEditor({
   onChange,
   disabled,
   heightClassName = 'h-56 min-h-56 max-h-56',
+  placeholder,
   className,
   id,
   'aria-describedby': ariaDescribedBy,
@@ -174,6 +176,12 @@ export function JsonCodeEditor({
     editor.textarea.id = id ?? ''
     editor.textarea.setAttribute('aria-label', t('JSON'))
 
+    if (placeholder) {
+      editor.textarea.placeholder = placeholder
+    } else {
+      editor.textarea.removeAttribute('placeholder')
+    }
+
     if (resolvedAriaInvalid) {
       editor.textarea.setAttribute('aria-invalid', String(resolvedAriaInvalid))
     } else {
@@ -185,7 +193,15 @@ export function JsonCodeEditor({
     } else {
       editor.textarea.removeAttribute('aria-describedby')
     }
-  }, [ariaDescribedBy, ariaInvalid, disabled, id, jsonStatus.isValid, t])
+  }, [
+    ariaDescribedBy,
+    ariaInvalid,
+    disabled,
+    id,
+    jsonStatus.isValid,
+    placeholder,
+    t,
+  ])
 
   const formatJson = () => {
     const result = formatJsonDraft(value)
