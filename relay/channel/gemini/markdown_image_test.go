@@ -84,6 +84,26 @@ func TestNormalizeGeminiMarkdownImagesLeavesInvalidDataUnchanged(t *testing.T) {
 	assert.Equal(t, payload, normalized)
 }
 
+func TestNormalizeGeminiMarkdownImagesLeavesOfficialInlineDataUnchanged(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"candidates":[{
+			"content":{"role":"model","parts":[
+				{"text":"Here is the generated image."},
+				{"inlineData":{"mimeType":"image/png","data":"` + testPNGBase64 + `"}}
+			]},
+			"finishReason":"STOP"
+		}],
+		"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":1400,"totalTokenCount":1407}
+	}`)
+
+	normalized, changed, err := normalizeGeminiMarkdownImages(payload)
+	require.NoError(t, err)
+	assert.False(t, changed)
+	assert.Equal(t, payload, normalized)
+}
+
 func TestGeminiTextGenerationHandlerReturnsOfficialInlineData(t *testing.T) {
 	t.Parallel()
 
