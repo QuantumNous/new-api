@@ -98,6 +98,14 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        bodyCaptureSettings={{
+          StoreRequestBodyEnabled: Boolean(settings.StoreRequestBodyEnabled),
+          StoreResponseBodyEnabled: Boolean(settings.StoreResponseBodyEnabled),
+          StoreRequestHeadersEnabled: Boolean(settings.StoreRequestHeadersEnabled),
+          StoreResponseHeadersEnabled: Boolean(settings.StoreResponseHeadersEnabled),
+          StoreProviderRequestBodyEnabled: Boolean(settings.StoreProviderRequestBodyEnabled),
+          StoreProviderResponseBodyEnabled: Boolean(settings.StoreProviderResponseBodyEnabled),
+        }}
       />
     ),
   },

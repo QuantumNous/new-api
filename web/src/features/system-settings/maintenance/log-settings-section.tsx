@@ -80,12 +80,37 @@ import type { LogCleanupTask } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  StoreRequestBodyEnabled: z.boolean(),
+  StoreResponseBodyEnabled: z.boolean(),
+  StoreRequestHeadersEnabled: z.boolean(),
+  StoreResponseHeadersEnabled: z.boolean(),
+  StoreProviderRequestBodyEnabled: z.boolean(),
+  StoreProviderResponseBodyEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
+export type BodyCaptureSettings = {
+  StoreRequestBodyEnabled: boolean
+  StoreResponseBodyEnabled: boolean
+  StoreRequestHeadersEnabled: boolean
+  StoreResponseHeadersEnabled: boolean
+  StoreProviderRequestBodyEnabled: boolean
+  StoreProviderResponseBodyEnabled: boolean
+}
+
+const bodyCaptureKeys: (keyof BodyCaptureSettings)[] = [
+  'StoreRequestBodyEnabled',
+  'StoreResponseBodyEnabled',
+  'StoreRequestHeadersEnabled',
+  'StoreResponseHeadersEnabled',
+  'StoreProviderRequestBodyEnabled',
+  'StoreProviderResponseBodyEnabled',
+]
+
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  bodyCaptureSettings: BodyCaptureSettings
 }
 
 type ServerLogInfo = {
@@ -141,6 +166,7 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
 
 export function LogSettingsSection({
   defaultEnabled,
+  bodyCaptureSettings,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -148,6 +174,7 @@ export function LogSettingsSection({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
+      ...bodyCaptureSettings,
     },
   })
 
@@ -174,8 +201,8 @@ export function LogSettingsSection({
   }, [])
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({ LogConsumeEnabled: defaultEnabled, ...bodyCaptureSettings })
+  }, [defaultEnabled, bodyCaptureSettings, form])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -257,11 +284,19 @@ export function LogSettingsSection({
   }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const updates: { key: string; value: unknown }[] = []
+    if (values.LogConsumeEnabled !== defaultEnabled) {
+      updates.push({ key: 'LogConsumeEnabled', value: values.LogConsumeEnabled })
+    }
+    for (const key of bodyCaptureKeys) {
+      if (values[key] !== bodyCaptureSettings[key]) {
+        updates.push({ key, value: values[key] })
+      }
+    }
+    if (updates.length === 0) return
+    for (const u of updates) {
+      await updateOption.mutateAsync({ key: u.key, value: String(u.value) })
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -366,6 +401,47 @@ export function LogSettingsSection({
               </SettingsSwitchItem>
             )}
           />
+
+          <Separator />
+          <div className='pt-2'>
+            <h4 className='text-sm font-medium'>{t('Request/Response Capture')}</h4>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Store raw request and response data in consume logs for debugging. Large bodies (>4KB) are written to disk to avoid database bloat.'
+              )}
+            </p>
+          </div>
+          {[
+            { name: 'StoreRequestHeadersEnabled' as const, label: 'Request Headers', desc: 'Capture incoming request headers (Authorization redacted).' },
+            { name: 'StoreRequestBodyEnabled' as const, label: 'Request Body', desc: 'Capture raw request body (user format).' },
+            { name: 'StoreResponseHeadersEnabled' as const, label: 'Response Headers', desc: 'Capture upstream response headers.' },
+            { name: 'StoreResponseBodyEnabled' as const, label: 'Response Body', desc: 'Capture raw response body before format conversion. Non-streaming only.' },
+            { name: 'StoreProviderRequestBodyEnabled' as const, label: 'Provider Request Body', desc: 'Capture request body AFTER format conversion (actual JSON sent to upstream).' },
+            { name: 'StoreProviderResponseBodyEnabled' as const, label: 'Provider Response Body', desc: 'Capture raw response body FROM upstream before conversion. Non-streaming only.' },
+          ].map(({ name, label, desc }) => (
+            <FormField
+              key={name}
+              control={form.control}
+              name={name}
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t(label)}</FormLabel>
+                    <FormDescription>{t(desc)}</FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </SettingsSwitchItem>
+              )}
+            />
+          ))}
+
+          <FormField
 
           <SettingsControlGroup className='space-y-3'>
             <div>

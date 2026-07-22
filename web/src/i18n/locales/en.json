@@ -5222,6 +5222,14 @@
     "inspect.response_body": "Response Body",
     "inspect.provider_request_body": "Provider Request Body",
     "inspect.provider_response_body": "Provider Response Body",
-    "inspect.file_reference": "Stored on disk"
+    "inspect.file_reference": "Stored on disk",
+    "Request/Response Capture": "Request/Response Capture",
+    "Store raw request and response data in consume logs for debugging. Large bodies (>4KB) are written to disk to avoid database bloat.": "Store raw request and response data in consume logs for debugging. Large bodies (>4KB) are written to disk to avoid database bloat.",
+    "Capture incoming request headers (Authorization redacted).": "Capture incoming request headers (Authorization redacted).",
+    "Capture raw request body (user format).": "Capture raw request body (user format).",
+    "Capture upstream response headers.": "Capture upstream response headers.",
+    "Capture raw response body before format conversion. Non-streaming only.": "Capture raw response body before format conversion. Non-streaming only.",
+    "Capture request body AFTER format conversion (actual JSON sent to upstream).": "Capture request body AFTER format conversion (actual JSON sent to upstream).",
+    "Capture raw response body FROM upstream before conversion. Non-streaming only.": "Capture raw response body FROM upstream before conversion. Non-streaming only."
   }
 }
