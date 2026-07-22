@@ -33,6 +33,13 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  aff_ratio_override: z
+    .string()
+    .regex(
+      /^$|^(100|[1-9]?\d)$/,
+      'Commission ratio must be an integer from 0 to 100'
+    )
+    .optional(),
   is_reseller: z.boolean().optional(),
   reseller_user_id: z.number().min(0).optional(),
 })
@@ -51,6 +58,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  aff_ratio_override: '',
   is_reseller: false,
   reseller_user_id: 0,
 }
@@ -79,6 +87,11 @@ export function transformFormDataToPayload(
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
+    payload.aff_ratio_override =
+      data.aff_ratio_override === undefined ||
+      data.aff_ratio_override.trim() === ''
+        ? null
+        : Number(data.aff_ratio_override)
     payload.id = userId
   }
 
@@ -97,6 +110,10 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    aff_ratio_override:
+      user.aff_ratio_override === null || user.aff_ratio_override === undefined
+        ? ''
+        : String(user.aff_ratio_override),
     is_reseller: Boolean(user.is_reseller),
     reseller_user_id: user.reseller_user_id || 0,
   }

@@ -26,7 +26,10 @@ const PENDING_ATTEMPT_KEY = 'invite_promo_pending_attempt'
 export function usePostTopupInvitePrompt() {
   const { status } = useStatus()
   const affRatio =
-    (status as { aff_ratio?: number } | undefined)?.aff_ratio ?? 0
+    (status as { aff_ratio?: number; effective_aff_ratio?: number } | undefined)
+      ?.effective_aff_ratio ??
+    (status as { aff_ratio?: number } | undefined)?.aff_ratio ??
+    0
   const [isPreview] = useState(
     () =>
       typeof window !== 'undefined' &&

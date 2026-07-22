@@ -20,8 +20,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatCompactNumber, formatQuota } from '@/lib/format'
 import { api } from '@/lib/api'
+import { formatCompactNumber, formatQuota } from '@/lib/format'
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,8 @@ interface UserInfo {
   aff_code?: string
   aff_count?: number
   aff_quota?: number
+  aff_ratio_override?: number | null
+  aff_ratio_snapshot?: number | null
   remark?: string
 }
 
@@ -102,6 +104,10 @@ export function UserInfoDialog({
   const renderText = (value?: string | null) => {
     if (!value) return '-'
     return value
+  }
+  const renderPercent = (value?: number | null, empty = '-') => {
+    if (value === null || value === undefined) return empty
+    return `${value}%`
   }
 
   const InfoItem = ({
@@ -198,6 +204,22 @@ export function UserInfoDialog({
                     value={formatQuota(userInfo.aff_quota)}
                   />
                 )}
+                <div className='grid grid-cols-2 gap-4'>
+                  <InfoItem
+                    label={t('Commission Ratio Override (%)')}
+                    value={renderPercent(
+                      userInfo.aff_ratio_override,
+                      t('Inherit global setting')
+                    )}
+                  />
+                  <InfoItem
+                    label={t('Registered Snapshot Commission Ratio')}
+                    value={renderPercent(
+                      userInfo.aff_ratio_snapshot,
+                      t('No snapshot')
+                    )}
+                  />
+                </div>
               </>
             )}
 

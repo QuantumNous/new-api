@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Copy, Check } from 'lucide-react'
-
-import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { api, getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { generateAffiliateLink } from '@/features/wallet/lib'
 import { getAffiliateCode, transferAffiliateQuota } from '@/features/wallet/api'
 import { TransferDialog } from '@/features/wallet/components/dialogs/transfer-dialog'
+import { generateAffiliateLink } from '@/features/wallet/lib'
 
 interface AffLog {
   id: number
@@ -70,7 +69,11 @@ const cardCls =
 export function AffiliatePage() {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const affRatio = (status as any)?.aff_ratio ?? 0
+  const statusData = status as {
+    aff_ratio?: number
+    effective_aff_ratio?: number
+  } | null
+  const affRatio = statusData?.effective_aff_ratio ?? statusData?.aff_ratio ?? 0
   const [userData, setUserData] = useState<UserAffData>({})
 
   const [affiliateCode, setAffiliateCode] = useState('')
@@ -144,7 +147,9 @@ export function AffiliatePage() {
       <div className='space-y-5 p-6'>
         <div>
           <div className='inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-5 py-2.5 shadow-lg shadow-pink-200/50 dark:shadow-none'>
-            <span className='text-lg font-bold text-white'>{t('Affiliate')}</span>
+            <span className='text-lg font-bold text-white'>
+              {t('Affiliate')}
+            </span>
             <span className='h-4 w-px bg-white/40' />
             <span className='text-sm text-white/85'>
               {t('Invite friends, referrer earns commission')}: {affRatio}%
@@ -153,28 +158,46 @@ export function AffiliatePage() {
         </div>
 
         {/* 返佣规则 + 邀请码/链接 */}
-        <div className={`${cardCls} rounded-3xl p-6 space-y-4`}>
+        <div className={`${cardCls} space-y-4 rounded-3xl p-6`}>
           <p className='text-muted-foreground text-sm'>
             {affRatio > 0
-              ? t('When your friend tops up, you earn {{ratio}}% of their amount', {ratio: affRatio})
-              : t('Invite friends to register and earn rewards when they top up')}
+              ? t(
+                  'When your friend tops up, you earn {{ratio}}% of their amount',
+                  { ratio: affRatio }
+                )
+              : t(
+                  'Invite friends to register and earn rewards when they top up'
+                )}
           </p>
-          <div className='flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:items-center'>
+          <div className='border-border/50 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center'>
             <div className='flex shrink-0 items-center gap-2.5'>
-              <span className='text-muted-foreground shrink-0 text-sm'>{t('My Referral Code')}</span>
+              <span className='text-muted-foreground shrink-0 text-sm'>
+                {t('My Referral Code')}
+              </span>
               <span className='rounded-md bg-emerald-100 px-2.5 py-1 font-mono text-sm font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'>
                 {affiliateCode || '----'}
               </span>
             </div>
             <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground shrink-0 text-sm'>{t('Referral Link')}</span>
+              <span className='text-muted-foreground shrink-0 text-sm'>
+                {t('Referral Link')}
+              </span>
               <Input
                 value={affiliateLink}
                 readOnly
                 className='bg-background/60 h-9 w-96 font-mono text-xs'
               />
-              <Button size='sm' variant='outline' onClick={handleCopy} className='shrink-0 gap-1'>
-                {copied ? <Check className='size-3.5' /> : <Copy className='size-3.5' />}
+              <Button
+                size='sm'
+                variant='outline'
+                onClick={handleCopy}
+                className='shrink-0 gap-1'
+              >
+                {copied ? (
+                  <Check className='size-3.5' />
+                ) : (
+                  <Copy className='size-3.5' />
+                )}
                 {copied ? t('Copied') : t('Copy')}
               </Button>
             </div>
@@ -186,16 +209,24 @@ export function AffiliatePage() {
           <div className={`${cardCls} p-5`}>
             <div className='mb-2 flex items-center gap-2'>
               <span className='size-2 rounded-full bg-orange-400' />
-              <span className='text-muted-foreground text-xs'>{t('Invited Count')}</span>
+              <span className='text-muted-foreground text-xs'>
+                {t('Invited Count')}
+              </span>
             </div>
-            <div className='text-4xl font-bold tabular-nums text-orange-500'>{affCount}</div>
+            <div className='text-4xl font-bold text-orange-500 tabular-nums'>
+              {affCount}
+            </div>
           </div>
           <div className={`${cardCls} p-5`}>
             <div className='mb-2 flex items-center gap-2'>
               <span className='size-2 rounded-full bg-emerald-400' />
-              <span className='text-muted-foreground text-xs'>{t('Total Commission Earned')}</span>
+              <span className='text-muted-foreground text-xs'>
+                {t('Total Commission Earned')}
+              </span>
             </div>
-            <div className='text-4xl font-bold tabular-nums text-emerald-500'>{formatQuota(affHistory)}</div>
+            <div className='text-4xl font-bold text-emerald-500 tabular-nums'>
+              {formatQuota(affHistory)}
+            </div>
             {hasRewards && (
               <Button
                 size='sm'
@@ -212,33 +243,53 @@ export function AffiliatePage() {
 
         {/* 记录 */}
         <div className={`${cardCls} overflow-hidden`}>
-          <div className='border-b border-border/50 px-5 py-3.5'>
+          <div className='border-border/50 border-b px-5 py-3.5'>
             <h2 className='text-base font-semibold'>{t('Invite Records')}</h2>
           </div>
           <Tabs defaultValue='commission' className='p-4'>
             <TabsList variant='line' className='mb-2'>
-              <TabsTrigger value='invite' className='data-active:text-orange-500 data-active:after:bg-orange-500'>{t('Invite Records')}</TabsTrigger>
-              <TabsTrigger value='commission' className='data-active:text-orange-500 data-active:after:bg-orange-500'>{t('Commission Records')}</TabsTrigger>
+              <TabsTrigger
+                value='invite'
+                className='data-active:text-orange-500 data-active:after:bg-orange-500'
+              >
+                {t('Invite Records')}
+              </TabsTrigger>
+              <TabsTrigger
+                value='commission'
+                className='data-active:text-orange-500 data-active:after:bg-orange-500'
+              >
+                {t('Commission Records')}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value='invite' className='px-1 pb-1'>
               {logsLoading ? (
-                <p className='text-muted-foreground py-6 text-center text-sm'>{t('Loading...')}</p>
+                <p className='text-muted-foreground py-6 text-center text-sm'>
+                  {t('Loading...')}
+                </p>
               ) : inviteList.length === 0 ? (
-                <p className='text-muted-foreground py-6 text-center text-sm'>{t('No invite records yet')}</p>
+                <p className='text-muted-foreground py-6 text-center text-sm'>
+                  {t('No invite records yet')}
+                </p>
               ) : (
                 <table className='w-full text-sm'>
                   <thead>
                     <tr className='text-muted-foreground border-b text-xs'>
                       <th className='py-2 text-left'>{t('User')}</th>
-                      <th className='py-2 text-right'>{t('Registration Time')}</th>
+                      <th className='py-2 text-right'>
+                        {t('Registration Time')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {inviteList.map((u, i) => (
                       <tr key={i} className='border-b last:border-0'>
-                        <td className='py-2'>{maskEmail(u.display_name || u.username)}</td>
-                        <td className='text-muted-foreground py-2 text-right'>{formatTime(u.created_at)}</td>
+                        <td className='py-2'>
+                          {maskEmail(u.display_name || u.username)}
+                        </td>
+                        <td className='text-muted-foreground py-2 text-right'>
+                          {formatTime(u.created_at)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -248,24 +299,36 @@ export function AffiliatePage() {
 
             <TabsContent value='commission' className='px-1 pb-1'>
               {logsLoading ? (
-                <p className='text-muted-foreground py-6 text-center text-sm'>{t('Loading...')}</p>
+                <p className='text-muted-foreground py-6 text-center text-sm'>
+                  {t('Loading...')}
+                </p>
               ) : affLogs.length === 0 ? (
-                <p className='text-muted-foreground py-6 text-center text-sm'>{t('No commission records yet')}</p>
+                <p className='text-muted-foreground py-6 text-center text-sm'>
+                  {t('No commission records yet')}
+                </p>
               ) : (
                 <table className='w-full text-sm'>
                   <thead>
                     <tr className='text-muted-foreground border-b text-xs'>
                       <th className='py-2 text-left'>{t('Amount Paid')}</th>
-                      <th className='py-2 text-right'>{t('Commission Amount')}</th>
+                      <th className='py-2 text-right'>
+                        {t('Commission Amount')}
+                      </th>
                       <th className='py-2 text-right'>{t('Time')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {affLogs.map((log) => (
                       <tr key={log.id} className='border-b last:border-0'>
-                        <td className='py-2'>{formatQuota(log.topup_amount)}</td>
-                        <td className='py-2 text-right text-emerald-500'>+{formatQuota(log.commission)}</td>
-                        <td className='text-muted-foreground py-2 text-right'>{formatTime(log.created_at)}</td>
+                        <td className='py-2'>
+                          {formatQuota(log.topup_amount)}
+                        </td>
+                        <td className='py-2 text-right text-emerald-500'>
+                          +{formatQuota(log.commission)}
+                        </td>
+                        <td className='text-muted-foreground py-2 text-right'>
+                          {formatTime(log.created_at)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -23,10 +23,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
-import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -102,6 +102,7 @@ export function UsersMutateDrawer({
   const isRoot = currentAuthUser?.role === ROLE.SUPER_ADMIN
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  const [loadedUser, setLoadedUser] = useState<User | null>(null)
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -130,11 +131,13 @@ export function UsersMutateDrawer({
       // For update, fetch fresh data
       getUser(currentRow.id).then((result) => {
         if (result.success && result.data) {
+          setLoadedUser(result.data)
           form.reset(transformUserToFormDefaults(result.data))
         }
       })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
+      setLoadedUser(null)
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
   }, [open, isUpdate, currentRow, form])
@@ -193,6 +196,7 @@ export function UsersMutateDrawer({
     if (!currentRow) return
     const result = await getUser(currentRow.id)
     if (result.success && result.data) {
+      setLoadedUser(result.data)
       form.reset(transformUserToFormDefaults(result.data))
     }
     triggerRefresh()
@@ -435,6 +439,49 @@ export function UsersMutateDrawer({
                 </div>
               )}
 
+              {isUpdate && (
+                <div className='space-y-4'>
+                  <h3 className='text-sm font-medium'>{t('Affiliate')}</h3>
+
+                  <FormField
+                    control={form.control}
+                    name='aff_ratio_override'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Commission Ratio Override (%)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            inputMode='numeric'
+                            placeholder={t('Inherit global setting')}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Leave blank to inherit the global commission ratio. Enter 0 to disable commission for future invitees.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className='space-y-1.5'>
+                    <Label className='text-muted-foreground text-xs'>
+                      {t('Registered Snapshot Commission Ratio')}
+                    </Label>
+                    <div className='text-sm font-medium'>
+                      {loadedUser?.aff_ratio_snapshot === null ||
+                      loadedUser?.aff_ratio_snapshot === undefined
+                        ? t('No snapshot')
+                        : `${loadedUser.aff_ratio_snapshot}%`}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {isUpdate && isRoot && currentRow && (
                 <div className='space-y-4'>
                   <h3 className='text-sm font-medium'>分销商</h3>
@@ -468,7 +515,9 @@ export function UsersMutateDrawer({
                         <FormLabel>上级分销商邮箱</FormLabel>
                         <Select
                           value={String(field.value || 0)}
-                          onValueChange={(value) => field.onChange(Number(value))}
+                          onValueChange={(value) =>
+                            field.onChange(Number(value))
+                          }
                           disabled={isReseller}
                         >
                           <FormControl>

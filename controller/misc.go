@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -47,6 +48,10 @@ func GetStatus(c *gin.Context) {
 
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
+	effectiveAffRatio := common.AffRatio
+	if sessionUserId, ok := sessions.Default(c).Get("id").(int); ok && sessionUserId > 0 {
+		effectiveAffRatio = model.GetEffectiveAffRatioForInviter(sessionUserId)
+	}
 
 	data := gin.H{
 		"version":                     common.Version,
@@ -118,6 +123,7 @@ func GetStatus(c *gin.Context) {
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
 		"aff_ratio":                   common.AffRatio,
+		"effective_aff_ratio":         effectiveAffRatio,
 	}
 
 	// 根据启用状态注入可选内容

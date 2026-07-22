@@ -20,18 +20,30 @@ func (AffLog) TableName() string {
 	return "aff_logs"
 }
 
+func resolveAffCommissionRatio(user *User) int {
+	if user == nil || user.InviterId == 0 {
+		return 0
+	}
+	if user.AffRatioSnapshot != nil {
+		return *user.AffRatioSnapshot
+	}
+	return common.AffRatio
+}
+
 // ProcessAffCommission 在充值成功后调用，给邀请者加返佣、被邀请者加奖励。
 // userId 是充值用户，quotaToAdd 是本次充值对应的 quota 数量。
 func ProcessAffCommission(userId int, quotaToAdd int) {
-	if common.AffRatio <= 0 {
-		return
-	}
 	user, err := GetUserById(userId, false)
 	if err != nil || user == nil || user.InviterId == 0 {
 		return
 	}
 
-	commission := quotaToAdd * common.AffRatio / 100
+	ratio := resolveAffCommissionRatio(user)
+	if ratio <= 0 {
+		return
+	}
+
+	commission := quotaToAdd * ratio / 100
 	if commission <= 0 {
 		return
 	}

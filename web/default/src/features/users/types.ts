@@ -49,6 +49,8 @@ export const userSchema = z.object({
   aff_quota: z.number().optional(),
   aff_history_quota: z.number().optional(),
   inviter_id: z.number().optional(),
+  aff_ratio_override: z.number().nullable().optional(),
+  aff_ratio_snapshot: z.number().nullable().optional(),
   is_reseller: z.boolean().optional(),
   reseller_user_id: z.number().optional(),
   registration_channel_code: z.string().optional(),
@@ -115,6 +117,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  aff_ratio_override?: number | null // Only used when updating user
 }
 
 export interface ResellerProfilePayload {

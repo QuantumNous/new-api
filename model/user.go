@@ -45,6 +45,8 @@ type User struct {
 	AffQuota         int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota  int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
 	InviterId        int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	AffRatioOverride *int           `json:"aff_ratio_override" gorm:"type:int;column:aff_ratio_override" validate:"omitempty,min=0,max=100"`
+	AffRatioSnapshot *int           `json:"aff_ratio_snapshot" gorm:"type:int;column:aff_ratio_snapshot" validate:"omitempty,min=0,max=100"`
 	IsReseller       bool           `json:"is_reseller" gorm:"type:bool;default:false;column:is_reseller;index"`
 	ResellerUserId   int            `json:"reseller_user_id" gorm:"type:int;default:0;column:reseller_user_id;index"`
 	GAClientID       string         `json:"ga_client_id,omitempty" gorm:"type:varchar(64);column:ga_client_id"` // synced at registration, for GA4 purchase MP attribution
@@ -354,6 +356,26 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 	return user.Id, err
 }
 
+func GetEffectiveAffRatioForInviter(inviterId int) int {
+	if inviterId == 0 {
+		return common.AffRatio
+	}
+	var inviter User
+	err := DB.Select("aff_ratio_override").First(&inviter, "id = ?", inviterId).Error
+	if err == nil && inviter.AffRatioOverride != nil {
+		return *inviter.AffRatioOverride
+	}
+	return common.AffRatio
+}
+
+func BuildAffRatioSnapshot(inviterId int) *int {
+	if inviterId == 0 {
+		return nil
+	}
+	ratio := GetEffectiveAffRatioForInviter(inviterId)
+	return &ratio
+}
+
 func DeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")
@@ -433,6 +455,8 @@ func (user *User) Insert(inviterId int) error {
 	user.Quota = common.QuotaForNewUser
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
+	user.InviterId = inviterId
+	user.AffRatioSnapshot = BuildAffRatioSnapshot(inviterId)
 
 	// 初始化用户设置，包括默认的边栏配置
 	if user.Setting == "" {
@@ -497,6 +521,8 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	user.AffCode = common.GetRandomString(4)
+	user.InviterId = inviterId
+	user.AffRatioSnapshot = BuildAffRatioSnapshot(inviterId)
 
 	// 初始化用户设置
 	if user.Setting == "" {

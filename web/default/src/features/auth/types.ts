@@ -127,6 +127,8 @@ export interface SystemStatus {
     oauth_register_enabled?: boolean
     register_enabled?: boolean
     password_register_enabled?: boolean
+    aff_ratio?: number
+    effective_aff_ratio?: number
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     [key: string]: unknown
   }
@@ -169,6 +171,8 @@ export interface SystemStatus {
   oauth_register_enabled?: boolean
   register_enabled?: boolean
   password_register_enabled?: boolean
+  aff_ratio?: number
+  effective_aff_ratio?: number
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   [key: string]: unknown
 }
