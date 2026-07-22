@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/QuantumNous/new-api/logger"
@@ -22,6 +23,27 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 		return apiErr
 	}
 	relayInfo.Billing = session
+	return nil
+}
+
+// PrepareRetryBilling updates the reservation before a fallback request is
+// sent. A request that started free may create its billing session here; an
+// existing session only ever increases its reservation and settles/refunds the
+// difference after the winning attempt completes.
+func PrepareRetryBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, priceData types.PriceData) *types.NewAPIError {
+	if relayInfo == nil || priceData.FreeModel {
+		return nil
+	}
+	if relayInfo.Billing == nil {
+		return PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+	}
+	if err := relayInfo.Billing.Reserve(priceData.QuotaToPreConsume); err != nil {
+		var apiErr *types.NewAPIError
+		if errors.As(err, &apiErr) {
+			return apiErr
+		}
+		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+	}
 	return nil
 }
 

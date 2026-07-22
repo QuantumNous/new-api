@@ -214,6 +214,16 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	return priceData, nil
 }
 
+// RefreshModelPriceForRetry recalculates channel-dependent pricing after a
+// fallback selects a different channel. Tiered billing is model-scoped and its
+// snapshot must remain frozen at pre-consume time.
+func RefreshModelPriceForRetry(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+		return info.PriceData, nil
+	}
+	return ModelPriceHelper(c, info, promptTokens, meta)
+}
+
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)

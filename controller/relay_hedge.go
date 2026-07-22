@@ -308,6 +308,25 @@ func armHedgeAttempt(c *gin.Context, relayInfo *relaycommon.RelayInfo, retryPara
 		hedge.cancel()
 		return nil
 	}
+	refreshedPrice, priceErr := helper.RefreshModelPriceForRetry(hedge.c, hedge.info, relayInfo.GetEstimatePromptTokens(), &types.TokenCountMeta{})
+	if priceErr != nil {
+		logger.LogError(c, fmt.Sprintf("clientgone hedge: refresh hedge channel pricing failed: %s", priceErr.Error()))
+		hedge.cancel()
+		return nil
+	}
+	// A newly created session would belong only to the hedge attempt and leak
+	// its reservation when primary wins. Existing sessions are shared by both
+	// attempts and can safely reserve more; free-to-paid hedges are skipped.
+	if hedge.info.Billing == nil && !refreshedPrice.FreeModel {
+		logger.LogInfo(c, "clientgone hedge: paid hedge cannot start from a free primary without a shared billing session")
+		hedge.cancel()
+		return nil
+	}
+	if billingErr := service.PrepareRetryBilling(hedge.c, hedge.info, refreshedPrice); billingErr != nil {
+		logger.LogError(c, fmt.Sprintf("clientgone hedge: reserve hedge channel billing failed: %s", billingErr.Error()))
+		hedge.cancel()
+		return nil
+	}
 	logger.LogInfo(c, fmt.Sprintf("clientgone hedge triggered: primary #%d no first byte, racing with #%d/%s",
 		primaryChannel.Id, channel.Id, channel.Name))
 	startAttempt(hedge)

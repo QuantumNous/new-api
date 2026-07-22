@@ -265,6 +265,29 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 	if delta <= 0 {
 		return nil
 	}
+	if wallet, ok := s.funding.(*WalletFunding); ok {
+		if err := model.AdjustWalletAndTokenQuota(
+			wallet.userId, -delta,
+			s.relayInfo.TokenId, s.relayInfo.TokenKey, -delta,
+			s.relayInfo.IsPlayground,
+		); err != nil {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("fallback 预扣费额度失败: %w", err),
+				types.ErrorCodeInsufficientUserQuota,
+				http.StatusForbidden,
+				types.ErrOptionWithSkipRetry(),
+				types.ErrOptionWithNoRecordErrorLog(),
+			)
+		}
+		wallet.consumed += delta
+		if !s.relayInfo.IsPlayground {
+			s.tokenConsumed += delta
+		}
+		s.preConsumedQuota += delta
+		s.extraReserved += delta
+		s.syncRelayInfo()
+		return nil
+	}
 
 	if err := s.reserveFunding(delta); err != nil {
 		return err

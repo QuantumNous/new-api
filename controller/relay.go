@@ -207,11 +207,23 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
+		isFallbackAttempt := relayInfo.ChannelMeta != nil
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
 			break
+		}
+		if isFallbackAttempt {
+			refreshedPrice, priceErr := helper.RefreshModelPriceForRetry(c, relayInfo, tokens, meta)
+			if priceErr != nil {
+				newAPIError = types.NewError(priceErr, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+				break
+			}
+			if billingErr := service.PrepareRetryBilling(c, relayInfo, refreshedPrice); billingErr != nil {
+				newAPIError = billingErr
+				break
+			}
 		}
 
 		addUsedChannel(c, channel.Id)
@@ -538,7 +550,6 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
-	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
 	if policy, ok := shouldUseOfficialFallback(c, info, retryParam); ok {
 		channel, err := model.GetChannelById(policy.OfficialChannelID, true)
 		if err != nil {
