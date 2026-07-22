@@ -467,10 +467,7 @@ func validateTwoFactorAuth(twoFA *model.TwoFA, code string) bool {
 func validateChannel(channel *model.Channel, isAdd bool) error {
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
-		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
-	}
-	if err := channel.ValidateOtherSettings(); err != nil {
-		return fmt.Errorf("渠道其他设置[settings] 格式错误：%s", err.Error())
+		return fmt.Errorf("渠道设置[setting/settings] 格式错误：%s", err.Error())
 	}
 
 	// 如果是添加操作，检查 channel 和 key 是否为空

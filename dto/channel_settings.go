@@ -62,6 +62,8 @@ type ChannelOtherSettings struct {
 const (
 	ChannelRateLimitScopeChannel = "channel"
 	ChannelRateLimitScopeKey     = "key"
+	// ChannelRateLimitMaxExactInteger keeps limiter arithmetic exact in Redis Lua.
+	ChannelRateLimitMaxExactInteger int64 = 1<<53 - 1
 )
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

@@ -230,7 +230,7 @@ const EditChannelModal = (props) => {
     upstream_model_update_last_detected_models: [],
     upstream_model_update_ignored_models: '',
     channel_rate_limit_enabled: false,
-    channel_rate_limit_count: 0,
+    channel_rate_limit_count: 1,
     channel_rate_limit_period_seconds: 60,
     channel_rate_limit_scope: 'channel',
   };
@@ -946,13 +946,13 @@ const EditChannelModal = (props) => {
             : '';
           data.channel_rate_limit_enabled =
             parsedSettings.channel_rate_limit_enabled === true;
-          data.channel_rate_limit_count = integerOrDefault(
-            parsedSettings.channel_rate_limit_count,
-            0,
+          data.channel_rate_limit_count = Math.max(
+            1,
+            integerOrDefault(parsedSettings.channel_rate_limit_count, 1),
           );
-          data.channel_rate_limit_period_seconds = integerOrDefault(
-            parsedSettings.channel_rate_limit_period_seconds,
-            60,
+          data.channel_rate_limit_period_seconds = Math.max(
+            1,
+            integerOrDefault(parsedSettings.channel_rate_limit_period_seconds, 60),
           );
           data.channel_rate_limit_scope =
             parsedSettings.channel_rate_limit_scope === 'key'
@@ -978,7 +978,7 @@ const EditChannelModal = (props) => {
           data.upstream_model_update_last_detected_models = [];
           data.upstream_model_update_ignored_models = '';
           data.channel_rate_limit_enabled = false;
-          data.channel_rate_limit_count = 0;
+          data.channel_rate_limit_count = 1;
           data.channel_rate_limit_period_seconds = 60;
           data.channel_rate_limit_scope = 'channel';
         }
@@ -1000,7 +1000,7 @@ const EditChannelModal = (props) => {
         data.upstream_model_update_last_detected_models = [];
         data.upstream_model_update_ignored_models = '';
         data.channel_rate_limit_enabled = false;
-        data.channel_rate_limit_count = 0;
+        data.channel_rate_limit_count = 1;
         data.channel_rate_limit_period_seconds = 60;
         data.channel_rate_limit_scope = 'channel';
       }
@@ -1866,13 +1866,13 @@ const EditChannelModal = (props) => {
 
     settings.channel_rate_limit_enabled =
       localInputs.channel_rate_limit_enabled === true;
-    settings.channel_rate_limit_count = integerOrDefault(
-      localInputs.channel_rate_limit_count,
-      0,
+    settings.channel_rate_limit_count = Math.max(
+      1,
+      integerOrDefault(localInputs.channel_rate_limit_count, 1),
     );
-    settings.channel_rate_limit_period_seconds = integerOrDefault(
-      localInputs.channel_rate_limit_period_seconds,
-      60,
+    settings.channel_rate_limit_period_seconds = Math.max(
+      1,
+      integerOrDefault(localInputs.channel_rate_limit_period_seconds, 60),
     );
     settings.channel_rate_limit_scope =
       localInputs.channel_rate_limit_scope === 'key' ? 'key' : 'channel';
@@ -2563,7 +2563,7 @@ const EditChannelModal = (props) => {
                       <Form.InputNumber
                         field='channel_rate_limit_count'
                         label={t('每周期请求数')}
-                        min={0}
+                        min={1}
                         precision={0}
                         disabled={!inputs.channel_rate_limit_enabled}
                         onNumberChange={(value) =>

@@ -972,15 +972,25 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
-	return nil
-}
+	if channelOtherSettings.ChannelRateLimitEnabled {
+		if channelOtherSettings.ChannelRateLimitCount <= 0 {
+			return fmt.Errorf("channel rate limit count must be greater than 0 when enabled")
+		}
+		if channelOtherSettings.ChannelRateLimitPeriodSeconds <= 0 {
+			return fmt.Errorf("channel rate limit period must be greater than 0 when enabled")
+		}
+		if channelOtherSettings.ChannelRateLimitScope != "" &&
+			channelOtherSettings.ChannelRateLimitScope != dto.ChannelRateLimitScopeChannel &&
+			channelOtherSettings.ChannelRateLimitScope != dto.ChannelRateLimitScopeKey {
+			return fmt.Errorf("channel rate limit scope must be %q or %q", dto.ChannelRateLimitScopeChannel, dto.ChannelRateLimitScopeKey)
+		}
 
-func (channel *Channel) ValidateOtherSettings() error {
-	channelParams := &dto.ChannelOtherSettings{}
-	if strings.TrimSpace(channel.OtherSettings) != "" {
-		err := common.UnmarshalJsonStr(channel.OtherSettings, channelParams)
-		if err != nil {
-			return err
+		// Redis Lua numbers are IEEE-754 doubles. Keep the derived bucket capacity
+		// within the exact integer range so Redis and the in-memory fallback agree.
+		count := int64(channelOtherSettings.ChannelRateLimitCount)
+		period := int64(channelOtherSettings.ChannelRateLimitPeriodSeconds)
+		if count > dto.ChannelRateLimitMaxExactInteger/period {
+			return fmt.Errorf("channel rate limit count and period product is too large")
 		}
 	}
 	return nil

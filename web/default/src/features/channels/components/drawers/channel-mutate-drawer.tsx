@@ -4303,12 +4303,12 @@ export function ChannelMutateDrawer({
                                     <FormControl>
                                       <Input
                                         type='number'
-                                        min={0}
+                                        min={1}
                                         step={1}
                                         disabled={!channelRateLimitEnabled}
-                                        placeholder='0'
+                                        placeholder='1'
                                         {...field}
-                                        value={field.value ?? 0}
+                                        value={field.value ?? 1}
                                         onChange={(event) =>
                                           field.onChange(
                                             Number(event.target.value)

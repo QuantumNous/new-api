@@ -215,7 +215,7 @@ export const channelFormSchema = z
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
     channel_rate_limit_enabled: z.boolean().optional(),
-    channel_rate_limit_count: z.number().int().min(0).optional(),
+    channel_rate_limit_count: z.number().int().min(1).optional(),
     channel_rate_limit_period_seconds: z.number().int().min(1).optional(),
     channel_rate_limit_scope: z.enum(['channel', 'key']).optional(),
   })
@@ -358,7 +358,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   channel_rate_limit_enabled: false,
-  channel_rate_limit_count: 0,
+  channel_rate_limit_count: 1,
   channel_rate_limit_period_seconds: 60,
   channel_rate_limit_scope: 'channel',
   advanced_custom: '',
@@ -418,7 +418,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let channelRateLimitEnabled = false
-  let channelRateLimitCount = 0
+  let channelRateLimitCount = 1
   let channelRateLimitPeriodSeconds = 60
   let channelRateLimitScope: 'channel' | 'key' = 'channel'
   let advancedCustom = ''
@@ -448,13 +448,13 @@ export function transformChannelToFormDefaults(
         ? parsed.upstream_model_update_ignored_models.join(',')
         : ''
       channelRateLimitEnabled = parsed.channel_rate_limit_enabled === true
-      channelRateLimitCount = integerOrDefault(
-        parsed.channel_rate_limit_count,
-        0
+      channelRateLimitCount = Math.max(
+        1,
+        integerOrDefault(parsed.channel_rate_limit_count, 1)
       )
-      channelRateLimitPeriodSeconds = integerOrDefault(
-        parsed.channel_rate_limit_period_seconds,
-        60
+      channelRateLimitPeriodSeconds = Math.max(
+        1,
+        integerOrDefault(parsed.channel_rate_limit_period_seconds, 60)
       )
       channelRateLimitScope =
         parsed.channel_rate_limit_scope === 'key' ? 'key' : 'channel'
@@ -659,9 +659,9 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
 
   settingsObj.channel_rate_limit_enabled =
     formData.channel_rate_limit_enabled === true
-  settingsObj.channel_rate_limit_count = integerOrDefault(
-    formData.channel_rate_limit_count,
-    0
+  settingsObj.channel_rate_limit_count = Math.max(
+    1,
+    integerOrDefault(formData.channel_rate_limit_count, 1)
   )
   settingsObj.channel_rate_limit_period_seconds = Math.max(
     1,

@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -39,8 +38,11 @@ func CheckSelectedChannelRateLimit(c *gin.Context, channel *model.Channel, retry
 		return nil
 	}
 	settings := channel.GetOtherSettings()
-	if !settings.ChannelRateLimitEnabled || settings.ChannelRateLimitCount <= 0 || settings.ChannelRateLimitPeriodSeconds <= 0 {
+	if !settings.ChannelRateLimitEnabled {
 		return nil
+	}
+	if settings.ChannelRateLimitCount <= 0 || settings.ChannelRateLimitPeriodSeconds <= 0 {
+		return newChannelRateLimitError(channel.Id, fmt.Errorf("channel #%d has invalid rate limit settings", channel.Id), http.StatusInternalServerError)
 	}
 	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
 
@@ -85,19 +87,25 @@ func channelRateLimitKey(channelID int, userID int, keyIndex int, keyScope bool)
 }
 
 func allowChannelRateLimit(key string, count int, periodSeconds int) (bool, error) {
+	count64 := int64(count)
+	period64 := int64(periodSeconds)
+	if count64 <= 0 || period64 <= 0 || count64 > dto.ChannelRateLimitMaxExactInteger/period64 {
+		return false, fmt.Errorf("invalid channel rate limit: count=%d period=%d", count, periodSeconds)
+	}
+	capacity := count64 * period64
 	if common.RedisEnabled {
 		ctx := context.Background()
 		tb := limiter.New(ctx, common.RDB)
 		return tb.Allow(
 			ctx,
 			key,
-			limiter.WithCapacity(int64(count)*int64(periodSeconds)),
-			limiter.WithRate(int64(count)),
-			limiter.WithRequested(int64(periodSeconds)),
-			limiter.WithTTL(channelRateLimitTTLSeconds(int64(periodSeconds))),
+			limiter.WithCapacity(capacity),
+			limiter.WithRate(count64),
+			limiter.WithRequested(period64),
+			limiter.WithTTL(channelRateLimitTTLSeconds(period64)),
 		)
 	}
-	return allowChannelRateLimitMemory(key, int64(count), int64(periodSeconds)), nil
+	return allowChannelRateLimitMemory(key, count64, period64), nil
 }
 
 func allowChannelRateLimitMemory(key string, count int64, periodSeconds int64) bool {
@@ -122,11 +130,16 @@ func allowChannelRateLimitMemory(key string, count int64, periodSeconds int64) b
 	}
 
 	bucket.expiresAt = expiresAt
+	if bucket.tokens > capacity {
+		bucket.tokens = capacity
+	}
 	elapsed := now - bucket.lastTime
 	if elapsed > 0 {
-		bucket.tokens += elapsed * count
-		if bucket.tokens > capacity {
+		missingTokens := capacity - bucket.tokens
+		if missingTokens <= 0 || elapsed > missingTokens/count {
 			bucket.tokens = capacity
+		} else {
+			bucket.tokens += elapsed * count
 		}
 		bucket.lastTime = now
 	}
@@ -158,7 +171,7 @@ func cleanupExpiredChannelRateLimitBuckets(now int64) {
 
 func newChannelRateLimitError(channelID int, err error, statusCode int) *types.NewAPIError {
 	if err == nil {
-		err = errors.New(fmt.Sprintf("channel #%d rate limit reached", channelID))
+		err = fmt.Errorf("channel #%d rate limit reached", channelID)
 	}
 	return types.NewErrorWithStatusCode(
 		err,

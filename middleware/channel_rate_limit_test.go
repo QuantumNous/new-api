@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -52,6 +53,48 @@ func TestAllowChannelRateLimitMemoryCleansExpiredBuckets(t *testing.T) {
 
 	require.False(t, staleExists)
 	require.True(t, activeExists)
+}
+
+func TestAllowChannelRateLimitMemoryClampsCapacityImmediately(t *testing.T) {
+	resetChannelRateLimitMemory()
+
+	key := "rateLimit:channel:reconfigured"
+	now := time.Now().Unix()
+	channelRateLimitMemory.Lock()
+	channelRateLimitMemory.buckets[key] = &memoryTokenBucket{
+		tokens:    60,
+		lastTime:  now + 1,
+		expiresAt: now + 120,
+	}
+	channelRateLimitMemory.Unlock()
+
+	require.True(t, allowChannelRateLimitMemory(key, 1, 1))
+	require.False(t, allowChannelRateLimitMemory(key, 1, 1))
+}
+
+func TestAllowChannelRateLimitRejectsOverflowingCapacity(t *testing.T) {
+	allowed, err := allowChannelRateLimit("rateLimit:channel:overflow", 100000000, 100000000)
+
+	require.False(t, allowed)
+	require.Error(t, err)
+}
+
+func TestCheckSelectedChannelRateLimitRejectsInvalidEnabledSettings(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	settingsBytes, err := common.Marshal(dto.ChannelOtherSettings{
+		ChannelRateLimitEnabled:       true,
+		ChannelRateLimitCount:         0,
+		ChannelRateLimitPeriodSeconds: 60,
+	})
+	require.NoError(t, err)
+	channel := &model.Channel{Id: 123, OtherSettings: string(settingsBytes)}
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	retryParam := &service.RetryParam{Ctx: ctx, Retry: common.GetPointer(0)}
+
+	rateLimitErr := CheckSelectedChannelRateLimit(ctx, channel, retryParam, "test-model")
+
+	require.NotNil(t, rateLimitErr)
+	require.Equal(t, http.StatusInternalServerError, rateLimitErr.StatusCode)
 }
 
 func TestCheckSelectedChannelRateLimitIsUserScoped(t *testing.T) {
