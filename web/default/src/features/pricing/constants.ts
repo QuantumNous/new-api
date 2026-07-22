@@ -149,6 +149,9 @@ export const TOKEN_UNIT_DIVISORS = {
 /** Default token unit for pricing display */
 export const DEFAULT_TOKEN_UNIT: TokenUnit = 'M'
 
+/** Fixed USD-to-CNY rate used for official list-price comparisons. */
+export const OFFICIAL_PRICE_CNY_RATE = 7
+
 /** Currency used by the public model catalog. Prices are displayed 1:1. */
 export const PRICING_CURRENCIES = {
   CNY: 'CNY',

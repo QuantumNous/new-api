@@ -20,7 +20,10 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
 import type { PricingModel } from '../types'
-import { formatDynamicUnitPrice } from './dynamic-price'
+import {
+  formatDynamicUnitPrice,
+  getOfficialDynamicPricingSummary,
+} from './dynamic-price'
 import {
   formatOfficialPrice,
   formatOfficialRequestPrice,
@@ -34,6 +37,7 @@ const tokenModel: PricingModel = {
   quota_type: 0,
   model_ratio: 2.5,
   completion_ratio: 6,
+  cache_ratio: 0.1,
   enable_groups: ['sale'],
   group_ratio: { sale: 0.2 },
 }
@@ -49,23 +53,35 @@ const requestModel: PricingModel = {
   group_ratio: { sale: 0.25 },
 }
 
+const dynamicModel: PricingModel = {
+  id: 3,
+  model_name: 'discounted-dynamic-model',
+  quota_type: 0,
+  model_ratio: 0,
+  completion_ratio: 0,
+  enable_groups: [],
+  billing_mode: 'tiered_expr',
+  billing_expr: 'tier("standard", p * 5 + c * 30 + cr * 1)',
+}
+
 describe('official model-square prices', () => {
   test('keeps token base prices independent from the selected group discount', () => {
     assert.equal(
       formatPrice(tokenModel, 'input', 'M', false, 1, 1, 'sale'),
       '$1'
     )
-    assert.equal(formatOfficialPrice(tokenModel, 'input', 'M'), '$5')
+    assert.equal(formatOfficialPrice(tokenModel, 'input', 'M'), '¥35')
     assert.equal(
       formatPrice(tokenModel, 'output', 'M', false, 1, 1, 'sale'),
       '$6'
     )
-    assert.equal(formatOfficialPrice(tokenModel, 'output', 'M'), '$30')
+    assert.equal(formatOfficialPrice(tokenModel, 'output', 'M'), '¥210')
   })
 
-  test('keeps official token prices in USD while the current price changes currency', () => {
-    assert.equal(formatOfficialPrice(tokenModel, 'input', 'K'), '$0.005')
-    assert.equal(formatOfficialPrice(tokenModel, 'output', 'M'), '$30')
+  test('converts official token prices to CNY at a fixed 7x rate', () => {
+    assert.equal(formatOfficialPrice(tokenModel, 'input', 'K'), '¥0.035')
+    assert.equal(formatOfficialPrice(tokenModel, 'output', 'M'), '¥210')
+    assert.equal(formatOfficialPrice(tokenModel, 'cache', 'M'), '¥3.5')
     assert.equal(
       formatPrice(tokenModel, 'input', 'M', true, 1, 1, 'sale'),
       '¥1'
@@ -74,11 +90,11 @@ describe('official model-square prices', () => {
 
   test('keeps per-request base prices independent from the selected group discount', () => {
     assert.equal(formatRequestPrice(requestModel, false, 1, 1, 'sale'), '$0.1')
-    assert.equal(formatOfficialRequestPrice(requestModel), '$0.4')
+    assert.equal(formatOfficialRequestPrice(requestModel), '¥2.8')
     assert.equal(formatRequestPrice(requestModel, true, 1, 1, 'sale'), '¥0.1')
   })
 
-  test('keeps dynamic official prices in USD while the current price uses CNY', () => {
+  test('converts dynamic official prices to CNY at a fixed 7x rate', () => {
     assert.equal(
       formatDynamicUnitPrice(5, {
         tokenUnit: 'M',
@@ -94,6 +110,11 @@ describe('official model-square prices', () => {
         groupRatioMultiplier: 1,
       }),
       '$5'
+    )
+    const officialSummary = getOfficialDynamicPricingSummary(dynamicModel, 'M')
+    assert.deepEqual(
+      officialSummary?.entries.map((entry) => entry.formatted),
+      ['¥35', '¥210', '¥7']
     )
   })
 })

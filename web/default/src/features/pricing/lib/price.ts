@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
+import {
+  OFFICIAL_PRICE_CNY_RATE,
+  QUOTA_TYPE_VALUES,
+  TOKEN_UNIT_DIVISORS,
+} from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
 
@@ -140,7 +144,7 @@ export function formatPrice(
 /**
  * Format the catalog base price before any group multiplier is applied.
  *
- * The model square uses this as the official-price comparison value while
+ * Official USD list prices use a fixed 7 CNY per USD comparison rate while
  * the active price continues to reflect the viewer's selected group.
  */
 export function formatOfficialPrice(
@@ -153,8 +157,9 @@ export function formatOfficialPrice(
   }
 
   const priceInUSD = calculateTokenPrice(model, type, 1)
-  const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatPricingCurrency(price, false)
+  const priceInCNY =
+    (priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]) * OFFICIAL_PRICE_CNY_RATE
+  return formatPricingCurrency(priceInCNY, true)
 }
 
 /**
@@ -220,11 +225,12 @@ export function formatRequestPrice(
   return formatPricingCurrency(priceInUSD, showInCny, 4, 4)
 }
 
-/** Format the catalog base price for pay-per-request models. */
+/** Format the catalog base request price in CNY at the fixed official rate. */
 export function formatOfficialRequestPrice(model: PricingModel): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
-  return formatPricingCurrency(model.model_price || 0, false, 4, 4)
+  const priceInCNY = (model.model_price || 0) * OFFICIAL_PRICE_CNY_RATE
+  return formatPricingCurrency(priceInCNY, true, 4, 4)
 }

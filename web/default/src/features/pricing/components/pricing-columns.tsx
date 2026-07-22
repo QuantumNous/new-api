@@ -29,7 +29,10 @@ import { StatusBadge } from '@/components/status-badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
-import { getDynamicPricingSummary } from '../lib/dynamic-price'
+import {
+  getDynamicPricingSummary,
+  getOfficialDynamicPricingSummary,
+} from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
@@ -150,13 +153,10 @@ export function usePricingColumns(
           const currentValue = primaryEntries
             .map((entry) => stripTrailingZeros(entry.formatted))
             .join(' / ')
-          const officialDynamicSummary = getDynamicPricingSummary(model, {
-            tokenUnit,
-            showRechargePrice: false,
-            priceRate,
-            usdExchangeRate,
-            groupRatioMultiplier: 1,
-          })
+          const officialDynamicSummary = getOfficialDynamicPricingSummary(
+            model,
+            tokenUnit
+          )
           const officialEntries = new Map(
             (officialDynamicSummary?.primaryEntries ?? []).map((entry) => [
               entry.key,
@@ -288,13 +288,10 @@ export function usePricingColumns(
           }
 
           const cachedPrice = stripTrailingZeros(cacheEntry.formatted)
-          const officialDynamicSummary = getDynamicPricingSummary(model, {
-            tokenUnit,
-            showRechargePrice: false,
-            priceRate,
-            usdExchangeRate,
-            groupRatioMultiplier: 1,
-          })
+          const officialDynamicSummary = getOfficialDynamicPricingSummary(
+            model,
+            tokenUnit
+          )
           const officialCacheEntry = officialDynamicSummary?.entries.find(
             (entry) => entry.field === 'cacheReadPrice'
           )

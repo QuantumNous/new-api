@@ -34,7 +34,10 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
-import { getDynamicPricingSummary } from '../lib/dynamic-price'
+import {
+  getDynamicPricingSummary,
+  getOfficialDynamicPricingSummary,
+} from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
@@ -102,13 +105,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       })
     : null
   const officialDynamicSummary = isDynamicPricing
-    ? getDynamicPricingSummary(props.model, {
-        tokenUnit,
-        showRechargePrice: false,
-        priceRate,
-        usdExchangeRate,
-        groupRatioMultiplier: 1,
-      })
+    ? getOfficialDynamicPricingSummary(props.model, tokenUnit)
     : null
 
   const visibleBadges = [...endpoints.slice(0, 2), ...tags.slice(0, 1)]
