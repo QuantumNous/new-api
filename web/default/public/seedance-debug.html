@@ -82,29 +82,104 @@
     .auth-chip.warn { border-color: rgba(255,210,124,.35); color: #ffd27c; }
     .workspace {
       display: grid;
-      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      grid-template-columns: var(--sidebar) 6px minmax(0, 1fr);
       min-height: 0;
     }
     .create-panel, .history-panel {
       min-height: 0; overflow: auto;
-      border-right: 1px solid rgba(255,255,255,.07);
     }
-    .history-panel { border-right: 0; padding: 14px 16px 24px; }
+    .history-panel { padding: 14px 16px 24px; }
     .create-panel {
-      display: flex; flex-direction: column; gap: 12px;
-      padding: 12px 14px 20px;
+      display: flex; flex-direction: column; gap: 0;
+      padding: 0;
       background: rgba(17,20,28,.72);
+      overflow: hidden;
+      border-right: 0;
     }
+    .splitter {
+      position: relative;
+      z-index: 6;
+      width: 6px;
+      margin: 0 -0;
+      cursor: col-resize;
+      background: rgba(255,255,255,.06);
+      touch-action: none;
+      outline: none;
+    }
+    .splitter::before {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0; left: -4px; right: -4px;
+    }
+    .splitter::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 2px; height: 36px;
+      transform: translate(-50%, -50%);
+      border-radius: 999px;
+      background: rgba(157, 167, 184, .55);
+    }
+    .splitter:hover,
+    .splitter:focus-visible,
+    .splitter.dragging {
+      background: rgba(95, 140, 255, .28);
+    }
+    .splitter:hover::after,
+    .splitter:focus-visible::after,
+    .splitter.dragging::after {
+      background: #9fc8ff;
+    }
+    body.resizing-sidebar {
+      cursor: col-resize;
+      user-select: none;
+    }
+    body.resizing-sidebar * {
+      cursor: col-resize !important;
+      user-select: none !important;
+    }
+    .create-scroll {
+      flex: 1 1 auto; min-height: 0; overflow: auto;
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 10px 12px 8px;
+    }
+    .create-footer {
+      flex: 0 0 auto;
+      border-top: 1px solid rgba(255,255,255,.08);
+      background: rgba(9,11,16,.94);
+      padding: 8px 12px 10px;
+      display: grid; gap: 7px;
+    }
+    .footer-actions {
+      display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: stretch;
+    }
+    .footer-actions .generate { margin: 0; width: auto; padding: 11px 14px; font-size: 14px; }
+    .footer-actions .ghost { padding: 11px 14px; }
     .section {
       border: 1px solid rgba(255,255,255,.07);
       border-radius: 10px;
       background: rgba(23,28,39,.45);
-      padding: 12px;
+      padding: 10px;
     }
-    .field { margin-bottom: 10px; }
+    .section-head {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .section-head h2 { margin: 0; }
+    .section-head .spacer { flex: 1 1 auto; min-width: 4px; }
+    .link-btn {
+      border: 0; background: transparent; color: #9fc8ff; padding: 0;
+      font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    .link-btn:hover { color: #c5ddff; }
+    .btn-xs {
+      padding: 4px 8px; font-size: 11px; border-radius: 7px;
+    }
+    .field { margin-bottom: 8px; }
     .field:last-child { margin-bottom: 0; }
-    label { display: block; margin: 0 0 6px; color: var(--muted); font-size: 12px; }
-    .hint { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+    label { display: block; margin: 0 0 5px; color: var(--muted); font-size: 12px; }
+    .hint { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .actions { display: flex; flex-wrap: wrap; gap: 7px; }
     .primary { background: var(--accent); color: #03120a; }
@@ -118,29 +193,31 @@
     }
     .settings-compact {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 8px;
     }
-    .settings-compact .field { margin: 0; }
+    .settings-compact .field { margin: 0; min-width: 0; }
     .generate {
       width: 100%; padding: 13px 16px; font-size: 15px; margin-top: 2px;
     }
     .status-box {
-      min-height: 38px; border: 1px solid #283346; border-radius: 8px;
-      background: #080c14; color: #cbd4e5; padding: 9px 11px; font-size: 12px;
+      min-height: 0; max-height: 52px; overflow: auto;
+      border: 1px solid #283346; border-radius: 8px;
+      background: #080c14; color: #cbd4e5; padding: 7px 9px; font-size: 11px;
       white-space: pre-wrap; word-break: break-word;
     }
     .status-box.ok { color: #7de6aa; }
     .status-box.bad { color: #ff9baa; }
     .status-box.warn { color: #ffd27c; }
     .upload {
-      display: grid; gap: 6px; place-items: center; min-height: 84px;
+      display: grid; gap: 2px; place-items: center; min-height: 56px;
       border: 1px dashed #465166; border-radius: 8px;
       background: rgba(23,28,39,.72); color: var(--muted);
-      text-align: center; padding: 12px; cursor: pointer;
+      text-align: center; padding: 8px; cursor: pointer;
     }
     .upload input { display: none; }
-    .upload strong { color: var(--soft); font-size: 13px; }
+    .upload strong { color: var(--soft); font-size: 12px; }
+    .upload span { font-size: 11px; }
     .face-pass {
       position: relative;
       display: inline-flex; align-items: center; gap: 8px;
@@ -158,37 +235,48 @@
       transition: opacity .15s ease, transform .15s ease;
     }
     .face-pass:hover .tip, .face-pass:focus-within .tip { opacity: 1; transform: translateY(0); }
-    .asset-list { display: grid; gap: 8px; max-height: 220px; overflow: auto; margin-top: 8px; }
+    .asset-list {
+      display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden;
+      margin-top: 8px; padding-bottom: 4px; max-width: 100%;
+    }
+    .asset-list > .hint { flex: 1; margin: 0; }
     .asset {
-      display: grid; grid-template-columns: 52px minmax(0,1fr); gap: 8px;
+      position: relative;
+      flex: 0 0 88px; width: 88px;
       border: 1px solid var(--line); border-radius: 8px;
-      background: rgba(23,28,39,.72); padding: 7px;
+      background: rgba(23,28,39,.72); padding: 6px;
+    }
+    .asset-remove {
+      position: absolute; top: 4px; right: 4px; z-index: 2;
+      width: 18px; height: 18px; padding: 0; border-radius: 50%;
+      background: #3b1f2c; color: #ffb3bf; font-size: 12px; line-height: 1;
+      display: grid; place-items: center; font-weight: 700;
     }
     .asset-preview {
-      width: 52px; height: 52px; border-radius: 7px; border: 1px solid #343c4e;
+      width: 100%; height: 56px; border-radius: 6px; border: 1px solid #343c4e;
       overflow: hidden; display: grid; place-items: center; background: #080c13;
-      color: var(--muted); font-size: 11px;
+      color: var(--muted); font-size: 11px; cursor: zoom-in;
     }
     .asset-preview img, .asset-preview video { width: 100%; height: 100%; object-fit: cover; }
-    .asset-meta { min-width: 0; }
+    .asset-meta { min-width: 0; margin-top: 6px; }
     .asset-tag {
-      display: inline-flex; align-items: center; gap: 4px;
-      margin-bottom: 5px; padding: 3px 8px; border-radius: 999px;
-      border: 1px solid #49617f; background: #202a3a; color: var(--soft);
-      font-size: 12px; font-weight: 700;
+      display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      margin-bottom: 4px; color: var(--soft); font-size: 11px; font-weight: 700;
     }
-    .asset-tools { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-    .asset-tools button { padding: 5px 7px; font-size: 11px; }
+    .asset-tools { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+    .asset-tools button { padding: 3px 6px; font-size: 10px; }
     .asset-status { font-size: 10px; color: var(--muted); word-break: break-all; }
     .asset-status.ok { color: #7de6aa; }
     .asset-status.bad { color: #ff9baa; }
     .asset-status.warn { color: #ffd27c; }
     .prompt-wrap { position: relative; }
     .prompt-editor {
-      width: 100%; height: 140px; max-height: 180px; border: 1px solid var(--line); border-radius: 8px;
-      background: var(--panel-2); color: var(--text); outline: none; padding: 10px;
+      width: 100%; min-height: 80px; height: 96px; max-height: min(48vh, 420px);
+      border: 1px solid var(--line); border-radius: 8px;
+      background: var(--panel-2); color: var(--text); outline: none; padding: 8px 10px;
       overflow-x: hidden; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
       overscroll-behavior: contain; font-size: 13px;
+      resize: vertical;
     }
     .prompt-editor:focus {
       border-color: var(--accent-2);
@@ -218,7 +306,11 @@
       display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 8px;
       padding: 6px; border-radius: 8px; cursor: pointer;
     }
-    .mention-item:hover { background: var(--panel-3); }
+    .mention-item:hover, .mention-item.active { background: var(--panel-3); }
+    .mention-item.active {
+      outline: 1px solid rgba(95, 140, 255, .45);
+      background: rgba(95, 140, 255, .14);
+    }
     .mention-thumb {
       width: 40px; height: 40px; border-radius: 7px; background: #080c13;
       display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 11px;
@@ -238,29 +330,54 @@
       color: var(--muted); font-size: 9px;
     }
     .ref-thumb img, .ref-thumb video { width: 100%; height: 100%; object-fit: cover; }
-    .advanced details {
-      border: 1px solid rgba(255,255,255,.07);
-      border-radius: 10px;
-      background: rgba(23,28,39,.35);
-      padding: 0;
+    .advanced-modal-card {
+      width: min(520px, 100%);
+      max-height: min(84vh, 760px);
+      overflow: auto;
+      border: 1px solid var(--line); border-radius: 12px;
+      background: #11141c; padding: 14px; box-shadow: 0 24px 80px rgba(0,0,0,.45);
     }
-    .advanced summary {
-      cursor: pointer; list-style: none; padding: 11px 12px;
-      color: var(--soft); font-weight: 700; font-size: 13px;
-      user-select: none;
+    .url-modal-card {
+      width: min(440px, 100%);
+      border: 1px solid var(--line); border-radius: 12px;
+      background: #11141c; padding: 14px; box-shadow: 0 24px 80px rgba(0,0,0,.45);
     }
-    .advanced summary::-webkit-details-marker { display: none; }
-    .advanced summary::after { content: "▾"; float: right; color: var(--muted); }
-    .advanced details[open] summary::after { content: "▴"; }
-    .advanced-body { padding: 0 12px 12px; }
+    .url-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
     .payload-box {
       width: 100%; min-height: 110px; font-family: ui-monospace, Consolas, monospace;
       font-size: 11px; resize: vertical;
     }
-    .model-hint {
-      border: 1px solid #394357; border-radius: 8px; background: rgba(32,38,55,.55);
-      padding: 8px 10px; color: var(--muted); font-size: 11px; margin-top: 8px;
+    .model-row {
+      display: flex; align-items: center; gap: 8px;
     }
+    .model-row select { flex: 1; min-width: 0; }
+    .model-help {
+      position: relative;
+      flex: none; width: 28px; height: 28px; border-radius: 50%;
+      border: 1px solid #49617f; color: #9fc8ff; background: rgba(32,38,55,.72);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px;
+      cursor: help; user-select: none;
+    }
+    .model-help .tip {
+      position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 20;
+      width: min(280px, 72vw); padding: 9px 11px;
+      border: 1px solid var(--line); border-radius: 8px; background: #1a2130;
+      color: var(--soft); font-size: 12px; line-height: 1.45; font-weight: 400;
+      box-shadow: 0 10px 28px rgba(0,0,0,.35);
+      opacity: 0; pointer-events: none; transform: translateY(4px);
+      transition: opacity .15s ease, transform .15s ease;
+    }
+    .model-help:hover .tip, .model-help:focus-within .tip { opacity: 1; transform: translateY(0); }
+    .asset-modal-body {
+      min-height: 120px; display: grid; place-items: center;
+      background: #080c13; border: 1px solid var(--line); border-radius: 8px;
+      overflow: hidden; padding: 8px;
+    }
+    .asset-modal-body img, .asset-modal-body video {
+      max-width: 100%; max-height: min(70vh, 560px); border-radius: 6px;
+    }
+    .asset-modal-body audio { width: 100%; }
+    .asset-modal-body .asset-modal-fallback { color: var(--muted); font-size: 13px; text-align: center; padding: 24px; }
     .history-head {
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
       margin-bottom: 12px;
@@ -350,7 +467,8 @@
     .hidden { display: none !important; }
     @media (max-width: 980px) {
       .workspace { grid-template-columns: 1fr; }
-      .create-panel { border-right: 0; border-bottom: 1px solid rgba(255,255,255,.07); max-height: none; }
+      .splitter { display: none; }
+      .create-panel { border-right: 0; border-bottom: 1px solid rgba(255,255,255,.07); max-height: min(70vh, 720px); }
       .app { height: auto; min-height: 100vh; }
     }
   </style>
@@ -374,167 +492,121 @@
 
     <div class="workspace">
       <aside class="create-panel">
-        <section class="section" id="accountSection">
-          <h2>账号</h2>
-          <div id="sessionAuth" class="hidden">
-            <div class="field">
-              <label for="tokenSelect">选择令牌</label>
-              <select id="tokenSelect"></select>
-              <p class="hint" id="tokenSelectHint">将从账号拉取完整 Key（仅内存，不落盘）。</p>
-            </div>
-          </div>
-          <div id="guestAuth">
-            <div class="field">
-              <label for="token">API Key</label>
-              <input id="token" type="password" placeholder="sk-..." autocomplete="off">
-            </div>
-            <div class="actions">
-              <button class="secondary" id="saveKeyBtn" type="button">保存 Key</button>
-              <button class="secondary" id="toggleKeyBtn" type="button">显示</button>
-              <button class="danger" id="clearKeyBtn" type="button">清除</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="section">
-          <h2>模型</h2>
-          <div class="field">
-            <label for="model">选择模型（来自模型广场）</label>
-            <select id="model"></select>
-          </div>
-          <div class="field hidden" id="customModelField">
-            <label for="customModel">自定义模型 ID</label>
-            <input id="customModel" type="text" placeholder="例如 wstar-seedance-2-fast / seedance2.0" autocomplete="off">
-            <p class="hint">仅兼容旧配置，已不再使用。</p>
-          </div>
-          <div class="model-hint" id="modelHint"></div>
-        </section>
-
-        <section class="section">
-          <h2>提示词</h2>
-          <div class="prompt-wrap">
-            <div class="prompt-editor" id="prompt" contenteditable="true" data-placeholder="描述画面、人物、动作、镜头。输入 @ 插入图片1 / 视频1。">一只橘猫在窗边打哈欠，电影感光线，高清画质。</div>
-            <div class="mention-menu" id="mentionMenu"></div>
-          </div>
-          <div class="ref-list" id="refList"></div>
-        </section>
-
-        <section class="section">
-          <h2>参考素材</h2>
-          <label class="upload">
-            <input id="assetFiles" type="file" accept="image/*,audio/*,video/*" multiple>
-            <strong>上传参考素材</strong>
-            <span>上传后全部作为参考传入模型；提示词里输入 @ 插入「图片1 / 视频1」。</span>
-          </label>
-          <div class="field" style="margin-top:10px">
-            <label for="manualUrl">或粘贴公网素材 URL</label>
-            <div class="actions">
-              <input id="manualUrl" type="url" placeholder="https://...">
-              <button class="secondary" id="addUrlBtn" type="button">添加</button>
-            </div>
-          </div>
-          <div class="asset-list" id="assetList"></div>
-        </section>
-
-        <section class="section">
-          <h2>常用参数</h2>
-          <div class="settings-compact">
-            <div class="field">
-              <label for="duration">时长</label>
-              <select id="duration"></select>
-            </div>
-            <div class="field">
-              <label for="aspectRatio">比例</label>
-              <select id="aspectRatio">
-                <option value="16:9" selected>16:9</option>
-                <option value="9:16">9:16</option>
-                <option value="1:1">1:1</option>
-              </select>
-            </div>
-            <div class="field" id="resolutionField">
-              <label for="resolution">分辨率</label>
-              <select id="resolution">
-                <option value="480p">480p</option>
-                <option value="720p" selected>720p</option>
-                <option value="1080p">1080p</option>
-              </select>
-            </div>
-            <div class="field" id="audioField">
-              <label for="generateAudio">配音</label>
-              <select id="generateAudio">
-                <option value="1" selected>开启</option>
-                <option value="0">关闭</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        <button class="primary generate" id="submitBtn" type="button">立即生成</button>
-        <div class="status-box" id="statusBox">正在初始化…</div>
-        <div class="actions">
-          <button class="ghost" id="clearAllBtn" type="button">清空创作</button>
-        </div>
-
-        <div class="advanced">
-          <details>
-            <summary>高级设置</summary>
-            <div class="advanced-body">
+        <div class="create-scroll">
+          <section class="section" id="accountSection">
+            <h2>账号</h2>
+            <div id="sessionAuth" class="hidden">
               <div class="field">
-                <label for="apiBase">API Base URL</label>
-                <input id="apiBase" type="url" placeholder="默认同源">
-                <p class="hint" id="apiBaseHint">默认同源，可改成测试机地址。</p>
+                <label for="tokenSelect">选择令牌</label>
+                <select id="tokenSelect"></select>
+                <p class="hint" id="tokenSelectHint">将从账号拉取完整 Key（仅内存，不落盘）。</p>
               </div>
+            </div>
+            <div id="guestAuth">
               <div class="field">
-                <label for="imageHost">图床上传地址</label>
-                <input id="imageHost" type="url">
-              </div>
-              <div class="field">
-                <label for="imageToken">图床 Token</label>
-                <input id="imageToken" type="password" autocomplete="off">
-              </div>
-              <div class="actions field">
-                <button class="secondary" id="saveImageBtn" type="button">保存图床</button>
-                <button class="secondary" id="toggleImageTokenBtn" type="button">显示</button>
-              </div>
-              <label class="face-pass" for="facePass">
-                <input id="facePass" type="checkbox">
-                <span>过人脸审核</span>
-                <span class="tip">针对某些不能过人脸的模型，我们的人脸处理技术帮你处理，满血版本不要勾选。</span>
-              </label>
-              <div class="field" id="modeField">
-                <label for="mode">生成模式</label>
-                <select id="mode">
-                  <option value="text_to_video">文本生成</option>
-                  <option value="image_to_video">首帧 / 图生</option>
-                  <option value="reference_to_video" selected>全能参考</option>
-                </select>
-              </div>
-              <div class="field" id="mingizSendField">
-                <label for="mingizSend">素材发送方式</label>
-                <select id="mingizSend">
-                  <option value="multipart" selected>multipart 直传本地文件</option>
-                  <option value="json">JSON + 图床 URL</option>
-                </select>
-              </div>
-              <div class="field" id="watermarkField">
-                <label for="watermark">水印</label>
-                <select id="watermark">
-                  <option value="0" selected>关闭</option>
-                  <option value="1">开启</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="payloadPreview">请求体预览（可编辑后提交）</label>
-                <textarea class="payload-box" id="payloadPreview" spellcheck="false"></textarea>
-                <p class="hint">切换模型/参数会自动重建。multipart 模式下此处为字段说明。</p>
+                <label for="token">API Key</label>
+                <input id="token" type="password" placeholder="sk-..." autocomplete="off">
               </div>
               <div class="actions">
-                <button class="secondary" id="copyCurlBtn" type="button">复制 curl</button>
+                <button class="secondary btn-xs" id="saveKeyBtn" type="button">保存 Key</button>
+                <button class="secondary btn-xs" id="toggleKeyBtn" type="button">显示</button>
+                <button class="danger btn-xs" id="clearKeyBtn" type="button">清除</button>
               </div>
             </div>
-          </details>
+          </section>
+
+          <section class="section">
+            <h2>模型</h2>
+            <div class="field">
+              <div class="model-row">
+                <select id="model" aria-label="选择模型"></select>
+                <span class="model-help" id="modelHelp" tabindex="0" role="button" aria-label="模型说明">?
+                  <span class="tip" id="modelHelpTip">选择模型后显示说明</span>
+                </span>
+              </div>
+            </div>
+            <div class="field hidden" id="customModelField">
+              <label for="customModel">自定义模型 ID</label>
+              <input id="customModel" type="text" placeholder="例如 wstar-seedance-2-fast / seedance2.0" autocomplete="off">
+              <p class="hint">仅兼容旧配置，已不再使用。</p>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>提示词</h2>
+            <div class="prompt-wrap">
+              <div class="prompt-editor" id="prompt" contenteditable="true" data-placeholder="描述画面、人物、动作、镜头。输入 @ 插入图片1 / 视频1。">一只橘猫在窗边打哈欠，电影感光线，高清画质。</div>
+              <div class="mention-menu" id="mentionMenu"></div>
+            </div>
+            <div class="ref-list" id="refList"></div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <h2>参考素材</h2>
+              <button class="link-btn" id="openUrlModalBtn" type="button">粘贴公网 URL</button>
+              <span class="spacer"></span>
+              <button class="ghost btn-xs" id="clearAllBtn" type="button">清空创作</button>
+            </div>
+            <label class="upload">
+              <input id="assetFiles" type="file" accept="image/*,audio/*,video/*" multiple>
+              <strong>上传参考素材</strong>
+              <span>支持多文件；提示词输入 @ 插入引用</span>
+            </label>
+            <div class="asset-list" id="assetList"></div>
+          </section>
+
+          <section class="section">
+            <h2>常用参数</h2>
+            <div class="settings-compact">
+              <div class="field">
+                <label for="duration">时长</label>
+                <select id="duration"></select>
+              </div>
+              <div class="field">
+                <label for="aspectRatio">比例</label>
+                <select id="aspectRatio">
+                  <option value="16:9" selected>16:9</option>
+                  <option value="9:16">9:16</option>
+                  <option value="1:1">1:1</option>
+                </select>
+              </div>
+              <div class="field" id="resolutionField">
+                <label for="resolution">分辨率</label>
+                <select id="resolution">
+                  <option value="480p">480p</option>
+                  <option value="720p" selected>720p</option>
+                  <option value="1080p">1080p</option>
+                </select>
+              </div>
+              <div class="field" id="audioField">
+                <label for="generateAudio">配音</label>
+                <select id="generateAudio">
+                  <option value="1" selected>开启</option>
+                  <option value="0">关闭</option>
+                </select>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="create-footer">
+          <div class="status-box" id="statusBox">正在初始化…</div>
+          <div class="footer-actions">
+            <button class="ghost" id="openAdvancedBtn" type="button">高级</button>
+            <button class="primary generate" id="submitBtn" type="button">立即生成</button>
+          </div>
         </div>
       </aside>
+
+      <div
+        class="splitter"
+        id="sidebarSplitter"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="拖动调整左右栏宽度"
+        tabindex="0"
+      ></div>
 
       <section class="history-panel">
         <div class="history-head">
@@ -559,6 +631,95 @@
     </div>
   </div>
 
+  <div class="modal" id="assetModal" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="assetModalTitle">素材预览</h2>
+        <button class="ghost" id="closeAssetModalBtn" type="button">关闭</button>
+      </div>
+      <div class="asset-modal-body" id="assetModalBody"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="urlModal" role="dialog" aria-modal="true">
+    <div class="url-modal-card">
+      <div class="modal-head">
+        <h2>粘贴公网素材 URL</h2>
+        <button class="ghost" id="closeUrlModalBtn" type="button">关闭</button>
+      </div>
+      <div class="field">
+        <label for="manualUrl">素材地址</label>
+        <input id="manualUrl" type="url" placeholder="https://...">
+        <p class="hint">确认后加入参考素材区；图片/视频会显示缩略图。</p>
+      </div>
+      <div class="url-modal-actions">
+        <button class="ghost" id="cancelUrlModalBtn" type="button">取消</button>
+        <button class="primary" id="addUrlBtn" type="button">确认添加</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="advancedModal" role="dialog" aria-modal="true">
+    <div class="advanced-modal-card">
+      <div class="modal-head">
+        <h2>高级设置</h2>
+        <button class="ghost" id="closeAdvancedBtn" type="button">关闭</button>
+      </div>
+      <div class="field">
+        <label for="apiBase">API Base URL</label>
+        <input id="apiBase" type="url" placeholder="默认同源">
+        <p class="hint" id="apiBaseHint">默认同源，可改成测试机地址。</p>
+      </div>
+      <div class="field">
+        <label for="imageHost">图床上传地址</label>
+        <input id="imageHost" type="url">
+      </div>
+      <div class="field">
+        <label for="imageToken">图床 Token</label>
+        <input id="imageToken" type="password" autocomplete="off">
+      </div>
+      <div class="actions field">
+        <button class="secondary" id="saveImageBtn" type="button">保存图床</button>
+        <button class="secondary" id="toggleImageTokenBtn" type="button">显示</button>
+      </div>
+      <label class="face-pass" for="facePass">
+        <input id="facePass" type="checkbox">
+        <span>过人脸审核</span>
+        <span class="tip">针对某些不能过人脸的模型，我们的人脸处理技术帮你处理，满血版本不要勾选。</span>
+      </label>
+      <div class="field" id="modeField">
+        <label for="mode">生成模式</label>
+        <select id="mode">
+          <option value="text_to_video">文本生成</option>
+          <option value="image_to_video">首帧 / 图生</option>
+          <option value="reference_to_video" selected>全能参考</option>
+        </select>
+      </div>
+      <div class="field" id="mingizSendField">
+        <label for="mingizSend">素材发送方式</label>
+        <select id="mingizSend">
+          <option value="multipart" selected>multipart 直传本地文件</option>
+          <option value="json">JSON + 图床 URL</option>
+        </select>
+      </div>
+      <div class="field" id="watermarkField">
+        <label for="watermark">水印</label>
+        <select id="watermark">
+          <option value="0" selected>关闭</option>
+          <option value="1">开启</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="payloadPreview">请求体预览（可编辑后提交）</label>
+        <textarea class="payload-box" id="payloadPreview" spellcheck="false"></textarea>
+        <p class="hint">切换模型/参数会自动重建。multipart 模式下此处为字段说明。</p>
+      </div>
+      <div class="actions">
+        <button class="secondary" id="copyCurlBtn" type="button">复制 curl</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const DEFAULT_IMAGE_HOST = "https://imageproxy.zhongzhuan.chat/api/upload";
     const DEFAULT_IMAGE_TOKEN = "sk-6In87eJEghtCGtvHEL8rNyR9lnDLlbcTQeqZpgjCPP8zmWab";
@@ -572,6 +733,7 @@
       tasks: "sd4_tasks",
       imageHost: "sd4_image_host",
       imageToken: "sd4_image_token",
+      sidebar: "sd4_sidebar_w",
     };
     const CUSTOM_MODEL_VALUE = "__custom__";
     const DEFAULT_CUSTOM_MODEL = "seedance2.0";
@@ -729,7 +891,8 @@
       model: document.getElementById("model"),
       customModel: document.getElementById("customModel"),
       customModelField: document.getElementById("customModelField"),
-      modelHint: document.getElementById("modelHint"),
+      modelHelp: document.getElementById("modelHelp"),
+      modelHelpTip: document.getElementById("modelHelpTip"),
       mode: document.getElementById("mode"),
       modeField: document.getElementById("modeField"),
       mingizSend: document.getElementById("mingizSend"),
@@ -750,6 +913,13 @@
       facePass: document.getElementById("facePass"),
       manualUrl: document.getElementById("manualUrl"),
       addUrlBtn: document.getElementById("addUrlBtn"),
+      openUrlModalBtn: document.getElementById("openUrlModalBtn"),
+      closeUrlModalBtn: document.getElementById("closeUrlModalBtn"),
+      cancelUrlModalBtn: document.getElementById("cancelUrlModalBtn"),
+      urlModal: document.getElementById("urlModal"),
+      openAdvancedBtn: document.getElementById("openAdvancedBtn"),
+      closeAdvancedBtn: document.getElementById("closeAdvancedBtn"),
+      advancedModal: document.getElementById("advancedModal"),
       submitBtn: document.getElementById("submitBtn"),
       copyCurlBtn: document.getElementById("copyCurlBtn"),
       clearAllBtn: document.getElementById("clearAllBtn"),
@@ -768,6 +938,12 @@
       video: document.getElementById("video"),
       download: document.getElementById("download"),
       closePreviewBtn: document.getElementById("closePreviewBtn"),
+      assetModal: document.getElementById("assetModal"),
+      assetModalTitle: document.getElementById("assetModalTitle"),
+      assetModalBody: document.getElementById("assetModalBody"),
+      closeAssetModalBtn: document.getElementById("closeAssetModalBtn"),
+      sidebarSplitter: document.getElementById("sidebarSplitter"),
+      workspace: document.querySelector(".workspace"),
     };
 
     let assets = [];
@@ -776,6 +952,7 @@
     let polling = false;
     let pollTimer = 0;
     let mentionTriggerRange = null;
+    let mentionActiveIndex = 0;
     let previewObjectUrl = "";
     let rebuildTimer = 0;
     let authMode = "guest";
@@ -868,8 +1045,41 @@
       return "";
     }
 
+    function getSiteUserId() {
+      try {
+        const uid = localStorage.getItem("uid");
+        if (uid) return String(uid);
+        const raw = localStorage.getItem("user");
+        if (!raw) return "";
+        const user = JSON.parse(raw);
+        return user && user.id != null ? String(user.id) : "";
+      } catch {
+        return "";
+      }
+    }
+    function siteHeaders(extra = {}) {
+      const headers = { ...(extra || {}) };
+      const uid = getSiteUserId();
+      if (uid) headers["New-Api-User"] = uid;
+      return headers;
+    }
     function siteApi(path, options = {}) {
-      return fetch(path, { ...options, credentials: "include" });
+      const { timeoutMs = 0, headers, signal, ...rest } = options;
+      const ctrl = timeoutMs > 0 ? new AbortController() : null;
+      let timer = 0;
+      if (ctrl) {
+        timer = setTimeout(() => ctrl.abort(), timeoutMs);
+        if (signal) {
+          if (signal.aborted) ctrl.abort();
+          else signal.addEventListener("abort", () => ctrl.abort(), { once: true });
+        }
+      }
+      return fetch(path, {
+        ...rest,
+        credentials: "include",
+        headers: siteHeaders(headers),
+        signal: ctrl ? ctrl.signal : signal,
+      }).finally(() => { if (timer) clearTimeout(timer); });
     }
 
     function updateAuthUI() {
@@ -925,13 +1135,31 @@
     }
 
     async function initAuth() {
+      const uid = getSiteUserId();
+      if (!uid) {
+        authMode = "guest";
+        authUser = null;
+        sessionKey = "";
+        updateAuthUI();
+        const saved = readLocal(STORAGE.key);
+        if (saved) {
+          els.token.value = saved;
+          setStatus("未登录，已载入本地 API Key。", "ok");
+        } else {
+          setStatus("未登录：填写 API Key，或点击「去登录」使用账号令牌。", "warn");
+        }
+        return;
+      }
       try {
-        const res = await siteApi("/api/user/self");
+        const res = await siteApi("/api/user/self", { timeoutMs: 3000 });
         const data = await readJson(res);
         const user = data.data || ((data.username || data.id) ? data : null);
         if (res.ok && data.success !== false && user && (user.username || user.id)) {
           authUser = user;
           authMode = "session";
+          if (user.id != null) {
+            try { localStorage.setItem("uid", String(user.id)); } catch { /* ignore */ }
+          }
           updateAuthUI();
           try {
             await loadUserTokens();
@@ -942,8 +1170,21 @@
           }
           return;
         }
-      } catch {
-        /* guest */
+      } catch (err) {
+        const aborted = err && (err.name === "AbortError" || /abort/i.test(String(err.message || "")));
+        authMode = "guest";
+        authUser = null;
+        sessionKey = "";
+        updateAuthUI();
+        const saved = readLocal(STORAGE.key);
+        if (saved) els.token.value = saved;
+        setStatus(
+          aborted
+            ? "登录检测超时，已切换为 API Key 模式。"
+            : `登录检测失败，已切换为 API Key 模式${err && err.message ? "：" + err.message : "。"}`,
+          "warn"
+        );
+        return;
       }
       authMode = "guest";
       authUser = null;
@@ -1156,8 +1397,21 @@
       assets.forEach((asset) => {
         const row = document.createElement("div");
         row.className = "asset";
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "asset-remove";
+        removeBtn.type = "button";
+        removeBtn.title = "删除素材";
+        removeBtn.setAttribute("aria-label", "删除素材");
+        removeBtn.textContent = "×";
+        removeBtn.onclick = (e) => {
+          e.stopPropagation();
+          removeAsset(asset.id);
+        };
+
         const preview = document.createElement("div");
         preview.className = "asset-preview";
+        preview.title = "点击放大";
         if (asset.kind === "image" && asset.previewUrl) {
           const img = document.createElement("img");
           img.src = asset.previewUrl;
@@ -1171,6 +1425,8 @@
         } else {
           preview.textContent = kindLabel(asset.kind);
         }
+        preview.onclick = () => showAssetPreview(asset);
+
         const meta = document.createElement("div");
         meta.className = "asset-meta";
         const tagEl = document.createElement("div");
@@ -1183,25 +1439,24 @@
         mentionBtn.type = "button";
         mentionBtn.textContent = "@";
         mentionBtn.title = "插入到提示词";
-        mentionBtn.onclick = () => insertMention(asset);
-        const removeBtn = document.createElement("button");
-        removeBtn.className = "danger";
-        removeBtn.type = "button";
-        removeBtn.textContent = "删除";
-        removeBtn.onclick = () => removeAsset(asset.id);
+        mentionBtn.onclick = (e) => {
+          e.stopPropagation();
+          insertMention(asset);
+        };
         const status = document.createElement("span");
         const st = String(asset.uploadStatus || "");
         status.className = "asset-status " + (st === "ready" ? "ok" : st === "failed" ? "bad" : "warn");
         status.textContent = st === "uploading" ? (asset.viaFacePass ? "人脸处理中…" : "上传中…")
           : st === "ready" ? (asset.viaFacePass ? "已过人脸" : "已就绪")
-          : st === "failed" ? ("失败: " + (asset.uploadError || ""))
-          : st === "local" ? "本地文件（可 multipart）"
+          : st === "failed" ? ("失败")
+          : st === "local" ? "本地"
           : "待处理";
+        status.title = st === "failed" ? ("失败: " + (asset.uploadError || "")) : status.textContent;
         tools.appendChild(mentionBtn);
-        tools.appendChild(removeBtn);
         tools.appendChild(status);
         meta.appendChild(tagEl);
         meta.appendChild(tools);
+        row.appendChild(removeBtn);
         row.appendChild(preview);
         row.appendChild(meta);
         els.assetList.appendChild(row);
@@ -1209,6 +1464,43 @@
       renderMentionMenu();
       updateRefs();
       scheduleRebuild();
+    }
+
+    function hideAssetPreview() {
+      els.assetModal.classList.remove("show");
+      els.assetModalBody.innerHTML = "";
+    }
+
+    function showAssetPreview(asset) {
+      if (!asset) return;
+      els.assetModalTitle.textContent = "@" + (asset.tag || "素材");
+      els.assetModalBody.innerHTML = "";
+      const src = asset.previewUrl || asset.publicUrl || "";
+      if (asset.kind === "image" && src) {
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = asset.tag || "image";
+        els.assetModalBody.appendChild(img);
+      } else if (asset.kind === "video" && src) {
+        const video = document.createElement("video");
+        video.src = src;
+        video.controls = true;
+        video.playsInline = true;
+        els.assetModalBody.appendChild(video);
+      } else if (asset.kind === "audio" && src) {
+        const audio = document.createElement("audio");
+        audio.src = src;
+        audio.controls = true;
+        els.assetModalBody.appendChild(audio);
+      } else {
+        const fallback = document.createElement("div");
+        fallback.className = "asset-modal-fallback";
+        fallback.textContent = src
+          ? (`${kindLabel(asset.kind)} · ${src}`)
+          : (`暂无预览：${kindLabel(asset.kind)}`);
+        els.assetModalBody.appendChild(fallback);
+      }
+      els.assetModal.classList.add("show");
     }
 
     function renderMentionMenu() {
@@ -1219,11 +1511,13 @@
         empty.textContent = "暂无素材可引用";
         empty.style.padding = "8px";
         els.mentionMenu.appendChild(empty);
+        mentionActiveIndex = 0;
         return;
       }
-      assets.forEach((asset) => {
+      assets.forEach((asset, index) => {
         const item = document.createElement("div");
-        item.className = "mention-item";
+        item.className = "mention-item" + (index === mentionActiveIndex ? " active" : "");
+        item.dataset.index = String(index);
         const thumb = document.createElement("div");
         thumb.className = "mention-thumb";
         if (asset.kind === "image" && asset.previewUrl) {
@@ -1249,12 +1543,36 @@
         info.appendChild(sub);
         item.appendChild(thumb);
         item.appendChild(info);
+        item.onmouseenter = () => setMentionActive(index);
         item.onclick = () => {
           insertMention(asset);
           hideMentionMenu();
         };
         els.mentionMenu.appendChild(item);
       });
+    }
+
+    function getMentionItems() {
+      return Array.from(els.mentionMenu.querySelectorAll(".mention-item"));
+    }
+
+    function setMentionActive(index) {
+      const items = getMentionItems();
+      if (!items.length) {
+        mentionActiveIndex = 0;
+        return;
+      }
+      mentionActiveIndex = ((index % items.length) + items.length) % items.length;
+      items.forEach((el, i) => el.classList.toggle("active", i === mentionActiveIndex));
+      items[mentionActiveIndex].scrollIntoView({ block: "nearest" });
+    }
+
+    function confirmMentionActive() {
+      const asset = assets[mentionActiveIndex];
+      if (!asset) return false;
+      insertMention(asset);
+      hideMentionMenu();
+      return true;
     }
 
     function removeAsset(id) {
@@ -1362,13 +1680,16 @@
       menu.style.top = Math.round(top) + "px";
     }
     function showMentionMenu() {
+      mentionActiveIndex = 0;
       renderMentionMenu();
       els.mentionMenu.classList.add("show");
+      setMentionActive(0);
       requestAnimationFrame(positionMentionMenu);
     }
     function hideMentionMenu() {
       els.mentionMenu.classList.remove("show");
       mentionTriggerRange = null;
+      mentionActiveIndex = 0;
     }
     function insertMention(asset) {
       els.prompt.focus();
@@ -2106,8 +2427,23 @@
       };
       assets.push(asset);
       els.manualUrl.value = "";
+      hideUrlModal();
       renderAssets();
       setStatus(`已添加素材：@${asset.tag}`, "ok");
+    }
+
+    function showUrlModal() {
+      els.urlModal.classList.add("show");
+      setTimeout(() => els.manualUrl.focus(), 0);
+    }
+    function hideUrlModal() {
+      els.urlModal.classList.remove("show");
+    }
+    function showAdvancedModal() {
+      els.advancedModal.classList.add("show");
+    }
+    function hideAdvancedModal() {
+      els.advancedModal.classList.remove("show");
     }
 
     async function copyCurl() {
@@ -2131,9 +2467,9 @@
       if (els.customModelField) els.customModelField.classList.add("hidden");
       const meta = plazaModels.find((m) => m.id === els.model.value);
       if (meta && meta.description) {
-        els.modelHint.textContent = `${meta.description} · ${p.hint}`;
+        els.modelHelpTip.textContent = `${meta.description} · ${p.hint}`;
       } else {
-        els.modelHint.textContent = plazaLoaded
+        els.modelHelpTip.textContent = plazaLoaded
           ? (els.model.value ? p.hint : "模型广场暂无可用的 Seedance / 视频模型。")
           : "正在从模型广场加载…";
       }
@@ -2207,8 +2543,78 @@
       els.customModelField.classList.add("hidden");
     }
 
+    const SIDEBAR_MIN = 280;
+    const SIDEBAR_MAX = 720;
+    const SIDEBAR_DEFAULT = 420;
+
+    function applySidebarWidth(px) {
+      const w = Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Number(px) || SIDEBAR_DEFAULT)));
+      document.documentElement.style.setProperty("--sidebar", w + "px");
+      return w;
+    }
+
+    function initSidebarSplitter() {
+      const splitter = els.sidebarSplitter;
+      if (!splitter || !els.workspace) return;
+      const saved = Number(readLocal(STORAGE.sidebar));
+      applySidebarWidth(Number.isFinite(saved) && saved > 0 ? saved : SIDEBAR_DEFAULT);
+
+      let dragging = false;
+      const isNarrow = () => window.matchMedia("(max-width: 980px)").matches;
+
+      const onMove = (clientX) => {
+        const rect = els.workspace.getBoundingClientRect();
+        applySidebarWidth(clientX - rect.left);
+      };
+
+      const stopDrag = () => {
+        if (!dragging) return;
+        dragging = false;
+        splitter.classList.remove("dragging");
+        document.body.classList.remove("resizing-sidebar");
+        const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sidebar")) || SIDEBAR_DEFAULT;
+        saveLocal(STORAGE.sidebar, String(Math.round(current)));
+      };
+
+      splitter.addEventListener("pointerdown", (e) => {
+        if (isNarrow() || e.button !== 0) return;
+        dragging = true;
+        splitter.classList.add("dragging");
+        document.body.classList.add("resizing-sidebar");
+        splitter.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      splitter.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        onMove(e.clientX);
+      });
+      splitter.addEventListener("pointerup", stopDrag);
+      splitter.addEventListener("pointercancel", stopDrag);
+      splitter.addEventListener("lostpointercapture", stopDrag);
+
+      splitter.addEventListener("keydown", (e) => {
+        if (isNarrow()) return;
+        const step = e.shiftKey ? 40 : 16;
+        const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sidebar")) || SIDEBAR_DEFAULT;
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          saveLocal(STORAGE.sidebar, String(applySidebarWidth(current - step)));
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          saveLocal(STORAGE.sidebar, String(applySidebarWidth(current + step)));
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          saveLocal(STORAGE.sidebar, String(applySidebarWidth(SIDEBAR_MIN)));
+        } else if (e.key === "End") {
+          e.preventDefault();
+          saveLocal(STORAGE.sidebar, String(applySidebarWidth(SIDEBAR_MAX)));
+        }
+      });
+    }
+
     async function init() {
       initModels();
+      initSidebarSplitter();
       els.apiBase.value = readLocal(STORAGE.apiBase);
       els.imageHost.value = readLocal(STORAGE.imageHost) || DEFAULT_IMAGE_HOST;
       els.imageToken.value = readLocal(STORAGE.imageToken) || DEFAULT_IMAGE_TOKEN;
@@ -2217,8 +2623,7 @@
       renderTasks();
       renderAssets();
       lock(false);
-      await initAuth();
-      await loadPlazaModels();
+      await Promise.all([initAuth(), loadPlazaModels()]);
       ensurePolling();
     }
 
@@ -2245,6 +2650,23 @@
       handleFilesSelected().catch((err) => setStatus(err.message, "bad"));
     });
     els.addUrlBtn.addEventListener("click", addManualUrl);
+    els.openUrlModalBtn.addEventListener("click", showUrlModal);
+    els.closeUrlModalBtn.addEventListener("click", hideUrlModal);
+    els.cancelUrlModalBtn.addEventListener("click", hideUrlModal);
+    els.urlModal.addEventListener("click", (e) => {
+      if (e.target === els.urlModal) hideUrlModal();
+    });
+    els.manualUrl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addManualUrl();
+      }
+    });
+    els.openAdvancedBtn.addEventListener("click", showAdvancedModal);
+    els.closeAdvancedBtn.addEventListener("click", hideAdvancedModal);
+    els.advancedModal.addEventListener("click", (e) => {
+      if (e.target === els.advancedModal) hideAdvancedModal();
+    });
     els.prompt.addEventListener("input", () => {
       const selection = window.getSelection();
       const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
@@ -2258,6 +2680,24 @@
       }
       updateRefs();
       scheduleRebuild();
+    });
+    els.prompt.addEventListener("keydown", (e) => {
+      if (!els.mentionMenu.classList.contains("show")) return;
+      if (!getMentionItems().length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionActive(mentionActiveIndex + 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionActive(mentionActiveIndex - 1);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        confirmMentionActive();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        hideMentionMenu();
+      }
     });
     els.prompt.addEventListener("keyup", () => {
       if (els.mentionMenu.classList.contains("show")) positionMentionMenu();
@@ -2319,6 +2759,21 @@
     els.closePreviewBtn.addEventListener("click", hideTaskResult);
     els.previewModal.addEventListener("click", (e) => {
       if (e.target === els.previewModal) hideTaskResult();
+    });
+    els.closeAssetModalBtn.addEventListener("click", hideAssetPreview);
+    els.assetModal.addEventListener("click", (e) => {
+      if (e.target === els.assetModal) hideAssetPreview();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (els.mentionMenu.classList.contains("show")) {
+        hideMentionMenu();
+        return;
+      }
+      if (els.urlModal.classList.contains("show")) hideUrlModal();
+      else if (els.advancedModal.classList.contains("show")) hideAdvancedModal();
+      else if (els.assetModal.classList.contains("show")) hideAssetPreview();
+      else if (els.previewModal.classList.contains("show")) hideTaskResult();
     });
 
     init().catch((err) => setStatus(`初始化失败：${err.message}`, "bad"));
