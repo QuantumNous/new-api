@@ -150,11 +150,11 @@ func Distribute() func(c *gin.Context) {
 						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
 						//	message = "数据库一致性已被破坏，请联系管理员"
 						//}
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
+						abortWithOpenAiMessage(c, modelUnavailableStatus(modelRequest.Model), message, types.ErrorCodeModelNotFound)
 						return
 					}
 					if channel == nil {
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
+						abortWithOpenAiMessage(c, modelUnavailableStatus(modelRequest.Model), i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 						return
 					}
 				}
@@ -167,6 +167,19 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+// modelUnavailableStatus picks the HTTP status for a "no channel for this model"
+// failure: 404 when the model is served by no enabled channel at all (a client
+// error — the model is not offered here, so clients/SDKs must not retry), and 503
+// when the model exists but its channels are currently unavailable (a transient
+// condition worth retrying). new-api historically returned 503 for both, which
+// made SDKs retry permanently-unsupported models.
+func modelUnavailableStatus(modelName string) int {
+	if len(model.GetModelSupportEndpointTypes(modelName)) == 0 {
+		return http.StatusNotFound
+	}
+	return http.StatusServiceUnavailable
 }
 
 // channelSupportsRequestPath reports whether a channel can serve the request path.
