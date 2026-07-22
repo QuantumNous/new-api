@@ -2426,6 +2426,50 @@ func TestRunChannelRatioMonitorTaskRecoversAfterRetry(t *testing.T) {
 	assert.Equal(t, common.ChannelStatusEnabled, channel.Status)
 }
 
+func TestSendChannelRatioMonitorNotificationEmailIncludesChannelRemarks(t *testing.T) {
+	var content string
+	err := sendChannelRatioMonitorNotificationEmail(
+		"alerts@example.com",
+		[]channelRatioMonitorEmailChange{{
+			ChannelId: 1, ChannelName: "ratio", ChannelRemark: "<倍率备注 & 一>",
+			UpstreamType: service.NewAPIUpstreamType, UpstreamGroup: "vip",
+			OldRatio: 1, NewRatio: 1.2, ConversionFactor: 1, OldCostRatio: 1, NewCostRatio: 1.2,
+		}},
+		[]channelRatioMonitorBalanceWarning{{
+			ChannelId: 2, ChannelName: "balance", ChannelRemark: "<余额备注 & 二>",
+			UpstreamType: service.NewAPIUpstreamType, Balance: 5, Threshold: 10,
+		}},
+		[]channelRatioMonitorDisabledChannel{{
+			ChannelId: 3, ChannelName: "disabled", ChannelRemark: "<禁用备注 & 三>", Reason: "测试禁用",
+		}},
+		[]channelRatioMonitorRemovedGroupMembership{{
+			ChannelId: 4, ChannelName: "removed", ChannelRemark: "<移组备注 & 四>", Group: "vip",
+		}},
+		channelRatioMonitorTaskResult{
+			Failed: 1,
+			Failures: []channelRatioMonitorTaskFailure{{
+				ChannelId: 5, ChannelName: "failed", ChannelRemark: "<失败备注 & 五>", Error: "测试失败",
+			}},
+		},
+		nil,
+		func(_ string, _ string, gotContent string) error {
+			content = gotContent
+			return nil
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 5, strings.Count(content, ">备注</th>"))
+	for _, remark := range []string{
+		"&lt;倍率备注 &amp; 一&gt;",
+		"&lt;余额备注 &amp; 二&gt;",
+		"&lt;禁用备注 &amp; 三&gt;",
+		"&lt;移组备注 &amp; 四&gt;",
+		"&lt;失败备注 &amp; 五&gt;",
+	} {
+		assert.Contains(t, content, remark)
+	}
+}
+
 func TestRunChannelRatioMonitorTaskEmailsRatioChanges(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -2451,6 +2495,7 @@ func TestRunChannelRatioMonitorTaskEmailsRatioChanges(t *testing.T) {
 				channelMonitorNotificationEmailOption: "alerts@example.com",
 			})
 			disableChannelMonitorSSRFProtection(t)
+			channelRemark := "<Primary remark & billing>"
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
@@ -2463,6 +2508,7 @@ func TestRunChannelRatioMonitorTaskEmailsRatioChanges(t *testing.T) {
 				Name:   "<Primary & API>",
 				Key:    "secret",
 				Group:  "vip",
+				Remark: &channelRemark,
 				Status: common.ChannelStatusEnabled,
 			}).Error)
 			require.NoError(t, db.Create(&model.ChannelRatioMonitor{
@@ -2494,6 +2540,7 @@ func TestRunChannelRatioMonitorTaskEmailsRatioChanges(t *testing.T) {
 				assert.Contains(t, subject, "1 个渠道")
 				assert.Equal(t, "alerts@example.com", receiver)
 				assert.Contains(t, content, "&lt;Primary &amp; API&gt;")
+				assert.Contains(t, content, "&lt;Primary remark &amp; billing&gt;")
 				assert.Contains(t, content, "vip")
 				assert.Contains(t, content, ">1<")
 				assert.Contains(t, content, ">1.25<")

@@ -45,12 +45,13 @@ type channelRatioMonitorTaskResult struct {
 }
 
 type channelRatioMonitorTaskFailure struct {
-	ChannelId   int    `json:"channel_id"`
-	ChannelName string `json:"channel_name"`
-	Error       string `json:"error"`
+	ChannelId     int    `json:"channel_id"`
+	ChannelName   string `json:"channel_name"`
+	ChannelRemark string `json:"-"`
+	Error         string `json:"error"`
 }
 
-func (result *channelRatioMonitorTaskResult) recordFailure(channelId int, channelName string, failure error) {
+func (result *channelRatioMonitorTaskResult) recordFailure(channelId int, channelName string, channelRemark string, failure error) {
 	result.Failed++
 	if len(result.Failures) >= maxChannelRatioMonitorTaskFailureDetails {
 		result.FailureDetailsTruncated = true
@@ -61,6 +62,10 @@ func (result *channelRatioMonitorTaskResult) recordFailure(channelId int, channe
 	if len(nameRunes) > 128 {
 		nameRunes = nameRunes[:128]
 	}
+	remarkRunes := []rune(strings.TrimSpace(channelRemark))
+	if len(remarkRunes) > 255 {
+		remarkRunes = remarkRunes[:255]
+	}
 	errorMessage := "上游同步失败"
 	if failure != nil && strings.TrimSpace(failure.Error()) != "" {
 		errorMessage = strings.TrimSpace(failure.Error())
@@ -70,15 +75,17 @@ func (result *channelRatioMonitorTaskResult) recordFailure(channelId int, channe
 		errorMessage = string(errorRunes[:255])
 	}
 	result.Failures = append(result.Failures, channelRatioMonitorTaskFailure{
-		ChannelId:   channelId,
-		ChannelName: string(nameRunes),
-		Error:       errorMessage,
+		ChannelId:     channelId,
+		ChannelName:   string(nameRunes),
+		ChannelRemark: string(remarkRunes),
+		Error:         errorMessage,
 	})
 }
 
 type channelRatioMonitorEmailChange struct {
 	ChannelId        int
 	ChannelName      string
+	ChannelRemark    string
 	UpstreamType     string
 	UpstreamGroup    string
 	OldRatio         float64
@@ -89,23 +96,26 @@ type channelRatioMonitorEmailChange struct {
 }
 
 type channelRatioMonitorBalanceWarning struct {
-	ChannelId    int
-	ChannelName  string
-	UpstreamType string
-	Balance      float64
-	Threshold    float64
+	ChannelId     int
+	ChannelName   string
+	ChannelRemark string
+	UpstreamType  string
+	Balance       float64
+	Threshold     float64
 }
 
 type channelRatioMonitorDisabledChannel struct {
-	ChannelId   int
-	ChannelName string
-	Reason      string
+	ChannelId     int
+	ChannelName   string
+	ChannelRemark string
+	Reason        string
 }
 
 type channelRatioMonitorRemovedGroupMembership struct {
-	ChannelId   int
-	ChannelName string
-	Group       string
+	ChannelId     int
+	ChannelName   string
+	ChannelRemark string
+	Group         string
 }
 
 func ListChannelMonitorTasks(c *gin.Context) {
@@ -254,13 +264,17 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 
 		channel, err := model.GetChannelById(monitor.ChannelId, true)
 		if err != nil {
-			summary.recordFailure(monitor.ChannelId, "", err)
+			summary.recordFailure(monitor.ChannelId, "", "", err)
 			if statusErr := model.RecordChannelRatioMonitorFetchFailure(monitor.ChannelId, err.Error()); statusErr != nil {
 				logger.LogWarn(ctx, fmt.Sprintf("channel ratio monitor: channel_id=%d failure status update failed: %v", monitor.ChannelId, statusErr))
 			}
 			logger.LogWarn(ctx, fmt.Sprintf("channel ratio monitor: channel_id=%d lookup failed: %v", monitor.ChannelId, err))
 			reportProgress(index+1, summary.Total)
 			continue
+		}
+		channelRemark := ""
+		if channel.Remark != nil {
+			channelRemark = strings.TrimSpace(*channel.Remark)
 		}
 
 		var outcome channelMonitorFetchOutcome
@@ -346,11 +360,12 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 				!monitor.BalanceAlertNotified {
 				summary.BalanceWarnings++
 				balanceWarnings = append(balanceWarnings, channelRatioMonitorBalanceWarning{
-					ChannelId:    monitor.ChannelId,
-					ChannelName:  channel.Name,
-					UpstreamType: monitor.UpstreamType,
-					Balance:      balance,
-					Threshold:    *monitor.BalanceWarningThreshold,
+					ChannelId:     monitor.ChannelId,
+					ChannelName:   channel.Name,
+					ChannelRemark: channelRemark,
+					UpstreamType:  monitor.UpstreamType,
+					Balance:       balance,
+					Threshold:     *monitor.BalanceWarningThreshold,
 				})
 			}
 		}
@@ -359,15 +374,16 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 			if retriesUsed > 0 {
 				failureErr = fmt.Errorf("重试 %d 次后仍失败: %w", retriesUsed, err)
 			}
-			summary.recordFailure(monitor.ChannelId, channel.Name, failureErr)
+			summary.recordFailure(monitor.ChannelId, channel.Name, channelRemark, failureErr)
 			if settings.AutoDisableOnUpdateFailure && channel.Status == common.ChannelStatusEnabled &&
 				model.UpdateChannelStatus(channel.Id, "", common.ChannelStatusAutoDisabled, "渠道监控：上游倍率或余额更新失败") {
 				summary.ChannelsDisabled++
 				channelStatusChanged = true
 				disabledChannels = append(disabledChannels, channelRatioMonitorDisabledChannel{
-					ChannelId:   channel.Id,
-					ChannelName: channel.Name,
-					Reason:      "上游倍率或余额更新失败",
+					ChannelId:     channel.Id,
+					ChannelName:   channel.Name,
+					ChannelRemark: channelRemark,
+					Reason:        "上游倍率或余额更新失败",
 				})
 			}
 			logger.LogWarn(ctx, fmt.Sprintf("channel ratio monitor: channel_id=%d update failed: %v", monitor.ChannelId, failureErr))
@@ -387,6 +403,7 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 					emailChanges = append(emailChanges, channelRatioMonitorEmailChange{
 						ChannelId:        monitor.ChannelId,
 						ChannelName:      channel.Name,
+						ChannelRemark:    channelRemark,
 						UpstreamType:     monitor.UpstreamType,
 						UpstreamGroup:    monitor.UpstreamGroup,
 						OldRatio:         monitor.Ratio,
@@ -421,25 +438,39 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 	}
 	if len(removedMemberships) > 0 || len(disabledChannelIds) > 0 {
 		channelNames := make(map[int]string, len(channels))
+		channelRemarks := make(map[int]string, len(channels))
 		for _, channel := range channels {
 			channelNames[channel.Id] = channel.Name
+			if channel.Remark != nil {
+				channelRemarks[channel.Id] = strings.TrimSpace(*channel.Remark)
+			}
 		}
 		for _, removal := range removedMemberships {
 			removedGroupMemberships = append(removedGroupMemberships, channelRatioMonitorRemovedGroupMembership{
-				ChannelId:   removal.ChannelId,
-				ChannelName: channelNames[removal.ChannelId],
-				Group:       removal.Group,
+				ChannelId:     removal.ChannelId,
+				ChannelName:   channelNames[removal.ChannelId],
+				ChannelRemark: channelRemarks[removal.ChannelId],
+				Group:         removal.Group,
 			})
 		}
 		for _, channelId := range disabledChannelIds {
 			disabledChannels = append(disabledChannels, channelRatioMonitorDisabledChannel{
-				ChannelId:   channelId,
-				ChannelName: channelNames[channelId],
-				Reason:      "成本倍率高于分组倍率",
+				ChannelId:     channelId,
+				ChannelName:   channelNames[channelId],
+				ChannelRemark: channelRemarks[channelId],
+				Reason:        "成本倍率高于分组倍率",
 			})
 		}
 	}
 	return summary, nil
+}
+
+func channelRatioMonitorEmailRemark(remark string) string {
+	remark = strings.TrimSpace(remark)
+	if remark == "" {
+		return "-"
+	}
+	return html.EscapeString(remark)
 }
 
 func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channelRatioMonitorEmailChange, balanceWarnings []channelRatioMonitorBalanceWarning, disabledChannels []channelRatioMonitorDisabledChannel, removedGroupMemberships []channelRatioMonitorRemovedGroupMembership, summary channelRatioMonitorTaskResult, taskErr error, sendEmail func(subject string, receiver string, content string) error) error {
@@ -452,7 +483,7 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 	if len(changes) > 0 {
 		content.WriteString("<h3>渠道倍率变更</h3>")
 		content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
-		for _, heading := range []string{"渠道", "上游类型", "上游分组", "原上游倍率", "新上游倍率", "换算系数", "原成本倍率", "新成本倍率"} {
+		for _, heading := range []string{"渠道", "备注", "上游类型", "上游分组", "原上游倍率", "新上游倍率", "换算系数", "原成本倍率", "新成本倍率"} {
 			fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
 		}
 		content.WriteString("</tr></thead><tbody>")
@@ -460,9 +491,10 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 			upstreamType := channelMonitorUpstreamTypeLabel(change.UpstreamType)
 			fmt.Fprintf(
 				&content,
-				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s（ID: %d）</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s（ID: %d）</td><td style=\"border:1px solid #ddd;padding:6px 10px;white-space:pre-wrap\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
 				html.EscapeString(change.ChannelName),
 				change.ChannelId,
+				channelRatioMonitorEmailRemark(change.ChannelRemark),
 				html.EscapeString(upstreamType),
 				html.EscapeString(change.UpstreamGroup),
 				strconv.FormatFloat(change.OldRatio, 'f', -1, 64),
@@ -477,7 +509,7 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 	if len(balanceWarnings) > 0 {
 		content.WriteString("<h3>上游余额预警</h3>")
 		content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
-		for _, heading := range []string{"渠道", "上游类型", "当前余额", "预警值"} {
+		for _, heading := range []string{"渠道", "备注", "上游类型", "当前余额", "预警值"} {
 			fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
 		}
 		content.WriteString("</tr></thead><tbody>")
@@ -485,9 +517,10 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 			upstreamType := channelMonitorUpstreamTypeLabel(warning.UpstreamType)
 			fmt.Fprintf(
 				&content,
-				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s（ID: %d）</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s（ID: %d）</td><td style=\"border:1px solid #ddd;padding:6px 10px;white-space:pre-wrap\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
 				html.EscapeString(warning.ChannelName),
 				warning.ChannelId,
+				channelRatioMonitorEmailRemark(warning.ChannelRemark),
 				html.EscapeString(upstreamType),
 				strconv.FormatFloat(warning.Balance, 'f', -1, 64),
 				strconv.FormatFloat(warning.Threshold, 'f', -1, 64),
@@ -499,7 +532,7 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		content.WriteString("<h3>渠道自动禁用</h3>")
 		content.WriteString("<p>本次更新已自动禁用以下渠道：</p>")
 		content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
-		for _, heading := range []string{"渠道", "禁用原因"} {
+		for _, heading := range []string{"渠道", "备注", "禁用原因"} {
 			fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
 		}
 		content.WriteString("</tr></thead><tbody>")
@@ -510,8 +543,9 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 			}
 			fmt.Fprintf(
 				&content,
-				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px;white-space:pre-wrap\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
 				html.EscapeString(channelName),
+				channelRatioMonitorEmailRemark(disabledChannel.ChannelRemark),
 				html.EscapeString(disabledChannel.Reason),
 			)
 		}
@@ -521,7 +555,7 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		content.WriteString("<h3>渠道移出分组</h3>")
 		content.WriteString("<p>本次更新已解除以下渠道与分组的关联：</p>")
 		content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
-		for _, heading := range []string{"渠道", "移出分组"} {
+		for _, heading := range []string{"渠道", "备注", "移出分组"} {
 			fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
 		}
 		content.WriteString("</tr></thead><tbody>")
@@ -532,8 +566,9 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 			}
 			fmt.Fprintf(
 				&content,
-				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px;white-space:pre-wrap\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
 				html.EscapeString(channelName),
+				channelRatioMonitorEmailRemark(removal.ChannelRemark),
 				html.EscapeString(removal.Group),
 			)
 		}
@@ -545,7 +580,7 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		fmt.Fprintf(&content, "<p>共 %d 个渠道在重试后仍未更新成功。</p>", summary.Failed)
 		if len(summary.Failures) > 0 {
 			content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
-			for _, heading := range []string{"渠道", "失败原因"} {
+			for _, heading := range []string{"渠道", "备注", "失败原因"} {
 				fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
 			}
 			content.WriteString("</tr></thead><tbody>")
@@ -556,8 +591,9 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 				}
 				fmt.Fprintf(
 					&content,
-					"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+					"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px;white-space:pre-wrap\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
 					html.EscapeString(channelName),
+					channelRatioMonitorEmailRemark(failure.ChannelRemark),
 					html.EscapeString(failure.Error),
 				)
 			}
