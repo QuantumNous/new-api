@@ -118,7 +118,18 @@ const MULTIPLE_CHANNELS_ACTION_OPTIONS = [
   { value: 'none', label: '仅记录' },
   { value: 'update_group_ratio', label: '参与更新分组倍率' },
   { value: 'disable_channel', label: '禁用此渠道' },
+  { value: 'remove_from_group', label: '移除当前渠道' },
 ] satisfies Array<{ value: ChannelMonitorPolicyAction; label: string }>
+
+const MULTIPLE_CHANNELS_ACTION_DESCRIPTIONS: Record<
+  ChannelMonitorPolicyAction,
+  string
+> = {
+  none: '目标倍率高于当前分组倍率时仅记录结果',
+  update_group_ratio: '更新时采用参与渠道中的最高目标倍率',
+  disable_channel: '目标倍率高于当前分组倍率时禁用此渠道',
+  remove_from_group: '仅解除当前分组关联；若这是渠道的唯一分组则不会移除',
+}
 
 const SUB2API_ACCESS_TOKEN_COMMAND =
   "copy(localStorage.getItem('auth_token') || '')"
@@ -261,6 +272,10 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   const balanceSyncEnabled = useWatch({
     control: form.control,
     name: 'balanceSyncEnabled',
+  })
+  const multipleChannelsAction = useWatch({
+    control: form.control,
+    name: 'multipleChannelsAction',
   })
   const needsUserAuthentication =
     upstreamType === 'new_api' && authType === 'user'
@@ -943,7 +958,11 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        更新时采用参与渠道中的最高目标倍率
+                        {
+                          MULTIPLE_CHANNELS_ACTION_DESCRIPTIONS[
+                            multipleChannelsAction
+                          ]
+                        }
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

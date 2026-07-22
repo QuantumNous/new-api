@@ -32,6 +32,7 @@ type channelRatioMonitorTaskResult struct {
 	Skipped                 int                              `json:"skipped,omitempty"`
 	Failed                  int                              `json:"failed"`
 	GroupsUpdated           int                              `json:"groups_updated"`
+	GroupMembershipsRemoved int                              `json:"group_memberships_removed"`
 	GroupUpdateFailed       bool                             `json:"group_update_failed,omitempty"`
 	ChannelsDisabled        int                              `json:"channels_disabled"`
 	GroupsSkipped           int                              `json:"groups_skipped"`
@@ -99,6 +100,12 @@ type channelRatioMonitorDisabledChannel struct {
 	ChannelId   int
 	ChannelName string
 	Reason      string
+}
+
+type channelRatioMonitorRemovedGroupMembership struct {
+	ChannelId   int
+	ChannelName string
+	Group       string
 }
 
 func ListChannelMonitorTasks(c *gin.Context) {
@@ -178,6 +185,7 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 	emailChanges := make([]channelRatioMonitorEmailChange, 0)
 	balanceWarnings := make([]channelRatioMonitorBalanceWarning, 0)
 	disabledChannels := make([]channelRatioMonitorDisabledChannel, 0)
+	removedGroupMemberships := make([]channelRatioMonitorRemovedGroupMembership, 0)
 	channelStatusChanged := false
 	defer func() {
 		if channelStatusChanged {
@@ -186,11 +194,11 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 		}
 	}()
 	defer func() {
-		shouldNotify := len(emailChanges) > 0 || len(balanceWarnings) > 0 || len(disabledChannels) > 0 || summary.Failed > 0 || summary.GroupUpdateFailed || taskErr != nil
+		shouldNotify := len(emailChanges) > 0 || len(balanceWarnings) > 0 || len(disabledChannels) > 0 || len(removedGroupMemberships) > 0 || summary.Failed > 0 || summary.GroupUpdateFailed || taskErr != nil
 		if !shouldNotify || !settings.EmailNotificationEnabled || settings.NotificationEmail == "" {
 			return
 		}
-		if err := sendChannelRatioMonitorNotificationEmail(settings.NotificationEmail, emailChanges, balanceWarnings, disabledChannels, summary, taskErr, sendEmail); err != nil {
+		if err := sendChannelRatioMonitorNotificationEmail(settings.NotificationEmail, emailChanges, balanceWarnings, disabledChannels, removedGroupMemberships, summary, taskErr, sendEmail); err != nil {
 			summary.EmailStatus = "failed"
 			errorMessage := err.Error()
 			errorRunes := []rune(errorMessage)
@@ -403,17 +411,25 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 		getChannelMonitorGroupCoefficients(),
 	)
 	summary.GroupsSkipped = plan.SkippedGroupCount
-	groupsUpdated, disabledChannelIds, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(ctx, plan)
+	groupsUpdated, removedMemberships, disabledChannelIds, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(ctx, plan)
 	summary.GroupsUpdated = groupsUpdated
+	summary.GroupMembershipsRemoved = len(removedMemberships)
 	summary.ChannelsDisabled += len(disabledChannelIds)
 	summary.GroupUpdateFailed = groupUpdateFailed
 	if err != nil {
 		return summary, err
 	}
-	if len(disabledChannelIds) > 0 {
+	if len(removedMemberships) > 0 || len(disabledChannelIds) > 0 {
 		channelNames := make(map[int]string, len(channels))
 		for _, channel := range channels {
 			channelNames[channel.Id] = channel.Name
+		}
+		for _, removal := range removedMemberships {
+			removedGroupMemberships = append(removedGroupMemberships, channelRatioMonitorRemovedGroupMembership{
+				ChannelId:   removal.ChannelId,
+				ChannelName: channelNames[removal.ChannelId],
+				Group:       removal.Group,
+			})
 		}
 		for _, channelId := range disabledChannelIds {
 			disabledChannels = append(disabledChannels, channelRatioMonitorDisabledChannel{
@@ -426,7 +442,7 @@ func runChannelRatioMonitorTaskOnce(ctx context.Context, reportProgress func(pro
 	return summary, nil
 }
 
-func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channelRatioMonitorEmailChange, balanceWarnings []channelRatioMonitorBalanceWarning, disabledChannels []channelRatioMonitorDisabledChannel, summary channelRatioMonitorTaskResult, taskErr error, sendEmail func(subject string, receiver string, content string) error) error {
+func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channelRatioMonitorEmailChange, balanceWarnings []channelRatioMonitorBalanceWarning, disabledChannels []channelRatioMonitorDisabledChannel, removedGroupMemberships []channelRatioMonitorRemovedGroupMembership, summary channelRatioMonitorTaskResult, taskErr error, sendEmail func(subject string, receiver string, content string) error) error {
 	if sendEmail == nil {
 		return fmt.Errorf("邮件发送器未初始化")
 	}
@@ -501,6 +517,28 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		}
 		content.WriteString("</tbody></table>")
 	}
+	if len(removedGroupMemberships) > 0 {
+		content.WriteString("<h3>渠道移出分组</h3>")
+		content.WriteString("<p>本次更新已解除以下渠道与分组的关联：</p>")
+		content.WriteString("<table style=\"border-collapse:collapse\"><thead><tr>")
+		for _, heading := range []string{"渠道", "移出分组"} {
+			fmt.Fprintf(&content, "<th style=\"border:1px solid #ddd;padding:6px 10px;text-align:left\">%s</th>", heading)
+		}
+		content.WriteString("</tr></thead><tbody>")
+		for _, removal := range removedGroupMemberships {
+			channelName := fmt.Sprintf("渠道 ID %d", removal.ChannelId)
+			if removal.ChannelName != "" {
+				channelName = fmt.Sprintf("%s（ID: %d）", removal.ChannelName, removal.ChannelId)
+			}
+			fmt.Fprintf(
+				&content,
+				"<tr><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td><td style=\"border:1px solid #ddd;padding:6px 10px\">%s</td></tr>",
+				html.EscapeString(channelName),
+				html.EscapeString(removal.Group),
+			)
+		}
+		content.WriteString("</tbody></table>")
+	}
 
 	if summary.Failed > 0 {
 		content.WriteString("<h3>上游同步失败</h3>")
@@ -548,8 +586,8 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		failureCount++
 	}
 	subject := fmt.Sprintf("渠道监控：%d 个渠道的上游倍率发生变化", len(changes))
-	if len(balanceWarnings) > 0 || len(disabledChannels) > 0 {
-		parts := make([]string, 0, 4)
+	if len(balanceWarnings) > 0 || len(disabledChannels) > 0 || len(removedGroupMemberships) > 0 {
+		parts := make([]string, 0, 5)
 		if len(changes) > 0 {
 			parts = append(parts, fmt.Sprintf("%d 个倍率变更", len(changes)))
 		}
@@ -558,6 +596,9 @@ func sendChannelRatioMonitorNotificationEmail(receiver string, changes []channel
 		}
 		if len(disabledChannels) > 0 {
 			parts = append(parts, fmt.Sprintf("%d 个渠道自动禁用", len(disabledChannels)))
+		}
+		if len(removedGroupMemberships) > 0 {
+			parts = append(parts, fmt.Sprintf("%d 个渠道移出分组", len(removedGroupMemberships)))
 		}
 		if failureCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d 项更新失败", failureCount))

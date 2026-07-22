@@ -312,6 +312,7 @@ function ChannelTaskPolicyResult(props: { task: ChannelMonitorTask }) {
         更新分组 {result.groups_updated ?? 0}
         {result.group_update_failed && <FailureDot label='分组更新失败' />}
       </span>
+      <span>移出分组 {result.group_memberships_removed ?? 0}</span>
       <span>禁用渠道 {result.channels_disabled ?? 0}</span>
       <span>跳过分组 {result.groups_skipped ?? 0}</span>
     </div>

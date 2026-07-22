@@ -760,7 +760,8 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 	if multipleChannelAction == "" {
 		multipleChannelAction = channelMonitorPolicyActionNone
 	}
-	if normalizeChannelMonitorPolicyAction(singleChannelAction) != singleChannelAction {
+	if normalizeChannelMonitorPolicyAction(singleChannelAction) != singleChannelAction ||
+		singleChannelAction == channelMonitorPolicyActionRemoveFromGroup {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "单渠道处理策略无效"})
 		return
 	}

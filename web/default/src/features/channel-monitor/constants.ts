@@ -36,6 +36,7 @@ export const CHANNEL_MONITOR_POLICY_ACTION_LABELS: Record<
   none: '仅记录',
   update_group_ratio: '更新分组倍率',
   disable_channel: '禁用渠道',
+  remove_from_group: '移除当前渠道',
 }
 
 export const CHANNEL_MONITOR_UPSTREAM_TYPE_LABELS: Record<

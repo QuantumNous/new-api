@@ -53,6 +53,7 @@ const channelMonitorPolicyActions = [
   'none',
   'update_group_ratio',
   'disable_channel',
+  'remove_from_group',
 ] as const satisfies readonly ChannelMonitorPolicyAction[]
 
 export function createChannelRatioSchema() {

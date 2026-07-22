@@ -13,9 +13,10 @@ import (
 const channelMonitorRatioEpsilon = 1e-9
 
 type channelMonitorPolicyPlan struct {
-	GroupRatioUpdates map[string]float64
-	DisableChannelIds []int
-	SkippedGroupCount int
+	GroupRatioUpdates       map[string]float64
+	GroupMembershipRemovals []model.ChannelMonitorGroupMembershipRemoval
+	DisableChannelIds       []int
+	SkippedGroupCount       int
 }
 
 type channelMonitorPolicyInput struct {
@@ -38,14 +39,23 @@ type channelMonitorPolicyGroup struct {
 	ChannelIds   []int
 }
 
+type channelMonitorPolicyMembership struct {
+	ChannelId int
+	Group     string
+}
+
 func collectChannelMonitorPolicyMembers(
 	group channelMonitorPolicyGroup,
 	policyInputs map[int]channelMonitorPolicyInput,
 	disabledChannelIds map[int]struct{},
+	removedMemberships map[channelMonitorPolicyMembership]struct{},
 ) ([]channelMonitorPolicyMember, bool) {
 	members := make([]channelMonitorPolicyMember, 0, len(group.ChannelIds))
 	for _, channelId := range group.ChannelIds {
 		if _, disabled := disabledChannelIds[channelId]; disabled {
+			continue
+		}
+		if _, removed := removedMemberships[channelMonitorPolicyMembership{ChannelId: channelId, Group: group.Name}]; removed {
 			continue
 		}
 		input, exists := policyInputs[channelId]
@@ -86,12 +96,19 @@ func planChannelMonitorPolicyActions(
 	}
 
 	channelIdsByGroup := make(map[string][]int)
+	channelGroupCounts := make(map[int]int, len(channels))
 	for _, channel := range channels {
-		if channel.Status != common.ChannelStatusEnabled {
-			continue
-		}
+		seenGroups := make(map[string]struct{})
 		for _, group := range channel.GetGroups() {
-			if group != "" {
+			if group == "" {
+				continue
+			}
+			if _, exists := seenGroups[group]; exists {
+				continue
+			}
+			seenGroups[group] = struct{}{}
+			channelGroupCounts[channel.Id]++
+			if channel.Status == common.ChannelStatusEnabled {
 				channelIdsByGroup[group] = append(channelIdsByGroup[group], channel.Id)
 			}
 		}
@@ -112,6 +129,7 @@ func planChannelMonitorPolicyActions(
 			plan.SkippedGroupCount++
 			continue
 		}
+		sort.Ints(channelIdsByGroup[group])
 		groups = append(groups, channelMonitorPolicyGroup{
 			Name:         group,
 			CurrentRatio: currentRatio,
@@ -121,10 +139,11 @@ func planChannelMonitorPolicyActions(
 	}
 
 	disableChannelIds := make(map[int]struct{})
+	removedMemberships := make(map[channelMonitorPolicyMembership]struct{})
 	for {
 		nextDisableChannelIds := make(map[int]struct{})
 		for _, group := range groups {
-			members, complete := collectChannelMonitorPolicyMembers(group, policyInputs, disableChannelIds)
+			members, complete := collectChannelMonitorPolicyMembers(group, policyInputs, disableChannelIds, removedMemberships)
 			if !complete || len(members) == 0 {
 				continue
 			}
@@ -143,16 +162,42 @@ func planChannelMonitorPolicyActions(
 				}
 			}
 		}
-		if len(nextDisableChannelIds) == 0 {
-			break
+		if len(nextDisableChannelIds) > 0 {
+			for channelId := range nextDisableChannelIds {
+				disableChannelIds[channelId] = struct{}{}
+			}
+			continue
 		}
-		for channelId := range nextDisableChannelIds {
-			disableChannelIds[channelId] = struct{}{}
+
+		removedOne := false
+		for _, group := range groups {
+			members, complete := collectChannelMonitorPolicyMembers(group, policyInputs, disableChannelIds, removedMemberships)
+			if !complete || len(members) <= 1 {
+				continue
+			}
+			for _, member := range members {
+				if member.Target-group.CurrentRatio <= channelMonitorRatioEpsilon ||
+					member.MultipleChannelsAction != channelMonitorPolicyActionRemoveFromGroup ||
+					channelGroupCounts[member.ChannelId] <= 1 {
+					continue
+				}
+				membership := channelMonitorPolicyMembership{ChannelId: member.ChannelId, Group: group.Name}
+				removedMemberships[membership] = struct{}{}
+				channelGroupCounts[member.ChannelId]--
+				removedOne = true
+				break
+			}
+			if removedOne {
+				break
+			}
+		}
+		if !removedOne {
+			break
 		}
 	}
 
 	for _, group := range groups {
-		members, complete := collectChannelMonitorPolicyMembers(group, policyInputs, disableChannelIds)
+		members, complete := collectChannelMonitorPolicyMembers(group, policyInputs, disableChannelIds, removedMemberships)
 		if !complete {
 			plan.SkippedGroupCount++
 			continue
@@ -178,6 +223,22 @@ func planChannelMonitorPolicyActions(
 		}
 	}
 
+	plan.GroupMembershipRemovals = make([]model.ChannelMonitorGroupMembershipRemoval, 0, len(removedMemberships))
+	for membership := range removedMemberships {
+		if _, disabled := disableChannelIds[membership.ChannelId]; disabled {
+			continue
+		}
+		plan.GroupMembershipRemovals = append(plan.GroupMembershipRemovals, model.ChannelMonitorGroupMembershipRemoval{
+			ChannelId: membership.ChannelId,
+			Group:     membership.Group,
+		})
+	}
+	sort.Slice(plan.GroupMembershipRemovals, func(i, j int) bool {
+		if plan.GroupMembershipRemovals[i].ChannelId != plan.GroupMembershipRemovals[j].ChannelId {
+			return plan.GroupMembershipRemovals[i].ChannelId < plan.GroupMembershipRemovals[j].ChannelId
+		}
+		return plan.GroupMembershipRemovals[i].Group < plan.GroupMembershipRemovals[j].Group
+	})
 	plan.DisableChannelIds = make([]int, 0, len(disableChannelIds))
 	for channelId := range disableChannelIds {
 		plan.DisableChannelIds = append(plan.DisableChannelIds, channelId)
@@ -186,7 +247,7 @@ func planChannelMonitorPolicyActions(
 	return plan
 }
 
-func applyChannelMonitorPolicyPlan(ctx context.Context, plan channelMonitorPolicyPlan) (groupsUpdated int, disabledChannelIds []int, groupUpdateFailed bool, err error) {
+func applyChannelMonitorPolicyPlan(ctx context.Context, plan channelMonitorPolicyPlan) (groupsUpdated int, removedMemberships []model.ChannelMonitorGroupMembershipRemoval, disabledChannelIds []int, groupUpdateFailed bool, err error) {
 	if len(plan.GroupRatioUpdates) > 0 {
 		groupRatios := ratio_setting.GetGroupRatioCopy()
 		for group, targetRatio := range plan.GroupRatioUpdates {
@@ -203,26 +264,36 @@ func applyChannelMonitorPolicyPlan(ctx context.Context, plan channelMonitorPolic
 		if groupsUpdated > 0 {
 			groupRatioBytes, marshalErr := common.Marshal(groupRatios)
 			if marshalErr != nil {
-				return 0, nil, true, marshalErr
+				return 0, nil, nil, true, marshalErr
 			}
 			if updateErr := model.UpdateOptionsBulk(map[string]string{"GroupRatio": string(groupRatioBytes)}); updateErr != nil {
-				return 0, nil, true, updateErr
+				return 0, nil, nil, true, updateErr
 			}
+		}
+	}
+
+	if len(plan.GroupMembershipRemovals) > 0 {
+		if ctx != nil && ctx.Err() != nil {
+			return groupsUpdated, nil, nil, false, ctx.Err()
+		}
+		removedMemberships, err = model.RemoveChannelMonitorGroupMemberships(plan.GroupMembershipRemovals)
+		if err != nil {
+			return groupsUpdated, nil, nil, false, err
 		}
 	}
 
 	disabledChannelIds = make([]int, 0, len(plan.DisableChannelIds))
 	for _, channelId := range plan.DisableChannelIds {
 		if ctx != nil && ctx.Err() != nil {
-			return groupsUpdated, disabledChannelIds, false, ctx.Err()
+			return groupsUpdated, removedMemberships, disabledChannelIds, false, ctx.Err()
 		}
 		if model.UpdateChannelStatus(channelId, "", common.ChannelStatusAutoDisabled, "渠道监控：成本倍率高于分组倍率") {
 			disabledChannelIds = append(disabledChannelIds, channelId)
 		}
 	}
-	if len(disabledChannelIds) > 0 {
+	if len(removedMemberships) > 0 || len(disabledChannelIds) > 0 {
 		model.InitChannelCache()
 		service.ResetProxyClientCache()
 	}
-	return groupsUpdated, disabledChannelIds, false, nil
+	return groupsUpdated, removedMemberships, disabledChannelIds, false, nil
 }

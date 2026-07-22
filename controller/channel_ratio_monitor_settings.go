@@ -36,6 +36,7 @@ const (
 	channelMonitorPolicyActionNone                     = "none"
 	channelMonitorPolicyActionUpdateGroupRatio         = "update_group_ratio"
 	channelMonitorPolicyActionDisableChannel           = "disable_channel"
+	channelMonitorPolicyActionRemoveFromGroup          = "remove_from_group"
 	channelMonitorSmartScheduleStrategyRatio           = "ratio"
 	channelMonitorSmartScheduleStrategyFirstToken      = "first_token"
 	channelMonitorSmartScheduleStrategyTPS             = "tps"
@@ -223,7 +224,9 @@ func normalizeChannelMonitorNotificationEmail(value string) (string, error) {
 
 func normalizeChannelMonitorPolicyAction(action string) string {
 	switch action {
-	case channelMonitorPolicyActionUpdateGroupRatio, channelMonitorPolicyActionDisableChannel:
+	case channelMonitorPolicyActionUpdateGroupRatio,
+		channelMonitorPolicyActionDisableChannel,
+		channelMonitorPolicyActionRemoveFromGroup:
 		return action
 	default:
 		return channelMonitorPolicyActionNone

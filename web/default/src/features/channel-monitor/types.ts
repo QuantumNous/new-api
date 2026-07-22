@@ -342,6 +342,7 @@ export type ChannelMonitorPolicyAction =
   | 'none'
   | 'update_group_ratio'
   | 'disable_channel'
+  | 'remove_from_group'
 
 export type ChannelMonitorSettings = {
   auto_update_interval_minutes: number
@@ -415,6 +416,7 @@ export type ChannelMonitorTaskResult = {
   balance_warnings?: number
   failed: number
   groups_updated?: number
+  group_memberships_removed?: number
   group_update_failed?: boolean
   channels_disabled?: number
   groups_skipped?: number

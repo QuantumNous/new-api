@@ -772,6 +772,22 @@ func TestSaveChannelMonitorUpstreamConfigPersistsChannelPolicies(t *testing.T) {
 	ctx.Params = gin.Params{{Key: "id", Value: "10"}}
 	SaveChannelMonitorUpstreamConfig(ctx)
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+
+	request["single_channel_action"] = channelMonitorPolicyActionRemoveFromGroup
+	request["multiple_channels_action"] = channelMonitorPolicyActionRemoveFromGroup
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/10/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "10"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+
+	request["single_channel_action"] = channelMonitorPolicyActionNone
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/10/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "10"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	monitor, err = model.GetChannelRatioMonitor(10)
+	require.NoError(t, err)
+	assert.Equal(t, channelMonitorPolicyActionRemoveFromGroup, monitor.MultipleChannelsAction)
 }
 
 func TestSaveChannelMonitorUpstreamConfigManagesBalanceThresholds(t *testing.T) {
@@ -1898,6 +1914,61 @@ func TestPlanChannelMonitorPolicyActions(t *testing.T) {
 		assert.InDelta(t, 2.5, plan.GroupRatioUpdates["team"], 1e-9)
 	})
 
+	t.Run("removing a channel re-evaluates the remaining single channel", func(t *testing.T) {
+		plan := planChannelMonitorPolicyActions(
+			[]*model.Channel{enabledChannel(1, "vip,backup"), enabledChannel(2, "vip")},
+			map[int]channelMonitorPolicyInput{
+				1: {
+					CostRatio:              1.5,
+					MultipleChannelsAction: channelMonitorPolicyActionRemoveFromGroup,
+				},
+				2: {
+					CostRatio:           1.25,
+					SingleChannelAction: channelMonitorPolicyActionUpdateGroupRatio,
+				},
+			},
+			map[string]float64{"vip": 1, "backup": 2},
+			nil,
+		)
+		assert.Equal(t, []model.ChannelMonitorGroupMembershipRemoval{{ChannelId: 1, Group: "vip"}}, plan.GroupMembershipRemovals)
+		require.Contains(t, plan.GroupRatioUpdates, "vip")
+		assert.InDelta(t, 1.25, plan.GroupRatioUpdates["vip"], 1e-9)
+		assert.Empty(t, plan.DisableChannelIds)
+	})
+
+	t.Run("disable policy takes precedence over membership removal", func(t *testing.T) {
+		plan := planChannelMonitorPolicyActions(
+			[]*model.Channel{enabledChannel(1, "vip,team"), enabledChannel(2, "vip")},
+			map[int]channelMonitorPolicyInput{
+				1: {
+					CostRatio:              1.5,
+					SingleChannelAction:    channelMonitorPolicyActionDisableChannel,
+					MultipleChannelsAction: channelMonitorPolicyActionRemoveFromGroup,
+				},
+				2: {CostRatio: 1},
+			},
+			map[string]float64{"vip": 1, "team": 1},
+			nil,
+		)
+		assert.Equal(t, []int{1}, plan.DisableChannelIds)
+		assert.Empty(t, plan.GroupMembershipRemovals)
+	})
+
+	t.Run("membership removal keeps the channel's only group", func(t *testing.T) {
+		plan := planChannelMonitorPolicyActions(
+			[]*model.Channel{enabledChannel(1, "vip"), enabledChannel(2, "vip")},
+			map[int]channelMonitorPolicyInput{
+				1: {CostRatio: 1.5, MultipleChannelsAction: channelMonitorPolicyActionRemoveFromGroup},
+				2: {CostRatio: 1},
+			},
+			map[string]float64{"vip": 1},
+			nil,
+		)
+		assert.Empty(t, plan.GroupMembershipRemovals)
+		assert.Empty(t, plan.DisableChannelIds)
+		assert.Empty(t, plan.GroupRatioUpdates)
+	})
+
 	t.Run("incomplete current ratios skip group actions", func(t *testing.T) {
 		plan := planChannelMonitorPolicyActions(
 			[]*model.Channel{enabledChannel(1, "vip"), enabledChannel(2, "vip")},
@@ -1917,13 +1988,14 @@ func TestApplyChannelMonitorPolicyPlanMarksGroupUpdateFailure(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	require.NoError(t, db.Migrator().DropTable(&model.Option{}))
 
-	groupsUpdated, disabledChannelIds, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(
+	groupsUpdated, removedMemberships, disabledChannelIds, groupUpdateFailed, err := applyChannelMonitorPolicyPlan(
 		context.Background(),
 		channelMonitorPolicyPlan{GroupRatioUpdates: map[string]float64{"monitor-test": 2}},
 	)
 
 	require.Error(t, err)
 	assert.Zero(t, groupsUpdated)
+	assert.Empty(t, removedMemberships)
 	assert.Empty(t, disabledChannelIds)
 	assert.True(t, groupUpdateFailed)
 }
@@ -2497,6 +2569,80 @@ func TestRunChannelRatioMonitorTaskEmailsRatioPolicyAutoDisable(t *testing.T) {
 	channel, err := model.GetChannelById(1, true)
 	require.NoError(t, err)
 	assert.Equal(t, common.ChannelStatusAutoDisabled, channel.Status)
+}
+
+func TestRunChannelRatioMonitorTaskEmailsRatioPolicyGroupRemoval(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		"GroupRatio":                             `{"vip":1}`,
+		channelMonitorAutoUpdateRetryCountOption: "0",
+		channelMonitorEmailNotificationOption:    "true",
+		channelMonitorNotificationEmailOption:    "alerts@example.com",
+	})
+	disableChannelMonitorSSRFProtection(t)
+	originalGroupRatios := ratio_setting.GroupRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"vip":1}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatios))
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"group_ratio":{"vip":1.25}}`))
+	}))
+	defer server.Close()
+
+	channels := []model.Channel{
+		{Id: 1, Name: "<Removed & API>", Key: "secret", Group: "vip,backup", Models: "model-a", Status: common.ChannelStatusEnabled},
+		{Id: 2, Name: "stable", Key: "secret", Group: "vip", Models: "model-b", Status: common.ChannelStatusEnabled},
+	}
+	require.NoError(t, db.Create(&channels).Error)
+	for i := range channels {
+		require.NoError(t, channels[i].AddAbilities(nil))
+	}
+	require.NoError(t, db.Create(&[]model.ChannelRatioMonitor{
+		{
+			ChannelId: 1, Ratio: 1, UpdatedTime: 1,
+			UpstreamType: service.NewAPIUpstreamType, UpstreamBaseURL: server.URL,
+			UpstreamGroup: "vip", UpstreamAuthType: service.NewAPIUpstreamAuthPublic,
+			UpstreamBalanceSyncDisabled: true,
+			MultipleChannelsAction:      channelMonitorPolicyActionRemoveFromGroup,
+		},
+		{
+			ChannelId: 2, Ratio: 1, UpdatedTime: 1,
+			UpstreamType: service.NewAPIUpstreamType, UpstreamBaseURL: server.URL,
+			UpstreamGroup: "vip", UpstreamAuthType: service.NewAPIUpstreamAuthPublic,
+			UpstreamBalanceSyncDisabled: true,
+		},
+	}).Error)
+
+	var subject string
+	var content string
+	emailCalls := 0
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, func(gotSubject string, _ string, gotContent string) error {
+		emailCalls++
+		subject = gotSubject
+		content = gotContent
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, summary.Changed)
+	assert.Equal(t, 1, summary.GroupMembershipsRemoved)
+	assert.Equal(t, "sent", summary.EmailStatus)
+	assert.Equal(t, 1, emailCalls)
+	assert.Contains(t, subject, "1 个渠道移出分组")
+	assert.Contains(t, content, "渠道移出分组")
+	assert.Contains(t, content, "&lt;Removed &amp; API&gt;（ID: 1）")
+	assert.Contains(t, content, ">vip<")
+
+	channel, err := model.GetChannelById(1, true)
+	require.NoError(t, err)
+	assert.Equal(t, "backup", channel.Group)
+	var abilities []model.Ability
+	require.NoError(t, db.Where("channel_id = ?", 1).Find(&abilities).Error)
+	require.Len(t, abilities, 1)
+	assert.Equal(t, "backup", abilities[0].Group)
 }
 
 func TestRunChannelRatioMonitorTaskRefreshesBalanceAndDeduplicatesLowBalanceEmail(t *testing.T) {

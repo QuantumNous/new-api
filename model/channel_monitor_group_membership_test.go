@@ -91,3 +91,77 @@ func TestReplaceChannelMonitorGroupMembersRollsBackWhenRemovalWouldLeaveNoGroup(
 	assert.Equal(t, 202, abilities[1].ChannelId)
 	assert.Equal(t, "vip", abilities[1].Group)
 }
+
+func TestRemoveChannelMonitorGroupMembershipsUpdatesChannelsAndAbilities(t *testing.T) {
+	resetChannelMonitorGroupMembershipTables(t)
+
+	channels := []Channel{
+		{Id: 301, Name: "multi-group", Key: "secret", Status: common.ChannelStatusEnabled, Group: "vip,backup,team", Models: "model-a"},
+		{Id: 302, Name: "second", Key: "secret", Status: common.ChannelStatusEnabled, Group: "vip,backup", Models: "model-b"},
+	}
+	require.NoError(t, DB.Create(&channels).Error)
+	for i := range channels {
+		require.NoError(t, channels[i].AddAbilities(nil))
+	}
+
+	applied, err := RemoveChannelMonitorGroupMemberships([]ChannelMonitorGroupMembershipRemoval{
+		{ChannelId: 302, Group: "vip"},
+		{ChannelId: 301, Group: "team"},
+		{ChannelId: 301, Group: "vip"},
+		{ChannelId: 301, Group: "vip"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []ChannelMonitorGroupMembershipRemoval{
+		{ChannelId: 301, Group: "team"},
+		{ChannelId: 301, Group: "vip"},
+		{ChannelId: 302, Group: "vip"},
+	}, applied)
+
+	var storedChannels []Channel
+	require.NoError(t, DB.Order("id ASC").Find(&storedChannels).Error)
+	require.Len(t, storedChannels, 2)
+	assert.Equal(t, "backup", storedChannels[0].Group)
+	assert.Equal(t, "backup", storedChannels[1].Group)
+
+	var abilities []Ability
+	require.NoError(t, DB.Order("channel_id ASC").Find(&abilities).Error)
+	require.Len(t, abilities, 2)
+	assert.Equal(t, "backup", abilities[0].Group)
+	assert.Equal(t, "backup", abilities[1].Group)
+}
+
+func TestRemoveChannelMonitorGroupMembershipsRollsBackWhenRemovalWouldLeaveNoGroup(t *testing.T) {
+	resetChannelMonitorGroupMembershipTables(t)
+
+	channels := []Channel{
+		{Id: 401, Name: "safe-first", Key: "secret", Status: common.ChannelStatusEnabled, Group: "vip,backup", Models: "model-a"},
+		{Id: 402, Name: "only-vip", Key: "secret", Status: common.ChannelStatusEnabled, Group: "vip", Models: "model-b"},
+	}
+	require.NoError(t, DB.Create(&channels).Error)
+	for i := range channels {
+		require.NoError(t, channels[i].AddAbilities(nil))
+	}
+
+	_, err := RemoveChannelMonitorGroupMemberships([]ChannelMonitorGroupMembershipRemoval{
+		{ChannelId: 401, Group: "vip"},
+		{ChannelId: 402, Group: "vip"},
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrChannelMonitorGroupMembershipRequired))
+
+	var storedChannels []Channel
+	require.NoError(t, DB.Order("id ASC").Find(&storedChannels).Error)
+	require.Len(t, storedChannels, 2)
+	assert.Equal(t, "vip,backup", storedChannels[0].Group)
+	assert.Equal(t, "vip", storedChannels[1].Group)
+
+	var abilities []Ability
+	require.NoError(t, DB.Order("channel_id ASC").Order(commonGroupCol+" ASC").Find(&abilities).Error)
+	require.Len(t, abilities, 3)
+	assert.Equal(t, 401, abilities[0].ChannelId)
+	assert.Equal(t, "backup", abilities[0].Group)
+	assert.Equal(t, 401, abilities[1].ChannelId)
+	assert.Equal(t, "vip", abilities[1].Group)
+	assert.Equal(t, 402, abilities[2].ChannelId)
+	assert.Equal(t, "vip", abilities[2].Group)
+}
