@@ -320,6 +320,9 @@ func InitResources() error {
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
 
+	// 启动请求体文件自动清理（默认保留7天，每小时执行一次）
+	common.StartBodyFileCleanup()
+
 	// Initialize SQL Database
 	err = model.InitLogDB()
 	if err != nil {

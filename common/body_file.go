@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -17,6 +18,11 @@ const BodyFileThreshold = 4096
 // BodyStoragePath is the filesystem directory where large body files are stored.
 // Defaults to "data/bodies/" relative to the working directory.
 var BodyStoragePath = "data/bodies/"
+
+// BodyFileRetentionDays is the number of days to keep body files before
+// automatic cleanup. Directories older than this are deleted. Set to 0
+// to disable cleanup (files are kept indefinitely). Default is 7 days.
+var BodyFileRetentionDays = 7
 
 var bodyFileMu sync.Mutex
 
@@ -82,4 +88,75 @@ func StoreBodyOrInline(requestId string, bodyType string, body string) string {
 		return body // fallback: store inline even if large
 	}
 	return "file:" + path
+}
+
+// CleanupOldBodyFiles removes body file directories older than
+// BodyFileRetentionDays. If retention is 0, cleanup is skipped (keep forever).
+// The date-sharded structure (data/bodies/YYYYMMDD/) makes this O(directories)
+// rather than O(files).
+func CleanupOldBodyFiles() {
+	if BodyFileRetentionDays <= 0 {
+		return
+	}
+
+	entries, err := os.ReadDir(BodyStoragePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			SysError(fmt.Sprintf("body file cleanup: read dir %s: %v", BodyStoragePath, err))
+		}
+		return
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -BodyFileRetentionDays).Format("20060102")
+
+	// Sort entries so we process oldest first (for logging).
+	var dirs []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		// Only process directories that match our date format (8 digits).
+		if len(e.Name()) == 8 && isAllDigits(e.Name()) {
+			dirs = append(dirs, e.Name())
+		}
+	}
+	sort.Strings(dirs)
+
+	var removed int
+	for _, dirName := range dirs {
+		if dirName >= cutoff {
+			// Since dirs are sorted, all remaining are >= cutoff — stop.
+			break
+		}
+		dirPath := filepath.Join(BodyStoragePath, dirName)
+		if err := os.RemoveAll(dirPath); err != nil {
+			SysError(fmt.Sprintf("body file cleanup: remove %s: %v", dirPath, err))
+			continue
+		}
+		removed++
+	}
+
+	if removed > 0 {
+		SysLog(fmt.Sprintf("body file cleanup: removed %d directories older than %s", removed, cutoff))
+	}
+}
+
+func isAllDigits(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// StartBodyFileCleanup launches a background goroutine that periodically
+// cleans up old body files. The interval is 1 hour. Call once on startup.
+func StartBodyFileCleanup() {
+	go func() {
+		for {
+			time.Sleep(1 * time.Hour)
+			CleanupOldBodyFiles()
+		}
+	}()
 }
