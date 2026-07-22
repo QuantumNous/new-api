@@ -27,7 +27,7 @@ func TestShouldRetryOpenAIReasoningSignatureInvalid(t *testing.T) {
 	newContext := func(encryptedContent string) *gin.Context {
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 		input := []byte(`[{"type":"reasoning","encrypted_content":"` + encryptedContent + `"}]`)
-		_, _, err := service.PrepareOpenAIResponsesReasoningInput(ctx, input)
+		_, _, err := service.PrepareOpenAIResponsesReasoningInput(ctx, input, true)
 		require.NoError(t, err)
 		return ctx
 	}

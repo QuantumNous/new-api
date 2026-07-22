@@ -52,12 +52,18 @@ func getOpenAIReasoningFallbackCache() *cachex.HybridCache[int] {
 	return openAIReasoningFallbackCache
 }
 
-// PrepareOpenAIResponsesReasoningInput applies the stateless Responses API
-// fallback learned from an earlier thinking_signature_invalid response. The
-// first encrypted reasoning item identifies the client-side conversation. A
-// cache hit refreshes the sliding TTL and removes encrypted_content from every
-// reasoning item before the request is sent upstream.
-func PrepareOpenAIResponsesReasoningInput(c *gin.Context, input []byte) ([]byte, int, error) {
+// PrepareOpenAIResponsesReasoningInput applies the Responses API fallback when
+// the selected channel enables it or the current request already entered the
+// recovery flow. The latter keeps the forced retry effective if routing falls
+// back to another OpenAI channel that has the setting disabled. A later,
+// independent request still needs an enabled channel before consulting the
+// learned conversation cache.
+func PrepareOpenAIResponsesReasoningInput(c *gin.Context, input []byte, channelEnabled bool) ([]byte, int, error) {
+	dropEncryptedContent := c.GetBool(ginKeyOpenAIReasoningDropEncryptedContent)
+	if !channelEnabled && !dropEncryptedContent {
+		return input, 0, nil
+	}
+
 	items := gjson.ParseBytes(input)
 	if !items.IsArray() {
 		return input, 0, nil
@@ -83,7 +89,6 @@ func PrepareOpenAIResponsesReasoningInput(c *gin.Context, input []byte) ([]byte,
 	cacheKey := hex.EncodeToString(hash[:])
 	c.Set(ginKeyOpenAIReasoningEncryptedContentHash, cacheKey)
 
-	dropEncryptedContent := c.GetBool(ginKeyOpenAIReasoningDropEncryptedContent)
 	if !dropEncryptedContent {
 		_, found, err := getOpenAIReasoningFallbackCache().Get(cacheKey)
 		if err != nil {
