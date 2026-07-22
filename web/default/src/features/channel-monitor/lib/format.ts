@@ -16,12 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+const channelMonitorCostFormatter = new Intl.NumberFormat('zh-CN', {
+  style: 'currency',
+  currency: 'CNY',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 export function formatMonitorRatio(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '-'
   return value.toLocaleString(undefined, {
     maximumFractionDigits: 6,
     useGrouping: false,
   })
+}
+
+export function formatChannelMonitorCost(
+  value: number | null | undefined
+): string {
+  if (value == null || !Number.isFinite(value)) return '-'
+  return channelMonitorCostFormatter.format(Math.abs(value) < 0.005 ? 0 : value)
 }
 
 export function getRatioChange(

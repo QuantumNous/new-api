@@ -55,11 +55,13 @@ import {
 import { CHANNEL_STATUS } from '@/features/channels/constants'
 import { cn } from '@/lib/utils'
 
+import { getChannelMonitorStatusLabel } from '../constants'
 import { formatMonitorRatio, getChannelGroupTargetRatio } from '../lib/format'
 import type {
   ChannelMonitorGroupSuccessMetric,
   GroupMonitorItem,
 } from '../types'
+import { ChannelMonitorStatusBadge } from './channel-monitor-status-badge'
 import { ChannelMonitorSuccessRateValue } from './channel-monitor-success-rate-value'
 
 type ChannelMonitorGroupViewProps = {
@@ -272,26 +274,38 @@ export function ChannelMonitorGroupView(props: ChannelMonitorGroupViewProps) {
                           )
 
                           return (
-                            <Badge
+                            <div
                               key={channel.id}
-                              variant={channelEnabled ? 'secondary' : 'outline'}
-                              className='max-w-56'
-                              title={`${channel.name}：成本倍率 ${ratio}（上游 ${upstreamRatio} × 换算 ${conversionFactor}）`}
+                              className='flex max-w-72 min-w-0 items-center gap-1'
                             >
-                              <span
-                                className={cn(
-                                  'max-w-32 truncate',
-                                  !channelEnabled &&
-                                    'text-muted-foreground line-through'
-                                )}
+                              <Badge
+                                variant={
+                                  channelEnabled ? 'secondary' : 'outline'
+                                }
+                                className='max-w-56'
+                                title={`${channel.name}（${getChannelMonitorStatusLabel(channel.status)}）：成本倍率 ${ratio}（上游 ${upstreamRatio} × 换算 ${conversionFactor}）`}
                               >
-                                {channel.name}
-                              </span>
-                              <span aria-hidden='true'>×</span>
-                              <span className='shrink-0 font-mono tabular-nums'>
-                                {ratio}
-                              </span>
-                            </Badge>
+                                <span
+                                  className={cn(
+                                    'max-w-32 truncate',
+                                    !channelEnabled &&
+                                      'text-muted-foreground line-through'
+                                  )}
+                                >
+                                  {channel.name}
+                                </span>
+                                <span aria-hidden='true'>×</span>
+                                <span className='shrink-0 font-mono tabular-nums'>
+                                  {ratio}
+                                </span>
+                              </Badge>
+                              {!channelEnabled && (
+                                <ChannelMonitorStatusBadge
+                                  status={channel.status}
+                                  className='shrink-0'
+                                />
+                              )}
+                            </div>
                           )
                         })}
                       </div>

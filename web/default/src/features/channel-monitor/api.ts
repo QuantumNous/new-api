@@ -21,6 +21,7 @@ import { api, type ApiRequestConfig } from '@/lib/api'
 import type {
   ChannelMonitorApplyGroupResult,
   ChannelMonitorApiResponse,
+  ChannelMonitorCostOverview,
   ChannelMonitorFetchResult,
   ChannelMonitorGroupChannelsUpdateResult,
   ChannelMonitorGroupRatioSyncResult,
@@ -63,6 +64,16 @@ export async function getChannelMonitorOverview() {
   const response = await api.get<
     ChannelMonitorApiResponse<ChannelMonitorOverview>
   >('/api/channel_monitor/', channelMonitorRequestConfig())
+  return ensureChannelMonitorSuccess(response.data)
+}
+
+export async function getChannelMonitorCostOverview(days: number) {
+  const response = await api.get<
+    ChannelMonitorApiResponse<ChannelMonitorCostOverview>
+  >(
+    '/api/channel_monitor/cost',
+    channelMonitorRequestConfig({ params: { days } })
+  )
   return ensureChannelMonitorSuccess(response.data)
 }
 

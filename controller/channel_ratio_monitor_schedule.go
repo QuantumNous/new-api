@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -85,6 +86,7 @@ type channelSmartScheduleTaskResult struct {
 	ForceReset              bool                              `json:"force_reset"`
 	ApplyMode               string                            `json:"apply_mode"`
 	Model                   string                            `json:"model"`
+	Models                  []string                          `json:"models,omitempty"`
 	PerformanceMinutes      int                               `json:"performance_minutes"`
 	MinSamples              int                               `json:"min_samples"`
 	Total                   int                               `json:"total"`
@@ -193,6 +195,7 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 		ForceReset:         forceReset,
 		ApplyMode:          settings.SmartScheduleApplyMode,
 		Model:              settings.SmartScheduleModel,
+		Models:             settings.SmartScheduleModels,
 		PerformanceMinutes: settings.SmartSchedulePerformanceMinutes,
 		MinSamples:         settings.SmartScheduleMinSamples,
 	}
@@ -257,9 +260,19 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 		}
 	}
 
+	selectedModelByChannel := make(map[int]string, len(channels))
+	if len(settings.SmartScheduleModels) > 0 {
+		for _, channel := range channels {
+			selectedModelByChannel[channel.Id] = channelSmartSchedulePreferredModel(
+				channel.GetModels(),
+				settings.SmartScheduleModels,
+			)
+		}
+	}
+
 	performanceByChannel := make(map[int]*channelSmartSchedulePerformance)
 	for _, metric := range metrics {
-		if settings.SmartScheduleModel != "" && metric.ModelName != settings.SmartScheduleModel {
+		if len(settings.SmartScheduleModels) > 0 && metric.ModelName != selectedModelByChannel[metric.ChannelId] {
 			continue
 		}
 		performance := performanceByChannel[metric.ChannelId]
@@ -277,7 +290,7 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 		}
 	}
 	for _, metric := range stabilityMetrics {
-		if settings.SmartScheduleModel != "" && metric.ModelName != settings.SmartScheduleModel {
+		if len(settings.SmartScheduleModels) > 0 && metric.ModelName != selectedModelByChannel[metric.ChannelId] {
 			continue
 		}
 		performance := performanceByChannel[metric.ChannelId]
@@ -336,6 +349,19 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 				channel.Id,
 				model.ChannelSmartScheduleStatusSkipped,
 				"已设为不参与智能调度",
+				nil,
+				currentPriority,
+				currentWeight,
+				now,
+			))
+			result.Skipped++
+			continue
+		}
+		if len(settings.SmartScheduleModels) > 0 && selectedModelByChannel[channel.Id] == "" && (needsPerformance || needsStability) {
+			statusUpdates = append(statusUpdates, channelSmartScheduleStatusUpdate(
+				channel.Id,
+				model.ChannelSmartScheduleStatusSkipped,
+				"渠道不支持已配置的基准模型",
 				nil,
 				currentPriority,
 				currentWeight,
@@ -483,6 +509,23 @@ func runChannelSmartScheduleOnce(ctx context.Context, reportProgress func(proces
 	}
 	reportProgress(result.Total, result.Total)
 	return result, nil
+}
+
+func channelSmartSchedulePreferredModel(availableModels []string, preferredModels []string) string {
+	availableModelSet := make(map[string]struct{}, len(availableModels))
+	for _, modelName := range availableModels {
+		modelName = strings.TrimSpace(modelName)
+		if modelName != "" {
+			availableModelSet[modelName] = struct{}{}
+		}
+	}
+	for _, modelName := range preferredModels {
+		modelName = strings.TrimSpace(modelName)
+		if _, supported := availableModelSet[modelName]; supported {
+			return modelName
+		}
+	}
+	return ""
 }
 
 func channelSmartScheduleStatusUpdate(channelId int, status string, message string, score *float64, priority int64, weight uint, updatedTime int64) model.ChannelSmartScheduleResultUpdate {

@@ -16,10 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  Delete02Icon,
+} from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useMemo } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 
+import { MultiSelect } from '@/components/multi-select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   FormControl,
@@ -43,14 +51,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 import {
   MAX_AUTO_UPDATE_INTERVAL_MINUTES,
   MAX_SMART_SCHEDULE_MIN_SAMPLES,
   type ChannelMonitorSettingsFormValues,
 } from '../lib/schema'
-
-const ALL_MODELS_VALUE = '__all_models__'
 
 const SCHEDULE_STRATEGY_OPTIONS = [
   {
@@ -100,14 +111,25 @@ type ChannelMonitorSmartScheduleFieldsProps = {
   modelOptions: string[]
 }
 
+function reorderSmartScheduleModels(
+  models: string[],
+  sourceIndex: number,
+  offset: -1 | 1
+) {
+  const targetIndex = sourceIndex + offset
+  if (targetIndex < 0 || targetIndex >= models.length) return models
+  const nextModels = [...models]
+  const [modelName] = nextModels.splice(sourceIndex, 1)
+  if (modelName === undefined) return models
+  nextModels.splice(targetIndex, 0, modelName)
+  return nextModels
+}
+
 export function ChannelMonitorSmartScheduleFields(
   props: ChannelMonitorSmartScheduleFieldsProps
 ) {
   const modelOptions = useMemo(
-    () => [
-      { value: ALL_MODELS_VALUE, label: '全部模型汇总' },
-      ...props.modelOptions.map((model) => ({ value: model, label: model })),
-    ],
+    () => props.modelOptions.map((model) => ({ value: model, label: model })),
     [props.modelOptions]
   )
 
@@ -287,7 +309,7 @@ export function ChannelMonitorSmartScheduleFields(
         )}
       />
 
-      <div className='grid gap-4 sm:grid-cols-3'>
+      <div className='grid gap-4 sm:grid-cols-2'>
         <FormField
           control={props.form.control}
           name='smartSchedulePerformanceMinutes'
@@ -309,40 +331,6 @@ export function ChannelMonitorSmartScheduleFields(
                 <SelectContent alignItemWithTrigger={false}>
                   <SelectGroup>
                     {PERFORMANCE_RANGE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={props.form.control}
-          name='smartScheduleModel'
-          render={({ field }) => (
-            <FormItem className='min-w-0'>
-              <FormLabel>基准模型</FormLabel>
-              <Select
-                items={modelOptions}
-                value={field.value || ALL_MODELS_VALUE}
-                onValueChange={(value) => {
-                  if (value === null) return
-                  field.onChange(value === ALL_MODELS_VALUE ? '' : value)
-                }}
-              >
-                <FormControl>
-                  <SelectTrigger className='w-full min-w-0'>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {modelOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -386,6 +374,124 @@ export function ChannelMonitorSmartScheduleFields(
           )}
         />
       </div>
+
+      <FormField
+        control={props.form.control}
+        name='smartScheduleModels'
+        render={({ field }) => (
+          <FormItem className='min-w-0'>
+            <FormLabel>基准模型优先级</FormLabel>
+            <FormControl>
+              <MultiSelect
+                options={modelOptions}
+                selected={field.value}
+                onChange={field.onChange}
+                placeholder='搜索并选择基准模型'
+                emptyText='没有匹配的模型'
+                maxVisibleChips={4}
+              />
+            </FormControl>
+            <FormDescription>
+              每个渠道按下列顺序使用其支持的第一个模型；未选择时汇总全部模型
+            </FormDescription>
+            {field.value.length > 0 && (
+              <ol className='divide-border overflow-hidden rounded-md border'>
+                {field.value.map((modelName, index) => (
+                  <li
+                    key={modelName}
+                    className='flex min-w-0 items-center gap-2 border-b p-2 last:border-b-0'
+                  >
+                    <span className='bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-sm text-xs font-medium tabular-nums'>
+                      {index + 1}
+                    </span>
+                    <span
+                      className='min-w-0 flex-1 truncate text-sm'
+                      title={modelName}
+                    >
+                      {modelName}
+                    </span>
+                    <div className='flex shrink-0 items-center gap-1'>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='icon-sm'
+                              disabled={index === 0}
+                              onClick={() =>
+                                field.onChange(
+                                  reorderSmartScheduleModels(
+                                    field.value,
+                                    index,
+                                    -1
+                                  )
+                                )
+                              }
+                              aria-label={`上移模型 ${modelName}`}
+                            >
+                              <HugeiconsIcon icon={ArrowUp01Icon} />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>上移</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='icon-sm'
+                              disabled={index === field.value.length - 1}
+                              onClick={() =>
+                                field.onChange(
+                                  reorderSmartScheduleModels(
+                                    field.value,
+                                    index,
+                                    1
+                                  )
+                                )
+                              }
+                              aria-label={`下移模型 ${modelName}`}
+                            >
+                              <HugeiconsIcon icon={ArrowDown01Icon} />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>下移</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='icon-sm'
+                              onClick={() =>
+                                field.onChange(
+                                  field.value.filter(
+                                    (_, modelIndex) => modelIndex !== index
+                                  )
+                                )
+                              }
+                              aria-label={`移除模型 ${modelName}`}
+                            >
+                              <HugeiconsIcon icon={Delete02Icon} />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>移除</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
       <Alert>
         <AlertTitle>调度规则</AlertTitle>

@@ -22,11 +22,15 @@ import type {
   ChannelMonitorUpstreamType,
 } from './types'
 
-export const CHANNEL_MONITOR_STATUS_LABELS: Record<number, string> = {
+export const CHANNEL_MONITOR_STATUS_LABELS: Partial<Record<number, string>> = {
   0: '未知',
   1: '已启用',
   2: '手动禁用',
-  3: '自动禁用',
+  3: '系统禁用',
+}
+
+export function getChannelMonitorStatusLabel(status: number): string {
+  return CHANNEL_MONITOR_STATUS_LABELS[status] ?? '未知状态'
 }
 
 export const CHANNEL_MONITOR_POLICY_ACTION_LABELS: Record<

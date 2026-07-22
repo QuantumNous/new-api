@@ -222,6 +222,35 @@ export type ChannelMonitorOverview = {
   settings: ChannelMonitorSettings
 }
 
+export type ChannelMonitorCostDay = {
+  date: string
+  start_at: number
+  cost_cny: number
+}
+
+export type ChannelMonitorCostChannel = {
+  channel_id: number
+  channel_name: string
+  cost_cny: number
+}
+
+export type ChannelMonitorCostCoverage = {
+  included_channel_count: number
+  unresolved_channel_count: number
+  free_group_channel_count: number
+}
+
+export type ChannelMonitorCostOverview = {
+  days: number
+  generated_at: number
+  today_cost_cny: number
+  yesterday_cost_cny: number
+  total_cost_cny: number
+  coverage: ChannelMonitorCostCoverage
+  items: ChannelMonitorCostDay[]
+  channels: ChannelMonitorCostChannel[]
+}
+
 export type ChannelMonitorPerformanceRangeMinutes = number
 
 export type ChannelMonitorSmartSchedulePerformanceRangeMinutes =
@@ -357,6 +386,7 @@ export type ChannelMonitorSettings = {
   smart_schedule_apply_mode: ChannelMonitorSmartScheduleApplyMode
   smart_schedule_performance_minutes: ChannelMonitorSmartSchedulePerformanceRangeMinutes
   smart_schedule_model: string
+  smart_schedule_models: string[]
   smart_schedule_min_samples: number
   smart_schedule_force_reset_task_created?: boolean
   smart_schedule_force_reset_task_id?: string
@@ -427,6 +457,7 @@ export type ChannelMonitorTaskResult = {
   force_reset?: boolean
   apply_mode?: ChannelMonitorSmartScheduleApplyMode
   model?: string
+  models?: string[]
   performance_minutes?: number
   min_samples?: number
   planned?: number

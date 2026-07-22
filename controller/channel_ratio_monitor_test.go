@@ -277,10 +277,55 @@ func TestLegacyStabilityStrategyMigratesToStabilitySwitch(t *testing.T) {
 	assert.True(t, settings.SmartScheduleStabilityEnabled)
 }
 
+func TestChannelSmartScheduleSettingsReadOrderedModelsAndLegacyFallback(t *testing.T) {
+	tests := []struct {
+		name       string
+		values     map[string]string
+		wantModel  string
+		wantModels []string
+	}{
+		{
+			name: "ordered models take precedence",
+			values: map[string]string{
+				channelMonitorSmartScheduleModelOption:  "legacy-model",
+				channelMonitorSmartScheduleModelsOption: `["model-b","model-a"]`,
+			},
+			wantModel:  "model-b",
+			wantModels: []string{"model-b", "model-a"},
+		},
+		{
+			name: "empty ordered list does not restore legacy model",
+			values: map[string]string{
+				channelMonitorSmartScheduleModelOption:  "legacy-model",
+				channelMonitorSmartScheduleModelsOption: `[]`,
+			},
+			wantModels: []string{},
+		},
+		{
+			name: "legacy model becomes one item list",
+			values: map[string]string{
+				channelMonitorSmartScheduleModelOption: "gpt-4o-mini",
+			},
+			wantModel:  "gpt-4o-mini",
+			wantModels: []string{"gpt-4o-mini"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			useChannelMonitorOptionMap(t, test.values)
+
+			settings := getChannelMonitorSettings()
+			assert.Equal(t, test.wantModel, settings.SmartScheduleModel)
+			assert.Equal(t, test.wantModels, settings.SmartScheduleModels)
+		})
+	}
+}
+
 func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	useChannelMonitorOptionMap(t, map[string]string{})
 
+	tooManySmartScheduleModels := make([]string, maxChannelMonitorSmartScheduleModelCount+1)
 	invalidRequests := []map[string]any{
 		{},
 		{"auto_update_interval_minutes": -1},
@@ -296,6 +341,8 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 		{"smart_schedule_apply_mode": "invalid"},
 		{"smart_schedule_performance_minutes": 30},
 		{"smart_schedule_model": strings.Repeat("m", maxChannelMonitorSmartScheduleModelLength+1)},
+		{"smart_schedule_models": []string{strings.Repeat("m", maxChannelMonitorSmartScheduleModelLength+1)}},
+		{"smart_schedule_models": tooManySmartScheduleModels},
 		{"smart_schedule_min_samples": 0},
 		{"smart_schedule_min_samples": maxChannelMonitorSmartScheduleMinSamples + 1},
 	}
@@ -317,7 +364,8 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 		"smart_schedule_stability_enabled":   true,
 		"smart_schedule_apply_mode":          channelMonitorSmartScheduleApplyPriorityWeight,
 		"smart_schedule_performance_minutes": 360,
-		"smart_schedule_model":               "gpt-4o-mini",
+		"smart_schedule_model":               "legacy-model",
+		"smart_schedule_models":              []string{" claude-3-5-sonnet ", "gpt-4o-mini", "claude-3-5-sonnet"},
 		"smart_schedule_min_samples":         8,
 	}
 	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/settings", request)
@@ -338,7 +386,8 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 	assert.True(t, response.Data.SmartScheduleStabilityEnabled)
 	assert.Equal(t, channelMonitorSmartScheduleApplyPriorityWeight, response.Data.SmartScheduleApplyMode)
 	assert.Equal(t, 360, response.Data.SmartSchedulePerformanceMinutes)
-	assert.Equal(t, "gpt-4o-mini", response.Data.SmartScheduleModel)
+	assert.Equal(t, "claude-3-5-sonnet", response.Data.SmartScheduleModel)
+	assert.Equal(t, []string{"claude-3-5-sonnet", "gpt-4o-mini"}, response.Data.SmartScheduleModels)
 	assert.Equal(t, 8, response.Data.SmartScheduleMinSamples)
 
 	var option model.Option
@@ -365,6 +414,12 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 	option = model.Option{}
 	require.NoError(t, db.Where("key = ?", channelMonitorSmartScheduleStabilityOption).First(&option).Error)
 	assert.Equal(t, "true", option.Value)
+	option = model.Option{}
+	require.NoError(t, db.Where("key = ?", channelMonitorSmartScheduleModelOption).First(&option).Error)
+	assert.Equal(t, "claude-3-5-sonnet", option.Value)
+	option = model.Option{}
+	require.NoError(t, db.Where("key = ?", channelMonitorSmartScheduleModelsOption).First(&option).Error)
+	assert.JSONEq(t, `["claude-3-5-sonnet","gpt-4o-mini"]`, option.Value)
 	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/settings", map[string]any{
 		"email_notification_enabled": false,
 		"notification_email":         "",
@@ -378,6 +433,8 @@ func TestUpdateChannelMonitorSettingsValidatesAndPersists(t *testing.T) {
 	assert.False(t, response.Data.EmailNotificationEnabled)
 	assert.Empty(t, response.Data.NotificationEmail)
 	assert.True(t, response.Data.SmartScheduleStabilityEnabled)
+	assert.Equal(t, "claude-3-5-sonnet", response.Data.SmartScheduleModel)
+	assert.Equal(t, []string{"claude-3-5-sonnet", "gpt-4o-mini"}, response.Data.SmartScheduleModels)
 }
 
 func TestEnablingChannelSmartScheduleExcludesEveryChannel(t *testing.T) {

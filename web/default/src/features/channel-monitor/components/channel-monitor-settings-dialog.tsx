@@ -74,6 +74,10 @@ export function ChannelMonitorSettingsDialog(
   props: ChannelMonitorSettingsDialogProps
 ) {
   const queryClient = useQueryClient()
+  let smartScheduleModels = props.settings.smart_schedule_models ?? []
+  if (smartScheduleModels.length === 0 && props.settings.smart_schedule_model) {
+    smartScheduleModels = [props.settings.smart_schedule_model]
+  }
   const form = useForm<ChannelMonitorSettingsFormValues>({
     resolver: zodResolver(
       createChannelMonitorSettingsSchema()
@@ -94,7 +98,7 @@ export function ChannelMonitorSettingsDialog(
       smartScheduleApplyMode: props.settings.smart_schedule_apply_mode,
       smartSchedulePerformanceMinutes:
         props.settings.smart_schedule_performance_minutes,
-      smartScheduleModel: props.settings.smart_schedule_model,
+      smartScheduleModels,
       smartScheduleMinSamples: props.settings.smart_schedule_min_samples,
       smartScheduleForceReset: false,
     },
@@ -142,7 +146,8 @@ export function ChannelMonitorSettingsDialog(
       smart_schedule_apply_mode: values.smartScheduleApplyMode,
       smart_schedule_performance_minutes:
         values.smartSchedulePerformanceMinutes,
-      smart_schedule_model: values.smartScheduleModel,
+      smart_schedule_model: values.smartScheduleModels[0] ?? '',
+      smart_schedule_models: values.smartScheduleModels,
       smart_schedule_min_samples: values.smartScheduleMinSamples,
       smart_schedule_force_reset: values.smartScheduleForceReset,
     })

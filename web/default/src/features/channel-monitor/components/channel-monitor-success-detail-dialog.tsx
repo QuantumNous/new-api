@@ -433,7 +433,7 @@ export function ChannelMonitorSuccessDetailDialog(
                   <TableHeader>
                     <TableRow>
                       <TableHead>错误分类</TableHead>
-                      <TableHead>示例报错</TableHead>
+                      <TableHead>报错示例</TableHead>
                       <TableHead className='text-right'>失败次数</TableHead>
                       <TableHead className='text-right'>失败占比</TableHead>
                       <TableHead>最近发生</TableHead>

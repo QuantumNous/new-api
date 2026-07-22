@@ -40,6 +40,7 @@ import { CHANNEL_STATUS } from '@/features/channels/constants'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { getChannelMonitorStatusLabel } from '../constants'
 import { formatMonitorRatio } from '../lib/format'
 import type {
   ChannelMonitorItem,
@@ -50,6 +51,7 @@ import {
   ChannelMonitorFirstTokenValue,
   ChannelMonitorTPSValue,
 } from './channel-monitor-performance-value'
+import { ChannelMonitorStatusBadge } from './channel-monitor-status-badge'
 import { ChannelMonitorSuccessRateValue } from './channel-monitor-success-rate-value'
 
 const PERFORMANCE_PAGE_SIZE = 20
@@ -193,9 +195,7 @@ export function ChannelMonitorModelPerformanceView(
             {visibleRows.map((row, rowIndex) => {
               const channelEnabled =
                 row.channel.status === CHANNEL_STATUS.ENABLED
-              const channelStatusLabel = channelEnabled
-                ? '渠道已启用'
-                : '渠道已停用'
+              const channelStatusLabel = `渠道状态：${getChannelMonitorStatusLabel(row.channel.status)}`
               return (
                 <TableRow key={`${props.selectedModel}:${row.channel.id}`}>
                   <TableCell className='text-muted-foreground text-center font-mono text-xs'>
@@ -218,6 +218,11 @@ export function ChannelMonitorModelPerformanceView(
                         <span className='truncate font-medium'>
                           {row.channel.name}
                         </span>
+                        {!channelEnabled && (
+                          <ChannelMonitorStatusBadge
+                            status={row.channel.status}
+                          />
+                        )}
                         <span className='text-muted-foreground text-xs'>
                           ID {row.channel.id}
                         </span>

@@ -22,13 +22,15 @@ import {
   ChartLineData01Icon,
   HistoryIcon,
   Layers01Icon,
+  MoneyBag02Icon,
   Refresh01Icon,
   Search01Icon,
   Settings02Icon,
+  TestTubeIcon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
@@ -73,6 +75,7 @@ import { CHANNEL_STATUS } from '@/features/channels/constants'
 import {
   fetchChannelMonitorUpstreamBalance,
   fetchChannelMonitorUpstreamRatio,
+  getChannelMonitorCostOverview,
   getChannelMonitorOverview,
   getChannelMonitorPerformance,
   updateChannelMonitorSmartScheduleConfig,
@@ -96,7 +99,7 @@ import { EditGroupRatioDialog } from './components/edit-group-ratio-dialog'
 import { SyncGroupRatioDialog } from './components/sync-group-ratio-dialog'
 import { UpstreamConfigDialog } from './components/upstream-config-dialog'
 import { handleChannelMonitorMutationError } from './lib/error'
-import { formatMonitorRatio, getRatioChange } from './lib/format'
+import { formatChannelMonitorCost, formatMonitorRatio } from './lib/format'
 import { sortChannelMonitorItems } from './lib/sort'
 import type {
   ChannelMonitorChannelPerformance,
@@ -112,6 +115,17 @@ import type {
   ChannelMonitorUpstreamType,
   GroupMonitorItem,
 } from './types'
+
+const LazyChannelMonitorCostHistoryDialog = lazy(() =>
+  import('./components/channel-monitor-cost-history-dialog').then((module) => ({
+    default: module.ChannelMonitorCostHistoryDialog,
+  }))
+)
+const LazyChannelBatchTestDialog = lazy(() =>
+  import('@/features/channels/components/dialogs/channel-batch-test-dialog').then(
+    (module) => ({ default: module.ChannelBatchTestDialog })
+  )
+)
 
 type MonitorView = 'channels' | 'groups' | 'models'
 type ChannelUpstreamFilter = 'all' | ChannelMonitorUpstreamType
@@ -146,6 +160,7 @@ const DEFAULT_CHANNEL_MONITOR_SETTINGS: ChannelMonitorSettings = {
   smart_schedule_apply_mode: 'weight',
   smart_schedule_performance_minutes: 60,
   smart_schedule_model: '',
+  smart_schedule_models: [],
   smart_schedule_min_samples: 5,
 }
 const CHANNEL_MONITOR_SORT_STORAGE_KEY = 'channel-monitor:channel-sort'
@@ -198,6 +213,8 @@ export function ChannelMonitor() {
   const [settingsSection, setSettingsSection] =
     useState<ChannelMonitorSettingsSection>('monitor')
   const [taskHistoryOpen, setTaskHistoryOpen] = useState(false)
+  const [costHistoryOpen, setCostHistoryOpen] = useState(false)
+  const [batchTestOpen, setBatchTestOpen] = useState(false)
   const [orderDialogOpen, setOrderDialogOpen] = useState(false)
   const [successDetailTarget, setSuccessDetailTarget] =
     useState<ChannelMonitorSuccessDetailTarget | null>(null)
@@ -240,6 +257,11 @@ export function ChannelMonitor() {
   const performanceQuery = useQuery({
     queryKey: ['channel-monitor-performance', performanceRangeMinutes],
     queryFn: () => getChannelMonitorPerformance(performanceRangeMinutes),
+    refetchInterval: 60_000,
+  })
+  const costQuery = useQuery({
+    queryKey: ['channel-monitor', 'cost', 2],
+    queryFn: () => getChannelMonitorCostOverview(2),
     refetchInterval: 60_000,
   })
   const ratioFetchMutation = useMutation({
@@ -520,11 +542,22 @@ export function ChannelMonitor() {
         if (modelName) models.add(modelName)
       }
     }
-    if (settings.smart_schedule_model) {
+    for (const modelName of settings.smart_schedule_models ?? []) {
+      if (modelName) models.add(modelName)
+    }
+    if (
+      (settings.smart_schedule_models?.length ?? 0) === 0 &&
+      settings.smart_schedule_model
+    ) {
       models.add(settings.smart_schedule_model)
     }
     return [...models].sort((first, second) => first.localeCompare(second))
-  }, [channels, performanceMetrics, settings.smart_schedule_model])
+  }, [
+    channels,
+    performanceMetrics,
+    settings.smart_schedule_model,
+    settings.smart_schedule_models,
+  ])
   const activePerformanceModel = performanceModelOptions.some(
     (option) => option.value === performanceModelFilter
   )
@@ -534,13 +567,17 @@ export function ChannelMonitor() {
   const recordedCount = channels.filter(
     (channel) => channel.cost_ratio != null
   ).length
-  const changedCount = channels.filter((channel) => {
-    const change = getRatioChange(
-      channel.cost_ratio,
-      channel.previous_cost_ratio
-    )
-    return change.direction === 'up' || change.direction === 'down'
-  }).length
+  const costOverview = costQuery.data?.data
+  let costDescription = costOverview
+    ? `昨日 ${formatChannelMonitorCost(costOverview.yesterday_cost_cny)} · 当前倍率估算`
+    : '按北京时间和当前倍率估算'
+  if (costQuery.isError) {
+    costDescription = '成本统计加载失败'
+  } else if (costOverview?.coverage.unresolved_channel_count) {
+    costDescription = `${costOverview.coverage.unresolved_channel_count} 个有用量渠道暂无法回算`
+  } else if (costOverview?.coverage.included_channel_count === 0) {
+    costDescription = '暂无可回算的成本数据'
+  }
   const newAPIChannelCount = channels.filter(
     (channel) => channel.upstream?.type === 'new_api'
   ).length
@@ -574,16 +611,27 @@ export function ChannelMonitor() {
             icon={Analytics01Icon}
           />
           <MonitorStatCard
+            label='今日累计成本'
+            value={
+              costQuery.isLoading ? (
+                <Skeleton className='h-7 w-24' />
+              ) : (
+                formatChannelMonitorCost(costOverview?.today_cost_cny)
+              )
+            }
+            description={costDescription}
+            icon={MoneyBag02Icon}
+            action={{
+              label: '查看每日成本',
+              icon: HistoryIcon,
+              onClick: () => setCostHistoryOpen(true),
+            }}
+          />
+          <MonitorStatCard
             label='已记录倍率'
             value={recordedCount}
             description='已手动录入或从上游获取'
             icon={ChartLineData01Icon}
-          />
-          <MonitorStatCard
-            label='发生变化'
-            value={changedCount}
-            description='相比上一条记录发生变化'
-            icon={Refresh01Icon}
           />
           <MonitorStatCard
             label='本地分组'
@@ -916,6 +964,23 @@ export function ChannelMonitor() {
                 <Button
                   variant='outline'
                   size='icon'
+                  onClick={() => setBatchTestOpen(true)}
+                  aria-label='渠道连通性测试'
+                >
+                  <HugeiconsIcon icon={TestTubeIcon} />
+                </Button>
+              }
+            />
+            <TooltipContent>
+              批量测试渠道，或对单个渠道和模型进行并发循环测试
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='outline'
+                  size='icon'
                   onClick={() => setTaskHistoryOpen(true)}
                   aria-label='定时任务记录'
                 >
@@ -954,8 +1019,13 @@ export function ChannelMonitor() {
                   onClick={() => {
                     query.refetch()
                     performanceQuery.refetch()
+                    costQuery.refetch()
                   }}
-                  disabled={query.isFetching || performanceQuery.isFetching}
+                  disabled={
+                    query.isFetching ||
+                    performanceQuery.isFetching ||
+                    costQuery.isFetching
+                  }
                   aria-label='刷新'
                 >
                   <HugeiconsIcon icon={Refresh01Icon} />
@@ -1050,7 +1120,7 @@ export function ChannelMonitor() {
       )}
       {settingsOpen && (
         <ChannelMonitorSettingsDialog
-          key={`${settingsSection}:${settings.auto_update_interval_minutes}:${settings.auto_update_retry_count}:${settings.auto_disable_on_update_failure}:${settings.email_notification_enabled}:${settings.notification_email}:${settings.smart_schedule_enabled}:${settings.smart_schedule_interval_minutes}:${settings.smart_schedule_strategy}:${settings.smart_schedule_stability_enabled}:${settings.smart_schedule_apply_mode}:${settings.smart_schedule_performance_minutes}:${settings.smart_schedule_model}:${settings.smart_schedule_min_samples}`}
+          key={`${settingsSection}:${settings.auto_update_interval_minutes}:${settings.auto_update_retry_count}:${settings.auto_disable_on_update_failure}:${settings.email_notification_enabled}:${settings.notification_email}:${settings.smart_schedule_enabled}:${settings.smart_schedule_interval_minutes}:${settings.smart_schedule_strategy}:${settings.smart_schedule_stability_enabled}:${settings.smart_schedule_apply_mode}:${settings.smart_schedule_performance_minutes}:${(settings.smart_schedule_models ?? []).join(',')}:${settings.smart_schedule_min_samples}`}
           settings={settings}
           modelOptions={smartScheduleModelOptions}
           initialSection={settingsSection}
@@ -1064,6 +1134,26 @@ export function ChannelMonitor() {
           open
           onOpenChange={setTaskHistoryOpen}
         />
+      )}
+      {costHistoryOpen && (
+        <Suspense fallback={null}>
+          <LazyChannelMonitorCostHistoryDialog
+            open
+            onOpenChange={setCostHistoryOpen}
+          />
+        </Suspense>
+      )}
+      {batchTestOpen && (
+        <Suspense fallback={null}>
+          <LazyChannelBatchTestDialog
+            open
+            channels={channels}
+            modelSelectionMode='single'
+            selectAllMode='all'
+            enableRepeatMode
+            onOpenChange={setBatchTestOpen}
+          />
+        </Suspense>
       )}
       {orderDialogOpen && (
         <ChannelMonitorOrderDialog
@@ -1092,9 +1182,14 @@ export function ChannelMonitor() {
 
 type MonitorStatCardProps = {
   label: string
-  value: number
+  value: ReactNode
   description: string
   icon: React.ComponentProps<typeof HugeiconsIcon>['icon']
+  action?: {
+    label: string
+    icon: React.ComponentProps<typeof HugeiconsIcon>['icon']
+    onClick: () => void
+  }
 }
 
 function MonitorStatCard(props: MonitorStatCardProps) {
@@ -1104,9 +1199,29 @@ function MonitorStatCard(props: MonitorStatCardProps) {
         <CardDescription>{props.label}</CardDescription>
         <CardTitle className='text-2xl tabular-nums'>{props.value}</CardTitle>
         <CardAction>
-          <span className='bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-lg'>
-            <HugeiconsIcon icon={props.icon} />
-          </span>
+          <div className='flex items-center gap-1'>
+            <span className='bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-lg'>
+              <HugeiconsIcon icon={props.icon} />
+            </span>
+            {props.action && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='icon'
+                      onClick={props.action.onClick}
+                      aria-label={props.action.label}
+                    >
+                      <HugeiconsIcon icon={props.action.icon} />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{props.action.label}</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </CardAction>
         <CardDescription>{props.description}</CardDescription>
       </CardHeader>

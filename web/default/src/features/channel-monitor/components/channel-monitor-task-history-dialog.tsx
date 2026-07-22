@@ -289,6 +289,14 @@ function ChannelTaskPolicyResult(props: { task: ChannelMonitorTask }) {
       result.apply_mode === 'priority_weight'
         ? '优先级分层 + 权重'
         : '只调整权重'
+    let configuredModels = result.models ?? []
+    if (configuredModels.length === 0 && result.model) {
+      configuredModels = [result.model]
+    }
+    const modelSummary =
+      configuredModels.length > 0
+        ? `模型优先级 ${configuredModels.join(' → ')}`
+        : '全部模型汇总'
     return (
       <div className='flex min-w-48 flex-col gap-1 text-xs'>
         <span>
@@ -299,9 +307,11 @@ function ChannelTaskPolicyResult(props: { task: ChannelMonitorTask }) {
           {result.stability_enabled ? ' · 按稳定性' : ''}
           {result.force_reset ? ' · 强制重算' : ''}
         </span>
-        <span className='text-muted-foreground'>
-          {result.model ? `模型 ${result.model}` : '全部模型汇总'} ·{' '}
-          {result.performance_minutes ?? 0} 分钟
+        <span
+          className='text-muted-foreground max-w-80 truncate'
+          title={modelSummary}
+        >
+          {modelSummary} · {result.performance_minutes ?? 0} 分钟
         </span>
       </div>
     )

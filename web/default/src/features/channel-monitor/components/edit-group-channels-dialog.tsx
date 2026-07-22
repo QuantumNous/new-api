@@ -46,6 +46,7 @@ import { cn } from '@/lib/utils'
 import { updateChannelMonitorGroupChannels } from '../api'
 import { handleChannelMonitorMutationError } from '../lib/error'
 import type { ChannelMonitorItem, GroupMonitorItem } from '../types'
+import { ChannelMonitorStatusBadge } from './channel-monitor-status-badge'
 
 type EditGroupChannelsDialogProps = {
   group: GroupMonitorItem
@@ -298,17 +299,7 @@ export function EditGroupChannelsDialog(props: EditGroupChannelsDialogProps) {
                           <span className='text-muted-foreground font-mono text-xs'>
                             ID {channel.id}
                           </span>
-                          <Badge
-                            variant={
-                              channel.status === CHANNEL_STATUS.ENABLED
-                                ? 'secondary'
-                                : 'outline'
-                            }
-                          >
-                            {channel.status === CHANNEL_STATUS.ENABLED
-                              ? '已启用'
-                              : '已禁用'}
-                          </Badge>
+                          <ChannelMonitorStatusBadge status={channel.status} />
                           {originalChannelIds.has(channel.id) && (
                             <Badge variant='outline'>当前成员</Badge>
                           )}

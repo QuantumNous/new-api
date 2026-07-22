@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -10,6 +11,61 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestChannelSmartSchedulePreferredModelUsesConfiguredOrder(t *testing.T) {
+	assert.Equal(t, "model-b", channelSmartSchedulePreferredModel(
+		[]string{"model-a", " model-b "},
+		[]string{"model-c", "model-b", "model-a"},
+	))
+	assert.Empty(t, channelSmartSchedulePreferredModel(
+		[]string{"model-a"},
+		[]string{"model-b", "model-c"},
+	))
+}
+
+func TestRunChannelSmartScheduleUsesFirstSupportedModelPerChannel(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	useChannelMonitorOptionMap(t, map[string]string{
+		channelMonitorSmartScheduleEnabledOption:   "true",
+		channelMonitorSmartScheduleStrategyOption:  channelMonitorSmartScheduleStrategyFirstToken,
+		channelMonitorSmartScheduleApplyModeOption: channelMonitorSmartScheduleApplyWeight,
+		channelMonitorSmartScheduleModelsOption:    `["model-b","model-a"]`,
+		channelMonitorSmartScheduleSamplesOption:   "1",
+	})
+	priority := int64(0)
+	weight := uint(50)
+	channels := []model.Channel{
+		{Id: 101, Name: "supports both", Group: "vip", Models: "model-a,model-b", Status: common.ChannelStatusEnabled, Priority: &priority, Weight: &weight},
+		{Id: 102, Name: "fallback", Group: "vip", Models: "model-a", Status: common.ChannelStatusEnabled, Priority: &priority, Weight: &weight},
+		{Id: 103, Name: "unsupported", Group: "vip", Models: "model-c", Status: common.ChannelStatusEnabled, Priority: &priority, Weight: &weight},
+	}
+	require.NoError(t, db.Create(&channels).Error)
+	now := time.Now().Unix()
+	require.NoError(t, db.Create(&[]model.Log{
+		{ChannelId: 101, ModelName: "model-a", CreatedAt: now, Type: model.LogTypeConsume, IsStream: true, Other: `{"frt":100}`},
+		{ChannelId: 101, ModelName: "model-b", CreatedAt: now, Type: model.LogTypeConsume, IsStream: true, Other: `{"frt":1000}`},
+		{ChannelId: 102, ModelName: "model-a", CreatedAt: now, Type: model.LogTypeConsume, IsStream: true, Other: `{"frt":100}`},
+	}).Error)
+
+	result, err := runChannelSmartScheduleOnce(context.Background(), nil, false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"model-b", "model-a"}, result.Models)
+	assert.Equal(t, "model-b", result.Model)
+	assert.Equal(t, 2, result.Updated)
+	assert.Equal(t, 1, result.Skipped)
+
+	first, err := model.GetChannelById(101, false)
+	require.NoError(t, err)
+	second, err := model.GetChannelById(102, false)
+	require.NoError(t, err)
+	assert.Equal(t, 30, first.GetWeight())
+	assert.Equal(t, 70, second.GetWeight())
+
+	unsupportedMonitor, err := model.GetChannelRatioMonitor(103)
+	require.NoError(t, err)
+	assert.Equal(t, model.ChannelSmartScheduleStatusSkipped, unsupportedMonitor.LastScheduleStatus)
+	assert.Equal(t, "渠道不支持已配置的基准模型", unsupportedMonitor.LastScheduleError)
+}
 
 func TestRunChannelSmartScheduleUsesConvertedCostRatioAcrossGroups(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)

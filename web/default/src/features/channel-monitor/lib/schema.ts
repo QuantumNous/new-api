@@ -36,6 +36,7 @@ export const MAX_CUSTOM_UPSTREAM_BODY_BYTES = 49_152
 export const MAX_AUTO_UPDATE_INTERVAL_MINUTES = 525_600
 export const MAX_AUTO_UPDATE_RETRY_COUNT = 10
 export const MAX_SMART_SCHEDULE_MIN_SAMPLES = 100_000
+export const MAX_SMART_SCHEDULE_MODEL_COUNT = 100
 
 const channelMonitorSmartScheduleApplyModes = [
   'weight',
@@ -122,10 +123,15 @@ export function createChannelMonitorSettingsSchema() {
         z.literal(360),
         z.literal(1440),
       ]),
-      smartScheduleModel: z
-        .string()
-        .trim()
-        .max(255, '基准模型不能超过 255 个字符'),
+      smartScheduleModels: z
+        .array(
+          z
+            .string()
+            .trim()
+            .min(1, '基准模型不能为空')
+            .max(255, '基准模型不能超过 255 个字符')
+        )
+        .max(MAX_SMART_SCHEDULE_MODEL_COUNT, '基准模型不能超过 100 个'),
       smartScheduleMinSamples: z.coerce
         .number()
         .int('最少样本数必须是整数')

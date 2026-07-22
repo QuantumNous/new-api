@@ -55,6 +55,7 @@ import { CHANNEL_STATUS } from '@/features/channels/constants'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { getChannelMonitorStatusLabel } from '../constants'
 import { formatMonitorRatio } from '../lib/format'
 import type {
   ChannelMonitorChannelPerformance,
@@ -67,6 +68,7 @@ import {
   ChannelMonitorTPSValue,
 } from './channel-monitor-performance-value'
 import { ChannelMonitorSmartScheduleCell } from './channel-monitor-smart-schedule-cell'
+import { ChannelMonitorStatusBadge } from './channel-monitor-status-badge'
 import { ChannelMonitorSuccessRateValue } from './channel-monitor-success-rate-value'
 import { GroupRatioValue } from './group-ratio-value'
 import { RatioChangeBadge } from './ratio-change-badge'
@@ -299,9 +301,7 @@ export function ChannelMonitorChannelView(
           {props.channels.map((channel) => {
             const channelEnabled = channel.status === CHANNEL_STATUS.ENABLED
             const successMetric = props.successByChannel.get(channel.id)
-            const channelStatusLabel = channelEnabled
-              ? '渠道已启用'
-              : '渠道已停用'
+            const channelStatusLabel = `渠道状态：${getChannelMonitorStatusLabel(channel.status)}`
             return (
               <TableRow key={channel.id} className='[&_td]:text-left'>
                 <TableCell className='whitespace-normal'>
@@ -319,6 +319,9 @@ export function ChannelMonitorChannelView(
                       <span className='min-w-0 truncate font-medium'>
                         {channel.name}
                       </span>
+                      {!channelEnabled && (
+                        <ChannelMonitorStatusBadge status={channel.status} />
+                      )}
                     </div>
                     {channel.channel_remark && (
                       <span
