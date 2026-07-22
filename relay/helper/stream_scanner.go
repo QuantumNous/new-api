@@ -18,14 +18,17 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	InitialScannerBufferSize    = 64 << 10  // 64KB (64*1024)
-	DefaultMaxScannerBufferSize = 128 << 20 // 64MB (64*1024*1024) default SSE buffer size
-	DefaultPingInterval         = 10 * time.Second
+	InitialScannerBufferSize     = 64 << 10  // 64KB (64*1024)
+	DefaultMaxScannerBufferSize  = 128 << 20 // 64MB (64*1024*1024) default SSE buffer size
+	DefaultPingInterval          = 10 * time.Second
+	codexReasoningIncludedHeader = "X-Reasoning-Included"
+	codexTurnStateHeader         = "X-Codex-Turn-State"
 	// streamWriteTimeout bounds a single blocked write to a slow client so the
 	// unconditional wg.Wait() in cleanup can always finish. Without it, a slow
 	// but connected client (full TCP buffer, no server WriteTimeout) could hang
@@ -46,13 +49,15 @@ func NewStreamScanner(reader io.Reader) *bufio.Scanner {
 	return scanner
 }
 
-func copyCodexSSEHeaders(c *gin.Context, resp *http.Response) {
+func copyCodexSSEHeaders(c *gin.Context, resp *http.Response, copyAll bool) {
 	if c == nil || c.Writer == nil || resp == nil {
 		return
 	}
-	// codex
-	for _, name := range []string{"X-Reasoning-Included", "X-Codex-Turn-State"} {
-		values := resp.Header.Values(name)
+	headers := resp.Header
+	if !copyAll {
+		headers = lo.PickByKeys(resp.Header, []string{codexReasoningIncludedHeader, codexTurnStateHeader})
+	}
+	for name, values := range headers {
 		if !service.ShouldCopyUpstreamHeader(c, name, values) {
 			continue
 		}
@@ -141,7 +146,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	defer cleanup()
 
 	scanner.Split(bufio.ScanLines)
-	copyCodexSSEHeaders(c, resp)
+	copyCodexSSEHeaders(c, resp, info.ChannelMeta.ChannelType == constant.ChannelTypeCodex)
 	SetEventStreamHeaders(c)
 
 	ctx = context.WithValue(ctx, "stop_chan", stopChan)
