@@ -16,18 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { AlertCircle, Braces, CheckCircle2, Code2 } from 'lucide-react'
+import { AlertCircle, Braces, CheckCircle2, Code2, Copy } from 'lucide-react'
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ComponentProps,
-  type KeyboardEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { Yace, type Plugin } from 'yace'
+import { code } from 'yace/highlighters/code'
+import { autoClose, history, tab } from 'yace/plugins'
 
+import {
+  createScrollLayerSynchronizer,
+  formatJsonDraft,
+  getCursorLocation,
+  getJsonValidationState,
+  jsonSmartEnter,
+  type CursorLocation,
+} from '@/components/json-code-editor/json-code-editor-utils'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { cn } from '@/lib/utils'
 
 export type JsonCodeEditorProps = Omit<ComponentProps<'div'>, 'onChange'> & {
@@ -49,168 +61,151 @@ export function JsonCodeEditor({
   ...rootProps
 }: JsonCodeEditorProps) {
   const { t } = useTranslation()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [scrollTop, setScrollTop] = useState(0)
-  const lineNumbers = useMemo(() => {
-    const count = Math.max(1, value.split('\n').length)
-    return Array.from({ length: count }, (_, index) => index + 1)
-  }, [value])
-  const jsonStatus = useMemo(() => {
-    const trimmed = value.trim()
-    if (!trimmed) return { valid: true, message: t('JSON') }
-    try {
-      JSON.parse(trimmed)
-      return { valid: true, message: t('JSON') }
-    } catch {
-      return { valid: false, message: t('Invalid JSON') }
+  const mountRef = useRef<HTMLDivElement>(null)
+  const editorRef = useRef<Yace | null>(null)
+  const latestValueRef = useRef(value)
+  const latestOnChangeRef = useRef(onChange)
+  const [cursorLocation, setCursorLocation] = useState<CursorLocation>({
+    line: 1,
+    column: 1,
+  })
+  const jsonStatus = useMemo(() => getJsonValidationState(value), [value])
+  const editorPlugins = useMemo<Plugin[]>(
+    () => [
+      history(),
+      tab('  '),
+      jsonSmartEnter(),
+      autoClose({ '"': '"', '{': '}', '[': ']' }),
+    ],
+    []
+  )
+
+  latestValueRef.current = value
+  latestOnChangeRef.current = onChange
+
+  useEffect(() => {
+    const mountNode = mountRef.current
+    if (!mountNode) {
+      return
     }
-  }, [value, t])
+
+    const editor = new Yace(mountNode, {
+      value: latestValueRef.current,
+      lineNumbers: true,
+      highlighters: [code()],
+      plugins: editorPlugins,
+      styles: {
+        color: 'inherit',
+        fontSize: '0.75rem',
+        lineHeight: '1.25rem',
+        minHeight: '100%',
+        overflow: 'hidden',
+        padding: '0.5rem 0.75rem 0.5rem 0.5rem',
+      },
+    })
+    editorRef.current = editor
+
+    const handleUpdate = (nextValue: string) => {
+      if (nextValue !== latestValueRef.current) {
+        latestOnChangeRef.current(nextValue)
+      }
+    }
+    const updateCursorLocation = () => {
+      setCursorLocation(
+        getCursorLocation(editor.value, editor.textarea.selectionStart)
+      )
+    }
+    const lineNumberLayer = [...mountNode.querySelectorAll('pre')].find(
+      (preLayer) => preLayer !== editor.pre
+    )
+    if (!lineNumberLayer) {
+      editor.destroy()
+      editorRef.current = null
+      return
+    }
+    const scrollSynchronizer = createScrollLayerSynchronizer(editor.textarea, {
+      contentLayer: editor.pre,
+      lineNumberLayer,
+    })
+    const syncScrollLayers = () => scrollSynchronizer.sync()
+
+    editor.onUpdate(handleUpdate)
+    editor.textarea.addEventListener('click', updateCursorLocation)
+    editor.textarea.addEventListener('input', updateCursorLocation)
+    editor.textarea.addEventListener('keyup', updateCursorLocation)
+    editor.textarea.addEventListener('select', updateCursorLocation)
+    editor.textarea.addEventListener('scroll', syncScrollLayers, {
+      passive: true,
+    })
+    editor.textarea.classList.add('json-code-editor-textarea')
+    editor.pre.classList.add('json-code-editor-highlight')
+    lineNumberLayer.classList.add('json-code-editor-lines')
+    updateCursorLocation()
+
+    return () => {
+      editor.textarea.removeEventListener('click', updateCursorLocation)
+      editor.textarea.removeEventListener('input', updateCursorLocation)
+      editor.textarea.removeEventListener('keyup', updateCursorLocation)
+      editor.textarea.removeEventListener('select', updateCursorLocation)
+      editor.textarea.removeEventListener('scroll', syncScrollLayers)
+      editor.destroy()
+      editorRef.current = null
+    }
+  }, [editorPlugins])
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor || editor.value === value) {
+      return
+    }
+
+    editor.update({ value })
+  }, [value])
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) {
+      return
+    }
+
+    const resolvedAriaInvalid = ariaInvalid ?? !jsonStatus.isValid
+
+    editor.textarea.disabled = Boolean(disabled)
+    editor.textarea.id = id ?? ''
+    editor.textarea.setAttribute('aria-label', t('JSON'))
+
+    if (resolvedAriaInvalid) {
+      editor.textarea.setAttribute('aria-invalid', String(resolvedAriaInvalid))
+    } else {
+      editor.textarea.removeAttribute('aria-invalid')
+    }
+
+    if (ariaDescribedBy) {
+      editor.textarea.setAttribute('aria-describedby', ariaDescribedBy)
+    } else {
+      editor.textarea.removeAttribute('aria-describedby')
+    }
+  }, [ariaDescribedBy, ariaInvalid, disabled, id, jsonStatus.isValid, t])
 
   const formatJson = () => {
-    const trimmed = value.trim()
-    if (!trimmed) return
-    try {
-      onChange(JSON.stringify(JSON.parse(trimmed), null, 2))
-    } catch {
-      // Keep invalid drafts untouched; validation feedback remains visible.
+    const result = formatJsonDraft(value)
+    if (result.didFormat) {
+      onChange(result.value)
     }
   }
 
-  const updateValueWithSelection = (
-    nextValue: string,
-    selectionStart: number,
-    selectionEnd = selectionStart
-  ) => {
-    onChange(nextValue)
-    window.requestAnimationFrame(() => {
-      textareaRef.current?.setSelectionRange(selectionStart, selectionEnd)
-    })
+  const handleCopy = async () => {
+    const didCopy = await copyToClipboard(value)
+    if (didCopy) {
+      toast.success(t('Copied to clipboard'))
+      return
+    }
+
+    toast.error(t('Failed to copy'))
   }
 
-  const getLineIndent = (text: string, cursor: number) => {
-    const lineStart = text.lastIndexOf('\n', cursor - 1) + 1
-    return text.slice(lineStart, cursor).match(/^\s*/)?.[0] ?? ''
-  }
-
-  const handleEditorKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    const target = event.currentTarget
-    const start = target.selectionStart
-    const end = target.selectionEnd
-    const selected = value.slice(start, end)
-    const before = value.slice(0, start)
-    const after = value.slice(end)
-
-    if (event.key === 'Tab') {
-      event.preventDefault()
-
-      if (start !== end && selected.includes('\n')) {
-        const selectionLineStart = value.lastIndexOf('\n', start - 1) + 1
-        const selectedBlock = value.slice(selectionLineStart, end)
-        const lines = selectedBlock.split('\n')
-        const nextBlock = event.shiftKey
-          ? lines
-              .map((line) =>
-                line.startsWith('  ')
-                  ? line.slice(2)
-                  : line.startsWith('\t')
-                    ? line.slice(1)
-                    : line
-              )
-              .join('\n')
-          : lines.map((line) => `  ${line}`).join('\n')
-        const nextValue =
-          value.slice(0, selectionLineStart) + nextBlock + value.slice(end)
-        updateValueWithSelection(
-          nextValue,
-          selectionLineStart,
-          selectionLineStart + nextBlock.length
-        )
-        return
-      }
-
-      if (event.shiftKey) {
-        const lineStart = value.lastIndexOf('\n', start - 1) + 1
-        const removable = value.slice(lineStart, lineStart + 2)
-        if (removable === '  ') {
-          updateValueWithSelection(
-            value.slice(0, lineStart) + value.slice(lineStart + 2),
-            Math.max(lineStart, start - 2),
-            Math.max(lineStart, end - 2)
-          )
-        }
-        return
-      }
-
-      updateValueWithSelection(`${before}  ${after}`, start + 2)
-      return
-    }
-
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      const indent = getLineIndent(value, start)
-      const previousChar = before.trimEnd().at(-1)
-      const nextChar = after.trimStart().at(0)
-      const shouldNest = previousChar === '{' || previousChar === '['
-      const shouldClose =
-        (previousChar === '{' && nextChar === '}') ||
-        (previousChar === '[' && nextChar === ']')
-
-      if (shouldNest && shouldClose) {
-        const innerIndent = `${indent}  `
-        const insert = `\n${innerIndent}\n${indent}`
-        updateValueWithSelection(
-          `${before}${insert}${after}`,
-          start + 1 + innerIndent.length
-        )
-        return
-      }
-
-      const nextIndent = shouldNest ? `${indent}  ` : indent
-      const insert = `\n${nextIndent}`
-      updateValueWithSelection(
-        `${before}${insert}${after}`,
-        start + insert.length
-      )
-      return
-    }
-
-    const pairs: Record<string, string> = {
-      '"': '"',
-      '{': '}',
-      '[': ']',
-    }
-    const closingChars = new Set(Object.values(pairs))
-
-    if (closingChars.has(event.key) && value[start] === event.key) {
-      event.preventDefault()
-      textareaRef.current?.setSelectionRange(start + 1, start + 1)
-      return
-    }
-
-    if (pairs[event.key]) {
-      event.preventDefault()
-      const close = pairs[event.key]
-      const wrapped = `${event.key}${selected}${close}`
-      updateValueWithSelection(
-        `${before}${wrapped}${after}`,
-        start + 1,
-        start + 1 + selected.length
-      )
-      return
-    }
-
-    if (event.key === 'Backspace' && start === end && start > 0) {
-      const previousChar = value[start - 1]
-      const nextChar = value[start]
-      if (pairs[previousChar] === nextChar) {
-        event.preventDefault()
-        updateValueWithSelection(
-          value.slice(0, start - 1) + value.slice(start + 1),
-          start - 1
-        )
-      }
-    }
-  }
+  const statusMessage = t(jsonStatus.messageKey)
+  const cursorText = `${cursorLocation.line}:${cursorLocation.column}`
 
   return (
     <div
@@ -222,62 +217,60 @@ export function JsonCodeEditor({
     >
       <div className='bg-muted/30 flex h-8 items-center justify-between border-b px-2'>
         <div className='text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs font-medium'>
-          <Braces className='h-3.5 w-3.5' />
+          <Braces className='h-3.5 w-3.5' aria-hidden='true' />
           <span>{t('JSON')}</span>
+          <span className='text-muted-foreground/70 font-mono'>
+            {cursorText}
+          </span>
         </div>
         <div className='flex items-center gap-2'>
           <span
             className={cn(
               'flex items-center gap-1 text-xs',
-              jsonStatus.valid ? 'text-emerald-600' : 'text-destructive'
+              jsonStatus.isValid ? 'text-emerald-600' : 'text-destructive'
             )}
           >
-            {jsonStatus.valid ? (
-              <CheckCircle2 className='h-3.5 w-3.5' />
+            {jsonStatus.isValid ? (
+              <CheckCircle2 className='h-3.5 w-3.5' aria-hidden='true' />
             ) : (
-              <AlertCircle className='h-3.5 w-3.5' />
+              <AlertCircle className='h-3.5 w-3.5' aria-hidden='true' />
             )}
-            {jsonStatus.message}
+            {statusMessage}
           </span>
           <Button
             type='button'
             variant='ghost'
             size='sm'
             className='h-6 px-2 text-xs'
-            onClick={formatJson}
-            disabled={disabled || !jsonStatus.valid || !value.trim()}
+            onClick={handleCopy}
+            disabled={disabled || !value}
           >
-            <Code2 className='mr-1 h-3.5 w-3.5' />
+            <Copy className='mr-1 h-3.5 w-3.5' aria-hidden='true' />
+            {t('Copy')}
+          </Button>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            className='h-6 px-2 text-xs'
+            onClick={formatJson}
+            disabled={disabled || !jsonStatus.isValid || !value.trim()}
+          >
+            <Code2 className='mr-1 h-3.5 w-3.5' aria-hidden='true' />
             {t('Format JSON')}
           </Button>
         </div>
       </div>
-      <div className={cn('relative flex overflow-hidden', heightClassName)}>
-        <div className='bg-muted/20 text-muted-foreground/70 relative w-10 shrink-0 overflow-hidden border-r font-mono text-xs leading-5 select-none'>
-          <div
-            className='px-2 py-2 text-right'
-            style={{ transform: `translateY(-${scrollTop}px)` }}
-          >
-            {lineNumbers.map((lineNumber) => (
-              <div key={lineNumber}>{lineNumber}</div>
-            ))}
-          </div>
-        </div>
-        <Textarea
-          ref={textareaRef}
-          id={id}
-          aria-describedby={ariaDescribedBy}
-          aria-invalid={ariaInvalid}
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={handleEditorKeyDown}
-          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-          className={cn(
-            '[field-sizing:fixed] resize-none overflow-auto rounded-none border-0 bg-transparent px-3 py-2 font-mono text-xs leading-5 shadow-none ring-0 outline-none focus-visible:ring-0',
-            heightClassName
-          )}
-          spellCheck={false}
+      <div
+        className={cn(
+          'bg-background relative overflow-hidden pl-2',
+          'has-[textarea:disabled]:bg-input/30 has-[textarea:disabled]:opacity-70',
+          heightClassName
+        )}
+      >
+        <div
+          ref={mountRef}
+          className='json-code-editor-yace text-foreground h-full font-mono text-xs leading-5'
         />
       </div>
     </div>

@@ -45,6 +45,38 @@ For commercial licensing, please contact support@quantumnous.com
     font-weight: var(--shiki-dark-font-weight) !important;
     text-decoration: var(--shiki-dark-text-decoration) !important;
   }
+
+  .json-code-editor-textarea {
+    overflow: auto !important;
+    scrollbar-gutter: stable;
+  }
+
+  .json-code-editor-textarea,
+  .json-code-editor-highlight,
+  .json-code-editor-lines {
+    overflow-wrap: normal !important;
+    white-space: pre !important;
+  }
+
+  .json-code-editor-highlight .yace-tok--str {
+    color: var(--chart-5);
+  }
+
+  .json-code-editor-highlight .yace-tok--num {
+    color: var(--chart-4);
+  }
+
+  .json-code-editor-highlight .yace-tok--kw {
+    color: var(--chart-1);
+  }
+
+  .json-code-editor-highlight .yace-tok--punc {
+    color: var(--muted-foreground);
+  }
+
+  .json-code-editor-highlight .yace-tok--com {
+    color: var(--muted-foreground);
+  }
 }
 
 @layer base {
