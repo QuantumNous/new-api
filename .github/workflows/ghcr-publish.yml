@@ -87,7 +87,7 @@ jobs:
     name: Create multi-arch manifest
     needs: [build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
       packages: write
     steps:
@@ -99,7 +99,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${GITHUB_REF#refs/heads/}-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+          else
+            TAG=${GITHUB_REF#refs/tags/}
+          fi
+          echo "TAG=${TAG}" >> $GITHUB_ENV
 
       - name: Create & push version manifest
         run: |
