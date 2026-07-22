@@ -1242,7 +1242,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               />
             )}
             {other.request_body && (
-              <InspectBodyBlock body={other.request_body} labelKey='inspect.request_body' t={t} />
+              <InspectBodyBlock body={other.request_body} labelKey='inspect.request_body' t={t} copyToClipboard={copyToClipboard} isCopied={copiedText === other.request_body} />
             )}
             {other.response_headers && (
               <InspectHeaderBlock
@@ -1251,13 +1251,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
               />
             )}
             {other.response_body && (
-              <InspectBodyBlock body={other.response_body} labelKey='inspect.response_body' t={t} />
+              <InspectBodyBlock body={other.response_body} labelKey='inspect.response_body' t={t} copyToClipboard={copyToClipboard} isCopied={copiedText === other.response_body} />
             )}
             {other.provider_request_body && (
-              <InspectBodyBlock body={other.provider_request_body} labelKey='inspect.provider_request_body' t={t} />
+              <InspectBodyBlock body={other.provider_request_body} labelKey='inspect.provider_request_body' t={t} copyToClipboard={copyToClipboard} isCopied={copiedText === other.provider_request_body} />
             )}
             {other.provider_response_body && (
-              <InspectBodyBlock body={other.provider_response_body} labelKey='inspect.provider_response_body' t={t} />
+              <InspectBodyBlock body={other.provider_response_body} labelKey='inspect.provider_response_body' t={t} copyToClipboard={copyToClipboard} isCopied={copiedText === other.provider_response_body} />
             )}
           </DetailSection>
         )}
@@ -1349,9 +1349,10 @@ function InspectBodyBlock(props: {
   body: string
   labelKey: string
   t: TFunction
+  copyToClipboard: (text: string) => void
+  isCopied: boolean
 }) {
-  const { body, labelKey, t } = props
-  const [copied, copy] = useCopyToClipboard()
+  const { body, labelKey, t, copyToClipboard, isCopied } = props
   const isFile = isFileRef(body)
 
   return (
@@ -1362,11 +1363,11 @@ function InspectBodyBlock(props: {
           variant='ghost'
           size='sm'
           className='absolute top-1 right-1 h-5 w-5 p-0'
-          onClick={() => copy(body)}
+          onClick={() => copyToClipboard(body)}
           title={t('Copy to clipboard')}
           aria-label={t('Copy to clipboard')}
         >
-          {copied ? (
+          {isCopied ? (
             <Check className='size-3 text-green-600' />
           ) : (
             <Copy className='size-3' />
@@ -1386,10 +1387,4 @@ function InspectBodyBlock(props: {
   )
 }
 
-function formatJsonInline(raw: string): string {
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
-  } catch {
-    return raw
-  }
-}
+{/* End of file */}
