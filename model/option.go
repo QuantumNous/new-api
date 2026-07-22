@@ -1,6 +1,7 @@
 package model
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -187,11 +188,27 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
-	options, _ := AllOption()
+	options, err := AllOption()
+	if err != nil {
+		common.SysLog("failed to load options from database: " + err.Error())
+		return
+	}
+	serverAddressExists := false
 	for _, option := range options {
+		if option.Key == "ServerAddress" {
+			serverAddressExists = true
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
+		}
+	}
+	if !serverAddressExists {
+		serverAddress := strings.TrimSpace(os.Getenv("SERVER_ADDRESS"))
+		if serverAddress != "" {
+			if err := UpdateOption("ServerAddress", serverAddress); err != nil {
+				common.SysLog("failed to seed ServerAddress from SERVER_ADDRESS: " + err.Error())
+			}
 		}
 	}
 }
