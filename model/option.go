@@ -55,6 +55,7 @@ func InitOptionMap() {
 	common.OptionMap["StoreProviderRequestBodyEnabled"] = strconv.FormatBool(common.StoreProviderRequestBodyEnabled)
 	common.OptionMap["StoreProviderResponseBodyEnabled"] = strconv.FormatBool(common.StoreProviderResponseBodyEnabled)
 	common.OptionMap["BodyFileRetentionDays"] = strconv.Itoa(common.BodyFileRetentionDays)
+	common.OptionMap["LogRetentionDays"] = strconv.Itoa(common.LogRetentionDays)
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -337,6 +338,11 @@ func updateOptionMap(key string, value string) (err error) {
 			days, err := strconv.Atoi(value)
 			if err == nil && days >= 0 {
 				common.BodyFileRetentionDays = days
+			}
+		case "LogRetentionDays":
+			days, err := strconv.Atoi(value)
+			if err == nil && days >= 0 {
+				common.LogRetentionDays = days
 			}
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）

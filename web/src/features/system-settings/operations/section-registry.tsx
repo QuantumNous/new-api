@@ -98,6 +98,7 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        logRetentionDays={Number(settings.LogRetentionDays)}
         bodyCaptureSettings={{
           StoreRequestBodyEnabled: Boolean(settings.StoreRequestBodyEnabled),
           StoreResponseBodyEnabled: Boolean(settings.StoreResponseBodyEnabled),

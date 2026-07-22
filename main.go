@@ -322,6 +322,8 @@ func InitResources() error {
 
 	// 启动请求体文件自动清理（默认保留7天，每小时执行一次）
 	common.StartBodyFileCleanup()
+	// 启动数据库日志自动清理（默认禁用，由 LogRetentionDays 控制）
+	common.StartDbLogCleanup()
 
 	// Initialize SQL Database
 	err = model.InitLogDB()

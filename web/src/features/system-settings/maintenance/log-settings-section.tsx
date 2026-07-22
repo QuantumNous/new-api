@@ -86,6 +86,7 @@ const logSettingsSchema = z.object({
   StoreResponseHeadersEnabled: z.boolean(),
   StoreProviderRequestBodyEnabled: z.boolean(),
   StoreProviderResponseBodyEnabled: z.boolean(),
+  LogRetentionDays: z.number().int().min(0, 'Must be 0 or greater'),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
@@ -110,6 +111,7 @@ const bodyCaptureKeys: (keyof BodyCaptureSettings)[] = [
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  logRetentionDays: number
   bodyCaptureSettings: BodyCaptureSettings
 }
 
@@ -166,6 +168,7 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
 
 export function LogSettingsSection({
   defaultEnabled,
+  logRetentionDays,
   bodyCaptureSettings,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
@@ -174,6 +177,7 @@ export function LogSettingsSection({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
+      LogRetentionDays: logRetentionDays,
       ...bodyCaptureSettings,
     },
   })
@@ -201,8 +205,8 @@ export function LogSettingsSection({
   }, [])
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled, ...bodyCaptureSettings })
-  }, [defaultEnabled, bodyCaptureSettings, form])
+    form.reset({ LogConsumeEnabled: defaultEnabled, LogRetentionDays: logRetentionDays, ...bodyCaptureSettings })
+  }, [defaultEnabled, logRetentionDays, bodyCaptureSettings, form])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -287,6 +291,9 @@ export function LogSettingsSection({
     const updates: { key: string; value: unknown }[] = []
     if (values.LogConsumeEnabled !== defaultEnabled) {
       updates.push({ key: 'LogConsumeEnabled', value: values.LogConsumeEnabled })
+    }
+    if (values.LogRetentionDays !== logRetentionDays) {
+      updates.push({ key: 'LogRetentionDays', value: values.LogRetentionDays })
     }
     for (const key of bodyCaptureKeys) {
       if (values[key] !== bodyCaptureSettings[key]) {
@@ -440,6 +447,45 @@ export function LogSettingsSection({
               )}
             />
           ))}
+
+          <Separator />
+          <div className='pt-2'>
+            <h4 className='text-sm font-medium'>{t('DB Log Auto-cleanup')}</h4>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Automatically delete database log records older than the specified number of days. Set to 0 to disable (keep logs forever).'
+              )}
+            </p>
+          </div>
+          <FormField
+            control={form.control}
+            name='LogRetentionDays'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Retention Days')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Log records older than this many days will be deleted hourly. 0 = disabled (keep forever).'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    max={3650}
+                    className='w-24'
+                    value={field.value}
+                    onChange={(event) =>
+                      field.onChange(Number(event.target.value))
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
 
           <FormField
 

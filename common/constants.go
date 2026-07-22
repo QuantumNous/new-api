@@ -158,6 +158,12 @@ var AutomaticEnableChannelEnabled = false
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
 
+// LogRetentionDays is the number of days to keep DB log records before
+// automatic cleanup. When > 0, a background goroutine deletes log records
+// older than this many days. Set to 0 to disable cleanup (logs kept forever).
+// Default is 0 (disabled).
+var LogRetentionDays = 0
+
 var RetryTimes = 0
 
 //var RootUserEmail = ""

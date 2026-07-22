@@ -5230,6 +5230,10 @@
     "Capture upstream response headers.": "Capture upstream response headers.",
     "Capture raw response body before format conversion. Non-streaming only.": "Capture raw response body before format conversion. Non-streaming only.",
     "Capture request body AFTER format conversion (actual JSON sent to upstream).": "Capture request body AFTER format conversion (actual JSON sent to upstream).",
-    "Capture raw response body FROM upstream before conversion. Non-streaming only.": "Capture raw response body FROM upstream before conversion. Non-streaming only."
+    "Capture raw response body FROM upstream before conversion. Non-streaming only.": "Capture raw response body FROM upstream before conversion. Non-streaming only.",
+    "DB Log Auto-cleanup": "DB Log Auto-cleanup",
+    "Automatically delete database log records older than the specified number of days. Set to 0 to disable (keep logs forever).": "Automatically delete database log records older than the specified number of days. Set to 0 to disable (keep logs forever).",
+    "Retention Days": "Retention Days",
+    "Log records older than this many days will be deleted hourly. 0 = disabled (keep forever).": "Log records older than this many days will be deleted hourly. 0 = disabled (keep forever)."
   }
 }
