@@ -326,6 +326,8 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-accent: oklch(0.72 0.18 250);
   --sidebar-accent-foreground: oklch(0.1 0.02 260);
   --sidebar-ring: oklch(0.72 0.18 250);
+}
+
 /* ── Simple Large-font ────────────────────────────────────────────────── */
 [data-theme-preset='simple-large'] {
   --background: oklch(0.99 0 0);
