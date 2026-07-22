@@ -54,6 +54,7 @@ export const CHANNEL_MONITOR_UPSTREAM_AUTH_LABELS: Record<
   public: '公开接口',
   user: '账号登录',
   api_key: 'API Key（新版）',
-  token: 'Token（旧版）',
+  account: '账号密码登录',
+  token: '手动 Token',
   custom: '自定义请求',
 }

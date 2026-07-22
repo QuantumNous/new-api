@@ -1311,6 +1311,52 @@ func TestSaveChannelMonitorSub2APIConfigPersistsToken(t *testing.T) {
 	assert.NotContains(t, recorder.Body.String(), "jwt-token")
 }
 
+func TestSaveChannelMonitorSub2APIConfigPersistsAccountPassword(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	baseURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      15,
+		Name:    "account upstream",
+		Key:     "secret",
+		Group:   "vip",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	request := map[string]any{
+		"type":      service.Sub2APIUpstreamType,
+		"base_url":  baseURL,
+		"group":     "vip",
+		"auth_type": service.Sub2APIAuthAccount,
+		"account":   "monitor@example.com",
+		"password":  "secret-password",
+	}
+	ctx, recorder := newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/15/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "15"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	monitor, err := model.GetChannelRatioMonitor(15)
+	require.NoError(t, err)
+	assert.Equal(t, service.Sub2APIAuthAccount, monitor.UpstreamAuthType)
+	assert.Equal(t, "monitor@example.com", monitor.UpstreamAccount)
+	assert.Equal(t, "secret-password", monitor.UpstreamPassword)
+	assert.Empty(t, monitor.UpstreamAccessToken)
+	assert.Contains(t, recorder.Body.String(), `"account":"monitor@example.com"`)
+	assert.Contains(t, recorder.Body.String(), `"has_password":true`)
+	assert.NotContains(t, recorder.Body.String(), "secret-password")
+
+	request["password"] = ""
+	request["group"] = "standard"
+	ctx, recorder = newChannelMonitorControllerContext(t, http.MethodPut, "/api/channel_monitor/channel/15/upstream", request)
+	ctx.Params = gin.Params{{Key: "id", Value: "15"}}
+	SaveChannelMonitorUpstreamConfig(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	monitor, err = model.GetChannelRatioMonitor(15)
+	require.NoError(t, err)
+	assert.Equal(t, "secret-password", monitor.UpstreamPassword)
+}
+
 func TestSaveChannelMonitorSub2APIConfigAllowsChannelKeyOnly(t *testing.T) {
 	db := setupChannelMonitorControllerTestDB(t)
 	baseURL := "https://upstream.example"
@@ -2209,6 +2255,58 @@ func TestRunChannelRatioMonitorTaskDoesNotRetrySub2APIAuthenticationFailure(t *t
 	monitor, err := model.GetChannelRatioMonitor(1)
 	require.NoError(t, err)
 	assert.Equal(t, 1, monitor.ConsecutiveFailures)
+}
+
+func TestRunChannelRatioMonitorTaskUsesSub2APIAccountPassword(t *testing.T) {
+	db := setupChannelMonitorControllerTestDB(t)
+	disableChannelMonitorSSRFProtection(t)
+
+	var loginRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/auth/login":
+			loginRequests.Add(1)
+			var request struct {
+				Email    string `json:"email"`
+				Password string `json:"password"`
+			}
+			require.NoError(t, common.DecodeJson(r.Body, &request))
+			assert.Equal(t, "monitor@example.com", request.Email)
+			assert.Equal(t, "secret-password", request.Password)
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"auto-jwt","expires_in":3600}}`))
+		case "/api/v1/groups/available":
+			assert.Equal(t, "Bearer auto-jwt", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":7,"name":"vip","rate_multiplier":1.25}]}`))
+		case "/api/v1/groups/rates":
+			assert.Equal(t, "Bearer auto-jwt", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"7":1.5}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 1, Name: "account upstream", Key: "test-key", Group: "vip", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.ChannelRatioMonitor{
+		ChannelId: 1, UpstreamType: service.Sub2APIUpstreamType, UpstreamBaseURL: server.URL,
+		UpstreamGroup: "vip", UpstreamAuthType: service.Sub2APIAuthAccount,
+		UpstreamAccount: "monitor@example.com", UpstreamPassword: "secret-password",
+		UpstreamBalanceSyncDisabled: true,
+	}).Error)
+
+	summary, err := runChannelRatioMonitorTaskOnce(context.Background(), nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.Updated)
+	assert.Zero(t, summary.Failed)
+	assert.EqualValues(t, 1, loginRequests.Load())
+
+	monitor, err := model.GetChannelRatioMonitor(1)
+	require.NoError(t, err)
+	assert.InDelta(t, 1.5, monitor.Ratio, 1e-9)
+	assert.Equal(t, model.ChannelRatioFetchStatusSucceeded, monitor.LastFetchStatus)
 }
 
 func TestRunChannelRatioMonitorTaskRecoversAfterRetry(t *testing.T) {

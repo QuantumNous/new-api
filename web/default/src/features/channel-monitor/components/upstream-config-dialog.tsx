@@ -130,6 +130,8 @@ function createUpstreamRequest(
     values.upstreamType === 'new_api' && values.authType === 'user'
   const sub2APITokenAuthentication =
     values.upstreamType === 'sub2api' && values.authType === 'token'
+  const sub2APIAccountAuthentication =
+    values.upstreamType === 'sub2api' && values.authType === 'account'
   let costConversion: ChannelMonitorCostConversion = { mode: 'none' }
   if (values.costConversionMode === 'recharge') {
     costConversion = {
@@ -155,6 +157,8 @@ function createUpstreamRequest(
       userAuthentication || sub2APITokenAuthentication
         ? values.accessToken.trim()
         : '',
+    account: sub2APIAccountAuthentication ? values.account.trim() : '',
+    password: sub2APIAccountAuthentication ? values.password : '',
     single_channel_action: values.singleChannelAction,
     multiple_channels_action: values.multipleChannelsAction,
     balance_warning_threshold: values.balanceWarningThreshold,
@@ -192,8 +196,11 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
     savedUpstream
       ? {
           type: savedUpstream.type,
+          baseUrl: savedUpstream.base_url,
           authType: savedUpstream.auth_type,
           hasAccessToken: savedUpstream.has_access_token,
+          account: savedUpstream.account || '',
+          hasPassword: savedUpstream.has_password,
         }
       : null
   const schema = createUpstreamConfigSchema(savedCredential)
@@ -206,6 +213,8 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
       authType: props.channel.upstream?.auth_type || 'public',
       userId: props.channel.upstream?.user_id || 0,
       accessToken: '',
+      account: savedUpstream?.account || '',
+      password: '',
       singleChannelAction: savedUpstream?.single_channel_action || 'none',
       multipleChannelsAction: savedUpstream?.multiple_channels_action || 'none',
       ratioSyncEnabled: savedUpstream?.ratio_sync_enabled ?? true,
@@ -243,6 +252,8 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   const baseUrl = useWatch({ control: form.control, name: 'baseUrl' })
   const authType = useWatch({ control: form.control, name: 'authType' })
   const accessToken = useWatch({ control: form.control, name: 'accessToken' })
+  const account = useWatch({ control: form.control, name: 'account' })
+  const password = useWatch({ control: form.control, name: 'password' })
   const ratioSyncEnabled = useWatch({
     control: form.control,
     name: 'ratioSyncEnabled',
@@ -256,43 +267,77 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
   const isSub2API = upstreamType === 'sub2api'
   const isCustom = upstreamType === 'custom'
   const needsSub2APIToken = isSub2API && authType === 'token'
+  const needsSub2APIAccount = isSub2API && authType === 'account'
   const hasMatchingSavedAccessToken =
     savedCredential?.hasAccessToken === true &&
     savedCredential.type === upstreamType &&
     savedCredential.authType === authType
   const hasSub2APIToken =
     hasMatchingSavedAccessToken || accessToken.trim().length > 0
+  const hasMatchingSavedPassword =
+    savedCredential?.hasPassword === true &&
+    savedCredential.type === upstreamType &&
+    savedCredential.baseUrl === baseUrl &&
+    savedCredential.authType === authType &&
+    savedCredential.account === account.trim()
+  const hasSub2APIAccountCredential =
+    account.trim().length > 0 &&
+    (hasMatchingSavedPassword || password.length > 0)
   const canApplyGroup =
     !isCustom &&
-    (needsUserAuthentication || (needsSub2APIToken && hasSub2APIToken))
+    (needsUserAuthentication ||
+      (needsSub2APIToken && hasSub2APIToken) ||
+      (needsSub2APIAccount && hasSub2APIAccountCredential))
   const canLoadGroups =
-    !isCustom && (!isSub2API || (needsSub2APIToken && hasSub2APIToken))
+    !isCustom &&
+    (!isSub2API ||
+      (needsSub2APIToken && hasSub2APIToken) ||
+      (needsSub2APIAccount && hasSub2APIAccountCredential))
   const authDescription =
     authType === 'public'
       ? '无需账号，读取公开分组倍率'
       : '读取指定用户的实际分组倍率'
+  let sub2APIAuthDescription = '使用当前渠道配置的 API Key 读取新版倍率和余额'
+  if (authType === 'account') {
+    sub2APIAuthDescription = '使用登录邮箱和密码自动获取并缓存访问 Token'
+  } else if (authType === 'token') {
+    sub2APIAuthDescription = '使用手动获取的旧版 Token 读取倍率、余额和分组'
+  }
   let applyGroupDescription =
     '应用分组会保存配置，并将当前渠道的全部上游令牌切换到该分组'
   if (!canApplyGroup) {
-    applyGroupDescription = isSub2API
-      ? '应用分组需要先填写旧版 Token'
-      : '应用分组需要先选择用户认证'
+    if (needsSub2APIAccount) {
+      applyGroupDescription = '应用分组需要先填写登录邮箱和密码'
+    } else if (isSub2API) {
+      applyGroupDescription = '应用分组需要先填写手动 Token'
+    } else {
+      applyGroupDescription = '应用分组需要先选择用户认证'
+    }
   }
   let upstreamTypeDescription = '读取 New API 分组倍率'
   if (isSub2API) {
-    upstreamTypeDescription =
-      authType === 'api_key'
-        ? '使用当前渠道 API Key 读取新版倍率和余额'
-        : '使用旧版 Token 读取倍率、余额和分组'
+    if (authType === 'api_key') {
+      upstreamTypeDescription = '使用当前渠道 API Key 读取新版倍率和余额'
+    } else if (authType === 'account') {
+      upstreamTypeDescription = '自动登录 Sub2API 后读取倍率、余额和分组'
+    } else {
+      upstreamTypeDescription = '使用手动 Token 读取倍率、余额和分组'
+    }
   } else if (isCustom) {
     upstreamTypeDescription = '通过固定值或自定义接口读取倍率和余额'
   }
   let groupSourceDescription = '从 New API 获取可用分组，也可直接填写名称'
   if (isSub2API) {
-    groupSourceDescription =
-      authType === 'api_key'
-        ? 'API Key 认证不提供分组列表，请直接填写分组名称或数字 ID'
-        : '旧版 Token 可获取可用分组，也可直接填写分组名称或数字 ID'
+    if (authType === 'api_key') {
+      groupSourceDescription =
+        'API Key 认证不提供分组列表，请直接填写分组名称或数字 ID'
+    } else if (authType === 'account') {
+      groupSourceDescription =
+        '账号密码会自动换取 Token，可获取可用分组，也可直接填写分组名称或数字 ID'
+    } else {
+      groupSourceDescription =
+        '手动 Token 可获取可用分组，也可直接填写分组名称或数字 ID'
+    }
   } else if (isCustom) {
     groupSourceDescription = '自定义上游分组为可选项，仅用于展示和记录'
   }
@@ -530,6 +575,8 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                             shouldValidate: true,
                           })
                           form.setValue('accessToken', '')
+                          form.setValue('account', '')
+                          form.setValue('password', '')
                           setUpstreamGroups([])
                           setTestResult(null)
                           setUpstreamVersion(null)
@@ -963,32 +1010,35 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                             )
                             if (
                               nextValue !== 'api_key' &&
+                              nextValue !== 'account' &&
                               nextValue !== 'token'
                             ) {
                               return
                             }
                             field.onChange(nextValue)
                             form.setValue('accessToken', '')
+                            form.setValue('password', '')
                             setUpstreamGroups([])
                             setTestResult(null)
                             setUpstreamVersion(null)
                           }}
                           variant='outline'
                           spacing={2}
-                          className='grid w-full grid-cols-2'
+                          className='grid w-full grid-cols-3'
                         >
                           <ToggleGroupItem value='api_key' className='w-full'>
                             API Key（新版）
                           </ToggleGroupItem>
+                          <ToggleGroupItem value='account' className='w-full'>
+                            账号密码
+                          </ToggleGroupItem>
                           <ToggleGroupItem value='token' className='w-full'>
-                            Token（旧版）
+                            手动 Token
                           </ToggleGroupItem>
                         </ToggleGroup>
                       </FormControl>
                       <FormDescription>
-                        {authType === 'api_key'
-                          ? '使用当前渠道配置的 API Key 读取新版倍率和余额'
-                          : '使用旧版 Token 读取倍率、余额和分组'}
+                        {sub2APIAuthDescription}
                       </FormDescription>
                       <div className='flex flex-wrap items-center gap-2'>
                         <Button
@@ -1106,13 +1156,64 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                 </div>
               ) : null}
 
+              {needsSub2APIAccount ? (
+                <div className='grid min-w-0 gap-4 sm:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='account'
+                    render={({ field }) => (
+                      <FormItem className='min-w-0'>
+                        <FormLabel>Sub2API 登录邮箱</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='email'
+                            autoComplete='username'
+                            placeholder='name@example.com'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='password'
+                    render={({ field }) => (
+                      <FormItem className='min-w-0'>
+                        <FormLabel>Sub2API 登录密码</FormLabel>
+                        <FormControl>
+                          <PasswordInput
+                            className='w-full min-w-0'
+                            placeholder={
+                              hasMatchingSavedPassword
+                                ? '留空保留原登录密码'
+                                : '输入 Sub2API 登录密码'
+                            }
+                            autoComplete='new-password'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Token
+                          缺失或过期时会自动登录；密码作为敏感配置保存在服务端，接口不会回传明文。上游开启
+                          Turnstile、Cloudflare 人机验证或 TOTP
+                          时无法无人值守登录，请改用手动 Token
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              ) : null}
+
               {needsSub2APIToken ? (
                 <FormField
                   control={form.control}
                   name='accessToken'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Sub2API Token（旧版）</FormLabel>
+                      <FormLabel>Sub2API 手动 Token</FormLabel>
                       <div className='flex min-w-0 gap-2'>
                         <FormControl>
                           <PasswordInput
@@ -1120,7 +1221,7 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                             placeholder={
                               hasMatchingSavedAccessToken
                                 ? '留空保留原 Token'
-                                : '输入旧版登录后的 JWT Token'
+                                : '输入登录后的 JWT Token'
                             }
                             autoComplete='new-password'
                             {...field}
@@ -1141,8 +1242,8 @@ export function UpstreamConfigDialog(props: UpstreamConfigDialogProps) {
                         </Button>
                       </div>
                       <FormDescription>
-                        登录后执行已复制的控制台命令，再点击“粘贴”；该 JWT
-                        用于读取倍率、余额和分组
+                        适用于上游开启 Turnstile、Cloudflare 人机验证或 TOTP
+                        的情况；登录后执行已复制的控制台命令，再点击“粘贴”
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

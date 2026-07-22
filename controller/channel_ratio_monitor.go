@@ -52,6 +52,8 @@ type channelMonitorUpstreamRequest struct {
 	AuthType                    string                                      `json:"auth_type"`
 	UserId                      int                                         `json:"user_id"`
 	AccessToken                 string                                      `json:"access_token"`
+	Account                     string                                      `json:"account"`
+	Password                    string                                      `json:"password"`
 	SingleChannelAction         string                                      `json:"single_channel_action"`
 	MultipleChannelsAction      string                                      `json:"multiple_channels_action"`
 	BalanceWarningThreshold     json.RawMessage                             `json:"balance_warning_threshold"`
@@ -69,6 +71,8 @@ type channelMonitorUpstreamConfig struct {
 	AuthType                    string                                      `json:"auth_type"`
 	UserId                      int                                         `json:"user_id"`
 	HasAccessToken              bool                                        `json:"has_access_token"`
+	Account                     string                                      `json:"account"`
+	HasPassword                 bool                                        `json:"has_password"`
 	SingleChannelAction         string                                      `json:"single_channel_action"`
 	MultipleChannelsAction      string                                      `json:"multiple_channels_action"`
 	BalanceWarningThreshold     *float64                                    `json:"balance_warning_threshold"`
@@ -144,6 +148,8 @@ func channelMonitorUpstreamFromModel(monitor model.ChannelRatioMonitor) *channel
 		AuthType:                    monitor.UpstreamAuthType,
 		UserId:                      monitor.UpstreamUserId,
 		HasAccessToken:              monitor.UpstreamAccessToken != "",
+		Account:                     monitor.UpstreamAccount,
+		HasPassword:                 monitor.UpstreamPassword != "",
 		SingleChannelAction:         normalizeChannelMonitorPolicyAction(monitor.SingleChannelAction),
 		MultipleChannelsAction:      normalizeChannelMonitorPolicyAction(monitor.MultipleChannelsAction),
 		BalanceWarningThreshold:     monitor.BalanceWarningThreshold,
@@ -290,6 +296,36 @@ func resolveChannelMonitorUpstreamRequest(channel *model.Channel, request channe
 				return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API API Key 认证需要先在渠道中配置上游 API Key")
 			}
 			config.ChannelKeys = channel.GetKeys()
+			return config, nil
+		}
+		if request.AuthType == service.Sub2APIAuthAccount {
+			config.Account = strings.TrimSpace(request.Account)
+			if config.Account == "" {
+				return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API 登录邮箱不能为空")
+			}
+			if utf8.RuneCountInString(config.Account) > 320 {
+				return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API 登录邮箱过长")
+			}
+			config.Password = request.Password
+			if utf8.RuneCountInString(config.Password) > 4096 {
+				return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API 登录密码过长")
+			}
+			if config.Password == "" {
+				monitor, findErr := model.GetChannelRatioMonitor(channel.Id)
+				if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+					return service.ChannelMonitorUpstreamConfig{}, findErr
+				}
+				if findErr == nil &&
+					monitor.UpstreamType == config.Type &&
+					monitor.UpstreamBaseURL == config.BaseURL &&
+					monitor.UpstreamAuthType == config.AuthType &&
+					monitor.UpstreamAccount == config.Account {
+					config.Password = monitor.UpstreamPassword
+				}
+			}
+			if config.Password == "" {
+				return service.ChannelMonitorUpstreamConfig{}, errors.New("Sub2API 登录密码不能为空")
+			}
 			return config, nil
 		}
 		if request.AuthType != service.Sub2APIAuthToken {
@@ -806,6 +842,8 @@ func SaveChannelMonitorUpstreamConfig(c *gin.Context) {
 			BalanceSyncEnabled:          balanceSyncEnabled,
 			CostConversion:              costConversion,
 			CustomUpstreamConfig:        customConfig,
+			UpstreamAccount:             config.Account,
+			UpstreamPassword:            config.Password,
 		},
 	)
 	if err != nil {
@@ -890,10 +928,10 @@ func ListChannelMonitorUpstreamGroups(c *gin.Context) {
 		return
 	}
 	if config.Type == service.Sub2APIUpstreamType {
-		if config.AuthType != service.Sub2APIAuthToken {
+		if config.AuthType != service.Sub2APIAuthToken && config.AuthType != service.Sub2APIAuthAccount {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
-				"message": "Sub2API API Key 认证不支持获取或应用分组，请手动填写分组或切换为 Token 认证",
+				"message": "Sub2API API Key 认证不支持获取或应用分组，请手动填写分组或切换为账号密码或 Token 认证",
 			})
 			return
 		}
@@ -985,6 +1023,10 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 			if monitor.UpstreamAccessToken == "" {
 				return outcome, errors.New("请重新保存 Sub2API Token 配置")
 			}
+		case service.Sub2APIAuthAccount:
+			if monitor.UpstreamAccount == "" || monitor.UpstreamPassword == "" {
+				return outcome, errors.New("请重新保存 Sub2API 账号密码配置")
+			}
 		default:
 			return outcome, errors.New("Sub2API 认证方式无效")
 		}
@@ -1008,6 +1050,8 @@ func fetchAndRecordChannelMonitorUpstreamRatio(ctx context.Context, monitor mode
 		AuthType:       monitor.UpstreamAuthType,
 		UserID:         monitor.UpstreamUserId,
 		AccessToken:    monitor.UpstreamAccessToken,
+		Account:        monitor.UpstreamAccount,
+		Password:       monitor.UpstreamPassword,
 		ChannelKeys:    channelKeys,
 		Proxy:          proxyURL,
 		SkipBalance:    monitor.UpstreamBalanceSyncDisabled,
@@ -1073,6 +1117,8 @@ func fetchAndRecordChannelMonitorUpstreamBalance(ctx context.Context, monitor mo
 			AuthType:     monitor.UpstreamAuthType,
 			UserID:       monitor.UpstreamUserId,
 			AccessToken:  monitor.UpstreamAccessToken,
+			Account:      monitor.UpstreamAccount,
+			Password:     monitor.UpstreamPassword,
 			ChannelKeys:  channelKeys,
 			Proxy:        proxyURL,
 			CustomConfig: customConfig,
@@ -1261,6 +1307,8 @@ func ApplyChannelMonitorUpstreamGroup(c *gin.Context) {
 			AuthType:       monitor.UpstreamAuthType,
 			UserID:         monitor.UpstreamUserId,
 			AccessToken:    monitor.UpstreamAccessToken,
+			Account:        monitor.UpstreamAccount,
+			Password:       monitor.UpstreamPassword,
 			Proxy:          channel.GetSetting().Proxy,
 			CostConversion: costConversion,
 		},

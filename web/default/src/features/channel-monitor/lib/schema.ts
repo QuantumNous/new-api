@@ -184,8 +184,11 @@ export function createGroupRatioSyncSchema(highestCostRatio: number | null) {
 
 type SavedUpstreamCredential = {
   type: ChannelMonitorUpstreamType
+  baseUrl: string
   authType: ChannelMonitorUpstreamAuthType
   hasAccessToken: boolean
+  account: string
+  hasPassword: boolean
 } | null
 
 const customKeyValueSchema = z.object({
@@ -414,9 +417,23 @@ export function createUpstreamConfigSchema(
         .max(2048, '上游地址过长')
         .url({ error: '请输入有效的上游地址' }),
       group: z.string().trim().max(64, '上游分组不能超过 64 个字符'),
-      authType: z.enum(['public', 'user', 'api_key', 'token', 'custom']),
+      authType: z.enum([
+        'public',
+        'user',
+        'api_key',
+        'account',
+        'token',
+        'custom',
+      ]),
       userId: z.coerce.number().int().min(0, '上游用户 ID 必须大于 0'),
       accessToken: z.string().trim().max(4096, '访问令牌过长'),
+      account: z
+        .string()
+        .trim()
+        .max(320, 'Sub2API 登录邮箱过长')
+        .email('请输入有效的 Sub2API 登录邮箱')
+        .or(z.literal('')),
+      password: z.string().max(4096, 'Sub2API 登录密码过长'),
       singleChannelAction: z.enum(channelMonitorPolicyActions),
       multipleChannelsAction: z.enum(channelMonitorPolicyActions),
       ratioSyncEnabled: z.boolean(),
@@ -573,6 +590,28 @@ export function createUpstreamConfigSchema(
       }
 
       if (values.authType === 'api_key') return
+      if (values.authType === 'account') {
+        if (!values.account) {
+          context.addIssue({
+            code: 'custom',
+            path: ['account'],
+            message: '请输入 Sub2API 登录邮箱',
+          })
+        }
+        const hasSavedPassword =
+          hasSavedCredential &&
+          savedCredential?.hasPassword === true &&
+          savedCredential.baseUrl === values.baseUrl &&
+          savedCredential.account === values.account
+        if (!values.password && !hasSavedPassword) {
+          context.addIssue({
+            code: 'custom',
+            path: ['password'],
+            message: '请输入 Sub2API 登录密码',
+          })
+        }
+        return
+      }
       if (values.authType !== 'token') {
         context.addIssue({
           code: 'custom',

@@ -60,6 +60,7 @@ export type ChannelMonitorUpstreamAuthType =
   | 'public'
   | 'user'
   | 'api_key'
+  | 'account'
   | 'token'
   | 'custom'
 
@@ -127,6 +128,8 @@ export type ChannelMonitorUpstreamConfig = {
   auth_type: ChannelMonitorUpstreamAuthType
   user_id: number
   has_access_token: boolean
+  account: string
+  has_password: boolean
   single_channel_action: ChannelMonitorPolicyAction
   multiple_channels_action: ChannelMonitorPolicyAction
   balance_warning_threshold: number | null
@@ -144,6 +147,8 @@ export type ChannelMonitorUpstreamRequest = {
   auth_type: ChannelMonitorUpstreamAuthType
   user_id: number
   access_token: string
+  account: string
+  password: string
   single_channel_action: ChannelMonitorPolicyAction
   multiple_channels_action: ChannelMonitorPolicyAction
   balance_warning_threshold: number | null
