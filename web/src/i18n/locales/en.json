@@ -5214,6 +5214,8 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Recover invalid reasoning signatures": "Recover invalid reasoning signatures",
+    "Remove reasoning encrypted_content and retry once when the upstream returns thinking_signature_invalid": "Remove reasoning encrypted_content and retry once when the upstream returns thinking_signature_invalid"
   }
 }
