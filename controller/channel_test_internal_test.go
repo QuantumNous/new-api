@@ -211,6 +211,30 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 	require.Equal(t, 2, userID)
 }
 
+func TestNormalizeChannelTestEndpointDetectsGPTImageGeneration(t *testing.T) {
+	endpointType := normalizeChannelTestEndpoint(
+		&model.Channel{Type: constant.ChannelTypeOpenAI},
+		"gpt-image-2",
+		"",
+	)
+
+	assert.Equal(t, string(constant.EndpointTypeImageGeneration), endpointType)
+	request := buildTestRequest("gpt-image-2", endpointType, nil, false)
+	imageRequest, ok := request.(*dto.ImageRequest)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-image-2", imageRequest.Model)
+}
+
+func TestNormalizeChannelTestEndpointPreservesExplicitEndpoint(t *testing.T) {
+	endpointType := normalizeChannelTestEndpoint(
+		&model.Channel{Type: constant.ChannelTypeOpenAI},
+		"gpt-image-2",
+		string(constant.EndpointTypeOpenAI),
+	)
+
+	assert.Equal(t, string(constant.EndpointTypeOpenAI), endpointType)
+}
+
 func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {
 	channels := []*model.Channel{
 		{Id: 1, Status: common.ChannelStatusEnabled},
