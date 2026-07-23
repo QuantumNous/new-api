@@ -116,27 +116,36 @@ func ParseRetryAfterSeconds(header http.Header) int {
 		if v == "" {
 			continue
 		}
-		f, err := strconv.ParseFloat(v, 64)
-		if err != nil {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			now := time.Now().Unix()
+			switch {
+			case f > 1e12:
+				// Unix time in milliseconds.
+				if d := int(int64(f/1000) - now); d > 0 {
+					return d
+				}
+			case f > 1e9:
+				// Unix time in seconds.
+				if d := int(int64(f) - now); d > 0 {
+					return d
+				}
+			default:
+				// Delta seconds.
+				if f > 0 {
+					return int(f)
+				}
+			}
 			continue
 		}
-		now := time.Now().Unix()
-		switch {
-		case f > 1e12:
-			// Unix time in milliseconds.
-			if d := int(int64(f/1000) - now); d > 0 {
-				return d
+		// Go-duration form, e.g. OpenAI's "6m0s", "1s", "88ms". Round a
+		// positive sub-second reset up to 1s so a real hint is honoured
+		// instead of falling through to the default cooldown.
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			secs := int(d.Seconds())
+			if secs < 1 {
+				secs = 1
 			}
-		case f > 1e9:
-			// Unix time in seconds.
-			if d := int(int64(f) - now); d > 0 {
-				return d
-			}
-		default:
-			// Delta seconds.
-			if f > 0 {
-				return int(f)
-			}
+			return secs
 		}
 	}
 	return 0

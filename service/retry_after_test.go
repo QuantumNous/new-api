@@ -86,6 +86,29 @@ func TestParseRetryAfterSeconds(t *testing.T) {
 			t.Fatalf("expected Retry-After (7) to win, got %d", n)
 		}
 	})
+
+	// OpenAI emits reset headers as Go-duration strings, e.g. "6m0s", "1s",
+	// "88ms". These must be honoured rather than falling through to 0.
+	t.Run("reset go-duration minutes", func(t *testing.T) {
+		h := http.Header{"X-Ratelimit-Reset-Requests": {"6m0s"}}
+		if n := ParseRetryAfterSeconds(h); n != 360 {
+			t.Fatalf("expected 360 from 6m0s, got %d", n)
+		}
+	})
+
+	t.Run("reset go-duration seconds", func(t *testing.T) {
+		h := http.Header{"X-Ratelimit-Reset-Tokens": {"1s"}}
+		if n := ParseRetryAfterSeconds(h); n != 1 {
+			t.Fatalf("expected 1 from 1s, got %d", n)
+		}
+	})
+
+	t.Run("reset go-duration sub-second rounds up to 1", func(t *testing.T) {
+		h := http.Header{"X-Ratelimit-Reset-Requests": {"88ms"}}
+		if n := ParseRetryAfterSeconds(h); n != 1 {
+			t.Fatalf("expected sub-second to round up to 1, got %d", n)
+		}
+	})
 }
 
 func formatInt(v int64) string {
