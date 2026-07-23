@@ -139,6 +139,10 @@ func UpdateRegistrationCode(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if utf8.RuneCountInString(code.Name) == 0 || utf8.RuneCountInString(code.Name) > 20 {
+		common.ApiErrorI18n(c, i18n.MsgRegistrationCodeNameLength)
+		return
+	}
 	if code.ExpiredTime != 0 && code.ExpiredTime < common.GetTimestamp() {
 		common.ApiErrorI18n(c, i18n.MsgRegistrationCodeExpireTimeInvalid)
 		return

@@ -157,3 +157,36 @@ func TestRegisterWithSwitchOffIgnoresRegistrationCode(t *testing.T) {
 	require.NoError(t, db.First(&code, "name = ?", "test-code").Error)
 	assert.Equal(t, common.RegistrationCodeStatusUnused, code.Status)
 }
+
+func TestUpdateRegistrationCodeValidatesName(t *testing.T) {
+	db := setupRegisterTestDB(t)
+	createTestRegistrationCode(t, db, testRegistrationCodeKey)
+	var created model.RegistrationCode
+	require.NoError(t, db.First(&created, "name = ?", "test-code").Error)
+
+	performUpdate := func(body string) *httptest.ResponseRecorder {
+		gin.SetMode(gin.TestMode)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/registration_code/", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		UpdateRegistrationCode(c)
+		return recorder
+	}
+
+	// Empty and oversized names are rejected, mirroring create-time validation.
+	recorder := performUpdate(fmt.Sprintf(`{"id":%d,"name":""}`, created.Id))
+	assert.Contains(t, recorder.Body.String(), `"success":false`)
+	recorder = performUpdate(fmt.Sprintf(`{"id":%d,"name":"%s"}`, created.Id, strings.Repeat("x", 21)))
+	assert.Contains(t, recorder.Body.String(), `"success":false`)
+
+	var unchanged model.RegistrationCode
+	require.NoError(t, db.First(&unchanged, "id = ?", created.Id).Error)
+	assert.Equal(t, "test-code", unchanged.Name)
+
+	// A valid name still updates.
+	recorder = performUpdate(fmt.Sprintf(`{"id":%d,"name":"renamed"}`, created.Id))
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	require.NoError(t, db.First(&unchanged, "id = ?", created.Id).Error)
+	assert.Equal(t, "renamed", unchanged.Name)
+}
