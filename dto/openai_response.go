@@ -294,6 +294,7 @@ type OpenAIResponsesResponse struct {
 	ID                 string             `json:"id"`
 	Object             string             `json:"object"`
 	CreatedAt          int                `json:"created_at"`
+	ExpiresAt          int                `json:"expires_at,omitempty"`
 	Status             json.RawMessage    `json:"status"`
 	Error              any                `json:"error,omitempty"`
 	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`
