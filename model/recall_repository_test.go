@@ -809,6 +809,52 @@ func TestListRecallCampaignRecipientKeysWithContextReturnsNonNilEmptyMaps(t *tes
 	require.Empty(t, keys.Emails)
 }
 
+func TestRecallRecipientMigrationRequiresDisabledCampaignsBeforeSchemaSwap(t *testing.T) {
+	originalDB := DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	DB = db
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		DB = originalDB
+	})
+
+	require.NoError(t, DB.Exec(`CREATE TABLE recall_recipients (
+		id integer PRIMARY KEY AUTOINCREMENT,
+		campaign_id bigint NOT NULL,
+		user_id integer NOT NULL,
+		eligibility_snapshot text NOT NULL,
+		email_snapshot varchar(254) NOT NULL,
+		language_snapshot varchar(16) NOT NULL,
+		state varchar(24) NOT NULL
+	)`).Error)
+	require.NoError(t, DB.Exec(`CREATE UNIQUE INDEX idx_recall_campaign_user ON recall_recipients (campaign_id, user_id)`).Error)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	require.NoError(t, DB.Create(&Option{Key: "recall_campaign_setting.enabled", Value: "true"}).Error)
+
+	err = migrateRecallRecipientIdentity()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "recall_campaign_setting.enabled=false")
+	require.Contains(t, err.Error(), "drain")
+	require.False(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user"))
+
+	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "recall_campaign_setting.enabled").Update("value", "not-a-bool").Error)
+	err = migrateRecallRecipientIdentity()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid stored value")
+	require.False(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user"))
+
+	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "recall_campaign_setting.enabled").Update("value", "false").Error)
+	require.NoError(t, migrateRecallRecipientIdentity())
+	require.True(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_identity"))
+	require.False(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user"))
+}
+
 func TestRecallRecipientMigrationBackfillsIdentityAndReplacesLegacyIndex(t *testing.T) {
 	originalDB := DB
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

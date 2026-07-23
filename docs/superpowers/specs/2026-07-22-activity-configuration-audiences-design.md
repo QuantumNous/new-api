@@ -84,6 +84,19 @@ Add `recipient_identity` to `recall_recipients` and make it the stable per-campa
 
 The migration must be idempotent and compatible with SQLite, MySQL, and PostgreSQL. No synthetic `users` rows are created.
 
+This release uses a blocking Recall maintenance window for the identity schema swap. It is not safe for mixed-version Recall writers: old binaries do not write `recipient_identity`, so ordinary rolling deployment can collide on the new `(campaign_id, recipient_identity)` unique index. Startup migration must refuse to mutate this schema while the persisted `recall_campaign_setting.enabled` option is `true`. Missing option rows are treated as disabled; malformed values fail closed.
+
+Release sequence for this one-release swap:
+
+1. Set `recall_campaign_setting.enabled=false` before deploying the new image.
+2. Stop new Recall writes, wait at least 60 seconds for leases to expire, and confirm there are no active recipient or message leases.
+3. Start the master `newapi-console` revision first and let startup migration complete the backfill and index swap.
+4. Verify `recall_recipients.recipient_identity` has no empty values, `idx_recall_campaign_identity` exists, and the legacy `idx_recall_campaign_user` index has been removed.
+5. Deploy the same image to `newapi-router`.
+6. Confirm no old revision is still serving Recall traffic, then re-enable Recall.
+
+True rolling compatibility requires a two-release expand/contract plan: expand with the new nullable column plus dual writes, backfill under mixed versions, then contract by adding the new unique index and removing the old one after every writer is upgraded.
+
 Eligibility snapshots continue to store the selected template and non-sensitive eligibility facts. `email_snapshot` stores the delivery address, while `eligibility_snapshot` and events must not store the full email or the operator's complete identifier input.
 
 ## Backend flow
