@@ -57,7 +57,7 @@ func TestGetRandomSatisfiedChannel_ExcludesFailedChannels(t *testing.T) {
 
 	// exclude ch1 -> must return ch2 or ch3, never ch1
 	for i := 0; i < 20; i++ {
-		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", 0, "", map[int]bool{1: true})
+		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -70,7 +70,7 @@ func TestGetRandomSatisfiedChannel_ExcludesFailedChannels(t *testing.T) {
 	}
 
 	// exclude ch1+ch2 -> must return ch3
-	ch, err := GetRandomSatisfiedChannel("default", "gpt-x", 0, "", map[int]bool{1: true, 2: true})
+	ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true, 2: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestGetRandomSatisfiedChannel_ExcludesFailedChannels(t *testing.T) {
 	}
 
 	// exclude all -> no more channels to try
-	ch, err = GetRandomSatisfiedChannel("default", "gpt-x", 0, "", map[int]bool{1: true, 2: true, 3: true})
+	ch, err = GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true, 2: true, 3: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestGetRandomSatisfiedChannel_PriorityDescentAfterExhaustion(t *testing.T) 
 
 	// exclude ch1 -> must still return ch2 (same top priority), not descend to ch3
 	for i := 0; i < 20; i++ {
-		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", 0, "", map[int]bool{1: true})
+		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -111,7 +111,7 @@ func TestGetRandomSatisfiedChannel_PriorityDescentAfterExhaustion(t *testing.T) 
 	}
 
 	// exclude ch1+ch2 -> descend to ch3
-	ch, err := GetRandomSatisfiedChannel("default", "gpt-x", 0, "", map[int]bool{1: true, 2: true})
+	ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true, 2: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestGetRandomSatisfiedChannel_NilExcludeBackwardCompat(t *testing.T) {
 	defer cleanup()
 
 	for i := 0; i < 20; i++ {
-		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", 0, "", nil)
+		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -142,6 +142,7 @@ func TestGetRandomSatisfiedChannel_NilExcludeBackwardCompat(t *testing.T) {
 
 // TestCountAvailableChannels verifies the adaptive retry budget helper counts
 // every distinct channel that can serve the group/model, across priority tiers.
+// With single-key channels the count equals the number of channels.
 func TestCountAvailableChannels(t *testing.T) {
 	cleanup := setupChannelCache(t, "default", "gpt-x", [][3]int{
 		{1, 10, 0},
@@ -158,5 +159,52 @@ func TestCountAvailableChannels(t *testing.T) {
 	}
 	if n := CountAvailableChannels("nonexistent", "gpt-x", ""); n != 0 {
 		t.Fatalf("expected 0 for unknown group, got %d", n)
+	}
+}
+
+// TestCountEnabledKeys verifies the per-channel enabled-key count used to size
+// how many times a multi-key channel may be re-selected within one request.
+func TestCountEnabledKeys(t *testing.T) {
+	single := &Channel{Id: 1, Key: "k1"}
+	if n := single.CountEnabledKeys(); n != 1 {
+		t.Fatalf("single-key channel: expected 1, got %d", n)
+	}
+
+	multi := &Channel{Id: 2, Key: "k1\nk2\nk3"}
+	multi.ChannelInfo.IsMultiKey = true
+	if n := multi.CountEnabledKeys(); n != 3 {
+		t.Fatalf("multi-key all enabled: expected 3, got %d", n)
+	}
+
+	// Disable one key via status list -> count drops to 2.
+	multi.ChannelInfo.MultiKeyStatusList = map[int]int{1: common.ChannelStatusAutoDisabled}
+	if n := multi.CountEnabledKeys(); n != 2 {
+		t.Fatalf("multi-key one disabled: expected 2, got %d", n)
+	}
+
+	empty := &Channel{Id: 3}
+	empty.ChannelInfo.IsMultiKey = true
+	if n := empty.CountEnabledKeys(); n != 0 {
+		t.Fatalf("multi-key no keys: expected 0, got %d", n)
+	}
+}
+
+// TestCountAvailableChannels_MultiKeyWeighted verifies the retry budget counts a
+// multi-key channel once per enabled key, so every key can be tried before the
+// channel is excluded from retry.
+func TestCountAvailableChannels_MultiKeyWeighted(t *testing.T) {
+	cleanup := setupChannelCache(t, "default", "gpt-x", [][3]int{
+		{1, 10, 0},
+		{2, 10, 0},
+	})
+	defer cleanup()
+
+	// Make ch1 a 3-key channel; ch2 stays single-key. Expected budget: 3 + 1 = 4.
+	ch1 := channelsIDM[1]
+	ch1.Key = "k1\nk2\nk3"
+	ch1.ChannelInfo.IsMultiKey = true
+
+	if n := CountAvailableChannels("default", "gpt-x", ""); n != 4 {
+		t.Fatalf("expected budget 4 (3 keys + 1), got %d", n)
 	}
 }

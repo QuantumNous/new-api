@@ -181,10 +181,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
-	// excludeChannels tracks channel IDs already tried in this request so each
-	// retry moves to a fresh channel instead of possibly re-selecting a channel
-	// that just failed. Populated after every attempt below.
+	// excludeChannels tracks channel IDs fully exhausted in this request so each
+	// retry moves to a fresh channel instead of re-selecting a channel that has
+	// nothing left to try. A multi-key channel is only excluded once every one
+	// of its enabled keys has been attempted (tracked via channelTries), so the
+	// per-request key rotation that GetNextEnabledKey performs is preserved.
 	excludeChannels := make(map[int]bool)
+	// channelTries counts how many times each channel has been selected in this
+	// request; compared against the channel's enabled-key count to decide when
+	// to exclude it.
+	channelTries := make(map[int]int)
 	retryParam := &service.RetryParam{
 		Ctx:             c,
 		TokenGroup:      relayInfo.TokenGroup,
@@ -216,9 +222,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
-		// Mark this channel as tried so the next retry skips it and moves on to
-		// a different channel instead of possibly re-selecting the same one.
-		excludeChannels[channel.Id] = true
+		// Count this attempt and exclude the channel only when all of its enabled
+		// keys have been tried. For single-key channels this excludes immediately;
+		// for multi-key channels it lets subsequent retries rotate through the
+		// remaining keys (via GetNextEnabledKey) before moving to another channel.
+		channelTries[channel.Id]++
+		if channelTries[channel.Id] >= channel.CountEnabledKeys() {
+			excludeChannels[channel.Id] = true
+		}
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break
@@ -257,7 +268,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetry(c, newAPIError, retryCap-retryParam.GetRetry()) {
 			break
 		}
 	}
@@ -557,12 +568,19 @@ func RelayTask(c *gin.Context) {
 		}
 	}()
 
+	// excludeChannels / channelTries mirror the synchronous relay loop so task
+	// submission retries also move to a fresh channel (or the next key of a
+	// multi-key channel) instead of re-hitting one that just failed. The pinned
+	// LockedChannel branch is never excluded.
+	excludeChannels := make(map[int]bool)
+	channelTries := make(map[int]int)
 	retryParam := &service.RetryParam{
-		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
-		Retry:       common.GetPointer(0),
+		Ctx:             c,
+		TokenGroup:      relayInfo.TokenGroup,
+		ModelName:       relayInfo.OriginModelName,
+		RequestPath:     c.Request.URL.Path,
+		Retry:           common.GetPointer(0),
+		ExcludeChannels: excludeChannels,
 	}
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
@@ -583,6 +601,12 @@ func RelayTask(c *gin.Context) {
 				logger.LogError(c, channelErr.Error())
 				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
 				break
+			}
+			// Exclude the channel once all its enabled keys have been tried, so the
+			// next retry rotates keys first, then moves to a different channel.
+			channelTries[channel.Id]++
+			if channelTries[channel.Id] >= channel.CountEnabledKeys() {
+				excludeChannels[channel.Id] = true
 			}
 		}
 
