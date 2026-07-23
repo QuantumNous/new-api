@@ -53,6 +53,14 @@ jobs:
       - name: Generate checksums
         run: sha256sum new-api-* > checksums-linux.txt
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-binaries
+          path: |
+            new-api-*
+            checksums-linux.txt
+
       - name: Release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         if: startsWith(github.ref, 'refs/tags/')
@@ -97,6 +105,14 @@ jobs:
           go build -ldflags "-X 'new-api/common.Version=$VERSION'" -o new-api-macos-$VERSION
       - name: Generate checksums
         run: shasum -a 256 new-api-macos-* > checksums-macos.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-binaries
+          path: |
+            new-api-macos-*
+            checksums-macos.txt
 
       - name: Release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
@@ -144,6 +160,14 @@ jobs:
           go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o new-api-$VERSION.exe
       - name: Generate checksums
         run: sha256sum new-api-*.exe > checksums-windows.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-binaries
+          path: |
+            new-api-*.exe
+            checksums-windows.txt
 
       - name: Release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
